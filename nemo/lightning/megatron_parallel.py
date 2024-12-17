@@ -44,8 +44,8 @@ import torch
 import torch.distributed
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
-from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from pytorch_lightning.trainer.states import TrainerFn
@@ -572,6 +572,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return
 
         from megatron.core import parallel_state
+
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
             # Mcore DistributedDataParallel has to be called with grad. Normally this call is redundant, but for
@@ -605,7 +606,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         disable_bucketing=disable_bucketing,
                     )
             model_chunk.module = dist_module
-            model_chunk.buffers = dist_module.buffers  # We need to do this explicitly since this is a attr pytorch uses
+            model_chunk.buffers = (
+                dist_module.buffers
+            )  # We need to do this explicitly since this is a attr pytorch uses
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron

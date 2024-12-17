@@ -16,28 +16,28 @@ import argparse
 
 import torch
 import torch.nn as nn
+from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import WandbLogger
 from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
+from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
+from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig, MegatronFluxControlNetModel
+from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
+from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 from nemo.lightning.pytorch.optim import WarmupHoldPolicyScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-
-from nemo.collections.diffusion.models.flux_controlnet.model import MegatronFluxControlNetModel, FluxControlNetConfig
-from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
-from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
-from megatron.core.distributed import DistributedDataParallelConfig
-from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
-from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
 
 
 def main(args):
 
     if args.use_synthetic_data:
         from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
+
         data = MockDataModule(
             image_h=1024,
             image_w=1024,
@@ -47,7 +47,7 @@ def main(args):
             text_precached=args.text_precached,
         )
     else:
-        data= DiffusionDataModule(
+        data = DiffusionDataModule(
             args.dataset_dir,
             seq_length=4096,
             micro_batch_size=args.mbs,
@@ -77,7 +77,9 @@ def main(args):
         model_params.t5_params = None
         model_params.clip_params = None
 
-    flux_controlnet_config = FluxControlNetConfig(guidance_embed=True,num_joint_layers=args.num_joint_layers,num_single_layers=args.num_single_layers)
+    flux_controlnet_config = FluxControlNetConfig(
+        guidance_embed=True, num_joint_layers=args.num_joint_layers, num_single_layers=args.num_single_layers
+    )
 
     model = MegatronFluxControlNetModel(model_params, flux_controlnet_config)
 
@@ -89,12 +91,8 @@ def main(args):
     )
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=args.tp_size,
-        pipeline_model_parallel_size=1,
-        pipeline_dtype=torch.bfloat16,
-        ddp=ddp
+        tensor_model_parallel_size=args.tp_size, pipeline_model_parallel_size=1, pipeline_dtype=torch.bfloat16, ddp=ddp
     )
-
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
@@ -135,7 +133,6 @@ def main(args):
         restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
     )
 
-
     sched = WarmupHoldPolicyScheduler(
         max_steps=trainer.max_steps,
         warmup_steps=1000,
@@ -143,16 +140,7 @@ def main(args):
     )
     opt = MegatronOptimizerModule(opt_config, sched)
 
-
-
-    llm.train(
-        model=model,
-        data=data,
-        trainer=trainer,
-        log=nemo_logger,
-        resume=resume,
-        optim=opt
-    )
+    llm.train(model=model, data=data, trainer=trainer, log=nemo_logger, resume=resume, optim=opt)
 
 
 if __name__ == "__main__":

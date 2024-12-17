@@ -1,9 +1,13 @@
+from dataclasses import dataclass
+from typing import Callable, List
+
+import numpy as np
+import torch
+import torch.nn as nn
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.transformer.transformer_config import TransformerConfig
-from nemo.lightning import io
-from nemo.collections.diffusion.models.flux_controlnet.layers import ControlNetConditioningEmbedding
-from nemo.collections.diffusion.models.flux.model import MegatronFluxModel, FluxModelParams
-from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
+from torch.nn import functional as F
+
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     AdaLNContinuous,
     FluxSingleTransformerBlock,
@@ -11,13 +15,10 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     get_flux_double_transformer_engine_spec,
     get_flux_single_transformer_engine_spec,
 )
-
-import torch
-import torch.nn as nn
-import numpy as np
-from dataclasses import dataclass
-from typing import List, Callable
-from torch.nn import functional as F
+from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
+from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel
+from nemo.collections.diffusion.models.flux_controlnet.layers import ControlNetConditioningEmbedding
+from nemo.lightning import io
 
 
 def zero_module(module):
@@ -36,9 +37,10 @@ def flux_controlnet_data_step(dataloader_iter):
     _batch['loss_mask'] = torch.Tensor([1.0]).cuda(non_blocking=True)
     return _batch
 
+
 @dataclass
 class FluxControlNetConfig(TransformerConfig, io.IOMixin):
-    num_layers: int = 1 # dummy setting
+    num_layers: int = 1  # dummy setting
     patch_size: int = 1
     in_channels: int = 64
     num_joint_layers: int = 4
@@ -58,10 +60,8 @@ class FluxControlNetConfig(TransformerConfig, io.IOMixin):
     add_qkv_bias: bool = True
     use_cpu_initialization: bool = True
 
-
-    load_from_flux_transformer:bool = True
+    load_from_flux_transformer: bool = True
     guidance_scale: float = 3.5
-
 
     data_step_fn: Callable = flux_controlnet_data_step
 
@@ -189,7 +189,7 @@ class FluxControlNet(VisionModule):
                 rotary_pos_emb=rotary_pos_emb,
                 emb=vec_emb,
             )
-            single_block_samples = single_block_samples + (hidden_states[encoder_hidden_states.shape[0]:,...],)
+            single_block_samples = single_block_samples + (hidden_states[encoder_hidden_states.shape[0] :, ...],)
 
         controlnet_double_block_samples = ()
         for double_block_sample, control_block in zip(double_block_samples, self.controlnet_double_blocks):
@@ -204,8 +204,12 @@ class FluxControlNet(VisionModule):
         controlnet_double_block_samples = [sample * conditioning_scale for sample in controlnet_double_block_samples]
         controlnet_single_block_samples = [sample * conditioning_scale for sample in controlnet_single_block_samples]
 
-        controlnet_double_block_samples = None if len(controlnet_double_block_samples) == 0 else controlnet_double_block_samples
-        controlnet_single_block_samples = None if len(controlnet_single_block_samples) == 0 else controlnet_single_block_samples
+        controlnet_double_block_samples = (
+            None if len(controlnet_double_block_samples) == 0 else controlnet_double_block_samples
+        )
+        controlnet_single_block_samples = (
+            None if len(controlnet_single_block_samples) == 0 else controlnet_single_block_samples
+        )
 
         return controlnet_double_block_samples, controlnet_single_block_samples
 
@@ -223,17 +227,11 @@ class FluxControlnetForwardWrapper(VisionModule):
             self.flux_controlnet.load_from_flux_transformer(self.flux)
 
 
-
-
-
-
 class MegatronFluxControlNetModel(MegatronFluxModel):
     def __init__(self, flux_config: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):
         super().__init__(flux_config)
         self.flux_controlnet_config = flux_controlnet_config
         self.optim.connect(self)
-
-
 
     def configure_model(self):
         if not hasattr(self, "module"):
@@ -253,9 +251,6 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 if 'single_blocks' in name and 'self_attention.linear_proj.bias' in name:
                     param.requires_grad = False
 
-
-
-
     def data_step(self, dataloader_iter):
         return self.flux_controlnet_config.data_step_fn(dataloader_iter)
 
@@ -272,7 +267,6 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
 
         return self.forward_step(batch)
 
-
     def forward_step(self, batch) -> torch.Tensor:
         if self.optim.config.bf16:
             self.autocast_dtype = torch.bfloat16
@@ -280,7 +274,6 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             self.autocast_dtype = torch.float
         else:
             self.autocast_dtype = torch.float32
-
 
         if self.image_precached:
             latents = batch['latents'].cuda(non_blocking=True)
@@ -291,8 +284,9 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             hint = batch['hint'].cuda(non_blocking=True)
             control_latents = self.vae.encode(hint).to(dtype=self.autocast_dtype)
 
-        latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = self.prepare_image_latent(
-            latents)
+        latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = (
+            self.prepare_image_latent(latents)
+        )
         control_image = self._pack_latents(
             control_latents,
             batch_size=control_latents.shape[0],
@@ -306,19 +300,20 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             text_ids = batch['text_ids'].cuda(non_blocking=True)
         else:
             txt = batch['txt']
-            prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(txt, device=latents.device,
-                                                                               dtype=latents.dtype)
+            prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(
+                txt, device=latents.device, dtype=latents.dtype
+            )
 
         with torch.cuda.amp.autocast(
-                self.autocast_dtype in (torch.half, torch.bfloat16),
-                dtype=self.autocast_dtype,
+            self.autocast_dtype in (torch.half, torch.bfloat16),
+            dtype=self.autocast_dtype,
         ):
             controlnet_double_block_samples, controlnet_single_block_samples = self.forward(
                 img=packed_noisy_model_input,
                 controlnet_cond=control_image,
                 txt=prompt_embeds,
                 y=pooled_prompt_embeds,
-                timesteps=timesteps/1000,
+                timesteps=timesteps / 1000,
                 img_ids=latent_image_ids,
                 txt_ids=text_ids,
                 guidance=guidance_vec,
@@ -327,10 +322,10 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 img=packed_noisy_model_input,
                 txt=prompt_embeds,
                 y=pooled_prompt_embeds,
-                timesteps = timesteps/1000,
-                img_ids = latent_image_ids,
-                txt_ids = text_ids,
-                guidance = guidance_vec,
+                timesteps=timesteps / 1000,
+                img_ids=latent_image_ids,
+                txt_ids=text_ids,
+                guidance=guidance_vec,
                 controlnet_double_block_samples=controlnet_double_block_samples,
                 controlnet_single_block_samples=controlnet_single_block_samples,
             )
@@ -338,7 +333,8 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 noise_pred.transpose(0, 1),
                 int(latents.shape[2] * self.vae_scale_factor // 2),
                 int(latents.shape[3] * self.vae_scale_factor // 2),
-                vae_scale_factor=self.vae_scale_factor).transpose(0, 1)
+                vae_scale_factor=self.vae_scale_factor,
+            ).transpose(0, 1)
             target = noise - latents
             loss = F.mse_loss(noise_pred.float(), target.float(), reduction="mean")
             return loss

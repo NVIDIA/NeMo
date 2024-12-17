@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import torch.nn as nn
 from typing import Tuple
 
+import torch
+import torch.nn as nn
 
 
 class ControlNetConditioningEmbedding(nn.Module):
