@@ -19,7 +19,7 @@ from pytriton.client import ModelClient
 
 
 def str_list2numpy(str_list: List[str]) -> np.ndarray:
-    """ "
+    """
     Convert a list of strings to a numpy array of strings.
     """
     str_ndarray = np.array(str_list)[..., np.newaxis]
@@ -44,13 +44,13 @@ def query_llm(
     init_timeout: float = 60.0,
 ):
     """
-    A method that sends post request to the model on PyTriton server and returns either generated text or
-    logits.
+    A method that sends post request to the model on PyTriton server.
 
     Args:
         url (str): The URL for the Triton server. Required.
         model_name (str): The name of the Triton model. Required.
         prompt (str, optional): The prompt to be used. Required if `prompt_file` is not provided.
+        output_generation_logits (bool): Whether to return the generation logits.
         prompt_file (str, optional): The file path to read the prompt from. Required if `prompt` is not provided.
         stop_words_list (str, optional): A list of stop words.
         bad_words_list (str, optional): A list of bad words.
