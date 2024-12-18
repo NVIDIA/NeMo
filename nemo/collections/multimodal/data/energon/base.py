@@ -82,7 +82,8 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         pin_memory (bool, optional): Whether to pin memory in the DataLoader. Defaults to True.
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
         Defaults to MultiModalSampleConfig().
-        task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples. If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
+        task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples.
+        If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
         """
 
         super().__init__()
