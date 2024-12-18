@@ -435,7 +435,7 @@ class NevaDataset(LazySupervisedDataset):
             tokens = []
             labels = []
             position_ids = []
-            seqlens = []
+            seqlens_padded = []
             cu_seqlens = [0]
             cu_seqlens_padded = [0]
             for instance in instances:
@@ -453,7 +453,7 @@ class NevaDataset(LazySupervisedDataset):
                 position_ids.append(
                     torch.arange(len(instance['tokens']), dtype=torch.int, device=instance['tokens'].device)
                 )
-                seqlens.append(seqlen)
+                seqlens_padded.append(int(seqlen_padded))
                 cu_seqlens.append(cu_seqlens[-1] + seqlen)
                 cu_seqlens_padded.append(cu_seqlens_padded[-1] + seqlen_padded)
             tokens = torch.cat(tokens, dim=0).unsqueeze(0)
@@ -471,8 +471,8 @@ class NevaDataset(LazySupervisedDataset):
                 cu_seqlens_kv=cu_seqlens,
                 cu_seqlens_q_padded=cu_seqlens_padded,
                 cu_seqlens_kv_padded=cu_seqlens_padded,
-                max_seqlen_q=max(seqlens),
-                max_seqlen_kv=max(seqlens),
+                max_seqlen_q=max(seqlens_padded),
+                max_seqlen_kv=max(seqlens_padded),
                 qkv_format=qkv_format,
             )
         else:  # regular dataset
