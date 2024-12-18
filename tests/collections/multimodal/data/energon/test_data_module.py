@@ -25,7 +25,7 @@ from megatron.energon.flavors import BaseWebdataset
 from PIL import Image
 from transformers import AutoProcessor
 
-from nemo.collections.multimodal.data.energon import ImageToken, MultiModalSampleConfig, EnergonMultiModalDataModule
+from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule, ImageToken, MultiModalSampleConfig
 
 
 class TestEnergonMultiModalDataModuleWithDummyData(unittest.TestCase):
