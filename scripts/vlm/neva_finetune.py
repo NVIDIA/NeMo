@@ -79,7 +79,6 @@ def main(args):
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
         seq_length=decoder_seq_length,
-        num_layers=2,
     )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
