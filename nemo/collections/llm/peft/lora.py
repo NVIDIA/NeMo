@@ -263,12 +263,11 @@ class LoRA(PEFT):
 
                 return lora_cls(
                     m,
-                    dim,
-                    alpha,
-                    dropout,
-                    dropout_position,
-                    lora_A_init_method,
-                    lora_dtype,
+                    dim=self.dim,
+                    alpha=self.alpha,
+                    dropout=self.dropout,
+                    lora_A_init_method=self.lora_A_init_method,
+                    lora_dtype=self.lora_dtype,
                 )
 
             input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
