@@ -19,7 +19,7 @@ from pytriton.client import ModelClient
 
 
 def str_list2numpy(str_list: List[str]) -> np.ndarray:
-    """"
+    """ "
     Convert a list of strings to a numpy array of strings.
     """
     str_ndarray = np.array(str_list)[..., np.newaxis]
