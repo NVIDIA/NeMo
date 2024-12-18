@@ -18,7 +18,7 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.utils import logging
@@ -296,7 +296,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
 
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
-            self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+            self.ngram_lm_batch = FastNGramLM.from_arpa(lm_path=ngram_lm_model, vocab_size=self._blank_index)
             if blank_lm_score_mode is None:
                 self.blank_lm_score_mode = BlankLMScoreMode.LM_WEIGHTED_FULL
             else:
@@ -350,7 +350,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
 
         if self.ngram_lm_batch is not None:
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(states=batch_lm_states)  # vocab_size_no_blank
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)  # vocab_size_no_blank
             lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
 
         decoder_output, state, *_ = self.decoder.predict(
@@ -580,7 +580,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 ).squeeze(-1)
                 batch_lm_states = torch.where(preserve_state, batch_lm_states_prev, batch_lm_states).view(-1)
 
-                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
+                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
                     states=batch_lm_states
                 )  # vocab_size_no_blank
                 lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
