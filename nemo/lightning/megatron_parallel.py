@@ -580,7 +580,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         from megatron.core import parallel_state
 
-        if self.fsdp == "torch" and HAVE_MCORE_TORCH_FSDP2:
+        if self.fsdp == "pytorch" and HAVE_MCORE_TORCH_FSDP2:
             DP = TorchFSDP
         else:
             DP = DDP
