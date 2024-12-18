@@ -30,11 +30,11 @@ class PredicateDispatch:
     Example:
         ```python
         dispatcher = PredicateDispatch()
-        
+
         @dispatcher.register(lambda x: isinstance(x, str))
         def handle_strings(s):
             return f"String: {s}"
-        
+
         result = dispatcher("hello")  # Returns "String: hello"
         ```
     """
@@ -53,6 +53,7 @@ class PredicateDispatch:
         Returns:
             A decorator function that registers the handler.
         """
+
         def decorator(func: Callable[[T], Any]):
             self.handlers.append((predicate, func))
             return func
