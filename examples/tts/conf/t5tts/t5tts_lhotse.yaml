@@ -156,7 +156,7 @@ model:
   t5_encoder:
     is_causal: false
     pos_emb:
-      name: "learnable" # rope, learnable, alibi
+      name: "learnable_v2" # rope, learnable_v2, alibi
       base: 10000 # Only used for rope
     use_flash_self_attention: false
     use_flash_x_attention: false
@@ -176,7 +176,7 @@ model:
   context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
     is_causal: false
     pos_emb:
-      name: "learnable" # rope, learnable, alibi
+      name: "learnable_v2" # rope, learnable_v2, alibi
       base: 10000 # Only used for rope
     use_flash_self_attention: false
     use_flash_x_attention: false
@@ -196,7 +196,7 @@ model:
   t5_decoder:
     is_causal: true
     pos_emb:
-      name: "learnable"
+      name: "learnable_v2"
       base: 10000 # Only used for rope
     use_flash_self_attention: false
     use_flash_x_attention: false

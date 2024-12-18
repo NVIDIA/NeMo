@@ -181,6 +181,7 @@ class Attention(nn.Module):
         elif self.pos_emb_name == 'alibi':
             self.register_buffer("m", get_alibi_slope(self.n_heads))
         elif self.pos_emb_name == 'learnable':
+            # deprecated - use learnable_v2, pos emb should not be in each attention layer
             self.position_embeddings = nn.Embedding(max_length_causal_mask, d_model)
 
         if is_causal and is_self_attention:
@@ -214,7 +215,7 @@ class Attention(nn.Module):
         }
 
     def add_positional_embeddings(self, x, start_step=0):
-        # Used for learnable positional embeddings
+        # Deprecated - position embeddings are handled at the stack level
         positions = torch.arange(start_step, start_step+x.size(1), device=x.device).unsqueeze(0)
         pos_emb = self.position_embeddings(positions)
         return x + pos_emb
@@ -223,6 +224,7 @@ class Attention(nn.Module):
                    idx=None):
         alibi_slopes = None
         if self.pos_emb_name == 'learnable':
+            # deprecated - use learnable_v2, pos emb should not be in each attention layer
             query = self.add_positional_embeddings(query)
             if memory is not None:
                 memory = self.add_positional_embeddings(memory)
@@ -289,6 +291,7 @@ class Attention(nn.Module):
         mask = None
         
         if self.pos_emb_name == 'learnable':
+            # deprecated - use learnable_v2, pos emb should not be in each attention layer
             query = self.add_positional_embeddings(query, pos_start_time_step)
             if memory is not None:
                 memory = self.add_positional_embeddings(memory)
@@ -603,6 +606,13 @@ class TransformerStack(nn.Module):
                 if 'o_net' in pn and pn.endswith('weight'):
                     torch.nn.init.normal_(
                         p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
+        
+        self.add_position_embeddings = False
+        if hparams['pos_emb'].get("name", None) == 'learnable_v2':
+            self.add_position_embeddings = True
+            self.position_embeddings = nn.Embedding(
+                hparams['max_length_causal_mask'], hparams['d_model']
+            )
 
     def reset_cache(self, use_cache=False):
         for layer in self.layers:
@@ -626,6 +636,11 @@ class TransformerStack(nn.Module):
         output <torch tensor> (B, T1, C)
         multi_encoder_mapping <list> <int>: None or Same size as n_layers, value indicates which cond input to use for this layer
         """
+        if self.add_position_embeddings:
+            positions = torch.arange(x.size(1), device=x.device).unsqueeze(0)
+            pos_emb = self.position_embeddings(positions)
+            x = x + pos_emb
+
         attn_probabilities = []
         x = self.dropout(x)
         for idx, layer in enumerate(self.layers):
