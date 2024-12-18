@@ -58,14 +58,18 @@ def run_finetuning():
 
     run.run(recipe, executor=executor)
 
+
 def run_pretraining():
     # pylint: disable=C0115,C0116
     recipe = configure_recipe(pretrain=True)
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
     print(f"recipe.model:{recipe.model}")
-    recipe.data = run.Config(get_llava_data_module, model_id="llava-hf/llava-v1.6-vicuna-7b-hf", data_path="/data/path", mbs=2, gbs=8)
+    recipe.data = run.Config(
+        get_llava_data_module, model_id="llava-hf/llava-v1.6-vicuna-7b-hf", data_path="/data/path", mbs=2, gbs=8
+    )
 
     run.run(recipe, executor=executor)
+
 
 # This condition is necessary for the script to be compatible with Python's multiprocessing module.
 if __name__ == "__main__":
