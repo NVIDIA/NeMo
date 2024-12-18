@@ -736,7 +736,10 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
         == '<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
     )
     assert batch.prompt_lens[i] == 9
-    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    assert (
+        canary2_tokenizer.ids_to_text(batch.transcript[i])
+        == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
     assert batch.transcript_lens[i] == 3
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
@@ -751,7 +754,10 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
         == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>'
     )
     assert batch.prompt_lens[i] == 25
-    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    assert (
+        canary2_tokenizer.ids_to_text(batch.transcript[i])
+        == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
     assert batch.transcript_lens[i] == 3
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])

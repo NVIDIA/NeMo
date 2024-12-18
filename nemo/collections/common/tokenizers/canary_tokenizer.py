@@ -70,7 +70,7 @@ class CanaryTokenizer(AggregateTokenizer):
 
     def _text_with_timestamps_to_ids(self, text_without_timestamps, time_text, lang_id) -> list[int]:
         trans_words = text_without_timestamps.split()
-        
+
         # Get timestamp ids
         time_ids = self._tokenize_special_prompt(time_text)
 
@@ -105,9 +105,9 @@ class CanaryTokenizer(AggregateTokenizer):
             result_ids.append(time_ids[-1])
         # Make sure the last time_id is appended only once
         if time_index < len(time_ids) and result_ids[-1] != (time_ids[-1]):
-            result_ids.append(time_ids[-1])        
+            result_ids.append(time_ids[-1])
         return result_ids
-    
+
     def _text_to_ids_maybe_with_timestamps(self, text_no_eos, lang_id) -> list[int]:
         time_pattern = re.compile(r"<\|\d+\|>")
         time_text = "".join(time_pattern.findall(text_no_eos))
