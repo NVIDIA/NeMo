@@ -19,15 +19,15 @@ in codegen, graphviz, and other debugging functions.
 """
 
 import types
-from functools import partial
-
-import fiddle as fdl
 import libcst as cst
 import torch
 import torch.nn as nn
 from fiddle._src import daglish_extensions
 from fiddle._src.codegen import import_manager, py_val_to_cst_converter, special_value_codegen
 from fiddle._src.experimental import serialization
+
+from nemo.lightning.io.to_config import to_config
+from nemo.lightning.io.artifact import *  # noqa: F403
 
 
 def _make_torch_importable(name: str) -> special_value_codegen.Importable:
@@ -126,9 +126,7 @@ def enable():
     def _modified_serialize(self, value, current_path, all_paths=None):
         if isinstance(value, types.BuiltinFunctionType):
             return self._pyref(value, current_path)
-        if isinstance(value, partial):
-            value = fdl.Partial(value.func, *value.args, **value.keywords)
-        return self._original_serialize(value, current_path, all_paths)
+        return self._original_serialize(to_config(value), current_path, all_paths)
 
     serialization.Serialization._original_serialize = serialization.Serialization._serialize
     serialization.Serialization._serialize = _modified_serialize
