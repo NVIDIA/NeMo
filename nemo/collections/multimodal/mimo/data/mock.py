@@ -25,7 +25,8 @@ from torchvision import transforms
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
+from diffusers.image_processor import VaeImageProcessor
+import os
 
 class MockDataModule(pl.LightningDataModule):
     def __init__(
@@ -130,22 +131,13 @@ class _MockMimoDataset(Dataset):
         self.input_text = "Generate image of dog."
         self.label_text = "Here is the image of dog"
         self.special_tokens = [f"IMG_{i}" for i in range(8)]
-
-        resolution = 768
-        transform = transforms.Compose(
-            [
-                transforms.Resize((resolution, resolution)),  # Resize to target resolution
-                transforms.ToTensor(),  # Convert to tensor, scales to [0, 1]
-                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),  # Normalize to [-1, 1]
-            ]
-        )
-
-        import os
+        self.output_image_processor = VaeImageProcessor()
+        
 
         current_file_dir = os.path.dirname(os.path.abspath(__file__))
         image_path = os.path.join(current_file_dir, "dog.png")
         image = Image.open(image_path).convert("RGB")
-        self.image_tensor = transform(image)
+        self.image_tensor = self.output_image_processor.preprocess(image = image, height = 224, width = 224,resize_mode='crop' ).squeeze()
 
     def __len__(self) -> int:
         return self.length
@@ -219,6 +211,7 @@ if __name__ == "__main__":
 
     print("Sample Batch:")
     print("Images:", batch["images"].shape)
+    print("Output Images:", batch["output_images"].shape)
     print("Tokens:", batch["tokens"])
     print("Position IDs:", batch["position_ids"])
     print("Labels:", batch["labels"])

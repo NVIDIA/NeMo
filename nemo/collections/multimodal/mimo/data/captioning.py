@@ -1,7 +1,7 @@
 import dataclasses
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Union
-
+import random
 import torch
 from megatron.energon import (
     CaptioningSample,
@@ -12,6 +12,7 @@ from megatron.energon import (
     batch_stack,
     get_loader,
     get_train_dataset,
+    WorkerConfig,
 )
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoProcessor
@@ -20,6 +21,45 @@ from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, I
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.utils import logging
+from nemo.collections.multimodal.mimo.data.templates import (
+    COMPHREHENSION_PROMPTS,
+    GENERATION_PROMPTS,
+    IMAGE_KEYWORDS,
+    GENERATION_KEYWORDS,
+    RESPONSES,
+)
+from nemo.utils import logging
+from diffusers.image_processor import VaeImageProcessor
+
+import re
+
+
+def _fix_sentence(sentence):
+    """
+    Fixes a sentence by ensuring:
+    - Removes any spaces before the final period, if present.
+    - Adds a period at the end if missing.
+    """
+    # Strip any trailing whitespace
+    sentence = sentence.rstrip()
+
+    # Remove space before a period at the end, if present
+    if sentence.endswith(' .'):
+        sentence = sentence[:-2] + '.'  # Remove the space before the period
+    elif not sentence.endswith('.'):
+        sentence = sentence + '.'  # Add a period if none exists
+
+    return sentence
+
+
+def _find_pattern_indices(template, pattern, search_start_index=0, allow_first_token_mismatch=False):
+    template_len = len(template)
+    pattern_len = len(pattern)
+    for i in range(search_start_index, template_len - pattern_len + 1):
+        match = template[i : i + pattern_len] == pattern
+        if torch.all(match) or (allow_first_token_mismatch and torch.all(match[1:])):
+            return i, i + pattern_len
+    return -1, -1
 
 
 @dataclass
@@ -60,10 +100,24 @@ class CaptioningBatch:
 
 
 class MimoCaptionSampleEncoder(VQASampleEncoder):
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), is_generation=False
+    ):
 
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
         self.special_tokens = [f"IMG_{i}" for i in range(8)]
+        self.is_generation = is_generation
+        if is_generation:
+            self.output_image_processor = VaeImageProcessor()
+        else:
+            self.output_image_processor = None
+
+        if self.conversation_template_config.chat_template:
+            self.tokenizer.chat_template = self.conversation_template_config.chat_template
+        elif self.tokenizer.chat_template is None:
+            raise ValueError(
+                "Both tokenizer and conversation template does not have chat template defined. Refer to https://huggingface.co/docs/transformers/main/en/chat_templating"
+            )
 
     def process_image(self, image):
         """
@@ -83,23 +137,102 @@ class MimoCaptionSampleEncoder(VQASampleEncoder):
         tokens = self.tokenizer(text, return_tensors="pt")
         return tokens["input_ids"].squeeze(0)
 
-    def encode(self, input_sample: CaptioningSample, output_sample: MimoCaptioningSample):
+    def compute_input_ids_labels(self, input_text, output_text):
+        pass
+        messages = []
+        if self.conversation_template_config.system:
+            messages.append({'role': 'system', 'content': self.conversation_template_config.system})
+        messages.append({'role': self.conversation_template_config.roles[0], 'content': input_text})
+        messages.append({'role': self.conversation_template_config.roles[1], 'content': output_text})
 
-        input_tokens = self.tokenize_text(input_sample.caption)
-        # label_tokens = self.tokenize_text(self.label_text)
+        templated_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        logging.debug(f"apply prompt template templated_prompt {templated_prompt}")
+
+        input_ids = self.tokenizer(templated_prompt, add_special_tokens=False).input_ids
+        input_ids = torch.tensor(input_ids, dtype=torch.long)
+
+        labels = torch.ones_like(input_ids) * self.ignore_place_holder
+        stop_str = getattr(self.conversation_template_config, "stop_string", None)
+        answer_tokens = self.tokenizer(
+            output_text + ("" if stop_str is None else stop_str), add_special_tokens=False
+        ).input_ids
+        answer_tokens = torch.tensor(answer_tokens, dtype=torch.long)
+
+        answer_start, answer_end = _find_pattern_indices(input_ids, answer_tokens, 0)
+        assert answer_start > -1, f"answer_start not found, index {answer_start}"
+        assert answer_end > -1, f"answer_end not found, index {answer_end}"
+        labels[answer_start:answer_end] = input_ids[answer_start:answer_end]
+
+        return input_ids, labels
+
+    def encode_comphrehension(self, input_sample: CaptioningSample, output_sample: MimoCaptioningSample):
+
+        input_text = random.choice(COMPHREHENSION_PROMPTS).format('image')
+        output_text = _fix_sentence(input_sample.caption)
+
+        input_ids, labels = self.compute_input_ids_labels(input_text=input_text, output_text=output_text)
+
+        tokens = torch.cat([torch.tensor([self.multimodal_sample_config.image_token.token_id]), input_ids[:-1]])
+        labels = torch.cat([torch.tensor([self.multimodal_sample_config.ignore_place_holder]), labels[1:]])
+
+        logging.debug(f"sample encoder encode_comphrehension after tokenize prompt tokens {tokens}")
+        logging.debug(f"sample encoder encodeencode_comphrehension lables {labels}")
+
+        loss_mask = self.compute_loss_mask(labels)
+
+        processed_image = self.process_image(input_sample.image)
+        processed_image = processed_image.squeeze()
+
+        output_sample.__key__ = input_sample.__key__
+        output_sample.__restore_key__ = input_sample.__restore_key__
+        output_sample.input_image = processed_image
+        output_sample.tokens = tokens
+        output_sample.labels = labels
+        output_sample.loss_mask = loss_mask
+        output_sample.caption = None
+        output_sample.output_image = None
+
+        return output_sample
+
+    def encode_generation(self, input_sample: CaptioningSample, output_sample: MimoCaptioningSample):
+
+        image_caption = _fix_sentence(input_sample.caption)
+        input_text = (
+            random.choice(GENERATION_PROMPTS).format(random.choice(GENERATION_KEYWORDS), random.choice(IMAGE_KEYWORDS))
+            + image_caption
+        )
+
+        output_text = random.choice(RESPONSES).format('image')
+
+        input_ids, labels = self.compute_input_ids_labels(input_text=input_text, output_text=output_text)
 
         special_token_ids = [self.tokenizer.convert_tokens_to_ids(token) for token in self.special_tokens]
         special_token_ids = torch.tensor(special_token_ids, dtype=torch.long)
-        # label_tokens = torch.cat([label_tokens, torch.tensor(special_token_ids, dtype=torch.long)])
 
-        combined_tokens = torch.cat([input_tokens, special_token_ids])
-        labels = torch.ones_like(combined_tokens) * self.multimodal_sample_config.ignore_place_holder
-        answer_start = len(input_tokens)
-        labels[answer_start:] = combined_tokens[answer_start:]
+        input_ids = torch.cat([input_ids, special_token_ids])
+        labels = torch.cat([labels, special_token_ids])
 
-        tokens = torch.cat([torch.tensor([self.multimodal_sample_config.image_token.token_id]), combined_tokens[:-1]])
+        # Add extra stop string after special tokens to stop generation
+        stop_str = getattr(self.conversation_template_config, "stop_string", None)
+        if stop_str:
+            stop_string_token_ids = torch.tensor(self.tokenizer.convert_tokens_to_ids(stop_str), dtype=torch.long)
+            if stop_string_token_ids.dim() == 0:
+                stop_string_token_ids = stop_string_token_ids.unsqueeze(0)
+            # Append stop string token IDs to input_ids and labels
+            input_ids = torch.cat([input_ids, stop_string_token_ids])
+            labels = torch.cat([labels, stop_string_token_ids])
+        # tokens and labels are not shifted by 1 yet
+        # TODO: Yash we dont have to append a image_token_id in here, check if llava forward pass can run without an image
+        tokens = torch.cat([torch.tensor([self.multimodal_sample_config.image_token.token_id]), input_ids[:-1]])
         labels = torch.cat([torch.tensor([self.multimodal_sample_config.ignore_place_holder]), labels[1:]])
-        loss_mask = (labels != self.multimodal_sample_config.ignore_place_holder).float()
+
+        logging.debug(f"sample encoder encode_comphrehension after tokenize prompt tokens {tokens}")
+        logging.debug(f"sample encoder encodeencode_comphrehension lables {labels}")
+
+        loss_mask = self.compute_loss_mask(labels)
+        output_image = self.output_image_processor.preprocess(
+            image=input_sample.image, height=224, width=224, resize_mode='crop'
+        ).squeeze()
 
         output_sample.__key__ = input_sample.__key__
         output_sample.__restore_key__ = input_sample.__restore_key__
@@ -108,25 +241,28 @@ class MimoCaptionSampleEncoder(VQASampleEncoder):
         output_sample.labels = labels
         output_sample.loss_mask = loss_mask
         output_sample.caption = input_sample.caption
-        output_sample.output_image = input_sample.image
-        # import torchvision.transforms as transforms
+        output_sample.output_image = output_image
 
-        # output_path = "/workspaces/NeMo/nemo/collections/multimodal/mimo/data/debug_image.png"
-        # to_pil = transforms.ToPILImage()
-        # image = to_pil(input_sample.image)
-        # image.save(output_path)
-        # print(f"Image saved to {output_path}")
-        # from PIL import Image
+        return output_sample
+
+    def encode(self, input_sample: CaptioningSample, output_sample: MimoCaptioningSample):
+
+        if self.is_generation:
+            output_sample = self.encode_generation(input_sample, output_sample)
+        else:
+            output_sample = self.encode_comphrehension(input_sample, output_sample)
 
         return output_sample
 
 
 class MimoCaptioningTaskEncoder(MultiModalTaskEncoder):
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config):
+    def __init__(self, tokenizer, image_processor, multimodal_sample_config, is_generation=False):
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
 
         self.encoders: Dict[str, SampleEncoder] = {
-            CaptioningSample.__name__: MimoCaptionSampleEncoder(tokenizer, image_processor, multimodal_sample_config)
+            CaptioningSample.__name__: MimoCaptionSampleEncoder(
+                tokenizer, image_processor, multimodal_sample_config, is_generation
+            )
         }
 
     def encode_sample(self, sample: CaptioningSample):
@@ -153,8 +289,8 @@ class MimoCaptioningTaskEncoder(MultiModalTaskEncoder):
         batch_prompt_tokens = batch_pad_stack(tokens)
         batch_labels = batch_pad_stack(labels)
         batch_loss_mask = batch_pad_stack(loss_mask)
-        batch_output_images = batch_pad_stack(output_images)
-        batch_captions = batch_list(captions)
+        batch_output_images = batch_pad_stack(output_images) if all(img is not None for img in output_images) else None
+        batch_captions = batch_list(captions) if captions is all(cap is not None for cap in captions) else None
 
         return MimoCaptioningRawBatch(
             __keys__=batch_keys,
@@ -184,36 +320,26 @@ if __name__ == '__main__':
     tokenizer = processor.tokenizer
     special_tokens = [f"IMG_{i}" for i in range(8)]
     tokenizer.add_special_tokens({"additional_special_tokens": special_tokens})
+    multimodal_sample_config = MultiModalSampleConfig()
+    multimodal_sample_config.conversation_template_config.system = None
+
+    worker_config = WorkerConfig.default_worker_config(0)
     train_loader = get_loader(
         get_train_dataset(
             '/home/ykarnati/Downloads/datasets/cc3m',
-            batch_size=32,
+            batch_size=128,
             shuffle_buffer_size=100,
             max_samples_per_sequence=100,
             task_encoder=MimoCaptioningTaskEncoder(
                 tokenizer=tokenizer,
                 image_processor=processor.image_processor,
                 multimodal_sample_config=MultiModalSampleConfig(),
+                is_generation=False,
             ),
-        )
+        ),
+        worker_config=worker_config,
     )
 
-    one_batch = next(iter(train_loader))
-    print(one_batch)
-    import torchvision.transforms as transforms
-    from PIL import Image
-
-    # Path where the image will be saved
-    output_path = "/workspaces/NeMo/nemo/collections/multimodal/mimo/data/debug_image.png"
-
-    # Assuming `one_batch['output_images']` is a batch of images in the form (B, C, H, W)
-    first_image_tensor = one_batch['output_images'][0]  # Get the first image in the batch
-
-    # Convert the tensor to a PIL image
-    # Assuming the tensor values are in the range [0, 1]
-    to_pil = transforms.ToPILImage()
-    first_image = to_pil(first_image_tensor)
-
-    # Save the image
-    first_image.save(output_path)
-    print(f"First image saved to {output_path}")
+    print(f"data loader length {len(train_loader)}")
+    for index, each_batch in enumerate(train_loader):
+        print(f"batch index {index} tokens shape {each_batch['tokens'].shape} ")

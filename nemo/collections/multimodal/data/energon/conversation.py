@@ -21,7 +21,7 @@ class BaseConversationTemplateConfig:
 
     system: Optional[str] = "".format()  # fmt: off
     roles: List[str] = field(default_factory=lambda: ['user', 'assistant'])
-    stop_string: Optional[str] = None
+    stop_string = None
     chat_template = None
 
 
