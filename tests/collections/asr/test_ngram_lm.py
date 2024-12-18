@@ -28,67 +28,59 @@ class TestFastNGramLM:
     @pytest.mark.unit
     def test_load(self, test_data_dir):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=1024)
+        _ = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=1024)
 
+    @pytest.mark.with_downloads
     @pytest.mark.unit
     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
-    def test_todo(self):
-        arpa_lm_path = "/home/vbataev/code/nemo/check_beam_tdt/tdt_tune1_lmslurp.arpa.tmp.arpa"
-        device = torch.device("cuda:0")
-        _ = torch.tensor(0, device=device)
+    def test_initial_states(self, test_data_dir):
+        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        vocab_size = 1024
+        device = torch.device("cpu")
+        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size)
+        kenlm_wrapper = KenLMWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
+        batch_size = 3
+        for bos in [True, False]:
+            init_states = lm.get_init_states(batch_size=batch_size, bos=bos)
+            init_states_kenlm = kenlm_wrapper.get_init_states(batch_size=batch_size, bos=bos)
+            scores_lm, _ = lm.advance(init_states)
+            scores_ref, _ = kenlm_wrapper.advance(init_states_kenlm)
+            assert torch.allclose(scores_lm, scores_ref.to(device))
 
-        lm = KenLMWrapper(arpa_lm_path)
-        gpu_lm = FastNGramLM.from_arpa(arpa_lm_path, vocab_size=1024).to(device)
-
-        with torch.no_grad():
-            scores1, states1 = gpu_lm._compute_scores_batch_pytorch(states=gpu_lm.get_init_states(1, bos=True))
-            scores2, states2 = gpu_lm._compute_scores_batch_triton(states=gpu_lm.get_init_states(1, bos=True))
-        assert (states1 == states2).all()
-        assert torch.allclose(scores1, scores2)
-
+    @pytest.mark.with_downloads
+    @pytest.mark.unit
+    @pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton is not available")
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+    def test_triton_vs_pytorch_random_states(self):
+        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        vocab_size = 1024
+        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size)
         batch_size = 2
+        device = torch.device("cuda")
+        torch.manual_seed(777)
         for _ in tqdm(range(10000)):
-            start_state = random.randint(0, gpu_lm.num_states - 1)
+            start_state = random.randint(0, lm.num_states - 1)
             with torch.no_grad():
-                scores1, states1 = gpu_lm._compute_scores_batch_pytorch(
+                scores1, states1 = lm._advance_pytorch(
                     states=torch.full([batch_size], fill_value=start_state, device=device, dtype=torch.int64)
                 )
-                scores2, states2 = gpu_lm._compute_scores_batch_cuda(
-                    states=torch.full([batch_size], fill_value=start_state, device=device, dtype=torch.int64)
-                )
-                scores3, states3 = gpu_lm._compute_scores_batch_triton(
+                scores2, states2 = lm._advance_triton(
                     states=torch.full([batch_size], fill_value=start_state, device=device, dtype=torch.int64)
                 )
             assert (states1 == states2).all()
-            assert (states1 == states3).all()
             assert torch.allclose(scores1, scores2)
-            assert torch.allclose(scores1, scores3)
 
-        for bos in [False, True]:
-            for i in range(1024):
-                if abs(gpu_lm.compute_sentence_score([i], bos=bos) - lm.compute_sentence_score([i], bos=bos)) > 1e-4:
-                    print(i, gpu_lm.compute_sentence_score([i], bos=bos), lm.compute_sentence_score([i], bos=bos))
-
+    @pytest.mark.unit
+    @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
+    def test_sentences(self, test_data_dir):
+        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        vocab_size = 1024
+        device = torch.device("cpu")
+        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size)
+        kenlm_wrapper = KenLMWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
+        # TODO: make sentences
         for sentence in [[25, 70, 12], [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999]]:
             for bos in [True, False]:
-                score1 = lm.compute_sentence_score(sentence, bos=False)
-                score2 = gpu_lm.compute_sentence_score_cpu(sentence, bos=False)
-                score3 = gpu_lm.compute_sentence_score(sentence, bos=False)
-                assert abs(score1 - score2) < 1e-4
-                assert abs(score1 - score3) < 1e-4
-
-            # model_score = gpu_lm.compute_sentence_score(sentence, bos=bos, verbose=True)
-            # lm_score = lm.compute_sentence_score(sentence, bos=bos)
-            # model_score_batch = 0.0
-            # states = gpu_lm.get_init_states(1, bos=bos)
-            # for token in sentence:
-            #     print(states)
-            #     scores, new_states = compute_scores_batch(model, states)
-            #     print(scores[0, token])
-            #     model_score_batch += scores[0, token]
-            #     states[:] = new_states[:, token]
-            # print(bos, model_score, lm_score, model_score_batch)
-
-    def test_autograd(self, test_data_dir):
-        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=1024)
+                score_lm = lm(torch.LongTensor([sentence]), bos=bos)
+                score_ref = kenlm_wrapper.score_sentence(sentence, bos=bos)
+                assert torch.allclose(score_lm[0], score_ref.to(device))

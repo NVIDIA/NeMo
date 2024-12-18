@@ -31,7 +31,7 @@ if KENLM_AVAILABLE:
 if TRITON_AVAILABLE:
     import triton
 
-    from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_triton_kernel
+    from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_advance_triton_kernel
 
 
 def _log_10_to_e(score):
@@ -44,9 +44,10 @@ class KenLMWrapper:
     """
 
     @kenlm_required
-    def __init__(self, model_path: Path | str, token_offset=100):
-        self.ngram_lm = kenlm.Model(str(model_path))
+    def __init__(self, lm_path: Path | str, vocab_size: int, token_offset: int=100):
+        self.ngram_lm = kenlm.Model(str(lm_path))
         self.token_offset = token_offset
+        self.vocab_size = vocab_size
 
     def get_init_state(self, bos=True):
         init_lm_state = kenlm.State()
@@ -57,21 +58,24 @@ class KenLMWrapper:
         self.ngram_lm.BeginSentenceWrite(init_lm_state)
         return init_lm_state
 
-    def compute_scores_batch(
-        self, states: list["kenlm.State"], vocab_size: int
+    def get_init_states(self, batch_size: int, bos=True):
+        return [self.get_init_state(bos=bos) for _ in range(batch_size)]
+
+    def advance(
+        self, states: list["kenlm.State"]
     ) -> tuple[torch.Tensor, list[list["kenlm.State"]]]:
         batch_size = len(states)
         new_states = [[] for _ in range(len(states))]
-        scores = torch.zeros(batch_size, vocab_size)
+        scores = torch.zeros(batch_size, self.vocab_size)
         for i, state in enumerate(states):
-            for label in range(vocab_size):
-                score, new_state = self.compute_single_score(state, label)
+            for label in range(self.vocab_size):
+                score, new_state = self.advance_single(state, label)
                 scores[i, label] = score
                 new_states[i].append(new_state)
 
         return scores, new_states
 
-    def compute_single_score(self, state: "kenlm.State", label: int) -> tuple[float, "kenlm.State"]:
+    def advance_single(self, state: "kenlm.State", label: int) -> tuple[float, "kenlm.State"]:
         """
         Computes the score with KenLM N-gram language model for `label` given `state`
         Args:
@@ -92,7 +96,7 @@ class KenLMWrapper:
 
         return lm_score, next_state
 
-    def compute_sentence_score(self, labels: list[int], bos=True) -> float:
+    def score_sentence(self, sentence: list[int], bos=True) -> torch.Tensor:
         """
         Compute
         Args:
@@ -103,11 +107,14 @@ class KenLMWrapper:
 
         """
         state = self.get_init_state(bos=bos)
-        total_score = 0.0
-        for label in labels:
-            score, state = self.compute_single_score(state=state, label=label)
-            total_score += score
-        return total_score
+        scores = []
+        for label in sentence:
+            score, state = self.advance_single(state=state, label=label)
+            scores.append(score)
+        return torch.FloatTensor(scores)
+
+    def score_sentences(self, sentences: list[list[int]], bos=True) -> torch.Tensor:
+        return torch.stack([self.score_sentence(sentence, bos=bos) for sentence in sentences], dim=0)
 
 
 class NGram(NamedTuple):
@@ -138,7 +145,7 @@ class FastNGramLM(nn.Module):
     START_STATE = 0
     BOS_STATE = 1
 
-    def __init__(self, num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton=True):
+    def __init__(self, num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton: bool | None = None):
         """
         Stubs for constructor that does not initialize the structure.
         This constructor can be useful when storing/loading module using native torch serialization mechanism
@@ -150,18 +157,16 @@ class FastNGramLM(nn.Module):
             num_arcs: number of arcs (transitions) in graph
             max_order: maximum order of n-gram LM (maximum possible nubmer of transitions without backoffs)
             vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
-            use_triton: allow using Triton implementation
+            use_triton: allow using Triton implementation;
+                None (default) means "auto" (used if available), True means forced mode
+                (will crash if Triton is unavailable)
         """
         super().__init__()
-        if not TRITON_AVAILABLE and use_triton:
-            logging.warning("Triton not found, falling back to PyTorch")
-            use_triton = False
-        if not use_triton:
+        self.use_triton = use_triton if use_triton is not None else TRITON_AVAILABLE
+        if not self.use_triton:
             logging.warning(
-                "Triton is disabled. "
-                "NB: version without Triton is not compatible with Cuda graphs, decoding can be slow"
+                "Triton is disabled. Version without Triton is not compatible with Cuda graphs; decoding can be slow"
             )
-        self.use_triton = use_triton
 
         self.vocab_size = vocab_size
         self.num_states = num_states
@@ -184,7 +189,7 @@ class FastNGramLM(nn.Module):
         self.register_buffer("state_order", torch.zeros([num_states], dtype=torch.int64))
 
     @classmethod
-    def from_arpa(cls, lm_path: Path | str, vocab_size: int, token_offset=100, use_triton=True) -> "FastNGramLM":
+    def from_arpa(cls, lm_path: Path | str, vocab_size: int, token_offset: int =100, use_triton: bool | None = None) -> "FastNGramLM":
         """
         Constructor from ARPA LM (text format).
 
@@ -192,7 +197,9 @@ class FastNGramLM(nn.Module):
             lm_path: path to ARPA model (human-readable)
             vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
             token_offset: offset for the tokens used for building ARPA LM
-            use_triton: allow using Triton implementation
+            use_triton: allow using Triton implementation;
+                None (default) means "auto" (used if available), True means forced mode
+                (will crash if Triton is unavailable)
 
         Returns:
             FastNGramLM module
@@ -405,17 +412,6 @@ class FastNGramLM(nn.Module):
         assert self.state_order.min().item() == 1
         assert self.state_order.max().item() == self.max_order
 
-    # def compute_sentence_score(self, sentence: list[int], bos=True):
-    #     device = self.arcs_weights.device
-    #     # sentence = torch.tensor(sentence, device=device)[None, :]
-    #     states = self.get_init_states(batch_size=1, bos=bos)
-    #     weight = torch.tensor(0, device=device, dtype=self.arcs_weights.dtype)
-    #     for token in sentence:
-    #         new_scores, new_states_candidates = self.compute_scores_batch(states=states)
-    #         weight += new_scores[0, token]
-    #         states = new_states_candidates[:, token]
-    #     return weight
-
     @classmethod
     def _log_e_score(cls, score):
         return score / np.log10(np.e)
@@ -440,6 +436,22 @@ class FastNGramLM(nn.Module):
         Returns:
             Tensor [B x L] with scores for each label in the utterance
         """
+        return self.score_sentences(labels=labels, labels_lengths=labels_lengths, bos=bos)
+
+    def score_sentences(
+            self, labels: torch.Tensor, labels_lengths: torch.Tensor | None = None, bos: bool = True
+    ) -> torch.Tensor:
+        """
+        Compute log-probabilities for all labels in utterances using N-Gram LM.
+
+        Args:
+            labels: label sequences [B x L]
+            labels_lengths (optional): lengths of the label sequences
+            bos: start with BOS symbol
+
+        Returns:
+            Tensor [B x L] with scores for each label in the utterance
+        """
         device = labels.device
         batch_size, max_length = labels.shape
         if labels_lengths is None:
@@ -449,23 +461,32 @@ class FastNGramLM(nn.Module):
         # TODO(vbataev): faster algorithm
         for i in range(max_length):
             # TODO(vbataev): support differentiable implementation with Triton
-            step_scores, states = self._compute_scores_batch_pytorch(states)
-            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i]) * (i < labels_lengths)
+            step_scores, states = self._advance_pytorch(states)
+            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(1)).squeeze(-1) * (i < labels_lengths)
+            states = states.gather(dim=1, index=labels[:, i].unsqueeze(1)).squeeze(-1)
         return scores
 
-    def compute_scores_batch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def advance(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Advance `states` [B]: return next states [B, V] and scores [B, V] for full vocab
+        Args:
+            states: batch of states
+
+        Returns:
+            tuple with next states and scores
+        """
         if self.use_triton and states.device.type == "cuda":
-            return self._compute_scores_batch_triton(states=states)
-        return self._compute_scores_batch_pytorch(states=states)
+            return self._advance_triton(states=states)
+        return self._advance_pytorch(states=states)
 
     @triton_required
-    def _compute_scores_batch_triton(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _advance_triton(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size = states.shape[0]
         device = states.device
         scores = torch.empty([batch_size, self.vocab_size], device=device, dtype=self.arcs_weights.dtype)
         new_states = torch.empty([batch_size, self.vocab_size], dtype=torch.long, device=device)
 
-        _ngram_triton_kernel[batch_size,](
+        _ngram_advance_triton_kernel[batch_size,](
             vocab_size=self.vocab_size,
             states_ptr=states,
             new_states_ptr=new_states,
@@ -484,7 +505,7 @@ class FastNGramLM(nn.Module):
 
         return scores, new_states
 
-    def _compute_scores_batch_pytorch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _advance_pytorch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size = states.shape[0]
         device = states.device
         current_states = states.clone()
@@ -512,8 +533,8 @@ class FastNGramLM(nn.Module):
             ilabels = self.ilabels[indices_flat] * mask_flat + ~mask_flat * self.vocab_size
             scores_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.arcs_weights[indices_flat]
             out_states_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.to_states[indices_flat]
-            torch.where(state_found, out_scores, out_scores + scores_add[:, : self.vocab_size], out=out_scores)
-            torch.where(state_found, out_states, out_states_add[:, : self.vocab_size], out=out_states)
+            out_scores = torch.where(state_found, out_scores, out_scores + scores_add[:, : self.vocab_size])
+            out_states = torch.where(state_found, out_states, out_states_add[:, : self.vocab_size])
             state_found = out_states != -1
             lm_not_done &= current_states != self.START_STATE
             out_scores += self.backoff_weights[current_states][:, None] * (~state_found)

@@ -17,7 +17,7 @@ import triton.language as tl
 
 
 @triton.jit
-def _ngram_triton_kernel(
+def _ngram_advance_triton_kernel(
     vocab_size: "tl.constexpr",
     states_ptr,
     new_states_ptr,

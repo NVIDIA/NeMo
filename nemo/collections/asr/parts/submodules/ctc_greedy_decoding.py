@@ -339,6 +339,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     """
 
+    ngram_lm_batch: Optional[FastNGramLM]
+
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
@@ -551,7 +553,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         last_labels = torch.full([batch_size], fill_value=self.blank_id, device=device, dtype=torch.long)
         predictions_logprobs = torch.zeros([batch_size, max_time], device=device, dtype=float_dtype)
         for i in range(max_time):
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.compute_scores_batch(states=batch_lm_states)
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
             lm_scores = lm_scores.to(dtype=float_dtype)
 
             labels = torch.argmax(log_probs[:, i], dim=-1)
