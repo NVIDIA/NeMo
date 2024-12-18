@@ -476,6 +476,12 @@ class BeamRNNTInfer(Typing):
             hyps: sorted list of hypotheses
         """
         if self.score_norm:
+            p = sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
+            print("Final")
+            print("Sequence: ", p[0].y_sequence)
+            print("Timesteps: ", p[0].timestep)
+            print("Score: ", p[0].score)
+            print()
             return sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
@@ -1392,6 +1398,14 @@ class BeamRNNTInfer(Typing):
         for t in range(encoded_lengths):
             enc_out_t = h[t : t + 1].unsqueeze(0)  # [1, 1, D]
 
+            print("Frame idx: ", t)
+            print("Before")
+            for hyp1 in sorted(kept_hyps, key = lambda x: x.score, reverse=True):
+                print("Sequence: ", hyp1.y_sequence)
+                print("Timesteps: ", hyp1.timestep)
+                print("Score: ", hyp1.score)
+                print()
+                
             # Perform prefix search to obtain hypothesis
             hyps = self.prefix_search(
                 sorted(kept_hyps, key=lambda x: len(x.y_sequence), reverse=True),
@@ -1400,7 +1414,7 @@ class BeamRNNTInfer(Typing):
             )  # type: List[Hypothesis]
             kept_hyps = []
             
-            print("Frame idx: ", t)
+            print("After")
             for hyp1 in sorted(hyps, key = lambda x: x.score, reverse=True):
                 print("Sequence: ", hyp1.y_sequence)
                 print("Timesteps: ", hyp1.timestep)
@@ -1596,6 +1610,14 @@ class BeamRNNTInfer(Typing):
                                 if int(label) == self.blank:
                                     h_i.alignments.append([])  # blank buffer for next timestep
 
+            #     print("-"*20)
+            #     print("After maes step No: ", n)
+            #     for hyp1 in sorted(hyps, key = lambda x: x.score, reverse=True):
+            #         print("Sequence: ", hyp1.y_sequence)
+            #         print("Timesteps: ", hyp1.timestep)
+            #         print("Score: ", hyp1.score)
+            #         print()
+            # print("-"*20)
         # Remove trailing empty list of alignments
         if self.preserve_alignments:
             for h in kept_hyps:
