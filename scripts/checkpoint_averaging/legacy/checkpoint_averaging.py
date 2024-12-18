@@ -61,7 +61,10 @@ def main():
         help='A list of Python file names to "from FILE import *" (Needed when some classes were defined in __main__ of a script)',
     )
     parser.add_argument(
-        '--class_path', type=str, default='', help='A path to class "module.submodule.class" (if given)',
+        '--class_path',
+        type=str,
+        default='',
+        help='A path to class "module.submodule.class" (if given)',
     )
     args = parser.parse_args()
 

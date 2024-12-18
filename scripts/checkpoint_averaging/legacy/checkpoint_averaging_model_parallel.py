@@ -50,10 +50,12 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--name_prefix', help='Name of the final checkpoint. Will append -averaged.ckpt automatically.',
+        '--name_prefix',
+        help='Name of the final checkpoint. Will append -averaged.ckpt automatically.',
     )
     parser.add_argument(
-        '--checkpoint_dir', help='Folder containing all mp_rank_X subfolders.',
+        '--checkpoint_dir',
+        help='Folder containing all mp_rank_X subfolders.',
     )
     args = parser.parse_args()
 
