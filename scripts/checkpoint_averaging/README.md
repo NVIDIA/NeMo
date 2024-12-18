@@ -3,7 +3,7 @@ Checkpoint Averaging
 
 Overview
 --------
-The checkpoint averaging script is used to compute the average of multiple distributed checkpoints in a framework. This can be useful for improving model performance by combining multiple training states.
+The checkpoint averaging script is used to compute the average of multiple distributed checkpoints. This can be useful for improving model performance by combining multiple training states.
 
 When executed, the script processes checkpoints stored in a specified directory, averages their weights, and generates new checkpoint containing the averaged weights.
 
@@ -11,11 +11,11 @@ Average Zarr Distributed Checkpoints
 ------------------------------------
 Use the following command to run the checkpoint averaging script for zarr distributed checkpoints:
 
-```bash
-   python scripts/checkpoint_averaging/distributed_checkpoint_averaging.py \
-       --name_prefix=<output checkpoint name> \
-       --checkpoint_dir=<folder with zarr distriubted checkpoints> \
-       --steps <optionally a list of checkpoint steps to average, if not provided, it will average all the checkpoints>
+```shell
+python scripts/checkpoint_averaging/distributed_checkpoint_averaging.py \
+    --name_prefix <output checkpoint name> \
+    --checkpoint_dir <folder with zarr distriubted checkpoints> \
+    --steps <optionally a list of checkpoint steps to average, if not provided, it will average all the checkpoints>
 ```
 **Arguments**:
 - `--name_prefix`: Specifies the prefix for the generated averaged checkpoint.
