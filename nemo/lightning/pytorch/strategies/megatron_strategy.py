@@ -79,6 +79,7 @@ ConfigT = TypeVar("ConfigT")
 
 
 DDPLiteral = Literal["megatron", "pytorch"]
+FSDPLiteral = Literal["megatron", "pytorch"]
 
 
 @dataclass
@@ -135,7 +136,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
-        fsdp (Optional[string]): Option of using torch FSDP2, select from ["torch"]. Defaults to None.
+        fsdp (Optional[FSDPLiteral]): Option of using torch FSDP2, select from ["megatron", "pytorch"]. Defaults to None.
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
@@ -199,7 +200,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
-        fsdp: Optional[str] = None,
+        fsdp: Optional[FSDPLiteral] = None,
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         save_ckpt_format: str = "torch_dist",
@@ -270,13 +271,17 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self._ddp = ddp
         self._fsdp = None
-        if fsdp == "torch":
+        if fsdp == "pytorch":
             if version.parse(torch.__version__) >= version.parse("2.4.0a"):
                 # FSDP 2 is only supported after torch 2.4
                 self._fsdp = fsdp
                 logging.info("FSDP option is set to Torch. Using MCore's Torch FSDP2 for DP.")
             else:
                 logging.warning("Setting FSDP2 to False. FSDP2 require torch version >= 2.4.")
+        elif fsdp == "megatron":
+            raise NotImplementedError("MCore FSDP2 is not supported yet, will be added in the future.")
+        elif fsdp is not None:
+            raise ValueError(f'Invalid DDP type: {fsdp}, please choose from ["megatron", "pytorch"].')
 
         if ddp == "megatron":
             self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
@@ -284,7 +289,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.ddp_config = ddp
         elif ddp == "pytorch":
             if self._fsdp is not None:
-                raise ValueError("Please set ddp to megatron to run Torch FSDP2.")
+                raise ValueError("Please set ddp to megatron to run MCore Torch FSDP2.")
             self.ddp_config = None
             self.no_ddp_communication_hook = False
         else:

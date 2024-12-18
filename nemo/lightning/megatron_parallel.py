@@ -150,7 +150,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         vp_size (Optional[int]): Virtual pipeline parallel size.
         ddp_config (Optional[DistributedDataParallelConfig]): An instance of Megatron core's
             DistributedDataParallelConfig which controls the Megatron DDP configuration.
-        fsdp (Optional[str]): Whether model should run Torch FSDP2 instead of DDP, select from ["torch"]. Defaults to None.
+        fsdp (Optional[str]): Whether model should run Torch FSDP2 instead of DDP, select from 
+            ["megatron", "torch"]. Defaults to None.
         cpu (bool): Whether model should reside on CPU.
         convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
             apply to the model parameters after initialization.
