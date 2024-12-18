@@ -1,0 +1,2 @@
+tensorstore==0.1.45
+zarr==2.18.2
