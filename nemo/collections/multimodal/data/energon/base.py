@@ -30,7 +30,7 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
 
-class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
+class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
     """
     A PyTorch Lightning DataModule for handling multimodal datasets with images and text.
 
@@ -70,7 +70,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         decoder_seq_length: Optional[int] = None,
     ) -> None:
         """
-        Initialize the SimpleMultiModalDataModule.
+        Initialize the EnergonMultiModalDataModule.
 
         Parameters:
         path (str): Path to the dataset.

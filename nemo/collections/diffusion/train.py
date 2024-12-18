@@ -38,7 +38,7 @@ from nemo.collections.diffusion.models.model import (
     DiTXLConfig,
     ECDiTLlama1BConfig,
 )
-from nemo.collections.multimodal.data.energon.base import SimpleMultiModalDataModule
+from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint, PreemptionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
@@ -64,7 +64,7 @@ def multimodal_datamodule() -> pl.LightningDataModule:
 @run.autoconvert
 def simple_datamodule() -> pl.LightningDataModule:
     """Simple Datamodule Initialization"""
-    data_module = SimpleMultiModalDataModule(
+    data_module = EnergonMultiModalDataModule(
         seq_length=2048,
         micro_batch_size=1,
         global_batch_size=32,
