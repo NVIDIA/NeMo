@@ -228,6 +228,8 @@ class TensorRTLLM(ITritonDeployable):
             build_rank (Optional[int]): rank to export the model on. If None, builds on all ranks.
         """
 
+        if use_mcore_path:
+            raise RuntimeError("Using Megatron-Core export path is not yet supported for this version.")
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
 
         if Path(self.model_dir).exists():
