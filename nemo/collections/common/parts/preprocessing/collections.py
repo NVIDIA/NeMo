@@ -1583,14 +1583,12 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
         # Handling `uniq_id` string
         if 'uniq_id' not in item:
             item['uniq_id'] = os.path.splitext(os.path.basename(item['audio_file']))[0]
-            
+
         if not isinstance(item['uniq_id'], str):
-            raise ValueError(f"Manifest file has invalid json line " 
-                             f"structure: {line} without proper uniq_id key.")
+            raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper uniq_id key.")
 
         if 'duration' not in item:
-            raise ValueError(f"Manifest file has invalid json line " 
-                             f"structure: {line} without proper duration key.")
+            raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
 
         item = dict(
             audio_file=item['audio_file'],
