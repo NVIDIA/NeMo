@@ -44,7 +44,7 @@ class KenLMWrapper:
     """
 
     @kenlm_required
-    def __init__(self, lm_path: Path | str, vocab_size: int, token_offset: int=100):
+    def __init__(self, lm_path: Path | str, vocab_size: int, token_offset: int = 100):
         self.ngram_lm = kenlm.Model(str(lm_path))
         self.token_offset = token_offset
         self.vocab_size = vocab_size
@@ -61,9 +61,7 @@ class KenLMWrapper:
     def get_init_states(self, batch_size: int, bos=True):
         return [self.get_init_state(bos=bos) for _ in range(batch_size)]
 
-    def advance(
-        self, states: list["kenlm.State"]
-    ) -> tuple[torch.Tensor, list[list["kenlm.State"]]]:
+    def advance(self, states: list["kenlm.State"]) -> tuple[torch.Tensor, list[list["kenlm.State"]]]:
         batch_size = len(states)
         new_states = [[] for _ in range(len(states))]
         scores = torch.zeros(batch_size, self.vocab_size)
@@ -145,7 +143,9 @@ class FastNGramLM(nn.Module):
     START_STATE = 0
     BOS_STATE = 1
 
-    def __init__(self, num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton: bool | None = None):
+    def __init__(
+        self, num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton: bool | None = None
+    ):
         """
         Stubs for constructor that does not initialize the structure.
         This constructor can be useful when storing/loading module using native torch serialization mechanism
@@ -189,7 +189,9 @@ class FastNGramLM(nn.Module):
         self.register_buffer("state_order", torch.zeros([num_states], dtype=torch.int64))
 
     @classmethod
-    def from_arpa(cls, lm_path: Path | str, vocab_size: int, token_offset: int =100, use_triton: bool | None = None) -> "FastNGramLM":
+    def from_arpa(
+        cls, lm_path: Path | str, vocab_size: int, token_offset: int = 100, use_triton: bool | None = None
+    ) -> "FastNGramLM":
         """
         Constructor from ARPA LM (text format).
 
@@ -439,7 +441,7 @@ class FastNGramLM(nn.Module):
         return self.score_sentences(labels=labels, labels_lengths=labels_lengths, bos=bos)
 
     def score_sentences(
-            self, labels: torch.Tensor, labels_lengths: torch.Tensor | None = None, bos: bool = True
+        self, labels: torch.Tensor, labels_lengths: torch.Tensor | None = None, bos: bool = True
     ) -> torch.Tensor:
         """
         Compute log-probabilities for all labels in utterances using N-Gram LM.
@@ -462,7 +464,9 @@ class FastNGramLM(nn.Module):
         for i in range(max_length):
             # TODO(vbataev): support differentiable implementation with Triton
             step_scores, states = self._advance_pytorch(states)
-            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(1)).squeeze(-1) * (i < labels_lengths)
+            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(1)).squeeze(-1) * (
+                i < labels_lengths
+            )
             states = states.gather(dim=1, index=labels[:, i].unsqueeze(1)).squeeze(-1)
         return scores
 
