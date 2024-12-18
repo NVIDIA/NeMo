@@ -19,6 +19,9 @@ from pytriton.client import ModelClient
 
 
 def str_list2numpy(str_list: List[str]) -> np.ndarray:
+    """"
+    Convert a list of strings to a numpy array of strings.
+    """
     str_ndarray = np.array(str_list)[..., np.newaxis]
     return np.char.encode(str_ndarray, "utf-8")
 
@@ -43,6 +46,20 @@ def query_llm(
     """
     A method that sends post request to the model on PyTriton server and returns either generated text or
     logits.
+
+    Args:
+        url (str): The URL for the Triton server. Required.
+        model_name (str): The name of the Triton model. Required.
+        prompt (str, optional): The prompt to be used. Required if `prompt_file` is not provided.
+        prompt_file (str, optional): The file path to read the prompt from. Required if `prompt` is not provided.
+        stop_words_list (str, optional): A list of stop words.
+        bad_words_list (str, optional): A list of bad words.
+        no_repeat_ngram_size (int, optional): The size of the n-grams to disallow repeating.
+        max_output_len (int): The maximum length of the output tokens. Defaults to 128.
+        top_k (int): The top-k sampling parameter. Defaults to 1.
+        top_p (float): The top-p sampling parameter. Defaults to 0.0.
+        temperature (float): The temperature for sampling. Defaults to 1.0.
+        task_id (str, optional): The task ID for the prompt embedding tables.
     """
     prompts = str_list2numpy([prompt] if isinstance(prompt, str) else prompt)
     inputs = {"prompts": prompts}
