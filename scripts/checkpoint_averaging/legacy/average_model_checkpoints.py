@@ -107,6 +107,8 @@ def process_config(cfg: OmegaConf):
 
 @hydra_runner(config_path=None, config_name=None)
 def main(cfg):
+    logging.info("This script is deprecated and will be removed in the 25.01 release.")
+
     name_prefix, checkpoint_paths, save_ckpt_only = process_config(cfg)
 
     if not save_ckpt_only:

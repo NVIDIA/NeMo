@@ -46,6 +46,8 @@ from nemo.utils import logging
 
 
 def main():
+    logging.info("This script is deprecated and will be removed in the 25.01 release.")
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--name_prefix', help='Name of the final checkpoint. Will append -averaged.ckpt automatically.',

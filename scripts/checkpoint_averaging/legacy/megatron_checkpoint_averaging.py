@@ -44,6 +44,8 @@ from nemo.utils import logging, model_utils
 
 
 def main():
+    logging.info("This script is deprecated and will be removed in the 25.01 release.")
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         'model_fname_list',
