@@ -1538,6 +1538,8 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
             item['offset'] = 0
 
         # If the name `audio_file` is not present in the manifest file, replace it.
+        if 'audio_file' in item:
+            pass
         if 'audio_filename' in item:
             item['audio_file'] = item.pop('audio_filename')
         elif 'audio_filepath' in item:
@@ -1547,39 +1549,36 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
 
-        # Audio file handling
+        # Audio file handling depending on the types 
         if isinstance(item['audio_file'], list):
-            audio_file_list = []
             for single_audio_file in item['audio_file']:
-                if not os.path.exists(single_audio_file):
-                    raise FileNotFoundError(f"Audio file not found: {single_audio_file}")
-                else:
-                    audio_file_list.append(get_full_path(audio_file=ingle_audio_file, manifest_file=manifest_file))
+                audio_file_list.append(get_full_path(audio_file=single_audio_file, manifest_file=manifest_file))
             item['audio_file'] = audio_file_list
-        else:
+        elif isinstance(item['audio_file'], str):
+            item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
             if not os.path.exists(item['audio_file']):
                 raise FileNotFoundError(f"Audio file not found: {item['audio_file']}")
-            else:
-                item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+        else:
+            raise ValueError(
+                f"Manifest file has invalid json line " 
+                f"structure: {line} without proper audio file value: {item['audio_file']}."
+            )
 
         # If the name `rttm_file` is not present in the manifest file, replace it.
-        if 'rttm_filename' in item:
+        if 'rttm_file' in item:
+            pass
+        elif 'rttm_filename' in item:
             item['rttm_file'] = item.pop('rttm_filename')
         elif 'rttm_filepath' in item:
             item['rttm_file'] = item.pop('rttm_filepath')
         else:
-            raise ValueError(
-                f"Manifest file has invalid json line " f"structure: {line} without proper RTTM file key."
-            )
-
-        # RTTM file handling
-        if 'rttm_file' not in item:
             item['rttm_file'] = None
-        else:
+        
+        # If item['rttm_file'] is not None and the RTTM file exists, get the full path
+        if item['rttm_file'] is not None:
+            item['rttm_file'] = get_full_path(audio_file=item['rttm_file'], manifest_file=manifest_file)
             if not os.path.exists(item['rttm_file']):
                 raise FileNotFoundError(f"RTTM file not found: {item['rttm_file']}")
-            else:
-                item['rttm_file'] = get_full_path(audio_file=item['rttm_file'], manifest_file=manifest_file)
 
         # Handling `uniq_id` string
         if 'uniq_id' not in item:
@@ -1595,7 +1594,7 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
             uniq_id=item['uniq_id'],
             duration=item['duration'],
             rttm_file=item['rttm_file'],
-            offset=item.get('offset', None),
+            offset=item.get('offset', 0),
         )
         return item
 
