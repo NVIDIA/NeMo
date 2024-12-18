@@ -374,6 +374,10 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
                     [audio_signal.shape[0], self.model.get_step_from_audio_len(all_lens_answer_rate).max() + 1],
                     self.model.tokenizer.unk_id,
                 ).cuda(),
+                'source_texts_merge': torch.full(
+                    [audio_signal.shape[0], self.model.get_step_from_audio_len(all_lens_answer_rate).max() + 1],
+                    self.model.tokenizer.unk_id,
+                ).cuda(),
                 'answer_audio_lens': all_lens_answer_rate,
                 'answer_audio': torch.zeros([audio_signal.shape[0], all_lens_answer_rate.max()]).cuda(),
                 'loss_mask': None,

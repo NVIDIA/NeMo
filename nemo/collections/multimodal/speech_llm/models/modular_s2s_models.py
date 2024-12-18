@@ -263,12 +263,20 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             self.proj_head_dims = self.cfg.proj_head_dims
             self.proj_head_loss_weights = self.cfg.get('proj_head_loss_weights', [1.0])
             if self.decoder_reduction_factor != 1:
-                self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
-                    1:
-                ] * self.decoder_reduction_factor
-                self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
-                    1:
-                ] * self.decoder_reduction_factor
+                if getattr(self.cfg, 'predict_source_text', False):
+                    self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
+                        1:-1
+                    ] * self.decoder_reduction_factor + [self.proj_head_dims[-1]]
+                    self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
+                        1:-1
+                    ] * self.decoder_reduction_factor + [self.cfg.proj_head_loss_weights[-1]]
+                else:
+                    self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
+                        1:
+                    ] * self.decoder_reduction_factor
+                    self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
+                        1:
+                    ] * self.decoder_reduction_factor
 
             model = S2sMCoreGPTModel(
                 config=self.transformer_config,
@@ -476,7 +484,10 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         #     text_tokens = decoder_output[:, 0]
         #     speech_tokens = decoder_output[:, 1:]
         text_tokens = decoder_output[:, 0]
-        speech_tokens = decoder_output[:, 1:]
+        if self.cfg.predict_source_text:
+            speech_tokens = decoder_output[:, 1:-1]
+        else:
+            speech_tokens = decoder_output[:, 1:]
         # Get speech token ids
         if self.cfg.get('megatron_amp_O2', False):
             n_speech_codebooks = self.model.module.n_proj_heads - 1
@@ -1122,6 +1133,10 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 answer_codec = torch.where(
                     sliced_text_channel == self.tokenizer.eos_id, self.cfg.data.train_ds.speech_eos_id, answer_codec
                 )
+                if getattr(self.cfg, 'predict_source_text', False):
+                    # Also use source_text
+                    source_text_channel = audio_batch['source_texts_merge'][i]
+                    sliced_source_text_channel = source_text_channel[: answer_codec.shape[0]].unsqueeze(-1)
             else:
                 # this branch is not used anymore
                 # mask bos and eos following timestamp or synthetic data mark
@@ -1139,27 +1154,32 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 )
                 sliced_text_channel = text_channel[: answer_codec.shape[0]]
 
-            if getattr(self.cfg, 'speech_delay', False):
-                text_len, text_vocab = sliced_text_channel.shape
-                speech_len, speech_vocab = answer_codec.shape
-                assert text_len == speech_len
-                speech_pad_id = self.cfg.data.train_ds.speech_unk_id
-                text_pad_id = self.tokenizer.eos_id
-                answer_codec_padded = torch.full(
-                    (self.cfg.speech_delay, speech_vocab), speech_pad_id, device=answer_codec.device
-                )
-                answer_codec_shifted = torch.cat([answer_codec_padded, answer_codec], dim=0)[:speech_len, :]
-                sliced_text_channel_padded = torch.full(
-                    (self.cfg.speech_delay, text_vocab), text_pad_id, device=sliced_text_channel.device
-                )
-                sliced_text_channel_extended = torch.cat([sliced_text_channel, sliced_text_channel_padded], dim=0)[
-                    :speech_len, :
-                ]
-                combined_channels = torch.cat([sliced_text_channel_extended, answer_codec_shifted], dim=-1)
-                all_channels.append(combined_channels)
+            # import pdb; pdb.set_trace()    
+
+            if getattr(self.cfg, 'predict_source_text', False):
+                all_channels.append(torch.cat([sliced_text_channel, answer_codec, sliced_source_text_channel], dim=-1))
             else:
-                # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
-                all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
+                if getattr(self.cfg, 'speech_delay', False):
+                    text_len, text_vocab = sliced_text_channel.shape
+                    speech_len, speech_vocab = answer_codec.shape
+                    assert text_len == speech_len
+                    speech_pad_id = self.cfg.data.train_ds.speech_unk_id
+                    text_pad_id = self.tokenizer.eos_id
+                    answer_codec_padded = torch.full(
+                        (self.cfg.speech_delay, speech_vocab), speech_pad_id, device=answer_codec.device
+                    )
+                    answer_codec_shifted = torch.cat([answer_codec_padded, answer_codec], dim=0)[:speech_len, :]
+                    sliced_text_channel_padded = torch.full(
+                        (self.cfg.speech_delay, text_vocab), text_pad_id, device=sliced_text_channel.device
+                    )
+                    sliced_text_channel_extended = torch.cat([sliced_text_channel, sliced_text_channel_padded], dim=0)[
+                        :speech_len, :
+                    ]
+                    combined_channels = torch.cat([sliced_text_channel_extended, answer_codec_shifted], dim=-1)
+                    all_channels.append(combined_channels)
+                else:
+                    # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
+                    all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
 
             if loss_mask is not None:
                 cur_loss_mask = torch.cat(
@@ -1169,6 +1189,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
         all_channels = pad_sequence(all_channels, batch_first=True)
         input_ids = all_channels[:, :-1]
+        # import pdb; pdb.set_trace()
         encoded = encoded[:, : input_ids.shape[1]]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
@@ -1198,6 +1219,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
 
+        # import pdb; pdb.set_trace()
         return encoder_input, attention_mask, labels, loss_mask, (encoded, encoder_length)
 
     def prepare_llm_input(self, audio_batch):
