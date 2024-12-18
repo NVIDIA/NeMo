@@ -128,7 +128,7 @@ class LinearAdapter(nn.Linear):
         return res + lora_res
 
     def forward(self, x):
-        return self._forward(x)
+        return LinearAdapter._forward(self,x)
 
 
 
@@ -263,12 +263,12 @@ class LoRA(PEFT):
 
                 return lora_cls(
                     m,
-                    dim=8,
-                    alpha=32,
-                    dropout=0.1,
-                    dropout_position='post',
-                    lora_A_init_method='xavier',
-                    lora_dtype=None,
+                    dim,
+                    alpha,
+                    dropout,
+                    dropout_position,
+                    lora_A_init_method,
+                    lora_dtype,
                 )
 
             input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
