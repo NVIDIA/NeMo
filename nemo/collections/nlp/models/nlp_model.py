@@ -415,7 +415,12 @@ class NLPModel(ModelPT, Exportable):
                     checkpoint['state_dict'] = sharded_state_dict
                 # load the checkpoint from disk
                 checkpoint = dist_checkpointing.load(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
+                if kwargs.get('return_ckpt', False):
+                    return checkpoint
                 # restore the weights
+                print(checkpoint['state_dict'].keys())
+                print(len(checkpoint['state_dict']))
+                #checkpoint = dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
                 model.on_load_checkpoint(checkpoint)
                 if hasattr(model, 'setup_transformer_engine_tp_groups'):
                     model.setup_transformer_engine_tp_groups()

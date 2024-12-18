@@ -43,8 +43,9 @@ import shutil
 import numpy as np
 import tensorstore  # need to import it for bf16 support
 import zarr
+import torch
 
-from nemo.utils.distributed import initialize_distributed
+from lightning.pytorch.trainer.trainer import Trainer
 
 logging.basicConfig(level=logging.INFO)
 
@@ -67,10 +68,6 @@ def get_args():
     )
     parser.add_argument('--hparams_file', help='Path to hparams.yaml.')
     parser.add_argument('--precision', default='bf16-mixed', help='Model precision.')
-    parser.add_argument("--local-rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
-    parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--pipeline_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
     # list of checkpoint steps to average
     parser.add_argument(
         '--steps',
@@ -84,7 +81,7 @@ def get_args():
     return args
 
 
-def init_trainer(args, world_size):
+def init_trainer(args):
     from lightning.pytorch.trainer.trainer import Trainer
     from megatron.core import parallel_state
     from omegaconf import OmegaConf, open_dict
@@ -92,23 +89,16 @@ def init_trainer(args, world_size):
     from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
     from nemo.collections.nlp.parts.nlp_overrides import (
         GradScaler,
-        NLPDDPStrategy,
         NLPSaveRestoreConnector,
+        NLPDDPStrategy,
         PipelineMixedPrecisionPlugin,
     )
-    from nemo.utils import AppState
 
-    app_state = AppState()
-    app_state.data_parallel_rank = 0
-    num_nodes = 1  # world_size // args.gpus_per_node
     plugins = []
-    strategy = NLPDDPStrategy(use_distributed_checkpointing=True)
 
     cfg = {
         'trainer': {
-            'devices': args.gpus_per_node,
-            'num_nodes': num_nodes,
-            'accelerator': 'gpu',
+            'accelerator': 'cpu',
             'precision': args.precision,
         },
         'model': {
@@ -128,35 +118,20 @@ def init_trainer(args, world_size):
             growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
             hysteresis=cfg.model.get('hysteresis', 2),
         )
-    plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+    plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cpu', scaler=scaler))
     # Set precision None after precision plugins are created as PTL >= 2.1 does not allow both
     # precision plugins and precision to exist
+    strategy = NLPDDPStrategy()
     cfg.trainer.precision = None
-    trainer = MegatronTrainerBuilder(cfg).create_trainer()
+    trainer = Trainer(plugins=plugins, strategy=strategy, **cfg.trainer)
 
-    app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
-    app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
-    # Auto set split rank for T5, BART, NMT if split rank is None.
-    app_state.pipeline_model_parallel_split_rank = None
-
-    app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
-
-    parallel_state.initialize_model_parallel(
-        tensor_model_parallel_size=app_state.tensor_model_parallel_size,
-        pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
-        pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
-    )
-
-    app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
-    app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
-
-    return trainer, strategy
+    return trainer
 
 
-def load_torch_dist_ckpt(path, hparams_file, trainer):
+def load_torch_dist_ckpt(path, hparams_file, trainer, return_ckpt=False):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 
-    model = MegatronGPTModel.load_from_checkpoint(path, hparams_file=hparams_file, trainer=trainer)
+    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path=path, hparams_file=hparams_file, trainer=trainer, return_ckpt=return_ckpt)
 
     return model
 
@@ -164,8 +139,8 @@ def load_torch_dist_ckpt(path, hparams_file, trainer):
 def main(args):
     if args.checkpoint_format == 'torch_dist':
 
-        local_rank, rank, world_size = initialize_distributed(args)
-        trainer, strategy = init_trainer(args, world_size)
+        #local_rank, rank, world_size = initialize_distributed(args)
+        trainer = init_trainer(args)#, world_size)
 
     if args.steps is not None:
         logging.info(f"Will average only steps {args.steps}")
@@ -230,15 +205,12 @@ def main(args):
                     avg_weights[item] = sum_array
         else:
             model = load_torch_dist_ckpt(full_path, args.hparams_file, trainer)
-            # logging.info(model.state_dict()['model.decoder.layers.1.pre_mlp_layernorm.weight'])
             for key, value in model.state_dict().items():
                 if "_extra_state" not in key:
                     if key not in avg_weights:
-                        # logging.info(f"Initialized average weights dict with: {key}")
-                        avg_weights[key] = value
+                        avg_weights[key] = value.to('cpu')
                     else:
-                        # logging.info(f"Updated average weights dict with weight: {key}")
-                        avg_weights[key] += value
+                        avg_weights[key] += value.to('cpu')
 
     for k in avg_weights:
         logging.info(f"Average weights dict key : {k}, dtype : {avg_weights[k].dtype}, shape : {avg_weights[k].shape}")
@@ -291,15 +263,18 @@ def main(args):
         logging.info(f"Averaged distributed checkpoint saved as : {ckpt_name}")
     else:
         avg_model_path = os.path.join(args.checkpoint_dir, checkpoint_paths[0])
-        avg_model = load_torch_dist_ckpt(avg_model_path, args.hparams_file, trainer)
-        avg_state_dict = avg_model.state_dict()
-        # logging.info(avg_weights['model.decoder.layers.1.pre_mlp_layernorm.weight'])
-        for key, value in avg_weights.items():
-            avg_state_dict[key] = value
+        avg_model = load_torch_dist_ckpt(avg_model_path, args.hparams_file, trainer, return_ckpt=False)
+        #avg_state_dict = avg_model.state_dict()
+        # for key, value in avg_weights.items():
+        #     avg_state_dict[key] = value
 
-        avg_model.state_dict = avg_state_dict
-        # print(avg_state_dict['model.decoder.layers.1.pre_mlp_layernorm.weight'])
-        avg_model.save_to(os.path.join(args.checkpoint_dir, 'averaged.nemo'))
+        from megatron.core import dist_checkpointing
+        #avg_model['state_dict'] = avg_state_dict
+        os.mkdir(os.path.join(args.checkpoint_dir, "average"))
+        from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+        #strat = NLPDDPStrategy()
+        avg_model.save_to(os.path.join(f"{args.checkpoint_dir}/avg", "average.nemo"))
+        #strat.save_checkpoint(checkpoint=avg_model, os.path.join(args.checkpoint_dir, "average"))
 
 
 if __name__ == '__main__':
