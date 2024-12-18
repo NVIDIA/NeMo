@@ -221,6 +221,7 @@ def train_mock() -> run.Partial:
 
 @run.cli.factory(target=llm.train)
 def mock_ditllama5b_8k() -> run.Partial:
+    """DiT-5B mock Recipe"""
     recipe = pretrain()
     recipe.model.config = run.Config(DiTLlama5BConfig, max_frames=1)
     recipe.data = multimodal_fake_datamodule()
@@ -256,6 +257,7 @@ def mock_ditllama5b_8k() -> run.Partial:
 
 @run.cli.factory(target=llm.train)
 def mock_dit7b_8k() -> run.Partial:
+    """DiT-7B mock Recipe"""
     recipe = mock_ditllama5b_8k()
     recipe.model.config = run.Config(DiT7BConfig, max_frames=1)
     recipe.data.model_config = recipe.model.config
