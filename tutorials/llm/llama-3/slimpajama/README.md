@@ -26,7 +26,7 @@ Assuming you have all the pre-requisites installed, you can get started by follo
 1. Start and enter the dev container by running:
    ```bash
     docker run \
-    --gpus device=1 \
+    --gpus device=all \
     --shm-size=2g \
     --net=host \
     --ulimit memlock=-1 \
