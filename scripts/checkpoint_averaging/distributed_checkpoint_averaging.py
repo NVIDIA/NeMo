@@ -42,9 +42,8 @@ import shutil
 
 import numpy as np
 import tensorstore  # need to import it for bf16 support
-import zarr
 import torch
-
+import zarr
 from lightning.pytorch.trainer.trainer import Trainer
 
 logging.basicConfig(level=logging.INFO)
@@ -89,8 +88,8 @@ def init_trainer(args):
     from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
     from nemo.collections.nlp.parts.nlp_overrides import (
         GradScaler,
-        NLPSaveRestoreConnector,
         NLPDDPStrategy,
+        NLPSaveRestoreConnector,
         PipelineMixedPrecisionPlugin,
     )
 
@@ -131,7 +130,9 @@ def init_trainer(args):
 def load_torch_dist_ckpt(path, hparams_file, trainer, return_ckpt=False):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 
-    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path=path, hparams_file=hparams_file, trainer=trainer, return_ckpt=return_ckpt)
+    model = MegatronGPTModel.load_from_checkpoint(
+        checkpoint_path=path, hparams_file=hparams_file, trainer=trainer, return_ckpt=return_ckpt
+    )
 
     return model
 
@@ -139,8 +140,8 @@ def load_torch_dist_ckpt(path, hparams_file, trainer, return_ckpt=False):
 def main(args):
     if args.checkpoint_format == 'torch_dist':
 
-        #local_rank, rank, world_size = initialize_distributed(args)
-        trainer = init_trainer(args)#, world_size)
+        # local_rank, rank, world_size = initialize_distributed(args)
+        trainer = init_trainer(args)  # , world_size)
 
     if args.steps is not None:
         logging.info(f"Will average only steps {args.steps}")
@@ -264,17 +265,19 @@ def main(args):
     else:
         avg_model_path = os.path.join(args.checkpoint_dir, checkpoint_paths[0])
         avg_model = load_torch_dist_ckpt(avg_model_path, args.hparams_file, trainer, return_ckpt=False)
-        #avg_state_dict = avg_model.state_dict()
+        # avg_state_dict = avg_model.state_dict()
         # for key, value in avg_weights.items():
         #     avg_state_dict[key] = value
 
         from megatron.core import dist_checkpointing
-        #avg_model['state_dict'] = avg_state_dict
+
+        # avg_model['state_dict'] = avg_state_dict
         os.mkdir(os.path.join(args.checkpoint_dir, "average"))
         from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
-        #strat = NLPDDPStrategy()
+
+        # strat = NLPDDPStrategy()
         avg_model.save_to(os.path.join(f"{args.checkpoint_dir}/avg", "average.nemo"))
-        #strat.save_checkpoint(checkpoint=avg_model, os.path.join(args.checkpoint_dir, "average"))
+        # strat.save_checkpoint(checkpoint=avg_model, os.path.join(args.checkpoint_dir, "average"))
 
 
 if __name__ == '__main__':

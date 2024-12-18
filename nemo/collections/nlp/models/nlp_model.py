@@ -420,7 +420,7 @@ class NLPModel(ModelPT, Exportable):
                 # restore the weights
                 print(checkpoint['state_dict'].keys())
                 print(len(checkpoint['state_dict']))
-                #checkpoint = dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
+                # checkpoint = dist_checkpointing.save(sharded_state_dict=checkpoint, checkpoint_dir=checkpoint_dir)
                 model.on_load_checkpoint(checkpoint)
                 if hasattr(model, 'setup_transformer_engine_tp_groups'):
                     model.setup_transformer_engine_tp_groups()
