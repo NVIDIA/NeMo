@@ -1321,7 +1321,7 @@ class MegatronStep(Generic[ModelT, DataT]):
 
             if batch_idx is not None and dataloader_idx is not None:
                 packed_data = [(d, batch_idx, dataloader_idx) for d in data]
-                return itertools.chain(packed_data)
+                return [itertools.chain(packed_data)], seq_length
         else:
             data = self.data
             # for pretraining (fixed sequence length), we use seq_length inferred from the data sampler.
