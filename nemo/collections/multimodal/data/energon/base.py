@@ -80,7 +80,8 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         micro_batch_size (int, optional): The batch size for training and validation. Defaults to 1.
         num_workers (int, optional): Number of workers for data loading. Defaults to 1.
         pin_memory (bool, optional): Whether to pin memory in the DataLoader. Defaults to True.
-        multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples. Defaults to MultiModalSampleConfig().
+        multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
+        Defaults to MultiModalSampleConfig().
         task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples. If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
         """
 
