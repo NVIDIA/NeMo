@@ -171,6 +171,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             that prints the metrics to stdout. Suitable for non-interactive settings.
         progress_interval (int): How frequently to print progress to stdout. Only used when
             replace_progress_bar is True.
+        fsdp_sub_modules_to_wrap (List[torch.nn.Module]): A list of submodules to wrap with FSDP.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -218,6 +219,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
         restore_config: Optional[RestoreConfig] = None,
+        fsdp_sub_modules_to_wrap: List[torch.nn.Module] = [
+            TransformerLayer,
+            LanguageModelEmbedding,
+            RotaryEmbedding,
+            tensor_parallel.ColumnParallelLinear,
+        ],
         **kwargs,
     ) -> None:
         super().__init__(
@@ -268,6 +275,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.progress_interval = progress_interval
 
         self.restore_config = restore_config
+
+        self.fsdp_sub_modules_to_wrap = fsdp_sub_modules_to_wrap
 
         self._ddp = ddp
         self._fsdp = None
@@ -463,6 +472,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             ddp_config=self.ddp_config,
             fsdp=self._fsdp,
             convert_module_fn=convert_module_fn,
+            fsdp_sub_modules_to_wrap=self.fsdp_sub_modules_to_wrap,
         )
 
         if self._init_model_parallel:

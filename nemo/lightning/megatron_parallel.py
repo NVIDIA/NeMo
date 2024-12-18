@@ -155,6 +155,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         cpu (bool): Whether model should reside on CPU.
         convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
             apply to the model parameters after initialization.
+        fsdp_sub_modules_to_wrap (List[torch.nn.Module]): A list of submodules to wrap with FSDP.
 
     Examples
     --------
@@ -189,6 +190,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         fsdp: Optional[str] = None,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
+        fsdp_sub_modules_to_wrap: List[torch.nn.Module] = [
+            TransformerLayer,
+            LanguageModelEmbedding,
+            RotaryEmbedding,
+            tensor_parallel.ColumnParallelLinear,
+        ],
     ) -> None:
         from megatron.core import parallel_state
         from megatron.core.tensor_parallel import set_defaults_if_not_set_tensor_model_parallel_attributes
@@ -223,6 +230,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.ddp_config = ddp_config
         self.fsdp = fsdp
         self.convert_module_fn = convert_module_fn
+        self.fsdp_sub_modules_to_wrap = fsdp_sub_modules_to_wrap
 
     def forward(
         self,
@@ -580,10 +588,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         from megatron.core import parallel_state
 
-        if self.fsdp == "pytorch" and HAVE_MCORE_TORCH_FSDP2:
-            DP = TorchFSDP
-        else:
-            DP = DDP
 
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
@@ -601,17 +605,27 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
 
             with init_ddp_context():
-                ddp = DP(
-                    module.config,
-                    self.ddp_config,
-                    module,
-                    # data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    # expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                    # # Turn off bucketing for model_chunk 2 onwards, since communication for these
-                    # # model chunks is overlapped with compute anyway.
-                    # disable_bucketing=(model_chunk_idx > 0),
-                    disable_bucketing=disable_bucketing,
-                )
+                if self.fsdp == "pytorch" and HAVE_MCORE_TORCH_FSDP2:
+                    ddp = TorchFSDP(
+                        module.config,
+                        self.ddp_config,
+                        module,
+                        sub_modules_to_wrap=self.fsdp_sub_modules_to_wrap,
+                        disable_bucketing=disable_bucketing,
+                    )
+                else:
+                    ddp = DDP(
+                        module.config,
+                        self.ddp_config,
+                        module,
+                        # data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                        # expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                        # # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                        # # model chunks is overlapped with compute anyway.
+                        # disable_bucketing=(model_chunk_idx > 0),
+                        disable_bucketing=disable_bucketing,
+                    )
+                
 
             model_chunk.module = ddp
             model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
