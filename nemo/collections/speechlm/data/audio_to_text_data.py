@@ -55,12 +55,27 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         self.text_processor = None
         self._num_validation_dl = None
         self._num_test_dl = None
+        if 'common' not in self.cfg:
+            raise ValueError("`common` configuration is missing in the data config")
+
+    @property
+    def global_batch_size(self):
+        return self.data_cfg.global_batch_size
+
+    @property
+    def micro_batch_size(self):
+        return self.data_cfg.micro_batch_size
+
+    @property
+    def seq_length(self):
+        return self.data_cfg.max_seq_length
+
+    @property
+    def data_cfg(self):
+        return self.cfg.common
 
     def get_text_processor(self):
-        data_cfg = self.cfg.get("common", None)
-        if data_cfg is None:
-            raise ValueError("common configuration is missing in the data config")
-
+        data_cfg = self.data_cfg
         # TODO: unify the text processor creation for both lhotse and non-lhotse datasets
         text_processor = TextProcessing(
             self.tokenizer,
@@ -108,26 +123,17 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         if stage == 'test' or stage is None:
             self._test_ds = self._create_dataset('test')
 
-        if stage != 'predict':
-            self.data_sampler = SpeechLMDataSampler(
-                seq_len=self.cfg.common.max_seq_length,
-                micro_batch_size=self.cfg.common.micro_batch_size,
-                global_batch_size=self.cfg.common.global_batch_size,
-                rampup_batch_size=self.cfg.get("rampup_batch_size", None),
-                dataloader_type="batch",  # "batch" should be used for SFT,
-            )
+        self.data_sampler = SpeechLMDataSampler(
+            seq_len=self.seq_length,
+            micro_batch_size=self.micro_batch_size,
+            global_batch_size=self.global_batch_size,
+            rampup_batch_size=self.data_cfg.get("rampup_batch_size", None),
+            dataloader_type="batch",  # "batch" should be used for SFT,
+        )
 
-            # Follows the calculation in nemo.collections.nlp.data.language_modeling.megatron.
-            # base_dataset_utils.get_datasets_weights_and_num_samples
-            self.max_train_samples = int(math.ceil(self.cfg.common.global_batch_size * self.trainer.max_steps * 1.005))
-
-    @property
-    def micro_batch_size(self):
-        return self.cfg.common.micro_batch_size
-
-    @property
-    def global_batch_size(self):
-        return self.cfg.common.global_batch_size
+        # Follows the calculation in `nemo.collections.nlp.data.language_modeling.megatron.
+        # base_dataset_utils.get_datasets_weights_and_num_samples`
+        self.max_train_samples = int(math.ceil(self.global_batch_size * self.trainer.max_steps * 1.005))
 
     @lru_cache
     def _create_dataset(self, mode: str):
