@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from unittest.mock import MagicMock, call, patch
+
 import torch
 import torch.nn as nn
 from lightning.pytorch.trainer.states import TrainerFn
+
 from nemo.collections.llm import fn
 from nemo.lightning.pytorch.callbacks.peft import PEFT, WrappedAdapterIO
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
@@ -49,7 +51,6 @@ class TestPEFT:
         assert transformed_model.linear.weight.requires_grad == False
         assert transformed_model.conv.weight.requires_grad == False
 
-
     def test_linear_adapter(self):
         from nemo.collections.llm.peft.lora import LinearAdapter
 
@@ -73,8 +74,9 @@ class TestPEFT:
                 assert key in ['lora_a', 'lora_b']
 
     def test_linear_adapter_monkey_patch(self):
-        from nemo.collections.llm.peft.lora import patch_linear_module
         from copy import deepcopy
+
+        from nemo.collections.llm.peft.lora import patch_linear_module
 
         linear = nn.Linear(10, 10)
         state_init = deepcopy(linear.state_dict())
