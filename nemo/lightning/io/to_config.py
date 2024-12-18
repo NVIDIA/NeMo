@@ -1,5 +1,5 @@
-from typing import Any, Callable, TypeVar
 from functools import partial
+from typing import Any, Callable, TypeVar
 
 import fiddle as fdl
 

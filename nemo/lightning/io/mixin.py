@@ -37,8 +37,8 @@ from typing_extensions import Self
 from nemo.lightning.io.artifact.base import Artifact
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.connector import ModelConnector
-from nemo.lightning.io.to_config import to_config
 from nemo.lightning.io.fdl_torch import enable as _enable_ext
+from nemo.lightning.io.to_config import to_config
 from nemo.utils import logging
 
 ConnT = TypeVar("ConnT", bound=ModelConnector)
@@ -234,9 +234,7 @@ class IOMixin:
 
         config_path = output_path / "io.json"
         with open(config_path, "w") as f:
-            io = _artifact_transform_save(
-                self, deepcopy(self.__io__), output_path, local_artifacts_dir
-            )
+            io = _artifact_transform_save(self, deepcopy(self.__io__), output_path, local_artifacts_dir)
             json = serialization.dump_json(io)
             f.write(json)
 
@@ -634,9 +632,7 @@ def _io_path_elements_fn(x):
     return x.__io__.__path_elements__()
 
 
-def _artifact_transform_save(
-    instance, cfg: fdl.Config, output_path: Path, relative_dir: Path = "."
-):
+def _artifact_transform_save(instance, cfg: fdl.Config, output_path: Path, relative_dir: Path = "."):
     artifacts = getattr(cfg.__fn_or_cls__, "__io_artifacts__", [])
 
     for artifact in artifacts:
@@ -650,9 +646,7 @@ def _artifact_transform_save(
         current_val = getattr(cfg, artifact.attr)
         if current_val is None:
             if artifact.required:
-                raise ValueError(
-                    f"Artifact '{artifact.attr}' is required but not provided"
-                )
+                raise ValueError(f"Artifact '{artifact.attr}' is required but not provided")
             continue
         ## dump artifact and return the relative path
         new_val = artifact.dump(instance, current_val, output_path, relative_dir)

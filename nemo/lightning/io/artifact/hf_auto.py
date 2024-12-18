@@ -1,16 +1,14 @@
-from typing import Path
 import inspect
+from typing import Path
+
+import fiddle as fdl
 
 from nemo.lightning.io.artifact import Artifact
 from nemo.lightning.io.to_config import to_config
 
-import fiddle as fdl
-
 
 class HFAutoArtifact(Artifact):
-    def dump(
-        self, instance, value: Path, absolute_dir: Path, relative_dir: Path
-    ) -> Path:
+    def dump(self, instance, value: Path, absolute_dir: Path, relative_dir: Path) -> Path:
         instance.save_pretrained(Path(absolute_dir) / "artifacts")
 
         return "./" + str(Path(relative_dir) / "artifacts")

@@ -19,6 +19,7 @@ in codegen, graphviz, and other debugging functions.
 """
 
 import types
+
 import libcst as cst
 import torch
 import torch.nn as nn
@@ -26,8 +27,8 @@ from fiddle._src import daglish_extensions
 from fiddle._src.codegen import import_manager, py_val_to_cst_converter, special_value_codegen
 from fiddle._src.experimental import serialization
 
-from nemo.lightning.io.to_config import to_config
 from nemo.lightning.io.artifact import *  # noqa: F403
+from nemo.lightning.io.to_config import to_config
 
 
 def _make_torch_importable(name: str) -> special_value_codegen.Importable:
