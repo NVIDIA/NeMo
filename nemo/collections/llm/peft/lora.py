@@ -17,12 +17,13 @@ from dataclasses import dataclass, field
 from typing import List, Literal
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear, wildcard_match
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
-import torch.nn.functional as F
+
 
 class LoRALinear(AdapterWrapper):
     """An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
@@ -54,6 +55,7 @@ class LinearAdapter(nn.Linear):
         lora_dtype (torch.dtype): weight's dtype, by default will use orig_linear's but if they
         are quantized weights (e.g. 4bit) needs to be specified explicitly.
     """
+
     def __init__(
         self,
         orig_linear,
@@ -70,7 +72,7 @@ class LinearAdapter(nn.Linear):
             out_features=orig_linear.out_features,
             bias=orig_linear.bias is not None,
             device=orig_linear.weight.device,
-            dtype=orig_linear.weight.dtype
+            dtype=orig_linear.weight.dtype,
         )
         LinearAdapter._init_adapter(self, orig_linear)
 
@@ -128,19 +130,18 @@ class LinearAdapter(nn.Linear):
         return res + lora_res
 
     def forward(self, x):
-        return LinearAdapter._forward(self,x)
-
+        return LinearAdapter._forward(self, x)
 
 
 def patch_linear_module(
-        orig_linear,
-        dim=8,
-        alpha=32,
-        dropout=0.1,
-        dropout_position='post',
-        lora_A_init_method='xavier',
-        lora_dtype=None,
-    ):
+    orig_linear,
+    dim=8,
+    alpha=32,
+    dropout=0.1,
+    dropout_position='post',
+    lora_A_init_method='xavier',
+    lora_dtype=None,
+):
     """Monkey-patches a nn.Linear (orig_linear param) to be a LinearAdapter, for all purposes
     think of this function as replacing a nn.Linear with a LinearAdapter defined above.
 
@@ -171,17 +172,11 @@ def patch_linear_module(
     assert isinstance(orig_linear, nn.Linear)
 
     LinearAdapter._init_adapter(
-        orig_linear,
-        None,
-        dim,
-        alpha,
-        dropout,
-        dropout_position,
-        lora_A_init_method,
-        lora_dtype
+        orig_linear, None, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
     )
     orig_linear.forward = lambda x: LinearAdapter._forward(orig_linear, x)
     return orig_linear
+
 
 @dataclass
 class LoRA(PEFT):
