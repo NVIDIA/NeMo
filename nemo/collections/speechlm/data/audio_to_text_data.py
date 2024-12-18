@@ -121,6 +121,14 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             # base_dataset_utils.get_datasets_weights_and_num_samples
             self.max_train_samples = int(math.ceil(self.cfg.common.global_batch_size * self.trainer.max_steps * 1.005))
 
+    @property
+    def micro_batch_size(self):
+        return self.cfg.common.micro_batch_size
+
+    @property
+    def global_batch_size(self):
+        return self.cfg.common.global_batch_size
+
     @lru_cache
     def _create_dataset(self, mode: str):
         data_cfg = self.cfg.get(f"{mode}_ds", None)
@@ -191,6 +199,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         return dataset
 
     def _create_nemo_dataloader(self, dataset: Any, mode: str, **kwargs) -> DataLoader:
+        self.init_global_step = self.trainer.global_step
+        self.data_sampler.init_global_step = self.init_global_step
         data_cfg = self.cfg.get(f"{mode}_ds", None)
         if data_cfg is None:
             logging.info(f"Skipping {mode} dataloader creation as it is not specified in the config: {self.cfg}")
@@ -230,7 +240,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             pin_memory=data_cfg.pin_memory,
             persistent_workers=data_cfg.get("persistent_workers", False),
             collate_fn=collate_fn,
-            drop_last=data_cfg.get("drop_last", False),
+            drop_last=mode not in ["test", "predict"],
             shuffle=data_cfg.get("shuffle", False),
             **kwargs,
         )

@@ -76,7 +76,7 @@ data:
     pin_memory: True
     max_seq_length: ${data.common.max_seq_length}
     min_seq_length: ${data.common.min_seq_length}
-    drop_last: False
+    drop_last: true  # no effect, the dataloader will drop last for train and validation anyway
     context_key: ${data.common.context_key}
     answer_key: ${data.common.answer_key}
     add_eos: ${data.common.add_eos}
