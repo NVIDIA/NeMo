@@ -22,7 +22,7 @@ from torch import nn
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear, wildcard_match
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
-
+import torch.nn.functional as F
 
 class LoRALinear(AdapterWrapper):
     """An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
@@ -39,11 +39,21 @@ class LoRALinear(AdapterWrapper):
         return linear_output + adapter_output, bias
 
 
-class LinearAdapter(nn.Module):
+class LinearAdapter(nn.Linear):
     """
-    A simple LoRA linear module for non-megatron models.
-    """
+    Linear + LoRA, maintains ckpts structrue (i.e. Linear's weight/bias remain at the same FQN)
 
+
+    Args:
+        orig_linear (nn.Module): the linear module to augment.
+        dim (int): lora's dim in_features -> dim -> out_features.
+        alpha (int): lora's scaling alpha.
+        dropout (float): dropout prob (default: 0.1).
+        dropout_position (str): where to apply dropout rel. to lora (choices= ['pre', 'post'], default=post)
+        lora_A_init_method (str): init method for lora_A (choices= ['xavier', 'uniform'])
+        lora_dtype (torch.dtype): weight's dtype, by default will use orig_linear's but if they
+        are quantized weights (e.g. 4bit) needs to be specified explicitly.
+    """
     def __init__(
         self,
         orig_linear,
@@ -54,22 +64,29 @@ class LinearAdapter(nn.Module):
         lora_A_init_method='xavier',
         lora_dtype=None,
     ):
-        super(LinearAdapter, self).__init__()
         assert isinstance(orig_linear, nn.Linear)
+        super(LinearAdapter, self).__init__(
+            in_features=orig_linear.in_features,
+            out_features=orig_linear.out_features,
+            bias=orig_linear.bias is not None,
+            device=orig_linear.weight.device,
+            dtype=orig_linear.weight.dtype
+        )
 
-        self.orig_linear = orig_linear
         self.dim = dim
         self.scale = alpha / dim
 
         # Freezer
-        device = self.orig_linear.weight.device
-        self.orig_linear.weight.requires_grad = False
-        if self.orig_linear.bias is not None:
-            self.orig_linear.bias.requires_grad = False
+        self.weight.data.copy_(orig_linear.weight.data)
+        device = self.weight.device
+        self.weight.requires_grad = False
+        if orig_linear.bias is not None:
+            self.bias.data.copy_(orig_linear.bias.data)
+            self.bias.requires_grad = False
 
-        in_features = self.orig_linear.in_features
-        out_features = self.orig_linear.out_features
-        dtype = lora_dtype or self.orig_linear.weight.dtype
+        in_features = self.in_features
+        out_features = self.out_features
+        dtype = lora_dtype or self.weight.dtype
 
         self.lora_a = nn.Parameter(torch.zeros((in_features, dim), dtype=dtype, device=device))
         self.lora_b = nn.Parameter(torch.zeros((dim, out_features), dtype=dtype, device=device))
@@ -84,7 +101,7 @@ class LinearAdapter(nn.Module):
 
     def forward(self, x):
         # pylint: disable=C0115,C0116
-        res = self.orig_linear(x)
+        res = F.linear(x, self.weight, self.bias)
         if self.dropout_position == 'pre':
             x = self.dropout(x)
         lora_res = x @ self.lora_a
