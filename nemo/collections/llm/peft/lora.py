@@ -76,7 +76,7 @@ class LinearAdapter(nn.Linear):
 
     @staticmethod
     def _init_adapter(
-        cls,
+        obj,
         orig_linear=None,
         dim=8,
         alpha=32,
@@ -85,34 +85,34 @@ class LinearAdapter(nn.Linear):
         lora_A_init_method='xavier',
         lora_dtype=None,
     ):
-        cls.dim = dim
-        cls.scale = alpha / dim
+        obj.dim = dim
+        obj.scale = alpha / dim
 
         # Freezer
-        device = cls.weight.device
-        cls.weight.requires_grad = False
-        if cls.bias is not None:
-            cls.bias.requires_grad = False
+        device = obj.weight.device
+        obj.weight.requires_grad = False
+        if obj.bias is not None:
+            obj.bias.requires_grad = False
         # copy weights
         if orig_linear is not None:
-            cls.weight.data.copy_(orig_linear.weight.data)
+            obj.weight.data.copy_(orig_linear.weight.data)
             if orig_linear.bias is not None:
-                cls.bias.data.copy_(orig_linear.bias.data)
+                obj.bias.data.copy_(orig_linear.bias.data)
 
-        in_features = cls.in_features
-        out_features = cls.out_features
-        dtype = lora_dtype or cls.weight.dtype
+        in_features = obj.in_features
+        out_features = obj.out_features
+        dtype = lora_dtype or obj.weight.dtype
 
-        cls.lora_a = nn.Parameter(torch.zeros((in_features, dim), dtype=dtype, device=device))
-        cls.lora_b = nn.Parameter(torch.zeros((dim, out_features), dtype=dtype, device=device))
+        obj.lora_a = nn.Parameter(torch.zeros((in_features, dim), dtype=dtype, device=device))
+        obj.lora_b = nn.Parameter(torch.zeros((dim, out_features), dtype=dtype, device=device))
         if lora_A_init_method == 'xavier':
-            torch.nn.init.uniform_(cls.lora_a)
+            torch.nn.init.uniform_(obj.lora_a)
         else:
-            nn.init.kaiming_uniform_(cls.lora_a, a=math.sqrt(5))
+            nn.init.kaiming_uniform_(obj.lora_a, a=math.sqrt(5))
 
-        cls.dropout = nn.Dropout(p=dropout)
+        obj.dropout = nn.Dropout(p=dropout)
         assert dropout_position in ['pre', 'post'], dropout_position
-        cls.dropout_position = dropout_position
+        obj.dropout_position = dropout_position
 
     @staticmethod
     def _forward(obj, x):
