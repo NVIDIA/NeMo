@@ -1,5 +1,5 @@
-Checkpoint Averaging Script
-============================
+Checkpoint Averaging
+====================
 
 Overview
 --------
@@ -11,13 +11,12 @@ Average Zarr Distributed Checkpoints
 ------------------------------------
 Use the following command to run the checkpoint averaging script for zarr distributed checkpoints:
 
-.. code-block:: bash
-
+```bash
    python scripts/checkpoint_averaging/distributed_checkpoint_averaging.py \
        --name_prefix=<output checkpoint name> \
        --checkpoint_dir=<folder with zarr distriubted checkpoints> \
        --steps <optionally a list of checkpoint steps to average, if not provided, it will average all the checkpoints>
-
+```
 **Arguments**:
 - `--name_prefix`: Specifies the prefix for the generated averaged checkpoint.
 - `--checkpoint_dir`: Specifies the folder containing zarr distributed checkpoints.
