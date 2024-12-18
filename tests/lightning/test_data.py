@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 
 @pytest.fixture
 def trainer():
     return MagicMock()
+
 
 @patch(
     'nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTDataset.__init__', return_value=None
