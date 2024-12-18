@@ -49,10 +49,12 @@ logging.basicConfig(level=logging.INFO)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--name_prefix', help='Name of the final checkpoint. Will append -averaged automatically.',
+        '--name_prefix',
+        help='Name of the final checkpoint. Will append -averaged automatically.',
     )
     parser.add_argument(
-        '--checkpoint_dir', help='Folder containing all the distributed checkpoints.',
+        '--checkpoint_dir',
+        help='Folder containing all the distributed checkpoints.',
     )
     # list of checkpoint steps to average
     parser.add_argument(
