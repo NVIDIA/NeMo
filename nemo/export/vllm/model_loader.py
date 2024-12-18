@@ -124,7 +124,7 @@ class NemoModelLoader(BaseModelLoader):
             config = model_config.nemo_model_config
             if 'config' in config:
                 config = config['config']
-            state_dict = { k.replace('module', 'model'): v for k,v in state_dict.items() }
+            state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
 
             weights_iterator = model_config.model_converter.convert_weights(config, state_dict)
             model.load_weights(weights_iterator)
@@ -142,18 +142,12 @@ class NemoModelLoader(BaseModelLoader):
 
         state_dict = NemoModelLoader._load_nemo_checkpoint_state(model_config.nemo_checkpoint)
 
-
         config = model_config.nemo_model_config
         if 'config' in config:
             config = config['config']
-        state_dict = { k.replace('module', 'model'): v for k,v in state_dict.items() }
+        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
 
-        tensors = {
-            name: tensor
-            for name, tensor in model_config.model_converter.convert_weights(
-                config, state_dict
-            )
-        }
+        tensors = {name: tensor for name, tensor in model_config.model_converter.convert_weights(config, state_dict)}
 
         LOGGER.info(f'Saving weights to {safetensors_file}...')
         safetensors.torch.save_file(tensors, safetensors_file)

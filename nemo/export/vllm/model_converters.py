@@ -309,7 +309,6 @@ class Starcoder2Converter(ModelConverter):
         # Standarize NeMo 2.0 and NeMo 1.0 naming
         state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
 
-
         num_layers = nemo_model_config["num_layers"]
         num_query_groups = nemo_model_config["num_query_groups"]
         head_num = nemo_model_config["num_attention_heads"]

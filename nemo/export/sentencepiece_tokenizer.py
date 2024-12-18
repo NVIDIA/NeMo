@@ -37,7 +37,7 @@ class SentencePieceTokenizer:
         model_path: Optional[str] = None,
         special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
         legacy: bool = False,
-        tokenizer: Optional[sentencepiece.SentencePieceProcessor] = None
+        tokenizer: Optional[sentencepiece.SentencePieceProcessor] = None,
     ):
         if tokenizer is not None:
             self.tokenizer = tokenizer
@@ -48,7 +48,7 @@ class SentencePieceTokenizer:
             self.original_vocab_size = self.tokenizer.get_piece_size()
             self.vocab_size = self.tokenizer.get_piece_size()
             return
-        
+
         if model_path is None:
             raise ValueError("Neither tokenizer nor model_path were provided")
         if not model_path or not os.path.exists(model_path):

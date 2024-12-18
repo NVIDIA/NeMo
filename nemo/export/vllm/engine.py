@@ -15,8 +15,8 @@
 import logging
 from pathlib import Path
 
-from transformers import PreTrainedTokenizerBase
 from sentencepiece import SentencePieceProcessor
+from transformers import PreTrainedTokenizerBase
 from vllm import LLMEngine
 from vllm.transformers_utils.tokenizer_group.tokenizer_group import TokenizerGroup
 
