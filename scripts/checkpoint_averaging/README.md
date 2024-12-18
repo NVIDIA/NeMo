@@ -22,4 +22,4 @@ python scripts/checkpoint_averaging/zarr_distributed_checkpoint_averaging.py \
 - `--checkpoint_dir`: Specifies the folder containing zarr distributed checkpoints.
 - `--steps`: (Optional) A comma-separated list of checkpoint steps to average (e.g., 1000, 2000, 3000). If not provided, the script will average all the checkpoints in the directory.
 
-After execution, the script generates averaged checkpoint in <checkpoint_dir> named `<name_prefix>-averaged`.
+After execution, the script generates averaged checkpoint in `<checkpoint_dir>` named `<name_prefix>-averaged`.
