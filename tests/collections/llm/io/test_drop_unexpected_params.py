@@ -71,11 +71,7 @@ class TestDropUnexpectedParams:
         """
         Test that a nested config with unexpected parameters gets updated.
         """
-        config = fdl.Config(
-            self.OuterClass,
-            z=4,
-            t=fdl.Config(self.MockClassOld, x=1, y=2, deprecated=3)
-        )
+        config = fdl.Config(self.OuterClass, z=4, t=fdl.Config(self.MockClassOld, x=1, y=2, deprecated=3))
 
         # Simulate deprecation issue by overriding target class
         config.t.__dict__["__fn_or_cls__"] = self.MockClassNew

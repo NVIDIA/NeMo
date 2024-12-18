@@ -7,7 +7,7 @@ import fiddle as fdl
 from fiddle._src.experimental import serialization
 
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.io import load, drop_unexpected_params
+from nemo.lightning.io import drop_unexpected_params, load
 from nemo.utils import logging
 
 IO_FILE = "io.json"
