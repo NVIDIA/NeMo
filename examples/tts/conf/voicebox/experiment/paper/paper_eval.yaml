@@ -1,0 +1,33 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=paper_eval
+
+defaults:
+  - /experiment@_global_:
+    - paper/default
+    - tricks/gradient_clip
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+model:
+  init_from_ptl_ckpt:
+    model0:
+      path: ???
+      include:
+        - duration_predictor
+    model1:
+      path: ???
+      include:
+        - voicebox
+
+# task name, determines output directory path
+task_name: "paper_eval"
+
+# set False to skip model training
+train: False
+
+# evaluate on test set, using best model weights achieved during training
+# lightning chooses best weights based on the metric specified in checkpoint callback
+test: True

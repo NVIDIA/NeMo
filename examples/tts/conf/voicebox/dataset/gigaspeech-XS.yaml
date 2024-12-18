@@ -1,0 +1,8 @@
+# @package model
+
+defaults:
+  - gigaspeech
+
+
+train_ds:
+  subset: XS

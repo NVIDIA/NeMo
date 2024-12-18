@@ -1,0 +1,30 @@
+_target_: nemo.collections.tts.models.voicebox.VoiceboxModel
+
+defaults:
+  - duration_predictor: default
+  - audio_enc_dec@duration_predictor.audio_enc_dec: mel_voco
+
+  - voicebox: default
+  - audio_enc_dec@voicebox.audio_enc_dec: encodec_voco
+
+  - tokenizer: default
+  - cfm_wrapper: default
+
+optim:
+  name: adamw
+
+  lr: 1e-4
+  # weight_decay: 1e-2
+  # betas: [0.9, 0.99]
+  # eps: 1e-8
+
+  # sched:
+  #   name: CosineAnnealing
+  #   min_lr: 5e-5
+  #   warmup_ratio: 0.35
+
+# optim_param_groups:
+#   duration_predictor:
+#     lr: 1e-3
+
+ds_kwargs: null

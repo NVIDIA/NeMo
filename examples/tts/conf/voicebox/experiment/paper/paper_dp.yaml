@@ -1,0 +1,47 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=local-1
+
+defaults:
+  - /experiment@_global_:
+    - paper/default
+    - tricks/adam_warmup
+    # - tricks/gradient_clip
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+model:
+  freeze_updates:
+    enabled: True
+    modules:
+      voicebox: -1  # steps to freeze from start (-1: to the end)
+    
+  train_ds:
+    lhotse:
+      batch_duration: 600 # ~ 60k phones per batch
+
+trainer:
+  max_steps: 600000 # duration model steps
+
+exp_manager:
+  # save_dir = ${exp_dir}/${name}/${version}
+  exp_dir: null # defaults to ./nemo_experiments
+  name: ${task_name}
+  version: null # defaults to datetime
+
+  resume_if_exists: False
+  create_checkpoint_callback: True
+  # checkpoint_callback_params:
+  #   monitor: val_loss_total
+
+# task name, determines output directory path
+task_name: "paper_dp"
+
+# set False to skip model training
+train: True
+
+# evaluate on test set, using best model weights achieved during training
+# lightning chooses best weights based on the metric specified in checkpoint callback
+test: False

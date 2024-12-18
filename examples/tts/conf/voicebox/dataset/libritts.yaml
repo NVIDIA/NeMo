@@ -1,0 +1,108 @@
+# @package model
+
+# data_dir: ${paths.data_dir}
+
+ds_name: libritts
+
+corpus_dir: data/download/LibriTTS/LibriTTS
+manifests_dir: data/parsed/LibriTTS  # parsed manifests (e.g. filtering, add alignments, etc.)
+textgrid_dir: data/aligned/LibriTTS/textgrid
+
+subsets: [
+  "dev-clean",
+  "dev-other",
+  "test-clean",
+  "test-other",
+  "train-clean-100",
+  "train-clean-360",
+  "train-other-500",
+]
+
+sample_rate: 16000
+
+train_ds:
+  subset: train-clean-100
+  defer_setup: true
+  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.jsonl.gz
+  sample_rate: ${..sample_rate}
+  batch_size: 16 # you may increase batch_size if your memory allows
+  shuffle: true
+  num_workers: 8
+  pin_memory: false
+  # max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
+  # min_duration: 0.1
+
+  # tarred datasets
+  is_tarred: false
+  tarred_audio_filepaths: null
+  shuffle_n: 2048
+
+  # bucketing params
+  bucketing_strategy: "synced_randomized"
+  bucketing_batch_size: null
+
+  # lhotse
+  use_lhotse: true
+  lhotse:
+    cuts_path: ${..manifest_filepath}
+    use_bucketing: true
+    batch_duration: 100.0  # seconds
+  ds_kwargs: ${..ds_kwargs}
+
+validation_ds:
+  subset: dev-clean
+  defer_setup: true
+  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.jsonl.gz
+  sample_rate: ${..sample_rate}
+  batch_size: 16
+  shuffle: false
+  num_workers: 8
+  pin_memory: false
+  # max_duration: 100 # it is set for LibriSpeech, you may need to update it for your dataset
+  # min_duration: 0.1
+
+  # tarred datasets
+  is_tarred: false
+  tarred_audio_filepaths: null
+  # shuffle_n: 2048
+
+  # bucketing params
+  bucketing_strategy: "synced_randomized"
+  bucketing_batch_size: null
+
+  # lhotse
+  use_lhotse: true
+  lhotse:
+    cuts_path: ${..manifest_filepath}
+    use_bucketing: False
+    batch_duration: 100.0  # seconds
+  ds_kwargs: ${..ds_kwargs}
+
+test_ds:
+  subset: test-clean
+  defer_setup: true
+  manifest_filepath: ${..manifests_dir}/${..ds_name}_cuts_${.subset}.jsonl.gz
+  sample_rate: ${..sample_rate}
+  batch_size: 16
+  shuffle: false
+  num_workers: 8
+  pin_memory: false
+  # max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
+  # min_duration: 0.1
+
+  # tarred datasets
+  is_tarred: false
+  tarred_audio_filepaths: null
+  # shuffle_n: 2048
+
+  # # bucketing params
+  # bucketing_strategy: "synced_randomized"
+  # bucketing_batch_size: null
+
+  # lhotse
+  use_lhotse: true
+  lhotse:
+    cuts_path: ${..manifest_filepath}
+    use_bucketing: False
+    batch_duration: 100.0  # seconds
+  ds_kwargs: ${..ds_kwargs}
