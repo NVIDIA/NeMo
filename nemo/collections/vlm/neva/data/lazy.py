@@ -465,6 +465,7 @@ class NevaDataset(LazySupervisedDataset):
 
             cu_seqlens = torch.IntTensor(cu_seqlens)
             cu_seqlens_padded = torch.IntTensor(cu_seqlens_padded)
+            cu_seqlens_padded = None
             qkv_format = 'thd'
             packed_seq_params = PackedSeqParams(
                 cu_seqlens_q=cu_seqlens,
