@@ -58,6 +58,7 @@ class TestFastNGramLM:
         batch_size = 2
         device = torch.device("cuda")
         torch.manual_seed(777)
+        lm = lm.to(device)
         for _ in tqdm(range(10000)):
             start_state = random.randint(0, lm.num_states - 1)
             with torch.no_grad():
