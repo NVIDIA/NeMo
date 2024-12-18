@@ -42,7 +42,7 @@ class NemotronConfig(GPTConfig):
     position_embedding_type: str = "rope"
     share_embeddings_and_output_weights: bool = False
     add_bias_linear: bool = False
-
+    vocab_size: Optional[int] = None
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     rotary_percent: float = 0.5
@@ -123,6 +123,18 @@ class Nemotron4Config340B(NemotronConfig):
     init_method_std: float = 0.0063
 
 
+@dataclass
+class Nemotron5Config8B(NemotronConfig):
+    normalization: str = "RMSNorm"
+    layernorm_zero_centered_gamma: bool = False
+    num_layers: int = 32
+    seq_length: int = 8092
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 21504
+    num_attention_heads: int = 32
+    num_query_groups: Optional[int] = 8
+    init_method_std: float = 0.014
+
 class NemotronModel(GPTModel):
     def __init__(
         self,
@@ -163,13 +175,17 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
             "model.layers.*.mlp.up_proj.weight": "decoder.layers.*.mlp.linear_fc1.weight",
             "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-            "model.layers.*.input_layernorm.bias": "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-            "model.layers.*.post_attention_layernorm.bias": "decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
             "model.norm.weight": "decoder.final_layernorm.weight",
-            "model.norm.bias": "decoder.final_layernorm.bias",
             "lm_head.weight": "output_layer.weight",
         }
+
+        if self.config.normalization == "LayerNorm":
+            mapping.update({
+                "model.layers.*.input_layernorm.bias": "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
+                "model.layers.*.post_attention_layernorm.bias": "decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
+                "model.norm.bias": "decoder.final_layernorm.bias",
+            })
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv])
 
@@ -191,6 +207,13 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
                 base //= 2
             return base
 
+        if hasattr(source, "layernorm_type") and source.layernorm_type.lower() == "rmsnorm":
+            normalization = "RMSNorm"
+            layernorm_zero_centered_gamma = False
+        else:
+            normalization = "LayerNorm"
+            layernorm_zero_centered_gamma = True
+
         output = NemotronConfig(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
@@ -203,7 +226,10 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
             rotary_base=source.rope_theta,
             rotary_percent=source.partial_rotary_factor,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            vocab_size=getattr(source, "vocab_size", None),
             share_embeddings_and_output_weights=False,
+            normalization=normalization,
+            layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
@@ -362,5 +388,6 @@ __all__ = [
     "Nemotron3Config22B",
     "Nemotron4Config15B",
     "Nemotron4Config340B",
+    "Nemotron5Config8B",
     "NemotronModel",
 ]

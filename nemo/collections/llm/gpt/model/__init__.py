@@ -78,6 +78,7 @@ from nemo.collections.llm.gpt.model.nemotron import (
     Nemotron3Config22B,
     Nemotron4Config15B,
     Nemotron4Config340B,
+    Nemotron5Config8B,
     NemotronConfig,
     NemotronModel,
 )
@@ -144,6 +145,7 @@ __all__ = [
     "Nemotron4Config15B",
     "Nemotron3Config22B",
     "Nemotron4Config340B",
+    "Nemotron5Config8B",
     "NemotronModel",
     "Phi3Config",
     "Phi3ConfigMini",

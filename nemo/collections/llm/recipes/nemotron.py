@@ -27,6 +27,7 @@ from nemo.collections.llm.gpt.model.nemotron import (
     Nemotron3Config22B,
     Nemotron4Config15B,
     Nemotron4Config340B,
+    Nemotron5Config8B,
     NemotronModel,
 )
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
@@ -64,6 +65,8 @@ def nemotron_model(version: str) -> run.Config[pl.LightningModule]:
         config = run.Config(Nemotron4Config15B, seq_length=65536)
     elif version == "nemotron4_340b":
         config = run.Config(Nemotron4Config340B)
+    elif version == "nemotron5_8b":
+        config = run.Config(Nemotron5Config8B)
 
     assert config is not None, f"Invalid version: {version}"
     return run.Config(NemotronModel, config=config)
