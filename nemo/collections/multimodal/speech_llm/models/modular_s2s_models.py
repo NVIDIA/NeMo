@@ -264,19 +264,23 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             self.proj_head_loss_weights = self.cfg.get('proj_head_loss_weights', [1.0])
             if self.decoder_reduction_factor != 1:
                 if getattr(self.cfg, 'predict_source_text', False):
-                    self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
-                        1:-1
-                    ] * self.decoder_reduction_factor + [self.proj_head_dims[-1]]
-                    self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
-                        1:-1
-                    ] * self.decoder_reduction_factor + [self.cfg.proj_head_loss_weights[-1]]
+                    self.proj_head_dims = (
+                        [self.proj_head_dims[0]]
+                        + self.proj_head_dims[1:-1] * self.decoder_reduction_factor
+                        + [self.proj_head_dims[-1]]
+                    )
+                    self.proj_head_loss_weights = (
+                        [self.cfg.proj_head_loss_weights[0]]
+                        + self.cfg.proj_head_loss_weights[1:-1] * self.decoder_reduction_factor
+                        + [self.cfg.proj_head_loss_weights[-1]]
+                    )
                 else:
                     self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
                         1:
                     ] * self.decoder_reduction_factor
-                    self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
-                        1:
-                    ] * self.decoder_reduction_factor
+                    self.proj_head_loss_weights = [
+                        self.cfg.proj_head_loss_weights[0]
+                    ] + self.cfg.proj_head_loss_weights[1:] * self.decoder_reduction_factor
 
             model = S2sMCoreGPTModel(
                 config=self.transformer_config,
@@ -1154,7 +1158,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 )
                 sliced_text_channel = text_channel[: answer_codec.shape[0]]
 
-            # import pdb; pdb.set_trace()    
+            # import pdb; pdb.set_trace()
 
             if getattr(self.cfg, 'predict_source_text', False):
                 all_channels.append(torch.cat([sliced_text_channel, answer_codec, sliced_source_text_channel], dim=-1))
