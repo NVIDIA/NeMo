@@ -12,20 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
-
-import requests
 import torch
 import torch.nn.functional as F
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
-from requests.exceptions import RequestException
 from tqdm import tqdm
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.llm.evaluation.utils import query_llm
-from nemo.utils import logging
 
 
 class NeMoFWLMEval(LM):
