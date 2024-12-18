@@ -826,6 +826,9 @@ class DDP(McoreDDP):
 
 
 if HAVE_MCORE_TORCH_FSDP2:
+    from megatron.core import tensor_parallel
+    from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
+    from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding-
     # remove later
     class TorchFSDP(McoreTorchFSDP):
         def __init__(
@@ -833,6 +836,12 @@ if HAVE_MCORE_TORCH_FSDP2:
             config: TransformerConfig,
             ddp_config: DistributedDataParallelConfig,
             module: torch.nn.Module,
+            sub_modules_to_wrap: List[torch.nn.Module] = [
+                TransformerLayer,
+                LanguageModelEmbedding,
+                RotaryEmbedding,
+                tensor_parallel.ColumnParallelLinear,
+            ],
             disable_bucketing: bool = False,
             **kwargs,
         ):
@@ -845,6 +854,7 @@ if HAVE_MCORE_TORCH_FSDP2:
                 config=config,
                 ddp_config=ddp_config,
                 module=module,
+                sub_modules_to_wrap=sub_modules_to_wrap,
                 disable_bucketing=disable_bucketing,
                 **filtered_kwargs,
             )
