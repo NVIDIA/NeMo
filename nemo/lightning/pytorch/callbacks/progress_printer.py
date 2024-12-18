@@ -122,9 +122,15 @@ class ProgressPrinter(ProgressBar):
     ## TODO(ashors): handle nan losses
     @override
     def on_train_batch_end(self, trainer, pl_module, *_, **__):
+        n = trainer.strategy.current_epoch_step
+
+        if self.should_log(n) and getattr(trainer.strategy, "timers", None):
+            timers = trainer.strategy._mcore_config.timers  # pointer to timers used in megatron
+            megatron_log_string = self.log_megatron_timers(timers)
+
         if self.is_disabled:
             return
-        n = trainer.strategy.current_epoch_step
+
         metrics = self.get_metrics(trainer, pl_module)
         for key in metrics:
             if key in self.exclude_metrics:
@@ -138,6 +144,7 @@ class ProgressPrinter(ProgressBar):
             prefix = self.train_description + f" epoch {trainer.current_epoch}, iteration {n-1}/{self.total-1}"
             log_string = self.format_string(prefix, self.average_metrics_dict)
             print(log_string)
+            print(megatron_log_string, flush=True)
 
             self.total_metrics_dict = defaultdict(lambda: 0.0)
 
@@ -201,3 +208,8 @@ class ProgressPrinter(ProgressBar):
 
     def should_log(self, n):
         return n % self.log_interval == 0
+
+    def log_megatron_timers(self, timers):
+        output_string = timers.get_all_timers_string(names=None, normalizer=self.log_interval)
+        if output_string is not None:
+            return output_string + "\n"
