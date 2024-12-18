@@ -18,10 +18,10 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader, default_collate
 
@@ -205,6 +205,8 @@ class MLlamaLazyDataModule(pl.LightningDataModule):
         self.data_config = data_config
         self.seq_length = seq_length
         self.decoder_seq_length = decoder_seq_length
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.num_train_samples = num_train_samples

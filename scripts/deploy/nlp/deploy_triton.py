@@ -319,7 +319,6 @@ def get_trtllm_deployable(args):
             trt_llm_exporter.export(
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
-                n_gpus=args.num_gpus,
                 tensor_parallelism_size=args.tensor_parallelism_size,
                 pipeline_parallelism_size=args.pipeline_parallelism_size,
                 max_input_len=args.max_input_len,
@@ -419,13 +418,14 @@ def nemo_deploy(argv):
 
         LOGGER.info("Triton deploy function will be called.")
         nm.deploy()
+        nm.run()
     except Exception as error:
         LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
 
     try:
         LOGGER.info("Model serving on Triton is will be started.")
-        if args.start_rest_service == "True":
+        if args.start_rest_service:
             try:
                 LOGGER.info("REST service will be started.")
                 uvicorn.run(

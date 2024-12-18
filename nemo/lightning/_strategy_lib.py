@@ -28,7 +28,7 @@ NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_A
 
 
 if TYPE_CHECKING:
-    from lightning_fabric.utilities.types import Optimizable
+    from lightning.fabric.utilities.types import Optimizable
     from megatron.core.model_parallel_config import ModelParallelConfig
 
 
@@ -89,7 +89,8 @@ def init_parallel_ranks(
         seed=seed,
         pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
-        init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False),
+        init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False)
+        and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -514,6 +515,17 @@ def optimizer_sharded_state_dict(
 
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
     from megatron.core import parallel_state
+    from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
+
+    ## convert from StrictHandling to bool for PTL
+    if strict is not None and not isinstance(strict, bool):
+        strict = parse_strict_flag(strict)
+        strict_options = [
+            StrictHandling.ASSUME_OK_UNEXPECTED,
+            StrictHandling.RAISE_UNEXPECTED,
+            StrictHandling.RAISE_ALL,
+        ]
+        strict = strict in strict_options
 
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:

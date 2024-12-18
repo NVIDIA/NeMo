@@ -18,9 +18,9 @@ import shutil
 from pathlib import Path, PosixPath, PurePath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from filelock import FileLock, Timeout
-from pytorch_lightning.trainer.states import TrainerFn
+from lightning.pytorch.trainer.states import TrainerFn
 
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
@@ -226,7 +226,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
         from nemo.lightning.io.api import load_context
 
-        model = load_context(path).model
+        model = load_context(path, subpath="model")
         _trainer = trainer or Trainer(
             devices=1,
             accelerator="cpu" if cpu else "gpu",
@@ -274,7 +274,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
     def save_hf_tokenizer_assets(self, tokenizer_name_or_path, save_path="/tmp/nemo_tokenizer"):
         from transformers import AutoTokenizer
 
-        tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
+        tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path, trust_remote_code=True)
         # Save tokenizer assets to save_path.
         tok.save_pretrained(save_path)
         return save_path

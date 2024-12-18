@@ -43,7 +43,8 @@ try:
     from nemo.deploy.nlp import MegatronLLMDeployable, NemoQueryLLMPyTorch
 except Exception as e:
     LOGGER.warning(
-        f"Cannot import MegatronLLMDeployable, in-framework inference will not be available. {type(e).__name__}: {e}"
+        "Cannot import MegatronLLMDeployable or NemoQueryLLMPyTorch,"
+        f" in-framework inference will not be available. {type(e).__name__}: {e}"
     )
     in_framework_supported = False
 
@@ -103,7 +104,8 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
             expected_output = record["last_word"].strip().lower()
             all_expected_outputs.append(expected_output)
             if model is not None:
-                if isinstance(model, MegatronLLMDeployable):
+
+                if in_framework_supported and isinstance(model, MegatronLLMDeployable):
                     model_output = model.generate(
                         inputs=[prompt],
                         length_params={"min_length": 1, "max_length": 1},
@@ -147,7 +149,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                     correct_answers_relaxed += 1
 
             if nq is not None:
-                if isinstance(nq, NemoQueryLLMPyTorch):
+                if in_framework_supported and isinstance(nq, NemoQueryLLMPyTorch):
                     deployed_output = nq.query_llm(
                         prompts=[prompt],
                         max_length=1,
@@ -805,6 +807,7 @@ def get_args():
             return None
         raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
 
+    args.model_type = None if str(args.model_type).lower() == "none" else args.model_type
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
     args.test_deployment = str_to_bool("test_deployment", args.test_deployment)
     args.functional_test = str_to_bool("functional_test", args.functional_test)
@@ -848,6 +851,9 @@ def run_inference_tests(args):
             "vLLM doesn't support changing tensor parallel group size without relaunching the process. "
             "Use the same value for --min_tps and --max_tps."
         )
+
+    if args.debug:
+        LOGGER.setLevel(logging.DEBUG)
 
     result_dic: Dict[int, Tuple[FunctionalResult, Optional[AccuracyResult]]] = {}
 

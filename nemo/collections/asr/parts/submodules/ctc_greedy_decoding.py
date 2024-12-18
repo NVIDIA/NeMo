@@ -19,7 +19,7 @@ from typing import List, Optional
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.parts.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
@@ -339,6 +339,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     """
 
+    ngram_lm_batch: Optional[FastNGramLM]
+
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
@@ -378,7 +380,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # init ngram lm
         if ngram_lm_model is not None:
-            self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+            self.ngram_lm_batch = FastNGramLM.from_arpa(lm_path=ngram_lm_model, vocab_size=self.blank_id)
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
@@ -551,7 +553,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         last_labels = torch.full([batch_size], fill_value=self.blank_id, device=device, dtype=torch.long)
         predictions_logprobs = torch.zeros([batch_size, max_time], device=device, dtype=float_dtype)
         for i in range(max_time):
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(states=batch_lm_states)
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
             lm_scores = lm_scores.to(dtype=float_dtype)
 
             labels = torch.argmax(log_probs[:, i], dim=-1)

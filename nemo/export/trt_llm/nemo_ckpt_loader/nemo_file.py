@@ -21,7 +21,7 @@ import re
 import shutil
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
@@ -36,6 +36,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath, ZarrPathStore
+from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -117,7 +118,9 @@ def load_scaling_factors(state_dict: dict, basename: str, size: int) -> Optional
 
 
 def filter_experts_extra_states(state_dict: dict):
-    pattern = r'model\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
+    pattern = (
+        r'(model|module)\.decoder\.layers\.mlp\.experts\.experts\.linear_fc\d+\._extra_state/shard_\d+\.\d+_\d+\.\d+'
+    )
     return {k: v for k, v in state_dict.items() if not re.fullmatch(pattern, k)}
 
 
@@ -235,7 +238,7 @@ def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=Tru
 
 def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
     def _update_config_entry(key, file_pattern):
-        old_path = tokenizer_config[key]
+        old_path = tokenizer_config.get(key, None)
         if old_path is None:
             return
         old_path = Path(old_path)
@@ -262,7 +265,7 @@ def copy_tokenizer_files(config, out_dir):
     }
 
     for key in basenames.keys():
-        if config[key] is None:
+        if config.get(key, None) is None:
             continue
 
         path = config[key]
@@ -275,12 +278,15 @@ def copy_tokenizer_files(config, out_dir):
             continue
 
         dst_path = out_dir / f"{basenames[key]}{path.suffix}"
+        config[key] = str(dst_path)
         LOGGER.debug(f"Copy tokenizer {key}: {path}->{dst_path}")
 
         # Copy 'path' to 'dst_path' without shutil.copy(...) because 'path' may be a TarPath
         with path.open('rb') as infile:
             with open(dst_path, 'wb') as outfile:
                 outfile.write(infile.read())
+
+    return config
 
 
 def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenizer:
@@ -291,6 +297,10 @@ def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenize
 
         tokenizer_spec = io.load_context((tokenizer_dir_or_path / "nemo_context"), subpath="model.tokenizer")
         return build_tokenizer(tokenizer_spec)
+    elif os.path.exists(os.path.join(tokenizer_dir_or_path, "vocab.json")):
+        vocab_path = tokenizer_dir_or_path / "vocab.json" if tokenizer_dir_or_path.is_dir() else tokenizer_dir_or_path
+        tokenizer_config = {"library": "tiktoken", "vocab_file": str(vocab_path)}
+        return build_tokenizer(tokenizer_config)
     else:
         if (tokenizer_dir_or_path / "huggingface_tokenizer").is_dir():
             return AutoTokenizer.from_pretrained(tokenizer_dir_or_path / "huggingface_tokenizer")
@@ -307,6 +317,8 @@ def build_tokenizer(tokenizer):
         tokenizer_config = tokenizer
         if tokenizer_config["library"] == "sentencepiece":
             return SentencePieceTokenizer(model_path=tokenizer_config["model"])
+        elif tokenizer_config["library"] == "tiktoken":
+            return TiktokenTokenizer(vocab_file=tokenizer_config["vocab_file"])
         elif "GPT2" in tokenizer_config["type"]:
             tokenizer = GPT2Tokenizer(tokenizer_config["vocab_file"], tokenizer_config["merge_file"])
         else:
@@ -317,26 +329,105 @@ def build_tokenizer(tokenizer):
         if tokenizer.eos_token_id is None:
             tokenizer.add_special_tokens({"eos_token": "</s>"})
     else:
-        try:
-            # If NeMo tokenizer, monkey patch interface
-            from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+        # For NeMo tokenizers, monkey patch encode & batch_decode methods for unified interface
+        import nemo.collections.common.tokenizers as nemo_tokenizers
 
-            if isinstance(tokenizer, TokenizerSpec):
-
-                def batch_encode_patch(self, ids):
+        if isinstance(tokenizer, nemo_tokenizers.TokenizerSpec):
+            if isinstance(tokenizer, nemo_tokenizers.AutoTokenizer):
+                # Unwrap the original methods of HF tokenizer
+                batch_decode = tokenizer.tokenizer.batch_decode
+                encode = tokenizer.tokenizer.encode
+            elif isinstance(tokenizer, nemo_tokenizers.SentencePieceTokenizer):
+                # Define HF equivalents based on available SP methods
+                def batch_decode(self, ids):
                     if torch.is_tensor(ids):
                         ids = ids.cpu().numpy()
-                        ids = ids[0] if len(ids.shape) > 1 else ids
-                    return self.ids_to_text(ids)
+                    if isinstance(ids, np.ndarray):
+                        ids = ids.tolist()
+                    return self.tokenizer.decode(ids)
 
-                tokenizer.bos_token_id = tokenizer.bos_id
-                tokenizer.eos_token_id = tokenizer.eos_id
-                tokenizer.encode = tokenizer.text_to_ids
-                TokenizerSpec.batch_decode = batch_encode_patch
-        except:
-            raise TypeError(f'Unsupported tokenizer build input: {type(tokenizer)}')
+                encode = tokenizer.tokenizer.encode_as_ids
+            else:
+                raise NotImplementedError(f"Patching tokenizer methods for {type(tokenizer)} is not available")
+
+            tokenizer.bos_token_id = tokenizer.bos_id
+            tokenizer.eos_token_id = tokenizer.eos_id
+            nemo_tokenizers.TokenizerSpec.encode = encode
+            nemo_tokenizers.TokenizerSpec.batch_decode = batch_decode
 
     return tokenizer
+
+
+def load_nemo_config(nemo_ckpt: Union[str, Path]) -> Dict[Any, Any]:
+    """
+    Load the model configuration from a NeMo checkpoint.
+
+    This function handles both NeMo 1.0 and NeMo 2.0 checkpoint structures.
+    For NeMo 2.0, it reads the configuration from the 'context/model.yaml' file.
+    For NeMo 1.0, it uses the UnpackedNemoCheckpointDir to load the model configuration.
+
+    Args:
+        nemo_ckpt (Union[str, Path]): Path to the NeMo checkpoint file or directory.
+    Returns:
+        Dict[Any, Any]: The configuration dictionary.
+    """
+    if Path(nemo_ckpt).is_dir():
+        nemo_ckpt = Path(nemo_ckpt)
+    else:
+        nemo_ckpt = TarPath(nemo_ckpt)
+
+    if (nemo_ckpt / "weights").exists() and (nemo_ckpt / "context").exists():  # Stucture of NeMo 2.0 checkpoints
+        with (nemo_ckpt / "context" / "model.yaml").open("r") as stream:
+            config = yaml.safe_load(stream)
+    else:  # Assume NeMo 1.0 case
+        unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_ckpt, load_checkpoints_to_cpu=True)
+        config = unpacked_checkpoint_dir.model_config
+
+    return config
+
+
+def get_model_type(nemo_ckpt: Union[str, Path]) -> Optional[str]:
+    """
+    Determine the model type from a NeMo checkpoint for TensorRT-LLM engine build.
+
+    Args:
+        nemo_ckpt (str): Path to the NeMo checkpoint file.
+    Returns:
+        Optional[str]: The model type if it can be determined, otherwise None.
+    """
+    model_config = load_nemo_config(nemo_ckpt)
+    model_type = None
+
+    if model_class := model_config.get("_target_"):
+        # NeMo 2.0 case
+        NEMO2_TO_MODEL_TYPE = {
+            "nemo.collections.llm.gpt.model.base.GPTModel": "gpt",
+            "nemo.collections.llm.gpt.model.llama.LlamaModel": "llama",
+            "nemo.collections.llm.gpt.model.mistral.MistralModel": "llama",
+            "nemo.collections.llm.gpt.model.mixtral.MixtralModel": "llama",
+            "nemo.collections.llm.gpt.model.starcoder.StarcoderModel": "gpt",
+            "nemo.collections.llm.gpt.model.starcoder2.Starcoder2Model": "gpt",
+            "nemo.collections.llm.gpt.model.nemotron.NemotronModel": "gpt",
+            "nemo.collections.llm.gpt.model.gemma.GemmaModel": "gemma",
+            "nemo.collections.llm.gpt.model.phi3mini.Phi3Model": "phi3",
+            "nemo.collections.llm.gpt.model.baichuan.Baichuan2Model": "baichuan",
+            "nemo.collections.llm.gpt.model.chatglm.ChatGLMModel": "chatglm",
+            "nemo.collections.llm.gpt.model.qwen2.Qwen2Model": "qwen",
+        }
+        try:
+            model_type = NEMO2_TO_MODEL_TYPE[model_class]
+            LOGGER.info(f"Determined model_type='{model_type}' for {nemo_ckpt} checkpoint.")
+
+        except KeyError:
+            LOGGER.error(
+                f"Model {model_class} not found in the NEMO2_TO_MODEL_TYPE mapping, "
+                "try providing the model_type explicitely for exporting:\n"
+                f"{json.dumps(NEMO2_TO_MODEL_TYPE, indent=2)}"
+            )
+            raise
+    else:
+        LOGGER.warning(f"Parameter model_type cannot be determined for {nemo_ckpt} checkpoint.")
+    return model_type
 
 
 def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path]):
@@ -366,9 +457,8 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 )
             else:
                 tokenizer_config = update_tokenizer_paths(nemo_model_config["tokenizer"], unpacked_checkpoint_dir)
-                copy_tokenizer_files(tokenizer_config, nemo_export_dir)
+                tokenizer_config = copy_tokenizer_files(tokenizer_config, nemo_export_dir)
 
-                tokenizer_config["model"] = os.path.join(nemo_export_dir, "tokenizer.model")
                 tokenizer = build_tokenizer(tokenizer_config)
         elif (nemo_dir / "weights").exists():
             dist_ckpt_folder = nemo_dir / "weights"

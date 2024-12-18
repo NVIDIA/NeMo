@@ -17,8 +17,8 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf, open_dict
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -158,8 +158,8 @@ def build_key_mapping(nemo_cfg):
         for wb in ('weight', 'bias') if has_layernorm_bias else ('weight',):
             mcore_to_nemo_mapping.update(
                 {
-                    f"{mcore_prefix}.{i}.input_layernorm.{wb}": f"{nemo_prefix}.{i}.input_layernorm.{wb}",
-                    f"{mcore_prefix}.{i}.pre_mlp_layernorm.{wb}": f"{nemo_prefix}.{i}.post_attention_layernorm.{wb}",
+                    f"{mcore_prefix}.{i}.self_attention.linear_qkv.layer_norm_{wb}": f"{nemo_prefix}.{i}.input_layernorm.{wb}",
+                    f"{mcore_prefix}.{i}.mlp.linear_fc1.layer_norm_{wb}": f"{nemo_prefix}.{i}.post_attention_layernorm.{wb}",
                 }
             )
 
