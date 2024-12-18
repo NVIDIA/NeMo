@@ -12,14 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+@pytest.fixture
+def trainer():
+    return MagicMock()
 
 @patch(
     'nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTDataset.__init__', return_value=None
 )
-def test_finetuning_module(mock_gpt_sft_dataset) -> None:
+def test_finetuning_module(mock_gpt_sft_dataset, trainer) -> None:
     from nemo.collections.llm.gpt.data import FineTuningDataModule
 
     dataset_root = 'random_root'
@@ -30,6 +35,8 @@ def test_finetuning_module(mock_gpt_sft_dataset) -> None:
         global_batch_size=8,
         seed=1234,
     )
+    datamodule.trainer = trainer
+    datamodule.setup(stage='train')
 
     datamodule.train_dataloader()
     mock_gpt_sft_dataset.assert_called_once()
@@ -38,7 +45,7 @@ def test_finetuning_module(mock_gpt_sft_dataset) -> None:
 @patch(
     'nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTDataset.__init__', return_value=None
 )
-def test_dolly_module(mock_gpt_sft_dataset) -> None:
+def test_dolly_module(mock_gpt_sft_dataset, trainer) -> None:
     from nemo.collections.llm.gpt.data import DollyDataModule
 
     datamodule = DollyDataModule(
@@ -47,6 +54,8 @@ def test_dolly_module(mock_gpt_sft_dataset) -> None:
         global_batch_size=8,
         seed=1234,
     )
+    datamodule.trainer = trainer
+    datamodule.setup(stage='train')
 
     datamodule.train_dataloader()
     mock_gpt_sft_dataset.assert_called_once()
@@ -55,7 +64,7 @@ def test_dolly_module(mock_gpt_sft_dataset) -> None:
 @patch(
     'nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTDataset.__init__', return_value=None
 )
-def test_squad_module(mock_gpt_sft_dataset) -> None:
+def test_squad_module(mock_gpt_sft_dataset, trainer) -> None:
     from nemo.collections.llm.gpt.data import SquadDataModule
 
     datamodule = SquadDataModule(
@@ -64,6 +73,8 @@ def test_squad_module(mock_gpt_sft_dataset) -> None:
         global_batch_size=8,
         seed=1234,
     )
+    datamodule.trainer = trainer
+    datamodule.setup(stage='train')
 
     datamodule.train_dataloader()
     mock_gpt_sft_dataset.assert_called_once()
