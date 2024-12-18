@@ -15,6 +15,7 @@
 import nemo_run as run
 
 from nemo.collections import vlm
+from nemo.collections.vlm.api import get_llava_data_module
 
 
 def configure_recipe(nodes: int = 1, gpus_per_node: int = 8, pretrain=False, language_model_from_pretrained=None):
@@ -50,14 +51,6 @@ def local_executor_torchrun(nodes: int = 1, devices: int = 8) -> run.LocalExecut
     return executor
 
 
-def run_pretraining(language_model_from_pretrained=None):
-    # pylint: disable=C0115,C0116
-    recipe = configure_recipe(pretrain=True, language_model_from_pretrained=language_model_from_pretrained)
-    executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
-
-    run.run(recipe, executor=executor)
-
-
 def run_finetuning():
     # pylint: disable=C0115,C0116
     recipe = configure_recipe(pretrain=False)
@@ -65,8 +58,15 @@ def run_finetuning():
 
     run.run(recipe, executor=executor)
 
+def run_pretraining():
+    # pylint: disable=C0115,C0116
+    recipe = configure_recipe(pretrain=True)
+    executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
+    print(f"recipe.model:{recipe.model}")
+    recipe.data = run.Config(get_llava_data_module, model_id="llava-hf/llava-v1.6-vicuna-7b-hf", data_path="/data/path", mbs=2, gbs=8)
+
+    run.run(recipe, executor=executor)
 
 # This condition is necessary for the script to be compatible with Python's multiprocessing module.
 if __name__ == "__main__":
-    run_pretraining(language_model_from_pretrained='/root/.cache/nemo/models/lmsys/vicuna-7b-v1.5/')
-    # run_finetuning()
+    run_pretraining()
