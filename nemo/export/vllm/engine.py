@@ -15,6 +15,8 @@
 import logging
 from pathlib import Path
 
+from transformers import PreTrainedTokenizerBase
+from sentencepiece import SentencePieceProcessor
 from vllm import LLMEngine
 from vllm.transformers_utils.tokenizer_group.tokenizer_group import TokenizerGroup
 
@@ -26,8 +28,6 @@ LOGGER = logging.getLogger("NeMo")
 
 
 class VLLMTokenizerGroup(TokenizerGroup):
-    """A group of tokenizers that can be used for LoRA adapters."""
-
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
 
@@ -36,13 +36,6 @@ class VLLMTokenizerGroup(TokenizerGroup):
 
     async def get_lora_tokenizer_async(self, lora_request):
         return self.tokenizer
-
-    @classmethod
-    def from_config(cls, tokenizer_pool_config=None, **init_kwargs):
-        raise NotImplementedError
-
-    def ping(self) -> bool:
-        return True
 
     @property
     def max_input_length(self, lora_request=None):
@@ -56,11 +49,24 @@ class NemoLLMEngine(LLMEngine):
     """
 
     def _init_tokenizer(self, **tokenizer_init_kwargs):
-        if tokenizer := self.model_config.nemo_model_config.get('tokenizer', None):
-            return VLLMTokenizerGroup(tokenizer.tokenizer)
+        # Determine if the model needs a bos token (which is not stored in Nemo checkpoints)
+        add_bos_token = self.model_config.model_converter.requires_bos_token()
+        tokenizer_config = self.model_config.nemo_model_config.get('tokenizer', {})
+
+        if tokenizer_config is not dict and hasattr(tokenizer_config, 'tokenizer'):
+            tokenizer = tokenizer_config.tokenizer
+
+            if isinstance(tokenizer, SentencePieceProcessor):
+                self.model_config.hf_config.bos_token_id = tokenizer.bos_token_id
+                self.model_config.hf_config.eos_token_id = tokenizer.eos_token_id
+
+                tokenizer = SentencePieceTokenizer(tokenizer=tokenizer)
+                return NemoTokenizerGroup(tokenizer, add_bos_token=add_bos_token)
+
+            if isinstance(tokenizer, PreTrainedTokenizerBase):
+                return VLLMTokenizerGroup(tokenizer)
 
         # Find the tokenizer file name in the Nemo checkpoint config
-        tokenizer_config = self.model_config.nemo_model_config.get('tokenizer', {})
         tokenizer_model = tokenizer_config.get('model', tokenizer_config.get('tokenizer_model', None))
 
         # If there is no tokenizer file specified but there's a reference to an HF tokenizer, use that

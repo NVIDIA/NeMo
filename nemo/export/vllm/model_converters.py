@@ -66,6 +66,11 @@ class LlamaConverter(ModelConverter):
         return None
 
     def convert_weights(self, nemo_model_config, state_dict):
+        if 'config' in nemo_model_config:
+            nemo_model_config = nemo_model_config['config']
+        # Standarize NeMo 2.0 and NeMo 1.0 naming
+        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
+
         hidden_size = nemo_model_config["hidden_size"]
         head_num = nemo_model_config["num_attention_heads"]
         num_query_groups = nemo_model_config["num_query_groups"]
@@ -73,9 +78,6 @@ class LlamaConverter(ModelConverter):
         head_size = hidden_size // head_num
         heads_per_group = head_num // num_query_groups
         qkv_total_dim = head_num + 2 * num_query_groups
-
-        # Standarize NeMo 2.0 and NeMo 1.0 naming
-        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
 
         yield ('model.embed_tokens.weight', state_dict['model.embedding.word_embeddings.weight'])
         yield ('model.norm.weight', state_dict['model.decoder.final_layernorm.weight'])
@@ -130,6 +132,11 @@ class MixtralConverter(ModelConverter):
         return None
 
     def convert_weights(self, nemo_model_config, state_dict):
+        if 'config' in nemo_model_config:
+            nemo_model_config = nemo_model_config['config']
+        # Standarize NeMo 2.0 and NeMo 1.0 naming
+        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
+
         hidden_size = nemo_model_config["hidden_size"]
         head_num = nemo_model_config["num_attention_heads"]
         num_query_groups = nemo_model_config["num_query_groups"]
@@ -199,30 +206,38 @@ class GemmaConverter(ModelConverter):
         return None
 
     def convert_weights(self, nemo_model_config, state_dict):
+        if 'config' in nemo_model_config:
+            nemo_model_config = nemo_model_config['config']
+        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
+
         num_layers = nemo_model_config["num_layers"]
         num_query_groups = nemo_model_config["num_query_groups"]
         head_num = nemo_model_config["num_attention_heads"]
         head_size = nemo_model_config["kv_channels"]
         hidden_size = nemo_model_config["hidden_size"]
+        zero_centered_gamma = nemo_model_config.get("layernorm_zero_centered_gamma", False)
         heads_per_group = head_num // num_query_groups
 
         yield ('model.embed_tokens.weight', state_dict['model.embedding.word_embeddings.weight'])
 
         final_layernorm_weight = state_dict['model.decoder.final_layernorm.weight']
-        final_layernorm_weight -= 1.0
+        if not zero_centered_gamma:
+            final_layernorm_weight -= 1.0
         yield ('model.norm.weight', final_layernorm_weight)
 
         for layer in range(int(num_layers)):
             input_layernorm_weight = state_dict['model.decoder.layers.self_attention.linear_qkv.layer_norm_weight'][
                 layer
             ]
-            input_layernorm_weight -= 1.0
+            if not zero_centered_gamma:
+                input_layernorm_weight -= 1.0
             yield (f'model.layers.{layer}.input_layernorm.weight', input_layernorm_weight)
 
             post_attention_layernorm_weight = state_dict['model.decoder.layers.mlp.linear_fc1.layer_norm_weight'][
                 layer
             ]
-            post_attention_layernorm_weight -= 1.0
+            if not zero_centered_gamma:
+                post_attention_layernorm_weight -= 1.0
             yield (f'model.layers.{layer}.post_attention_layernorm.weight', post_attention_layernorm_weight)
 
             gate_up_combined_weight = state_dict['model.decoder.layers.mlp.linear_fc1.weight'][layer]
@@ -289,6 +304,12 @@ class Starcoder2Converter(ModelConverter):
         hf_config['tie_word_embeddings'] = False
 
     def convert_weights(self, nemo_model_config, state_dict):
+        if 'config' in nemo_model_config:
+            nemo_model_config = nemo_model_config['config']
+        # Standarize NeMo 2.0 and NeMo 1.0 naming
+        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
+
+
         num_layers = nemo_model_config["num_layers"]
         num_query_groups = nemo_model_config["num_query_groups"]
         head_num = nemo_model_config["num_attention_heads"]
@@ -296,7 +317,11 @@ class Starcoder2Converter(ModelConverter):
         head_size = hidden_size // head_num
         heads_per_group = head_num // num_query_groups
         qkv_total_dim = head_num + 2 * num_query_groups
-        has_bias = nemo_model_config["bias"]
+
+        if 'bias' in nemo_model_config:
+            has_bias = nemo_model_config["bias"]
+        else:
+            has_bias = nemo_model_config["add_bias_linear"]
 
         yield ('model.embed_tokens.weight', state_dict['model.embedding.word_embeddings.weight'])
 

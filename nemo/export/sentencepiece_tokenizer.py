@@ -29,11 +29,28 @@ class SentencePieceTokenizer:
         special_tokens: either list of special tokens or dictionary of token name to token value
         legacy: when set to True, the previous behavior of the SentecePiece wrapper will be restored,
             including the possibility to add special tokens inside wrapper.
+        tokenizer: wraps an existing tokenizer
     """
 
     def __init__(
-        self, model_path: str, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None, legacy: bool = False
+        self,
+        model_path: Optional[str] = None,
+        special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
+        legacy: bool = False,
+        tokenizer: Optional[sentencepiece.SentencePieceProcessor] = None
     ):
+        if tokenizer is not None:
+            self.tokenizer = tokenizer
+            self.legacy = False
+            self.special_token_to_id = {}
+            self.id_to_special_token = {}
+            self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
+            self.original_vocab_size = self.tokenizer.get_piece_size()
+            self.vocab_size = self.tokenizer.get_piece_size()
+            return
+        
+        if model_path is None:
+            raise ValueError("Neither tokenizer nor model_path were provided")
         if not model_path or not os.path.exists(model_path):
             raise ValueError(f"model_path: {model_path} is invalid")
         self.tokenizer = sentencepiece.SentencePieceProcessor()

@@ -108,7 +108,7 @@ class NemoModelConfig(ModelConfig):
         }
 
         if is_nemo2_checkpoint(nemo_checkpoint):
-            from nemo.lightning import io
+            from nemo.lightning.io import load_context
 
             nemo_checkpoint: Path = Path(nemo_checkpoint)
             self.nemo_model_config: dict = yaml.load(
@@ -125,7 +125,13 @@ class NemoModelConfig(ModelConfig):
                         hf_args[hf_arg] = value
                         break
 
-            tokenizer = io.load_context((nemo_checkpoint / "context"), subpath="model.tokenizer")
+            tokenizer = load_context((nemo_checkpoint / "context"), subpath="model.tokenizer")
+
+            if hasattr(tokenizer, 'bos_id'):
+                tokenizer.tokenizer.bos_token_id = tokenizer.bos_id
+            if hasattr(tokenizer, 'eos_id'):
+                tokenizer.tokenizer.eos_token_id = tokenizer.eos_id
+
             hf_args['vocab_size'] = tokenizer.original_vocab_size
             self.model_converter.convert_config(self.nemo_model_config['config'], hf_args)
             self.hf_config = AutoConfig.for_model(model_type, **hf_args)

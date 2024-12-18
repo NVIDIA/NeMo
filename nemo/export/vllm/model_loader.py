@@ -121,11 +121,12 @@ class NemoModelLoader(BaseModelLoader):
             with torch.device(device_config.device):
                 model = _initialize_model(model_config, self.load_config, lora_config, cache_config)
 
-            nemo_config = model_config.nemo_model_config
-            if 'config' in nemo_config:
-                nemo_config = nemo_config['config']
+            config = model_config.nemo_model_config
+            if 'config' in config:
+                config = config['config']
+            state_dict = { k.replace('module', 'model'): v for k,v in state_dict.items() }
 
-            weights_iterator = model_config.model_converter.convert_weights(nemo_config, state_dict)
+            weights_iterator = model_config.model_converter.convert_weights(config, state_dict)
             model.load_weights(weights_iterator)
 
         return model.eval()
@@ -141,10 +142,16 @@ class NemoModelLoader(BaseModelLoader):
 
         state_dict = NemoModelLoader._load_nemo_checkpoint_state(model_config.nemo_checkpoint)
 
+
+        config = model_config.nemo_model_config
+        if 'config' in config:
+            config = config['config']
+        state_dict = { k.replace('module', 'model'): v for k,v in state_dict.items() }
+
         tensors = {
             name: tensor
             for name, tensor in model_config.model_converter.convert_weights(
-                model_config.nemo_model_config, state_dict
+                config, state_dict
             )
         }
 
