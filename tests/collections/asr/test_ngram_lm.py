@@ -51,7 +51,7 @@ class TestFastNGramLM:
     @pytest.mark.unit
     @pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton is not available")
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
-    def test_triton_vs_pytorch_random_states(self):
+    def test_triton_vs_pytorch_random_states(self, test_data_dir):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         vocab_size = 1024
         lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size)
