@@ -32,6 +32,7 @@ from nemo.lightning.io.to_config import to_config
 
 
 def _make_torch_importable(name: str) -> special_value_codegen.Importable:
+    """Make a torch importable."""
     return special_value_codegen.SingleImportable("torch", lambda torch_name: f"{torch_name}.{name}")
 
 
@@ -68,6 +69,7 @@ _import_aliases = (("torch.nn.init", "from torch.nn import init"),)
 
 
 def _make_torch_nn_importable(name: str) -> special_value_codegen.Importable:
+    """Make a torch.nn importable."""
     return special_value_codegen.SingleImportable("torch", lambda torch_mod_name: f"{torch_mod_name}.nn.{name}")
 
 
@@ -89,6 +91,7 @@ def is_torch_tensor(value):
 
 
 def convert_torch_tensor_to_cst(value, convert_child):
+    """Convert a PyTorch tensor to a CST node."""
     return cst.Call(
         func=cst.Attribute(value=convert_child(torch), attr=cst.Name("tensor")),
         args=[
@@ -125,6 +128,7 @@ def enable():
 
     # Monkey-patch the Serialization class to handle things like activation-functions
     def _modified_serialize(self, value, current_path, all_paths=None):
+        """Serialize a value to a Fiddle configuration."""
         if isinstance(value, types.BuiltinFunctionType):
             return self._pyref(value, current_path)
         return self._original_serialize(to_config(value), current_path, all_paths)
