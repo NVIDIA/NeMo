@@ -272,7 +272,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.progress_interval = progress_interval
 
         self.restore_config = restore_config
-        self.timers = Timers(megatron_log_level, "all")  ## could also set this for optimizer if we want
+        self.timers = Timers(megatron_log_level, "minmax") ## could also set this for optimizer if we want
 
         self._ddp = ddp
         if ddp == "megatron":

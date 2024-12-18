@@ -209,11 +209,7 @@ class ProgressPrinter(ProgressBar):
     def should_log(self, n):
         return n % self.log_interval == 0
 
-    ## TODO: cleanup
     def log_megatron_timers(self, timers):
         output_string = timers.get_all_timers_string(names=None, normalizer=self.log_interval)
         if output_string is not None:
-            output_string = output_string.replace(":\n     ", " ")
-            output_string = output_string.replace("\n", " |")
-            output_string = output_string.replace("times across ranks (ms): |", "Megatron timing (ms): \n")
             return output_string + "\n"
