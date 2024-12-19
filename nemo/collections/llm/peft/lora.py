@@ -186,9 +186,7 @@ def patch_linear_module(
 
     assert isinstance(orig_linear, nn.Linear)
 
-    LinearAdapter._init_adapter(
-        orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
-    )
+    LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
     orig_linear.forward = lambda x: LinearAdapter._forward(orig_linear, x)
     return orig_linear
 
