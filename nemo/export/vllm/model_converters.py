@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Optional, Generator, Tuple
+from typing import Generator, Optional, Tuple
 
 import torch
 

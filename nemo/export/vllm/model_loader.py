@@ -155,4 +155,3 @@ class NemoModelLoader(BaseModelLoader):
     @staticmethod
     def _standardize_nemo2_naming(state_dict: dict) -> dict:
         return {k.replace('module', 'model'): v for k, v in state_dict.items()}
-
