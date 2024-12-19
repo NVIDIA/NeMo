@@ -10,6 +10,15 @@ You can use dummy data for testing.
 Please see [create dummy data](./Step0_Dummy_Data.ipynb)
 
 ### Domain Specific Data
+
+```bash
+apt-get update
+apt-get install poppler-utils
+apt install tesseract-ocr
+pip install opencv-python==4.5.5.64
+pip install nltk==3.8.1
+```
+
 Please see [NeMo-Curator DAPT](https://github.com/NVIDIA/NeMo-Curator/tree/main/tutorials/dapt-curation)
 
 ### General Purpose Data: Wiki
