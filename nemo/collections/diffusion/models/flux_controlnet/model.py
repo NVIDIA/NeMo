@@ -16,7 +16,7 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     get_flux_single_transformer_engine_spec,
 )
 from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
-from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel
+from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel, FluxConfig
 from nemo.collections.diffusion.models.flux_controlnet.layers import ControlNetConditioningEmbedding
 from nemo.lightning import io
 
@@ -353,7 +353,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             control_latents = batch['control_latents'].cuda(non_blocking=True)
             prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
             pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
-            log_image = pipe(
+            log_images = pipe(
                 latents = latents,
                 control_image=control_latents,
                 prompt_embeds=prompt_embeds,
@@ -363,13 +363,14 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 num_inference_steps=30,
                 num_images_per_prompt=1,
                 guidance_scale=7.0,
-                dtype=self.autocast_dtype
+                dtype=self.autocast_dtype,
+                save_to_disk=False,
             )
         elif not (self.image_precached or self.text_precached):
             img = batch['images'].cuda(non_blocking=True)
             hint = batch['hint'].cuda(non_blocking=True)
             text = batch['txt']
-            log_image = pipe(
+            log_images = pipe(
                 text,
                 control_image=hint,
                 num_inference_steps=30,
@@ -377,8 +378,13 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 height=img.shape[2],
                 width=img.shape[3],
                 guidance_scale=7.0,
-                dtype=self.autocast_dtype
+                dtype=self.autocast_dtype,
+                save_to_disk=False
             )
+        log_images[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_{text}.png")
+        hint = pipe.torch_to_numpy(hint)
+        hint = pipe.numpy_to_pil(hint)
+        hint[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_control.png")
         return torch.tensor([0.0], device=torch.cuda.current_device())
 
 
