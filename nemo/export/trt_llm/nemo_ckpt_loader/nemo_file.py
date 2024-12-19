@@ -40,6 +40,7 @@ from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
 
 try:
     from nemo.lightning import io
+
     HAVE_NEMO2 = True
 except (ImportError, ModuleNotFoundError):
     HAVE_NEMO2 = False
@@ -329,7 +330,9 @@ def get_tokenizer_from_nemo2_context(model_context_dir: Path):
                 legacy=tokenizer_config.get("legacy", False),
             )
         elif target_class == "huggingface.auto_tokenizer.AutoTokenizer":
-            tokenizer = AutoTokenizer.from_pretrained(str(model_context_dir / tokenizer_config["pretrained_model_name"]))
+            tokenizer = AutoTokenizer.from_pretrained(
+                str(model_context_dir / tokenizer_config["pretrained_model_name"])
+            )
         else:
             raise ValueError(f"Unsupported tokenizer type: {tokenizer_module}{target_class}.")
 
