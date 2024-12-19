@@ -142,7 +142,9 @@ if __name__ == "__main__":
         nargs='+',
         type=str,
         # pylint: disable=line-too-long
-        default=["https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"],
+        default=[
+            "https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"
+        ],
         help="List of the image urls to use for inference.",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)

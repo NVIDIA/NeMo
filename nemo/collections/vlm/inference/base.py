@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, List, Union
+from typing import List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
 import torch.distributed
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
-from transformers import AutoProcessor
 from PIL.Image import Image
+from transformers import AutoProcessor
 
 import nemo.lightning as nl
 from nemo.collections import vlm
