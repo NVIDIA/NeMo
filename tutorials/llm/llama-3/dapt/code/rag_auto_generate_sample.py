@@ -1,18 +1,36 @@
-from llama_index.core import Settings, StorageContext, load_index_from_storage
-from nemo.collections.nlp.models.rag.custom_bert_embedder import NeMoBertEmbeddings
-from nemo.collections.nlp.models.rag.custom_gpt_llm import NeMoGPTLLM
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import json
+import logging
 import os
 import random
-import json
+from typing import List
+
 import tqdm
-import logging
+from llama_index.core import Settings, StorageContext, load_index_from_storage
+from llama_index.core.indices.base import BaseIndex
+from nemo.collections.nlp.models.rag.custom_bert_embedder import NeMoBertEmbeddings
+from nemo.collections.nlp.models.rag.custom_gpt_llm import NeMoGPTLLM
 from nemo.core.config import hydra_runner
 
-# Constants
-QUERY_PROMPT_TEMPLATE = """You will be provided with a document or a passage. Your task is to generate a single, highly relevant and natural language query that aligns perfectly with the content of the document. The query should:
+QUERY_PROMPT_TEMPLATE = """You will be provided with a document or a passage. Your task is to generate a single, highly relevant and natural language query that aligns perfectly with the content of the document.
+The query should:
     1. Reflect the main idea or a key detail from the document.
     2. Be concise, specific, and written in natural language.
     3. Be something a user might naturally ask to retrieve this document.
+    4. **Write only the answer, do not repeat the instructions or document.**
  
  ## Given Document:
  {document}
@@ -20,21 +38,23 @@ QUERY_PROMPT_TEMPLATE = """You will be provided with a document or a passage. Yo
  ## Predict Query:
  """
  
-FILTER_PROMPT_TEMPLATTE = """You will be provided with a document and a query.
-Your task is to evaluate whether the content of the document is relevant to answering the query.
-Return True if the document contains information directly related to the query, and False if it does not.
+FILTER_PROMPT_TEMPLATE = """You will be provided with a document and a query.
+Your task is to evaluate whether the content of the document is relevant to answering the query. 
 
-## Given Document:
-{document}
+Return "True" if the document contains information directly related to the query, and "False" if it does not.
+**Provide only the answer: "True" or "False", without repeating the instructions, document, or query.**
 
 ## Given Query:
 {query}
 
-## Answer(True or False):
+## Given Document:
+{document}
+
+## Is Relevant (True or False):
 """
 
 # Helper functions
-def get_random_document_from_index(index):
+def get_random_document_from_index(index: BaseIndex) -> str:
     # Access the nodes_dict from index_struct
     nodes_dict = index.index_struct.nodes_dict
 
@@ -52,8 +72,8 @@ def get_random_document_from_index(index):
     random_node = index.docstore.get_node(random_node_id)
     return random_node.text
 
-def get_random_documents_from_index(index, count):
-    # nodes = list(index.index_struct.values())
+def get_random_documents_from_index(index: BaseIndex, count: int) -> List[str]:
+    
     # Access the nodes_dict from index_struct
     nodes_dict = index.index_struct.nodes_dict
 
@@ -115,15 +135,15 @@ def main(cfg) -> None:
 
         prompt = QUERY_PROMPT_TEMPLATE.format(document=random_doc)
         pred_query = Settings.llm.complete(prompt)
-        pred_query = str(pred_query.text)
+        pred_query = str(pred_query.text).split("## Predict Query:")[-1].strip()
 
         nodes = retriever.retrieve(pred_query)
 
         for node in nodes:
             neg_doc = node.text
-            filter_prompt = FILTER_PROMPT_TEMPLATTE.format(document=neg_doc, query=pred_query)
+            filter_prompt = FILTER_PROMPT_TEMPLATE.format(document=neg_doc, query=pred_query)
             resp = Settings.llm.complete(filter_prompt)
-            resp = str(resp.text)
+            resp = str(resp.text).split("## Is Relevant (True or False):")[-1].strip()
             if "false" in resp.lower():
                 neg_docs.append(neg_doc)
             else:
