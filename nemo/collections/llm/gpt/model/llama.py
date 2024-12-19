@@ -349,7 +349,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         target = target.cpu()
         target.save_pretrained(output_path)
         try:
-            self.tokenizer.save_pretrained(output_path)
+            self.tokenizer.tokenizer.save_pretrained(output_path)
         except Exception:
             logging.warning("Failed to save tokenizer")
 
@@ -375,8 +375,8 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         )
 
     @property
-    def tokenizer(self):
-        return io.load_context(str(self), subpath="model").tokenizer.tokenizer
+    def tokenizer(self) -> "TokenizerSpec":
+        return io.load_context(str(self), subpath="model").tokenizer
 
     @property
     def config(self) -> "HFLlamaConfig":
