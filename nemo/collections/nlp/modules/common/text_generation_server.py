@@ -207,7 +207,6 @@ class MegatronGenerate(Resource):
             conversation = meta_tokens + conversation
             logging.info(f"added {num_meta_tokens} to conversation...")
 
-
         batching = data.get('max_tokens', 32) > 64
         if batching:
             with lock:
