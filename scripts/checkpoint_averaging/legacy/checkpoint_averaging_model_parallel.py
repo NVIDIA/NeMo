@@ -46,6 +46,10 @@ from nemo.utils import logging
 
 
 def main():
+    """
+    Main function
+    """
+    
     logging.info("This script is deprecated and will be removed in the 25.01 release.")
 
     parser = argparse.ArgumentParser()
