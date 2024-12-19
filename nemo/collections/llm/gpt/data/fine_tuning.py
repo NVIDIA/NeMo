@@ -110,8 +110,8 @@ class FineTuningDataModule(pl.LightningDataModule):
                 f"Set packed sequence length to {self.packed_sequence_size*self.micro_batch_size} "
                 f"(currently {self.packed_sequence_size}) \n"
                 f"For details please visit "
-                f"https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/optimizations/"
-                f"sequence_packing.html"
+                f"https://nemo-framework-tme.gitlab-master-pages.nvidia.com/documentation/user-guide/latest/"
+                f"sft_peft/packed_sequence.html"
             )
 
     def prepare_data(self) -> None:
