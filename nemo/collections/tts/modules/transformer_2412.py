@@ -612,9 +612,7 @@ class Transformer(nn.Module):
 
         self.pos_emb_name = pos_emb_name
         if pos_emb_name == 'learnable':
-            self.position_embeddings = nn.Embedding(
-                max_length_causal_mask, d_model
-            )
+            self.position_embeddings = nn.Embedding(max_length_causal_mask, d_model)
         # Apply random uniform init for all layers, except for output layers: The second of the two layers in the MLP
         # and the last linear projection in dot product attention. The output layers are scaled depending on the
         # number of layers
