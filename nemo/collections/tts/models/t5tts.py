@@ -617,21 +617,6 @@ class T5TTS_Model(ModelPT):
         audio_codes_lens_input = audio_codes_lens_target = audio_codes_lens - 1
 
         audio_codes_mask = ~get_mask_from_lengths(audio_codes_lens_input)
-
-        if mode == "train" and self.cfg.get('decoder_input_dropout_prob', 0.0) > 0.0:
-            max_codebook_val = self.cfg.get('dec_random_input_max', self.cfg.num_audio_tokens_per_codebook)
-            # @pneekhara: Keeping dec_random_input_max configurable since num_audio_tokens_per_codebook usually has padding tokens
-            # which can cause errors when doing codes_to_audio for audio_codes_input. We are not currently calling codes_to_audio on  
-            # audio_codes_input so should not matter if we dont supply dec_random_input_max.
-            random_audio_tokens = torch.randint(0, max_codebook_val, audio_codes_input.size(), device=audio_codes_input.device)
-            # audio_codes_mask is False for timesteps to be kept (transformer expects it that way) so we need to invert it
-            random_audio_tokens = random_audio_tokens * (~audio_codes_mask.unsqueeze(1))
-            dec_dropout_mask = torch.rand((1,1,audio_codes_input.size(2)), device=audio_codes_input.device) > self.cfg.decoder_input_dropout_prob
-            # timestep_mask is True for timesteps to be kept
-            audio_codes_input = audio_codes_input * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
-
-        audio_codes_embedded = self.embed_audio_tokens(audio_codes_input) # (B, T', E)
-        
         use_cfg = (self.cfg.get('cfg_unconditional_prob', 0.0) > 0.0) and (mode == "train") and (context_tensors['cond'] is not None)
         if use_cfg and torch.rand(1).item() < self.cfg.cfg_unconditional_prob:
             cond, cond_mask, additional_decoder_input, additional_decoder_mask, attn_prior = self.prepare_dummy_cond_for_cfg(
@@ -648,6 +633,21 @@ class T5TTS_Model(ModelPT):
             additional_decoder_mask = context_tensors['addtional_decoder_mask']
             attn_prior = context_tensors['attn_prior']
 
+            if mode == "train" and self.cfg.get('decoder_input_dropout_prob', 0.0) > 0.0 and torch.rand(1).item() < 0.5:
+                # For some batches (half of them), replace decoder_input_dropout_prob of the timesteps with random tokens
+                max_codebook_val = self.cfg.get('dec_random_input_max', self.cfg.num_audio_tokens_per_codebook)
+                # @pneekhara: Keeping dec_random_input_max configurable since num_audio_tokens_per_codebook usually has padding tokens
+                # which can cause errors when doing codes_to_audio for audio_codes_input. We are not currently calling codes_to_audio on  
+                # audio_codes_input so should not matter if we dont supply dec_random_input_max.
+                random_audio_tokens = torch.randint(0, max_codebook_val, audio_codes_input.size(), device=audio_codes_input.device)
+                # audio_codes_mask is False for timesteps to be kept (transformer expects it that way) so we need to invert it
+                random_audio_tokens = random_audio_tokens * (~audio_codes_mask.unsqueeze(1))
+                dec_dropout_mask = torch.rand((1,1,audio_codes_input.size(2)), device=audio_codes_input.device) > self.cfg.decoder_input_dropout_prob
+                # timestep_mask is True for timesteps to be kept
+                audio_codes_input = audio_codes_input * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
+
+        
+        audio_codes_embedded = self.embed_audio_tokens(audio_codes_input) # (B, T', E)
         if context_tensors['additional_decoder_input'] is not None:
             dec_input_embedded = torch.cat([additional_decoder_input, audio_codes_embedded], dim=1)
             dec_input_mask = torch.cat([additional_decoder_mask, audio_codes_mask], dim=1)
