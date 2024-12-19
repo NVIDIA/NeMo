@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional
+from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
 import torch
 from torch import nn
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from transformers import NemotronConfig as HFNemotronConfig
     from transformers import NemotronForCausalLM
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers import TiktokenTokenizer, AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -151,6 +151,7 @@ class NemotronModel(GPTModel):
 @io.model_importer(NemotronModel, "hf")
 class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]):
     def init(self) -> NemotronModel:
+        self.use_hf_tokenzer = False
         return NemotronModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
@@ -192,10 +193,13 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv])
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    def tokenizer(self) -> Union["AutoTokenizer", "TiktokenTokenizer"]:
+        from nemo.collections.common.tokenizers import AutoTokenizer, TiktokenTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
+        if self.use_hf_tokenzer:
+            return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
+        else:
+            return TiktokenTokenizer(str(self/"tiktoken.128k.vocab.json"))
 
     @property
     def config(self) -> NemotronConfig:
@@ -228,7 +232,6 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
             rotary_base=source.rope_theta,
             rotary_percent=source.partial_rotary_factor,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            vocab_size=getattr(source, "vocab_size", None),
             share_embeddings_and_output_weights=False,
             normalization=normalization,
             layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
