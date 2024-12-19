@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, List, Union
 
 import pytorch_lightning as pl
 import torch
@@ -20,6 +20,7 @@ import torch.distributed
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from transformers import AutoProcessor
+from PIL.Image import Image
 
 import nemo.lightning as nl
 from nemo.collections import vlm
@@ -86,8 +87,8 @@ def generate(
     wrapped_model: VLMInferenceWrapper,
     tokenizer,
     image_processor,
-    prompts: list[str],
-    images: list,
+    prompts: List[str],
+    images: List[Union[Image, List[Image]]],
     max_batch_size: int = 4,
     random_seed: Optional[int] = None,
     inference_params: Optional[CommonInferenceParams] = None,
