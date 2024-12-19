@@ -113,7 +113,8 @@ class Attention(nn.Module):
         d_memory=None,
         use_flash_attention=True,
         deterministic=False,
-        pos_emb={"name": "learnable"},
+        pos_emb_name=None,
+        pos_emb_base=None,
         max_length_causal_mask=4096,
     ):
         """
@@ -138,12 +139,10 @@ class Attention(nn.Module):
         self.is_self_attention = is_self_attention
         self.use_flash_attention = use_flash_attention
         self.deterministic = deterministic
-        self.pos_emb_name = pos_emb['name']
+        self.pos_emb_name = pos_emb_name
         self.max_length_causal_mask = max_length_causal_mask
         if self.pos_emb_name == 'rope':
-            self.rope = RotaryEmbedding(self.d_head, base=pos_emb['base'])
-        elif self.pos_emb_name == 'learnable':
-            self.position_embeddings = nn.Embedding(max_length_causal_mask, d_model)
+            self.rope = RotaryEmbedding(self.d_head, base=pos_emb_base)
 
         if is_causal and is_self_attention:
             # ~ 45 seconds mask, 4096 mel frames, 86 frames per second
@@ -178,18 +177,7 @@ class Attention(nn.Module):
             'cross_v': None,
         }
 
-    def add_positional_embeddings(self, x, start_step=0):
-        # Used for learnable positional embeddings
-        positions = torch.arange(start_step, start_step + x.size(1), device=x.device).unsqueeze(0)
-        pos_emb = self.position_embeddings(positions)
-        return x + pos_emb
-
     def attn_flash(self, query, query_mask, memory=None, memory_mask=None):
-
-        if self.pos_emb_name == 'learnable':
-            query = self.add_positional_embeddings(query)
-            if memory is not None:
-                memory = self.add_positional_embeddings(memory)
 
         if self.is_self_attention:
             B, T, D = query.shape
@@ -244,10 +232,8 @@ class Attention(nn.Module):
         return y
 
     def attn_naive(self, query, query_mask, memory=None, memory_mask=None, attn_prior=None):
-        pos_start_time_step = 0
         if self.use_cache:
             if self.cache['is_initialized']:
-                pos_start_time_step = query.size(1) - 1
                 query = query[:, -1:, :]
                 query_mask = query_mask[:, -1:]
             else:
@@ -256,11 +242,6 @@ class Attention(nn.Module):
         B, T, _ = query.shape
         Tkv = T if memory is None else memory.shape[1]
         mask = None
-
-        if self.pos_emb_name == 'learnable':
-            query = self.add_positional_embeddings(query, pos_start_time_step)
-            if memory is not None:
-                memory = self.add_positional_embeddings(memory)
 
         if self.is_self_attention:
             qkv = self.qkv_net(query).reshape(B, T, 3, self.n_heads, self.d_head)
@@ -376,15 +357,14 @@ class TransformerLayer(nn.Module):
         has_xattn,
         xa_d_memory=None,
         xa_n_heads=None,
-        xa_pos_emb=None,
-        xa_max_length_causal_mask=None,
         is_causal=True,
         apply_norm_to_cond=True,
         layer_norm_method='pre',
         use_flash_self_attention=True,
         use_flash_x_attention=True,
         deterministic=False,
-        pos_emb={"name": "learnable"},
+        pos_emb_name="learnable",
+        pos_emb_base=None,
         max_length_causal_mask=4096,
         conv_non_linearity=nn.GELU(approximate="tanh"),
     ):
@@ -400,16 +380,14 @@ class TransformerLayer(nn.Module):
             has_xattn <bool>: Whether to use cross attention
             xa_d_memory <int>: Hidden dimenssion for cross attention
             xa_n_heads <int>: Number of attention heads used in cross attention
-            xa_pos_emb TODO
-            xa_max_length_causal_mask TODO
             is_causal <bool>: Whether to use causal attention
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
             layer_norm_method <str>: Layer normalization method
             use_flash_self_attention <bool>: Whether to use flash attention for self attention
             use_flash_x_attention <bool>: Whether to use flash attention for cross attention
             deterministic <bool>: Whether to use deterministic attention
-            pos_emb <dict>: Positional embedding parameters (Dict with keys "name" and "base" for rope, base ignored
-                for learnable)
+            pos_emb_name <str>: Positional embedding type - learnable or rope
+            pos_emb_base <int>: Base for rope positional embedding (ignored for learnable)
             max_length_causal_mask <int>: Maximum length of causal mask
             conv_non_linearity <Callable>: Convolution non-linearity
         """
@@ -424,7 +402,8 @@ class TransformerLayer(nn.Module):
             is_self_attention=True,
             use_flash_attention=use_flash_self_attention,
             deterministic=deterministic,
-            pos_emb=pos_emb,
+            pos_emb_name=pos_emb_name,
+            pos_emb_base=pos_emb_base,
             max_length_causal_mask=max_length_causal_mask,
         )
 
@@ -440,10 +419,6 @@ class TransformerLayer(nn.Module):
                 d_memory=xa_d_memory,
                 use_flash_attention=use_flash_x_attention,
                 deterministic=deterministic,
-                pos_emb=xa_pos_emb if xa_pos_emb is not None else pos_emb,
-                max_length_causal_mask=(
-                    xa_max_length_causal_mask if xa_max_length_causal_mask is not None else max_length_causal_mask
-                ),
             )
 
             if self.apply_norm_to_cond:
@@ -561,8 +536,6 @@ class Transformer(nn.Module):
         p_dropout_out=0.0,
         xa_d_memory=None,
         xa_n_heads=None,
-        xa_pos_emb=None,
-        xa_max_length_causal_mask=None,
         has_xattn=False,
         is_causal=True,
         apply_norm_to_cond=True,
@@ -571,7 +544,8 @@ class Transformer(nn.Module):
         use_flash_self_attention=True,
         use_flash_x_attention=True,
         deterministic=False,
-        pos_emb={"name": "learnable"},
+        pos_emb_name="learnable",
+        pos_emb_base=None,
         max_length_causal_mask=4096,
         conv_non_linearity=nn.GELU(approximate="tanh"),
     ):
@@ -588,8 +562,6 @@ class Transformer(nn.Module):
             p_dropout_out <float>: Dropout probability for output
             xa_d_memory <int>: Hidden dimenssion for cross attention
             xa_n_heads <int>: Number of attention heads used in cross attention
-            xa_pos_emb TODO
-            xa_max_length_causal_mask TODO
             has_xattn <bool>: Whether to use cross attention
             is_causal <bool>: Whether to use causal attention
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
@@ -598,8 +570,8 @@ class Transformer(nn.Module):
             use_flash_self_attention <bool>: Whether to use flash attention for self attention
             use_flash_x_attention <bool>: Whether to use flash attention for cross attention
             deterministic <bool>: Whether to use deterministic attention
-            pos_emb <dict>: Positional embedding parameters (Dict with keys "name" and "base" for rope, base ignored
-                for learnable)
+            pos_emb_name <str>: Positional embedding type - learnable, rope or None (no positional embedding)
+            pos_emb_base <int>: Base for rope positional embedding (ignored for learnable)
             max_length_causal_mask <int>: Maximum length of causal mask
             conv_non_linearity <Callable>: Convolution non-linearity
         """
@@ -624,8 +596,6 @@ class Transformer(nn.Module):
                     p_dropout=p_dropout,
                     xa_d_memory=xa_d_memory,
                     xa_n_heads=xa_n_heads,
-                    xa_pos_emb=xa_pos_emb,
-                    xa_max_length_causal_mask=xa_max_length_causal_mask,
                     has_xattn=has_xattn,
                     is_causal=is_causal,
                     apply_norm_to_cond=apply_norm_to_cond,
@@ -633,12 +603,18 @@ class Transformer(nn.Module):
                     use_flash_self_attention=use_flash_self_attention,
                     use_flash_x_attention=use_flash_x_attention,
                     deterministic=deterministic,
-                    pos_emb=pos_emb,
+                    pos_emb_name=pos_emb_name,
+                    pos_emb_base=pos_emb_base,
                     max_length_causal_mask=max_length_causal_mask,
                     conv_non_linearity=conv_non_linearity,
                 )
             )
 
+        self.pos_emb_name = pos_emb_name
+        if pos_emb_name == 'learnable':
+            self.position_embeddings = nn.Embedding(
+                max_length_causal_mask, d_model
+            )
         # Apply random uniform init for all layers, except for output layers: The second of the two layers in the MLP
         # and the last linear projection in dot product attention. The output layers are scaled depending on the
         # number of layers
@@ -674,6 +650,10 @@ class Transformer(nn.Module):
             output <torch tensor> (B, T1, C): Output tensor
             attn_probabilities <list>: Attention probabilities of each layer
         """
+        if self.pos_emb_name == 'learnable':
+            positions = torch.arange(x.size(1), device=x.device).unsqueeze(0)
+            x = x + self.position_embeddings(positions)
+
         attn_probabilities = []
         x = self.dropout(x)
         for idx, layer in enumerate(self.layers):
