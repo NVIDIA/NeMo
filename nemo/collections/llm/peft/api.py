@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Tuple, Union
 
 import pytorch_lightning as pl
+import torch
 from megatron.core import dist_checkpointing
 from pytorch_lightning.trainer.states import TrainerFn
 
@@ -30,7 +31,7 @@ from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
-import torch
+
 
 @factory
 def gpt_lora() -> PEFT:
