@@ -58,7 +58,7 @@ def main():
         type=str,
         nargs='+',
         default=[],
-        help='A list of Python file names to "from FILE import *" (Needed when some classes were defined in __main__ of a script)',
+        help='A list of Python file names to "from FILE import *"',
     )
     parser.add_argument(
         '--class_path',
@@ -84,7 +84,7 @@ def main():
     # loop over all folders with .nemo files (or .nemo files)
     for model_fname_i, model_fname in enumerate(args.model_fname_list):
         if not model_fname.endswith(".nemo"):
-            # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "*-averaged.nemo")
+            # assume model_fname is a folder which contains a .nemo file
             nemo_files = list(
                 filter(lambda fn: not fn.endswith("-averaged.nemo"), glob.glob(os.path.join(model_fname, "*.nemo")))
             )
