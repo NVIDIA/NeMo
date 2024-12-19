@@ -570,7 +570,7 @@ jobs:
           prune.ffn_hidden_size=192 \
           prune.num_attention_heads=2 \
           prune.num_query_groups=2 \
-          prune.hidden_size=null \
+          prune.hidden_size=128 \
           export.save_path=examples/nlp/language_modeling/ci_prune_width.nemo
       AFTER_SCRIPT: |
           rm -rf examples/nlp/language_modeling/ci_prune_width.nemo
@@ -815,6 +815,33 @@ jobs:
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
         exp_manager.exp_dir=/tmp/speaker_diarization_results
+
+  L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        python examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py \
+        trainer.devices="[0]" \
+        batch_size=3 \
+        model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/eesd_train_tiny.json \
+        model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
+        exp_manager.exp_dir=/tmp/speaker_diarization_results \
+        +trainer.fast_dev_run=True 
+
+  L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \
+        model_path=/home/TestData/an4_diarizer/diar_sortformer_4spk-v1-tiny.nemo \
+        dataset_manifest=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
+        batch_size=1 
 
   L2_Speaker_dev_run_Speech_to_Label:
     needs: [cicd-test-container-setup]
@@ -3573,6 +3600,16 @@ jobs:
         inference.repetition_penalty=1.0 \
         inference.outfile_path=/tmp/nlp_mcore_t5_lora_tuning_tp2/out.jsonl
 
+  L2_VLM_HF_Transformer_PEFT:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --disable-ckpt
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
 
   L2_HF_Transformer_PEFT:
     needs: [ cicd-test-container-setup ]
@@ -4217,7 +4254,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4227,7 +4264,7 @@ jobs:
         --mbs 1
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4246,7 +4283,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4256,7 +4293,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4275,7 +4312,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4285,7 +4322,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4304,7 +4341,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4314,7 +4351,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4333,7 +4370,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4343,7 +4380,7 @@ jobs:
         --mbs 1 --packed
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4362,7 +4399,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4372,7 +4409,7 @@ jobs:
         --mbs 1
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4391,7 +4428,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4401,7 +4438,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4420,7 +4457,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4430,7 +4467,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4449,7 +4486,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4459,7 +4496,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4477,7 +4514,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4487,7 +4524,7 @@ jobs:
         --mbs 1 --packed
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4505,7 +4542,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4515,7 +4552,7 @@ jobs:
         --mbs 1 --packed
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4532,7 +4569,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4542,7 +4579,7 @@ jobs:
         --mbs 1 --packed
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4550,6 +4587,36 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 --packed
+
+  L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/gpt_finetuning.py \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --devices 2 \
+        --max_steps 3 \
+        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
+        --peft lora \
+        --tp_size 1 \
+        --pp_size 1 \
+        --mbs 1 \
+        --chat_dataset_path /home/TestData/nemo2_data/chat
+        
+        python tests/collections/llm/gpt_finetuning.py \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --devices 2 \
+        --max_steps 6 \
+        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
+        --peft lora \
+        --tp_size 1 \
+        --pp_size 1 \
+        --mbs 1 \
+        --chat_dataset_path /home/TestData/nemo2_data/chat
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
     needs: [cicd-test-container-setup]
@@ -4635,8 +4702,25 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/peft/lora_merge.py \
-        --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint/ \
+        --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
         --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }}
+
+  L2_NEMO_2_LoRA_Inference:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NEMO_2_LoRA_Inference') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        
+        python scripts/llm/generate.py \
+          --model_path /home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
+          --tp 1 \
+          --pp 1 \
+          --devices 1 \
+          --top_p 0.0 \
+          --top_k 1 \
+          --num_tokens_to_generate 3
 
   L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact:
     needs: [cicd-test-container-setup]
@@ -4661,7 +4745,7 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/nemo2_ptq_engine
-  
+
   L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -4723,6 +4807,8 @@ jobs:
       - L2_Speech_to_Text_EMA
       - L2_Speaker_dev_run_Speaker_Recognition
       - L2_Speaker_dev_run_Speaker_Diarization
+      - L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
+      - L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
       - L2_Speaker_dev_run_Speech_to_Label
       - L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
       - L2_Speaker_dev_run_Clustering_Diarizer_Inference
@@ -4804,6 +4890,7 @@ jobs:
       - L2_HF_Transformer_SFT
       - L2_HF_Transformer_SFT_nemorun
       - L2_HF_Transformer_SFT_2gpu
+      - L2_VLM_HF_Transformer_PEFT
       - L2_HF_Transformer_SFT_2gpu_nemorun
       - L2_HF_Transformer_SFT_TE_Acceleration
       - L2_NeMo_2_SSM_Pretraining
@@ -4820,6 +4907,7 @@ jobs:
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
       - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
       - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
+      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
@@ -4829,6 +4917,7 @@ jobs:
       - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
       - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
       - L2_NEMO_2_LoRA_MERGE
+      - L2_NEMO_2_LoRA_Inference
       - L2_NeMo_2_Mixtral_Pretraining
       - L2_PTQ_Llama2_FP8
       - L2_Community_LLM_Checkpoints_tests_Llama3
