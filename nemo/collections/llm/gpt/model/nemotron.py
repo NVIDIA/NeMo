@@ -134,6 +134,8 @@ class Nemotron5Config8B(NemotronConfig):
     num_attention_heads: int = 32
     num_query_groups: Optional[int] = 8
     init_method_std: float = 0.014
+    rotary_base: int = 1_000_000
+    rotary_percent: float = 1.0
 
 class NemotronModel(GPTModel):
     def __init__(
