@@ -11,6 +11,62 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytorch_lightning as pl
+import torch
+
+
+class PROFILING(pl.Callback):
+    def __init__(self) -> None:
+        super().__init__()
+        self.memory = False  # False -> nsys profile, True -> memory profile
+
+        # Uncomment below for a very detailed profile with a lot of overhead.
+        # It’s useful to create profile with and without NVTX and compare.
+        #
+        import nvtx
+
+        self.pr = nvtx.Profile()
+        # self.ctx = torch.autograd.profiler.emit_nvtx()
+
+    def on_train_batch_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", batch, batch_idx: int
+    ) -> None:
+        """Called when the train batch begins."""
+        if batch_idx == 1:
+            if self.memory:
+                torch.cuda.memory._record_memory_history(max_entries=MAX_NUM_OF_MEM_EVENTS_PER_SNAPSHOT)
+            else:
+                # Uncomment if using NVTX.
+                self.pr.enable()
+                torch.autograd.profiler.emit_nvtx().__enter__()
+                torch.cuda.profiler.cudart().cudaProfilerStart()
+
+    def on_train_batch_end(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs, batch, batch_idx: int
+    ) -> None:
+        """Called when the train batch ends.
+
+        Note:
+            The value ``outputs["loss"]`` here will be the normalized value w.r.t ``accumulate_grad_batches`` of the
+            loss returned from ``training_step``.
+
+        """
+        if batch_idx == 4:
+            if self.memory:
+                torch.cuda.memory._dump_snapshot(f"/results/memory-snapshot.pickle")
+                torch.cuda.memory._record_memory_history(enabled=None)
+                import sys
+
+                sys.exit(0)
+            else:
+                torch.cuda.profiler.cudart().cudaProfilerStop()
+                # Uncomment if using NVTX.
+                torch.autograd.profiler.emit_nvtx().__exit__(None, None, None)
+                self.pr.disable()
+                import sys
+
+                sys.exit(0)
+
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -59,6 +115,8 @@ def main(cfg) -> None:
 
     precision = cfg.trainer.precision
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
+    if hasattr(cfg, 'do_profiling') and cfg.do_profiling:
+        trainer.callbacks.append(PROFILING())
     cfg.trainer.precision = precision
 
     exp_manager(trainer, cfg.exp_manager)
