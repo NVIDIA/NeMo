@@ -37,7 +37,7 @@ The query should:
  
  ## Predict Query:
  """
- 
+
 FILTER_PROMPT_TEMPLATE = """You will be provided with a document and a query.
 Your task is to evaluate whether the content of the document is relevant to answering the query. 
 
@@ -52,6 +52,7 @@ Return "True" if the document contains information directly related to the query
 
 ## Is Relevant (True or False):
 """
+
 
 # Helper functions
 def get_random_document_from_index(index: BaseIndex) -> str:
@@ -72,8 +73,9 @@ def get_random_document_from_index(index: BaseIndex) -> str:
     random_node = index.docstore.get_node(random_node_id)
     return random_node.text
 
+
 def get_random_documents_from_index(index: BaseIndex, count: int) -> List[str]:
-    
+
     # Access the nodes_dict from index_struct
     nodes_dict = index.index_struct.nodes_dict
 
@@ -88,10 +90,11 @@ def get_random_documents_from_index(index: BaseIndex, count: int) -> List[str]:
     random_node_ids = random.sample(node_ids, count)
     return [index.docstore.get_node(node_id).text for node_id in random_node_ids]
 
+
 # Main function
 @hydra_runner(config_path="conf", config_name="rag_generating")
 def main(cfg) -> None:
-    
+
     # Load LLM
     logging.info("Loading LLM.")
     model_path = cfg.generating.llm.model_path
@@ -125,7 +128,7 @@ def main(cfg) -> None:
     output_data_file = os.path.join(output_data_folder, f"{cfg.generating.prefix}_data.jsonl")
 
     retriever = index.as_retriever(retriever_mode="embedding", similarity_top_k=cfg.generating.top_k)
-    
+
     print("Start Generate Retrieval Data!")
     for i in tqdm.tqdm(range(cfg.generating.num_sample)):
         neg_docs = []
@@ -163,6 +166,7 @@ def main(cfg) -> None:
 
     print("Save Generate Retrieval Data!", output_data_file)
 
+
 if __name__ == "__main__":
-    
+
     main()
