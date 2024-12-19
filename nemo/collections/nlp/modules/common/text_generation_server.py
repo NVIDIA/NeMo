@@ -201,6 +201,12 @@ class MegatronGenerate(Resource):
         )
         len_strip = len(special_tokens['end_of_turn'] + special_tokens['turn_start'])
         conversation = conversation[:-len_strip]
+        if OmegaConf.select(self.model.cfg, "data.train_ds.meta_tokens") is not None:
+            num_meta_tokens = self.model.cfg.data.train_ds.meta_tokens
+            meta_tokens = "".join([f"<SPECIAL_{meta_id}>" for meta_id in range(13, 13 + num_meta_tokens)])
+            conversation = meta_tokens + conversation
+            logging.info(f"added {num_meta_tokens} to conversation...")
+
 
         batching = data.get('max_tokens', 32) > 64
         if batching:
