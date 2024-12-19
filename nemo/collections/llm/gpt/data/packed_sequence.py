@@ -127,9 +127,9 @@ class PackedSequenceSpecs:
     If specified, use this file for the val packing metadata instead of the default path.
     """
 
-    pad_cu_seqlens: str = None
+    pad_cu_seqlens: bool = False
     """
-    If specified, pad cu_seqlens to a constant size, which is required for use with cudagraphs.
+    If True, pad cu_seqlens to a constant size, which is required for use with cudagraphs.
     """
 
     def __post_init__(self):

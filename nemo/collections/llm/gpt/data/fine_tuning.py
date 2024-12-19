@@ -269,7 +269,7 @@ class FineTuningDataModule(pl.LightningDataModule):
     def train_pack_metadata(self) -> Path:
         """Path to metadata dataset file for packed sequence."""
         if self.packed_sequence_size > 0:
-            if self.packed_sequence_specs.packed_val_metadata_path is not None:
+            if self.packed_sequence_specs.packed_train_metadata_path is not None:
                 return self.packed_sequence_specs.packed_train_metadata_path
             tokenizer_model_name = self._extract_tokenizer_model_name()
             folder_name = self.dataset_root / "packed" / tokenizer_model_name
