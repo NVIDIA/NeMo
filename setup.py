@@ -16,8 +16,7 @@
 # limitations under the License.
 
 """Setup for pip package."""
-
-import codecs
+import re
 import importlib.util
 import os
 import subprocess
@@ -54,12 +53,32 @@ with open("README.md", "r", encoding='utf-8') as fh:
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
 
 
+# Function to replace ${VAR} or ${VAR:-default_value} with environment variable or default
+def replace_env_vars(text):
+    # Regex to match ${VAR} or ${VAR:-default_value}
+    pattern = re.compile(r'\$\{(\w+)(:-([^}]*))?\}')
+
+    def replace_var(match):
+        var_name = match.group(1)  # The environment variable name
+        default_value = match.group(3)  # The default value if provided
+
+        # Return the environment variable value or the default (if available) or empty string
+        return os.environ.get(var_name, default_value if default_value is not None else f'${{{var_name}}}')
+
+    # Substitute all patterns in the text
+    return pattern.sub(replace_var, text)
+
+
 def req_file(filename, folder="requirements"):
     with open(os.path.join(folder, filename), encoding='utf-8') as f:
         content = f.readlines()
-    # you may also want to remove whitespace characters
-    # Example: `\n` at the end of each line
-    return [x.strip() for x in content]
+
+    requirements = [x.strip() for x in content]
+    requirements = [
+        replace_env_vars(line.strip()) for line in requirements if line.strip() and not line.startswith("#")
+    ]
+
+    return requirements
 
 
 install_requires = req_file("requirements.txt")
@@ -84,13 +103,6 @@ extras_require['all'] = list(chain(*extras_require.values()))
 
 # Add lightning requirements as needed
 extras_require['common'] = list(chain(extras_require['common'], extras_require['core']))
-extras_require['test'] = list(
-    chain(
-        extras_require['tts'],
-        extras_require['core'],
-        extras_require['common'],
-    )
-)
 extras_require['asr'] = list(chain(extras_require['asr'], extras_require['core'], extras_require['common']))
 extras_require['nlp'] = list(
     chain(
