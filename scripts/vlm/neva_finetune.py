@@ -41,40 +41,9 @@ def main(args):
     mbs = args.mbs
     max_steps = args.max_steps
 
-    decoder_seq_length = 6144
-
-    if args.data_type == "llava":
-        # Data configuration
-        data_config = ImageDataConfig(
-            image_folder=args.image_folder,
-            conv_template="v1",
-        )
-
-        # Data module setup
-        data = vlm.NevaLazyDataModule(
-            paths=args.data_path,
-            data_config=data_config,
-            seq_length=decoder_seq_length,
-            decoder_seq_length=None,
-            global_batch_size=gbs,
-            micro_batch_size=mbs,
-            tokenizer=None,
-            image_processor=None,
-            num_workers=4,
-            packed_sequence=args.use_packed_sequence,
-        )
-    elif args.data_type == "mock":
-        data = vlm.NevaMockDataModule(
-            seq_length=decoder_seq_length,
-            global_batch_size=gbs,
-            micro_batch_size=mbs,
-            tokenizer=None,
-            image_processor=None,
-            num_workers=4,
-            packed_sequence=args.use_packed_sequence,
-        )
-    else:
-        raise ValueError(f"Data type {args.data_type} not supported")
+    decoder_seq_length = 4096
+    if args.packed_sequence:
+        decoder_seq_length = 8192
 
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
@@ -99,8 +68,41 @@ def main(args):
         freeze_language_model=False,
         freeze_vision_model=True,
     )
+    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile
 
-    model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
+    if args.data_type == "llava":
+        # Data configuration
+        data_config = ImageDataConfig(
+            image_folder=args.image_folder,
+            conv_template="v1",
+        )
+
+        # Data module setup
+        data = vlm.NevaLazyDataModule(
+            paths=args.data_path,
+            data_config=data_config,
+            seq_length=decoder_seq_length,
+            decoder_seq_length=None,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            tokenizer=None,
+            image_processor=None,
+            num_workers=4,
+            packed_sequence=args.use_packed_sequence,
+            num_image_embeddings_per_tile=num_image_embeddings_per_tile,
+        )
+    elif args.data_type == "mock":
+        data = vlm.NevaMockDataModule(
+            seq_length=decoder_seq_length,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            tokenizer=None,
+            image_processor=None,
+            num_workers=4,
+            packed_sequence=args.use_packed_sequence,
+        )
+    else:
+        raise ValueError(f"Data type {args.data_type} not supported")
 
     from megatron.core.distributed import DistributedDataParallelConfig
 
@@ -119,6 +121,8 @@ def main(args):
             average_in_collective=True,
         ),
     )
+
+    model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(

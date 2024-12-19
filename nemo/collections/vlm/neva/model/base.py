@@ -860,7 +860,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     packed_seq_params.cu_seqlens_q[-1] -= truncate_len
                     packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
                     assert packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2], \
-                        "With packed sequence, the truncation can only truncate on the last sequence."
+                        "with packed sequence, the truncation can only truncate on the last sequence."
 
             if self.sequence_parallel_lm and not packed_sequence:
                 # Create an attention mask. This ensures correct computation.

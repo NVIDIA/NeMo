@@ -379,6 +379,7 @@ class NevaDataset(LazySupervisedDataset):
         tokenizer,
         image_processor,
         packed_sequence=False,
+        num_image_embeddings_per_tile=576,
     ):
 
         if data_path.endswith(".json"):
@@ -413,6 +414,7 @@ class NevaDataset(LazySupervisedDataset):
         else:
             raise ValueError(f"Formatting of {data_path} is not supported in Neva.")
         self.packed_sequence = packed_sequence
+        self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
 
     def collate_fn(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         data_config = self.data_config
@@ -440,7 +442,7 @@ class NevaDataset(LazySupervisedDataset):
             cu_seqlens_padded = [0]
             for instance in instances:
                 # Assume 1 tile per image
-                num_image_embeddings_per_tile = 576
+                num_image_embeddings_per_tile = self.num_image_embeddings_per_tile
                 num_images = torch.sum(instance['tokens'] == media_token_id)
                 seqlen = len(instance['tokens']) + (num_image_embeddings_per_tile - 1) * num_images
                 seqlen_padded = (seqlen - 1) // 8 * 8 + 8
@@ -528,6 +530,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
         pin_memory: bool = True,
         persistent_workers: bool = False,
         packed_sequence: bool = False,
+        num_image_embeddings_per_tile: int = 576,
         seed: int = 1234,
     ) -> None:
         super().__init__()
@@ -556,6 +559,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.seed = seed
         self.packed_sequence = packed_sequence
+        self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
         self.init_global_step = 0
 
         if tokenizer is None or image_processor is None:
@@ -567,6 +571,18 @@ class NevaLazyDataModule(pl.LightningDataModule):
             self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")
             self.image_processor = image_processor or processor.image_processor
 
+        if self.packed_sequence:
+            import dataclasses
+            def custom_on_megatron_step_start(self, step):
+                return dataclasses.replace(
+                    step,
+                    seq_length=self.seq_len,
+                    micro_batch_size=1,  # Override the micro_batch_size to 1 (used in PP)
+                    num_microbatches=self.num_microbatches,
+                    decoder_seq_length=self.decoder_seq_len,
+                )
+            MegatronDataSampler.on_megatron_step_start = custom_on_megatron_step_start
+
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             decoder_seq_len=self.decoder_seq_length,
@@ -575,13 +591,16 @@ class NevaLazyDataModule(pl.LightningDataModule):
             dataloader_type="cyclic",
         )
 
+
     def setup(self, stage: str = "") -> None:
         assert len(self.paths) == 1, "not yet support blend dataset in Neva 2.0!"
         self._train_ds = NevaDataset(
-            self.paths[0], self.data_config, self.tokenizer, self.image_processor, packed_sequence=self.packed_sequence
+            self.paths[0], self.data_config, self.tokenizer, self.image_processor, packed_sequence=self.packed_sequence,
+            num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
         )
         self._validation_ds = NevaDataset(
-            self.paths[0], self.data_config, self.tokenizer, self.image_processor, packed_sequence=self.packed_sequence
+            self.paths[0], self.data_config, self.tokenizer, self.image_processor, packed_sequence=self.packed_sequence,
+            num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
