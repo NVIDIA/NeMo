@@ -20,14 +20,14 @@
     </details>
   </details>
 <details open>
-  <summary><b>Large Language Models and Multimodal Models</b></summary>
+  <summary><b>Generative AI Models</b></summary>
     <details>
       <summary>
         <a href="https://developer.nvidia.com/blog/state-of-the-art-multimodal-generative-ai-model-development-with-nvidia-nemo/">
           State-of-the-Art Multimodal Generative AI Model Development with NVIDIA NeMo
         </a> (2024-11-06)
       </summary>
-        NVIDIA has expanded NeMo to support the entire pipeline for developing multimodal models. NeMo simplifies the curation of high-quality visual data, accelerates training with efficient tokenizers and parallelism techniques, and reconstructs high-quality visuals during inference. NVIDIA NeMo Curator streamlines data curation, reducing total cost of ownership and speeding up time-to-market for multimodal generative AI models.
+        NVIDIA recently announced significant enhancements to the NeMo platform, focusing on multimodal generative AI models. The update includes NeMo Curator and the Cosmos tokenizer, which streamline the data curation process and enhance the quality of visual data. These tools are designed to handle large-scale data efficiently, making it easier to develop high-quality AI models for various applications, including robotics and autonomous driving. The Cosmos tokenizers, in particular, efficiently map visual data into compact, semantic tokens, which is crucial for training large-scale generative models. The tokenizer is available now on the <a href=http://github.com/NVIDIA/cosmos-tokenizer/NVIDIA/cosmos-tokenizer>NVIDIA/cosmos-tokenizer</a> GitHub repo and on <a href=https://huggingface.co/nvidia/Cosmos-Tokenizer-CV8x8x8>Hugging Face</a>.
       <br><br>
     </details>
      <details>
@@ -48,9 +48,17 @@
         NVIDIA and Mistral AI recently introduced Mistral NeMo 12B, a state-of-the-art large language model that outperforms similarly sized models on various benchmarks. They also announced Mistral-NeMo-Minitron 8B, an advanced open-access model known for its accuracy on nine popular benchmarks. This model was created by width-pruning the Mistral NeMo 12B base model and retraining it using knowledge distillation, a method proven effective in previous NVIDIA models.
        <br><br>
      </details>
-</details>
+     <details>
+      <summary>
+        <a href="https://developer.nvidia.com/blog/achieving-state-of-the-art-zero-shot-waveform-audio-generation-across-audio-types/">
+          Achieving State-of-the-Art Zero-Shot Waveform Audio Generation across Audio Types
+        </a> (2024-09-05)
+      </summary>
+        BigVGAN is an open-source neural vocoder that synthesizes audio waveforms from Mel spectrograms. It uses a fully convolutional architecture with upsampling and residual dilated convolution layers. A key feature is the anti-aliased multiperiodicity composition (AMP) module, which generates high-frequency and periodic sound waves using a periodic activation function called Snake and anti-aliasing filters to reduce artifacts. BigVGAN is available as open source through <a href="https://github.com/NVIDIA/BigVGAN/"> NVIDIA/BigVGAN on GitHub</a>.
+      <br><br>
+    </details>
 <details open>
-  <summary><b>Speech Recognition</b></summary>
+  <summary><b>Automatic Speech Recognition (ASR) Models</b></summary>
   <details>
       <summary>
         <a href="https://developer.nvidia.com/blog/accelerating-leaderboard-topping-asr-models-10x-with-nvidia-nemo/">
@@ -59,15 +67,6 @@
       </summary>
       NVIDIA NeMo team released a number of inference optimizations for CTC, RNN-T, and TDT models that resulted in up to 10x inference speed-up. 
       These models now exceed an inverse real-time factor (RTFx) of 2,000, with some reaching RTFx of even 6,000.
-      <br><br>
-    </details>
-<details>
-      <summary>
-        <a href="https://developer.nvidia.com/blog/achieving-state-of-the-art-zero-shot-waveform-audio-generation-across-audio-types/">
-          Achieving State-of-the-Art Zero-Shot Waveform Audio Generation across Audio Types
-        </a> (2024-09-05)
-      </summary>
-        BigVGAN is an open-source neural vocoder that synthesizes audio waveforms from Mel spectrograms. It uses a fully convolutional architecture with upsampling and residual dilated convolution layers. A key feature is the anti-aliased multiperiodicity composition (AMP) module, which generates high-frequency and periodic sound waves using a periodic activation function called Snake and anti-aliasing filters to reduce artifacts. BigVGAN is available as open source through <a href="https://github.com/NVIDIA/BigVGAN/"> NVIDIA/BigVGAN on GitHub</a>.
       <br><br>
     </details>
     <details open>
@@ -92,20 +91,34 @@ Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html).
 
 ## What's New in NeMo 2.0
 
+### Key Enhancements
+
 NVIDIA NeMo 2.0 introduces several significant improvements over its predecessor, NeMo 1.0, enhancing flexibility, performance, and scalability.
 
-- **Python-Based Configuration** - NeMo 2.0 transitions from YAML files to a Python-based configuration, providing more flexibility and control. This shift makes it easier to extend and customize configurations programmatically.
+- **Python-Based Configuration**: NeMo 2.0 transitions from YAML files to a Python-based configuration, providing more flexibility and control. This shift makes it easier to extend and customize configurations programmatically.
 
-- **Modular Abstractions** - By adopting PyTorch Lightning’s modular abstractions, NeMo 2.0 simplifies adaptation and experimentation. This modular approach allows developers to more easily modify and experiment with different components of their models.
+- **Modular Abstractions**: By adopting PyTorch Lightning’s modular abstractions, NeMo 2.0 simplifies adaptation and experimentation. This modular approach allows developers to more easily modify and experiment with different components of their models.
 
-- **Scalability** - NeMo 2.0 seamlessly scaling large-scale experiments across thousands of GPUs using [NeMo-Run](https://github.com/NVIDIA/NeMo-Run), a powerful tool designed to streamline the configuration, execution, and management of machine learning experiments across computing environments.
+- **Scalability**: NeMo 2.0 seamlessly scaling large-scale experiments across thousands of GPUs using [NeMo-Run](https://github.com/NVIDIA/NeMo-Run), a powerful tool designed to streamline the configuration, execution, and management of machine learning experiments across computing environments.
 
 Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendly framework for AI model development.
 
-> [!IMPORTANT]  
-> NeMo 2.0 is currently supported by the LLM (large language model) and VLM (vision language model) collections.
+> [!IMPORTANT]
+> NeMo 2.0 currently supports large language model (LLM) and vision language model (VLM) collections.
 
-### Get Started with NeMo 2.0
+### Cosmos Diffusion and Autoregressive Models
+
+NVIDIA has made notable advancements in visual foundation models with the introduction of the Cosmos diffusion and autoregressive (AR) models. These models are designed to create high-quality visual content efficiently and effectively.
+
+- **Cosmos Diffusion Models**: Use continuous latent embeddings to generate images and videos by sampling from continuous distributions. This approach is particularly effective for tasks like image synthesis and video generation, providing high-quality outputs.
+
+- **Cosmos Autoregressive (AR) Models**: Employ discrete latent codes to generate visual data, optimizing cross-entropy loss. They are well-suited for sequential data generation tasks, such as video prediction and text-to-image generation.
+
+Both types of models leverage the Cosmos Tokenizer, which achieves impressive compression rates and maintains high image quality while running significantly faster than previous state-of-the-art methods. Efficient tokenization enhances the generative process, enabling the development of cutting-edge multimodal generative AI models. These advancements significantly improve the scalability, robustness, and efficiency of generative AI applications across diverse visual domains.
+
+The Cosmos Tokenizer is available now on the <a href=http://github.com/NVIDIA/cosmos-tokenizer/NVIDIA/cosmos-tokenizer>NVIDIA/cosmos-tokenizer</a> GitHub repo and on <a href=https://huggingface.co/nvidia/Cosmos-Tokenizer-CV8x8x8>Hugging Face</a>.
+
+## Get Started with NeMo 2.0
 
 - Refer to the [Quickstart](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html) for examples of using NeMo-Run to launch NeMo 2.0 experiments locally and on a Slurm cluster.
 - For more information about NeMo 2.0, see the [NeMo Framework User Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/index.html).
@@ -215,7 +228,7 @@ multi-GPU/multi-node training.
 ## Requirements
 
 - Python 3.10 or above
-- Pytorch 1.13.1 or above
+- PyTorch 1.13.1 or above
 - NVIDIA GPU (if you intend to do model training)
 
 ## Developer Documentation
@@ -299,7 +312,7 @@ pip install nemo_toolkit['multimodal']
 ### Pip from a Source Branch
 
 If you want to work with a specific version of NeMo from a particular
-GitHub branch (e.g main), use the following installation method:
+GitHub branch (e.g. main), use the following installation method:
 
 ```bash
 apt-get update && apt-get install -y libsndfile1 ffmpeg
