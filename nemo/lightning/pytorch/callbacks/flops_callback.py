@@ -99,16 +99,22 @@ class FLOPsMeasurementCallback(Callback):
             print("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
 
         n = trainer.strategy.current_epoch_step
-        if n % trainer.log_every_n_steps == 0:  ## TODO: use current epoch step rather than batch idx?
-            logging.info(f'{self.avg_train_step_time / trainer.log_every_n_steps=}')
+        if n % trainer.log_every_n_steps == 0:
+            ## skip calculation if we haven't accumulated any timing data
+            if (self.avg_train_step_time == 0):
+                return
             tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(
                 self.avg_train_step_time / trainer.log_every_n_steps
             )
             self.avg_train_step_time = 0
-
-            logging.info(f"TFLOPs per sec per GPU={tflops_per_sec_per_gpu:.2f}")
-            if pl_module.logger:
-                pl_module.logger.experiment.add_scalar("tflops_per_sec_per_gpu", tflops_per_sec_per_gpu)
+            pl_module.log(
+                "tflops_per_sec_per_gpu",
+                tflops_per_sec_per_gpu,
+                on_step=True,
+                on_epoch=False,
+                batch_size=1,
+                prog_bar=True,
+            )
 
     def eval_tflops_per_sec_per_gpu(self, train_step_time: List | float | int) -> float:
         """
