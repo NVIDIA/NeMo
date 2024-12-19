@@ -727,8 +727,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 if packed_sequence:
                     last_seqlen = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
                     last_seqlen_padded = max_seq_len - packed_seq_params.cu_seqlens_q_padded[-2]
-                    assert last_seqlen_padded >= last_seqlen, \
-                        "`language_max_sequence_length` needs to increase for sequence packing to work properly."
+                    assert (
+                        last_seqlen_padded >= last_seqlen
+                    ), "`language_max_sequence_length` needs to increase for sequence packing to work properly."
                     packed_seq_params.cu_seqlens_q_padded[-1] = max_seq_len
                     packed_seq_params.cu_seqlens_kv_padded[-1] = max_seq_len
                     packed_seq_params.max_seqlen_q = max(last_seqlen_padded, packed_seq_params.max_seqlen_q)
@@ -859,8 +860,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
                     packed_seq_params.cu_seqlens_q[-1] -= truncate_len
                     packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
-                    assert packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2], \
-                        "with packed sequence, the truncation can only truncate on the last sequence."
+                    assert (
+                        packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
+                    ), "with packed sequence, the truncation can only truncate on the last sequence."
 
             if self.sequence_parallel_lm and not packed_sequence:
                 # Create an attention mask. This ensures correct computation.

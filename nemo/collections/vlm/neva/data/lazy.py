@@ -573,6 +573,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
 
         if self.packed_sequence:
             import dataclasses
+
             def custom_on_megatron_step_start(self, step):
                 return dataclasses.replace(
                     step,
@@ -581,6 +582,7 @@ class NevaLazyDataModule(pl.LightningDataModule):
                     num_microbatches=self.num_microbatches,
                     decoder_seq_length=self.decoder_seq_len,
                 )
+
             MegatronDataSampler.on_megatron_step_start = custom_on_megatron_step_start
 
         self.data_sampler = MegatronDataSampler(
@@ -591,15 +593,22 @@ class NevaLazyDataModule(pl.LightningDataModule):
             dataloader_type="cyclic",
         )
 
-
     def setup(self, stage: str = "") -> None:
         assert len(self.paths) == 1, "not yet support blend dataset in Neva 2.0!"
         self._train_ds = NevaDataset(
-            self.paths[0], self.data_config, self.tokenizer, self.image_processor, packed_sequence=self.packed_sequence,
+            self.paths[0],
+            self.data_config,
+            self.tokenizer,
+            self.image_processor,
+            packed_sequence=self.packed_sequence,
             num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
         )
         self._validation_ds = NevaDataset(
-            self.paths[0], self.data_config, self.tokenizer, self.image_processor, packed_sequence=self.packed_sequence,
+            self.paths[0],
+            self.data_config,
+            self.tokenizer,
+            self.image_processor,
+            packed_sequence=self.packed_sequence,
             num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
         )
 
