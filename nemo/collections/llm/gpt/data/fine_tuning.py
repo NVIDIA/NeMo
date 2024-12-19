@@ -74,7 +74,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         persistent_workers: bool = False,
         packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
         dataset_kwargs: Optional[Dict[str, Any]] = None,
-        pad_cu_seqlens: Optional[bool] = False,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -94,7 +93,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.packed_sequence_size = -1 if not packed_sequence_specs else packed_sequence_specs.packed_sequence_size
         self.validate_batch_size_for_packed_sequence()
         self.dataset_kwargs = dataset_kwargs or {}
-        self._pad_cu_seqlens = pad_cu_seqlens
+        self._pad_cu_seqlens = False if not packed_sequence_specs else packed_sequence_specs.pad_cu_seqlens
         self.init_global_step = 0
 
     def validate_batch_size_for_packed_sequence(self):
