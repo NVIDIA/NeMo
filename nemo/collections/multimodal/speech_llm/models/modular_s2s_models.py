@@ -264,19 +264,23 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             self.proj_head_loss_weights = self.cfg.get('proj_head_loss_weights', [1.0])
             if self.decoder_reduction_factor != 1:
                 if getattr(self.cfg, 'predict_source_text', False):
-                    self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
-                        1:-1
-                    ] * self.decoder_reduction_factor + [self.proj_head_dims[-1]]
-                    self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
-                        1:-1
-                    ] * self.decoder_reduction_factor + [self.cfg.proj_head_loss_weights[-1]]
+                    self.proj_head_dims = (
+                        [self.proj_head_dims[0]]
+                        + self.proj_head_dims[1:-1] * self.decoder_reduction_factor
+                        + [self.proj_head_dims[-1]]
+                    )
+                    self.proj_head_loss_weights = (
+                        [self.cfg.proj_head_loss_weights[0]]
+                        + self.cfg.proj_head_loss_weights[1:-1] * self.decoder_reduction_factor
+                        + [self.cfg.proj_head_loss_weights[-1]]
+                    )
                 else:
                     self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
                         1:
                     ] * self.decoder_reduction_factor
-                    self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
-                        1:
-                    ] * self.decoder_reduction_factor
+                    self.proj_head_loss_weights = [
+                        self.cfg.proj_head_loss_weights[0]
+                    ] + self.cfg.proj_head_loss_weights[1:] * self.decoder_reduction_factor
 
             model = S2sMCoreGPTModel(
                 config=self.transformer_config,
@@ -1155,9 +1159,11 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
             if getattr(self.cfg, 'predict_source_text', False):
                 # TODO(kevinhu): Add delay to better predict user text.
+                # Predict user text when the agent turn starts.
                 all_channels.append(torch.cat([sliced_text_channel, answer_codec, sliced_source_text_channel], dim=-1))
             else:
                 if getattr(self.cfg, 'speech_delay', False):
+                    # TODO(kevinhu): Implement cascaded delays across all channels.
                     text_len, text_vocab = sliced_text_channel.shape
                     speech_len, speech_vocab = answer_codec.shape
                     assert text_len == speech_len

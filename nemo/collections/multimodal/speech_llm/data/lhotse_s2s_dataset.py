@@ -161,7 +161,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             batch_size = len(word_tokens)
             max_length = max(features_lens).item()
-            logging.info(f'start_time_tokens: {start_time_tokens}')
 
             # Create the empty 2D tensor [batch, max_length] with pad_id as the default value
             texts_expanded = torch.full((batch_size, max_length), fill_value=pad_id, dtype=torch.long)
@@ -198,7 +197,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
                 # Overwrite padding tokens
                 texts_expanded[batch_idx][batch_max_length:] = self.text_processor.pad_id
-
             return texts_expanded
 
     def __getitem__duplex_(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
@@ -241,9 +239,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                         output_text = re.sub(r'\s+', ' ', output_text).strip()
                         target_text = self.text_processor._process_example(context="", output=output_text)
                         # -1 to remove the eos token added by the text processor
-                        target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
-                            len(target_text["answer_ids"]) - 1
-                        )
+                        target_text, target_text_length = torch.as_tensor(
+                            target_text["answer_ids"][:-1]
+                        ), torch.as_tensor(len(target_text["answer_ids"]) - 1)
                     else:
                         target_text, start_time_token, word_length = self._extract_text_and_time_tokens(text)
                         target_text_length = len(target_text)
@@ -676,7 +674,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             if not include_eos:
                 texts_expanded = texts_expanded[:, :-1]
             return texts, text_lengths, texts_expanded
-
 
         batch_size = audio.shape[0]
         # TODO: can remove the following except features_lens
