@@ -27,10 +27,10 @@
 # limitations under the License.
 
 """
-Example: python scripts/checkpoint_averaging/distributed_checkpoint_averaging.py \
+Example: python scripts/checkpoint_averaging/zarr_distributed_checkpoint_averaging.py \
              --name_prefix=<checkpoint name> \
-             --checkpoint_dir=<folder with mp_rank_X subfolders containing checkpoints>
-             --steps <optinally a list of checkpoint steps to average, if not provided, it will average all the checkpoints>
+             --checkpoint_dir=<folder containing checkpoints> \
+             --steps <list of checkpoint steps to average, if not provided, it will average all the checkpoints>
 
 will generate a new directory in each of the distributed checkpoint subfolders named <checkpoint name>-averaged
 """
