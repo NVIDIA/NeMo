@@ -4,6 +4,10 @@
 
 Here, we share a tutorial with best practices on training for DAPT (domain-adaptive pre-training).
 
+If the data is not ready, use [Step0_Dummy_data.ipynb](./Step0_Dummy_Data.ipynb) to create dummy data.
+To use real data, refer to the “Prepare Real Dataset” section.
+
+Then, sequentially proceed with [Step1_DAP.ipynb](./Step1_DAP.ipynb), [Step2_Alignment.ipynb](./Step2_Alignment.ipynb), and [Step3_Domain_Retrieval.ipynb](./Step3_Domain_Retrieval.ipynb).
 
 ## Prepare Real Dataset
 You can use dummy data for testing. 
