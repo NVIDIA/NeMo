@@ -22,10 +22,25 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.io.mixin import track_io
 
+model_choices = ['mistral', 'mixtral']
+
+
+def model_type(arg):
+    if arg.lower() in model_choices:
+        return arg.lower()
+    elif os.path.exists(arg):
+        return arg
+    else:
+        raise argparse.ArgumentTypeError(f"invalid choice: '{arg_value}' (choose from " + str(model_choices) + ")")
+
 
 def get_args():
     parser = argparse.ArgumentParser(description='Finetune a small GPT model using NeMo 2.0')
-    parser.add_argument('--model', type=str.lower, choices=['mistral', 'mixtral'], help="model")
+    parser.add_argument(
+        '--model',
+        type=model_type,
+        help="Path to model; Choose from " + str(model_choices),
+    )
     parser.add_argument('--max-steps', type=int, default=9, help="number of devices")
     parser.add_argument('--mbs', type=int, default=2, help="micro batch size")
     parser.add_argument('--gbs', type=int, default=4, help="global batch size")
@@ -114,12 +129,25 @@ def mistral_7b() -> pl.LightningModule:
     return model, lora
 
 
+def auto_model(model_path):
+    tokenizer = OrdTokenizer()
+    model = llm.MegatronAutoModel(model_path, tokenizer=tokenizer)
+    lora = llm.peft.LoRA()
+    return model, lora
+
+
 if __name__ == '__main__':
     args = get_args()
     if args.model == 'mistral':
         model, lora = mistral_7b()
-    else:
+    elif args.model == 'mixtral':
         model, lora = mixtral_8x7b()
+    else:
+        # do automodel
+        model, lora = auto_model(args.model)
+        # Update this if you change the checkpoint.
+        assert isinstance(model, llm.Phi3Model), "Expected model to be of type llm.Phi3Model"
+
     llm.finetune(
         model=model,
         data=squad(args.mbs, args.gbs),
