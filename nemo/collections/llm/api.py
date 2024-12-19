@@ -685,6 +685,7 @@ def generate(
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
+    flash_decode: bool = False,
     output_path: Optional[Union[Path, str]] = None,
 ) -> list[Union["InferenceRequest", str]]:
     """
@@ -775,6 +776,9 @@ def generate(
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )
+    if flash_decode:
+        inference_wrapped_model.model.config.flash_decode = True
+        inference_wrapped_model.model.config.enable_cuda_graph=True
 
     dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
     dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
