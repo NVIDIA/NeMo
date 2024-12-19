@@ -44,6 +44,9 @@ class LinearAdapter(nn.Linear):
     """
     Linear + LoRA, maintains ckpts structrue (i.e. Linear's weight/bias remain at the same FQN)
 
+    The _init_wrapper and _forward methods provide the LoRA functionality. We want to be able to
+    use those inside LinearAdapter but also for monkey-patching modules, without repeating the
+    same code -> therefore those are decorated with @staticmethod.
 
     Args:
         orig_linear (nn.Module): the linear module to augment.
@@ -74,12 +77,16 @@ class LinearAdapter(nn.Linear):
             device=orig_linear.weight.device,
             dtype=orig_linear.weight.dtype,
         )
-        LinearAdapter._init_adapter(self, orig_linear)
+        # copy weights
+        self.weight.data.copy_(orig_linear.weight.data)
+        if orig_linear.bias is not None:
+            self.bias.data.copy_(orig_linear.bias.data)
+        # initialize the adapte
+        LinearAdapter._init_adapter(self)
 
     @staticmethod
     def _init_adapter(
         obj,
-        orig_linear=None,
         dim=8,
         alpha=32,
         dropout=0.1,
@@ -87,6 +94,19 @@ class LinearAdapter(nn.Linear):
         lora_A_init_method='xavier',
         lora_dtype=None,
     ):
+        """Adds LoRA weights to obj. The obj is either a LinearAdapter or an nn.Module (when
+        monkey-patching).
+
+        Args:
+            obj (LinearAdapter | nn.Module): input module to adapt.
+            dim (int): lora's dim in_features -> dim -> out_features.
+            alpha (int): lora's scaling alpha.
+            dropout (float): dropout prob (default: 0.1).
+            dropout_position (str): where to apply dropout rel. to lora (choices= ['pre', 'post'], default=post)
+            lora_A_init_method (str): init method for lora_A (choices= ['xavier', 'uniform'])
+            lora_dtype (torch.dtype): weight's dtype, by default will use orig_linear's but if they
+            are quantized weights (e.g. 4bit) needs to be specified explicitly.
+        """
         obj.dim = dim
         obj.scale = alpha / dim
 
@@ -95,11 +115,6 @@ class LinearAdapter(nn.Linear):
         obj.weight.requires_grad = False
         if obj.bias is not None:
             obj.bias.requires_grad = False
-        # copy weights
-        if orig_linear is not None:
-            obj.weight.data.copy_(orig_linear.weight.data)
-            if orig_linear.bias is not None:
-                obj.bias.data.copy_(orig_linear.bias.data)
 
         in_features = obj.in_features
         out_features = obj.out_features
@@ -166,13 +181,13 @@ def patch_linear_module(
         specify the dtype manually. Defaults to None.
 
     Returns:
-        _type_: _description_
+        (nn.Module): the monkey-patched (nn.Linear + LoRA) nn.Module
     """
 
     assert isinstance(orig_linear, nn.Linear)
 
     LinearAdapter._init_adapter(
-        orig_linear, None, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
+        orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
     )
     orig_linear.forward = lambda x: LinearAdapter._forward(orig_linear, x)
     return orig_linear
