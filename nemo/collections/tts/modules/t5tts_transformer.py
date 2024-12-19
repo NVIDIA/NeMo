@@ -20,7 +20,7 @@ from flash_attn.layers.rotary import RotaryEmbedding
 from torch import nn
 from torch.cuda import amp
 from torch.nn.utils.rnn import pad_sequence
-
+from nemo.utils import logging
 
 # alibi helper functions (start)
 def get_relative_positions(seq_len: int, device, symmetric: bool=True) -> torch.tensor:
@@ -613,6 +613,9 @@ class TransformerStack(nn.Module):
             self.position_embeddings = nn.Embedding(
                 hparams['max_length_causal_mask'], hparams['d_model']
             )
+        elif hparams['pos_emb'].get("name", None) == 'learnable':
+            # raise warning
+            logging.warning("Use learnable_v2 instead of learnable for pos emb, unless using old checkpoints.")
 
     def reset_cache(self, use_cache=False):
         for layer in self.layers:

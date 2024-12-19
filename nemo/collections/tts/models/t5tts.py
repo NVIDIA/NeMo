@@ -624,11 +624,11 @@ class T5TTS_Model(ModelPT):
             # which can cause errors when doing codes_to_audio for audio_codes_input. We are not currently calling codes_to_audio on  
             # audio_codes_input so should not matter if we dont supply dec_random_input_max.
             random_audio_tokens = torch.randint(0, max_codebook_val, audio_codes_input.size(), device=audio_codes_input.device)
-            random_audio_tokens = random_audio_tokens * (~audio_codes_mask.unsqueeze(1))
             # audio_codes_mask is False for timesteps to be kept (transformer expects it that way) so we need to invert it
-            timestep_mask = torch.rand((1,1,audio_codes_input.size(2)), device=audio_codes_input.device) > self.cfg.decoder_input_dropout_prob
+            random_audio_tokens = random_audio_tokens * (~audio_codes_mask.unsqueeze(1))
+            dec_dropout_mask = torch.rand((1,1,audio_codes_input.size(2)), device=audio_codes_input.device) > self.cfg.decoder_input_dropout_prob
             # timestep_mask is True for timesteps to be kept
-            audio_codes_input = audio_codes_input * timestep_mask + random_audio_tokens * (~timestep_mask)
+            audio_codes_input = audio_codes_input * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
 
         audio_codes_embedded = self.embed_audio_tokens(audio_codes_input) # (B, T', E)
         
