@@ -41,7 +41,7 @@ def main(args):
     mbs = args.mbs
     max_steps = args.max_steps
 
-    decoder_seq_length = 4096
+    decoder_seq_length = 6144
 
     if args.data_type == "llava":
         # Data configuration
@@ -60,8 +60,8 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=0,
-            packed_sequence=True,
+            num_workers=4,
+            packed_sequence=args.use_packed_sequence,
         )
     elif args.data_type == "mock":
         data = vlm.NevaMockDataModule(
@@ -70,8 +70,8 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=0,
-            packed_sequence=True,
+            num_workers=4,
+            packed_sequence=args.use_packed_sequence,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
@@ -233,6 +233,9 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=128, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
-
+    parser.add_argument(
+        "--use_packed_sequence",
+        action="store_true",
+    )
     args = parser.parse_args()
     main(args)

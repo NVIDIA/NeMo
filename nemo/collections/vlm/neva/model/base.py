@@ -724,6 +724,15 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # Pipeline parallel expects fixed input size. Check if we need to pad.
             if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
                 max_seq_len = self._language_max_sequence_length
+                if packed_sequence:
+                    last_seqlen = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
+                    last_seqlen_padded = max_seq_len - packed_seq_params.cu_seqlens_q_padded[-2]
+                    assert last_seqlen_padded >= last_seqlen, \
+                        "`language_max_sequence_length` needs to increase for sequence packing to work properly."
+                    packed_seq_params.cu_seqlens_q_padded[-1] = max_seq_len
+                    packed_seq_params.cu_seqlens_kv_padded[-1] = max_seq_len
+                    packed_seq_params.max_seqlen_q = max(last_seqlen_padded, packed_seq_params.max_seqlen_q)
+                    packed_seq_params.max_seqlen_kv = max(last_seqlen_padded, packed_seq_params.max_seqlen_kv)
 
             if self.sequence_parallel_lm:
                 if self.tp_comm_overlap_lm:
@@ -835,15 +844,24 @@ class MCoreNevaModel(MCoreLLaVAModel):
             ), "unexpected shapes after data preprocessing"
 
         truncate_labels = has_labels and final_labels.shape[1] > self._language_max_sequence_length
-        if truncate_labels and not packed_sequence:
+        if truncate_labels:
             final_labels = final_labels[:, : self._language_max_sequence_length]
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
 
         if final_embedding is not None:
             final_embedding = final_embedding.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
-            if final_embedding.shape[0] > self._language_max_sequence_length and not packed_sequence:
+            if final_embedding.shape[0] > self._language_max_sequence_length:
                 final_embedding = final_embedding[: self._language_max_sequence_length]
+                if packed_sequence:
+                    truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
+                    packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
+                    packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
+                    packed_seq_params.cu_seqlens_q[-1] -= truncate_len
+                    packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
+                    assert packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2], \
+                        "With packed sequence, the truncation can only truncate on the last sequence."
+
             if self.sequence_parallel_lm and not packed_sequence:
                 # Create an attention mask. This ensures correct computation.
                 # This is done even when no padding was done as we set mask_type to

@@ -471,8 +471,8 @@ class NevaDataset(LazySupervisedDataset):
                 cu_seqlens_kv=cu_seqlens,
                 cu_seqlens_q_padded=cu_seqlens_padded,
                 cu_seqlens_kv_padded=cu_seqlens_padded,
-                max_seqlen_q=max(seqlens_padded),
-                max_seqlen_kv=max(seqlens_padded),
+                max_seqlen_q=int(max(seqlens_padded)),
+                max_seqlen_kv=int(max(seqlens_padded)),
                 qkv_format=qkv_format,
             )
         else:  # regular dataset
