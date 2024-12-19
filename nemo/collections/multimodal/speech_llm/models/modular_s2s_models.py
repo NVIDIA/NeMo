@@ -1,17 +1,25 @@
 import itertools
 import json
+import math
 import os
+import re
+import tempfile
 from collections import OrderedDict
 from typing import List, Optional, Union
 
+import hydra
 import numpy as np
 import sacrebleu
+import soundfile as sf
 import torch
+import torchaudio
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from torch import Tensor
+from torch.nn.utils.rnn import pad_sequence
+from torchaudio.pipelines import SQUIM_SUBJECTIVE
 
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
 from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
@@ -19,6 +27,7 @@ from nemo.collections.common.parts.utils import apply_rope_scaling, extend_insta
 from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin, get_specs
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging, model_utils
 
@@ -62,6 +71,7 @@ class SumVocabParallelEmbedding(tensor_parallel.VocabParallelEmbedding):
         self.proj_head_dims = proj_head_dims
 
     def forward(self, input_):
+
         if input_.ndim == 3:
             assert input_.shape[2] == len(self.proj_head_dims)
             input_ = input_.clone()
@@ -121,7 +131,8 @@ class S2sMCoreGPTModel(MCoreGPTModel):
                     bias=False,
                     skip_bias_add=False,
                     gather_output=not self.parallel_output,
-                    skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
+                    skip_weight_param_allocation=self.pre_process
+                    and self.share_embeddings_and_output_weights,  # if skip_weight_param_allocation=True, weights are initialized from setup_embeddings_and_output_layer
                     embedding_activation_buffer=self.embedding_activation_buffer,
                     grad_output_buffer=self.grad_output_buffer,
                 )
@@ -150,6 +161,8 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         # Zero out the new embeddings to make the model behave the same as it was pre-trained
         self.embedding.word_embeddings.weight.data[pretrained_emb.word_embeddings.weight.shape[0] :].zero_()
         del pretrained_emb
+        if self.pre_process or self.post_process:
+            self.setup_embeddings_and_output_layer()
 
     def forward(
         self,
@@ -203,11 +216,22 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             return hidden_states
 
         # logits and loss
-        all_logits = [self.output_layers[i](hidden_states)[0] for i in range(self.n_proj_heads)]
-        output_weight = None
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
-        all_logits[0], _ = self.output_layer(hidden_states, weight=output_weight)
+        else:
+            output_weight = None
+        all_logits = []
+        cur_dims = 0
+        for i in range(self.n_proj_heads):
+            cur_output_weight = (
+                output_weight[cur_dims : cur_dims + self.proj_head_dims[i]] if output_weight is not None else None
+            )
+            all_logits.append(self.output_layers[i](hidden_states, weight=cur_output_weight)[0])
+            cur_dims += self.proj_head_dims[i]
+        assert self.vocab_size == self.proj_head_dims[0]
+        all_logits[0], _ = self.output_layer(
+            hidden_states, weight=output_weight[: self.vocab_size] if output_weight is not None else None
+        )
 
         if labels is None:
             # [s b h] => [b s h]
@@ -284,9 +308,28 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         trainer: Optional[Trainer] = None,
     ):
 
-        model, codec_model, asr_model, mos_model = super().restore_from_pretrained_models(cfg, trainer)
+        model = super().restore_from_pretrained_models(cfg, trainer)
+
+        codec_model, codec_model_cfg = cls.get_codec_models_and_configs(cfg)
+        logging.info(f"Loaded Codec Model: {codec_model}")
+
+        asr_model, asr_model_cfg = cls.get_asr_models_and_configs(cfg)
+        logging.info(f"Loaded ASR Model: {asr_model}")
+
+        mos_model = cls.get_mos_models_and_configs(cfg)
+        logging.info(f"Loaded MOS Model: {mos_model}")
+
         if cfg.model.get('salm_model_path') is not None:
-            torch_state_dict = torch.load(cfg.model.get('salm_model_path'))['state_dict']
+            # this may only work for tp=1
+            # check scripts/nlp_language_modeling/merge_lora_weights/merge_salm.py on tp>1
+            salm_model_path = cfg.model.get('salm_model_path')
+            if '.nemo' in salm_model_path:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    NLPSaveRestoreConnector._unpack_nemo_file(salm_model_path, tmpdir)
+                    salm_model_path = f"{tmpdir}/model_weights.ckpt"
+                    torch_state_dict = torch.load(salm_model_path)
+            else:
+                torch_state_dict = torch.load(salm_model_path)['state_dict']
             model.setup_complete = False
             model.load_state_dict(torch_state_dict, strict=False)
             logging.info(f"loading from {cfg.model.get('salm_model_path')}: {torch_state_dict.keys()}")
@@ -322,6 +365,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         """
         Used for validation and test steps, added postprocessing after calling self.predict_step().
         """
+        # import pdb; pdb.set_trace()
+
         # Evaluation of multimodal data follows the same pattern as training except predict_step
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
@@ -340,7 +385,11 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         output = self.predict_step(batch, batch_idx, dataloader_idx)
 
-        inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['instructions']]
+        inputs_text = (
+            [self.tokenizer.ids_to_text(c.tolist()) for c in batch['instructions']]
+            if batch['instructions'] is not None
+            else [""] * len(batch['target_texts'])
+        )
         labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['target_texts']]
         # only do ids_to_text on the first channel which is text
         output['token_ids_text'] = (np.array(output['token_ids'])[:, :, 0]).tolist()
@@ -411,41 +460,46 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
     ):
         # remove text context
         max_len = input_decoder_output.shape[0]
+        if len(input_decoder_output.shape) == 1:
+            return input_decoder_output, None
         decoder_output = input_decoder_output[-1:].tile([max_len, 1])
         decoder_output[: max_len - context_length] = input_decoder_output[context_length:]
 
+        # Do not split because text and speech are now aligned
         # Split text and speech part based on the position of the first separator token
-        sep_pos = (decoder_output[:, 0] == text_separator).long()
-        if torch.any(sep_pos):
-            first_sep_pos = torch.argmax(sep_pos)
-            text_tokens = decoder_output[:first_sep_pos, 0]
-            speech_tokens = decoder_output[first_sep_pos + 1 :, 1:]
-        else:
-            text_tokens = decoder_output[:, 0]
-            speech_tokens = decoder_output[:, 1:]
-
+        # sep_pos = (decoder_output[:, 0] == text_separator).long()
+        # if torch.any(sep_pos):
+        #     first_sep_pos = torch.argmax(sep_pos)
+        #     text_tokens = decoder_output[:first_sep_pos, 0]
+        #     speech_tokens = decoder_output[first_sep_pos + 1 :, 1:]
+        # else:
+        #     text_tokens = decoder_output[:, 0]
+        #     speech_tokens = decoder_output[:, 1:]
+        text_tokens = decoder_output[:, 0]
+        speech_tokens = decoder_output[:, 1:]
         # Get speech token ids
         if self.cfg.get('megatron_amp_O2', False):
             n_speech_codebooks = self.model.module.n_proj_heads - 1
         else:
             n_speech_codebooks = self.model.n_proj_heads - 1
-
-        # Remove padded parts of speech tokens
-        speech_eos_pos = torch.sum(speech_tokens == speech_eos_id, axis=1) == n_speech_codebooks
-        speech_mask = torch.cumsum(speech_eos_pos, 0) == 0
-        speech_tokens = speech_tokens[speech_mask]
+        duplex_method = self.cfg.duplex_method
+        if duplex_method != 'from_duplex':
+            # Remove padded parts of speech tokens
+            speech_eos_pos = torch.sum(speech_tokens == speech_eos_id, axis=1) == n_speech_codebooks
+            speech_mask = torch.cumsum(speech_eos_pos, 0) == 0
+            speech_tokens = speech_tokens[speech_mask]
         # Revert decoder output reduction
         new_shape = (
             speech_tokens.shape[0] * self.cfg.decoder_reduction_factor,
             speech_tokens.shape[1] // self.cfg.decoder_reduction_factor,
         )
         speech_tokens = speech_tokens.reshape(new_shape)
+        if speech_tokens.shape[0] == 0:
+            speech_tokens = torch.zeros([1, new_shape[1]]).long().cuda()
         return text_tokens.long(), speech_tokens.long()
 
     def decode_and_save_wavs(self, codec_model, codes_list, wav_dir, metadata_list):
-        import soundfile as sf
-
-        sample_rate = 22050
+        sample_rate = self.codec_sample_rate
         os.makedirs(wav_dir, exist_ok=True)
         wavs = []
         for codes, metadata in zip(codes_list, metadata_list):
@@ -455,7 +509,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             wav = wav[0]
             wavs.append(wav)
             sf.write(
-                os.path.join(wav_dir, metadata['audio_filepath'].split('.wav')[0] + ".gen.wav"),
+                os.path.join(
+                    wav_dir, re.sub("_repeat\d*", "", metadata['audio_filepath'].split('.wav')[0]) + ".gen.wav"
+                ),
                 wav.detach().cpu().numpy(),
                 sample_rate,
             )
@@ -562,11 +618,17 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                                 self.cfg.data.train_ds.speech_pad_id,
                                 self.cfg.data.train_ds.speech_eos_id,
                             )
+
+                            def normalize_text(text):
+                                return text.strip().replace('⁇', '')
+
+                            if speech_answer == None:
+                                speech_answer = torch.zeros_like(speech_pred)
                             text_pred_text = self.tokenizer.ids_to_text(text_pred)
-                            deduplicated_outputs['preds'].append(text_pred_text.strip())
-                            deduplicated_outputs['labels'].append(labels_text.strip())
+                            deduplicated_outputs['preds'].append(normalize_text(text_pred_text))
+                            deduplicated_outputs['labels'].append(normalize_text(labels_text))
                             text_answer_text = self.tokenizer.ids_to_text(text_answer)
-                            deduplicated_outputs['text_answers'].append(text_answer_text.strip())
+                            deduplicated_outputs['text_answers'].append(normalize_text(text_answer_text))
                             deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
                             deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
 
@@ -613,8 +675,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
                 with torch.no_grad():
                     logging.info(f"Running ASR on speech preds")
-                    speech_preds_transcribed = asr_model.transcribe(pred_wavs)[0]
-                    speech_answers_transcribed = asr_model.transcribe(answer_wavs)[0]
+                    asr_batch_size = min(64, len(pred_wavs))
+                    speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)
+                    speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)
                     deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
                     deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
 
@@ -622,16 +685,17 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 self.additional_models['squim_mos_model'] = self.mos_model
                 assert 'squim_mos_model' in self.additional_models
                 squim_mos_model = self.additional_models['squim_mos_model']
-
-                import torchaudio
+                codec_sample_rate = self.codec_sample_rate
 
                 with torch.no_grad():
                     logging.info(f"Running MOS prediction")
+
                     pred_wavs_resampled = [
-                        torchaudio.functional.resample(wav, 22050, 16000).unsqueeze(0) for wav in pred_wavs
+                        torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0) for wav in pred_wavs
                     ]
                     answer_wavs_resampled = [
-                        torchaudio.functional.resample(wav, 22050, 16000).unsqueeze(0) for wav in answer_wavs
+                        torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0)
+                        for wav in answer_wavs
                     ]
                     squim_mos_scores = [
                         squim_mos_model(pred_wav, answer_wav)
@@ -879,5 +943,427 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         self.cfg = cfg
         self.additional_models = {}
+        self.extract_codec_on_the_fly = cfg.get('extract_codec_on_the_fly', False)
+        self.codec_model_downsampling_factor = cfg.get('codec_model_downsampling_factor', 1023.5)
+        self.codec_sample_rate = cfg.data.train_ds.get("codec_sample_rate", 22050)
 
         super().__init__(cfg, trainer)
+
+    def _get_codec_embeddings(self, audio_signal, audio_signal_length):
+        """Get codec embeddings for the input audio signal."""
+        if 'codec_model' not in self.additional_models:
+            self.additional_models['codec_model'] = self.codec_model
+            self.additional_models['codec_model'].to(self.device)
+            self.additional_models['codec_model'].eval()
+        codec_model = self.additional_models['codec_model']
+        codec_model.eval()
+        with torch.no_grad():
+            original_codec_codes, _ = codec_model.encode(audio=audio_signal, audio_len=audio_signal_length)
+            original_codec_codes = original_codec_codes.transpose(1, 2)
+        out_codec_codes = []
+        out_codec_lens = []
+        n_speech_codebooks = original_codec_codes.shape[-1]
+        decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
+        speech_pad_id = self.cfg.data.train_ds.speech_pad_id
+        padded_original_codec_codes = torch.cat(
+            [
+                original_codec_codes,
+                torch.ones([original_codec_codes.shape[0], decoder_reduction_factor, n_speech_codebooks]).long().cuda()
+                * speech_pad_id,
+            ],
+            axis=1,
+        )
+        for sidx in range(audio_signal.shape[0]):
+            codec_len = min(
+                torch.ceil(audio_signal_length[sidx] / self.codec_model_downsampling_factor / decoder_reduction_factor)
+                .int()
+                .to(self.device),
+                math.ceil(original_codec_codes[sidx].shape[0] / decoder_reduction_factor),
+            )
+            out_codec_codes.append(
+                padded_original_codec_codes[sidx, : codec_len * decoder_reduction_factor]
+                .reshape((-1, n_speech_codebooks * decoder_reduction_factor))
+                .to(self.device)
+            )
+            out_codec_lens.append(codec_len)
+
+        return out_codec_codes, out_codec_lens
+
+    def get_duration_by_steps(self, steps):
+        codec_model_downsampling_factor = self.codec_model_downsampling_factor
+        decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
+        codec_sample_rate = self.codec_sample_rate
+        seconds = steps * codec_model_downsampling_factor / codec_sample_rate * decoder_reduction_factor
+        return seconds, int(seconds * codec_sample_rate)
+
+    def get_step_from_audio_len(self, audio_len):
+        decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
+        return torch.ceil(audio_len / self.codec_model_downsampling_factor / decoder_reduction_factor).int() - 1
+
+    def prepare_llm_input_duplex_from_multiturn(self, audio_batch):
+        codec_sample_rate = self.codec_sample_rate
+        decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
+        # make the following to be one decoding step so as to easier replace with speech bos token and eos token
+        duplex_inject_silence_second = (
+            self.codec_model_downsampling_factor / codec_sample_rate * decoder_reduction_factor
+        )
+        silence = int(codec_sample_rate * duplex_inject_silence_second)
+        user_signal = audio_batch['audio_signal']
+        user_signal_length = audio_batch['audio_signal_length']
+
+        def resample(audio, audio_lens, orig_sample_rate, target_sample_rate):
+            audio = torchaudio.functional.resample(audio, orig_sample_rate, target_sample_rate)
+            audio_lens = (audio_lens * (target_sample_rate / orig_sample_rate)).int()
+            return audio, audio_lens
+
+        if 'target_texts_merge' not in audio_batch:  # create duplex data from single turn
+            # this branch is not used anymore; duplex data should go to else:
+            labels, loss_mask = (
+                audio_batch['labels'],
+                audio_batch['loss_mask'],
+            )
+            context_lengths = audio_batch['context_lengths']
+
+            assert self.extract_codec_on_the_fly
+            agent_signal = audio_batch['answer_audio']
+            agent_signal_length = audio_batch['answer_audio_lens']
+
+            if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
+                user_signal, user_signal_length = resample(
+                    user_signal,
+                    user_signal_length,
+                    self.perception.cfg.preprocessor.sample_rate,
+                    codec_sample_rate,
+                )
+
+            new_user_signal = []
+            new_agent_signal = []
+            new_user_signal_length = []
+            new_agent_signal_length = []
+            silence_value = 0
+            shift_text_channel_len = []
+            agent_bos_eos_step = []
+            for user, agent, user_len, agent_len in zip(
+                user_signal, agent_signal, user_signal_length, agent_signal_length
+            ):
+                user = user[:user_len]
+                agent = agent[:agent_len]
+                # user, silence, agent, silence -> user, bos, agent, eos
+                # TODO: above design means that in real/synthetic data, we need to mark bos and eos timestamp of agent responses
+                silence_piece = torch.full([silence], silence_value).cuda()
+                new_user_signal.append(
+                    torch.cat([user, silence_piece, torch.ones_like(agent) * silence_value, silence_piece], dim=0)
+                )
+                new_agent_signal.append(
+                    torch.cat([torch.ones_like(user) * silence_value, silence_piece, agent, silence_piece], dim=0)
+                )
+                duplex_len = user_len + silence + agent_len + silence
+                # make bos step -1 to be safe for silence+speech boundary
+                agent_bos_eos_step.append(
+                    [self.get_step_from_audio_len(user_len + silence) - 1, self.get_step_from_audio_len(duplex_len)]
+                )
+                new_user_signal_length.append(duplex_len)
+                new_agent_signal_length.append(duplex_len)
+            new_user_signal = pad_sequence(new_user_signal, batch_first=True)
+            new_agent_signal = pad_sequence(new_agent_signal, batch_first=True)
+            new_user_signal_length = torch.Tensor(new_user_signal_length).long().cuda()
+            new_agent_signal_length = torch.Tensor(new_agent_signal_length).long().cuda()
+            if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
+                new_user_signal, new_user_signal_length = resample(
+                    new_user_signal,
+                    new_user_signal_length,
+                    codec_sample_rate,
+                    self.perception.cfg.preprocessor.sample_rate,
+                )
+        else:  # real duplex data read from dataloader
+            new_user_signal = audio_batch['audio_signal']
+            new_user_signal_length = audio_batch['audio_signal_length']
+            new_agent_signal = audio_batch['answer_audio']
+            new_agent_signal_length = audio_batch['answer_audio_lens']
+            loss_mask = None
+            duplex_method = self.cfg.duplex_method
+            assert duplex_method == "from_duplex"
+
+        # [b, t, c]
+        encoded, encoded_len = self.perception(
+            input_signal=new_user_signal,
+            input_signal_length=new_user_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+        )
+
+        answer_codecs, answer_codecs_lens = self._get_codec_embeddings(
+            new_agent_signal, new_agent_signal_length
+        )  # list, list
+
+        answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
+        assert all(torch.isclose(answer_codecs_lens, encoded_len, atol=1))
+        encoded_len = answer_codecs_lens
+        if 'answer_features_lens' in audio_batch:
+            assert 'target_texts_merge' not in audio_batch
+            prev_answer_features_lens = (
+                torch.ceil(
+                    agent_signal_length / self.codec_model_downsampling_factor / decoder_reduction_factor
+                ).long()
+                + 1
+            )  # bos
+            assert all(prev_answer_features_lens == audio_batch['answer_features_lens'])
+            shift_text_channel_len = answer_codecs_lens - prev_answer_features_lens - 2  # 2 is for bos and eos
+
+        new_loss_mask = []
+        all_channels = []
+        for i, answer_codec in enumerate(answer_codecs):
+            if 'target_texts_merge' in audio_batch:
+                text_channel = audio_batch['target_texts_merge'][i]
+                sliced_text_channel = text_channel[: answer_codec.shape[0]].unsqueeze(-1)
+                answer_codec = torch.where(
+                    sliced_text_channel == self.tokenizer.bos_id, self.cfg.data.train_ds.speech_bos_id, answer_codec
+                )
+                answer_codec = torch.where(
+                    sliced_text_channel == self.tokenizer.eos_id, self.cfg.data.train_ds.speech_eos_id, answer_codec
+                )
+            else:
+                # this branch is not used anymore
+                # mask bos and eos following timestamp or synthetic data mark
+                answer_codec[agent_bos_eos_step[i][0]] = self.cfg.data.train_ds.speech_bos_id
+                answer_codec[agent_bos_eos_step[i][1]] = self.cfg.data.train_ds.speech_eos_id
+                pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.unk_id
+                base_length = -1 + context_lengths[i]
+                text_channel = torch.cat(
+                    [
+                        torch.full([shift_text_channel_len[i], 1], pad_id).cuda(),
+                        torch.full([1, 1], self.tokenizer.bos_id).cuda(),
+                        labels[i, base_length:, :1],
+                    ],
+                    dim=0,
+                )
+                sliced_text_channel = text_channel[: answer_codec.shape[0]]
+
+            if getattr(self.cfg, 'speech_delay', False):
+                text_len, text_vocab = sliced_text_channel.shape
+                speech_len, speech_vocab = answer_codec.shape
+                assert text_len == speech_len
+                speech_pad_id = self.cfg.data.train_ds.speech_unk_id
+                text_pad_id = self.tokenizer.eos_id
+                answer_codec_padded = torch.full(
+                    (self.cfg.speech_delay, speech_vocab), speech_pad_id, device=answer_codec.device
+                )
+                answer_codec_shifted = torch.cat([answer_codec_padded, answer_codec], dim=0)[:speech_len, :]
+                sliced_text_channel_padded = torch.full(
+                    (self.cfg.speech_delay, text_vocab), text_pad_id, device=sliced_text_channel.device
+                )
+                sliced_text_channel_extended = torch.cat([sliced_text_channel, sliced_text_channel_padded], dim=0)[
+                    :speech_len, :
+                ]
+                combined_channels = torch.cat([sliced_text_channel_extended, answer_codec_shifted], dim=-1)
+                all_channels.append(combined_channels)
+            else:
+                # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
+                all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
+
+            if loss_mask is not None:
+                cur_loss_mask = torch.cat(
+                    [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]).cuda(), loss_mask[i, base_length:]],
+                    dim=0,
+                )
+                new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
+        all_channels = pad_sequence(all_channels, batch_first=True)
+        input_ids = all_channels[:, :-1]
+        encoded = encoded[:, : input_ids.shape[1]]
+        encoder_length = encoded_len - 1
+        labels = all_channels[:, 1:]
+        if loss_mask is not None:
+            loss_mask = pad_sequence(new_loss_mask, batch_first=True)
+            assert loss_mask.shape == labels.shape
+            if self.cfg.get('duplex_loss_on_all_steps', False):
+                loss_mask = torch.ones_like(labels)  # include loss on silence too
+        elif 'target_texts_merge' in audio_batch:
+            loss_mask = torch.ones_like(labels)
+            assert self.cfg.get(
+                'duplex_loss_on_all_steps', False
+            ), "only support duplex_loss_on_all_steps in real duplex data read from dataloader"
+        assert labels.shape[1] == encoded.shape[1]
+        # lookup input_ids
+        if self.cfg.get('megatron_amp_O2', False):
+            base_module = self.model.module
+        else:
+            base_module = self.model
+        lm_embedding = (
+            base_module.language_model.embedding if hasattr(base_module, 'language_model') else base_module.embedding
+        )
+        input_embeds = lm_embedding.word_embeddings(input_ids)
+        # merge with encoded
+        encoder_input = input_embeds + encoded * self.cfg.get("duplex_user_channel_weight", 0.3)
+        attention_mask = self._create_attention_mask(encoder_input)
+        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
+            encoder_input = encoder_input.transpose(0, 1).contiguous()
+
+        return encoder_input, attention_mask, labels, loss_mask, (encoded, encoder_length)
+
+    def prepare_llm_input(self, audio_batch):
+        # handle duplex and singleturn s2s
+        assert self.perception.cfg.preprocessor.sample_rate == self.cfg.data.train_ds.sample_rate
+        duplex_method = self.cfg.duplex_method
+
+        if duplex_method == 'from_duplex':
+            # duplex data should go here
+            assert 'target_texts_merge' in audio_batch
+            return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
+        # the following branches are not used anymore
+        elif duplex_method == 'from_multiturn':
+            return self.prepare_llm_input_duplex_from_multiturn(audio_batch)
+        elif duplex_method == None:
+            pass
+        else:
+            raise ValueError(f"Unknown duplex method: {duplex_method}")
+
+        # the following branch is used in single turn and multiturn but not duplex
+        input_signal = audio_batch['audio_signal']
+        logging.debug(f'input_signal.shape: {input_signal.shape}')
+        input_signal_length = audio_batch['audio_signal_length']
+
+        input_ids, input_length, labels, loss_mask = (
+            audio_batch['tokens'],
+            audio_batch['tokens_length'],
+            audio_batch['labels'],
+            audio_batch['loss_mask'],
+        )
+        context_lengths = audio_batch['context_lengths']
+
+        if self.extract_codec_on_the_fly:
+            answer_signal = audio_batch['answer_audio']
+            answer_signal_length = audio_batch['answer_audio_lens']
+            target_text_lengths = audio_batch['target_text_lengths']
+
+            answer_codecs, answer_codecs_lens = self._get_codec_embeddings(
+                answer_signal, answer_signal_length
+            )  # list, list
+            for i, answer_codec in enumerate(answer_codecs):
+                base_length = target_text_lengths[i] + context_lengths[i]
+                input_ids[i, base_length + 1 : base_length + 1 + answer_codecs_lens[i], 1:] = answer_codec
+                labels[i, base_length : base_length + answer_codecs_lens[i], 1:] = answer_codec
+
+        num_audios = audio_batch.get("num_audios", None)
+        context_start_idx = audio_batch.get("context_start_idx", None)
+
+        # [b, t, c]
+        encoded, encoded_len = self.perception(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=None,
+            processed_signal_length=None,
+        )
+
+        logging.debug(f'encoded.shape: {encoded.shape}')
+        logging.debug(f'encoded_len.shape: {encoded_len.shape}')
+        logging.debug(f'num_audios: {num_audios}')
+        if num_audios is not None:
+            # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
+            encoded = encoded.split(num_audios.tolist())
+            encoded_len = encoded_len.split(num_audios.tolist())
+
+        encoder_input, attention_mask, encoder_length, _, encoder_max_length = self.inject_perception_input(
+            encoded, encoded_len, input_ids, input_length, context_start_idx
+        )
+        if num_audios is not None:
+            # sum up the audio_feat_lens for each sample in the batch
+            encoded_len = torch.stack([torch.sum(lens) for lens in encoded_len])
+
+        # Shift labels to the right
+        labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, encoder_max_length, pad_token=0)
+        # Loss mask where answer tokens are 1.0 and all other tokens are 0.0
+        loss_mask = self._shift_labels_by_emb_len(
+            loss_mask, input_length, encoded_len, encoder_max_length, pad_token=0
+        )
+        # return if it is single turn or duplex
+        if (
+            all(audio_batch['num_turns'] == 2) or 'target_texts_merge' in audio_batch
+        ):  # real duplex data read from dataloader
+            return encoder_input, attention_mask, labels, loss_mask, encoder_length
+        # special logic to handle multiturn half-duplex s2s
+        # use num_turns to recover multiturn format and then merge them back to one sequence as LLM input/output
+        new_encoder_input = []
+        new_labels = []
+        new_loss_mask = []
+        new_encoder_length = []
+        cnt = 0
+        for num_turns in audio_batch['num_turns']:
+            tmp_encoder_input = []
+            tmp_labels = []
+            tmp_loss_mask = []
+            tmp_encoder_length = []
+            for i in range(0, num_turns, 2):
+                input_len = encoder_length[cnt]
+                if i != num_turns - 2:  # last turn
+                    input_len -= 1  # remove the last token as it is eos between the turns
+                tmp_encoder_input.append(encoder_input.transpose(0, 1)[cnt][:input_len])
+                tmp_labels.append(labels[cnt][:input_len])
+                tmp_loss_mask.append(loss_mask[cnt][:input_len])
+                tmp_encoder_length.append(input_len)
+                cnt += 1
+            new_encoder_input.append(torch.cat(tmp_encoder_input, dim=0))
+            new_encoder_length.append(sum(tmp_encoder_length))
+            new_labels.append(torch.cat(tmp_labels, dim=0))
+            new_loss_mask.append(torch.cat(tmp_loss_mask, dim=0))
+        new_encoder_input = pad_sequence(new_encoder_input, batch_first=True)
+        new_encoder_length = torch.Tensor(new_encoder_length).long()
+        new_labels = pad_sequence(new_labels, batch_first=True)
+        new_loss_mask = pad_sequence(new_loss_mask, batch_first=True)
+        assert cnt == encoder_length.shape[0]
+        new_attention_mask = self._create_attention_mask(new_encoder_input)
+        return (
+            new_encoder_input.transpose(0, 1).contiguous(),
+            new_attention_mask,
+            new_labels,
+            new_loss_mask,
+            new_encoder_length,
+        )
+
+    @classmethod
+    def get_codec_models_and_configs(cls, cfg):
+        pretrained_codec_model = cfg.model.get("codec_model_path", None)
+        pretrained_codec_model_class = cfg.model.get(
+            "pretrained_codec_model_target", "nemo.collections.tts.models.audio_codec.AudioCodecModel"
+        )
+
+        model_class = hydra.utils.get_class(pretrained_codec_model_class)
+        if pretrained_codec_model.endswith('.nemo'):
+            logging.info(f'Loading pretrained codec model from local file: {pretrained_codec_model}')
+            codec_model = model_class.restore_from(pretrained_codec_model, map_location='cpu')
+        else:
+            logging.info(f'Loading pretrained codec model from NGC: {pretrained_codec_model}')
+            codec_model = model_class.from_pretrained(pretrained_codec_model, map_location='cpu')
+        return codec_model, codec_model.cfg
+
+    @classmethod
+    def get_asr_models_and_configs(cls, cfg):
+
+        pretrained_asr_model = cfg.model.get("asr_model_path", None)
+        pretrained_asr_model_class = cfg.model.get(
+            "pretrained_asr_model_target", "nemo.collections.asr.models.ASRModel"
+        )
+
+        model_class = hydra.utils.get_class(pretrained_asr_model_class)
+        if pretrained_asr_model.endswith('.nemo'):
+            logging.info(f'Loading pretrained codec model from local file: {pretrained_asr_model}')
+            asr_model = model_class.restore_from(pretrained_asr_model, map_location='cpu')
+        else:
+            logging.info(f'Loading pretrained asr model from NGC: {pretrained_asr_model}')
+            asr_model = model_class.from_pretrained(pretrained_asr_model, map_location='cpu')
+        return asr_model, asr_model.cfg
+
+    @classmethod
+    def get_mos_models_and_configs(cls, cfg):
+
+        squim_mos_model = SQUIM_SUBJECTIVE.get_model()
+        return squim_mos_model
+
+    def setup_optimizer_param_groups(self):
+        super().setup_optimizer_param_groups()
+        freeze_llm = self.cfg.get('freeze_llm', True)
+        if freeze_llm:
+            # needs to be updated since vocab is changed
+            for param in self.model.embedding.parameters():
+                param.requires_grad = True
+            for param in self.model.output_layers.parameters():
+                param.requires_grad = True
