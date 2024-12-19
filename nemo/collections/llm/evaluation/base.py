@@ -22,6 +22,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.deploy.nlp import NemoQueryLLM
 
+
 class NeMoFWLMEval(LM):
     """
     NeMoFWLMEval is a wrapper class subclassing lm_eval.api.model.LM class, that defines how lm_eval interfaces with
@@ -58,7 +59,9 @@ class NeMoFWLMEval(LM):
         )
 
         if return_text:
-            return [[x[0].decode("utf-8")] for x in response["choices"][0]["generation_logits"]]  # shape[batch_size, 1]
+            return [
+                [x[0].decode("utf-8")] for x in response["choices"][0]["generation_logits"]
+            ]  # shape[batch_size, 1]
         if return_logits:
             return response["choices"][0]["generation_logits"]  # shape[batch_size, 1, num_tokens, vocab_size]
 
