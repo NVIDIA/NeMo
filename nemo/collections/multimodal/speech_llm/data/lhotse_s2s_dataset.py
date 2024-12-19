@@ -121,15 +121,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             word_length = []
             for idx, word in enumerate(words):
                 # Tokenize the word using the provided text processor
-                if id == 0:
-                    logging.debug(f'word: {word}')
                 tokenized_word = self.text_processor._process_example(context="", output=word)
                 # Remove the EOS token (assuming the EOS token is at the end of "answer_ids")
                 token_ids = tokenized_word["answer_ids"][:-1]  # Remove EOS token
                 if idx != 0:  # If not the first word, remove the first token
                     token_ids = token_ids[1:]
-                if id == 0:
-                    logging.debug(f'token_ids: {token_ids}')
                 token_length = len(token_ids)  # Calculate the length
                 tokenized_words.extend(token_ids)
                 word_length.append(token_length)
@@ -165,6 +161,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             batch_size = len(word_tokens)
             max_length = max(features_lens).item()
+            logging.info(f'start_time_tokens: {start_time_tokens}')
 
             # Create the empty 2D tensor [batch, max_length] with pad_id as the default value
             texts_expanded = torch.full((batch_size, max_length), fill_value=pad_id, dtype=torch.long)
@@ -183,8 +180,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
                     # Reduction of start time index due to stacking of frames
                     start_time_index = int(start_time_index / self.decoder_reduction_factor)
-                    if batch_idx == 0:
-                        logging.debug(f'start_time_index[0]: {start_time_index}')
 
                     end_time_index = start_time_index + word_length
                     end_time_index = min(end_time_index, max_length)
@@ -202,7 +197,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     word_start_idx += word_length
 
                 # Overwrite padding tokens
-                # import pdb; pdb.set_trace()
                 texts_expanded[batch_idx][batch_max_length:] = self.text_processor.pad_id
 
             return texts_expanded
@@ -238,14 +232,13 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     raise Exception("First speaker should be user")
 
                 if supervisions[1].speaker == "agent":
+                    # breakpoint()
                     use_word_alignment = getattr(cut, "s2s_duplex_align", False)
                     text = supervisions[1].text
                     pattern = r"<\|\d+\|>"
                     if not use_word_alignment:    
-                        # import pdb; pdb.set_trace()
                         output_text = re.sub(pattern, "", supervisions[1].text)
                         output_text = re.sub(r'\s+', ' ', output_text).strip()
-                        # logging.debug(f'target_text: {output_text}')
                         target_text = self.text_processor._process_example(context="", output=output_text)
                         # -1 to remove the eos token added by the text processor
                         target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
@@ -257,7 +250,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     # Extract user text
                     output_text = re.sub(pattern, "", supervisions[0].text)
                     output_text = re.sub(r'\s+', ' ', output_text).strip()
-                    # logging.debug(f'source_text: {output_text}')
                     source_text = self.text_processor._process_example(context="", output=output_text)
                     # -1 to remove the eos token added by the text processor
                     source_text, source_text_length = torch.as_tensor(source_text["answer_ids"][:-1]), torch.as_tensor(
@@ -281,6 +273,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         answer_audios, answer_audio_lens = None, None
         assert self.load_answer_audio
         assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
+
 
         def load_audio_from_cut(cuts, name, sample_rate):
             answer_audio_lens = []
@@ -330,6 +323,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             raise ValueError(
                 "cut does not have target_audio. In duplex mode, recording keeps user channel and target_audio keeps agent channel"
             )
+
 
         text_pad_id = self.text_processor.pad_id
 
@@ -403,10 +397,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 text_end_step = get_step_by_time(text_end_time[i][j]) + 1
                 cur_target_text[text_start_step] = self.text_processor.bos_id
                 cur_source_text[text_start_step] = self.text_processor.bos_id
-                # import pdb; pdb.set_trace()
                 if getattr(cut, "s2s_duplex", False):
                     # Note: text can be truncated
-                    # logging.debug(f'target_text before truncation: {target_texts[cnt]}')
                     text_len = min(text_end_step - text_start_step - 1, target_texts[cnt].shape[0])
                     cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len)] = target_texts[cnt][
                         :text_len
@@ -415,10 +407,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     cur_source_text[(text_start_step + 1) : (text_start_step + 1 + src_text_len)] = source_texts[cnt][
                         :src_text_len
                     ]
-                    # logging.debug(f'target_text after truncation: {target_texts[cnt][:text_len]}')
-                    # logging.debug(f'source_text after truncation: {source_texts[cnt][:text_len]}')
                 elif getattr(cut, "s2s_duplex_align", False):
-                    # logging.debug(f'target_text before expansion: {target_texts[cnt]}')
                     text_len_plus_eos = torch.tensor(text_end_step - text_start_step)
                     target_texts_expanded = self._expand_text_with_timestamps_and_word_lengths(
                         [target_texts[cnt]],
@@ -427,13 +416,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                         [text_len_plus_eos],
                         self.codec_model_downsampling_factor / self.codec_sample_rate,
                         pad_id=self.text_processor.unk_id)
-                    # logging.debug(f'target_text after expansion: {target_texts_expanded[0]}')
-                    # text_len = min(text_end_step - text_start_step - 1, target_texts_expanded[0].shape[0])
-                    # import pdb; pdb.set_trace()
-                    logging.debug(f'start_time_token: {start_time_tokens[cnt]}')
-                    logging.debug(f'target_tokens: {target_texts[cnt]}')
-                    logging.debug(f'word_length: {word_lengths[cnt]}')
-                    logging.debug(f'target_texts_expanded: {target_texts_expanded[0]}')
                     cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len_plus_eos)] = target_texts_expanded[0]
                 else:
                     raise Exception("Undefined assistant channel text format.")
@@ -449,6 +431,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         assert target_texts_merge.shape[0] == len(num_turns)
         assert cnt == len(source_texts)
         assert source_texts_merge.shape[0] == len(num_turns)
+
 
         # note: the codec id in labels and contexts and others do not consider the offset e.g. speech_eos is 1002
         # the offset is all considered by SumVocabParallelEmbedding
@@ -487,8 +470,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         '''
 
         cuts = cuts.sort_by_duration()
-
-        logging.debug(f"Len: {len(cuts)}")
 
         metadata = []
         instructions, instruction_lengths = [], []
@@ -761,11 +742,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 self.codec_model_downsampling_factor / self.codec_sample_rate,
                 pad_id=text_unk_id,
             )
-            # import pdb; pdb.set_trace()
-            logging.debug(f'start_time_token: {start_time_tokens[0]}')
-            logging.debug(f'word_length: {word_lengths[0]}')
-            logging.debug(f'target_tokens: {unpadded_target_texts[0]}')
-            logging.debug(f'target_texts_expanded: {target_texts_expanded[0,:]}')
             # [batch, max_feat_len, 1+V], where V = #codebooks * reduction_factor
             if target_texts_expanded.shape[0] == target_codec.shape[0]:
                 target_codec[:, :, 0] = target_texts_expanded
@@ -774,9 +750,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             token_list = torch.concat([bos_tensor, target_codec], 1)
             features_lens += 1
 
-            # import pdb; pdb.set_trace()
 
-            logging.debug(f'token_list[0].shape: {token_list[0].shape}')
             if not self.t5_style:
                 token_list = [
                     torch.concat([it[:itl], tt], 0)

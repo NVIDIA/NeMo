@@ -373,7 +373,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         """
         Used for validation and test steps, added postprocessing after calling self.predict_step().
         """
-        # import pdb; pdb.set_trace()
 
         # Evaluation of multimodal data follows the same pattern as training except predict_step
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
@@ -484,7 +483,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         #     text_tokens = decoder_output[:, 0]
         #     speech_tokens = decoder_output[:, 1:]
         text_tokens = decoder_output[:, 0]
-        if self.cfg.predict_source_text:
+        if self.cfg.get('predict_source_text', False):
             speech_tokens = decoder_output[:, 1:-1]
         else:
             speech_tokens = decoder_output[:, 1:]
@@ -1154,9 +1153,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 )
                 sliced_text_channel = text_channel[: answer_codec.shape[0]]
 
-            # import pdb; pdb.set_trace()    
-
             if getattr(self.cfg, 'predict_source_text', False):
+                # TODO(kevinhu): Add delay to better predict user text.
                 all_channels.append(torch.cat([sliced_text_channel, answer_codec, sliced_source_text_channel], dim=-1))
             else:
                 if getattr(self.cfg, 'speech_delay', False):
@@ -1189,7 +1187,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
         all_channels = pad_sequence(all_channels, batch_first=True)
         input_ids = all_channels[:, :-1]
-        # import pdb; pdb.set_trace()
         encoded = encoded[:, : input_ids.shape[1]]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
@@ -1219,7 +1216,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
 
-        # import pdb; pdb.set_trace()
         return encoder_input, attention_mask, labels, loss_mask, (encoded, encoder_length)
 
     def prepare_llm_input(self, audio_batch):
