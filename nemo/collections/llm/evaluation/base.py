@@ -20,8 +20,7 @@ from tqdm import tqdm
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.collections.llm.evaluation.utils import query_llm
-
+from nemo.deploy.nlp import NemoQueryLLM
 
 class NeMoFWLMEval(LM):
     """
@@ -46,12 +45,22 @@ class NeMoFWLMEval(LM):
         A private method that sends post request to the model on PyTriton server and returns either generated text or
         logits.
         """
-        response = query_llm(url=self.api_url, **payload)
+        nq = NemoQueryLLM(url=self.api_url, model_name=payload['model'])
+
+        response = nq.query_llm(
+            prompts=payload['prompt'] if isinstance(payload['prompt'], list) else [payload['prompt']],
+            max_output_len=payload['max_tokens'],
+            top_k=payload['top_k'],
+            top_p=payload['top_p'],
+            temperature=payload['temperature'],
+            output_generation_logits=True,
+            openai_format_response=True,
+        )
 
         if return_text:
-            return [[x[0].decode("utf-8")] for x in response['outputs']]  # shape[batch_size, 1]
+            return [[x[0].decode("utf-8")] for x in response["choices"][0]["generation_logits"]]  # shape[batch_size, 1]
         if return_logits:
-            return response['generation_logits']  # shape[batch_size, 1, num_tokens, vocab_size]
+            return response["choices"][0]["generation_logits"]  # shape[batch_size, 1, num_tokens, vocab_size]
 
     def tokenizer_type(self, tokenizer):
         """
