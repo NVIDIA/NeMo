@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.common.tokenizers import AutoTokenizer, TiktokenTokenizer
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
@@ -309,6 +309,8 @@ class FineTuningDataModule(pl.LightningDataModule):
             else:
                 # hf_org/hf_model => hf_org--hf_model
                 tokenizer_model_name = name.replace("/", "--")
+        elif isinstance(self.tokenizer, TiktokenTokenizer):
+            tokenizer_model_name = Path(self.tokenizer.vocab_file).name
         else:
             tokenizer_model_name = f"unknown_tokenizer_{hash(self.tokenizer)}"
         return tokenizer_model_name

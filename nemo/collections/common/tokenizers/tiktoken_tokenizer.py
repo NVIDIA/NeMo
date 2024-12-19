@@ -87,6 +87,7 @@ class TiktokenTokenizer(TokenizerSpec):
         num_special_tokens: int = 1000,
         special_tokens: Optional[List[str]] = None,
     ):
+        self.vocab_file = vocab_file
         if not vocab_file or not os.path.exists(vocab_file):
             raise ValueError(f"vocab_file: {vocab_file} is invalid")
 
