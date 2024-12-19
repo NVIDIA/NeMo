@@ -151,7 +151,7 @@ class NemotronModel(GPTModel):
 @io.model_importer(NemotronModel, "hf")
 class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]):
     def init(self) -> NemotronModel:
-        self.use_hf_tokenzer = False
+        self.use_hf_tokenzer = True
         return NemotronModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
@@ -216,6 +216,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
         if hasattr(source, "layernorm_type") and source.layernorm_type.lower() == "rmsnorm":
             normalization = "RMSNorm"
             layernorm_zero_centered_gamma = False
+            self.use_hf_tokenzer = False  # use tiktokentokenizer for nemotron 5
         else:
             normalization = "LayerNorm"
             layernorm_zero_centered_gamma = True
