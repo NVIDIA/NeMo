@@ -42,7 +42,7 @@ class NemotronConfig(GPTConfig):
     position_embedding_type: str = "rope"
     share_embeddings_and_output_weights: bool = False
     add_bias_linear: bool = False
-    vocab_size: Optional[int] = None
+
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     rotary_percent: float = 0.5

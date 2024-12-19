@@ -194,7 +194,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
-        if hasattr(self, 'vocab_size') and self.vocab_size is not None:
+        if hasattr(self, 'vocab_size'):
             vocab_size = self.vocab_size
             logging.info(
                 f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
