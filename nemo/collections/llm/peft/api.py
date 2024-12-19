@@ -26,8 +26,8 @@ from nemo.collections.llm.peft.lora import LoRA, LoRAMerge
 from nemo.collections.llm.utils import factory
 from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib, io
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
-from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.lightning.io import api
+from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
@@ -36,6 +36,7 @@ from nemo.utils import logging
 @factory
 def gpt_lora() -> PEFT:
     return LoRA()
+
 
 def export_lora(
     lora_checkpoint_path: str,
