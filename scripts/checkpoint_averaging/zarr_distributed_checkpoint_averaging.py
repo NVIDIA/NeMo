@@ -50,7 +50,7 @@ def main():
     """
     Main function
     """
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--name_prefix',
