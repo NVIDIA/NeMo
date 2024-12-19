@@ -600,13 +600,6 @@ class TransformerStack(nn.Module):
             self.layers.append(TransformerBlock(**hparams_))
             layer_scale_init *= layer_scale_decay
 
-        if init_weight_method == 'gpt2':
-            self.apply(self._init_weights_gpt2)
-            for pn, p in self.named_parameters():
-                if 'o_net' in pn and pn.endswith('weight'):
-                    torch.nn.init.normal_(
-                        p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
-        
         self.add_position_embeddings = False
         if hparams['pos_emb'].get("name", None) == 'learnable_v2':
             self.add_position_embeddings = True
@@ -616,6 +609,14 @@ class TransformerStack(nn.Module):
         elif hparams['pos_emb'].get("name", None) == 'learnable':
             # raise warning
             logging.warning("Use learnable_v2 instead of learnable for pos emb, unless using old checkpoints.")
+
+        if init_weight_method == 'gpt2':
+            self.apply(self._init_weights_gpt2)
+            for pn, p in self.named_parameters():
+                if 'o_net' in pn and pn.endswith('weight'):
+                    torch.nn.init.normal_(
+                        p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
+        
 
     def reset_cache(self, use_cache=False):
         for layer in self.layers:
