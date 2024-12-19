@@ -234,9 +234,9 @@ model.prior_scaling_factor=null \
 
 | Model Type | Cluster | Training Sub File |
 |------------|---------|--------|
-| multi_encoder_context_tts | draco-oci-login-01.draco-oci-iad.nvidia.com |/lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalized_me.sub |
-| decoder_context_tts | draco-oci-login-01.draco-oci-iad.nvidia.com | /lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalizedt5_decoder.sub |
-| single_encoder_sv_tts | draco-oci-login-01.draco-oci-iad.nvidia.com | /lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalizedt5_singleencoder.sub |
+| multi_encoder_context_tts | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/multiencoder_t5tts.sub |
+| decoder_context_tts | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/decodercontext_t5tts.sub |
+| single_encoder_sv_tts | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/singleencoder_svt5tts.sub |
 | decoder_pretrain_synthesizer | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/newt5_pretrain.sub |
 
 ## Pretrained Models and Results
