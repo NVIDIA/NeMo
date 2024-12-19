@@ -32,6 +32,7 @@ from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.lightning.pytorch.utils import is_trainer_attached
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
@@ -105,7 +106,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         else:
             model.walk(self.transform)
 
-        if hasattr(model, "trainer") and model.trainer.state.fn != TrainerFn.FITTING:
+        if is_trainer_attached(model) and model.trainer.state.fn != TrainerFn.FITTING:
             self.freeze_model(model)
         return model
 
@@ -128,7 +129,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
             model.module.freeze()
         else:
             model.freeze()
-        if hasattr(model, "trainer") and model.trainer.state.fn == TrainerFn.FITTING:
+        if is_trainer_attached(model) and model.trainer.state.fn == TrainerFn.FITTING:
             model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
@@ -203,7 +204,12 @@ class PEFT(IOMixin, ABC, ModelTransform):
             )
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
             if trainer.state.fn == TrainerFn.FITTING:
-                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
+                # Load optimizer
+                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=False)
+                # Load lr scheduler
+                if (lr_schedulers := adapter_state.get('lr_schedulers', None)) is not None:
+                    for config, lrs_state in zip(trainer.lr_scheduler_configs, lr_schedulers):
+                        config.scheduler.load_state_dict(lrs_state)
 
         for cb in trainer.callbacks[::-1]:
             if isinstance(cb, MegatronOptimizerModule):
@@ -239,7 +245,7 @@ class AdapterWrapper(nn.Module):
         implement the forward method.
 
     Example:
-        class AdapterParallelAdd(AdapterWrapper):
+        class LoRALinear(AdapterWrapper):
             def __init__(self, to_wrap, adapter):
                 super().__init__(to_wrap, adapter)
 
@@ -248,7 +254,7 @@ class AdapterWrapper(nn.Module):
 
         main_module = nn.Linear(100, 100)
         adapter = nn.Linear(100, 100)
-        parallel_adapter = AdapterParallelAdd(main_module, adapter)
+        parallel_adapter = LoRALinear(main_module, adapter)
     """
 
     def __init__(self, to_wrap: nn.Module, adapter: nn.Module):

@@ -95,6 +95,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.validate_batch_size_for_packed_sequence()
         self.dataset_kwargs = dataset_kwargs or {}
         self._pad_cu_seqlens = pad_cu_seqlens
+        self.init_global_step = 0
 
     def validate_batch_size_for_packed_sequence(self):
         """
@@ -167,9 +168,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             A dictionary containing datamodule state.
 
         """
-        consumed_samples = self.data_sampler.compute_consumed_samples(
-            self.trainer.global_step - self.data_sampler.init_global_step
-        )
+        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
         return {"consumed_samples": consumed_samples}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
@@ -249,6 +248,8 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
         # pylint: disable=C0115,C0116
+        self.init_global_step = self.trainer.global_step
+        self.data_sampler.init_global_step = self.init_global_step
         return WrappedDataLoader(
             mode=mode,
             dataset=dataset,

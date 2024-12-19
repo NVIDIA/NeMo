@@ -49,9 +49,13 @@ def create_sft_dataset(
     global_sample_mapping: bool = False,
     pack_metadata_file_path: Path = None,
     pad_cu_seqlens: bool = False,
+    chat: bool = False,
     **kwargs,
 ) -> "GPTSFTDataset":
-
+    """
+    Create the dataset class (GPTSFTDataset, GPTSFTChatDataset or GPTSFTPackedDataset)
+    """
+    
     gpt_sft_dataset_kwargs = {
         'file_path': str(path),
         'tokenizer': tokenizer,
@@ -71,8 +75,15 @@ def create_sft_dataset(
         'prompt_template': prompt_template,
         'truncation_method': truncation_method,
     }
+    
+    if chat:
+        from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 
-    if path.suffix == '.npy':
+        return GPTSFTChatDataset(
+            **gpt_sft_dataset_kwargs,
+            **kwargs,
+        ) 
+    elif path.suffix == '.npy':
         from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTPackedDataset
 
         return GPTSFTPackedDataset(
