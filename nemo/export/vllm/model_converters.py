@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Generator, Tuple
 
 import torch
 
@@ -42,7 +42,7 @@ class ModelConverter(ABC):
         pass
 
     @abstractmethod
-    def convert_weights(self, nemo_model_config: dict, state_dict: dict) -> Sequence[Tuple[str, torch.tensor]]:
+    def convert_weights(self, nemo_model_config: dict, state_dict: dict) -> Generator[Tuple[str, torch.tensor]]:
         """
         Returns or yields a sequence of (name, tensor) tuples that contain model weights in the HF format.
         """
@@ -66,11 +66,6 @@ class LlamaConverter(ModelConverter):
         return None
 
     def convert_weights(self, nemo_model_config, state_dict):
-        if 'config' in nemo_model_config:
-            nemo_model_config = nemo_model_config['config']
-        # Standarize NeMo 2.0 and NeMo 1.0 naming
-        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
-
         hidden_size = nemo_model_config["hidden_size"]
         head_num = nemo_model_config["num_attention_heads"]
         num_query_groups = nemo_model_config["num_query_groups"]
@@ -132,11 +127,6 @@ class MixtralConverter(ModelConverter):
         return None
 
     def convert_weights(self, nemo_model_config, state_dict):
-        if 'config' in nemo_model_config:
-            nemo_model_config = nemo_model_config['config']
-        # Standarize NeMo 2.0 and NeMo 1.0 naming
-        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
-
         hidden_size = nemo_model_config["hidden_size"]
         head_num = nemo_model_config["num_attention_heads"]
         num_query_groups = nemo_model_config["num_query_groups"]
@@ -206,10 +196,6 @@ class GemmaConverter(ModelConverter):
         return None
 
     def convert_weights(self, nemo_model_config, state_dict):
-        if 'config' in nemo_model_config:
-            nemo_model_config = nemo_model_config['config']
-        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
-
         num_layers = nemo_model_config["num_layers"]
         num_query_groups = nemo_model_config["num_query_groups"]
         head_num = nemo_model_config["num_attention_heads"]
@@ -304,11 +290,6 @@ class Starcoder2Converter(ModelConverter):
         hf_config['tie_word_embeddings'] = False
 
     def convert_weights(self, nemo_model_config, state_dict):
-        if 'config' in nemo_model_config:
-            nemo_model_config = nemo_model_config['config']
-        # Standarize NeMo 2.0 and NeMo 1.0 naming
-        state_dict = {k.replace('module', 'model'): v for k, v in state_dict.items()}
-
         num_layers = nemo_model_config["num_layers"]
         num_query_groups = nemo_model_config["num_query_groups"]
         head_num = nemo_model_config["num_attention_heads"]
@@ -427,7 +408,7 @@ def register_model_converter(model_type, cls):
     _MODEL_CONVERTERS[model_type] = cls
 
 
-def get_model_converter(model_type) -> ModelConverter:
+def get_model_converter(model_type) -> Optional[ModelConverter]:
     """
     Returns an instance of the the model conversion class for the given model type, or None.
     """
