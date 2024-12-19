@@ -226,6 +226,9 @@ class TextProcessing:
         end_string: Optional[str] = None,
         sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
+        add_boa_eoa: Optional[bool] = False,
+        boa_string: Optional[str] = "<BOA>",
+        eoa_string: Optional[str] = "<EOA>",
     ):
         self.context_key = context_key
         self.answer_key = answer_key
@@ -246,6 +249,9 @@ class TextProcessing:
         self.end_string = end_string
         self.sample_alpha = sample_alpha
         self.audio_locator = audio_locator
+        self.add_boa_eoa = add_boa_eoa
+        self.boa_string = boa_string
+        self.eoa_string = eoa_string
 
         if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             self.bos_id = tokenizer.bos_id
@@ -328,8 +334,16 @@ class TextProcessing:
             # multiple audio case
             context_ids = []
             context_start_idx = []
-            for context_seg in context.split(self.audio_locator):
+            segments = context.split(self.audio_locator)
+            for i, context_seg in enumerate(segments):
                 context_start_idx.append(len(context_ids))
+                if self.add_boa_eoa:
+                    if i == 0:
+                        context_seg = context_seg + ' ' + self.boa_string
+                    elif i == len(segments) - 1:
+                        context_seg = self.eoa_string + ' ' + context_seg
+                    else:
+                        context_seg = self.eoa_string + ' ' + context_seg + ' ' + self.boa_string
                 context_ids.extend(self.tokenizer.text_to_ids(context_seg))
         context_ids = pre_pad + context_ids
         context_start_idx = [x + len(pre_pad) for x in context_start_idx]
