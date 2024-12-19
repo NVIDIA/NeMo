@@ -778,7 +778,7 @@ def generate(
     )
     if flash_decode:
         inference_wrapped_model.model.config.flash_decode = True
-        inference_wrapped_model.model.config.enable_cuda_graph=True
+        inference_wrapped_model.model.config.enable_cuda_graph = True
 
     dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
     dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
