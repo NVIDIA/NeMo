@@ -30,7 +30,7 @@ from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
-
+import torch
 
 @factory
 def gpt_lora() -> PEFT:
@@ -78,7 +78,8 @@ def merge_lora(
 def _load_base_model_and_lora(lora_checkpoint_path: Path) -> Tuple[pl.LightningModule, LoRA]:
     model = io.load_context(ckpt_to_context_subdir(lora_checkpoint_path), "model")
     model.model_transform, model.__io__.model_transform = None, None
-    model.config.bf16 = False
+    model.config.bf16 = True
+    model.config.params_dtype = torch.bfloat16
     lora: Union[io.TrainerContext, LoRA] = io.load_context(
         ckpt_to_context_subdir(lora_checkpoint_path), "model.model_transform"
     )
