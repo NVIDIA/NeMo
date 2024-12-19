@@ -350,7 +350,8 @@ def deploy(
         name is passed to the evalute method for the model to be accessible while sending evalution requests.
         Default: 'triton_model'.
         triton_model_version (Optional[int]): Version for the triton model. Default: 1.
-        triton_port (int): Port for the PyTriton server. Default: 8000.
+        triton_http_port (int): HTTP port for the PyTriton server. Default: 8000.
+        triton_grpc_port (int): gRPC Port for the PyTriton server. Default: 8001.
         triton_http_address (str): HTTP address for the PyTriton server. Default:  "0.0.0.0".
         triton_request_timeout (int): Timeout in seconds for Triton server. Default: 60.
         triton_model_repository (Path): Folder for the trt-llm conversion, trt-llm engine gets saved in this specified

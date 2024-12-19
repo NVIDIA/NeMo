@@ -59,9 +59,7 @@ class NeMoFWLMEval(LM):
         )
 
         if return_text:
-            return [
-                [x[0].decode("utf-8")] for x in response["choices"][0]["generation_logits"]
-            ]  # shape[batch_size, 1]
+            return response["choices"][0]["text"]  # shape[batch_size, 1]
         if return_logits:
             return response["choices"][0]["generation_logits"]  # shape[batch_size, 1, num_tokens, vocab_size]
 
