@@ -547,6 +547,13 @@ class TestEncDecMultiTaskModel:
         outputs = model.transcribe()
         assert isinstance(outputs, str)
 
+    @pytest.mark.unit
+    def test_set_use_pytorch_sdpa(self, asr_model):
+        asr_model.set_use_pytorch_sdpa(True)
+        assert asr_model.encoder.layers[0].self_attn.use_pytorch_sdpa == True
+        asr_model.set_use_pytorch_sdpa(False)
+        assert asr_model.encoder.layers[0].self_attn.use_pytorch_sdpa == False
+
 
 @pytest.mark.unit
 def test_prompted_dataset(asr_model):
