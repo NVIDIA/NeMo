@@ -156,7 +156,13 @@ def main():
 
     vocab_file = "/root/.cache/torch/megatron/megatron-gpt-345m_vocab/gpt2-vocab.json"
     merges_file = "/root/.cache/torch/megatron/megatron-gpt-345m_merges/gpt2-merges.txt"
-    pretrain.data=MockDataModule(seq_length=pretrain.data.seq_length, global_batch_size=pretrain.data.global_batch_size, micro_batch_size=pretrain.data.micro_batch_size, vocab_file=vocab_file , merges_file=merges_file)
+    pretrain.data = MockDataModule(
+        seq_length=pretrain.data.seq_length,
+        global_batch_size=pretrain.data.global_batch_size,
+        micro_batch_size=pretrain.data.micro_batch_size,
+        vocab_file=vocab_file,
+        merges_file=merges_file,
+    )
 
     executor: run.Executor
 

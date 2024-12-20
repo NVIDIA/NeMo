@@ -63,7 +63,9 @@ class MockDataModule(pl.LightningDataModule):
         if tokenizer is None:
             from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
-            self.tokenizer = get_nmt_tokenizer("megatron", "GPT2BPETokenizer", vocab_file=vocab_file, merges_file=merges_file)
+            self.tokenizer = get_nmt_tokenizer(
+                "megatron", "GPT2BPETokenizer", vocab_file=vocab_file, merges_file=merges_file
+            )
         else:
             self.tokenizer = tokenizer
 
