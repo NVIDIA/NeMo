@@ -28,8 +28,10 @@ from nemo.collections import llm
 from nemo.utils import logging
 from huggingface_hub import login
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-
-
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import (
+        get_gpt_layer_modelopt_spec,
+    )
+login('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')
 def generate(model, data, no_iterations):
     
     with torch.no_grad():
@@ -67,9 +69,10 @@ def main(args) -> None:
     
     fabric = trainer.to_fabric()
 
-    if args.load_from_hf:
+    if True:
         model = fabric.import_model(f"hf://{model_id}", llm.LlamaModel)
     else:
+        llama_32_config = llm.Llama32Config1B(transformer_layer_spec=get_gpt_layer_modelopt_spec())
         model = llm.LlamaModel(llm.Llama32Config1B, tokenizer=tokenizer)
         model = fabric.load_model(args.local_model_path, model)
     

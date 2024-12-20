@@ -27,7 +27,9 @@ from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
-
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import (
+        get_gpt_layer_modelopt_spec,
+    )
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from transformers import LlamaConfig as HFLlamaConfig
@@ -325,6 +327,8 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             params_dtype=dtype_from_hf(source),
         )
 
+        output.transformer_layer_spec=get_gpt_layer_modelopt_spec()
+        
         return output
 
 
