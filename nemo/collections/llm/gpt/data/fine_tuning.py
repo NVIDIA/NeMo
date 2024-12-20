@@ -93,6 +93,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.packed_sequence_size = -1 if not packed_sequence_specs else packed_sequence_specs.packed_sequence_size
         self.validate_batch_size_for_packed_sequence()
         self.dataset_kwargs = dataset_kwargs or {}
+        self.init_global_step = 0
 
     def validate_batch_size_for_packed_sequence(self):
         """
@@ -109,8 +110,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                 f"Set packed sequence length to {self.packed_sequence_size*self.micro_batch_size} "
                 f"(currently {self.packed_sequence_size}) \n"
                 f"For details please visit "
-                f"https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/optimizations/"
-                f"sequence_packing.html"
+                f"https://docs.nvidia.com/nemo-framework/user-guide/latest/sft_peft/packed_sequence.html"
             )
 
     def prepare_data(self) -> None:
@@ -163,9 +163,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             A dictionary containing datamodule state.
 
         """
-        consumed_samples = self.data_sampler.compute_consumed_samples(
-            self.trainer.global_step - self.data_sampler.init_global_step
-        )
+        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
         return {"consumed_samples": consumed_samples}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
@@ -240,6 +238,8 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
         # pylint: disable=C0115,C0116
+        self.init_global_step = self.trainer.global_step
+        self.data_sampler.init_global_step = self.init_global_step
         return WrappedDataLoader(
             mode=mode,
             dataset=dataset,
