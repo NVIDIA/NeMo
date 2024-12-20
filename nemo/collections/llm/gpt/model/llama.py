@@ -325,10 +325,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
-        )
-
-        output.transformer_layer_spec=get_gpt_layer_modelopt_spec()
-        
+        )        
         return output
 
 
