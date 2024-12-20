@@ -2206,6 +2206,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ), "Transformer engine's RNG tracker is required for cudagraphs, this can be enabled with \
                 'use_te_rng_tracker=True'."
 
+        if self.cfg.get('use_te_activation_func', False):
+            assert (
+                HAVE_TE
+            ), "Transformer Engine is required for using TransformerEngine activation \
+                function."
+
         # any configs that are not in the nemo model config will be added here
         model_specific_configs = {
             'layernorm_zero_centered_gamma': layernorm_zero_centered_gamma,
@@ -2224,6 +2230,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             'moe_input_jitter_eps': self.cfg.get('moe_input_jitter_eps', None),
             'moe_token_dropping': self.cfg.get('moe_token_dropping', False),  # TODO: Support token dropping.
             'enable_cuda_graph': self.cfg.get('enable_cuda_graph', False),
+            'use_te_activation_func': self.cfg.get('use_te_activation_func', False),
         }
         if model_specific_configs['num_moe_experts'] is not None:
             assert mcore_supports_moe(), 'Megatron-core >= v0.5.0 is required for MoE'
