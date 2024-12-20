@@ -31,7 +31,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import (
         get_gpt_layer_modelopt_spec,
     )
-login('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')
+
 def generate(model, data, no_iterations):
     
     with torch.no_grad():
