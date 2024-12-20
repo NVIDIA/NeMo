@@ -119,6 +119,22 @@ def main(args):
         optim=opt,
         resume=resume,
     )
+    output_path='/results/'
+    
+    from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
+    from pathlib import Path
+    from megatron.core import dist_checkpointing
+    from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
+    
+    weight_path = ckpt_to_weights_subdir(output_path, is_saving=True)
+    Path(weight_path).mkdir(parents=True, exist_ok=True)
+    dist_checkpointing.save(model.sharded_state_dict(), str(ckpt_to_weights_subdir(output_path, is_saving=True)))
+    if hasattr(model.tokenizer, "save_pretrained"):
+        model.tokenizer.save_pretrained("/tmp/nemo_tokenizer")
+        model.tokenizer = AutoTokenizer("/tmp/nemo_tokenizer")
+    if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
+        trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
+    TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(output_path), yaml_attrs=["model"])
 
 
 if __name__ == "__main__":
