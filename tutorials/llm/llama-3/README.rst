@@ -23,3 +23,6 @@ This repository contains Jupyter Notebook tutorials using the NeMo Framework for
    * - `Llama3 LoRA Fine-Tuning and Supervised Fine-Tuning using NeMo2 <./nemo2-sft-peft>`_
      - `SQuAD <https://arxiv.org/abs/1606.05250>`_ for LoRA and `Databricks-dolly-15k <https://huggingface.co/datasets/databricks/databricks-dolly-15k>`_ for SFT
      - Perform LoRA PEFT and SFT on Llama 3 8B using NeMo 2.0
+   * - `Llama3 Domain Adaptive Pre-Training <./dapt>`_
+     - `Domain-Specific Data <https://github.com/NVIDIA/NeMo-Curator/tree/main/tutorials/dapt-curation>`_
+     - Perform Domain Adaptive Pre-Training on Llama 3 8B using NeMo 2.0
