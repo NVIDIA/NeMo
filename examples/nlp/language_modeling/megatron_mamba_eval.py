@@ -372,10 +372,12 @@ def main(cfg) -> None:
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
     if response:
-        with open(cfg.get("save_responses_jsonl", "./responses.jsonl"), "w") as out_file:
-            for response_batch in response:
-                for reponse_sentence in response_batch['sentences']:
-                    out_file.write(json.dumps({"prompt_and_response": reponse_sentence}) + "\n")
+        out_file_path = cfg.get("save_responses_jsonl", "./responses.jsonl")
+        if out_file_path:
+            with open(out_file_path, "w") as out_file:
+                for response_batch in response:
+                    for reponse_sentence in response_batch['sentences']:
+                        out_file.write(json.dumps({"prompt_and_response": reponse_sentence}) + "\n")
 
     # Third method of running text generation, use inference server
     if cfg.server:
