@@ -43,12 +43,15 @@ from typing import (
 import torch
 import torch.distributed
 from lightning.pytorch.utilities import move_data_to_device
-from megatron.core import parallel_state
+from megatron.core import parallel_state, tensor_parallel
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.distributed import TorchFullyShardedDataParallel as McoreTorchFSDP
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayer
+from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
+from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -840,9 +843,6 @@ class DDP(McoreDDP):
 
 
 if HAVE_MCORE_TORCH_FSDP2:
-    from megatron.core import tensor_parallel
-    from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
-    from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding-
     # remove later
     class TorchFSDP(McoreTorchFSDP):
         def __init__(
