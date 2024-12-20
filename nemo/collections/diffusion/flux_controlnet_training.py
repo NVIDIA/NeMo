@@ -67,7 +67,7 @@ def main(args):
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
         optimizer='adam',
-        lr=1.0e-04,
+        lr=args.lr,
         adam_beta1=0.9,
         adam_beta2=0.999,
         use_distributed_optimizer=True,
@@ -79,7 +79,7 @@ def main(args):
     model_params.clip_params['version'] = '/ckpts/text_encoder'
     model_params.vae_params.ckpt = '/ckpts/ae.safetensors'
     model_params.device = 'cuda'
-    model_params.flux_params.ckpt_path = '/ckpts/transformer/nemo_flux_transformer.safetensors'
+    model_params.flux_params.ckpt_path = '/ckpts/nemo_flux_transformer.safetensors'
 
     if args.image_precached:
         model_params.vae_params = None
@@ -109,7 +109,7 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=1000,
+        every_n_train_steps=2000,
         dirpath=args.log_dir,
         filename=f"{args.name}--" + "{reduced_train_loss:.2f}-{step}",
     )
@@ -146,7 +146,7 @@ def main(args):
 
     sched = WarmupHoldPolicyScheduler(
         max_steps=trainer.max_steps,
-        warmup_steps=1000,
+        warmup_steps=500,
         hold_steps=1000000000000,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
@@ -182,6 +182,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_single_layers", type=int, required=False, default=1)
     parser.add_argument("--use_synthetic_data", action='store_true', default=False)
     parser.add_argument("--dataset_dir", type=str, required=False, default=None)
+    parser.add_argument("--lr", type=float, required=False, default=1e-5)
+
 
     args = parser.parse_args()
     main(args)

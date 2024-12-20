@@ -279,9 +279,25 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             hint = batch['hint'].cuda(non_blocking=True)
             control_latents = self.vae.encode(hint).to(dtype=self.autocast_dtype)
 
-        latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = (
-            self.prepare_image_latent(latents)
+
+        latent_image_ids = self._prepare_latent_image_ids(
+            batch_size=latents.shape[0],
+            height=latents.shape[2],
+            width=latents.shape[3],
+            device=latents.device,
+            dtype=self.autocast_dtype,
         )
+
+        latents = self._pack_latents(
+            latents,
+            batch_size=latents.shape[0],
+            num_channels_latents=latents.shape[1],
+            height=latents.shape[2],
+            width=latents.shape[3],
+        )
+
+
+
         control_image = self._pack_latents(
             control_latents,
             batch_size=control_latents.shape[0],
@@ -289,6 +305,35 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             height=control_latents.shape[2],
             width=control_latents.shape[3],
         ).transpose(0, 1)
+
+        batch_size = latents.shape[0]
+        noise = torch.randn_like(latents, device=latents.device, dtype=latents.dtype)
+        u = self.compute_density_for_timestep_sampling(
+            "logit_normal",
+            batch_size,
+        )
+        indices = (u * self.scheduler.num_train_timesteps).long()
+        timesteps = self.scheduler.timesteps[indices].to(device=latents.device)
+
+        sigmas = self.scheduler.sigmas.to(device=latents.device, dtype=latents.dtype)
+        schduler_timesteps = self.scheduler.timesteps.to(device=latents.device)
+        step_indices = [(schduler_timesteps == t).nonzero().item() for t in timesteps]
+        timesteps = timesteps.to(dtype=latents.dtype)
+        sigma = sigmas[step_indices].flatten()
+        while len(sigma.shape) < latents.ndim:
+            sigma = sigma.unsqueeze(-1)
+        packed_noisy_model_input = (1.0 - sigma) * latents + sigma * noise
+        packed_noisy_model_input = packed_noisy_model_input.transpose(0, 1)
+
+        if self.config.guidance_embed:
+            guidance_vec = torch.full(
+                (packed_noisy_model_input.shape[1],),
+                self.config.guidance_scale,
+                device=latents.device,
+                dtype=latents.dtype,
+            )
+        else:
+            guidance_vec = None
         if self.text_precached:
             prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
             pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
@@ -324,13 +369,8 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 controlnet_double_block_samples=controlnet_double_block_samples,
                 controlnet_single_block_samples=controlnet_single_block_samples,
             )
-            noise_pred = self._unpack_latents(
-                noise_pred.transpose(0, 1),
-                int(latents.shape[2] * self.vae_scale_factor // 2),
-                int(latents.shape[3] * self.vae_scale_factor // 2),
-                vae_scale_factor=self.vae_scale_factor,
-            ).transpose(0, 1)
-            target = noise - latents
+
+            target = (noise - latents).transpose(0, 1)
             loss = F.mse_loss(noise_pred.float(), target.float(), reduction="mean")
             return loss
 
