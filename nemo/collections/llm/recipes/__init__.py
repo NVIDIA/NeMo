@@ -15,6 +15,8 @@
 
 from nemo.collections.llm.recipes import (
     baichuan2_7b,
+    bert_110m,
+    bert_340m,
     chatglm3_6b,
     gemma2,
     gemma2_2b,
@@ -75,11 +77,13 @@ from nemo.collections.llm.recipes import (
     t5_220m,
 )
 from nemo.collections.llm.recipes.log.default import default_log, default_resume
-from nemo.collections.llm.recipes.optim import adam
+from nemo.collections.llm.recipes.optim import adam, sgd
 from nemo.collections.llm.recipes.run.executor import torchrun
 
 __all__ = [
     "baichuan2_7b",
+    "bert_110m",
+    "bert_340m",
     "chatglm3_6b",
     "gemma_2b",
     "gemma_7b",
@@ -139,6 +143,7 @@ __all__ = [
     "gemma2_9b",
     "gemma2_27b",
     "adam",
+    "sgd",
     "default_log",
     "default_resume",
     "torchrun",
