@@ -625,6 +625,10 @@ class ModelPT(LightningModule, Model):
                 'overlap_param_gather_with_optimizer_step', False
             ),
         )
+        if hasattr(megatron_optim_config, 'use_precision_aware_optimizer'):
+            megatron_optim_config.use_precision_aware_optimizer = self.cfg.optim.get(
+                'use_precision_aware_optimizer', False
+            )
         return megatron_optim_config
 
     def setup_optimization(

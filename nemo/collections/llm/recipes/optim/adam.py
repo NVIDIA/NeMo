@@ -30,6 +30,7 @@ def distributed_fused_adam_with_cosine_annealing(
     max_lr: float = 1e-4,
     min_lr: Optional[float] = None,
     clip_grad: float = 1.0,
+    use_precision_aware_optimizer: bool = False,
 ) -> run.Config[PytorchOptimizerModule]:
 
     opt_cfg = run.Config(
@@ -45,6 +46,8 @@ def distributed_fused_adam_with_cosine_annealing(
         use_distributed_optimizer=True,
         clip_grad=clip_grad,
     )
+    if hasattr(opt_cfg, "use_precision_aware_optimizer"):
+        opt_cfg.use_precision_aware_optimizer = use_precision_aware_optimizer
 
     min_lr = min_lr if min_lr is not None else (0.1 * max_lr)
     sched = run.Config(
