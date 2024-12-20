@@ -25,7 +25,8 @@ from nemo.collections.nlp.models.rag.custom_bert_embedder import NeMoBertEmbeddi
 from nemo.collections.nlp.models.rag.custom_gpt_llm import NeMoGPTLLM
 from nemo.core.config import hydra_runner
 
-QUERY_PROMPT_TEMPLATE = """You will be provided with a document or a passage. Your task is to generate a single, highly relevant and natural language query that aligns perfectly with the content of the document.
+QUERY_PROMPT_TEMPLATE = """You will be provided with a document or a passage. Your task is to generate a single, 
+highly relevant and natural language query that aligns perfectly with the content of the document.
 The query should:
     1. Reflect the main idea or a key detail from the document.
     2. Be concise, specific, and written in natural language.
@@ -56,6 +57,16 @@ Return "True" if the document contains information directly related to the query
 
 # Helper functions
 def get_random_document_from_index(index: BaseIndex) -> str:
+    """
+    Selects a random document from the index and returns its text.
+
+    Args:
+        index (BaseIndex): The index object containing document nodes.
+
+    Returns:
+        str: The text of a randomly selected document. If no documents exist, 
+             returns a message indicating the index is empty.
+    """
     # Access the nodes_dict from index_struct
     nodes_dict = index.index_struct.nodes_dict
 
@@ -75,7 +86,17 @@ def get_random_document_from_index(index: BaseIndex) -> str:
 
 
 def get_random_documents_from_index(index: BaseIndex, count: int) -> List[str]:
+    """
+    Retrieves a specified number of random documents from the index.
 
+    Args:
+        index (BaseIndex): The index object containing document nodes.
+        count (int): The number of random documents to retrieve.
+
+    Returns:
+        List[str]: A list of texts from randomly selected documents. If no documents exist, 
+                   returns a message indicating the index is empty.
+    """
     # Access the nodes_dict from index_struct
     nodes_dict = index.index_struct.nodes_dict
 
@@ -94,7 +115,17 @@ def get_random_documents_from_index(index: BaseIndex, count: int) -> List[str]:
 # Main function
 @hydra_runner(config_path="conf", config_name="rag_generating")
 def main(cfg) -> None:
+    """
+    The main function for generating retrieval data using a loaded index 
+    and LLM. It initializes components such as LLM, embedder, and retriever, 
+    and generates positive and negative examples for retrieval tasks.
 
+    Args:
+        cfg: Configuration object with parameters for LLM, embedding model, and retrieval tasks.
+
+    Returns:
+        None
+    """
     # Load LLM
     logging.info("Loading LLM.")
     model_path = cfg.generating.llm.model_path
