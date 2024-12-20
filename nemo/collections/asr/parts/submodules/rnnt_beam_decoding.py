@@ -476,12 +476,12 @@ class BeamRNNTInfer(Typing):
             hyps: sorted list of hypotheses
         """
         if self.score_norm:
-            p = sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
-            print("Final")
-            print("Sequence: ", p[0].y_sequence)
-            print("Timesteps: ", p[0].timestep)
-            print("Score: ", p[0].score)
-            print()
+            # p = sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
+            # print("Final")
+            # print("Sequence: ", p[0].y_sequence)
+            # print("Timesteps: ", p[0].timestep)
+            # print("Score: ", p[0].score)
+            # print()
             return sorted(hyps, key=lambda x: x.score / len(x.y_sequence), reverse=True)
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
