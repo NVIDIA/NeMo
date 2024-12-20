@@ -67,7 +67,7 @@ def slurm_executor(
     time: str = "01:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
-    container_image: str = "nvcr.io/nvidia/nemo:dev",
+    container_image: str = "nvcr.io/nvidian/nemo:nightly",
     retries: int = 0,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
@@ -100,10 +100,10 @@ def slurm_executor(
         ),
         nodes=nodes,
         ntasks_per_node=devices,
-        gpus_per_node=devices,
+        # gpus_per_node=devices,
         mem="0",
         exclusive=True,
-        gres="gpu:8",
+        # gres="gpu:8",
         packager=run.GitArchivePackager(),
     )
 
@@ -154,18 +154,27 @@ def main():
 
     pretrain.trainer.max_steps = 1000
 
+    vocab_file = "/root/.cache/torch/megatron/megatron-gpt-345m_vocab/gpt2-vocab.json"
+    merges_file = "/root/.cache/torch/megatron/megatron-gpt-345m_merges/gpt2-merges.txt"
+    pretrain.data=MockDataModule(seq_length=pretrain.data.seq_length, global_batch_size=pretrain.data.global_batch_size, micro_batch_size=pretrain.data.micro_batch_size, vocab_file=vocab_file , merges_file=merges_file)
+
     executor: run.Executor
 
     if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
-            user="",
-            host="",
-            remote_job_dir="",
-            account="",
-            partition="",
+            user="boxiangw",
+            host="login-eos",
+            remote_job_dir="/lustre/fsw/coreai_dlalgo_llm/boxiangw/nemo-experiments",
+            account="coreai_dlalgo_llm",
+            partition="batch",
             nodes=pretrain.trainer.num_nodes,
             devices=pretrain.trainer.devices,
+            custom_mounts=[
+                "/home/boxiangw/gpt-file/gpt2-merges.txt:/root/.cache/torch/megatron/megatron-gpt-345m_merges/gpt2-merges.txt",
+                "/home/boxiangw/gpt-file/gpt2-vocab.json:/root/.cache/torch/megatron/megatron-gpt-345m_vocab/gpt2-vocab.json",
+                "/home/boxiangw/NeMo:/opt/NeMo",
+            ],
         )
     else:
         executor = local_executor_torchrun(nodes=pretrain.trainer.num_nodes, devices=pretrain.trainer.devices)
