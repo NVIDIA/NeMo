@@ -130,7 +130,6 @@ class _MockClipDataset(Dataset):
         self.length = num_samples
         self.seed = seed
 
-
     def __len__(self) -> int:
         return self.length
 
