@@ -47,11 +47,11 @@ from megatron.core import parallel_state, tensor_parallel
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.distributed import TorchFullyShardedDataParallel as McoreTorchFSDP
+from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
+from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer
-from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
-from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -591,7 +591,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         from megatron.core import parallel_state
 
-
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
 
@@ -628,7 +627,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         # disable_bucketing=(model_chunk_idx > 0),
                         disable_bucketing=disable_bucketing,
                     )
-                
 
             model_chunk.module = ddp
             model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
