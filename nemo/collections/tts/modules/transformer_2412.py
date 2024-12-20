@@ -17,32 +17,42 @@ import torch
 import torch.nn.functional as F
 from flash_attn import flash_attn_varlen_kvpacked_func, flash_attn_varlen_qkvpacked_func
 from flash_attn.layers.rotary import RotaryEmbedding
-from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
 
 class ConvolutionLayer(torch.nn.Module):
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        kernel_size=1,
-        stride=1,
-        padding=None,
-        dilation=1,
-        bias=True,
-        is_causal=False,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 1,
+        stride: int = 1,
+        padding: Optional[int] = None,
+        dilation: int = 1,
+        bias: bool = True,
+        is_causal: bool = False,
     ):
         """
-        Simple container for a convolutional layer that supports causal convolutions with padding. Replaces the
-        standard MLP layer used in the original transformer.
-        TODO: Add args
+        A convolutional layer that supports causal convolutions with padding. Replaces the standard MLP layer used in the original transformer.
+
+        Args:
+            in_channels (int): Number of input channels.
+            out_channels (int): Number of output channels.
+            kernel_size (int): Size of the convolving kernel.
+            stride (int): Stride of the convolution.
+            padding (Optional[int]): Padding added to both sides of the input. If None, it's calculated automatically.
+            dilation (int): Spacing between kernel elements.
+            bias (bool): If True, adds a learnable bias to the output.
+            is_causal (bool): If True, uses causal convolution.
         """
-        super(ConvolutionLayer, self).__init__()
+        super().__init__()
 
         padding = 0 if is_causal else padding
         if padding is None:
-            assert kernel_size % 2 == 1
+            if kernel_size % 2 == 0:
+                raise ValueError("`kernel_size` must be odd when `padding` is None.")
+            else:
+                padding = int(dilation * (kernel_size - 1) / 2)
             padding = int(dilation * (kernel_size - 1) / 2)
 
         self.is_causal = is_causal
@@ -61,8 +71,8 @@ class ConvolutionLayer(torch.nn.Module):
 
     def forward(self, signal):
         if self.is_causal:  # TODO: maybe replace with identify rather than keep conditional if in forward
-            padding = (int((self.kernel_size - 1) * (self.dilation)), 0)
-            signal = torch.nn.functional.pad(signal, padding)
+            padding = ((self.kernel_size - 1) * self.dilation), 0)
+            signal = F.pad(signal, padding)
         conv_signal = self.conv(signal)
         return conv_signal
 
@@ -70,21 +80,30 @@ class ConvolutionLayer(torch.nn.Module):
 class PositionwiseConvFF(nn.Module):
     def __init__(
         self,
-        d_model,
-        d_ffn,
-        p_dropout,
-        kernel_size=1,
-        bias=False,
-        is_causal=True,
-        non_linearity=nn.GELU(approximate="tanh"),
+        d_model: int,
+        d_ffn: int,
+        p_dropout: float,
+        kernel_size: int = 1,
+        bias: bool = False,
+        is_causal: bool = True,
+        non_linearity: Callable = nn.GELU(approximate="tanh"),
     ):
         """
-        Class used to replace the MLP layer in transformers.
+        Positionwise Convolutional Feed-Forward layer to replace the MLP layer in transformers. 
+        
         Module will take the input with d_model hidden state, project it to d_ffn hidden dimension, perform nonlinear
         transformation, and project the state back into d_model hidden dimension. Finally, it applied dropout.
-        TODO: Add args
+
+        Args:
+            d_model (int): Input and output dimension of the model.
+            d_ffn (int): Hidden dimension of the feed-forward network (usually 4 * d_model).
+            p_dropout (float): Dropout probability.
+            kernel_size (int): Size of the convolving kernel.
+            bias (bool): If True, adds a learnable bias to the convolution layers.
+            is_causal (bool): If True, uses causal convolution.
+            non_linearity (Callable): Activation function to use (default: GELU).
         """
-        super(PositionwiseConvFF, self).__init__()
+        super().__init__()
         # d_ffn is usually 4*d_model
         self.d_model = d_model
         self.non_linearity = non_linearity
@@ -123,12 +142,15 @@ class Attention(nn.Module):
 
         Does DotProductionAttention and additionally dropout inside of the module.
         """
-        super(Attention, self).__init__()
+        super().__init__()
         # context conditional attention dims
         if is_self_attention:
             assert d_model % n_heads == 0, "d_model % n_head != 0"
             self.d_head = d_model // n_heads
         else:
+            if d_memory is None:
+                raise ValueError("d_memory must be provided for cross-attention")
+                
             assert d_memory % n_heads == 0, "d_memory % n_head != 0"
             self.d_head = d_memory // n_heads
 
@@ -165,10 +187,10 @@ class Attention(nn.Module):
             self.o_net = nn.Linear(n_heads * self.d_head, d_model, bias=False)
         self.dropout = nn.Dropout(p_dropout)
         self.use_cache = False
-
-    def reset_cache(self, use_cache=False):
-        self.use_cache = use_cache
-        self.cache = {
+        self.cache = self._init_cache()
+        
+    def _init_cache(self) -> Dict[str, Optional[torch.Tensor]]:
+        return {
             'is_initialized': False,
             'self_k': None,
             'self_v': None,
@@ -176,6 +198,10 @@ class Attention(nn.Module):
             'cross_k': None,
             'cross_v': None,
         }
+
+    def reset_cache(self, use_cache: bool = False):
+        self.use_cache = use_cache
+        self.cache = self._init_cache()
 
     def attn_flash(self, query, query_mask, memory=None, memory_mask=None):
 
@@ -231,7 +257,7 @@ class Attention(nn.Module):
         y = y.to(query.dtype).view(B, T, -1)
         return y
 
-    def attn_naive(self, query, query_mask, memory=None, memory_mask=None, attn_prior=None):
+    def attn_naive(self, query: torch.Tensor, query_mask: Optional[torch.Tensor], memory: Optional[torch.Tensor] = None, memory_mask: Optional[torch.Tensor] = None, attn_prior: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         if self.use_cache:
             if self.cache['is_initialized']:
                 query = query[:, -1:, :]
@@ -240,7 +266,6 @@ class Attention(nn.Module):
                 self.cache['is_initialized'] = True
 
         B, T, _ = query.shape
-        Tkv = T if memory is None else memory.shape[1]
         mask = None
 
         if self.is_self_attention:
@@ -349,26 +374,26 @@ class Attention(nn.Module):
 class TransformerLayer(nn.Module):
     def __init__(
         self,
-        d_model,
-        d_ffn,
-        sa_n_heads,
-        kernel_size,
-        p_dropout,
-        has_xattn,
-        xa_d_memory=None,
-        xa_n_heads=None,
-        is_causal=True,
-        apply_norm_to_cond=True,
-        layer_norm_method='pre',
-        use_flash_self_attention=True,
-        use_flash_x_attention=True,
-        deterministic=False,
-        pos_emb_name="learnable",
-        pos_emb_base=None,
-        max_length_causal_mask=4096,
-        conv_non_linearity=nn.GELU(approximate="tanh"),
+        d_model: int,
+        d_ffn: int,
+        sa_n_heads: int,
+        kernel_size: int,
+        p_dropout: float,
+        has_xattn: bool,
+        xa_d_memory: Optional[int] = None,
+        xa_n_heads: Optional[int] = None,
+        is_causal: bool = True,
+        apply_norm_to_cond: bool = True,
+        layer_norm_method: str = 'pre',
+        use_flash_self_attention: bool = True,
+        use_flash_x_attention: bool = True,
+        deterministic: bool = False,
+        pos_emb_name: str = "learnable",
+        pos_emb_base: Optional[int] = None,
+        max_length_causal_mask: int = 4096,
+        conv_non_linearity: Callable = nn.GELU(approximate="tanh"),
     ):
-        super(TransformerLayer, self).__init__()
+        super().__init__()
         """
         One layer of the Transformer.
         Args:
@@ -410,7 +435,7 @@ class TransformerLayer(nn.Module):
         if self.has_xattn:
             self.apply_norm_to_cond = apply_norm_to_cond
             self.norm_xattn_query = nn.LayerNorm(d_model, bias=False)
-            cross_attention = Attention(
+            self.cross_attention = Attention(
                 n_heads=xa_n_heads,
                 d_model=d_model,
                 p_dropout=p_dropout,
@@ -422,10 +447,9 @@ class TransformerLayer(nn.Module):
             )
 
             if self.apply_norm_to_cond:
-                norm_xattn_memory = nn.LayerNorm(xa_d_memory, bias=False)
-                self.norm_xattn_memory = norm_xattn_memory
+                self.norm_xattn_memory = nn.LayerNorm(xa_d_memory, bias=False)
 
-            self.cross_attention = cross_attention
+
 
         self.norm_pos_ff = nn.LayerNorm(d_model, bias=False)
         self.pos_ff = PositionwiseConvFF(
@@ -433,19 +457,22 @@ class TransformerLayer(nn.Module):
         )
 
         self.use_cache = False
-
-    def reset_cache(self, use_cache=False):
-        self.use_cache = use_cache
-        self.cache = {
+       self.cache = self._init_cache()
+    
+    def _init_cache(self) -> Dict:
+        return {
             'self_attn_output': None,
             'cross_attn_output': None,
             'memory': None,
         }
+    def reset_cache(self, use_cache=False):
+        self.use_cache = use_cache
+        self.cache = self._init_cache()
         self.self_attention.reset_cache(use_cache)
         if self.has_xattn:
             self.cross_attention.reset_cache(use_cache)
 
-    def forward(self, x, x_mask, cond, cond_mask, attn_prior=None):
+    def forward(self, x: torch.Tensor, x_mask: torch.Tensor, cond: Optional[torch.Tensor] = None, cond_mask: Optional[torch.Tensor] = None, attn_prior: Optional[torch.Tensor] = None) -> Dict:
         """
         Args:
             x <torch tensor> (B, T1, C): Input tensor
@@ -457,7 +484,7 @@ class TransformerLayer(nn.Module):
             output <torch tensor> (B, T1, C): Output tensor
             attn_probabilities <dict>: Attention probabilities
         """
-        x_mask_inv_float = (~x_mask).to(x.dtype)[..., None]
+        x_mask_inv_float = (~x_mask).to(x.dtype).unsqueeze(-1)
         s_attn_prob = None
         if self.layer_norm_method == 'pre':
             x_, s_attn_prob = self.self_attention(query=self.norm_self(x), query_mask=x_mask)
@@ -516,38 +543,39 @@ class TransformerLayer(nn.Module):
             x *= x_mask_inv_float
             x = self.norm_pos_ff(x)
 
-        attn_probabilities = {'self_attn_probabilities': s_attn_prob, 'cross_attn_probabilities': x_attn_prob}
-
         return {
             'output': x,
-            'attn_probabilities': attn_probabilities,
+            'attn_probabilities': {
+                'self_attn_probabilities': self_attn_prob, 
+                'cross_attn_probabilities': x_attn_prob
+            },
         }
 
 
 class Transformer(nn.Module):
     def __init__(
         self,
-        n_layers,
-        d_model,
-        d_ffn,
-        sa_n_heads,
-        kernel_size,
-        p_dropout=0.0,
-        p_dropout_out=0.0,
-        xa_d_memory=None,
-        xa_n_heads=None,
-        has_xattn=False,
-        is_causal=True,
-        apply_norm_to_cond=True,
-        apply_norm_out=False,
-        layer_norm_method='pre',
-        use_flash_self_attention=True,
-        use_flash_x_attention=True,
-        deterministic=False,
-        pos_emb_name="learnable",
-        pos_emb_base=None,
-        max_length_causal_mask=4096,
-        conv_non_linearity=nn.GELU(approximate="tanh"),
+        n_layers: int,
+        d_model: int,
+        d_ffn: int,
+        sa_n_heads: int,
+        kernel_size: int,
+        p_dropout: float = 0.0,
+        p_dropout_out: float = 0.0,
+        xa_d_memory: Optional[int] = None,
+        xa_n_heads: Optional[int] = None,
+        has_xattn: bool = False,
+        is_causal: bool = True,
+        apply_norm_to_cond: bool = True,
+        apply_norm_out: bool = False,
+        layer_norm_method: str = 'pre',
+        use_flash_self_attention: bool = True,
+        use_flash_x_attention: bool = True,
+        deterministic: bool = False,
+        pos_emb_name: str = "learnable",
+        pos_emb_base: Optional[int] = None,
+        max_length_causal_mask: int = 4096,
+        conv_non_linearity: Callable = nn.GELU(approximate="tanh"),
     ):
         """
         Initializes a stack of transformer layers. Can be used for both encoder and decoder.
@@ -575,16 +603,18 @@ class Transformer(nn.Module):
             max_length_causal_mask <int>: Maximum length of causal mask
             conv_non_linearity <Callable>: Convolution non-linearity
         """
-        super(Transformer, self).__init__()
+        super().__init__()
         self.dropout = nn.Dropout(p_dropout)
         self.p_dropout_out = p_dropout_out
         if self.p_dropout_out > 0.0:
             self.dropout_out = nn.Dropout(self.p_dropout_out)
-
+        else:
+            self.dropout_out = None
         self.apply_norm_out = apply_norm_out
         if self.apply_norm_out:
             self.norm_out = nn.LayerNorm(d_model, bias=False)
-
+        else:
+            self.norm_out = None
         self.layers = nn.ModuleList()
         for _ in range(n_layers):
             self.layers.append(
@@ -617,28 +647,29 @@ class Transformer(nn.Module):
         # and the last linear projection in dot product attention. The output layers are scaled depending on the
         # number of layers
         self.apply(self._init_weights_gpt2)
-        for pn, p in self.named_parameters():
-            if 'o_net' in pn and pn.endswith('weight'):
-                torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
+        for name, param in self.named_parameters():
+            if 'o_net' in name and name.endswith('weight'):
+                torch.nn.init.normal_(param, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
 
     def reset_cache(self, use_cache=False):
         for layer in self.layers:
             layer.reset_cache(use_cache)
 
-    def _init_weights_gpt2(self, module):
-        if isinstance(module, nn.Linear):
+    @staticmethod
+    def _init_weights_gpt2(module):
+        if isinstance(module, (torch.nn.Linear, torch.nn.Embedding)):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-            if module.bias is not None:
-                torch.nn.init.zeros_(module.bias)
-        elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        
+        if isinstance(module, torch.nn.Linear) and module.bias is not None:
+            torch.nn.init.zeros_(module.bias)
 
-    def forward(self, x, x_mask, cond=None, cond_mask=None, attn_prior=None, multi_encoder_mapping=None):
+
+    def forward(self, x: torch.Tensor, x_mask: torch.Tensor, cond: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None, cond_mask: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None, attn_prior: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None, multi_encoder_mapping: Optional[List[Optional[int]]] = None) -> Dict[str, Union[torch.Tensor, List]]:
         """
         Args:
             x <torch tensor> (B, T1, C):
             x_mask <bool mask> (B, T1): True where ignoring is required
-            cond <torch tensor> (B, Tc, C) or list of such tensors (from different encoders)
+            cond <torch tensor> (B, T2, C) or list of such tensors (from different encoders)
             cond_mask <bool mask> (B, T2): True where ignoring is required or list of such tensors (from different
                 encoders) output <torch tensor> (B, T1, C)
             multi_encoder_mapping <list> <int>: None or Same size as n_layers, value indicates which cond input to use
@@ -655,27 +686,30 @@ class Transformer(nn.Module):
         attn_probabilities = []
         x = self.dropout(x)
         for idx, layer in enumerate(self.layers):
-            if multi_encoder_mapping is not None:
-                if multi_encoder_mapping[idx] is None:
-                    # No conditioning for this layer
-                    _cond, _cond_mask, _attn_prior = None, None, None
-                else:
-                    _cond = cond[multi_encoder_mapping[idx]]
-                    _cond_mask = cond_mask[multi_encoder_mapping[idx]]
-                    _attn_prior = None if attn_prior is None else attn_prior[multi_encoder_mapping[idx]]
+            _cond, _cond_mask, _attn_prior = self._get_layer_inputs(idx, cond, cond_mask, attn_prior, multi_encoder_mapping)
+            ...
+            
+    @staticmethod
+    def _get_layer_inputs(idx: int, cond: Optional[Union[torch.Tensor, List[torch.Tensor]]], cond_mask: Optional[Union[torch.Tensor, List[torch.Tensor]]], attn_prior: Optional[Union[torch.Tensor, List[torch.Tensor]]], multi_encoder_mapping: Optional[List[Optional[int]]]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        if multi_encoder_mapping is not None:
+            if multi_encoder_mapping[idx] is None:
+                return None, None, None
             else:
-                _cond = cond
-                _cond_mask = cond_mask
-                _attn_prior = attn_prior
+                return (
+                    cond[multi_encoder_mapping[idx]],
+                    cond_mask[multi_encoder_mapping[idx]] if cond_mask is not None else None,
+                    attn_prior[multi_encoder_mapping[idx]] if attn_prior is not None else None
+                )
+        else:
+            return cond, cond_mask, attn_prior
             out_dict = layer(x, x_mask, _cond, _cond_mask, attn_prior=_attn_prior)
             x = out_dict['output']
-            attn_prob = out_dict['attn_probabilities']
-            attn_probabilities.append(attn_prob)
+            attn_probabilities.append(out_dict['attn_probabilities'])
 
-        if self.apply_norm_out:
+        if self.norm_out is not None:
             x = self.norm_out(x)
 
-        if self.p_dropout_out > 0.0:
-            x = self.dropout(x)
+        if self.dropout_out is not None:
+            x = self.dropout_out(x)
 
         return {'output': x, 'attn_probabilities': attn_probabilities}
