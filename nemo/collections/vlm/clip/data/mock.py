@@ -130,9 +130,6 @@ class _MockClipDataset(Dataset):
         self.length = num_samples
         self.seed = seed
 
-        np_gen = np.random.default_rng(seed=(self.seed))
-        self.tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
-        self.images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
 
     def __len__(self) -> int:
         return self.length
@@ -143,10 +140,13 @@ class _MockClipDataset(Dataset):
 
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
+        images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
 
         return {
-            "images": self.images,
-            "captions": self.tokens,
+            "images": images,
+            "captions": tokens,
         }
 
     def _collate_fn(self, batch):
