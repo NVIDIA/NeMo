@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.vlm.clip.data import ClipMockDataModule
 from nemo.collections.vlm.llava_next.data import LlavaNextMockDataModule, LlavaNextTaskEncoder
 from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
 from nemo.collections.vlm.llava_next.model.llava_next import LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel
 from nemo.collections.vlm.mllama.data import MLlamaLazyDataModule, MLlamaMockDataModule
-from nemo.collections.vlm.clip.data import ClipMockDataModule
 from nemo.collections.vlm.mllama.model.base import (
     CrossAttentionTextConfig,
     CrossAttentionVisionConfig,

@@ -1,6 +1,6 @@
-#TODO: Not sure if this is the best place to put this.
+# TODO: Not sure if this is the best place to put this.
 # Maybe in side megatron_parallel.py?
-from typing import Dict, Tuple, Sequence
+from typing import Dict, Sequence, Tuple
 
 # Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -27,7 +27,10 @@ from nemo.lightning.megatron_parallel import MegatronLossReduction, ReductionT
 
 
 def gather_features(
-    image_features, text_features, local_loss=False, gather_with_grad=False,
+    image_features,
+    text_features,
+    local_loss=False,
+    gather_with_grad=False,
 ):
     """
     Gathers image and text features across multiple data parallel processes.
@@ -106,7 +109,10 @@ class ClipMegatronLoss(MegatronLossReduction):
     """
 
     def __init__(
-        self, local_loss=False, gather_with_grad=False, cache_labels=False,
+        self,
+        local_loss=False,
+        gather_with_grad=False,
+        cache_labels=False,
     ):
         super().__init__()
         self.local_loss = local_loss
@@ -120,8 +126,9 @@ class ClipMegatronLoss(MegatronLossReduction):
         self.world_size = parallel_state.get_data_parallel_world_size()
         self.rank = parallel_state.get_data_parallel_rank()
 
-    def forward(self, batch: Dict[str, torch.Tensor], forward_out: Tuple[torch.Tensor, torch.Tensor,
-    torch.Tensor]) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    def forward(
+        self, batch: Dict[str, torch.Tensor], forward_out: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         image_features, text_features, logit_scale = forward_out
         device = image_features.device
         if self.world_size > 1:

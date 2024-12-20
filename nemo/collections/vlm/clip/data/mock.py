@@ -29,7 +29,7 @@ from nemo.utils import logging
 class MockDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        seq_length: int = 77, #TODO (abhi): Ask Yao what this param should be and the next one
+        seq_length: int = 77,  # TODO (abhi): Ask Yao what this param should be and the next one
         decoder_seq_length: Optional[int] = None,
         tokenizer: Optional = None,
         image_processor: Optional = None,
@@ -134,7 +134,6 @@ class _MockClipDataset(Dataset):
         self.tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         self.images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
 
-
     def __len__(self) -> int:
         return self.length
 
@@ -144,7 +143,6 @@ class _MockClipDataset(Dataset):
 
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
-
 
         return {
             "images": self.images,

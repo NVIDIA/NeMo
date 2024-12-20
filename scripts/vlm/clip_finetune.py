@@ -27,7 +27,7 @@ from pytorch_lightning.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.vlm import ImageDataConfig
-from nemo.collections.vlm.clip.model import CLIPModel, ClipConfigL14
+from nemo.collections.vlm.clip.model import ClipConfigL14, CLIPModel
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback

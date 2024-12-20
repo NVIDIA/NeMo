@@ -30,10 +30,12 @@ import os
 
 import requests
 import torch
+from PIL import Image
 from transformers import AutoProcessor
 from transformers import CLIPModel as HFCLIPModel
-from PIL import Image
+
 import nemo.lightning as nl
+
 # make init so that we don;t have to do long imports
 from nemo.collections.vlm.clip.model import CLIPModel
 
@@ -109,7 +111,6 @@ def main(args) -> None:
     # Tokenize the input texts
     processor = AutoProcessor.from_pretrained(hf_repo)
 
-
     # Load the image
     raw_image = load_image(args.image_url)
     if raw_image is None:
@@ -118,21 +119,23 @@ def main(args) -> None:
     # %% Zero-shot classification
     classes = args.classes
 
-    inputs = processor(text=classes, images=[raw_image], return_tensors="pt",
-                       truncation=True,  # Truncate if the sentence is longer than max_seq_length
-                       padding='max_length',  # Pad to max_seq_length
-                       max_length=77)
+    inputs = processor(
+        text=classes,
+        images=[raw_image],
+        return_tensors="pt",
+        truncation=True,  # Truncate if the sentence is longer than max_seq_length
+        padding='max_length',  # Pad to max_seq_length
+        max_length=77,
+    )
     inputs = {key: value.to("cuda") for key, value in inputs.items()}
-    input_ids = inputs["input_ids"] # Size is 1 X 3
+    input_ids = inputs["input_ids"]  # Size is 1 X 3
     media = inputs['pixel_values'].cuda()
     media = media.reshape(media.size(0), 3, 224, 224)
-
 
     fabric = trainer.to_fabric()
     model = fabric.import_model(args.hf_path, CLIPModel)
     model = model.module.cuda()
     model.eval()
-
 
     model_hf = HFCLIPModel.from_pretrained(hf_repo)
     model_hf = model_hf.to("cuda")
@@ -161,8 +164,9 @@ def main(args) -> None:
         hf_probs = (100.0 * image_embeds_hf @ text_embeds_hf.T).softmax(dim=-1)
         print(f"Nemo: CLIP text probability: ", list(zip(classes, nemo_probs[0].cpu().numpy())))
         print(f"HF: CLIP text probability: ", list(zip(classes, hf_probs[0].cpu().numpy())))
-        import pdb; pdb.set_trace()
+        import pdb
 
+        pdb.set_trace()
 
 
 if __name__ == "__main__":
@@ -181,8 +185,9 @@ if __name__ == "__main__":
         help="Path to the Huggingface model.",
     )
 
-    parser.add_argument('--classes', nargs='+', type=str,
-                        help="Classes for texts", default=["a dog", "a boy", "a girl"])
+    parser.add_argument(
+        '--classes', nargs='+', type=str, help="Classes for texts", default=["a dog", "a boy", "a girl"]
+    )
     args = parser.parse_args()
 
     main(args)

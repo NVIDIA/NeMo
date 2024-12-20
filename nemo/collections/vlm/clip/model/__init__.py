@@ -12,18 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.clip.model.base import (
-    CLIPViTConfig,
-    CLIPTextModelConfig,
-    ClipConfig,
-    CLIPModel
-)
-
-from nemo.collections.vlm.clip.model.clip import (
-    CLIPViTL_14_224_Config,
-    CLIPTextModelL_14_224_Config,
-    ClipConfigL14,
-)
+from nemo.collections.vlm.clip.model.base import ClipConfig, CLIPModel, CLIPTextModelConfig, CLIPViTConfig
+from nemo.collections.vlm.clip.model.clip import ClipConfigL14, CLIPTextModelL_14_224_Config, CLIPViTL_14_224_Config
 
 __all__ = [
     "CLIPViTConfig",
