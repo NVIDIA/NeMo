@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from typing import Callable, Dict, List, Optional, Tuple, Union
+
 import torch
 import torch.nn.functional as F
-from typing import Callable, Dict, List, Optional, Tuple, Union
+
 
 class ConvolutionLayer(torch.nn.Module):
     def __init__(
@@ -67,7 +69,7 @@ class ConvolutionLayer(torch.nn.Module):
 
     def forward(self, signal):
         if self.is_causal:  # TODO: maybe replace with identify rather than keep conditional if in forward
-            
+
             padding = (((self.kernel_size - 1) * self.dilation), 0)
             signal = F.pad(signal, padding)
         conv_signal = self.conv(signal)
@@ -86,8 +88,8 @@ class PositionwiseConvFF(torch.nn.Module):
         non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
     ):
         """
-        Positionwise Convolutional Feed-Forward layer to replace the MLP layer in transformers. 
-        
+        Positionwise Convolutional Feed-Forward layer to replace the MLP layer in transformers.
+
         Module will take the input with d_model hidden state, project it to d_ffn hidden dimension, perform nonlinear
         transformation, and project the state back into d_model hidden dimension. Finally, it applied dropout.
 
@@ -144,7 +146,7 @@ class Attention(torch.nn.Module):
         else:
             if d_memory is None:
                 raise ValueError("d_memory must be provided for cross-attention")
-                
+
             assert d_memory % n_heads == 0, "d_memory % n_head != 0"
             self.d_head = d_memory // n_heads
 
@@ -178,7 +180,7 @@ class Attention(torch.nn.Module):
         self.dropout = torch.nn.Dropout(p_dropout)
         self.use_cache = False
         self.cache = self._init_cache()
-        
+
     def _init_cache(self) -> Dict[str, Optional[torch.Tensor]]:
         return {
             'is_initialized': False,
@@ -193,7 +195,14 @@ class Attention(torch.nn.Module):
         self.use_cache = use_cache
         self.cache = self._init_cache()
 
-    def attn_naive(self, query: torch.Tensor, query_mask: Optional[torch.Tensor], memory: Optional[torch.Tensor] = None, memory_mask: Optional[torch.Tensor] = None, attn_prior: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    def attn_naive(
+        self,
+        query: torch.Tensor,
+        query_mask: Optional[torch.Tensor],
+        memory: Optional[torch.Tensor] = None,
+        memory_mask: Optional[torch.Tensor] = None,
+        attn_prior: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         if self.use_cache:
             if self.cache['is_initialized']:
                 query = query[:, -1:, :]
@@ -222,7 +231,7 @@ class Attention(torch.nn.Module):
                 kv = self.cache['cross_kv']
             else:
                 kv = self.kv_net(memory).reshape(Bkv, Tkv, 2, self.n_heads, self.d_head)
-            
+
             if self.use_cache and self.cache['cross_k'] is not None:
                 k = self.cache['cross_k']
                 v = self.cache['cross_v']
@@ -368,8 +377,6 @@ class TransformerLayer(torch.nn.Module):
             if self.apply_norm_to_cond:
                 self.norm_xattn_memory = torch.nn.LayerNorm(xa_d_memory, bias=False)
 
-
-
         self.norm_pos_ff = torch.nn.LayerNorm(d_model, bias=False)
         self.pos_ff = PositionwiseConvFF(
             d_model, d_ffn, p_dropout, kernel_size=kernel_size, is_causal=is_causal, non_linearity=conv_non_linearity
@@ -377,14 +384,14 @@ class TransformerLayer(torch.nn.Module):
 
         self.use_cache = False
         self.cache = self._init_cache()
-    
+
     def _init_cache(self) -> Dict:
         return {
             'self_attn_output': None,
             'cross_attn_output': None,
             'memory': None,
         }
-    
+
     def reset_cache(self, use_cache=False):
         self.use_cache = use_cache
         self.cache = self._init_cache()
@@ -392,7 +399,14 @@ class TransformerLayer(torch.nn.Module):
         if self.has_xattn:
             self.cross_attention.reset_cache(use_cache)
 
-    def forward(self, x: torch.Tensor, x_mask: torch.Tensor, cond: Optional[torch.Tensor] = None, cond_mask: Optional[torch.Tensor] = None, attn_prior: Optional[torch.Tensor] = None) -> Dict:
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_mask: torch.Tensor,
+        cond: Optional[torch.Tensor] = None,
+        cond_mask: Optional[torch.Tensor] = None,
+        attn_prior: Optional[torch.Tensor] = None,
+    ) -> Dict:
         """
         Args:
             x <torch tensor> (B, T1, C): Input tensor
@@ -465,10 +479,7 @@ class TransformerLayer(torch.nn.Module):
 
         return {
             'output': x,
-            'attn_probabilities': {
-                'self_attn_probabilities': s_attn_prob, 
-                'cross_attn_probabilities': x_attn_prob
-            },
+            'attn_probabilities': {'self_attn_probabilities': s_attn_prob, 'cross_attn_probabilities': x_attn_prob},
         }
 
 
@@ -568,12 +579,18 @@ class Transformer(torch.nn.Module):
     def _init_weights_gpt2(module):
         if isinstance(module, (torch.nn.Linear, torch.nn.Embedding)):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-        
+
         if isinstance(module, torch.nn.Linear) and module.bias is not None:
             torch.nn.init.zeros_(module.bias)
 
     @staticmethod
-    def _get_layer_inputs(idx: int, cond: Optional[Union[torch.Tensor, List[torch.Tensor]]], cond_mask: Optional[Union[torch.Tensor, List[torch.Tensor]]], attn_prior: Optional[Union[torch.Tensor, List[torch.Tensor]]], multi_encoder_mapping: Optional[List[Optional[int]]]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+    def _get_layer_inputs(
+        idx: int,
+        cond: Optional[Union[torch.Tensor, List[torch.Tensor]]],
+        cond_mask: Optional[Union[torch.Tensor, List[torch.Tensor]]],
+        attn_prior: Optional[Union[torch.Tensor, List[torch.Tensor]]],
+        multi_encoder_mapping: Optional[List[Optional[int]]],
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
         if multi_encoder_mapping is not None:
             if multi_encoder_mapping[idx] is None:
                 return None, None, None
@@ -581,12 +598,20 @@ class Transformer(torch.nn.Module):
                 return (
                     cond[multi_encoder_mapping[idx]],
                     cond_mask[multi_encoder_mapping[idx]] if cond_mask is not None else None,
-                    attn_prior[multi_encoder_mapping[idx]] if attn_prior is not None else None
+                    attn_prior[multi_encoder_mapping[idx]] if attn_prior is not None else None,
                 )
         else:
             return cond, cond_mask, attn_prior
-        
-    def forward(self, x: torch.Tensor, x_mask: torch.Tensor, cond: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None, cond_mask: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None, attn_prior: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None, multi_encoder_mapping: Optional[List[Optional[int]]] = None) -> Dict[str, Union[torch.Tensor, List]]:
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_mask: torch.Tensor,
+        cond: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None,
+        cond_mask: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None,
+        attn_prior: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None,
+        multi_encoder_mapping: Optional[List[Optional[int]]] = None,
+    ) -> Dict[str, Union[torch.Tensor, List]]:
         """
         Args:
             x <torch tensor> (B, T1, C):
@@ -608,7 +633,9 @@ class Transformer(torch.nn.Module):
         attn_probabilities = []
         x = self.dropout(x)
         for idx, layer in enumerate(self.layers):
-            _cond, _cond_mask, _attn_prior = self._get_layer_inputs(idx, cond, cond_mask, attn_prior, multi_encoder_mapping)
+            _cond, _cond_mask, _attn_prior = self._get_layer_inputs(
+                idx, cond, cond_mask, attn_prior, multi_encoder_mapping
+            )
             out_dict = layer(x, x_mask, _cond, _cond_mask, attn_prior=_attn_prior)
             x = out_dict['output']
             attn_probabilities.append(out_dict['attn_probabilities'])
