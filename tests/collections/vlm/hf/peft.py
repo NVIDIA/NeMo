@@ -86,7 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--disable-ckpt', action='store_false')
-    parser.add_argument('--use-4bit', help="Load model in 4bit")
+    parser.add_argument('--use-4bit', help="Load model in 4bit", action="store_true")
     args = parser.parse_args()
 
     wandb = None
