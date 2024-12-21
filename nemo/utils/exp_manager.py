@@ -869,7 +869,7 @@ def check_resume(
         files_to_move = []
         if Path(log_dir).exists():
             for child in Path(log_dir).iterdir():
-                if child.is_file():
+                if child.is_file() and not child.name.startswith("events.out.tfevents"):
                     files_to_move.append(child)
 
         if len(files_to_move) > 0:
