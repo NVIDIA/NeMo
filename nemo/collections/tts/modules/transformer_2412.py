@@ -31,7 +31,8 @@ class ConvolutionLayer(torch.nn.Module):
         is_causal: bool = False,
     ):
         """
-        A convolutional layer that supports causal convolutions with padding. Replaces the standard MLP layer used in the original transformer.
+        A convolutional layer that supports causal convolutions with padding. Replaces the standard MLP layer used in
+        the original transformer.
 
         Args:
             in_channels (int): Number of input channels.
@@ -68,10 +69,11 @@ class ConvolutionLayer(torch.nn.Module):
 
     def forward(self, signal):
         if self.is_causal:  # TODO: maybe replace with identify rather than keep conditional if in forward
-
             padding = (((self.kernel_size - 1) * self.dilation), 0)
             signal = F.pad(signal, padding)
+
         conv_signal = self.conv(signal)
+
         return conv_signal
 
 
@@ -122,20 +124,28 @@ class PositionwiseConvFF(torch.nn.Module):
 class Attention(torch.nn.Module):
     def __init__(
         self,
-        n_heads,
-        d_model,
-        p_dropout,
-        is_causal=True,
-        is_self_attention=True,
-        d_memory=None,
-        deterministic=False,
-        max_length_causal_mask=4096,
+        n_heads: int,
+        d_model: int,
+        p_dropout: float,
+        is_causal: bool = True,
+        is_self_attention: bool = True,
+        d_memory: Optional[int] = None,
+        deterministic: bool = False,
+        max_length_causal_mask: int = 4096,
     ):
         """
-        Attention part of transforer. Supports both self-attention and cross-attention depending on is_self_attention
-        arg.
+        Attention module supporting both self-attention and cross-attention depending on `is_self_attention` arg.
+        Does DotProductionAttention and additionally dropout inside the module.
 
-        Does DotProductionAttention and additionally dropout inside of the module.
+        Args:
+            n_heads (int): Number of attention heads.
+            d_model (int): Dimension of the model.
+            p_dropout (float): Dropout probability.
+            is_causal (bool): Whether to use causal attention.
+            is_self_attention (bool): Whether to use self-attention or cross-attention.
+            d_memory (Optional[int]): Dimension of memory for cross-attention.
+            deterministic (bool): Whether to use deterministic attention.
+            max_length_causal_mask (int): Maximum length for causal mask.
         """
         super().__init__()
         # context conditional attention dims
@@ -160,7 +170,6 @@ class Attention(torch.nn.Module):
         if is_causal and is_self_attention:
             # ~ 45 seconds mask, 4096 mel frames, 86 frames per second
             # ~ 762 seconds mask, 65536 mel frames, 86 frames per second
-
             self.register_buffer(
                 "causal_mask",
                 torch.tril(torch.ones(max_length_causal_mask, max_length_causal_mask)).view(
@@ -176,11 +185,13 @@ class Attention(torch.nn.Module):
             self.q_net = torch.nn.Linear(d_model, n_heads * self.d_head, bias=False)
             self.kv_net = torch.nn.Linear(d_memory, 2 * n_heads * self.d_head, bias=False)
             self.o_net = torch.nn.Linear(n_heads * self.d_head, d_model, bias=False)
+
         self.dropout = torch.nn.Dropout(p_dropout)
         self.use_cache = False
         self.cache = self._init_cache()
 
-    def _init_cache(self) -> Dict[str, Optional[torch.Tensor]]:
+    @staticmethod
+    def _init_cache() -> Dict[str, Optional[torch.Tensor]]:
         return {
             'is_initialized': False,
             'self_k': None,
@@ -197,7 +208,7 @@ class Attention(torch.nn.Module):
     def attn_naive(
         self,
         query: torch.Tensor,
-        query_mask: Optional[torch.Tensor],
+        query_mask: Optional[torch.Tensor] = None,
         memory: Optional[torch.Tensor] = None,
         memory_mask: Optional[torch.Tensor] = None,
         attn_prior: Optional[torch.Tensor] = None,
@@ -205,7 +216,7 @@ class Attention(torch.nn.Module):
         if self.use_cache:
             if self.cache['is_initialized']:
                 query = query[:, -1:, :]
-                query_mask = query_mask[:, -1:]
+                query_mask = query_mask[:, -1:] if query_mask is not None else None
             else:
                 self.cache['is_initialized'] = True
 
@@ -289,22 +300,33 @@ class Attention(torch.nn.Module):
 
         return y, [attn_prob, _attn_score]
 
-    def forward(self, query, query_mask=None, memory=None, memory_mask=None, attn_prior=None):
+    def forward(
+        self,
+        query: torch.Tensor,
+        query_mask: Optional[torch.Tensor] = None,
+        memory: Optional[torch.Tensor] = None,
+        memory_mask: Optional[torch.Tensor] = None,
+        attn_prior: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """
-        all inputs should be (B, T, C)
-        query_mask (T1, T1)
-        memory_mask (B, T2)
-        attn_prior (T1, T2)
+        Forward pass of the Attention module.
+
+        Args:
+            query (torch.Tensor): Input tensor of shape (B, T1, C).
+            query_mask (Optional[torch.Tensor]): Mask for query tensor of shape (B, T1).
+            memory (Optional[torch.Tensor]): Memory tensor for cross-attention of shape (B, T2, C).
+            memory_mask (Optional[torch.Tensor]): Mask for memory tensor of shape (B, T2).
+            attn_prior (Optional[torch.Tensor]): Prior attention weights of shape (B, T1, T2).
 
         Returns:
-            y: attention module tensor output
-            attn_prob: List, returned only in attn_naive
-                0th element being the probabilities which are logged during validation
-                1st element being the attention scores which are used for ctc loss
+            Tuple[torch.Tensor, List[torch.Tensor]]:
+                - y: Attention module tensor output of shape (B, T1, C).
+                - attn_prob: List containing attention probabilities and scores. returned only in attn_naive.
+                    [0]: Attention probabilities used for logging during validation.
+                    [1]: Attention scores used for CTC loss (only in naive attention).
         """
 
         y, attn_prob = self.attn_naive(query, query_mask, memory, memory_mask, attn_prior)
-
         y = self.dropout(self.o_net(y))
 
         return y, attn_prob
@@ -328,7 +350,6 @@ class TransformerLayer(torch.nn.Module):
         max_length_causal_mask: int = 4096,
         conv_non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
     ):
-        super().__init__()
         """
         One layer of the Transformer.
         Args:
@@ -338,7 +359,7 @@ class TransformerLayer(torch.nn.Module):
             kernel_size <int>: Convolution kernel size for FFN
             p_dropout <float>: Dropout probability
             has_xattn <bool>: Whether to use cross attention
-            xa_d_memory <int>: Hidden dimenssion for cross attention
+            xa_d_memory <int>: Hidden dimension for cross attention
             xa_n_heads <int>: Number of attention heads used in cross attention
             is_causal <bool>: Whether to use causal attention
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
@@ -347,6 +368,7 @@ class TransformerLayer(torch.nn.Module):
             max_length_causal_mask <int>: Maximum length of causal mask
             conv_non_linearity <Callable>: Convolution non-linearity
         """
+        super().__init__()
         self.layer_norm_method = layer_norm_method
         self.has_xattn = has_xattn
 
@@ -384,7 +406,8 @@ class TransformerLayer(torch.nn.Module):
         self.use_cache = False
         self.cache = self._init_cache()
 
-    def _init_cache(self) -> Dict:
+    @staticmethod
+    def _init_cache() -> Dict:
         return {
             'self_attn_output': None,
             'cross_attn_output': None,
@@ -515,7 +538,7 @@ class Transformer(torch.nn.Module):
             kernel_size <int>: Convolution kernel size for FFN
             p_dropout <float>: Dropout probability
             p_dropout_out <float>: Dropout probability for output
-            xa_d_memory <int>: Hidden dimenssion for cross attention
+            xa_d_memory <int>: Hidden dimension for cross attention
             xa_n_heads <int>: Number of attention heads used in cross attention
             has_xattn <bool>: Whether to use cross attention
             is_causal <bool>: Whether to use causal attention
@@ -529,15 +552,18 @@ class Transformer(torch.nn.Module):
         super().__init__()
         self.dropout = torch.nn.Dropout(p_dropout)
         self.p_dropout_out = p_dropout_out
+
         if self.p_dropout_out > 0.0:
             self.dropout_out = torch.nn.Dropout(self.p_dropout_out)
         else:
             self.dropout_out = None
+
         self.apply_norm_out = apply_norm_out
         if self.apply_norm_out:
             self.norm_out = torch.nn.LayerNorm(d_model, bias=False)
         else:
             self.norm_out = None
+
         self.layers = torch.nn.ModuleList()
         for _ in range(n_layers):
             self.layers.append(
