@@ -51,7 +51,6 @@ class ConvolutionLayer(torch.nn.Module):
                 raise ValueError("`kernel_size` must be odd when `padding` is None.")
             else:
                 padding = int(dilation * (kernel_size - 1) / 2)
-            padding = int(dilation * (kernel_size - 1) / 2)
 
         self.is_causal = is_causal
         self.kernel_size = kernel_size
