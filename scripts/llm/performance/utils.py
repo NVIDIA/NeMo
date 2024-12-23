@@ -65,10 +65,8 @@ def slurm_executor(
         ),
         nodes=nodes,
         ntasks_per_node=num_gpus_per_node,
-        gpus_per_node=num_gpus_per_node,
         mem="0",
         exclusive=True,
-        gres="gpu:8",
         packager=run.GitArchivePackager(),
     )
 
