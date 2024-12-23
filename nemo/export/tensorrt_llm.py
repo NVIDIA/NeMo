@@ -32,7 +32,7 @@ from tensorrt_llm._utils import numpy_to_torch
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
-from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt
+from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt, determine_quantization_settings
 from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
     dist_model_to_trt_llm_ckpt,
     get_layer_prefix,
@@ -86,17 +86,6 @@ try:
     from pytriton.model_config import Tensor
 except Exception:
     use_pytriton = False
-
-
-def determine_quantization_settings(
-    nemo_model_config, fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None
-) -> Tuple[bool, bool]:
-    is_nemo_quantized = nemo_model_config.get('fp8', False)
-    if fp8_quantized is None:
-        fp8_quantized = is_nemo_quantized
-    if fp8_kvcache is None:
-        fp8_kvcache = is_nemo_quantized
-    return fp8_quantized, fp8_kvcache
 
 
 # pylint: disable=line-too-long
@@ -335,7 +324,7 @@ class TensorRTLLM(ITritonDeployable):
                         "Supported model types are: {1}.".format(model_type, self.get_supported_models_list)
                     )
 
-                model, model_configs, self.tokenizer = load_nemo_model(
+                model, model_config, self.tokenizer = load_nemo_model(
                     nemo_checkpoint_path, nemo_export_dir, use_mcore_path
                 )
                 if use_mcore_path:
@@ -348,13 +337,13 @@ class TensorRTLLM(ITritonDeployable):
                     from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
                     from tensorrt_llm.layers import MoeConfig
 
-                    use_embedding_sharing = model_configs.get("share_embeddings_and_output_weights", False)
+                    share_embeddings_and_output_weights = model_config.get("share_embeddings_and_output_weights", False)
                     fp8_quantized, fp8_kvcache = determine_quantization_settings(
-                        model_configs, fp8_quantized, fp8_kvcache
+                        model_config, fp8_quantized, fp8_kvcache
                     )
 
                     # We build the transformer config using the nemo model config.
-                    transformer_config = self.get_transformer_config(model_configs)
+                    transformer_config = self.get_transformer_config(model_config)
                     input_model_type = getattr(ModelType, model_type)
 
                     # MCore export supports some default conversion dictionaries
@@ -376,7 +365,9 @@ class TensorRTLLM(ITritonDeployable):
                         f'module.{key}': value for key, value in mcore_model_conversion_dict.items()
                     }
 
-                    activation = model_configs.get('activation', "gelu")
+                    # TODO: Workaround: Gemma uses gated activation, while mcore does not handle openai-gelu
+                    # as a gated function. Remove once !11614 is merged.
+                    activation = model_config.get('activation', "gelu")
                     if activation == "openai-gelu" and input_model_type.name == 'gemma':
                         activation = "geglu"
 
@@ -384,18 +375,18 @@ class TensorRTLLM(ITritonDeployable):
                         transformer_config=transformer_config,
                         model_type=input_model_type,
                         trtllm_conversion_dict=nemo_model_conversion_dict,
-                        position_embedding_type=model_configs.get('position_embedding_type'),
-                        max_position_embeddings=model_configs.get('max_position_embeddings'),
-                        rotary_percentage=model_configs.get('rotary_percentage', 1.0),
-                        rotary_base=model_configs.get('rotary_base', 10000),
-                        moe_tp_mode=model_configs.get('moe_tp_mode', 2),
-                        multi_query_mode=model_configs.get("multi_query_mode", False),
+                        position_embedding_type=model_config.get('position_embedding_type'),
+                        max_position_embeddings=model_config.get('max_position_embeddings'),
+                        rotary_percentage=model_config.get('rotary_percentage', 1.0),
+                        rotary_base=model_config.get('rotary_base', 10000),
+                        moe_tp_mode=model_config.get('moe_tp_mode', 2),
+                        multi_query_mode=model_config.get("multi_query_mode", False),
                         activation=activation,
-                        seq_len_interpolation_factor=model_configs.get("seq_len_interpolation_factor"),
-                        moe_renorm_mode=model_configs.get(
+                        seq_len_interpolation_factor=model_config.get("seq_len_interpolation_factor"),
+                        moe_renorm_mode=model_config.get(
                             'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
                         ),
-                        share_embeddings_and_output_weights=use_embedding_sharing,
+                        share_embeddings_and_output_weights=share_embeddings_and_output_weights,
                     )
 
                     input_dtype = getattr(DataType, dtype)
@@ -403,7 +394,7 @@ class TensorRTLLM(ITritonDeployable):
                         tensor_parallelism_size,
                         pipeline_parallelism_size,
                         use_parallel_embedding,
-                        use_embedding_sharing,
+                        share_embeddings_and_output_weights,
                     )
 
                     trtllm_model_weights_list, trtllm_model_config_list = (
@@ -454,7 +445,7 @@ class TensorRTLLM(ITritonDeployable):
 
                     weights_dicts, model_configs = model_to_trtllm_ckpt(
                         model=model,
-                        nemo_model_config=model_configs,
+                        nemo_model_config=model_config,
                         nemo_export_dir=nemo_export_dir,
                         decoder_type=model_type,
                         dtype=dtype,
@@ -588,10 +579,10 @@ class TensorRTLLM(ITritonDeployable):
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
 
-            model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
+            model, model_config, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
             weights_dicts, model_configs = model_to_trtllm_ckpt(
                 model=model,
-                nemo_model_config=model_configs,
+                nemo_model_config=model_config,
                 nemo_export_dir=nemo_export_dir,
                 decoder_type=model_type,
                 dtype=dtype,

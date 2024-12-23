@@ -47,6 +47,7 @@ except (ImportError, ModuleNotFoundError):
 
 LOGGER = logging.getLogger("NeMo")
 
+EXTRA_STATE = "extra_state"
 
 def is_nemo_file(path):
     flag = False
@@ -77,34 +78,40 @@ class TarFileSystemReader(FileSystemReader):
             self.path = path  # overwrites path set in super().__init__ call
 
 
-# Used only for the old, non-mcore path
 def standarize_distributed_scaling_factors(state_dict: dict) -> dict:
-    scales_dict = {k: v for k, v in state_dict.items() if 'extra_state' in k}
-    state_dict = {k: v for k, v in state_dict.items() if 'extra_state' not in k}
-
+    """Scales are kept in BufferIO objects. This function preprocesses them for export.
+    Used only for local (non-mcore) export.
+    """
+    scales_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE in k}
+    state_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE not in k}
     scales = {}
 
-    for k, v in scales_dict.items():
-        v.seek(0)
-        extra_state = torch.load(v)
+    for key, value in scales_dict.items():
+        value.seek(0)
+        extra_state = torch.load(value)
         if extra_state is not None and 'scale_fwd' in extra_state:
-            scales[k + '.scale_fwd'] = extra_state['scale_fwd'].cpu()
+            scales[key + '.scale_fwd'] = extra_state['scale_fwd'].cpu()
 
     combined_scales = {}
-    for k in scales:
-        if 'model.decoder.layers.' not in k:
+    for key in scales:
+        if '.decoder.layers.0' not in key:
             continue
 
-        decomposed = k.split('.')
-        combined = []
-        id = 0
-        decomposed[3] = str(id)
-        while '.'.join(decomposed) in scales:
-            combined.append(scales['.'.join(decomposed)])
-            id += 1
-            decomposed[3] = str(id)
+        # Key has a structure "model.decoder.layers.<layer_number>.<rest>"
+        decomposed = key.split('.')
+        layer_num_idx = 3
 
-        del decomposed[3]
+        # Merges scales from "model.decoder.layers.<layer_num>.<rest>" to
+        # larger dimensional tensor with "model.decoder.layers.<rest>" key
+        combined = []
+        layer_num = 0
+        decomposed[layer_num_idx] = str(layer_num)
+        while (scale := scales.get('.'.join(decomposed))) is not None:
+            combined.append(scale)
+            layer_num += 1
+            decomposed[layer_num_idx] = str(layer_num)
+
+        del decomposed[layer_num_idx]
         combined_scales['.'.join(decomposed)] = torch.stack(combined)
 
     return state_dict | combined_scales
@@ -114,14 +121,11 @@ def rename_extra_states(state_dict: dict) -> dict:
     mcore_extra_states = {}
 
     for key, value in state_dict.items():
-        if 'extra_state' not in key:
+        if EXTRA_STATE not in key:
             continue
 
-        decomposed_sharded_key = key.split('/')
-        if not len(decomposed_sharded_key):
-            continue
-
-        key_base, shard_key = decomposed_sharded_key
+        # extra state key has a form: "<base_key>._extra_state/shard_<layer_num>_<num_layers>"
+        key_base, shard_key = key.split('/')
         if '_' not in shard_key:
             continue
 
@@ -129,15 +133,12 @@ def rename_extra_states(state_dict: dict) -> dict:
         if not shard_layer.isnumeric():
             continue
 
-        split_string = 'layers'
-        decomposed_key = key_base.split(split_string)
-        mcore_key = (f'{split_string}.{shard_layer}').join(decomposed_key)
-
+        mcore_key = key_base.replace("layers", f"layers.{shard_layer}")
         if isinstance(value, list) and len(value) == 1:
             value = value[0]
         mcore_extra_states[mcore_key] = value
 
-    state_dict = {k: v for k, v in state_dict.items() if 'extra_state' not in k}
+    state_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE not in k}
     return state_dict | mcore_extra_states
 
 
@@ -171,13 +172,6 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
     return state_dict
 
 
-def get_sharded_file(dir: dict, layer_number: int) -> Optional[os.PathLike]:
-    pt_file_list = list(dir.glob(f'shard_{layer_number}_*.pt'))
-    if pt_file_list == []:
-        return None
-    return pt_file_list[0]
-
-
 def load_sharded_pickle_extra_state_scale(dir: Union[Path, TarPath]):
     pt_files = list(dir.glob('shard_*_*.pt'))
     extra_states = {}
@@ -200,7 +194,7 @@ def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tenso
             continue
 
         if contains_extra_states(subdir):
-            sharded_state_dict |= load_sharded_pickle_extra_state_scale(subdir)
+            sharded_state_dict.update(load_sharded_pickle_extra_state_scale(subdir))
         elif (subdir / '.zarray').exists():
             key = subdir.name
             zstore = ZarrPathStore(subdir)
@@ -481,7 +475,9 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
             model = load_sharded_metadata(dist_ckpt_folder)
             if not mcore_scales_format:
-                model |= {k: v[0] for k, v in model.items() if 'extra_state' in k and isinstance(v, list)}
+                model.update(
+                    {k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)}
+                )
                 model = standarize_distributed_scaling_factors(model)
 
             nemo_model_config = unpacked_checkpoint_dir.model_config
