@@ -4731,8 +4731,6 @@ jobs:
         --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
         --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }}
 
-<<<<<<< HEAD
-=======
   L2_NEMO_2_LoRA_Export:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
@@ -4745,7 +4743,6 @@ jobs:
         --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
         --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }}
 
->>>>>>> main
   L2_NEMO_2_LoRA_Inference:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
