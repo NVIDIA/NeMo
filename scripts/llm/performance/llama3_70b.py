@@ -96,8 +96,8 @@ def llama3_70b_performance_recipe(
 
     recipe.log.ckpt = None
     recipe.trainer.enable_checkpointing = False
-    recipe.trainer.val_check_interval=MAX_STEPS
-    recipe.trainer.log_every_n_steps=1
+    recipe.trainer.val_check_interval = MAX_STEPS
+    recipe.trainer.log_every_n_steps = 1
 
     return recipe
 

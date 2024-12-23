@@ -32,6 +32,7 @@ CP_SIZE = 2
 VP_SIZE = 7
 MAX_STEPS = 100
 
+
 def llama3_405b_performance_recipe(
     log_dir: str,
     compute_dtype: str,
@@ -72,8 +73,8 @@ def llama3_405b_performance_recipe(
     # compute dtype configs
     if compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.proj_fprop.fp8_buf=True
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.fc2_fprop.fp8_buf=True
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.proj_fprop.fp8_buf = True
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.fc2_fprop.fp8_buf = True
 
     recipe.trainer.plugins.grad_reduce_in_fp32 = False  # bf16 grad dtype
 
@@ -95,8 +96,8 @@ def llama3_405b_performance_recipe(
 
     recipe.log.ckpt = None
     recipe.trainer.enable_checkpointing = False
-    recipe.trainer.val_check_interval=MAX_STEPS
-    recipe.trainer.log_every_n_steps=1
+    recipe.trainer.val_check_interval = MAX_STEPS
+    recipe.trainer.log_every_n_steps = 1
 
     return recipe
 
@@ -106,8 +107,8 @@ if __name__ == "__main__":
 
     exp_name = "_".join(
         [
-            f"llama3_405b", 
-            args.compute_dtype, 
+            f"llama3_405b",
+            args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",
             f"{MICRO_BATCH_SIZE}mbs_{GLOBAL_BATCH_SIZE}gbs",
