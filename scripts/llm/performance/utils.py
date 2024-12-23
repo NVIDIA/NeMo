@@ -47,6 +47,7 @@ def slurm_executor(
 
     env_vars = {
         "TRANSFORMERS_OFFLINE": "1",
+        "TOKENIZERS_PARALLELISM": "False",
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
         "NCCL_NVLS_ENABLE": "0",
         "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",

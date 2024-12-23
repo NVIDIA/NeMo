@@ -17,23 +17,22 @@ from typing import Optional
 import nemo_run as run
 from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor
 
-from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
+from nemo.collections.llm.recipes.llama31_405b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
-NUM_NODES = 1
+NUM_NODES = 72
 NUM_GPUS_PER_NODE = 8
 MICRO_BATCH_SIZE = 1
-GLOBAL_BATCH_SIZE = 128
-TP_SIZE = 1
-PP_SIZE = 1
+GLOBAL_BATCH_SIZE = 252
+TP_SIZE = 8
+PP_SIZE = 9
 CP_SIZE = 2
-VP_SIZE = None
+VP_SIZE = 7
 MAX_STEPS = 100
 
-
-def llama3_8b_performance_recipe(
+def llama3_405b_performance_recipe(
     log_dir: str,
     compute_dtype: str,
     num_nodes: int,
@@ -52,7 +51,7 @@ def llama3_8b_performance_recipe(
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
     recipe.data.num_train_samples = max_steps * (num_nodes * num_gpus_per_node)  # ensure only 1 epoch for whole run
-    recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-8B")
+    recipe.data.tokenizer = hf_tokenizer("meta-llama/Llama-3.1-405B")
 
     recipe.trainer.max_steps = max_steps
     recipe.trainer.num_nodes = num_nodes
@@ -73,6 +72,9 @@ def llama3_8b_performance_recipe(
     # compute dtype configs
     if compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.proj_fprop.fp8_buf=True
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.fc2_fprop.fp8_buf=True
+
     recipe.trainer.plugins.grad_reduce_in_fp32 = False  # bf16 grad dtype
 
     # callback configs
@@ -104,8 +106,8 @@ if __name__ == "__main__":
 
     exp_name = "_".join(
         [
-            f"llama3_8b",
-            args.compute_dtype,
+            f"llama3_405b", 
+            args.compute_dtype, 
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",
             f"{MICRO_BATCH_SIZE}mbs_{GLOBAL_BATCH_SIZE}gbs",
@@ -125,7 +127,7 @@ if __name__ == "__main__":
         retries=0,
     )
 
-    recipe = llama3_8b_performance_recipe(
+    recipe = llama3_405b_performance_recipe(
         args.log_dir,
         args.compute_dtype,
         NUM_NODES,
