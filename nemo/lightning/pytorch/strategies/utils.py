@@ -117,16 +117,12 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
 
 
 def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
-    checkpoint_type = "megatron"
-    if "checkpoint_type" in kwargs.keys():
-        checkpoint_type = kwargs["checkpoint_type"]
+    model_library = "megatron"
+    if "model_library" in kwargs.keys():
+        model_library = kwargs["model_library"]
 
-    if checkpoint_type == "huggingface":
-        checkpoint_io = HuggingFaceCheckpointIO(
-            save_ckpt_format='safe_tensor',
-            load_directly_on_device=True,
-            async_save=False,
-        )
+    if model_library == "huggingface":
+        checkpoint_io = HuggingFaceCheckpointIO(lora=kwargs["lora"])
     else:
         checkpoint_io = MegatronCheckpointIO(**kwargs)
 

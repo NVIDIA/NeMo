@@ -58,8 +58,6 @@ class PEFT(IOMixin, ABC, ModelTransform):
         peft_model = LargeLanguageModel(model_transform=peft)
     """
 
-    checkpoint_type = "megatron"
-
     @abstractmethod
     def transform(self, module, name=None, prefix=None):
         """Transform a single module according to the PEFT method.
@@ -143,21 +141,23 @@ class PEFT(IOMixin, ABC, ModelTransform):
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
 
-        ckpt_io_kwarg_names = [
-            "save_ckpt_format",
-            "async_save",
-            "torch_dist_multiproc",
-            "assume_constant_structure",
-            "parallel_save",
-            "parallel_save_within_dp",
-            "parallel_load",
-            "load_directly_on_device",
-        ]
-        ckpt_io_kwargs = {
-            arg: getattr(trainer.strategy, arg)
-            for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
-        }
-        ckpt_io_kwargs["checkpoint_type"] = self.checkpoint_type
+        if hasattr(trainer.model, "is_hf_model"):
+            ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
+        else:
+            ckpt_io_kwarg_names = [
+                "save_ckpt_format",
+                "async_save",
+                "torch_dist_multiproc",
+                "assume_constant_structure",
+                "parallel_save",
+                "parallel_save_within_dp",
+                "parallel_load",
+                "load_directly_on_device",
+            ]
+            ckpt_io_kwargs = {
+                arg: getattr(trainer.strategy, arg)
+                for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
+            }
         trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
         self.wrapped_io = (
             trainer.strategy._checkpoint_io._checkpoint_io
@@ -407,7 +407,9 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
             base_dir = ckpt_to_weights_subdir(path, is_saving=True)
             base_dir.mkdir(parents=True, exist_ok=True)
 
-            if self.peft.checkpoint_type == "huggingface":
+            from nemo.lightning.io.pl import HuggingFaceCheckpointIO
+
+            if isinstance(self.checkpoint_io, HuggingFaceCheckpointIO):
                 metadata = self._create_lora_hf_config()
                 adapter_meta_path = base_dir / "adapter_config"
             else:
@@ -419,7 +421,6 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         return request
 
     def _create_lora_hf_config(self):
-
         from peft import LoraConfig
         from nemo.collections.llm.peft import DoRA
 

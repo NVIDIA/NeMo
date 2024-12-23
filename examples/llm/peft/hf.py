@@ -113,7 +113,6 @@ def main():
         peft=llm.peft.LoRA(
             target_modules=['q_proj'],
             dim=32,
-            checkpoint_type="huggingface",
         ),
     )
 

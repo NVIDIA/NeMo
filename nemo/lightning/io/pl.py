@@ -339,15 +339,9 @@ class HuggingFaceCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     """
 
-    def __init__(
-        self,
-        save_ckpt_format: str = 'safe_tensor',
-        load_directly_on_device: bool = True,
-        async_save: bool = False,
-    ):
-        self.save_ckpt_format = save_ckpt_format
-        self.load_directly_on_device = load_directly_on_device
-        self.async_save = async_save
+    def __init__(self, hf_model=None, lora=False):
+        self.hf_model = hf_model
+        self.lora = lora
 
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
@@ -365,12 +359,13 @@ class HuggingFaceCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         """
 
-        from safetensors.torch import save_file
+        if self.lora:
+            from safetensors.torch import save_file
 
-        checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
-        fs = get_filesystem(checkpoint_dir)
-        fs.makedirs(checkpoint_dir, exist_ok=True)
-        save_file(checkpoint["state_dict"], checkpoint_dir / "adapter_model.safetensors")
+            checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
+            fs = get_filesystem(checkpoint_dir)
+            fs.makedirs(checkpoint_dir, exist_ok=True)
+            save_file(checkpoint["state_dict"], checkpoint_dir / "adapter_model.safetensors")
 
     @override
     def load_checkpoint(

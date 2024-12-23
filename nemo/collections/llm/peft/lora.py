@@ -152,7 +152,6 @@ class LoRA(PEFT):
         lora_B_init_method: str = "zero",
         a2a_experimental: bool = False,
         lora_dtype: torch.dtype = None,
-        checkpoint_type: str = "megatron",
     ):
         self.target_modules = target_modules
         self.dim = dim
@@ -163,7 +162,6 @@ class LoRA(PEFT):
         self.lora_B_init_method = lora_B_init_method
         self.a2a_experimental = a2a_experimental
         self.lora_dtype = lora_dtype
-        self.checkpoint_type = checkpoint_type
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
