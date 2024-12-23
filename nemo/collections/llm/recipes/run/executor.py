@@ -19,7 +19,15 @@ import torch
 
 @run.cli.factory
 def torchrun(devices: Optional[int] = None) -> run.Config[run.LocalExecutor]:
-    """Local executor using torchrun."""
+    """
+    Local executor using torchrun.
+
+    Args:
+        devices (Optional[int]): Number of devices to use. If None, it will use all available CUDA devices.
+
+    Returns:
+        run.Config[run.LocalExecutor]: Configuration for the local executor using torchrun.
+    """
     env_vars = {
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
     }
