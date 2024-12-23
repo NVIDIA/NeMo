@@ -14,14 +14,13 @@
 
 import argparse
 import os
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
-
 
 def slurm_executor(
     account: str,
@@ -35,6 +34,10 @@ def slurm_executor(
     custom_env_vars: Optional[dict[str, str]] = None,
     retries: int = 0,
 ) -> run.SlurmExecutor:
+    """
+    Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
+    and fine-tuning experiments
+    """
     if not (log_dir and account and partition and nodes and num_gpus_per_node):
         raise RuntimeError(
             "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
@@ -85,7 +88,7 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
     AutoTokenizer first searches for tokenizer files locally in env var 'NEMO_HOME'.
     If tokenizer files are not present locally, AutoTokenizer will try downloading from HuggingFace.
     In the case tokenizer needs downloading, make sure env vars- 'TRANSFORMERS_OFFLINE=0' and
-    'HF_TOKEN:<token_value>' are set inside NeMo container.
+    'HF_TOKEN:<token_value>' are defined in SlurmExecutor.env_vars
     """
     return run.Config(
         AutoTokenizer,
@@ -95,6 +98,11 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
 
 
 def get_comm_overlap_callback_idx(callbacks: List[Callback]):
+    """
+    nemo.lightning.Trainer has a list of callbacks defined. This method identifies index of MegatronCommOverlapCallback
+    from the list defined in recipes in nemo.collections.llm.recipes. The index is needed to override ddp communication
+    params
+    """
     if callbacks:  # default is None in lightning
         for idx, callback in enumerate(callbacks):
             if isinstance(callback, MegatronCommOverlapCallback):

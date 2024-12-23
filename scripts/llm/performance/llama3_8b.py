@@ -46,6 +46,11 @@ def llama3_8b_performance_recipe(
     vp_size: Optional[int],
     max_steps: int,
 ):
+    """
+    llama3 8b pre-train recipe aimed at achieving best possible performance.
+
+    NOTE: Use fp8 precision training with caution. It might not give desirable results.
+    """
     recipe = pretrain_recipe(dir=log_dir, performance_mode=True)
 
     # data module configs
