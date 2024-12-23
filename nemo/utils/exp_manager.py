@@ -1279,7 +1279,9 @@ class SkipResumeTrainingValidationLoop(_TrainingEpochLoop):
     """
 
     def _should_check_val_fx(self, data_fetcher) -> bool:
-        if self.restarting and self.global_step % self.trainer.val_check_batch == 0:
+        # if self.restarting and self.global_step % self.trainer.val_check_batch == 0:
+        # @pneekhara: Should skip validation if restarting, 2nd condition can be false eg. global_step 8001, val_check_batch 1000
+        if self.restarting:
             return False
         return super()._should_check_val_fx(data_fetcher)
 
