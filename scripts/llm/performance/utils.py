@@ -1,0 +1,140 @@
+import argparse
+import os
+from typing import Any, Optional, List
+
+import nemo_run as run
+
+from lightning.pytorch.callbacks.callback import Callback
+
+from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
+from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
+
+def slurm_executor(
+    account: str,
+    partition: str,
+    log_dir: str,
+    nodes: int,
+    num_gpus_per_node: int,
+    time_limit: str = "01:00:00",
+    container_image: str = "nvcr.io/nvidia/nemo:dev",
+    custom_mounts: Optional[list[str]] = None,
+    custom_env_vars: Optional[dict[str, str]] = None,
+    retries: int = 0,
+) -> run.SlurmExecutor:
+    if not (log_dir and account and partition and nodes and num_gpus_per_node):
+        raise RuntimeError(
+            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
+            "function.",
+        )
+
+    mounts = []
+    if custom_mounts:
+        mounts.extend(custom_mounts)
+
+    env_vars = {
+        "TRANSFORMERS_OFFLINE": "1",
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
+        "NCCL_NVLS_ENABLE": "0",
+        "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
+        "NVTE_ASYNC_AMAX_REDUCTION": "1",
+        "NVTE_FUSED_ATTN": "1",
+        "NVTE_FLASH_ATTN": "0",
+    }
+    if custom_env_vars:
+        env_vars |= custom_env_vars
+
+    executor = run.SlurmExecutor(
+        account=account,
+        partition=partition,
+        tunnel=run.LocalTunnel(
+            job_dir=log_dir,
+        ),
+        nodes=nodes,
+        ntasks_per_node=num_gpus_per_node,
+        gpus_per_node=num_gpus_per_node,
+        mem="0",
+        exclusive=True,
+        gres="gpu:8",
+        packager=run.GitArchivePackager(),
+    )
+
+    executor.container_image = container_image
+    executor.container_mounts = mounts
+    executor.env_vars = env_vars
+    executor.retries = retries
+    executor.time = time_limit
+
+    return executor
+
+def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
+    """
+    AutoTokenizer first searches for tokenizer files locally in env var 'NEMO_HOME'.
+    If tokenizer files are not present locally, AutoTokenizer will try downloading from HuggingFace. 
+    In the case tokenizer needs downloading, make sure env vars- 'TRANSFORMERS_OFFLINE=0' and
+    'HF_TOKEN:<token_value>' are set inside NeMo container.
+    """
+    return run.Config(
+        AutoTokenizer,
+        pretrained_model_name=model_name,
+        use_fast=True,
+        )
+
+def get_comm_overlap_callback_idx(callbacks: List[Callback]):
+    if callbacks: # default is None in lightning
+        for idx, callback in enumerate(callbacks):
+            if isinstance(callback, MegatronCommOverlapCallback):
+                return idx
+    return -1
+
+def parse_cli_args():
+    parser = argparse.ArgumentParser(description="NeMo2.0 Performance Pretraining and Fine-Tuning")
+
+    parser.add_argument(
+        "-a", "--account",
+        type=str,
+        help="Slurm account to use for experiment",
+        required=True,
+    )
+    parser.add_argument(
+        "-p", "--partition",
+        type=str,
+        help="Slurm partition to use for experiment",
+        required=True,
+    )
+    parser.add_argument(
+        "-l", "--log_dir",
+        type=str,
+        help="Directory for logging experiment results. Defaults to '~/nemo_log_dir'",
+        required=False,
+        default=os.path.expanduser("~/nemo_log_dir"),
+    )
+    parser.add_argument(
+        "-t", "--time_limit",
+        type=str,
+        help="Maximum time limit to run experiment for. Defaults to 30 minutes (format- 'HH:MM:SS')",
+        required=False,
+        default="00:30:00",
+    )
+    parser.add_argument(
+        "-i", "--container_image",
+        type=str,
+        help="NeMo container to use for experiment. Defaults to latest dev container- 'nvcr.io/nvidia/nemo:dev'\
+            Make sure your NGC credentials are accessible in your environment.",
+        required=False,
+        default="nvcr.io/nvidia/nemo:dev",
+    )
+    parser.add_argument(
+        "-c", "--compute_dtype",
+        type=str,
+        help="Compute precision. Options- bf16 or fp8. Defaults to bf16",
+        required=False,
+        default="bf16",
+    )
+    parser.add_argument(
+        "-d", "--dryrun",
+        help="If true, prints sbatch script to terminal without launching experiment.",
+        required=False,
+        action="store_true",
+    )
+
+    return parser
