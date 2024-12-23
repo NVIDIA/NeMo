@@ -11,5 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
+from nemo.collections import llm
 
-from nemo.deploy.nlp.query_llm import NemoQueryLLM, NemoQueryLLMPyTorch
+
+def get_args():
+    parser = argparse.ArgumentParser(description='Merge LoRA weights with base LLM')
+    parser.add_argument('--lora_checkpoint_path', type=str, required=True, help="Path to finetuned LORA checkpoint")
+    parser.add_argument('--output_path', type=str, required=True, help="Path to save merged checkpoint")
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+
+    llm.peft.export_lora(
+        lora_checkpoint_path=args.lora_checkpoint_path,
+        output_path=args.output_path,
+    )
