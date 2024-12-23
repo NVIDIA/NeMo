@@ -5,7 +5,13 @@ from typing import Callable, Dict, List, Optional
 import torch
 import torch.nn.functional as F
 from megatron.core import dist_checkpointing
-from megatron.core.transformer.custom_layers.transformer_engine import TEColumnParallelLinear, TERowParallelLinear
+from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
+from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TEColumnParallelLinear,
+    TENorm,
+    TERowParallelLinear,
+)
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -13,7 +19,8 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.collections.llm import Llama2Config7B, LlamaConfig
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank
-from nemo.collections.multimodal.mimo.model.model import CustomMimoModel
+from nemo.collections.multimodal.mimo.model.model import MimoModel
+from nemo.collections.multimodal.mimo.model.projection import ImageOutputProjectionPoolingHead
 from nemo.lightning import get_vocab_size, io
 
 
@@ -66,9 +73,36 @@ def mimo_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     return output
 
 
+def get_output_projection_layer_spec() -> ModuleSpec:
+    output_projection_submodules = TransformerLayerSubmodules(
+        cross_attention=ModuleSpec(
+            module=CrossAttention,
+            params={"attn_mask_type": MCoreAttnMaskType.no_mask},
+            submodules=CrossAttentionSubmodules(
+                linear_q=TEColumnParallelLinear,
+                linear_kv=TEColumnParallelLinear,
+                core_attention=TEDotProductAttention,
+                linear_proj=TERowParallelLinear,
+            ),
+        ),
+        cross_attn_bda=get_bias_dropout_add,
+        mlp=ModuleSpec(
+            module=MLP,
+            submodules=MLPSubmodules(
+                linear_fc1=TELayerNormColumnParallelLinear,
+                linear_fc2=TERowParallelLinear,
+            ),
+        ),
+        mlp_bda=get_bias_dropout_add,
+    )
+    output_projection_submodules.output_linear_layer = ColumnParallelLinear  # TEColumnParallelLinear
+
+    return ModuleSpec(module=ImageOutputProjectionPoolingHead, submodules=output_projection_submodules)
+
+
 @dataclass
-class BaseInputProjectorConfig(TransformerConfig, io.IOMixin):
-    projector_type: str = "mlp2x_gelu"
+class ImageInputProjectionConfig(TransformerConfig, io.IOMixin):
+    projector_type: str = "mlp"
     input_size: Optional[int] = 1024
     hidden_size: int = 4096
     ffn_hidden_size: int = 4096
@@ -84,80 +118,150 @@ class BaseInputProjectorConfig(TransformerConfig, io.IOMixin):
         ),
     ).submodules
     num_layers: int = 1  # placeholder, NOT used!
-    num_attention_heads: int = 8  # placeholder, NOT used!
+    num_attention_heads: int = 8  # placeholder, NOT used!'
+
+    def configure_model(self) -> "MCoreMultimodalProjector":
+        return MCoreMultimodalProjector(
+            self,
+            self.layer_spec,
+            self.projector_type,
+            input_size=self.input_size,  # input size to the projection.
+        )
 
 
 @dataclass
-class BaseOutputProjectorConfig(TransformerConfig, io.IOMixin):
-    # projector_type: str = "mlp2x_gelu" # not needed
-    input_size: Optional[int] = 4096  # verify to hidden dimension of language model
-    hidden_size: int = 1024
-    ffn_hidden_size: int = 1024
-    activation_func: Callable = F.gelu
-    bias: bool = True
-    bias_activation_fusion: bool = True
-    add_bias_linear: bool = True
-    layer_spec: ModuleSpec = ModuleSpec(
-        module=MLP,
-        submodules=MLPSubmodules(
-            linear_fc1=TEColumnParallelLinear,
-            linear_fc2=TERowParallelLinear,
-        ),
-    ).submodules
-    num_layers: int = 1  # placeholder, NOT used!
-    num_attention_heads: int = 8  # placeholder, NOT used!
-
-
-@dataclass
-class BaseVisionTransformerConfig(TransformerConfig, io.IOMixin):
-    num_layers: int = 24
+class ImageOutputProjectionConfig(TransformerConfig, io.IOMixin):
+    num_layers: int = 2
     num_attention_heads: int = 16  # was 32?
+    num_query_token: int = 77
     add_bias_linear: bool = True
     add_qkv_bias: bool = True
-    hidden_size: int = 1024
+    hidden_size: int = 4096
     hidden_dropout: int = 0.0
     attention_dropout: float = 0.0
     ffn_hidden_size: int = 4096
     gated_linear_unit: bool = False
-    # activation_func = quick_gelu
-    # kv_channels: int = 64
-    # num_query_groups: int = 16
     layernorm_zero_centered_gamma: bool = False
     apply_query_key_layer_scaling: bool = False  # TODO: Yash Check this
     bias_activation_fusion: bool = False
     bias_dropout_fusion: bool = False
     attention_softmax_in_fp32: bool = True
     normalization = 'LayerNorm'
-    layer_spec: ModuleSpec = transformer_engine_layer_spec
+    layer_spec: ModuleSpec = get_output_projection_layer_spec()
+
+    def configure_model(self):
+        return ImageOutputProjectionPoolingHead(
+            config=self,
+            submodules=self.layer_spec.submodules,
+            num_query_token=self.num_query_token,
+        )
+
+
+@dataclass
+class ImageEncoderTransformerConfig(TransformerConfig, io.IOMixin):
+    vision_model_type = 'clip'
+    drop_vision_class_token: bool = True
+    add_bias_linear: bool = True
+    add_qkv_bias: bool = True
+    hidden_dropout: int = 0.0
+    attention_dropout: float = 0.0
+    gated_linear_unit: bool = False
+    layernorm_zero_centered_gamma: bool = False
+    apply_query_key_layer_scaling: bool = False  # TODO: Yash Check this
+    bias_activation_fusion: bool = False
+    bias_dropout_fusion: bool = False
+    attention_softmax_in_fp32: bool = True
+    normalization = 'LayerNorm'
+    apply_rope_fusion = False
+    layer_spec: ModuleSpec = (
+        transformer_engine_layer_spec  # TODO: Yash change this with colletions.vlm.layer_spec after rebase
+    )
     img_h: int = 336
     img_w: int = 336
     patch_dim: int = 14
-    vision_model_type = 'clip'
+
+    ln_pre_impl: Union[ModuleSpec, type] = TENorm
+    ln_post_impl: Union[ModuleSpec, type] = TENorm
+
+    def __post_init__(self):
+        if self.vision_model_type == "siglip":
+            self.num_layers = 27
+            self.num_attention_heads = 16
+            self.hidden_size = 1152
+            self.ffn_hidden_size = 4304
+            self.activation_func = torch.nn.functional.gelu  # Mcore uses fast_gelu
+            self.kv_channels = 72
+            self.num_query_groups = 16
+            self.qk_layernorm = False
+            self.layernorm_epsilon = 1e-6
+            self.add_class_token: bool = False
+            self.class_token_len: int = 0
+        elif self.vision_model_type == "clip":
+            self.num_layers: int = 24
+            self.num_attention_heads: int = 16
+            self.hidden_size: int = 1024
+            self.ffn_hidden_size: int = 4096
+            self.kv_channels: int = 64
+            self.num_query_groups: int = 16
+            self.activation_func = torch.nn.functional.gelu  # Mcore uses fast_gelu
+            self.add_class_token: bool = True
+            self.class_token_len: int = 1
+        else:
+            raise NotImplementedError(f"Vision model type {self.vision_model_type} not implemented")
+        # TODO: Yash add config for internvit
+
+    def configure_model(self) -> "MCoreCLIPViTModel":
+
+        return MCoreCLIPViTModel(
+            self,
+            transformer_layer_spec,
+            ln_pre_impl=self.ln_pre_impl,
+            ln_post_impl=self.ln_post_impl,
+            add_class_token=self.add_class_token,
+            class_token_len=self.class_token_len,
+            patch_dim=self.patch_dim,
+            img_h=self.img_h,
+            img_w=self.img_w,
+            model_subtype=self.vision_model_type,
+        )
+
+
+class ImageDecoderTransformerConfig(io.IOMixin):
+    image_decoder_name = "stabilityai/stable-diffusion-2"
+
+    def configure_model(self):
+        from diffusers import EulerDiscreteScheduler, StableDiffusionPipeline
+
+        scheduler = EulerDiscreteScheduler.from_pretrained(image_decoder_name, subfolder="scheduler")
+        image_decoder = StableDiffusionPipeline.from_pretrained(image_decoder_name, scheduler=scheduler)
+
+        image_decoder.vae.requires_grad_(False)
+        image_decoder.unet.requires_grad_(False)
+        image_decoder.text_encoder.requires_grad_(False)
+        return image_decoder
 
 
 @dataclass
-class Llama2Config1B(LlamaConfig):
-    num_layers: int = 1
-    hidden_size: int = 1024
-    num_attention_heads: int = 1
-    num_query_groups: int = 1
-    ffn_hidden_size: int = 1024
+class MimoConfig(TransformerConfig, io.IOMixin):
 
-
-@dataclass
-class CustomMimoConfig(TransformerConfig, io.IOMixin):
     language_transformer_config: Optional[TransformerConfig] = field(default_factory=lambda: Llama2Config7B())
-    vision_transformer_config: Optional[TransformerConfig] = field(
-        default_factory=lambda: BaseVisionTransformerConfig()
-    )
-    vision_projection_config: Optional[TransformerConfig] = field(default_factory=lambda: BaseInputProjectorConfig())
 
-    vision_output_projection_config: Optional[TransformerConfig] = field(
-        default_factory=lambda: BaseOutputProjectorConfig()
+    image_encoder_transformer_config: Optional[TransformerConfig] = field(
+        default_factory=lambda: ImageEncoderTransformerConfig()
     )
+    image_decoder_transformer_config = field(default_factory=lambda: ImageDecoderTransformerConfig())
+
+    image_input_projection_config: Optional[TransformerConfig] = field(
+        default_factory=lambda: ImageInputProjectionConfig()
+    )
+    image_output_projection_config: Optional[TransformerConfig] = field(
+        default_factory=lambda: ImageOutputProjectionConfig()
+    )
+
     freeze_language_model: bool = True
-    freeze_vision_model: bool = True
-    freeze_vision_projection: bool = False
+    freeze_image_encoder: bool = True
+    freeze_image_input_projection: bool = False
+    freeze_image_output_projection: bool = False
 
     forward_step_fn: Callable = mimo_forward_step
     data_step_fn: Callable = mimo_data_step
@@ -168,57 +272,45 @@ class CustomMimoConfig(TransformerConfig, io.IOMixin):
     image_special_tokens: Optional[List[str]] = None
     image_special_token_indices: Optional[List[int]] = None
     make_vocab_size_divisible_by: int = 128
-    freeze_language_model: bool = True
-    freeze_vision_model: bool = True
-    freeze_vision_projection: bool = True
+    parallel_output: bool = True
+    rotary_percent: float = 1.0
+    rotary_base: int = 1000000
+    rope_scaling: bool = False
 
-    def configure_model(self, tokenizer) -> "CustomMimoModel":
+    load_vision_mlp_language_model_path: Optional[str] = None
+    load_language_model_path: Optional[str] = None
+    load_vision_model_path: Optional[str] = None
+    load_mlp_projector_path: Optional[str] = None
+
+    stage: str = "encoder_alignment"  # [encoder_alignment, decoder_alignment, 'interleaved_pretrain']
+
+    def configure_model(self, tokenizer) -> "MimoModel":
 
         self.vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
         logging.info(f"padded vocab size to {self.vocab_size}")
 
-        model = CustomMimoModel(
-            model_config=self,
-            language_transformer_config=self.language_transformer_config,
-            language_transformer_layer_spec=transformer_engine_layer_spec(self.language_transformer_config),
-            language_vocab_size=self.vocab_size,
-            language_max_sequence_length=self.language_transformer_config.seq_length,
-            vision_transformer_config=self.vision_transformer_config,
-            vision_transformer_layer_spec=transformer_engine_layer_spec(self.vision_transformer_config),
-            drop_vision_class_token=True,
-            vision_projection_config=self.vision_projection_config,
-            vision_projection_layer_spec=self.vision_projection_config.layer_spec,
-            vision_output_projection_config=self.vision_output_projection_config,
-            vision_output_projection_spec=self.vision_output_projection_config.layer_spec,
-            vision_projection_type="mlp",
-            allow_missing_vision_projection_checkpoint=True,
-            parallel_output=True,
-            pre_process=True,
-            post_process=True,
-            add_encoder=True,
-            add_decoder=True,
-            img_h=self.vision_transformer_config.img_h,
-            img_w=self.vision_transformer_config.img_w,
-            patch_dim=self.vision_transformer_config.patch_dim,
-        )
-        from megatron.core.dist_checkpointing.validation import StrictHandling
+        model = MiMoModel(config=self)
+        # from megatron.core.dist_checkpointing.validation import StrictHandling
 
-        sharded_state_dict = dict(state_dict=model.language_model.sharded_state_dict(prefix="module."))
+        # from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
-        strict = StrictHandling.LOG_UNEXPECTED
-        loaded_state_dict = dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict,
-            checkpoint_dir='/root/.cache/nemo/models/lmsys/vicuna-7b-v1.5/weights',
-            strict=strict,
-        )
-        loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
-        output_csv = "loaded_state_dict_shapes.csv"
+        # if self.load_language_model_path:
+        #     sharded_state_dict = dict(state_dict=model.language_model.sharded_state_dict(prefix="module."))
 
-        model.language_model.load_state_dict(loaded_state_dict)
+        #     strict = StrictHandling.LOG_UNEXPECTED
+        #     loaded_state_dict = dist_checkpointing.load(
+        #         ckpt_to_weights_subdir(self.load_language_model_path),
+        #         sharded_state_dict=sharded_state_dict,
+        #         checkpoint_dir='load_language_model_path',
+        #         strict=strict,
+        #     )
+        #     loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
 
-        model.freeze(
-            freeze_language_model=self.freeze_language_model,
-            freeze_vision_model=self.freeze_vision_model,
-            freeze_vision_projection=self.freeze_vision_model,
-        )
+        #     model.language_model.load_state_dict(loaded_state_dict)
+
+        # model.freeze(
+        #     freeze_language_model=self.freeze_language_model,
+        #     freeze_vision_model=self.freeze_vision_model,
+        #     freeze_vision_projection=self.freeze_vision_model,
+        # )
         return model

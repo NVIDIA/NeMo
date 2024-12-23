@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import torch
+from megatron.core import parallel_state as ps
 from megatron.core.extensions.transformer_engine import (
     TEColumnParallelLinear,
     TEDotProductAttention,
@@ -21,103 +22,81 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
 
 from nemo.collections.multimodal.mimo.model.gpt import MimoGPTModel
-from nemo.collections.multimodal.mimo.model.projection import Baseconfig, ImageOutputProjectionPoolingHead, TransformersProjector, get_output_projection_layer_spec
+from nemo.collections.multimodal.mimo.model.projection import (
+    Baseconfig,
+    ImageOutputProjectionPoolingHead,
+    TransformersProjector,
+    get_output_projection_layer_spec,
+)
 
 
-class CustomMimoModel(MCoreLLaVAModel):
+class MimoModel(MCoreLLaVAModel):
     def __init__(
         self,
-        model_config: TransformerConfig,
-        language_transformer_config: TransformerConfig,
-        language_transformer_layer_spec: ModuleSpec,
-        language_vocab_size: int,
-        language_max_sequence_length: int,
-        vision_transformer_config: TransformerConfig,
-        vision_transformer_layer_spec: ModuleSpec,
-        drop_vision_class_token: bool,
-        vision_projection_config: TransformerConfig,
-        vision_projection_layer_spec: ModuleSpec,
-        vision_output_projection_config: TransformerConfig,
-        vision_output_projection_spec: ModuleSpec,
-        vision_projection_type: str = "mlp",
-        allow_missing_vision_projection_checkpoint: bool = False,
-        parallel_output: bool = True,
-        pre_process: bool = True,
-        post_process: bool = True,
-        add_encoder: bool = True,
-        add_decoder: bool = True,
-        img_h: int = 336,
-        img_w: int = 336,
-        patch_dim: int = 14,
-        language_rotary_base: int = 10000,
-        language_rope_scaling: bool = False,
+        config: TransformerConfig,
     ) -> None:
-        # Temporarily disable add_decoder to prevent MCoreGPTModel initialization
-        self.add_decoder = False
+
+        if config.stage == 'encoder_alignment':
+            self.add_encoder = ps.is_pipeline_first_stage()
+        else:
+            self.add_encoder = False
         super().__init__(
-            language_transformer_config=language_transformer_config,
-            language_transformer_layer_spec=language_transformer_layer_spec,
-            language_vocab_size=language_vocab_size,
-            language_max_sequence_length=language_max_sequence_length,
-            vision_transformer_config=vision_transformer_config,
-            vision_transformer_layer_spec=vision_transformer_layer_spec,
-            drop_vision_class_token=drop_vision_class_token,
-            vision_projection_config=vision_projection_config,
-            vision_projection_layer_spec=vision_projection_layer_spec,
-            vision_projection_type=vision_projection_type,
-            allow_missing_vision_projection_checkpoint=allow_missing_vision_projection_checkpoint,
-            parallel_output=parallel_output,
-            language_position_embedding_type=language_transformer_config.position_embedding_type,
-            language_rotary_percent=language_transformer_config.rotary_percent,
-            pre_process=pre_process,
-            post_process=post_process,
-            add_encoder=add_encoder,
+            language_transformer_config=config.language_transformer_config,
+            language_transformer_layer_spec=config.language_transformer_layer_spec,
+            language_vocab_size=config.language_vocab_size,
+            language_max_sequence_length=config.language_transformer_config.seq_length,
+            vision_transformer_config=config.image_encoder_transformer_config,
+            vision_transformer_layer_spec=config.image_encoder_transformer_config.layer_spec,
+            drop_vision_class_token=config.image_encoder_transformer_config.drop_vision_class_token,
+            vision_projection_config=config.image_input_projection_config,
+            vision_projection_layer_spec=config.image_input_projection_config.layer_spec,
+            vision_projection_type=config.image_input_projection_config.projector_type,
+            allow_missing_vision_projection_checkpoint=True,
+            parallel_output=config.parallel_output,
+            language_position_embedding_type=config.language_transformer_config.position_embedding_type,
+            language_rotary_percent=config.rotary_percent,
+            pre_process=ps.is_pipeline_first_stage(),
+            post_process=ps.is_pipeline_last_stage(),
+            add_encoder=self.add_encoder,
             add_decoder=False,  # Ensure GPTModel isn't initialized
-            img_h=img_h,
-            img_w=img_w,
-            patch_dim=patch_dim,
-            language_rotary_base=language_rotary_base,
-            language_rope_scaling=language_rope_scaling,
+            img_h=config.image_encoder_transformer_config.img_h,
+            img_w=config.image_encoder_transformer_config.img_w,
+            patch_dim=config.image_encoder_transformer_config.patch_dim,
+            language_rotary_base=config.rotary_base,
+            language_rope_scaling=config.rope_scaling,
         )
-        self.model_config = model_config
+        self.config = config
         # Now re-enable add_decoder after parent constructor is done
-        self.add_decoder = True
+        self.add_decoder = (
+            ps.is_pipeline_last_stage()
+            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size
+        )
         self.model_type = ModelType.encoder_or_decoder
 
-        # Initialize MimoGPTModel
-        self.language_model = MimoGPTModel(
-            config=language_transformer_config,
-            transformer_layer_spec=language_transformer_layer_spec,
-            vocab_size=language_vocab_size,
-            max_sequence_length=language_max_sequence_length,
-            parallel_output=parallel_output,
-            position_embedding_type=language_transformer_config.position_embedding_type,
-            rotary_percent=language_transformer_config.rotary_percent,
-            pre_process=pre_process,
-            post_process=post_process,
-            rotary_base=language_rotary_base,
-            rope_scaling=language_rope_scaling,
-        )
+        if self.add_decoder:
+            # Initialize MimoGPTModel
+            self.language_model = MimoGPTModel(
+                config=language_transformer_config,
+                transformer_layer_spec=language_transformer_layer_spec,
+                vocab_size=language_vocab_size,
+                max_sequence_length=language_max_sequence_length,
+                parallel_output=parallel_output,
+                position_embedding_type=language_transformer_config.position_embedding_type,
+                rotary_percent=language_transformer_config.rotary_percent,
+                pre_process=pre_process,
+                post_process=post_process,
+                rotary_base=language_rotary_base,
+                rope_scaling=language_rope_scaling,
+            )
 
-        self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
-        self._language_max_sequence_length = language_max_sequence_length
-        self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
-        from diffusers import EulerDiscreteScheduler, StableDiffusionPipeline
+            self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
+            self._language_max_sequence_length = language_max_sequence_length
+            self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
 
-        self.image_decoder_name = "stabilityai/stable-diffusion-2"
-        self.scheduler = EulerDiscreteScheduler.from_pretrained(self.image_decoder_name, subfolder="scheduler")
-        self.image_decoder = StableDiffusionPipeline.from_pretrained(self.image_decoder_name, scheduler=self.scheduler)
+        if config.stage not in ["encoder_alignment"]:
+            self.image_decoder = config.image_decoder_transformer_config.configure_model()
 
-        self.image_decoder.vae.requires_grad_(False)
-        self.image_decoder.unet.requires_grad_(False)
-        self.image_decoder.text_encoder.requires_grad_(False)
-
-        output_projection_spec = get_output_projection_layer_spec()
-        self.vision_output_projection_module = ImageOutputProjectionPoolingHead(
-            config=Baseconfig(),
-            submodules=output_projection_spec.submodules,
-            num_query_token=77,
-        )
+            self.image_output_projection_module = config.image_output_projection_config.configure_model()
 
     def get_image_caption_embeddings(self, text_input):
         with torch.no_grad():
@@ -218,23 +197,26 @@ class CustomMimoModel(MCoreLLaVAModel):
         if num_image_tiles is None:
             num_image_tiles = torch.ones(images.shape[0], dtype=torch.int, device=input_ids.device)
 
-        # if torch.distributed.get_rank() == 0:  # or other ranks
-        #     breakpoint()
-        # torch.distributed.barrier()
-
         # Preprocess input, labels and loss mask.
-        combined_embeddings, new_labels, new_loss_mask, attention_mask = self._preprocess_data(
-            image_embeddings,
-            language_embeddings,
-            input_ids,
-            loss_mask,
-            labels,
-            use_inference_kv_cache,
-            image_token_index,
-            num_image_tiles,
-            attention_mask,
-        )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
-        # TODO: Yash return this hidden state for computing loss
+        if self.add_encoder:
+            combined_embeddings, new_labels, new_loss_mask, attention_mask = self._preprocess_data(
+                image_embeddings,
+                language_embeddings,
+                input_ids,
+                loss_mask,
+                labels,
+                use_inference_kv_cache,
+                image_token_index,
+                num_image_tiles,
+                attention_mask,
+            )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
+        else:
+            combined_embeddings, new_labels, new_loss_mask, attention_mask = (
+                language_embeddings,
+                labels,
+                loss_mask,
+                attention_mask,
+            )
 
         output, hidden_states = self.language_model(
             input_ids=None,
@@ -251,7 +233,7 @@ class CustomMimoModel(MCoreLLaVAModel):
         device = output_images.device
         image_decoder = self.image_decoder.to(device)
         image_caption_embeddings = self.get_image_caption_embeddings(input_text)  # (bs, 77, 1024)
-       
+
         if new_labels is not None:
             special_token_mask = torch.zeros_like(new_labels, dtype=torch.bool)
             for idx in self.model_config.image_special_token_indices:
@@ -266,7 +248,6 @@ class CustomMimoModel(MCoreLLaVAModel):
             )  # batch_size, no_special_tokens
             special_token_indices = special_token_indices.view(new_labels.size(0), -1)
 
-            
             special_token_mask = special_token_mask.transpose(0, 1).unsqueeze(-1)
             special_token_mask = special_token_mask.expand_as(hidden_states)
             selected_hidden_states = hidden_states[special_token_mask].view(
@@ -278,13 +259,11 @@ class CustomMimoModel(MCoreLLaVAModel):
             )
             special_token_embeddings = special_token_embeddings.transpose(0, 1)  # change to b,s,h
 
-            
             inp_to_vision_projection = selected_hidden_states + special_token_embeddings
-            output_projection_embeddings = self.vision_output_projection_module(
+            output_projection_embeddings = self.image_output_projection_module(
                 inp_to_vision_projection
             )  # (bs, no_special_tokens, 1024)
 
-           
             image_caption_embeddings = image_caption_embeddings.to(
                 output_projection_embeddings.device, dtype=output_projection_embeddings.dtype
             )
@@ -297,7 +276,6 @@ class CustomMimoModel(MCoreLLaVAModel):
                 'image_caption_embeddings': image_caption_embeddings,
                 'hidden_states': hidden_states,
             }
-
 
         latents = image_decoder.to(device).vae.encode(output_images).latent_dist.sample()
         latents = latents * image_decoder.vae.config.scaling_factor
