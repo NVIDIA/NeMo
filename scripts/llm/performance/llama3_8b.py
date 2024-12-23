@@ -32,6 +32,7 @@ CP_SIZE = 2
 VP_SIZE = None
 MAX_STEPS = 100
 
+
 def llama3_8b_performance_recipe(
     log_dir: str,
     compute_dtype: str,
@@ -98,8 +99,8 @@ if __name__ == "__main__":
 
     exp_name = "_".join(
         [
-            f"llama3_8b", 
-            args.compute_dtype, 
+            f"llama3_8b",
+            args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",
             f"{MICRO_BATCH_SIZE}mbs_{GLOBAL_BATCH_SIZE}gbs",
