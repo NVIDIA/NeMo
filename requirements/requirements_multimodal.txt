@@ -13,3 +13,4 @@ taming-transformers
 torchdiffeq
 torchsde
 trimesh
+bitsandbytes==0.45.0
