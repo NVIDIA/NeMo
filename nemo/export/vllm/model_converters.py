@@ -42,7 +42,9 @@ class ModelConverter(ABC):
         pass
 
     @abstractmethod
-    def convert_weights(self, nemo_model_config: dict, state_dict: dict) -> Generator[Tuple[str, torch.tensor], None, None]:
+    def convert_weights(
+        self, nemo_model_config: dict, state_dict: dict
+    ) -> Generator[Tuple[str, torch.tensor], None, None]:
         """
         Returns or yields a sequence of (name, tensor) tuples that contain model weights in the HF format.
         """
