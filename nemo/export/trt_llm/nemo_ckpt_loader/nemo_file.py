@@ -49,6 +49,7 @@ LOGGER = logging.getLogger("NeMo")
 
 EXTRA_STATE = "extra_state"
 
+
 def is_nemo_file(path):
     flag = False
 
@@ -475,9 +476,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
             model = load_sharded_metadata(dist_ckpt_folder)
             if not mcore_scales_format:
-                model.update(
-                    {k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)}
-                )
+                model.update({k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)})
                 model = standarize_distributed_scaling_factors(model)
 
             nemo_model_config = unpacked_checkpoint_dir.model_config

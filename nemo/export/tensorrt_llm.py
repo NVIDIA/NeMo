@@ -32,7 +32,7 @@ from tensorrt_llm._utils import numpy_to_torch
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
-from nemo.export.trt_llm.converter.model_converter import model_to_trtllm_ckpt, determine_quantization_settings
+from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings, model_to_trtllm_ckpt
 from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
     dist_model_to_trt_llm_ckpt,
     get_layer_prefix,
@@ -337,7 +337,9 @@ class TensorRTLLM(ITritonDeployable):
                     from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
                     from tensorrt_llm.layers import MoeConfig
 
-                    share_embeddings_and_output_weights = model_config.get("share_embeddings_and_output_weights", False)
+                    share_embeddings_and_output_weights = model_config.get(
+                        "share_embeddings_and_output_weights", False
+                    )
                     fp8_quantized, fp8_kvcache = determine_quantization_settings(
                         model_config, fp8_quantized, fp8_kvcache
                     )
