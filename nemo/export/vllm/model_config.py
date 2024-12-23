@@ -98,7 +98,7 @@ class NemoModelConfig(ModelConfig):
             self.nemo_model_config: dict = yaml.load(
                 (nemo_checkpoint / "context/model.yaml").open('r'), Loader=yaml.SafeLoader
             )
-            hf_args = self._load_hf_arguments(self.nemo_model_config)
+            hf_args = self._load_hf_arguments(self.nemo_model_config['config'])
             tokenizer = load_context((nemo_checkpoint / "context"), subpath="model.tokenizer")
 
             if hasattr(tokenizer, 'bos_id'):
