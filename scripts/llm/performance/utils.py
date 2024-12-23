@@ -1,13 +1,13 @@
 import argparse
 import os
-from typing import Any, Optional, List
+from typing import Any, List, Optional
 
 import nemo_run as run
-
 from lightning.pytorch.callbacks.callback import Callback
 
-from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
+from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
+
 
 def slurm_executor(
     account: str,
@@ -66,10 +66,11 @@ def slurm_executor(
 
     return executor
 
+
 def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
     """
     AutoTokenizer first searches for tokenizer files locally in env var 'NEMO_HOME'.
-    If tokenizer files are not present locally, AutoTokenizer will try downloading from HuggingFace. 
+    If tokenizer files are not present locally, AutoTokenizer will try downloading from HuggingFace.
     In the case tokenizer needs downloading, make sure env vars- 'TRANSFORMERS_OFFLINE=0' and
     'HF_TOKEN:<token_value>' are set inside NeMo container.
     """
@@ -77,46 +78,53 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         AutoTokenizer,
         pretrained_model_name=model_name,
         use_fast=True,
-        )
+    )
+
 
 def get_comm_overlap_callback_idx(callbacks: List[Callback]):
-    if callbacks: # default is None in lightning
+    if callbacks:  # default is None in lightning
         for idx, callback in enumerate(callbacks):
             if isinstance(callback, MegatronCommOverlapCallback):
                 return idx
     return -1
 
+
 def parse_cli_args():
     parser = argparse.ArgumentParser(description="NeMo2.0 Performance Pretraining and Fine-Tuning")
 
     parser.add_argument(
-        "-a", "--account",
+        "-a",
+        "--account",
         type=str,
         help="Slurm account to use for experiment",
         required=True,
     )
     parser.add_argument(
-        "-p", "--partition",
+        "-p",
+        "--partition",
         type=str,
         help="Slurm partition to use for experiment",
         required=True,
     )
     parser.add_argument(
-        "-l", "--log_dir",
+        "-l",
+        "--log_dir",
         type=str,
         help="Directory for logging experiment results. Defaults to '~/nemo_log_dir'",
         required=False,
         default=os.path.expanduser("~/nemo_log_dir"),
     )
     parser.add_argument(
-        "-t", "--time_limit",
+        "-t",
+        "--time_limit",
         type=str,
         help="Maximum time limit to run experiment for. Defaults to 30 minutes (format- 'HH:MM:SS')",
         required=False,
         default="00:30:00",
     )
     parser.add_argument(
-        "-i", "--container_image",
+        "-i",
+        "--container_image",
         type=str,
         help="NeMo container to use for experiment. Defaults to latest dev container- 'nvcr.io/nvidia/nemo:dev'\
             Make sure your NGC credentials are accessible in your environment.",
@@ -124,14 +132,16 @@ def parse_cli_args():
         default="nvcr.io/nvidia/nemo:dev",
     )
     parser.add_argument(
-        "-c", "--compute_dtype",
+        "-c",
+        "--compute_dtype",
         type=str,
         help="Compute precision. Options- bf16 or fp8. Defaults to bf16",
         required=False,
         default="bf16",
     )
     parser.add_argument(
-        "-d", "--dryrun",
+        "-d",
+        "--dryrun",
         help="If true, prints sbatch script to terminal without launching experiment.",
         required=False,
         action="store_true",
