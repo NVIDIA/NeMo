@@ -111,8 +111,9 @@ def main():
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
         peft=llm.peft.LoRA(
-            target_modules=['*_proj'],
+            target_modules=['q_proj'],
             dim=32,
+            checkpoint_type="huggingface",
         ),
     )
 

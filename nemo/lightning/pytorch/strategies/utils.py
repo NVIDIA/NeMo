@@ -30,7 +30,7 @@ from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh
 
 from nemo.lightning import _strategy_lib
-from nemo.lightning.io.pl import MegatronCheckpointIO
+from nemo.lightning.io.pl import HuggingFaceCheckpointIO, MegatronCheckpointIO
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
@@ -117,7 +117,19 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
 
 
 def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
-    checkpoint_io = MegatronCheckpointIO(**kwargs)
+    checkpoint_type = "megatron"
+    if "checkpoint_type" in kwargs.keys():
+        checkpoint_type = kwargs["checkpoint_type"]
+
+    if checkpoint_type == "huggingface":
+        checkpoint_io = HuggingFaceCheckpointIO(
+            save_ckpt_format='safe_tensor',
+            load_directly_on_device=True,
+            async_save=False,
+        )
+    else:
+        checkpoint_io = MegatronCheckpointIO(**kwargs)
+
     if wrapping_ckpt_io:
         checkpoint_io = wrapping_ckpt_io(checkpoint_io)
     if kwargs.get("async_save", False):
