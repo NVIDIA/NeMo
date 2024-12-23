@@ -39,22 +39,18 @@ class SentencePieceTokenizer:
         legacy: bool = False,
         tokenizer: Optional[sentencepiece.SentencePieceProcessor] = None,
     ):
-        if tokenizer is not None:
-            self.tokenizer = tokenizer
-            self.legacy = False
-            self.special_token_to_id = {}
-            self.id_to_special_token = {}
-            self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
-            self.original_vocab_size = self.tokenizer.get_piece_size()
-            self.vocab_size = self.tokenizer.get_piece_size()
-            return
+        model_path_provided = model_path is not None
+        tokenizer_provided = tokenizer is not None
+        if not (model_path_provided ^ tokenizer_provided):
+            raise ValueError("Exactly only one of the arguments 'model_path', 'tokenizer' should be provided")
 
-        if model_path is None:
-            raise ValueError("Neither tokenizer nor model_path were provided")
-        if not model_path or not os.path.exists(model_path):
-            raise ValueError(f"model_path: {model_path} is invalid")
-        self.tokenizer = sentencepiece.SentencePieceProcessor()
-        self.tokenizer.Load(model_path)
+        if tokenizer_provided:
+            self.tokenizer = tokenizer
+        else:
+            if not model_path or not os.path.exists(model_path):
+                raise ValueError(f"model_path: {model_path} is invalid")
+            self.tokenizer = sentencepiece.SentencePieceProcessor()
+            self.tokenizer.Load(model_path)
 
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()

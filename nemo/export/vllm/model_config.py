@@ -91,22 +91,6 @@ class NemoModelConfig(ModelConfig):
         if self.model_converter is None:
             raise RuntimeError(f'Unknown model type "{model_type}"')
 
-        hf_to_nemo_dict = {
-            'hidden_size': 'hidden_size',
-            'intermediate_size': 'ffn_hidden_size',
-            'num_hidden_layers': 'num_layers',
-            'num_attention_heads': 'num_attention_heads',
-            'num_key_value_heads': 'num_query_groups',
-            # 'hidden_act': 'activation', ## <- vLLM has good defaults for the models, nemo values are wrong
-            'max_position_embeddings': ['max_position_embeddings', 'encoder_seq_length'],
-            'rms_norm_eps': 'layernorm_epsilon',
-            'attention_dropout': 'attention_dropout',
-            'initializer_range': 'init_method_std',
-            'norm_epsilon': 'layernorm_epsilon',
-            'rope_theta': 'rotary_base',
-            'use_bias': ['bias', 'add_bias_linear'],
-        }
-
         if is_nemo2_checkpoint(nemo_checkpoint):
             from nemo.lightning.io import load_context
 
@@ -114,17 +98,7 @@ class NemoModelConfig(ModelConfig):
             self.nemo_model_config: dict = yaml.load(
                 (nemo_checkpoint / "context/model.yaml").open('r'), Loader=yaml.SafeLoader
             )
-            hf_args = {}
-            for hf_arg, nemo_arg in hf_to_nemo_dict.items():
-                if not isinstance(nemo_arg, list):
-                    nemo_arg = [nemo_arg]
-
-                for nemo_arg_option in nemo_arg:
-                    value = self.nemo_model_config['config'].get(nemo_arg_option)
-                    if value is not None:
-                        hf_args[hf_arg] = value
-                        break
-
+            hf_args = self._load_hf_arguments(self.nemo_model_config)
             tokenizer = load_context((nemo_checkpoint / "context"), subpath="model.tokenizer")
 
             if hasattr(tokenizer, 'bos_id'):
@@ -140,18 +114,7 @@ class NemoModelConfig(ModelConfig):
             with TarPath(nemo_checkpoint) as archive:
                 with (archive / "model_config.yaml").open("r") as model_config_file:
                     self.nemo_model_config = yaml.load(model_config_file, Loader=yaml.SafeLoader)
-
-                    hf_args = {}
-                    for hf_arg, nemo_arg in hf_to_nemo_dict.items():
-                        if not isinstance(nemo_arg, list):
-                            nemo_arg = [nemo_arg]
-
-                        for nemo_arg_option in nemo_arg:
-                            value = self.nemo_model_config.get(nemo_arg_option)
-                            if value is not None:
-                                hf_args[hf_arg] = value
-                                break
-
+                    hf_args = self._load_hf_arguments(self.nemo_model_config)
                     self.model_converter.convert_config(self.nemo_model_config, hf_args)
                 self.hf_config = AutoConfig.for_model(model_type, **hf_args)
 
@@ -174,3 +137,36 @@ class NemoModelConfig(ModelConfig):
         self._verify_embedding_mode()
         self._verify_quantization()
         self._verify_cuda_graph()
+
+
+    def _load_hf_arguments(self, nemo_config: dict):
+        """Maps argument names used in NeMo to their corresponding names in HF"""
+
+        hf_to_nemo_dict = {
+            'hidden_size': 'hidden_size',
+            'intermediate_size': 'ffn_hidden_size',
+            'num_hidden_layers': 'num_layers',
+            'num_attention_heads': 'num_attention_heads',
+            'num_key_value_heads': 'num_query_groups',
+            # 'hidden_act': 'activation', ## <- vLLM has good defaults for the models, nemo values are wrong
+            'max_position_embeddings': ['max_position_embeddings', 'encoder_seq_length'],
+            'rms_norm_eps': 'layernorm_epsilon',
+            'attention_dropout': 'attention_dropout',
+            'initializer_range': 'init_method_std',
+            'norm_epsilon': 'layernorm_epsilon',
+            'rope_theta': 'rotary_base',
+            'use_bias': ['bias', 'add_bias_linear'],
+        }
+
+        hf_args = {}
+        for hf_arg, nemo_arg in hf_to_nemo_dict.items():
+            if not isinstance(nemo_arg, list):
+                nemo_arg = [nemo_arg]
+
+            for nemo_arg_option in nemo_arg:
+                value = nemo_config.get(nemo_arg_option)
+                if value is not None:
+                    hf_args[hf_arg] = value
+                    break
+
+        return hf_args
