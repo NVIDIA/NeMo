@@ -81,6 +81,8 @@ from nemo.collections.common.metrics.punct_er import DatasetPunctuationErrorRate
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
+from normalizer.data_utils import normalizer
+
 
 @dataclass
 class EvaluationConfig(transcribe_speech.TranscriptionConfig):
@@ -107,6 +109,8 @@ class EvaluationConfig(transcribe_speech.TranscriptionConfig):
             rm_punctuation=False,
         )
     )
+    
+    normalize: bool = False
 
 
 @hydra_runner(config_name="EvaluationConfig", schema=EvaluationConfig)
@@ -149,10 +153,16 @@ def main(cfg: EvaluationConfig):
             if "pred_text" not in data:
                 invalid_manifest = True
                 break
-
-            ground_truth_text.append(data[cfg.gt_text_attr_name])
-
-            predicted_text.append(data["pred_text"])
+            gt_text = data[cfg.gt_text_attr_name]
+            pred_text = data["pred_text"]
+            
+            if cfg.normalize:
+                gt_text = normalizer(gt_text)
+                pred_text = normalizer(pred_text)
+            
+            ground_truth_text.append(gt_text)
+            
+            predicted_text.append(pred_text)
 
     pc = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
     if cfg.text_processing.separate_punctuation:
