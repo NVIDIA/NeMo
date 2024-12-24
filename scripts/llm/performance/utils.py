@@ -173,6 +173,12 @@ def parse_cli_args():
         default="bf16",
     )
     parser.add_argument(
+        "-ep",
+        "--enable_profiling",
+        help="Enable Nsys profiling. Diabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
         "-d",
         "--dryrun",
         help="If true, prints sbatch script to terminal without launching experiment.",

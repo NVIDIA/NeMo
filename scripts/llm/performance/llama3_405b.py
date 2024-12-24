@@ -104,7 +104,11 @@ def llama3_405b_performance_recipe(
     recipe.trainer.enable_checkpointing = False
     recipe.trainer.val_check_interval = MAX_STEPS
     recipe.trainer.log_every_n_steps = 1
-    recipe.log.tensorboard = None  # tensorboard logging adds performance overhead
+
+    # tensorboard adds performance overhead. Comment the following line to enable tensorboard logger defined in
+    # nemo.collections.llm.recipes.log.default.tensorboard_logger-
+    # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/log/default.py
+    recipe.log.tensorboard = None
 
     return recipe
 
@@ -149,15 +153,16 @@ if __name__ == "__main__":
         MAX_STEPS,
     )
 
+    plugins = [PerfEnvPlugin(enable_vboost=True)]
+    if args.enable_profiling:
+        plugins.append(NsysPlugin(start_step=5, end_step=6))
+
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,
             executor=executor,
             name=exp_name,
-            plugins=[
-                PerfEnvPlugin(enable_vboost=True),
-                NsysPlugin(start_step=5, end_step=6),
-            ],
+            plugins=plugins,
         )
 
         if not args.dryrun:
