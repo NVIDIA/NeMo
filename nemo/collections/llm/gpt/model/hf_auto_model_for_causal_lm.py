@@ -99,7 +99,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def forward(self, batch):
         return self.model(**batch)
 
-    def training_step(self, batch):
+    def training_step(self, batch, batch_idx=None):
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
