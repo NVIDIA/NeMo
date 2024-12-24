@@ -23,7 +23,7 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.parts.ngram_lm import FastNGramLM, KenLMWrapper
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
@@ -212,6 +212,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
     full_graph: Optional[torch.cuda.CUDAGraph]
     cuda_graphs_mode: Optional[CudaGraphsMode]
     state: Optional[LoopLabelsState]
+    ngram_lm_batch: Optional[FastNGramLM]
 
     def __init__(
         self,
@@ -268,7 +269,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
 
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
-            self.ngram_lm_batch = FastNGramLM(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+            self.ngram_lm_batch = FastNGramLM.from_arpa(lm_path=ngram_lm_model, vocab_size=self._blank_index)
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
@@ -397,7 +398,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         became_inactive_mask = torch.empty_like(active_mask)
 
         if self.ngram_lm_batch is not None:
-            # batch_lm_states = [self.ngram_lm_batch.get_bos_state() for _ in range(batch_size)]
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
 
         # loop while there are active utterances
@@ -421,7 +421,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             )
             scores, labels = logits[:, :-num_durations].max(dim=-1)
             if self.ngram_lm_batch is not None:
-                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
+                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
                     states=batch_lm_states
                 )  # vocab_size_no_blank
                 lm_scores = lm_scores.to(dtype=float_dtype)
@@ -899,7 +899,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
 
         # get lm scores/states
         if self.ngram_lm_batch is not None:
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch(
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
                 states=self.state.batch_lm_states
             )  # vocab_size_no_blank
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
