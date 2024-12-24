@@ -362,10 +362,17 @@ class HuggingFaceCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if self.lora:
             from safetensors.torch import save_file
 
+            state_dict = {}
+            for module_name, module_weight in checkpoint["state_dict"].items():
+                new_module_name = module_name.replace("model.model", "base_model.model")
+                new_module_name = new_module_name.replace("lora_a", "lora_A.weight").replace("lora_b", "lora_B.weight")
+                # print(new_module_name)
+                state_dict[new_module_name] = module_weight
+
             checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
             fs = get_filesystem(checkpoint_dir)
             fs.makedirs(checkpoint_dir, exist_ok=True)
-            save_file(checkpoint["state_dict"], checkpoint_dir / "adapter_model.safetensors")
+            save_file(state_dict, checkpoint_dir / "adapter_model.safetensors")
 
     @override
     def load_checkpoint(

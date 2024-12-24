@@ -411,7 +411,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
             if isinstance(self.checkpoint_io, HuggingFaceCheckpointIO):
                 metadata = self._create_lora_hf_config()
-                adapter_meta_path = base_dir / "adapter_config"
+                adapter_meta_path = base_dir / "adapter_config.json"
             else:
                 metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
                 adapter_meta_path = base_dir / ADAPTER_META_FILENAME

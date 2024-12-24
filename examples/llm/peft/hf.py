@@ -14,8 +14,10 @@
 
 import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
+
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
@@ -69,6 +71,7 @@ def main():
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--use-torch-jit', action='store_true')
+    parser.add_argument('--checkpoint-folder', type=str, default=None)
     args = parser.parse_args()
 
     wandb = None
@@ -84,6 +87,12 @@ def main():
         # https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     use_dist_samp = False
+
+    if args.checkpoint_folder is None:
+        import tempfile
+        args.checkpoint_folder = tempfile.TemporaryDirectory().name
+        print("Temp directory created: ", args.checkpoint_folder)
+
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
 
     callbacks = []
@@ -109,10 +118,10 @@ def main():
             callbacks=callbacks,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-        log=None,
+        log=NeMoLogger(log_dir=args.checkpoint_folder, use_datetime_version=False),
         peft=llm.peft.LoRA(
-            target_modules=['q_proj'],
-            dim=32,
+            target_modules=['*_proj'],
+            dim=8,
         ),
     )
 
