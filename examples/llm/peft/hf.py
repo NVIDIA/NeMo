@@ -90,6 +90,7 @@ def main():
 
     if args.checkpoint_folder is None:
         import tempfile
+
         args.checkpoint_folder = tempfile.TemporaryDirectory().name
         print("Temp directory created: ", args.checkpoint_folder)
 
