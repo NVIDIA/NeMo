@@ -14,7 +14,7 @@
 
 import argparse
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
@@ -31,8 +31,9 @@ def slurm_executor(
     num_gpus_per_node: int,
     time_limit: str = "01:00:00",
     container_image: str = "nvcr.io/nvidia/nemo:dev",
-    custom_mounts: Optional[list[str]] = None,
-    custom_env_vars: Optional[dict[str, str]] = None,
+    custom_mounts: Optional[List[str]] = None,
+    custom_env_vars: Optional[Dict[str, str]] = None,
+    custom_srun_args: Optional[List[str]] = None,
     retries: int = 0,
 ) -> run.SlurmExecutor:
     """
@@ -58,9 +59,14 @@ def slurm_executor(
         "NVTE_ASYNC_AMAX_REDUCTION": "1",
         "NVTE_FUSED_ATTN": "1",
         "NVTE_FLASH_ATTN": "0",
+        "NEMO_LOG_MEMORY_USAGE": "1",
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
+
+    srun_args=["--mpi=pmix"]
+    if custom_srun_args:
+        srun_args.extend(custom_srun_args)
 
     executor = run.SlurmExecutor(
         account=account,
@@ -78,6 +84,7 @@ def slurm_executor(
     executor.container_image = container_image
     executor.container_mounts = mounts
     executor.env_vars = env_vars
+    executor.srun_args = srun_args
     executor.retries = retries
     executor.time = time_limit
 
@@ -112,6 +119,10 @@ def get_comm_overlap_callback_idx(callbacks: List[Callback]):
 
 
 def parse_cli_args():
+    """
+    Command line arguments correspong to Slurm cluster and NeMo2.0 for running pre-training and 
+    fine-tuning experiments.
+    """
     parser = argparse.ArgumentParser(description="NeMo2.0 Performance Pretraining and Fine-Tuning")
 
     parser.add_argument(

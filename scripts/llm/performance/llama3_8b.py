@@ -96,10 +96,12 @@ def llama3_8b_performance_recipe(
         if comm_overlap_callback_idx >= 0:
             recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = True
 
+    # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
     recipe.trainer.enable_checkpointing = False
     recipe.trainer.val_check_interval = MAX_STEPS
     recipe.trainer.log_every_n_steps = 1
+    recipe.log.tensorboard = None # tensorboard logging adds performance overhead
 
     return recipe
 
