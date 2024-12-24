@@ -514,13 +514,12 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             for i in range(0, len(cut.supervisions), 2):
                 supervisions = cut.supervisions[i : i + 2]
                 # TODO: the following use of _process_example is not ideal. Should update
-                if supervisions[0].speaker == "user":
-                    instruction = self.text_processor._process_example(context=supervisions[0].text, output="")
-                    instruction, instruction_length = torch.as_tensor(instruction["input_ids"][:-1]), torch.as_tensor(
-                        len(instruction["input_ids"]) - 1
-                    )
-                else:
-                    raise Exception("First speaker should be user")
+                if supervisions[0].speaker != "user":
+                    logging.info(f"First speaker should be user {cut}")
+                instruction = self.text_processor._process_example(context=supervisions[0].text, output="")
+                instruction, instruction_length = torch.as_tensor(instruction["input_ids"][:-1]), torch.as_tensor(
+                    len(instruction["input_ids"]) - 1
+                )
 
                 if supervisions[1].speaker == "agent":
                     use_timestamp = getattr(cut, "s2s_align", False)
