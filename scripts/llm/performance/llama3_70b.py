@@ -104,7 +104,7 @@ def llama3_70b_performance_recipe(
     recipe.trainer.enable_checkpointing = False
     recipe.trainer.val_check_interval = MAX_STEPS
     recipe.trainer.log_every_n_steps = 1
-    recipe.log.tensorboard = None # tensorboard logging adds performance overhead
+    recipe.log.tensorboard = None  # tensorboard logging adds performance overhead
 
     return recipe
 

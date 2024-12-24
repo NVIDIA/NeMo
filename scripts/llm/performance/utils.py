@@ -14,7 +14,7 @@
 
 import argparse
 import os
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
@@ -64,7 +64,7 @@ def slurm_executor(
     if custom_env_vars:
         env_vars |= custom_env_vars
 
-    srun_args=["--mpi=pmix"]
+    srun_args = ["--mpi=pmix"]
     if custom_srun_args:
         srun_args.extend(custom_srun_args)
 
@@ -120,7 +120,7 @@ def get_comm_overlap_callback_idx(callbacks: List[Callback]):
 
 def parse_cli_args():
     """
-    Command line arguments correspong to Slurm cluster and NeMo2.0 for running pre-training and 
+    Command line arguments correspong to Slurm cluster and NeMo2.0 for running pre-training and
     fine-tuning experiments.
     """
     parser = argparse.ArgumentParser(description="NeMo2.0 Performance Pretraining and Fine-Tuning")
