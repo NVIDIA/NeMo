@@ -276,6 +276,14 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     @classmethod
+    def batch_rearrange_states(
+        cls,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        indices: torch.Tensor,
+    ):
+        raise NotImplementedError()
+
+    @classmethod
     def batch_replace_states_mask(
         cls,
         src_states: list[torch.Tensor],
