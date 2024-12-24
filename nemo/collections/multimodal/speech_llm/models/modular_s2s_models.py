@@ -524,73 +524,71 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 deduplicated_outputs['metadata'].append(metadata)
                 deduplicated_outputs['batch_idx'].append(batch_idx)
 
-                # Compute metric score
-                metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-                metric = self.val_metric if mode == 'validation' else self.test_metric
-                averaged_metric = [[] for _ in range(len(metric_name))]
-                output_dir = data_cfg.get("output_dir", "./")
-                run_codec = any(("asr" in metric_name or "mos" in metric_name) for metric_name in metric_name)
-                run_asr = any("asr" in metric_name for metric_name in metric_name)
-                run_mos = any("mos" in metric_name for metric_name in metric_name)
+        # Compute metric score
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        metric = self.val_metric if mode == 'validation' else self.test_metric
+        averaged_metric = [[] for _ in range(len(metric_name))]
+        output_dir = data_cfg.get("output_dir", "./")
+        run_codec = any(("asr" in metric_name or "mos" in metric_name) for metric_name in metric_name)
+        run_asr = any("asr" in metric_name for metric_name in metric_name)
+        run_mos = any("mos" in metric_name for metric_name in metric_name)
 
-                # TODO: move the following model init code to init() function
-                if run_codec:
-                    self.additional_models['codec_model'] = self.codec_model
-                    assert 'codec_model' in self.additional_models
-                    codec_model = self.additional_models['codec_model']
-                    codec_model.to(self.device)
-                    codec_model.eval()
+        # TODO: move the following model init code to init() function
+        if run_codec:
+            self.additional_models['codec_model'] = self.codec_model
+            assert 'codec_model' in self.additional_models
+            codec_model = self.additional_models['codec_model']
+            codec_model.to(self.device)
+            codec_model.eval()
 
-                    with torch.no_grad():
-                        logging.info(f"Decoding and saving audio")
-                        pred_wavs = self.decode_and_save_wavs(
-                            codec_model,
-                            deduplicated_outputs['speech_preds'],
-                            os.path.join(output_dir, "wav", "pred"),
-                            deduplicated_outputs['metadata'],
-                        )
-                        answer_wavs = self.decode_and_save_wavs(
-                            codec_model,
-                            deduplicated_outputs['speech_answers'],
-                            os.path.join(output_dir, "wav", "answer"),
-                            deduplicated_outputs['metadata'],
-                        )
+            with torch.no_grad():
+                logging.info(f"Decoding and saving audio")
+                pred_wavs = self.decode_and_save_wavs(
+                    codec_model,
+                    deduplicated_outputs['speech_preds'],
+                    os.path.join(output_dir, "wav", "pred"),
+                    deduplicated_outputs['metadata'],
+                )
+                answer_wavs = self.decode_and_save_wavs(
+                    codec_model,
+                    deduplicated_outputs['speech_answers'],
+                    os.path.join(output_dir, "wav", "answer"),
+                    deduplicated_outputs['metadata'],
+                )
 
-                if run_asr:
-                    self.additional_models['asr_model'] = self.asr_model
-                    assert 'asr_model' in self.additional_models
-                    asr_model = self.additional_models['asr_model']
+        if run_asr:
+            self.additional_models['asr_model'] = self.asr_model
+            assert 'asr_model' in self.additional_models
+            asr_model = self.additional_models['asr_model']
 
-                    with torch.no_grad():
-                        logging.info(f"Running ASR on speech preds")
-                        asr_batch_size = min(64, len(pred_wavs))
-                        speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)
-                        speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)
-                        deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
-                        deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
+            with torch.no_grad():
+                logging.info(f"Running ASR on speech preds")
+                asr_batch_size = min(64, len(pred_wavs))
+                speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)
+                speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)
+                deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
+                deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
 
-                if run_mos:
-                    self.additional_models['squim_mos_model'] = self.mos_model
-                    assert 'squim_mos_model' in self.additional_models
-                    squim_mos_model = self.additional_models['squim_mos_model']
-                    codec_sample_rate = self.codec_sample_rate
+        if run_mos:
+            self.additional_models['squim_mos_model'] = self.mos_model
+            assert 'squim_mos_model' in self.additional_models
+            squim_mos_model = self.additional_models['squim_mos_model']
+            codec_sample_rate = self.codec_sample_rate
 
-                    with torch.no_grad():
-                        logging.info(f"Running MOS prediction")
+            with torch.no_grad():
+                logging.info(f"Running MOS prediction")
 
-                        pred_wavs_resampled = [
-                            torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0)
-                            for wav in pred_wavs
-                        ]
-                        answer_wavs_resampled = [
-                            torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0)
-                            for wav in answer_wavs
-                        ]
-                        squim_mos_scores = [
-                            squim_mos_model(pred_wav, answer_wav)
-                            for pred_wav, answer_wav in zip(pred_wavs_resampled, answer_wavs_resampled)
-                        ]
-                        deduplicated_outputs['mos_scores'] = squim_mos_scores
+                pred_wavs_resampled = [
+                    torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0) for wav in pred_wavs
+                ]
+                answer_wavs_resampled = [
+                    torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0) for wav in answer_wavs
+                ]
+                squim_mos_scores = [
+                    squim_mos_model(pred_wav, answer_wav)
+                    for pred_wav, answer_wav in zip(pred_wavs_resampled, answer_wavs_resampled)
+                ]
+                deduplicated_outputs['mos_scores'] = squim_mos_scores
         return deduplicated_outputs
 
     def parse_decoder_outputs(
