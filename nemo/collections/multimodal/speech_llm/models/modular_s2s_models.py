@@ -1,3 +1,4 @@
+import copy
 import itertools
 import json
 import math
@@ -466,6 +467,132 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 self.test_step_outputs[-1] = outputs
         return outputs
 
+    def post_inference_step(self, list_outputs, mode, data_cfg):
+        deduplicated_outputs = {
+            'preds': [],
+            'labels': [],
+            'inputs': [],
+            'metadata': [],
+            'speech_preds': [],
+            'speech_answers': [],
+            'text_answers': [],
+            'batch_idx': [],
+        }
+        for outputs in list_outputs:
+            for answer, pred, input, metadata, labels_text, pred_context_length in zip(
+                outputs['labels'],
+                outputs['preds'],
+                outputs['inputs'],
+                outputs['metadata'],
+                outputs['labels_text'],
+                outputs['context_lengths'],
+            ):
+                context_length = 0
+                batch_idx = outputs['batch_idx']
+                text_answer, speech_answer = self.parse_decoder_outputs(
+                    answer,
+                    self.tokenizer.eos_id,
+                    context_length,
+                    self.cfg.data.train_ds.speech_pad_id,
+                    self.cfg.data.train_ds.speech_eos_id,
+                )
+                key = input + self.tokenizer.ids_to_text(text_answer) + str(metadata)
+
+                text_pred, speech_pred = self.parse_decoder_outputs(
+                    torch.Tensor(pred),
+                    self.tokenizer.eos_id,
+                    pred_context_length,
+                    self.cfg.data.train_ds.speech_pad_id,
+                    self.cfg.data.train_ds.speech_eos_id,
+                )
+
+                def normalize_text(text):
+                    return text.strip().replace('⁇', '')
+
+                # TODO
+                if speech_answer == None:
+                    speech_answer = torch.zeros_like(speech_pred)
+                text_pred_text = self.tokenizer.ids_to_text(text_pred)
+                deduplicated_outputs['preds'].append(normalize_text(text_pred_text))
+                deduplicated_outputs['labels'].append(normalize_text(labels_text))
+                text_answer_text = self.tokenizer.ids_to_text(text_answer)
+                deduplicated_outputs['text_answers'].append(normalize_text(text_answer_text))
+                deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
+                deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
+
+                deduplicated_outputs['inputs'].append(input)
+                deduplicated_outputs['metadata'].append(metadata)
+                deduplicated_outputs['batch_idx'].append(batch_idx)
+
+                # Compute metric score
+                metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+                metric = self.val_metric if mode == 'validation' else self.test_metric
+                averaged_metric = [[] for _ in range(len(metric_name))]
+                output_dir = data_cfg.get("output_dir", "./")
+                run_codec = any(("asr" in metric_name or "mos" in metric_name) for metric_name in metric_name)
+                run_asr = any("asr" in metric_name for metric_name in metric_name)
+                run_mos = any("mos" in metric_name for metric_name in metric_name)
+
+                # TODO: move the following model init code to init() function
+                if run_codec:
+                    self.additional_models['codec_model'] = self.codec_model
+                    assert 'codec_model' in self.additional_models
+                    codec_model = self.additional_models['codec_model']
+                    codec_model.to(self.device)
+                    codec_model.eval()
+
+                    with torch.no_grad():
+                        logging.info(f"Decoding and saving audio")
+                        pred_wavs = self.decode_and_save_wavs(
+                            codec_model,
+                            deduplicated_outputs['speech_preds'],
+                            os.path.join(output_dir, "wav", "pred"),
+                            deduplicated_outputs['metadata'],
+                        )
+                        answer_wavs = self.decode_and_save_wavs(
+                            codec_model,
+                            deduplicated_outputs['speech_answers'],
+                            os.path.join(output_dir, "wav", "answer"),
+                            deduplicated_outputs['metadata'],
+                        )
+
+                if run_asr:
+                    self.additional_models['asr_model'] = self.asr_model
+                    assert 'asr_model' in self.additional_models
+                    asr_model = self.additional_models['asr_model']
+
+                    with torch.no_grad():
+                        logging.info(f"Running ASR on speech preds")
+                        asr_batch_size = min(64, len(pred_wavs))
+                        speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)
+                        speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)
+                        deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
+                        deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
+
+                if run_mos:
+                    self.additional_models['squim_mos_model'] = self.mos_model
+                    assert 'squim_mos_model' in self.additional_models
+                    squim_mos_model = self.additional_models['squim_mos_model']
+                    codec_sample_rate = self.codec_sample_rate
+
+                    with torch.no_grad():
+                        logging.info(f"Running MOS prediction")
+
+                        pred_wavs_resampled = [
+                            torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0)
+                            for wav in pred_wavs
+                        ]
+                        answer_wavs_resampled = [
+                            torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0)
+                            for wav in answer_wavs
+                        ]
+                        squim_mos_scores = [
+                            squim_mos_model(pred_wav, answer_wav)
+                            for pred_wav, answer_wav in zip(pred_wavs_resampled, answer_wavs_resampled)
+                        ]
+                        deduplicated_outputs['mos_scores'] = squim_mos_scores
+        return deduplicated_outputs
+
     def parse_decoder_outputs(
         self, input_decoder_output, text_separator, context_length, speech_pad_id=1001, speech_eos_id=1004
     ):
@@ -573,152 +700,32 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             self.log(loss_log_key, loss, batch_size=1)
             averaged_loss.append(loss)
 
+            output = self.post_inference_step(output, mode, data_cfg)
+
             # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
             gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
             torch.distributed.all_gather_object(
                 gathered_outputs,
-                [
-                    {
-                        'preds': x['preds'],
-                        'labels': x['labels'],
-                        'inputs': x['inputs'],
-                        'metadata': x['metadata'],
-                        'context_lengths': x['context_lengths'],
-                        'batch_idx': x['batch_idx'],
-                        'labels_text': x['labels_text'],
-                    }
-                    for x in output
-                ],
+                output,
                 group=parallel_state.get_data_parallel_group(),
             )
 
             # Remove duplicate examples due to distributed sampler.
             inp_label_set = set()
-            deduplicated_outputs = {
-                'preds': [],
-                'labels': [],
-                'inputs': [],
-                'metadata': [],
-                'speech_preds': [],
-                'speech_answers': [],
-                'text_answers': [],
-                'batch_idx': [],
-            }
+
+            deduplicated_outputs = {}
             total_size = 0
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
-                for batch in gathered_outputs[rank]:
-                    for pred, answer, input, metadata, pred_context_length, labels_text in zip(
-                        batch['preds'],
-                        batch['labels'],
-                        batch['inputs'],
-                        batch['metadata'],
-                        batch['context_lengths'],
-                        batch['labels_text'],
-                    ):
-                        context_length = len(self.tokenizer.text_to_ids(input))
-                        text_answer, speech_answer = self.parse_decoder_outputs(
-                            answer,
-                            self.tokenizer.eos_id,
-                            context_length,
-                            self.cfg.data.train_ds.speech_pad_id,
-                            self.cfg.data.train_ds.speech_eos_id,
-                        )
-                        key = input + self.tokenizer.ids_to_text(text_answer) + str(metadata)
-                        total_size += 1
-                        if key not in inp_label_set:
-                            inp_label_set.add(key)
-
-                            text_pred, speech_pred = self.parse_decoder_outputs(
-                                torch.Tensor(pred),
-                                self.tokenizer.eos_id,
-                                pred_context_length,
-                                self.cfg.data.train_ds.speech_pad_id,
-                                self.cfg.data.train_ds.speech_eos_id,
-                            )
-
-                            def normalize_text(text):
-                                return text.strip().replace('⁇', '')
-
-                            if speech_answer == None:
-                                speech_answer = torch.zeros_like(speech_pred)
-                            text_pred_text = self.tokenizer.ids_to_text(text_pred)
-                            deduplicated_outputs['preds'].append(normalize_text(text_pred_text))
-                            deduplicated_outputs['labels'].append(normalize_text(labels_text))
-                            text_answer_text = self.tokenizer.ids_to_text(text_answer)
-                            deduplicated_outputs['text_answers'].append(normalize_text(text_answer_text))
-                            deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
-                            deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
-
-                            deduplicated_outputs['inputs'].append(input)
-                            deduplicated_outputs['metadata'].append(metadata)
-                            deduplicated_outputs['batch_idx'].append(batch['batch_idx'])
+                for k, v in gathered_outputs[rank].items():
+                    # TODO: add deduplication
+                    if k not in deduplicated_outputs:
+                        deduplicated_outputs[k] = []
+                    deduplicated_outputs[k].extend(v)  # use extend for the b dim
 
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
             metric = self.val_metric if mode == 'validation' else self.test_metric
             averaged_metric = [[] for _ in range(len(metric_name))]
-            output_dir = data_cfg.get("output_dir", "./")
-            run_codec = any(("asr" in metric_name or "mos" in metric_name) for metric_name in metric_name)
-            run_asr = any("asr" in metric_name for metric_name in metric_name)
-            run_mos = any("mos" in metric_name for metric_name in metric_name)
-
-            # TODO: move the following model init code to init() function
-            if run_codec:
-                self.additional_models['codec_model'] = self.codec_model
-                assert 'codec_model' in self.additional_models
-                codec_model = self.additional_models['codec_model']
-                codec_model.to(self.device)
-                codec_model.eval()
-
-                with torch.no_grad():
-                    logging.info(f"Decoding and saving audio")
-                    pred_wavs = self.decode_and_save_wavs(
-                        codec_model,
-                        deduplicated_outputs['speech_preds'],
-                        os.path.join(output_dir, "wav", "pred"),
-                        deduplicated_outputs['metadata'],
-                    )
-                    answer_wavs = self.decode_and_save_wavs(
-                        codec_model,
-                        deduplicated_outputs['speech_answers'],
-                        os.path.join(output_dir, "wav", "answer"),
-                        deduplicated_outputs['metadata'],
-                    )
-
-            if run_asr:
-                self.additional_models['asr_model'] = self.asr_model
-                assert 'asr_model' in self.additional_models
-                asr_model = self.additional_models['asr_model']
-
-                with torch.no_grad():
-                    logging.info(f"Running ASR on speech preds")
-                    asr_batch_size = min(64, len(pred_wavs))
-                    speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)
-                    speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)
-                    deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
-                    deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
-
-            if run_mos:
-                self.additional_models['squim_mos_model'] = self.mos_model
-                assert 'squim_mos_model' in self.additional_models
-                squim_mos_model = self.additional_models['squim_mos_model']
-                codec_sample_rate = self.codec_sample_rate
-
-                with torch.no_grad():
-                    logging.info(f"Running MOS prediction")
-
-                    pred_wavs_resampled = [
-                        torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0) for wav in pred_wavs
-                    ]
-                    answer_wavs_resampled = [
-                        torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0)
-                        for wav in answer_wavs
-                    ]
-                    squim_mos_scores = [
-                        squim_mos_model(pred_wav, answer_wav)
-                        for pred_wav, answer_wav in zip(pred_wavs_resampled, answer_wavs_resampled)
-                    ]
-                    deduplicated_outputs['mos_scores'] = squim_mos_scores
 
             if self.global_rank == 0:
                 for (
