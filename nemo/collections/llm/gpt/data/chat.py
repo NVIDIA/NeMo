@@ -37,7 +37,7 @@ class ChatDataModule(FineTuningDataModule):
             seed=self.seed,
             chat=True,
             is_test=is_test,
-            pack_metadata_file_path=None, # packing is not supported
+            pack_metadata_file_path=None,  # packing is not supported
             pad_cu_seqlens=False,
             **kwargs,
         )
