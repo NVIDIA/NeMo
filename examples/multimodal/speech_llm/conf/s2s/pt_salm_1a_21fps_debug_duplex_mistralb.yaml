@@ -2090,7 +2090,7 @@ model:
       duration_bins: null
 
     validation_ds:
-      names: s2st
+      names: ['Mixtral', 'roleplay', 'suno_20k']
       input_cfg:
         - type: group
           weight: 1.0

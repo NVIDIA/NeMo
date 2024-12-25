@@ -214,6 +214,21 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         text_start_time = []
         text_end_time = []
         skipped_source = 0
+        processed_cuts = []
+        for cut in cuts:
+            is_valid = True
+            for id, sup in enumerate(cut.supervisions):
+                if id % 2 == 0:
+                    if sup.speaker.lower() != "user":
+                        is_valid = False
+                else:
+                    if sup.speaker.lower() != "agent" and sup.speaker.lower() != "assistant":
+                        is_valid = False
+            if is_valid:
+                processed_cuts.append(cut)
+            else:
+                logging.info(f"Skipping cut {cut}")
+        cuts = CutSet(cuts=processed_cuts)
         for id, cut in enumerate(cuts):
 
             def validate_time(input_time):
@@ -272,7 +287,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                         target_text, start_time_token, word_length = self._extract_text_and_time_tokens(text)
                         target_text_length = len(target_text)
                 else:
-                    raise Exception("Second speaker should be agent")
+                    raise Exception(f"Second speaker should be agent {cut}")
 
                 instructions.append(instruction)
                 instruction_lengths.append(instruction_length)
