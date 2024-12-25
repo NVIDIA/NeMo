@@ -48,6 +48,7 @@ from typing import Optional, Tuple
 import librosa
 import matplotlib.pylab as plt
 import numpy as np
+import seaborn as sns
 import torch
 from einops import rearrange
 from numba import jit, prange
@@ -468,6 +469,74 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
     return data
 
 
+def plot_alignment_to_numpy_for_speechllm(
+    alignment,
+    title='',
+    info=None,
+    phoneme_seq=None,
+    vmin=None,
+    vmax=None,
+    phoneme_ver=0,
+    phone_offset=2,
+    h_offset=True,
+):
+    alignment = np.clip(alignment, a_min=0, a_max=None)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
+    ax.set_title(title)
+    fig.colorbar(im, ax=ax)
+    xlabel = 'Decoder timestep'
+    if info is not None:
+        xlabel += '\n\n' + info
+    plt.xlabel(xlabel)
+    plt.ylabel('Encoder timestep')
+
+    if phoneme_seq is not None:
+        if phoneme_ver == 0:
+            # for debugging of phonemes and durs in maps. Not used by def in training code
+            ax.set_yticks(np.arange(len(phoneme_seq)))
+            ax.set_yticklabels(phoneme_seq)
+            ax.hlines(np.arange(len(phoneme_seq)), xmin=0.0, xmax=max(ax.get_xticks()))
+        elif phoneme_ver == 1:
+            yticks = ax.get_yticks()
+            new_yticks = []
+            for tick in yticks:
+                if tick < 0 or tick > alignment.shape[0]:
+                    continue
+                new_yticks.append(tick)
+            new_yticks += phoneme_seq
+            ax.set_yticks(new_yticks)
+        elif phoneme_ver == 2:
+            phones = phoneme_seq[phone_offset:]
+            ax.set_yticks(np.arange(len(phones)))
+            ax.set_yticklabels(phones)
+            ax.hlines(np.arange(0.5, len(phones) - 0.5, 1.0), xmin=0.0, xmax=alignment.shape[1] - 0.5, colors="black")
+
+            if h_offset:
+                xticks = ax.get_xticks()
+                new_xticks = []
+                for tick in xticks:
+                    new_xticks.append(f"{tick+phoneme_seq[1]:.0f}")
+                ax.set_xticklabels(new_xticks)
+
+    plt.tight_layout()
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
+def plot_codec_to_numpy(codes, title=''):
+    fig, ax = plt.subplots(figsize=(10, 3))
+    sns.heatmap(codes, ax=ax)
+
+    plt.tight_layout()
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
 def plot_pitch_to_numpy(pitch, ylim_range=None):
     fig, ax = plt.subplots(figsize=(12, 3))
     plt.plot(pitch)
@@ -785,6 +854,30 @@ def to_device_recursive(e, device: torch.device):
         return e.to(device)
     else:
         return e
+
+
+def mask_sequence_tensor(tensor: torch.Tensor, lengths: torch.Tensor):
+    """
+    For tensors containing sequences, zero out out-of-bound elements given lengths of every element in the batch.
+
+    tensor: tensor of shape (B, D, L) or (B, D1, D2, L),
+    lengths: LongTensor of shape (B,)
+    """
+    batch_size, *_, max_lengths = tensor.shape
+
+    if len(tensor.shape) == 2:
+        mask = torch.ones(batch_size, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= rearrange(lengths, "b -> b 1")
+    elif len(tensor.shape) == 3:
+        mask = torch.ones(batch_size, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= rearrange(lengths, "b -> b 1 1")
+    elif len(tensor.shape) == 4:
+        mask = torch.ones(batch_size, 1, 1, max_lengths).cumsum(dim=-1).type_as(lengths)
+        mask = mask <= rearrange(lengths, "b -> b 1 1 1")
+    else:
+        raise ValueError("Can only mask tensors of shape B x D x L and B x D1 x D2 x L")
+
+    return tensor * mask
 
 
 @torch.jit.script
