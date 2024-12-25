@@ -90,6 +90,7 @@ def main():
     use_dist_samp = False
 
     import tempfile
+
     if args.ckpt_folder is None:
         args.ckpt_folder = tempfile.TemporaryDirectory().name
         print("Temp directory created for base model: ", args.ckpt_folder)
@@ -124,7 +125,7 @@ def main():
             target_modules=['*_proj'],
             dim=8,
         ),
-        #resume=AutoResume(restore_config=RestoreConfig(path=args.ckpt_folder, adapter_path=args.ckpt_folder, load_model_state=False)),
+        # resume=AutoResume(restore_config=RestoreConfig(path=args.ckpt_folder, adapter_path=args.ckpt_folder, load_model_state=False)),
     )
 
 
