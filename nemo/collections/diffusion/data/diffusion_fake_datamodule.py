@@ -263,6 +263,7 @@ class VideoLatentFakeDataModule(pl.LightningDataModule):
             **kwargs,
         )
 
+
 class STVideoLatentFakeDataModule(VideoLatentFakeDataModule):
     def __init__(
         self,
@@ -272,8 +273,8 @@ class STVideoLatentFakeDataModule(VideoLatentFakeDataModule):
         global_batch_size: int = 8,
         num_workers: int = 1,
         pin_memory: bool = True,
-        task_encoder = None,
-        use_train_split_for_val: bool = False,            
+        task_encoder=None,
+        use_train_split_for_val: bool = False,
     ):
 
         super().__init__(

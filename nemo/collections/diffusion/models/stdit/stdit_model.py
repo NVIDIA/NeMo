@@ -4,19 +4,18 @@ from typing import Dict, Literal, Optional
 import numpy as np
 import torch
 import torch.nn as nn
-from torch import Tensor
 from einops import rearrange
-
-from megatron.core.transformer.enums import ModelType
 from megatron.core import InferenceParams, mpu, parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import make_sharded_tensor_for_checkpoint
+from torch import Tensor
 
 from nemo.collections.diffusion.models.stdit.stdit_embeddings import (
     CaptionEmbedder,
@@ -28,7 +27,9 @@ from nemo.collections.diffusion.models.stdit.stdit_embeddings import (
     TimestepEmbedder,
     approx_gelu,
 )
-from nemo.collections.diffusion.models.stdit.stdit_layer_spec import get_stdit_analn_block_with_transformer_engine_spec as STDiTLayerWithAdaLNspec
+from nemo.collections.diffusion.models.stdit.stdit_layer_spec import (
+    get_stdit_analn_block_with_transformer_engine_spec as STDiTLayerWithAdaLNspec,
+)
 
 
 class STDiTModel(VisionModule):
@@ -116,7 +117,7 @@ class STDiTModel(VisionModule):
         self.config.crossattn_emb_size = crossattn_emb_size
 
         # mcore pipeline scheduler need model_type attribute set
-        self.model_type = ModelType.encoder_or_decoder   
+        self.model_type = ModelType.encoder_or_decoder
 
         # ============================
         # config change in decoder part
@@ -377,17 +378,17 @@ class STDiTModel(VisionModule):
             timestep_emb(torch.Tensor) : output_tensor for decoder
 
         """
-        t = self.t_embedder(timesteps, dtype=type)              # t shape : [Batch, Dim]
-        fps = self.fps_embedder(fps, batch)                     # fps shape : [Batch, Dim]
-        t = t + fps                                             # t shape : [Batch, Dim]
-        timestep_emb = self.t_block(t)                          # timestep_emb shape : [Batch, chunk_size * Dim]
+        t = self.t_embedder(timesteps, dtype=type)  # t shape : [Batch, Dim]
+        fps = self.fps_embedder(fps, batch)  # fps shape : [Batch, Dim]
+        t = t + fps  # t shape : [Batch, Dim]
+        timestep_emb = self.t_block(t)  # timestep_emb shape : [Batch, chunk_size * Dim]
         return timestep_emb, t
 
     def encode_text(self, y, mask=None, qkv_format='sbhd'):
         """
         encode_text if skip_y_embedder is false
         """
-        y = self.y_embedder(y, self.training)                   # [B, N_token, C]
+        y = self.y_embedder(y, self.training)  # [B, N_token, C]
         if qkv_format == 'thd':
             if mask is not None:
                 if mask.shape[0] != y.shape[0]:

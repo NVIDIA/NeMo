@@ -25,8 +25,10 @@ from megatron.core.transformer.enums import AttnMaskType
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
-from nemo.collections.diffusion.data.diffusion_fake_datamodule import VideoLatentFakeDataModule
-from nemo.collections.diffusion.data.diffusion_fake_datamodule import STVideoLatentFakeDataModule
+from nemo.collections.diffusion.data.diffusion_fake_datamodule import (
+    STVideoLatentFakeDataModule,
+    VideoLatentFakeDataModule,
+)
 from nemo.collections.diffusion.data.diffusion_taskencoder import BasicDiffusionTaskEncoder
 from nemo.collections.diffusion.models.model import (
     DiT7BConfig,
@@ -91,16 +93,18 @@ def multimodal_fake_datamodule() -> pl.LightningDataModule:
     )
     return data_module
 
+
 @run.cli.factory
 @run.autoconvert
 def multimodal_stdit_fake_datamodule() -> pl.LightningDataModule:
     data_module = STVideoLatentFakeDataModule(
-        seq_length=None, #Set None to dectect the sequence length automatically.
+        seq_length=None,  # Set None to dectect the sequence length automatically.
         task_encoder=run.Config(BasicDiffusionTaskEncoder, seq_length=2048),
         micro_batch_size=1,
         global_batch_size=32,
     )
     return data_module
+
 
 @run.cli.factory
 @run.autoconvert
@@ -539,11 +543,11 @@ def pretrain_stdit3B_mock_data() -> run.Partial:
     recipe.data = multimodal_stdit_fake_datamodule()
 
     recipe.data.seq_length = recipe.data.task_encoder.seq_length = 1024
-    
+
     recipe.trainer.strategy.tensor_model_parallel_size = 4
     recipe.trainer.strategy.sequence_parallel = True
     recipe.trainer.strategy.context_parallel_size = 1
-    
+
     recipe.data.micro_batch_size = 1
     recipe.data.global_batch_size = 32
     recipe.trainer.limit_val_batches = 0

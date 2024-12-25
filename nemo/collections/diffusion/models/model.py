@@ -80,8 +80,15 @@ def stdit_data_step(module, dataloader_iter):
     batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
     batch_size = batch['video'].shape[0]
     # hard code for fps tensor for stdit model part
-    batch['fps'] = torch.tensor([24,] * batch_size, dtype=torch.int32, device = torch.cuda.current_device())
-    
+    batch['fps'] = torch.tensor(
+        [
+            24,
+        ]
+        * batch_size,
+        dtype=torch.int32,
+        device=torch.cuda.current_device(),
+    )
+
     return batch
 
 
@@ -340,7 +347,7 @@ class STDiTConfig(DiTConfig):
     num_attention_heads: int = 16
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 4608
-    
+
     add_bias_linear: bool = True
     qk_layernorm_per_head = True
     attn_mask_type: AttnMaskType = AttnMaskType.no_mask
@@ -365,7 +372,7 @@ class STDiTConfig(DiTConfig):
 
     # parallel pattern set
     dynamic_sequence_parallel: bool = False
-    
+
     # forward step set
     data_step_fn = stdit_data_step
     forward_step_fn = stdit_forward_step
@@ -380,7 +387,7 @@ class STDiTConfig(DiTConfig):
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
         model = STDiTModel
-        
+
         return model(
             self,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
@@ -398,6 +405,7 @@ class STDiTConfig(DiTConfig):
             pred_sigma=self.pred_sigma,
         )
 
+
 @dataclass
 class STDiTV3_XLConfig(STDiTConfig):
 
@@ -406,6 +414,7 @@ class STDiTV3_XLConfig(STDiTConfig):
     num_attention_heads: int = 16
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 4608
+
 
 @dataclass
 class STDiTXLConfig(STDiTConfig):
@@ -416,6 +425,7 @@ class STDiTXLConfig(STDiTConfig):
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 6144
 
+
 @dataclass
 class STDiT3BConfig(STDiTConfig):
 
@@ -424,6 +434,7 @@ class STDiT3BConfig(STDiTConfig):
     num_attention_heads: int = 16
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 8192
+
 
 class DiTModel(GPTModel):
     """
