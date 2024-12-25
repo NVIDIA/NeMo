@@ -366,7 +366,6 @@ class HuggingFaceCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             for module_name, module_weight in checkpoint["state_dict"].items():
                 new_module_name = module_name.replace("model.model", "base_model.model")
                 new_module_name = new_module_name.replace("lora_a", "lora_A.weight").replace("lora_b", "lora_B.weight")
-                # print(new_module_name)
                 state_dict[new_module_name] = module_weight
 
             checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
@@ -402,14 +401,18 @@ class HuggingFaceCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if not fs.exists(path):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
         if not fs.isdir(path):
-            raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
+            raise ValueError(f"Checkpoints should be a directory. Found: {path}.")
 
-        # Load from ckpt_path/weights (new format) if it exists
-        path = ckpt_to_weights_subdir(path, is_saving=False)
-        if hasattr(path, "base_model_path") and not path.base_model_path.exists():
-            path.base_model_path = path.base_model_path.parent
+        state_dict = None
+        if (path / "adaptor_config.json").exists():
+            from safetensors import safe_open
 
-        return {}
+            state_dict = {}
+            with safe_open("adapter_model.safetensors", framework="pt", device=0) as f:
+                for k in f.keys():
+                    state_dict[k] = f.get_tensor(k)
+
+        return {'state_dict': state_dict}
 
     @override
     def remove_checkpoint(self, path: _PATH) -> None:

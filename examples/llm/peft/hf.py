@@ -17,7 +17,8 @@ from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning import NeMoLogger
+from nemo.lightning import NeMoLogger, AutoResume
+from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
@@ -71,7 +72,7 @@ def main():
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--use-torch-jit', action='store_true')
-    parser.add_argument('--checkpoint-folder', type=str, default=None)
+    parser.add_argument('--ckpt-folder', type=str, default=None)
     args = parser.parse_args()
 
     wandb = None
@@ -88,10 +89,10 @@ def main():
         grad_clip = None
     use_dist_samp = False
 
-    if args.checkpoint_folder is None:
-        import tempfile
-        args.checkpoint_folder = tempfile.TemporaryDirectory().name
-        print("Temp directory created: ", args.checkpoint_folder)
+    import tempfile
+    if args.ckpt_folder is None:
+        args.ckpt_folder = tempfile.TemporaryDirectory().name
+        print("Temp directory created for base model: ", args.ckpt_folder)
 
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
 
@@ -118,11 +119,12 @@ def main():
             callbacks=callbacks,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-        log=NeMoLogger(log_dir=args.checkpoint_folder, use_datetime_version=False),
+        log=NeMoLogger(log_dir=args.ckpt_folder, use_datetime_version=False),
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],
             dim=8,
         ),
+        #resume=AutoResume(restore_config=RestoreConfig(path=args.ckpt_folder, adapter_path=args.ckpt_folder, load_model_state=False)),
     )
 
 
