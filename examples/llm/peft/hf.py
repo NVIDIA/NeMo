@@ -17,9 +17,9 @@ from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning import NeMoLogger, AutoResume
-from nemo.lightning.pytorch.strategies.utils import RestoreConfig
+from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
+from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
 
 def make_squad_hf_dataset(tokenizer):

@@ -37,5 +37,6 @@ if __name__ == '__main__':
     exporter.export(model=args.model, enable_lora=True)
     exporter.add_lora_models(lora_model_name=lora_model_name, lora_model=args.lora_model)
 
-    print("------------- Output: ", exporter.forward(input_texts=["How are you doing?"], lora_model_name=lora_model_name))
-
+    print(
+        "------------- Output: ", exporter.forward(input_texts=["How are you doing?"], lora_model_name=lora_model_name)
+    )
