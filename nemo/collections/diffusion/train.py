@@ -277,45 +277,6 @@ def mock_dit7b_8k() -> run.Partial:
     recipe.log.log_dir = 'nemo_experiments/mock_dit7b_8k'
     return recipe
 
-@run.cli.factory(target=llm.train)
-def pretrain_stditXL_mock_data() -> run.Partial:
-    recipe = pretrain()
-
-    recipe.model.config = run.Config(STDiTXLConfig, max_frames=4, max_img_h=32, max_img_w=32)
-    recipe.data = multimodal_stdit_fake_datamodule()
-    
-    recipe.data.seq_length = recipe.data.task_encoder.seq_length = 1024
-    
-    recipe.trainer.strategy.tensor_model_parallel_size = 4
-    recipe.trainer.strategy.sequence_parallel = True
-    recipe.trainer.strategy.context_parallel_size = 2
-    
-    recipe.data.micro_batch_size = 1
-    recipe.data.global_batch_size = 32
-    recipe.trainer.limit_val_batches = 0
-    recipe.trainer.val_check_interval = 1.0
-    recipe.data.model_config = recipe.model.config
-    recipe.log.log_dir = 'nemo_experiments/stditXL_mock'
-    recipe.model.config.attn_mask_type = AttnMaskType.no_mask
-
-    # recipe.trainer.strategy.ddp.with_megatron_fsdp_code_path = True
-    # recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = 'MODEL_AND_OPTIMIZER_STATES'
-    # recipe.trainer.strategy.ddp.overlap_param_gather = True
-    # recipe.trainer.strategy.ddp.overlap_grad_reduce = True
-    recipe.model.config.use_cpu_initialization = True
-    recipe.trainer.max_steps = 15
-    recipe.trainer.callbacks.pop(0)
-    recipe.trainer.enable_checkpointing = False
-    recipe.trainer.callbacks.append(
-        run.Config(
-            NsysCallback,
-            start_step=10,
-            end_step=11,
-        )
-    )
-    recipe.resume = None
-    return recipe
-
 
 @run.cli.factory(target=llm.train)
 def pretrain_7b() -> run.Partial:
@@ -568,6 +529,45 @@ def pretrain_ecditllama1b() -> run.Partial:
     recipe.trainer.strategy.ddp.overlap_grad_reduce = True
     recipe.model.config.use_cpu_initialization = True
 
+    return recipe
+
+
+@run.cli.factory(target=llm.train)
+def pretrain_stdit3B_mock_data() -> run.Partial:
+    recipe = pretrain()
+    recipe.model.config = run.Config(STDiTXLConfig, max_frames=4, max_img_h=32, max_img_w=32)
+    recipe.data = multimodal_stdit_fake_datamodule()
+
+    recipe.data.seq_length = recipe.data.task_encoder.seq_length = 1024
+    
+    recipe.trainer.strategy.tensor_model_parallel_size = 4
+    recipe.trainer.strategy.sequence_parallel = True
+    recipe.trainer.strategy.context_parallel_size = 1
+    
+    recipe.data.micro_batch_size = 1
+    recipe.data.global_batch_size = 32
+    recipe.trainer.limit_val_batches = 0
+    recipe.trainer.val_check_interval = 1.0
+    recipe.data.model_config = recipe.model.config
+    recipe.log.log_dir = 'nemo_experiments/stdit3B_mock'
+    recipe.model.config.attn_mask_type = AttnMaskType.no_mask
+
+    # recipe.trainer.strategy.ddp.with_megatron_fsdp_code_path = True
+    # recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = 'MODEL_AND_OPTIMIZER_STATES'
+    # recipe.trainer.strategy.ddp.overlap_param_gather = True
+    # recipe.trainer.strategy.ddp.overlap_grad_reduce = True
+    recipe.model.config.use_cpu_initialization = True
+    recipe.trainer.max_steps = 15
+    recipe.trainer.callbacks.pop(0)
+    recipe.trainer.enable_checkpointing = False
+    recipe.trainer.callbacks.append(
+        run.Config(
+            NsysCallback,
+            start_step=10,
+            end_step=11,
+        )
+    )
+    recipe.resume = None
     return recipe
 
 

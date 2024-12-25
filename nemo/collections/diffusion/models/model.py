@@ -78,10 +78,10 @@ def stdit_data_step(module, dataloader_iter):
     batch = next(dataloader_iter)[0]
     batch = stdit_get_batch_on_this_cp_rank(batch)
     batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
-
     batch_size = batch['video'].shape[0]
     # hard code for fps tensor for stdit model part
     batch['fps'] = torch.tensor([24,] * batch_size, dtype=torch.int32, device = torch.cuda.current_device())
+    
     return batch
 
 
@@ -340,13 +340,16 @@ class STDiTConfig(DiTConfig):
     num_attention_heads: int = 16
     crossattn_emb_size: int = 1024
     ffn_hidden_size: int = 4608
-
+    
     add_bias_linear: bool = True
     qk_layernorm_per_head = True
     attn_mask_type: AttnMaskType = AttnMaskType.no_mask
 
     hidden_dropout: float = 0
     attention_dropout: float = 0
+
+    # note that nemo edm diffusion pipeline not pred_sigma
+    pred_sigma: bool = False
 
     # video set
     in_channels: int = 4
@@ -365,7 +368,7 @@ class STDiTConfig(DiTConfig):
     
     # forward step set
     data_step_fn = stdit_data_step
-    forward_step_fn = dit_forward_step
+    forward_step_fn = stdit_forward_step
 
     @override
     def configure_model(self, tokenizer=None) -> STDiTModel:
@@ -392,6 +395,7 @@ class STDiTConfig(DiTConfig):
             patch_temporal=self.patch_temporal,
             crossattn_emb_size=self.crossattn_emb_size,
             dynamic_sequence_parallel=self.dynamic_sequence_parallel,
+            pred_sigma=self.pred_sigma,
         )
 
 @dataclass
