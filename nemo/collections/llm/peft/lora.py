@@ -139,29 +139,17 @@ class LoRA(PEFT):
     )
     """
 
-    def __init__(
-        self,
-        target_modules: List[str] = field(
-            default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
-        ),
-        dim: int = 32,
-        alpha: int = 32,
-        dropout: float = 0.0,
-        dropout_position: Literal['pre', 'post'] = 'pre',
-        lora_A_init_method: str = "xavier",
-        lora_B_init_method: str = "zero",
-        a2a_experimental: bool = False,
-        lora_dtype: torch.dtype = None,
-    ):
-        self.target_modules = target_modules
-        self.dim = dim
-        self.alpha = alpha
-        self.dropout = dropout
-        self.dropout_position = dropout_position
-        self.lora_A_init_method = lora_A_init_method
-        self.lora_B_init_method = lora_B_init_method
-        self.a2a_experimental = a2a_experimental
-        self.lora_dtype = lora_dtype
+    target_modules: List[str] = field(
+        default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
+    )
+    dim: int = 32
+    alpha: int = 32
+    dropout: float = 0.0
+    dropout_position: Literal['pre', 'post'] = 'pre'
+    lora_A_init_method: str = "xavier"
+    lora_B_init_method: str = "zero"
+    a2a_experimental: bool = False
+    lora_dtype: torch.dtype = None
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
