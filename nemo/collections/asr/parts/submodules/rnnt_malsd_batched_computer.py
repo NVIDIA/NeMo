@@ -22,6 +22,8 @@ from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.utils import logging
+from nemo.utils.enum import PrettyStrEnum
+
 
 MINUS_INF = -float("inf")
 
