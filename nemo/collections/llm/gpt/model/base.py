@@ -412,8 +412,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         elif hasattr(self.config, 'vocab_size'):
             vocab_size = self.config.vocab_size
         else:
-            raise ValueError('Unable to find vocab size. Either pass in a tokenizer with vocab size, or set vocab size in the model config')
-        
+            raise ValueError(
+                'Unable to find vocab size. Either pass in a tokenizer with vocab size, or set vocab size in the model config'
+            )
+
         inference_wrapper_config = InferenceWrapperConfig(
             hidden_size=mcore_model.config.hidden_size,
             params_dtype=params_dtype,
