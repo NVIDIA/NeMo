@@ -100,6 +100,15 @@ class HuggingFaceBertLargeConfig(HuggingFaceBertConfig):
     ffn_hidden_size: int = 4096
     num_attention_heads: int = 16
 
+@dataclass
+class HuggingFaceBert650MConfig(HuggingFaceBertConfig):
+    """Configs for model in https://huggingface.co/google-bert/bert-large-uncased"""
+
+    num_layers: int = 33
+    hidden_size: int = 1280
+    ffn_hidden_size: int = 5120
+    num_attention_heads: int = 20
+
 
 class HuggingFaceBertModel(BertModel):
     """Google Bert Model."""
