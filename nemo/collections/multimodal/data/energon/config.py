@@ -15,7 +15,7 @@
 from dataclasses import dataclass, field
 from typing import List
 import torch
-from nemo.collections.multimodal.data.energon.conversation import BaseConversationTemplateConfig
+from nemo.collections.multimodal.data.energon.conversation import LLaVATemplateConfig
 
 
 @dataclass
@@ -56,15 +56,9 @@ class ImageTextRawBatch:
     loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
 
 
-class LLaVATemplateConfig(BaseConversationTemplateConfig):
-    """LLava specific template configuration which extends the base config"""
-
-    pass
-
-
 @dataclass
 class MultiModalSampleConfig:
-    image_token: ImageToken = ImageToken()
+    image_token: ImageToken = field(default_factory=ImageToken)
     ignore_place_holder: int = -100
-    conversation_template_config: LLaVATemplateConfig = LLaVATemplateConfig()
+    conversation_template_config: LLaVATemplateConfig = field(default_factory=LLaVATemplateConfig)
     image_following_text: bool = True

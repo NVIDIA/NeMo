@@ -18,10 +18,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Union
 
-import lightning_fabric as fl
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
-from pytorch_lightning.loggers import Logger, TensorBoardLogger, WandbLogger
+import lightning.fabric as fl
+import lightning.pytorch as pl
+from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
+from lightning.pytorch.loggers import Logger, TensorBoardLogger, WandbLogger
 
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
@@ -88,8 +88,8 @@ class NeMoLogger(IOMixin):
         from nemo.constants import NEMO_ENV_VARNAME_VERSION
         from nemo.utils.get_rank import is_global_rank_zero
 
-        self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        self.global_rank = trainer.node_rank * trainer.world_size + self.local_rank
+        self.local_rank = trainer.local_rank
+        self.global_rank = trainer.global_rank
         logging.rank = self.global_rank
 
         if self.explicit_log_dir and isinstance(trainer, pl.Trainer):  # If explicit log_dir was passed, short circuit
@@ -220,7 +220,7 @@ class NeMoLogger(IOMixin):
                 if callback.dirpath is None:
                     callback.dirpath = Path(log_dir / "checkpoints")
                 if callback.filename is None:
-                    callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}"
+                    callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{consumed_samples}}"
                 ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + "-last"
 
     def _handle_task_config(self, task_config, log_dir):

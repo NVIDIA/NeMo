@@ -147,6 +147,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             Defaults to 1.
         global_attn_separate (bool): whether the q, k, v layers used for global tokens should be separate.
             Defaults to False.
+        use_pytorch_sdpa (bool): use torch sdpa instead of manual attention.
+            Defaults to False.
+        use_pytorch_sdpa_backends (list[str]): list of backend names to use in sdpa. None or empty list means all backends. e.g. ["MATH"]
+            Defaults to None
+        sync_max_audio_length (bool): when true, performs NCCL all_reduce to allocate the same amount of memory for
+            positional encoding buffers on all GPUs. Disabling this setting may help with deadlocks in certain
+            scenarios such as model parallelism, or generally when this module is not being ran on some GPUs
+            as a part of the training step.
 
     """
 
@@ -295,6 +303,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         global_tokens: int = 0,
         global_tokens_spacing: int = 1,
         global_attn_separate: bool = False,
+        use_pytorch_sdpa: bool = False,
+        use_pytorch_sdpa_backends=None,
+        sync_max_audio_length: bool = True,
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -309,6 +320,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.global_tokens = global_tokens
         self.global_attn_separate = global_attn_separate
         self.global_tokens_spacing = global_tokens_spacing
+        self.use_pytorch_sdpa = use_pytorch_sdpa
+        if use_pytorch_sdpa_backends is None:
+            use_pytorch_sdpa_backends = []
+        self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
+        self.sync_max_audio_length = sync_max_audio_length
 
         # Setting up the att_context_size
         (
@@ -430,6 +446,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 pos_bias_v=pos_bias_v,
                 att_context_size=self.att_context_size,
                 use_bias=use_bias,
+                use_pytorch_sdpa=self.use_pytorch_sdpa,
+                use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
             )
             self.layers.append(layer)
 
@@ -660,7 +678,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
     def update_max_seq_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
-        if torch.distributed.is_initialized():
+        if self.sync_max_audio_length and torch.distributed.is_initialized():
             global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
 
             # Update across all ranks in the distributed system
@@ -1028,6 +1046,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         max_cache_len=att_context_size[0],
                         pos_bias_u=None,
                         pos_bias_v=None,
+                        use_pytorch_sdpa=self.use_pytorch_sdpa,
+                        use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
                 elif self_attention_model == 'rel_pos_local_attn':
                     new_attn = RelPositionMultiHeadAttentionLongformer(
@@ -1038,6 +1058,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         att_context_size=att_context_size,
                         pos_bias_u=None,
                         pos_bias_v=None,
+                        use_pytorch_sdpa=self.use_pytorch_sdpa,
+                        use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
                 elif self_attention_model == 'abs_pos':
                     new_attn = MultiHeadAttention(
@@ -1045,6 +1067,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         n_feat=self._cfg.d_model,
                         dropout_rate=self._cfg.dropout_att,
                         max_cache_len=att_context_size[0],
+                        use_pytorch_sdpa=self.use_pytorch_sdpa,
+                        use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
                 else:
                     raise ValueError(

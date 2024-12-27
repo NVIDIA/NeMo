@@ -55,6 +55,20 @@ except (ImportError, ModuleNotFoundError):
 
 
 def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
+    """
+    Packs a list of hypotheses into a tensor and prepares decoder states.
+
+    This function takes a list of token sequences (hypotheses) and converts
+    it into a tensor format. If any decoder states are on the GPU, they
+    are moved to the CPU. Additionally, the function removes any timesteps
+    with a value of -1 from the sequences.
+
+    Args:
+        hypotheses (list): A list of token sequences representing hypotheses.
+
+    Returns:
+        list: A list of packed hypotheses in tensor format.
+    """
     for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
         hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
 
@@ -69,6 +83,18 @@ def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
 
 
 def _states_to_device(dec_state, device='cpu'):
+    """
+    Transfers decoder states to the specified device.
+
+    This function moves the provided decoder states to the specified device (e.g., 'cpu' or 'cuda').
+
+    Args:
+        dec_state (Tensor): The decoder states to be transferred.
+        device (str): The target device to which the decoder states should be moved. Defaults to 'cpu'.
+
+    Returns:
+        Tensor: The decoder states on the specified device.
+    """
     if torch.is_tensor(dec_state):
         dec_state = dec_state.to(device)
 
@@ -106,7 +132,8 @@ class BeamRNNTInfer(Typing):
                     however the time required for the search also grows steadily.
 
                 `tsd` - time synchronous decoding. Please refer to the paper:
-                    [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
+                    [Alignment-Length Synchronous Decoding for RNN Transducer]
+                    (https://ieeexplore.ieee.org/document/9053040)
                     for details on the algorithm implemented.
 
                     Time synchronous decoding (TSD) execution time grows by the factor T * max_symmetric_expansions.
@@ -114,7 +141,8 @@ class BeamRNNTInfer(Typing):
                     good results. This also requires greater memory to execute.
 
                 `alsd` - alignment-length synchronous decoding. Please refer to the paper:
-                    [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
+                    [Alignment-Length Synchronous Decoding for RNN Transducer]
+                    (https://ieeexplore.ieee.org/document/9053040)
                     for details on the algorithm implemented.
 
                     Alignment-length synchronous decoding (ALSD) execution time is faster than TSD, with growth
@@ -127,7 +155,8 @@ class BeamRNNTInfer(Typing):
                     For a given decoding accuracy, it is possible to attain faster decoding via ALSD than TSD.
 
                 `maes` = modified adaptive expansion searcn. Please refer to the paper:
-                    [Accelerating RNN Transducer Inference via Adaptive Expansion Search](https://ieeexplore.ieee.org/document/9250505)
+                    [Accelerating RNN Transducer Inference via Adaptive Expansion Search]
+                    (https://ieeexplore.ieee.org/document/9250505)
 
                     Modified Adaptive Synchronous Decoding (mAES) execution time is adaptive w.r.t the
                     number of expansions (for tokens) required per timestep. The number of expansions can usually
@@ -169,10 +198,10 @@ class BeamRNNTInfer(Typing):
             and affects the speed of inference since large values will perform large beam search in the next step.
 
         maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-            The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-            where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-            predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-            expansion apart from the "most likely" candidate.
+            The default (2.3) is selected from the paper. It performs a comparison
+            (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob
+            is the "most" likely token to be predicted. Gamma therefore provides a margin of additional tokens which
+            can be potential candidates for expansion apart from the "most likely" candidate.
             Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
             but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
             thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
@@ -182,7 +211,7 @@ class BeamRNNTInfer(Typing):
 
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             beam decoding (sample). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1).
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1)
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -725,11 +754,11 @@ class BeamRNNTInfer(Typing):
                 D = []
 
                 # Decode a batch of beam states and scores
-                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(C, cache, beam_state)
+                beam_y, beam_state = self.decoder.batch_score_hypothesis(C, cache)
 
                 # Extract the log probabilities and the predicted tokens
                 beam_logp = torch.log_softmax(
-                    self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1
+                    self.joint.joint(h_enc, torch.stack(beam_y)) / self.softmax_temperature, dim=-1
                 )  # [B, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
                 beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
@@ -776,7 +805,7 @@ class BeamRNNTInfer(Typing):
                             new_hyp = Hypothesis(
                                 score=(hyp.score + float(logp)),
                                 y_sequence=(hyp.y_sequence + [int(k)]),
-                                dec_state=self.decoder.batch_select_state(beam_state, j),
+                                dec_state=beam_state[j],
                                 lm_state=hyp.lm_state,
                                 timestep=hyp.timestep[:] + [i],
                                 length=encoded_lengths,
@@ -859,6 +888,7 @@ class BeamRNNTInfer(Typing):
         beam_state = self.decoder.initialize_state(
             torch.zeros(beam, device=h.device, dtype=h.dtype)
         )  # [L, B, H], [L, B, H] for LSTMS
+        beam_state = [self.decoder.batch_select_state(beam_state, 0)]
 
         # compute u_max as either a specific static limit,
         # or a multiple of current `h_length` dynamically.
@@ -872,7 +902,7 @@ class BeamRNNTInfer(Typing):
             Hypothesis(
                 y_sequence=[self.blank],
                 score=0.0,
-                dec_state=self.decoder.batch_select_state(beam_state, 0),
+                dec_state=beam_state[0],
                 timestep=[-1],
                 length=0,
             )
@@ -919,14 +949,8 @@ class BeamRNNTInfer(Typing):
                         sub_batch_ids.remove(id)
 
                     # extract the states of the sub batch only.
-                    if isinstance(self.decoder, RNNTDecoder):
-                        # LSTM decoder, state is [layer x batch x hidden]
-                        beam_state_ = [
-                            beam_state[state_id][:, sub_batch_ids, :] for state_id in range(len(beam_state))
-                        ]
-                    elif isinstance(self.decoder, StatelessTransducerDecoder):
-                        # stateless decoder, state is [batch x hidden]
-                        beam_state_ = [beam_state[state_id][sub_batch_ids, :] for state_id in range(len(beam_state))]
+                    if isinstance(self.decoder, RNNTDecoder) or isinstance(self.decoder, StatelessTransducerDecoder):
+                        beam_state_ = (beam_state[sub_batch_id] for sub_batch_id in sub_batch_ids)
                     else:
                         raise NotImplementedError("Unknown decoder type.")
 
@@ -935,22 +959,21 @@ class BeamRNNTInfer(Typing):
                     beam_state_ = beam_state
 
                 # Decode a batch/sub-batch of beam states and scores
-                beam_y, beam_state_, beam_lm_tokens = self.decoder.batch_score_hypothesis(B_, cache, beam_state_)
+                beam_y, beam_state_ = self.decoder.batch_score_hypothesis(B_, cache)
 
                 # If only a subset of batch ids were updated (some were removed)
                 if sub_batch_ids is not None:
                     # For each state in the RNN (2 for LSTM)
-                    for state_id in range(len(beam_state)):
-                        # Update the current batch states with the sub-batch states (in the correct indices)
-                        # These indices are specified by sub_batch_ids, the ids of samples which were updated.
-                        if isinstance(self.decoder, RNNTDecoder):
-                            # LSTM decoder, state is [layer x batch x hidden]
-                            beam_state[state_id][:, sub_batch_ids, :] = beam_state_[state_id][...]
-                        elif isinstance(self.decoder, StatelessTransducerDecoder):
-                            # stateless decoder, state is [batch x hidden]
-                            beam_state[state_id][sub_batch_ids, :] = beam_state_[state_id][...]
-                        else:
-                            raise NotImplementedError("Unknown decoder type.")
+                    # Update the current batch states with the sub-batch states (in the correct indices)
+                    # These indices are specified by sub_batch_ids, the ids of samples which were updated.
+                    if isinstance(self.decoder, RNNTDecoder) or isinstance(self.decoder, StatelessTransducerDecoder):
+                        # LSTM decoder, state is [layer x batch x hidden]
+                        index = 0
+                        for sub_batch_id in sub_batch_ids:
+                            beam_state[sub_batch_id] = beam_state_[index]
+                            index += 1
+                    else:
+                        raise NotImplementedError("Unknown decoder type.")
                 else:
                     # If entire batch was updated, simply update all the states
                     beam_state = beam_state_
@@ -963,7 +986,7 @@ class BeamRNNTInfer(Typing):
 
                 # Extract the log probabilities and the predicted tokens
                 beam_logp = torch.log_softmax(
-                    self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1
+                    self.joint.joint(h_enc, torch.stack(beam_y)) / self.softmax_temperature, dim=-1
                 )  # [B=beam, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B=beam, V + 1]
                 beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
@@ -1011,7 +1034,7 @@ class BeamRNNTInfer(Typing):
                         new_hyp = Hypothesis(
                             score=(hyp.score + float(logp)),
                             y_sequence=(hyp.y_sequence[:] + [int(k)]),
-                            dec_state=self.decoder.batch_select_state(beam_state, h_states_idx),
+                            dec_state=beam_state[h_states_idx],
                             lm_state=hyp.lm_state,
                             timestep=hyp.timestep[:] + [i],
                             length=i,
@@ -1084,7 +1107,7 @@ class BeamRNNTInfer(Typing):
         # prepare the batched beam states
         beam = min(self.beam_size, self.vocab_size)
         beam_state = self.decoder.initialize_state(
-            torch.zeros(beam, device=h.device, dtype=h.dtype)
+            torch.zeros(1, device=h.device, dtype=h.dtype)
         )  # [L, B, H], [L, B, H] for LSTMS
 
         # Initialize first hypothesis for the beam (blank)
@@ -1106,8 +1129,8 @@ class BeamRNNTInfer(Typing):
                 hyp.alignments = [[]]
 
         # Decode a batch of beam states and scores
-        beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(init_tokens, cache, beam_state)
-        state = self.decoder.batch_select_state(beam_state, 0)
+        beam_dec_out, beam_state = self.decoder.batch_score_hypothesis(init_tokens, cache)
+        state = beam_state[0]
 
         # Setup ngram LM:
         if self.ngram_lm:
@@ -1267,18 +1290,10 @@ class BeamRNNTInfer(Typing):
                     break
 
                 else:
-                    # Initialize the beam states for the hypotheses in the expannsion list
-                    beam_state = self.decoder.batch_initialize_states(
-                        beam_state,
-                        [hyp.dec_state for hyp in list_exp],
-                        # [hyp.y_sequence for hyp in list_exp],  # <look into when this is necessary>
-                    )
-
                     # Decode a batch of beam states and scores
-                    beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(
+                    beam_dec_out, beam_state = self.decoder.batch_score_hypothesis(
                         list_exp,
                         cache,
-                        beam_state,
                         # self.language_model is not None,
                     )
 
@@ -1300,7 +1315,7 @@ class BeamRNNTInfer(Typing):
                         for i, hyp in enumerate(list_exp):
                             # Preserve the decoder logits for the current beam
                             hyp.dec_out.append(beam_dec_out[i])
-                            hyp.dec_state = self.decoder.batch_select_state(beam_state, i)
+                            hyp.dec_state = beam_state[i]
 
                             # TODO: Setup LM
                             if self.language_model is not None:
@@ -1325,7 +1340,7 @@ class BeamRNNTInfer(Typing):
 
                     else:
                         # Extract the log probabilities
-                        beam_logp, _ = self.resolve_joint_output(beam_enc_out, beam_dec_out)
+                        beam_logp, _ = self.resolve_joint_output(beam_enc_out, torch.stack(beam_dec_out))
                         beam_logp = beam_logp[:, 0, 0, :]
 
                         # For all expansions, add the score for the blank label
@@ -1334,7 +1349,7 @@ class BeamRNNTInfer(Typing):
 
                             # Preserve the decoder's output and state
                             hyp.dec_out.append(beam_dec_out[i])
-                            hyp.dec_state = self.decoder.batch_select_state(beam_state, i)
+                            hyp.dec_state = beam_state[i]
 
                             # TODO: Setup LM
                             if self.language_model is not None:
@@ -1387,7 +1402,7 @@ class BeamRNNTInfer(Typing):
             else:
                 final.append(hyp)
 
-        return hypotheses
+        return final
 
     def resolve_joint_output(self, enc_out: torch.Tensor, dec_out: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -1470,8 +1485,11 @@ class BeamRNNTInfer(Typing):
         return lm_score, next_state
 
     def set_decoding_type(self, decoding_type: str):
-
-        # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        """
+        Sets decoding type. Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        Args:
+            decoding_type: decoding type
+        """
         # TOKEN_OFFSET for BPE-based models
         if decoding_type == 'subword':
             from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
@@ -1481,6 +1499,10 @@ class BeamRNNTInfer(Typing):
 
 @dataclass
 class BeamRNNTInferConfig:
+    """
+    Beam RNNT Inference config.
+    """
+
     beam_size: int
     search_type: str = 'default'
     score_norm: bool = True

@@ -21,6 +21,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.gpt.model.llama import _export_embedding, _export_head
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import OptimizerModule
 
@@ -149,7 +150,6 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
 
     def convert_state(self, source, target):
         mapping = {
-            "model.embed_tokens.weight": "embedding.word_embeddings.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.pre_mlp_layernorm.weight",
@@ -158,10 +158,14 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
             "model.layers.*.block_sparse_moe.gate.weight": "decoder.layers.*.mlp.router.weight",
             # lm-head
             "model.norm.weight": "decoder.final_layernorm.weight",
-            "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv, _import_moe_w1_w3])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_import_qkv, _import_moe_w1_w3, _import_embedding, _import_lm_head],
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -209,6 +213,28 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
             perform_initialization=False,
             params_dtype=getattr(config, "torch_dtype", torch.bfloat16),
         )
+
+
+@io.state_transform(
+    source_key="model.embed_tokens.weight",
+    target_key="embedding.word_embeddings.weight",
+)
+def _import_embedding(ctx: io.TransformCTX, embedding):
+    embedding_weight = ctx.source.model.embed_tokens.weight
+    vocab_size = embedding_weight.shape[0]
+    ctx.target_state['embedding.word_embeddings.weight'][:vocab_size, :].copy_(embedding_weight)
+    return ctx.target_state['embedding.word_embeddings.weight']
+
+
+@io.state_transform(
+    source_key="lm_head.weight",
+    target_key="output_layer.weight",
+)
+def _import_lm_head(ctx: io.TransformCTX, embedding):
+    lm_head_weight = ctx.source.lm_head.weight
+    vocab_size = lm_head_weight.shape[0]
+    ctx.target_state['output_layer.weight'][:vocab_size, :].copy_(lm_head_weight)
+    return ctx.target_state['output_layer.weight']
 
 
 @io.state_transform(
@@ -290,7 +316,6 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
 
     def convert_state(self, source, target):
         mapping = {
-            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
             "decoder.layers.*.pre_mlp_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
@@ -299,10 +324,14 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
             "decoder.layers.*.mlp.router.weight": "model.layers.*.block_sparse_moe.gate.weight",
             # lm-head
             "decoder.final_layernorm.weight": "model.norm.weight",
-            "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv, _export_moe_w1_w3])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_export_qkv, _export_moe_w1_w3, _export_embedding, _export_head],
+        )
 
     @property
     def tokenizer(self):

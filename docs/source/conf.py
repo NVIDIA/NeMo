@@ -66,6 +66,7 @@ autodoc_mock_imports = [
     'taming',
     'cytoolz',  # for adapters
     'megatron',  # for nlp
+    "open_clip",
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
@@ -131,6 +132,7 @@ bibtex_bibfiles = [
     'core/adapters/adapter_bib.bib',
     'multimodal/mm_all.bib',
     'vision/vision_all.bib',
+    'audio/audio_all.bib',
 ]
 
 intersphinx_mapping = {

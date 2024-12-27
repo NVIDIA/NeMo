@@ -24,7 +24,7 @@ from typing import Callable, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
-from lightning_fabric.utilities.seed import seed_everything
+from lightning.fabric.utilities.seed import seed_everything
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.multimodal.data.neva.conversation import (
@@ -449,10 +449,15 @@ def get_model_parallel_src_rank():
     all_ranks = np.arange(world_size)
     tp_size = parallel_state.get_tensor_model_parallel_world_size()
     pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-    # [pipeline dim, data parallel, tensor dim]
-    all_ranks = all_ranks.reshape(pp_size, -1, tp_size)
     dp_rank = parallel_state.get_data_parallel_rank()
-    return all_ranks[:, dp_rank, :].min()
+    if AppState().use_tp_pp_dp_mapping:
+        # [DP, PP, TP]
+        all_ranks = all_ranks.reshape(-1, pp_size, tp_size)
+        return all_ranks[dp_rank, :, :].min()
+    else:
+        # [PP, DP, TP]
+        all_ranks = all_ranks.reshape(pp_size, -1, tp_size)
+        return all_ranks[:, dp_rank, :].min()
 
 
 def send_generate_info(

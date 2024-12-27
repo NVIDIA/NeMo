@@ -18,10 +18,12 @@ from dataclasses import dataclass
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Optional, Union
 
-import lightning_fabric as fl
-import pytorch_lightning as pl
+import lightning.fabric as fl
+import lightning.pytorch as pl
 
 from nemo.lightning import io
+from nemo.lightning.base import NEMO_MODELS_CACHE
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
@@ -35,17 +37,25 @@ else:
 
 
 def _try_restore_tokenizer(model, ckpt_path):
+    from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.lightning.io import load_context
 
     try:
         tokenizer = load_context(ckpt_path, "model.tokenizer")
+    except ValueError as e:
+        logging.warning(
+            f"Encountered error while trying to restore tokenizer. Tokenizer is not restored. " f"Original error: {e}"
+        )
+        return model
+
+    if isinstance(tokenizer, TokenizerSpec):
         model.tokenizer = tokenizer
         model.__io__.tokenizer = tokenizer.__io__
-    except:
-        # Ignore if the ckpt doesn't have a tokenizer.
-        pass
-    finally:
-        return model
+    else:
+        # Ignore if the ckpt doesn't have a tokenizer. type(tokenizer)==TrainerContext in this case.
+        logging.warning("Checkpoint does not have model.tokenizer field. Tokenizer is not restored.")
+
+    return model
 
 
 @dataclass(kw_only=True)
@@ -54,8 +64,10 @@ class AutoResume:
     checkpoints in NeMo.
 
     Attributes:
-        restore_config (Optional[RestoreConfig]): Optional config for selectively restoring specific parts like model weights, optimizer states, etc.
-            If the config contains a path from HF or another non-NeMo checkpoint format, the checkpoint will be automatically converted to a NeMo compatible format.
+        restore_config (Optional[RestoreConfig]): Optional config for selectively restoring specific parts like model
+            weights, optimizer states, etc.
+            If the config contains a path from HF or another non-NeMo checkpoint format, the checkpoint will be
+            automatically converted to a NeMo compatible format.
             resume_from_folder or the run's log_dir takes precedence over restore_config.
         resume_from_directory (str): Path to the checkpointing directory to restore from.
         resume_from_path (str): Path to a specific checkpoint to restore from.
@@ -97,11 +109,18 @@ class AutoResume:
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path
             # Load artifacts
             if getattr(self.restore_config, 'load_artifacts', False):
-                context_path = self.get_context_path(model)
+                if isinstance(trainer_ckpt_path, AdapterPath):
+                    # load tokenizer from the base model during peft resume, in case the first peft checkpoint
+                    # is deleted before the current peft checkpoint is saved
+                    context_path = trainer_ckpt_path.base_model_path / "context"
+                    if not context_path.exists():
+                        context_path = trainer_ckpt_path.base_model_path
+                else:
+                    context_path = self.get_context_path(model)
                 model = _try_restore_tokenizer(model, context_path)
 
         elif self.restore_config:
-            new_path = self._try_import_model(
+            new_path = self._extract_path(
                 model=model,
                 path=self.restore_config.path,
                 adapter_path=self.restore_config.adapter_path,
@@ -112,17 +131,22 @@ class AutoResume:
             else:
                 self.restore_config.path = str(new_path)
             trainer.strategy.restore_config = self.restore_config
+            # Load artifacts
+            if self.restore_config.load_artifacts:
+                context_path = new_path / "context"
+                if not context_path.is_dir():
+                    context_path = new_path
 
-    def _try_import_model(
+                _try_restore_tokenizer(model, context_path)
+
+    def _extract_path(
         self, model: Optional[io.ConnectorMixin], path: str, adapter_path: Optional[str] = None
     ) -> BasePath:
-
-        if model is None:
-            raise ValueError("Model is needed to import checkpoint from HF or other non-NeMo checkpoint format.")
-        try:
-            new_path = model.import_ckpt(path)
-        except (ValueError, AttributeError):
-            # This is reached when the model connector does not exist for the particular path.
+        if "://" in path:
+            assert path.startswith("nemo://"), "Only NeMo based paths starting with nemo:// are currently supported."
+            _, _path = path.split("://")
+            new_path = os.path.join(NEMO_MODELS_CACHE, _path)
+        else:
             new_path = path
 
         if adapter_path:
@@ -143,13 +167,10 @@ class AutoResume:
             metadata = json.load(f)
 
         assert self.restore_config, "PEFT resume requires specifying restore_config"
-        assert (
-            "://" in self.restore_config.path
-        ), "For now PEFT resume requires specifying the import path instead of local path"
-        base_model_path = self._try_import_model(model, self.restore_config.path)
-        if base_model_path != Path(metadata['model_ckpt_path']):
-            raise ValueError(
-                f"When trying to resume a PEFT training run, found mismatching values: "
+        base_model_path = self._extract_path(model, self.restore_config.path)
+        if base_model_path not in [Path(metadata['model_ckpt_path']), Path(metadata['model_ckpt_path']).parent]:
+            logging.warning(
+                f"⚠️ When trying to resume a PEFT training run, found mismatching values: "
                 f"your specified restore_path points to {base_model_path}, "
                 f"but the PEFT checkpoint was trained with "
                 f"model_ckpt_path={metadata['model_ckpt_path']}"
@@ -198,17 +219,22 @@ class AutoResume:
 
         if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
             if self.resume_ignore_no_checkpoint:
-                warn = f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. "
+                warn = (
+                    f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir "
+                    f":{checkpoint_dir}. "
+                )
                 if checkpoint is None:
                     warn += "Training from scratch."
                 logging.warning(warn)
             else:
                 if self.restore_config:
-                    # resume_if_exists is True but run is not resumable. Do not fail and try to do selective restore later instead.
+                    # resume_if_exists is True but run is not resumable. Do not fail and try to do selective restore
+                    # later instead.
                     return None
                 else:
                     raise NotFoundError(
-                        f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume."
+                        f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir "
+                        f":{checkpoint_dir}. Cannot resume."
                     )
         elif len(end_checkpoints) > 0:
             if not self.resume_past_end:
@@ -229,7 +255,8 @@ class AutoResume:
                 # Select the checkpoint with the latest modified time
                 checkpoint = sorted(last_checkpoints, key=lambda pth: pth.lstat().st_mtime, reverse=True)[0]
                 logging.warning(
-                    f"Multiple checkpoints {last_checkpoints} matches *last.ckpt. Selecting one with the latest modified time."
+                    f"Multiple checkpoints {last_checkpoints} matches *last.ckpt. Selecting one with the latest "
+                    f"modified time."
                 )
         else:
             checkpoint = last_checkpoints[0]
@@ -269,9 +296,7 @@ class AutoResume:
             if self.adapter_path:
                 return AdapterPath(Path(self.adapter_path), base_model_path=checkpoint)
             else:
-                from nemo.lightning.pytorch.callbacks.peft import _ADAPTER_META_FILENAME
-
-                adapter_meta_path = checkpoint / _ADAPTER_META_FILENAME
+                adapter_meta_path = checkpoint / ADAPTER_META_FILENAME
                 if adapter_meta_path.exists():
                     base_model_path = self._resume_peft(adapter_meta_path, model)
                     return AdapterPath(checkpoint, base_model_path=base_model_path)

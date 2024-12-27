@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import nemo_run as run
 import pytest
 
@@ -47,3 +61,35 @@ class TestNemotron4_15B_64K:
         recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
+
+    def test_valid_trainer_parallelism(self, recipe_module):
+        trainer_config = recipe_module.pretrain_recipe().trainer
+
+        assert isinstance(trainer_config.strategy, run.Config)
+        assert trainer_config.strategy.__fn_or_cls__.__name__ == "MegatronStrategy"
+
+        assert trainer_config.strategy.expert_model_parallel_size == 1
+
+        assert (
+            trainer_config.strategy.tensor_model_parallel_size
+            * trainer_config.strategy.pipeline_model_parallel_size
+            * trainer_config.strategy.context_parallel_size
+            * trainer_config.strategy.expert_model_parallel_size
+            % trainer_config.devices
+            == 0
+        )
+        assert (
+            trainer_config.strategy.tensor_model_parallel_size
+            * trainer_config.strategy.pipeline_model_parallel_size
+            * trainer_config.strategy.context_parallel_size
+            * trainer_config.strategy.expert_model_parallel_size
+            / trainer_config.devices
+            % trainer_config.num_nodes
+            == 0
+        )
+
+        if trainer_config.strategy.pipeline_model_parallel_size != 1:
+            assert trainer_config.strategy.pipeline_dtype is not None
+
+        if trainer_config.strategy.tensor_model_parallel_size == 1:
+            assert trainer_config.strategy.sequence_parallel is False

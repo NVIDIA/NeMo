@@ -1,10 +1,25 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 ## NOTE: This script is present for github-actions testing only.
 ## There are no guarantees that this script is up-to-date with latest NeMo.
 
 import argparse
 
+import torch
+from lightning.pytorch.loggers import TensorBoardLogger
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -12,7 +27,7 @@ from nemo.collections.llm.api import train
 from nemo.collections.llm.gpt.data import PreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint, ParameterDebugger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 
@@ -73,7 +88,19 @@ if __name__ == '__main__':
         every_n_train_steps=5000,
         save_optim_on_train_end=True,
     )
-    callbacks = [checkpoint_callback]
+
+    def create_verify_precision(precision: torch.dtype):
+        def verify_precision(tensor: torch.Tensor) -> None:
+            assert tensor.dtype == precision
+
+        return verify_precision
+
+    debugger = ParameterDebugger(
+        param_fn=create_verify_precision(torch.bfloat16),
+        grad_fn=create_verify_precision(torch.float32),
+        log_on_hooks=["on_train_start", "on_train_end"],
+    )
+    callbacks = [checkpoint_callback, debugger]
 
     loggers = []
     tensorboard_logger = TensorBoardLogger(

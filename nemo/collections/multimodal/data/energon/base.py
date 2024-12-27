@@ -11,25 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
 
-import pytorch_lightning as pl
+from copy import deepcopy
+from typing import Any, Dict, Literal, Optional
+
+import fiddle as fdl
+import lightning.pytorch as pl
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from megatron.core import parallel_state
 from megatron.energon import WorkerConfig, get_savable_loader, get_train_dataset
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import DataLoader
+from typing_extensions import Self
 
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-
-class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
+class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
     """
     A PyTorch Lightning DataModule for handling multimodal datasets with images and text.
 
@@ -66,9 +67,10 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         pin_memory: bool = True,
         multimodal_sample_config: Optional[MultiModalSampleConfig] = MultiModalSampleConfig(),
         task_encoder: Optional[MultiModalTaskEncoder] = None,
+        decoder_seq_length: Optional[int] = None,
     ) -> None:
         """
-        Initialize the SimpleMultiModalDataModule.
+        Initialize the EnergonMultiModalDataModule.
 
         Parameters:
         path (str): Path to the dataset.
@@ -78,8 +80,10 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         micro_batch_size (int, optional): The batch size for training and validation. Defaults to 1.
         num_workers (int, optional): Number of workers for data loading. Defaults to 1.
         pin_memory (bool, optional): Whether to pin memory in the DataLoader. Defaults to True.
-        multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples. Defaults to MultiModalSampleConfig().
-        task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples. If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
+        multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
+        Defaults to MultiModalSampleConfig().
+        task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples.
+        If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
         """
 
         super().__init__()
@@ -87,6 +91,9 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.seq_length = seq_length
+        self.decoder_seq_length = decoder_seq_length
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
         self.num_workers = num_workers
@@ -99,10 +106,23 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         )
         self.init_global_step = 0
         self.data_sampler = SequentialMegatronSampler(
-            seq_len=self.seq_length, micro_batch_size=self.micro_batch_size, global_batch_size=self.global_batch_size
+            seq_len=self.seq_length,
+            decoder_seq_len=self.decoder_seq_length,
+            micro_batch_size=self.micro_batch_size,
+            global_batch_size=self.global_batch_size,
         )
         self.train_dataloader_object = None
         self.val_dataloader_object = None
+
+    def io_init(self, **kwargs) -> fdl.Config[Self]:
+
+        cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items() if k not in ['image_processor', 'task_encoder']}
+
+        for val in cfg_kwargs.values():
+            if not serialization.find_node_traverser(type(val)):
+                track_io(type(val))
+        cfg = fdl.Config(type(self), **cfg_kwargs)
+        return cfg
 
     def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
         """
@@ -150,7 +170,8 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
             return self.train_dataloader_object
         if not parallel_state.is_initialized():
             logging.info(
-                f"Muiltimodal data loader parallel state is not initialized, using default worker config with no_workers {self.num_workers}"
+                f"Muiltimodal data loader parallel state is not initialized,"
+                f"using default worker config with no_workers {self.num_workers}"
             )
             worker_config = WorkerConfig.default_worker_config(self.num_workers)
         else:
@@ -158,7 +179,8 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
             world_size = parallel_state.get_data_parallel_world_size()
             data_parallel_group = parallel_state.get_data_parallel_group()
             logging.info(
-                f" Multimodal  train dataloader initializing with  rank {rank} world_size {world_size} data_parallel_group {data_parallel_group} ****** "
+                f" Multimodal  train dataloader initializing with"
+                f"rank {rank} world_size {world_size} data_parallel_group {data_parallel_group} ****** "
             )
             worker_config = WorkerConfig(
                 rank=rank,
@@ -188,7 +210,8 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
         if not parallel_state.is_initialized():
             logging.info(
-                f"Muiltimodal val data loader parallel state is not initialized, using default worker config with no_workers {self.num_workers}"
+                f"Muiltimodal val data loader parallel state is not initialized,"
+                "using default worker config with no_workers {self.num_workers}"
             )
             worker_config = WorkerConfig.default_worker_config(self.num_workers)
         else:
@@ -258,7 +281,8 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         """
         if not 'dataloader_state' in state_dict:
             logging.warning(
-                f"Data loader state cannot be resumed from state_dict, it does not have the required key dataloader_state. It has {state_dict.keys()}"
+                f"Data loader state cannot be resumed from state_dict,"
+                f"it does not have the required key dataloader_state. It has {state_dict.keys()}"
             )
             return
 
@@ -270,7 +294,8 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
             else:
                 logging.error(f"Cannot restore state from state_dict {state_dict}")
                 raise ValueError(
-                    f"Cannot restore state from state_dict: Is the trainer object is initialized and attached to datamodule???"
+                    f"Cannot restore state from state_dict: "
+                    f"Is the trainer object is initialized and attached to datamodule???"
                 )
         except Exception as e:
             raise RuntimeError(f"Failed to dataloader restore state due to: {e}")
@@ -315,6 +340,7 @@ class SequentialMegatronSampler(MegatronDataSampler):
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         init_consumed_samples: int = 0,
+        decoder_seq_len: Optional[int] = None,
         init_global_step=0,
     ):
         """
@@ -328,6 +354,7 @@ class SequentialMegatronSampler(MegatronDataSampler):
         """
         super().__init__(
             seq_len=seq_len,
+            decoder_seq_len=decoder_seq_len,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             init_consumed_samples=init_consumed_samples,

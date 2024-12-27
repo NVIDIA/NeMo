@@ -24,11 +24,11 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 import packaging
 import torch
+from lightning.pytorch.accelerators import CPUAccelerator
+from lightning.pytorch.loops.fetchers import _DataFetcherWrapper
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.loops.fetchers import _DataFetcherWrapper
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.parts.utils import apply_rope_scaling, extend_instance
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -84,7 +84,7 @@ try:
     from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
     from megatron.core.datasets.utils import get_blend_from_list
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
-    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject, ShardedObject
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
 
@@ -150,7 +150,7 @@ def mcore_supports_moe() -> bool:
 
 
 ## TODO: This function will not work if TE is not installed
-def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict = None):
+def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict = None, fp8=False):
     from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import get_gemma2_layer_spec
 
     # else cases for backwards compatibility with neva
@@ -164,7 +164,7 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
         spec_name = 'te_gpt'
     name_spec_dict = {
         "": get_gpt_layer_local_spec(num_experts, moe_grouped_gemm),
-        "te_gpt": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm),
+        "te_gpt": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm, fp8=fp8),
         "megatron_falcon_gpt": get_falcon_layer_spec(),
         "megatron_gemma2": get_gemma2_layer_spec(),
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(transformer_config),
@@ -367,6 +367,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     'Expert parallelism is currently not supporting Apex distributed optimizer, use Mcore distributed optimizer instead'
                 )
 
+        if self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False):
+            assert self.cfg.optim.get(
+                'overlap_param_sync', False
+            ), "must use overlap_param_gather_with_optimizer_step with overlap_param_sync"
+            assert (
+                self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None
+                and self.cfg.get('virtual_pipeline_model_parallel_size', None) > 1
+            ), "must use overlap_param_gather_with_optimizer_step with interleaved pipeline parallelism"
+
+        if self.cfg.optim.get('overlap_param_sync', False) and not self.cfg.optim.get('overlap_grad_sync', False):
+            raise ValueError('Must use overlap_param_sync together with overlap_grad_sync')
+
         self.transformer_engine = cfg.get('transformer_engine', False)
         if self.megatron_amp_O2 and not self.transformer_engine:
             logging.warning('megatron_amp_O2 is enabled but transformer-engine is not.')
@@ -471,6 +483,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     self.transformer_config,
                     self.transformer_engine,
                     self.cfg.get('hyena', None),
+                    self.cfg.get('fp8', False),
                 ),
                 vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
                 max_sequence_length=self.cfg.get('encoder_seq_length', 512),
@@ -580,7 +593,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # using bucket_cap_mb to configure bucket_size here
                 bucket_size=self.cfg.optim.get('ddp_bucket_size', None),
                 average_in_collective=self.cfg.optim.get('average_in_collective', True),
-                overlap_param_gather=self.cfg.optim.get('overlap_param_gather', False),
+                overlap_param_gather=self.cfg.optim.get('overlap_param_sync', False),
                 align_param_gather=self.cfg.optim.get('align_param_gather', False),
                 fp8_param_gather=self.cfg.get('fp8_params', False),
             )
@@ -659,7 +672,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # bucket.
             def make_parameter_bucket(module: torch.nn.Module) -> List[torch.nn.Parameter]:
                 bucket = [
-                    param for param in module.parameters() if not getattr(param, '_disable_overlap_grad_sync', False)
+                    param
+                    for param in module.parameters()
+                    if not getattr(param, '_disable_overlap_grad_sync', False) and param.requires_grad
                 ]
                 if any(is_float8tensor(param) for param in bucket):
                     bucket = list(filter(is_float8tensor, bucket))
@@ -680,7 +695,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     buckets.extend(make_parameter_bucket(layer) for layer in layers)
             buckets.reverse()
             used_params = set(itertools.chain.from_iterable(buckets))
-            buckets[-1].extend(p for p in self.parameters() if p not in used_params)
+            buckets[-1].extend(p for p in self.parameters() if p not in used_params and p.requires_grad)
             self.distributed_adam_buckets = buckets
 
         return super().configure_optimizers()
@@ -790,6 +805,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             tp_size=self.cfg.get('tensor_model_parallel_size'),
             use_fp8=self.cfg.get('fp8'),
             ub_cfgs=ub_cfgs,
+            bootstrap_backend=self.cfg.get('ub_tp_comm_bootstrap_backend', 'nccl'),
         )
         self.initialize_ub = False
 
@@ -1217,22 +1233,23 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size > 1:
             cp_rank = parallel_state.get_context_parallel_rank()
-            for key, val in batch.items():
-                if val is not None and key != "context_lengths":
-                    seq_dim = 1 if key != 'attention_mask' else 2
-                    val = val.view(
-                        *val.shape[0:seq_dim],
-                        2 * cp_size,
-                        val.shape[seq_dim] // (2 * cp_size),
-                        *val.shape[(seq_dim + 1) :],
-                    )
-                    index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).cuda(
-                        non_blocking=True
-                    )
-                    val = val.index_select(seq_dim, index)
-                    val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
-                    batch[key] = val
-
+            # check if the batch is not in THD format
+            if 'cu_seqlens' not in batch:
+                for key, val in batch.items():
+                    if val is not None and key != "context_lengths":
+                        seq_dim = 1 if key != 'attention_mask' else 2
+                        val = val.view(
+                            *val.shape[0:seq_dim],
+                            2 * cp_size,
+                            val.shape[seq_dim] // (2 * cp_size),
+                            *val.shape[(seq_dim + 1) :],
+                        )
+                        index = torch.tensor(
+                            [cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True
+                        ).cuda(non_blocking=True)
+                        val = val.index_select(seq_dim, index)
+                        val = val.view(*val.shape[0:seq_dim], -1, *val.shape[(seq_dim + 2) :])
+                        batch[key] = val
         batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
 
         return batch
@@ -1247,12 +1264,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             required_keys = set()
             max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
             cu_seqlens_argmin = batch['cu_seqlens_argmin'] if 'cu_seqlens_argmin' in batch else None
+            cu_seqlens_unpadded_argmin = (
+                batch['cu_seqlens_unpadded_argmin'] if 'cu_seqlens_unpadded_argmin' in batch else None
+            )
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
                 if 'cu_seqlens' in batch:
                     required_keys.add('cu_seqlens')
+                if 'cu_seqlens_unpadded' in batch:
+                    required_keys.add('cu_seqlens_unpadded')
                 if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
                 if parallel_state.is_pipeline_last_stage():
@@ -1287,12 +1309,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 if 'cu_seqlens' in batch:  # packed sequence from GPTSFTPackedDataset
                     # these args are passed eventually into TEDotProductAttention.forward()
                     cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
+                    cu_seqlens_unpadded = batch['cu_seqlens_unpadded'].squeeze()
                     # remove -1 "paddings" added in collate_fn
                     if cu_seqlens_argmin is not None:
                         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
                     else:
                         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
-
+                    if cu_seqlens_unpadded_argmin is not None:
+                        cu_seqlens_unpadded = cu_seqlens_unpadded[: cu_seqlens_unpadded_argmin.item()]
+                    else:
+                        cu_seqlens_unpadded = cu_seqlens_unpadded[: torch.argmin(cu_seqlens_unpadded)]
                     try:
                         from megatron.core.packed_seq_params import PackedSeqParams
                     except (ImportError, ModuleNotFoundError) as e:
@@ -1303,9 +1329,42 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         )
                         raise e
 
+                    # get packed sequences for this context parallel rank
+                    cp_size = parallel_state.get_context_parallel_world_size()
+                    if cp_size > 1:
+                        try:
+                            import transformer_engine_torch as tex
+                        except ModuleNotFoundError as e:
+                            logging.error(
+                                "Please update Transformer Engine to >= 1.10 to use Context Parallel with THD format data"
+                            )
+                            raise e
+                        cp_rank = parallel_state.get_context_parallel_rank()
+                        for key in required_keys:
+                            val = batch[key]
+                            if key not in {
+                                "cu_seqlens",
+                                "cu_seqlens_unpadded",
+                                "cu_seqlens_argmin",
+                                "cu_seqlens_unpadded_argmin",
+                                "max_seqlen",
+                                "token_count",
+                            }:
+                                index = tex.thd_get_partitioned_indices(cu_seqlens, val.size(1), cp_size, cp_rank)
+                                val = val.index_select(1, index)
+                                batch[key] = val
+                        forward_args = {
+                            'input_ids': batch['tokens'],
+                            'position_ids': batch['position_ids'],
+                            'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
+                            'labels': batch['labels'] if 'labels' in batch else None,
+                        }
+
                     forward_args['packed_seq_params'] = PackedSeqParams(
-                        cu_seqlens_q=cu_seqlens,
-                        cu_seqlens_kv=cu_seqlens,
+                        cu_seqlens_q=cu_seqlens_unpadded,
+                        cu_seqlens_kv=cu_seqlens_unpadded,
+                        cu_seqlens_q_padded=cu_seqlens,
+                        cu_seqlens_kv_padded=cu_seqlens,
                         max_seqlen_q=max_seqlen,
                         max_seqlen_kv=max_seqlen,
                         qkv_format='thd',
@@ -1601,6 +1660,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
                 "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
                 "num_dataset_builder_threads": self.cfg.data.get("num_dataset_builder_threads", 1),
+                "renormalize_blend_weights": self.cfg.data.get("renormalize_blend_weights", False),
                 "add_extra_token_to_sequence": add_extra_token,
             }
 
@@ -1969,7 +2029,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # WAR: This is a temporary fix to skip loading FP8 parameters for Dot Product Attention
             def skip_fp8_load(x):
                 if isinstance(x, ShardedObject) and 'fused_attention' in x.key and '_extra_state' in x.key:
-                    x = LocalNonpersitentObject(x.data)  # use the FP8 state from initialization, not from ckpt
+                    x = LocalNonpersistentObject(x.data)  # use the FP8 state from initialization, not from ckpt
                 return x
 
             if self.cfg.get('skip_fp8_attention_checkpoint_load', True):

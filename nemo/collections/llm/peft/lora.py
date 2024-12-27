@@ -12,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from dataclasses import dataclass, field
 from typing import List, Literal
 
-from megatron.core import parallel_state
+import torch
+import torch.nn.functional as F
 from torch import nn
 
+from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear, wildcard_match
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
 
-class AdapterParallelAdd(AdapterWrapper):
+class LoRALinear(AdapterWrapper):
     """An adapter wrapper that adds the output of the adapter to the output of the wrapped module.
 
     This class is designed to be used with LoRA (Low-Rank Adaptation) and similar techniques
@@ -31,27 +34,161 @@ class AdapterParallelAdd(AdapterWrapper):
     """
 
     def forward(self, x):
-        linear_output = self.to_wrap(x)
-        assert isinstance(
-            linear_output, tuple
-        ), f"{self.to_wrap} should return a tuple but instead returns {linear_output}"
-        """ Four cases for the wrapped module's return values
-        1. nothing: (out, None)
-        2. return_bias: (out, bias)
-        2. return_layernorm_output: ((out, ln_out), None)
-        3. both: (out, bias, ln_out)
-        """
-        if len(linear_output) == 2:
-            linear_output, bias = linear_output
-            if isinstance(linear_output, tuple) and len(linear_output) == 2:
-                linear_output, layernorm_output = linear_output
-                x = layernorm_output
-        elif len(linear_output) == 3:
-            linear_output, bias, layernorm_output = linear_output
-            x = layernorm_output
-
-        adapter_output = self.adapter(x.contiguous())
+        # pylint: disable=C0115,C0116
+        linear_output, bias, layernorm_output = self.base_linear_forward(x)
+        adapter_output = self.adapter(layernorm_output.contiguous())
         return linear_output + adapter_output, bias
+
+
+class LinearAdapter(nn.Linear):
+    """
+    Linear + LoRA, maintains ckpts structrue (i.e. Linear's weight/bias remain at the same FQN)
+
+    The _init_wrapper and _forward methods provide the LoRA functionality. We want to be able to
+    use those inside LinearAdapter but also for monkey-patching modules, without repeating the
+    same code -> therefore those are decorated with @staticmethod.
+
+    Args:
+        orig_linear (nn.Module): the linear module to augment.
+        dim (int): lora's dim in_features -> dim -> out_features.
+        alpha (int): lora's scaling alpha.
+        dropout (float): dropout prob (default: 0.1).
+        dropout_position (str): where to apply dropout rel. to lora (choices= ['pre', 'post'], default=post)
+        lora_A_init_method (str): init method for lora_A (choices= ['xavier', 'uniform'])
+        lora_dtype (torch.dtype): weight's dtype, by default will use orig_linear's but if they
+        are quantized weights (e.g. 4bit) needs to be specified explicitly.
+    """
+
+    def __init__(
+        self,
+        orig_linear,
+        dim=8,
+        alpha=32,
+        dropout=0.1,
+        dropout_position='post',
+        lora_A_init_method='xavier',
+        lora_dtype=None,
+    ):
+        assert isinstance(orig_linear, nn.Linear)
+        super(LinearAdapter, self).__init__(
+            in_features=orig_linear.in_features,
+            out_features=orig_linear.out_features,
+            bias=orig_linear.bias is not None,
+            device=orig_linear.weight.device,
+            dtype=orig_linear.weight.dtype,
+        )
+        # copy weights
+        self.weight.data.copy_(orig_linear.weight.data)
+        if orig_linear.bias is not None:
+            self.bias.data.copy_(orig_linear.bias.data)
+        # initialize the adapte
+        LinearAdapter._init_adapter(self)
+
+    @staticmethod
+    def _init_adapter(
+        obj,
+        dim=8,
+        alpha=32,
+        dropout=0.1,
+        dropout_position='post',
+        lora_A_init_method='xavier',
+        lora_dtype=None,
+    ):
+        """Adds LoRA weights to obj. The obj is either a LinearAdapter or an nn.Module (when
+        monkey-patching).
+
+        Args:
+            obj (LinearAdapter | nn.Module): input module to adapt.
+            dim (int): lora's dim in_features -> dim -> out_features.
+            alpha (int): lora's scaling alpha.
+            dropout (float): dropout prob (default: 0.1).
+            dropout_position (str): where to apply dropout rel. to lora (choices= ['pre', 'post'], default=post)
+            lora_A_init_method (str): init method for lora_A (choices= ['xavier', 'uniform'])
+            lora_dtype (torch.dtype): weight's dtype, by default will use orig_linear's but if they
+            are quantized weights (e.g. 4bit) needs to be specified explicitly.
+        """
+        obj.dim = dim
+        obj.scale = alpha / dim
+
+        # Freezer
+        device = obj.weight.device
+        obj.weight.requires_grad = False
+        if obj.bias is not None:
+            obj.bias.requires_grad = False
+
+        in_features = obj.in_features
+        out_features = obj.out_features
+        dtype = lora_dtype or obj.weight.dtype
+
+        obj.lora_a = nn.Parameter(torch.zeros((in_features, dim), dtype=dtype, device=device))
+        obj.lora_b = nn.Parameter(torch.zeros((dim, out_features), dtype=dtype, device=device))
+        if lora_A_init_method == 'xavier':
+            torch.nn.init.uniform_(obj.lora_a)
+        else:
+            nn.init.kaiming_uniform_(obj.lora_a, a=math.sqrt(5))
+
+        obj.dropout = nn.Dropout(p=dropout)
+        assert dropout_position in ['pre', 'post'], dropout_position
+        obj.dropout_position = dropout_position
+
+    @staticmethod
+    def _forward(obj, x):
+        # pylint: disable=C0115,C0116
+        res = F.linear(x, obj.weight, obj.bias)
+        if obj.dropout_position == 'pre':
+            x = obj.dropout(x)
+        lora_res = x @ obj.lora_a
+        lora_res = lora_res @ obj.lora_b
+        lora_res = lora_res * obj.scale
+        if obj.dropout_position == 'post':
+            lora_res = obj.dropout(lora_res)
+        return res + lora_res
+
+    def forward(self, x):
+        return LinearAdapter._forward(self, x)
+
+
+def patch_linear_module(
+    orig_linear,
+    dim=8,
+    alpha=32,
+    dropout=0.1,
+    dropout_position='post',
+    lora_A_init_method='xavier',
+    lora_dtype=None,
+):
+    """Monkey-patches a nn.Linear (orig_linear param) to be a LinearAdapter, for all purposes
+    think of this function as replacing a nn.Linear with a LinearAdapter defined above.
+
+    The orig_linear might not contain valid weights, for example, the given orig_linear was
+    initialized within a context-manager that uses a "meta" device. Therefore, we cannot copy
+    the weight/bias from the orig_linear to the LinearAdapter, since those have not been allocated,
+
+    To circumvent this scenario, LinearAdapter's additional functionality (_init_adapter, _forward)
+    is based on static functions, so that we can use them for patching or when allocating a
+    new LinearAdapter object.
+
+    Args:
+        orig_linear (nn.Linear): the module we add adapter to.
+        dim (int, optional): Lora dim. Defaults to 8.
+        alpha (int, optional): Lora alpha scale. Defaults to 32.
+        dropout (float, optional): dropout prob. Defaults to 0.1.
+        dropout_position (str, optional): location to apply dropout wrt lora.
+            Defaults to 'post' (choices: 'pre', 'post').
+        lora_A_init_method (str, optional): lora_a init method. Defaults to 'xavier'.
+        lora_dtype (_type_, optional): Lora weights' dtype. By default will use orig_linear's dtype
+        but orig_linear might use non-trainable dtype (e.g. 4bit), in which case the user must
+        specify the dtype manually. Defaults to None.
+
+    Returns:
+        (nn.Module): the monkey-patched (nn.Linear + LoRA) nn.Module
+    """
+
+    assert isinstance(orig_linear, nn.Linear)
+
+    LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
+    orig_linear.forward = lambda x: LinearAdapter._forward(orig_linear, x)
+    return orig_linear
 
 
 @dataclass
@@ -66,15 +203,20 @@ class LoRA(PEFT):
         target_modules (List[str], optional): A list of module names to apply LoRA to.
             Defaults to all linear layers ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2'].
                 - 'linear_qkv': Apply LoRA to the fused linear layer used for query, key, and value projections
-                                in self-attention modules.
-                - 'linear_proj': Apply LoRA to the linear layer used for projecting the output of self-attention modules.
+                                in self-attention.
+                - 'linear_proj': Apply LoRA to the linear layer used for projecting the output of self-attention.
                 - 'linear_fc1': Apply LoRA to the first fully-connected layer in MLP.
                 - 'linear_fc2': Apply LoRA to the second fully-connected layer in MLP.
+            Target modules can also contain wildcards. For example, you can specify
+                target_modules=['*.layers.0.*.linear_qkv', '*.layers.1.*.linear_qkv'] to add LoRA to only linear_qkv
+                on the first two layers.
         dim (int): Dimension of the low-rank projection space. Defaults to 32.
         alpha (int): Weighting factor for the low-rank projection. Defaults to 32.
         dropout (float): Dropout rate for the low-rank projection. Defaults to 0.0.
         dropout_position (Literal['pre', 'post'], optional): Position for applying dropout.
-            Can be 'pre' (before the low-rank projection) or 'post' (after). Defaults to 'post'.
+            Can be 'pre' (before the low-rank projection) or 'post' (after). Defaults to 'pre'.
+        a2a_experimental (bool): Enables the experimental All-to-All (A2A) communication strategy. Defaults to False.
+        lora_drype (torch.dtype): Parameter data type for LoRA weights. Default None (will use model's dtype).
 
     Example:
     --------
@@ -99,9 +241,11 @@ class LoRA(PEFT):
     dim: int = 32
     alpha: int = 32
     dropout: float = 0.0
-    dropout_position: Literal['pre', 'post'] = 'post'
+    dropout_position: Literal['pre', 'post'] = 'pre'
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
+    a2a_experimental: bool = False
+    lora_dtype: torch.dtype = None
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
@@ -117,27 +261,25 @@ class LoRA(PEFT):
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        if name in self.target_modules:
-            # m.in_features and m.out_features are divided by tp_size already,
-            # but in_features and out_features passed to ParallelLinearAdapter are not.
-            if name in ['linear_qkv', 'linear_fc1']:
-                # Column Parallel Linear
-                input_is_parallel = False
-                in_features = m.in_features
-                out_features = m.out_features * tp_size
-                # LoRA is applied after layernorm, so layernorm output must be returned
-                m.return_layernorm_output = True
-                # perf optimization for LoRA + SP
-                if m.config.sequence_parallel and not m.ub_overlap_ag:
-                    m.return_layernorm_output_gathered = True
-            else:  # name in ['linear_proj', 'linear_fc2']
-                # Row Parallel Linear
-                input_is_parallel = True
-                in_features = m.in_features * tp_size
-                out_features = m.out_features
+        full_name = f"{prefix}.{name}" if prefix else name
+        if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
+            if isinstance(m, nn.Linear):
+                if self._is_fsdp_v1:
+                    lora_cls = patch_linear_module
+                else:
+                    lora_cls = LinearAdapter
 
-            logging.info(f"Adding lora to: {prefix}.{name}")
+                return lora_cls(
+                    m,
+                    dim=self.dim,
+                    alpha=self.alpha,
+                    dropout=self.dropout,
+                    lora_A_init_method=self.lora_A_init_method,
+                    lora_dtype=self.lora_dtype,
+                )
+
+            input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
+            logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,
                 out_features,
@@ -153,6 +295,48 @@ class LoRA(PEFT):
                 dropout_position=self.dropout_position,
                 model_parallel_config=getattr(m, "config", None),
                 alpha=self.alpha,
+                is_expert=is_expert_linear(full_name),
+                a2a_experimental=self.a2a_experimental,
             )
-            return AdapterParallelAdd(m, adapter)
+            return LoRALinear(m, adapter)
+        return m
+
+
+class LoRAMerge(PEFT):
+    """
+    Implements the LoRA weight merge for parameter-efficient fine-tuning.
+
+    Example:
+    --------
+        >>> from nemo.collections.llm.peft.lora import LoRAMerge
+        >>> lora_merge = LoRAMerge()
+        >>> merged_model = lora_merge(trainer.strategy.megatron_parallel)
+    """
+
+    @torch.no_grad()
+    def transform(self, m: nn.Module, name=None, prefix=None):
+        """
+        Merges the LoRA adapter with the base model weights.
+
+        Args:
+            m (nn.Module): The module to apply LoRA merge to.
+            name (str, optional): Name of the module to merge. Defaults to None.
+            prefix (str, optional): Prefix for the module name. Defaults to None.
+
+        Returns:
+            nn.Module: The modified module with the LoRA adapter merged into the base model weights.
+        """
+
+        if not isinstance(m, LoRALinear):
+            return m
+        logging.info(f'merging {(prefix if prefix else "") + "." + (name if name else "")}')
+        base_weight = m.to_wrap.weight
+        lora_weight = (
+            m.adapter.alpha
+            / m.adapter.dim
+            * m.adapter.linear_out.weight.to(base_weight.device)
+            @ m.adapter.linear_in.weight.to(base_weight.device)
+        )
+        merged_weight = base_weight + lora_weight
+        m.to_wrap.weight.data = merged_weight
         return m

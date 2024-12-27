@@ -20,13 +20,13 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
-    from transformers import AutoConfig, AutoModelForCausalLM
+    from transformers import AutoModelForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -142,16 +142,23 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
 
 @io.model_exporter(Baichuan2Model, "hf")
 class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalLM"]):
-    def init(self) -> "AutoModelForCausalLM":
+    def init(self, dtype=torch.bfloat16, model_name="baichuan-inc/Baichuan2-7B-Base") -> "AutoModelForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
+            # Since Baichuan is not importable from transformers, we can only initialize the HF model
+            # from a known checkpoint. If more than 1 Baichuan model is supported in NeMo in the future,
+            # the model_name will need to be passed in.
+            return AutoModelForCausalLM.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+                torch_dtype=dtype,
+            )
 
     def apply(self, output_path: Path) -> Path:
-        target = self.init()
         source, _ = self.nemo_load(str(self))
+        target = self.init(torch_dtype_from_mcore_config(source.config))
         target = self.convert_state(source, target)
 
         target = target.cpu()
@@ -177,23 +184,6 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
     def tokenizer(self):
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
-    @property
-    def config(self) -> "AutoConfig":
-        source: Baichuan2Config = io.load_context(str(self)).model.config
-
-        return AutoConfig(
-            num_hidden_layers=source.num_layers,
-            hidden_size=source.hidden_size,
-            intermediate_size=source.ffn_hidden_size,
-            num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.seq_length,
-            initializer_range=source.init_method_std,
-            rms_norm_eps=source.layernorm_epsilon,
-            num_key_value_heads=source.num_query_groups,
-            rope_theta=source.rotary_base,
-            vocab_size=self.tokenizer.vocab_size,
-        )
-
 
 @io.state_transform(
     source_key="model.layers.*.self_attn.W_pack.weight",
@@ -206,8 +196,7 @@ def _import_qkv(ctx: io.TransformCTX, qkv_weights):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
 
     qkv_weights = qkv_weights.unflatten(0, (3, hidden_size))
     old_tensor_shape = qkv_weights[0].size()
@@ -216,7 +205,7 @@ def _import_qkv(ctx: io.TransformCTX, qkv_weights):
     q = qkv_weights[0].squeeze().view(*new_q_tensor_shape)
     k = qkv_weights[1].squeeze().view(*new_kv_tensor_shape)
     v = qkv_weights[2].squeeze().view(*new_kv_tensor_shape)
-    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
+    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:]).type_as(qkv_weights)
     for i in range(num_query_groups):
         qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
         qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
@@ -237,8 +226,7 @@ def _export_qkv(ctx: io.TransformCTX, qkv_weights):
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_num = megatron_config.num_attention_heads
-    head_size = hidden_size // head_num
+    head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
     qkv_weights = qkv_weights.reshape([qkv_total_dim, head_size, hidden_size])
@@ -266,7 +254,7 @@ def _export_qkv(ctx: io.TransformCTX, qkv_weights):
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
-    return torch.cat((down, gate), axis=0).float()
+    return torch.cat((down, gate), axis=0)
 
 
 @io.state_transform(
