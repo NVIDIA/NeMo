@@ -1099,6 +1099,14 @@ def tensor_to_list(range_tensor: torch.Tensor) -> List[List[float]]:
     """
     return [[float(range_tensor[k][0]), float(range_tensor[k][1])] for k in range(range_tensor.shape[0])]
 
+def generate_diarization_output_lines(speaker_timestamps, model_spk_num): 
+    speaker_lines_total = [] 
+    for spk_idx in range(model_spk_num):
+        ts_invervals = speaker_timestamps[spk_idx]
+        merged_ts_intervals = merge_float_intervals(ts_invervals)
+        for ts_interval in merged_ts_intervals:
+            speaker_lines_total.extend([f"{ts_interval[0]:.3f} {ts_interval[1]:.3f} speaker_{int(spk_idx)}"])
+    return speaker_lines_total
 
 def generate_diarization_output_lines(speaker_timestamps: List[List[float]], model_spk_num: int) -> List[str]:
     """

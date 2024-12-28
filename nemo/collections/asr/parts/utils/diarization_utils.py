@@ -16,13 +16,19 @@ import copy
 import csv
 import json
 import os
+<<<<<<< HEAD
 from itertools import groupby
+=======
+>>>>>>> origin/main
 from collections import defaultdict, OrderedDict as od
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 
 import numpy as np
+<<<<<<< HEAD
 import string
+=======
+>>>>>>> origin/main
 from pyannote.metrics.diarization import DiarizationErrorRate
 
 from nemo.collections.asr.metrics.der import concat_perm_word_error_rate, calculate_session_cpWER
@@ -340,6 +346,92 @@ def get_num_of_spk_from_labels(labels: List[str]) -> int:
     spk_set = [x.split(' ')[-1].strip() for x in labels]
     return len(set(spk_set))
 
+def read_seglst(seglst_filepath, round_digits=3, return_rttm=False, sort_by_start_time=False):
+    """
+    Read a seglst file and return the speaker & text information dictionary.
+
+    Args:
+        seglst_filepath: path to the seglst file
+        seglst format: 
+        [
+            {
+                "session_id": "Bed008",
+                "words": "alright so i'm i should read all of these numbers",
+                "speaker": "me045",
+                "start_time": "53.814",
+                "end_time": "56.753"
+            }
+        ]
+        round_digits (int): number of digits to round the timestamps
+        return_rttm (bool): Whether to return RTTM lines
+
+    Returns:
+        seglst_dict (dict):
+            A dictionary containing speaker and text information for each segment.
+        rttm_lines (list):
+            A list containing RTTM lines.
+    """
+    rttm_lines = []
+    seglst = []
+    with open(seglst_filepath, 'r') as f:
+        seglst_lines = json.loads(f.read())
+        
+        for idx, line in enumerate(seglst_lines):
+            spk, start, end = line['speaker'], float(line['start_time']), float(line['end_time'])
+            dur = round(end - start, round_digits)
+
+            if return_rttm:
+                rttm_line_str = f'SPEAKER {line["session_id"]} 1 {start:.3f} {end-start:.3f} <NA> <NA> {spk} <NA> <NA>'
+                rttm_lines.append(rttm_line_str)
+            seglst.append(
+                {
+                    'session_id': line['session_id'],
+                    'speaker': spk,
+                    'words': line['words'],
+                    'start_time': start,
+                    'end_time': end,
+                    'duration': dur,
+                }
+            )   
+    if sort_by_start_time:
+        seglst = sorted(seglst, key=lambda x: (x['start_time'], x['end_time']))
+    if return_rttm:
+        return seglst, rttm_lines
+    return seglst
+
+def convert_seglst(seglst, all_speakers):
+    '''
+    convert the seglst to a format that can be used for scoring
+
+    Args:
+        seglst (list): list of seglst dictionaries
+        all_speakers (list): list of all active speakers
+    Returns:
+        timestamps: (list of list)
+            [
+            [[st1, et1], [st2, et2]], # timestamps list for speaker 1
+            [[st1, et1], ...], # timestamps list for speaker 2 
+            ...]
+        words (list[[s1], [s2], [s3], [s4]]): list of words for each speaker 1 to 4
+    '''
+
+    timestamps = [[] for _ in all_speakers]
+    words = ['' for _ in all_speakers]
+
+    spk2id = {spk: idx for idx, spk in enumerate(all_speakers)}
+    seglst = sorted(seglst, key=lambda x: (x['start_time'], x['end_time']))
+    for seg in seglst:
+        timestamps[spk2id[seg['speaker']]].append((seg['start_time'], seg['end_time']))
+        words[spk2id[seg['speaker']]] += seg['words'] + ' '
+
+    return timestamps, words
+
+# def chunk_seglst(
+#     seglst : List[Dict],
+#     chunk_size: float = 10.0
+# ):
+#     '''
+#     Get chunked timestamps and words for each speaker
 
 def get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels):
     n_spk = get_num_of_spk_from_labels(diar_labels)

@@ -12,12 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
 import json
-import os
-import time
-import yaml
-from tqdm import tqdm
 from dataclasses import dataclass, is_dataclass
 from typing import Optional, Union, List, Tuple, Dict, Any
 
@@ -25,30 +20,22 @@ import torch
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 from omegaconf import open_dict
-from pytorch_lightning import seed_everything
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
 
-import numpy as np
 from copy import deepcopy
 from nemo.collections.asr.parts.utils.diarization_utils import read_seglst, OnlineEvaluation
 from nemo.utils import logging
 
 from nemo.collections.asr.models.sortformer_diar_models import SortformerEncLabelModel
 from nemo.core.config import hydra_runner
-from nemo.collections.asr.metrics.der import score_labels
-from hydra.core.config_store import ConfigStore
-
-from pyannote.core import Segment, Timeline
 
 from nemo.collections.asr.parts.utils.speaker_utils import (
 audio_rttm_map as get_audio_rttm_map,
 rttm_to_labels,
 )
-from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing, timestamps_to_pyannote_object
 from start_words import COMMON_SENTENCE_STARTS
 from nemo.collections.asr.parts.utils.diarization_utils import (
 print_sentences,
@@ -57,17 +44,8 @@ write_txt,
 )
 
 
-import hydra
 from typing import List, Optional
-from dataclasses import dataclass, field
-from beam_search_utils import (
-    SpeakerTaggingBeamSearchDecoder,
-    load_input_jsons,
-    load_reference_jsons,
-    run_mp_beam_search_decoding,
-    convert_nemo_json_to_seglst,
-)
-from hydra.core.config_store import ConfigStore
+from dataclasses import dataclass
 from collections import OrderedDict
 import itertools
 
@@ -191,7 +169,11 @@ class MultiSpeakerASRstreamer:
             sentence = self._get_offset_sentence(session_trans_dict=session_trans_dict, offset=0)
             sentences = []
             session_trans_dict['last_word_index'] = stt_word_index
-            session_trans_dict['sentence_memory'].update({stt_word_index:(deepcopy(sentences), deepcopy(sentence), sentence['speaker'])})
+            session_trans_dict['sentence_memory'].update({stt_word_index: 
+                                                            (deepcopy(sentences), 
+                                                             deepcopy(sentence), 
+                                                             sentence['speaker']
+                                                            )})
             prev_speaker = session_trans_dict['words'][stt_word_index]['speaker']
         else:
             (_sentences, _sentence, prev_speaker) = session_trans_dict['sentence_memory'][stt_word_index]
@@ -257,13 +239,15 @@ class MultiSpeakerASRstreamer:
         # Correct a middle word wrongly assigned to the other speaker, which is lower case and no punctuation.
         for idx in range(WL - sentence_render_length, WL-1):
             word_dict = word_and_ts_seq['words'][idx]
+            # Check whether the current word is start or end of speaker turn.
             if (not word_dict['is_stt_speaker_turn'] and \
                 not word_dict['is_end_speaker_turn'] and \
                 not word_dict['word'][0].isupper()):
+                # Check whether the current word is isolated in terms of speaker assignment.
                 if word_and_ts_seq['words'][idx-1]['speaker'] != word_dict['speaker'] and \
-                word_and_ts_seq['words'][idx+1]['speaker'] != word_dict['speaker'] and \
-                (word_and_ts_seq['words'][idx-1]['speaker'] == \
-                word_and_ts_seq['words'][idx+1]['speaker']):
+                   word_and_ts_seq['words'][idx+1]['speaker'] != word_dict['speaker'] and \
+                   word_and_ts_seq['words'][idx-1]['speaker'] == \
+                   word_and_ts_seq['words'][idx+1]['speaker']:
                     word_and_ts_seq['words'][idx]['speaker'] = word_and_ts_seq['words'][idx-1]['speaker'] 
                     
         return word_and_ts_seq 
@@ -314,7 +298,10 @@ class MultiSpeakerASRstreamer:
                                             )
             # Count the number of speakers in the word window
             time_step_local_offset += len(token_group)
-            word_idx_offset, word_and_ts_seq = append_word_and_ts_seq(self.cfg, word_idx_offset, word_and_ts_seq, word_dict)
+            word_idx_offset, word_and_ts_seq = append_word_and_ts_seq(cfg=self.cfg, 
+                                                                      word_idx_offset=word_idx_offset, 
+                                                                      word_and_ts_seq=word_and_ts_seq, 
+                                                                      word_dict=word_dict)
         
         if self.cfg.fix_speaker_assignments:     
             word_and_ts_seq = self.correct_speaker_assignments(word_and_ts_seq=word_and_ts_seq, 
@@ -399,11 +386,17 @@ class MultiSpeakerASRstreamer:
                         der, cpwer, is_update = self.online_evaluators[idx].evaluate_inloop(hyp_seglst=self._word_and_ts_seq[idx]["sentences"], 
                                                                                             end_step_time=self._word_and_ts_seq[idx]["sentences"][-1]["end_time"])
                     if self.cfg.generate_online_scripts:
-                        transcribed_speaker_texts[idx] = print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], color_palette=get_color_palette(), params=self.cfg)
-                        write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), transcribed_speaker_texts[idx].strip())
+                        transcribed_speaker_texts[idx] = \
+                            print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], 
+                            color_palette=get_color_palette(), 
+                            params=self.cfg)
+                        write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), 
+                                  transcribed_speaker_texts[idx].strip())
             
             if self.cfg.log:         
-                logging.info(f"mem: {mem_last_time.shape}, fifo: {fifo_last_time.shape}, pred: {diar_pred_out_stream.shape}")
+                logging.info(f"mem: {mem_last_time.shape}, "
+                             f"fifo: {fifo_last_time.shape}, "
+                             f"pred: {diar_pred_out_stream.shape}")
         
         return (transcribed_speaker_texts,
                 transcribed_texts,
@@ -445,7 +438,7 @@ class DiarizationConfig:
     ignore_overlap: bool = False # If True, DER will be calculated only for non-overlapping segments
     
     # Streaming diarization configs
-    streaming_mode: bool = True # If True, streaming diarization will be used. For long-form audio, set mem_len=step_len
+    streaming_mode: bool = True # If True, streaming diarization will be used. 
     mem_len: int = 188
     # mem_refresh_rate: int = 0
     fifo_len: int = 188
@@ -553,7 +546,8 @@ def fix_frame_time_step(
             frame_inds_seq = [frame_inds_seq[0]] * deficit + frame_inds_seq
         if cfg.log:
             logging.warning(
-                f"Length of new token sequence ({len(new_tokens)}) does not match length of frame indices sequence ({len(frame_inds_seq)}). Skipping this chunk."
+                f"Length of new token sequence ({len(new_tokens)}) does not match" 
+                f"the length of frame indices sequence ({len(frame_inds_seq)}). Skipping this chunk."
             )
     return frame_inds_seq
 
@@ -619,7 +613,9 @@ def get_word_dict_content(
             frame_end = frame_stt + 1
     
     # Get the speaker based on the frame-wise softmax probabilities.
-    speaker_sigmoid = diar_pred_out_stream[max((frame_stt + cfg.left_frame_shift), 0):(frame_end + cfg.right_frame_shift), :].mean(dim=0)
+    stt_p = max((frame_stt + cfg.left_frame_shift), 0)
+    end_p = (frame_end + cfg.right_frame_shift)
+    speaker_sigmoid = diar_pred_out_stream[stt_p:end_p, :].mean(dim=0)
     speaker_softmax = get_simulated_softmax(cfg, speaker_sigmoid)
 
     speaker_softmax[cfg.limit_max_spks:] = 0.0
@@ -770,8 +766,10 @@ def perform_streaming(
         if cfg.real_time_mode:
             time_diff = max(0, (time.time() - session_start_time) - feat_frame_count * cfg.feat_len_sec)
             eta_min_sec = format_time(time.time() - session_start_time)
-            logging.info(f"[   REAL TIME MODE   ] min:sec - {eta_min_sec} Time difference for real-time mode: {time_diff:.4f} seconds")
-            time.sleep(max(0, (chunk_audio.shape[-1] - cfg.discarded_frames)*cfg.feat_len_sec - (loop_end_time - loop_start_time) - time_diff * cfg.finetune_realtime_ratio))
+            logging.info(f"[   REAL TIME MODE   ] min:sec - {eta_min_sec} "
+                         f"Time difference for real-time mode: {time_diff:.4f} seconds")
+            time.sleep(max(0, (chunk_audio.shape[-1] - cfg.discarded_frames)*cfg.feat_len_sec - 
+                           (loop_end_time - loop_start_time) - time_diff * cfg.finetune_realtime_ratio))
     final_streaming_tran = extract_transcriptions(transcribed_texts)
     return final_streaming_tran, final_offline_tran
 
@@ -814,9 +812,11 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         map_location = torch.device(f'cuda:{cfg.cuda}')
 
     if cfg.diar_model_path.endswith(".ckpt"):
-        diar_model = SortformerEncLabelModel.load_from_checkpoint(checkpoint_path=cfg.diar_model_path, map_location=map_location, strict=False)
+        diar_model = SortformerEncLabelModel.load_from_checkpoint(checkpoint_path=cfg.diar_model_path, 
+                                                                  map_location=map_location, strict=False)
     elif cfg.diar_model_path.endswith(".nemo"):
-        diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.diar_model_path, map_location=map_location)
+        diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.diar_model_path, 
+                                                          map_location=map_location)
     else:
         raise ValueError("cfg.diar_model_path must end with.ckpt or.nemo!")
     
@@ -883,7 +883,8 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     asr_model = asr_model.to(args.device)
     asr_model.eval()
 
-    # chunk_size is set automatically for models trained for streaming. For models trained for offline mode with full context, we need to pass the chunk_size explicitly.
+    # chunk_size is set automatically for models trained for streaming. 
+    # For models trained for offline mode with full context, we need to pass the chunk_size explicitly.
     if args.chunk_size > 0:
         if args.shift_size < 0:
             shift_size = args.chunk_size
@@ -893,13 +894,15 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             chunk_size=args.chunk_size, left_chunks=args.left_chunks, shift_size=shift_size
         )
 
-    # In streaming, offline normalization is not feasible as we don't have access to the whole audio at the beginning
-    # When online_normalization is enabled, the normalization of the input features (mel-spectrograms) are done per step
-    # It is suggested to train the streaming models without any normalization in the input features.
+    # In streaming, offline normalization is not feasible as we don't have access to the 
+    # whole audio at the beginning When online_normalization is enabled, the normalization 
+    # of the input features (mel-spectrograms) are done per step It is suggested to train 
+    # the streaming models without any normalization in the input features.
     if args.online_normalization:
         if asr_model.cfg.preprocessor.normalize not in ["per_feature", "all_feature"]:
             logging.warning(
-                "online_normalization is enabled but the model has no normalization in the feature extration part, so it is ignored."
+                "online_normalization is enabled but the model has"
+                "no normalization in the feature extration part, so it is ignored."
             )
             online_normalization = False
         else:
