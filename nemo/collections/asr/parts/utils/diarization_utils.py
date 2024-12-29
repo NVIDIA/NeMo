@@ -426,12 +426,6 @@ def convert_seglst(seglst, all_speakers):
 
     return timestamps, words
 
-# def chunk_seglst(
-#     seglst : List[Dict],
-#     chunk_size: float = 10.0
-# ):
-#     '''
-#     Get chunked timestamps and words for each speaker
 
 def get_session_trans_dict(uniq_id, word_dict_seq_list, diar_labels):
     n_spk = get_num_of_spk_from_labels(diar_labels)
