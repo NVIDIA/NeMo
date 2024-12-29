@@ -16,19 +16,11 @@ import copy
 import csv
 import json
 import os
-<<<<<<< HEAD
-from itertools import groupby
-=======
->>>>>>> origin/main
 from collections import defaultdict, OrderedDict as od
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 
 import numpy as np
-<<<<<<< HEAD
-import string
-=======
->>>>>>> origin/main
 from pyannote.metrics.diarization import DiarizationErrorRate
 
 from nemo.collections.asr.metrics.der import concat_perm_word_error_rate, calculate_session_cpWER
