@@ -35,6 +35,7 @@ from lhotse.cut import CutSet, MixedCut, MonoCut, MixTrack
 from lhotse import SupervisionSet, SupervisionSegment, dill_enabled, AudioSource, Recording
 from lhotse.utils import uuid4
 
+import math
 def find_first_nonzero(mat: torch.Tensor, max_cap_val=-1, thres: float = 0.5) -> torch.Tensor:
     """
     Finds the first nonzero value in the matrix, discretizing it to the specified maximum capacity.
@@ -210,6 +211,10 @@ def find_segments_from_rttm(
         end_before (float): The end time before which segments are selected.
         adjust_offset (bool): Whether to adjust the offset of the segments.
         tolerance (float): The tolerance for time matching. 0.001 by default.
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/main
     Returns:
         segments (List[SupervisionSegment]): A list of SupervisionSegment instances.
     """

@@ -32,7 +32,7 @@ class BCELoss(Loss, Typing):
         return {
             "probs": NeuralType(('B', 'T', 'C'), ProbsType()),
             'labels': NeuralType(('B', 'T', 'C'), LabelsType()),
-            "target_lens": NeuralType(('B', 'C'), LengthsType()),
+            "target_lens": NeuralType(('B'), LengthsType()),
         }
 
     @property

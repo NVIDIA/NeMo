@@ -1014,6 +1014,55 @@ def get_subsegments_scriptable(offset: float, window: float, shift: float, durat
         min_subsegment_duration (float): Exclude subsegments smaller than this duration value
         decimals (int): Number of decimal places to round to
         use_asr_style_frame_count (bool): If True, use asr style frame count to generate subsegments.
+                                          For example, if duration is 10 secs and frame_shift is 0.08 secs,
+                                          it results in (10/0.08)+1 = 125 + 1 frames.
+
+    Returns:
+        subsegments (List[tuple[float, float]]): subsegments generated for the segments
+                                                 as list of tuple of start and duration of
+                                                 each subsegment
+    """
+    subsegments: List[List[float]] = []
+    start = offset
+    slice_end = start + duration
+    if min_subsegment_duration <= duration <= shift:
+        slices = 1
+    elif use_asr_style_frame_count is True:
+        num_feat_frames = np.ceil((1 + duration * sample_rate) / int(sample_rate / feat_per_sec)).astype(int)
+        slices = np.ceil(num_feat_frames / int(feat_per_sec * shift)).astype(int)
+        slice_end = start + shift * slices
+    else:
+        slices = np.ceil(1 + (duration - window) / shift).astype(int)
+    if slices == 1:
+        if min(duration, window) >= min_subsegment_duration:
+            subsegments.append([start, min(duration, window)])
+    elif slices > 0:  # What if slcies = 0 ?
+        start_col = torch.arange(offset, slice_end, shift)[:slices]
+        dur_col_raw = torch.min(
+            slice_end * torch.ones_like(start_col) - start_col, window * torch.ones_like(start_col)
+        )
+        dur_col = torch.round(dur_col_raw, decimals=decimals)
+        valid_mask = dur_col >= min_subsegment_duration
+        valid_subsegments = torch.stack([start_col[valid_mask], dur_col[valid_mask]], dim=1)
+        subsegments = valid_subsegments.tolist()
+    return subsegments
+
+
+def get_subsegments_scriptable(offset: float, window: float, shift: float, duration: float) -> List[List[float]]:
+    """
+    This function returns subsegments from a segment of an audio file.
+    Although this implementation is inefficient due to the use of a for-loop for segmentation,
+    it is designed to be torch-jit-scriptable.
+    Use `get_subsegments` for a more efficient implementation.
+
+    Args:
+        offset (float): Start time of audio segment
+        window (float): Window length for segments to subsegments length
+        shift (float): Hop length for subsegments shift
+        duration (float): Duration of segment
+        min_subsegment_duration (float): Exclude subsegments smaller than this duration value
+        decimals (int): Number of decimal places to round to
+        use_asr_style_frame_count (bool): If True, use asr style frame count to generate subsegments.
                                           For example, if duration is 10 secs and frame_shift is 0.08 secs, 
                                           it results in (10/0.08)+1 = 125 + 1 frames.
                                           
@@ -1803,6 +1852,10 @@ def get_uem_object(uem_lines: List[List[float]], uniq_id: str):
             Example:
             [[0.0, 30.41], [60.04, 165.83]]
         uniq_id (str): Unique session ID.
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/main
     Returns:
         timeline (pyannote.core.Timeline): pyannote timeline object.
     """
