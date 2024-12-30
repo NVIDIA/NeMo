@@ -79,9 +79,16 @@ class TarFileSystemReader(FileSystemReader):
             self.path = path  # overwrites path set in super().__init__ call
 
 
-def standarize_distributed_scaling_factors(state_dict: dict) -> dict:
-    """Scales are kept in BufferIO objects. This function preprocesses them for export.
-    Used only for local (non-mcore) export.
+def preprocess_scaling_factors_for_local_export(state_dict: dict) -> Dict[str, Any]:
+    """
+    Scaling factors are kept in BufferIO objects.
+    This function reads the exact scales, preparing them for export.
+    Used only for local (non-mcore) path.
+    
+    Args:
+        state_dict (dict): Model state dictionary 
+    Returns:
+        dict: The same dictionary, with explicitly loaded extra states from BufferIO objects.
     """
     scales_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE in k}
     state_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE not in k}
@@ -118,14 +125,23 @@ def standarize_distributed_scaling_factors(state_dict: dict) -> dict:
     return state_dict | combined_scales
 
 
-def rename_extra_states(state_dict: dict) -> dict:
+def rename_extra_states(state_dict: dict) -> Dict[str, Any]:
+    """
+    This function preprocesses extra states for Megatron export.
+
+    Args:
+        state_dict (dict): Model state dictionary
+    Returns:
+        dict: Model state dictionary, with extra states consumable by mcore export 
+    """
     mcore_extra_states = {}
 
     for key, value in state_dict.items():
         if EXTRA_STATE not in key:
             continue
 
-        # extra state key has a form: "<base_key>._extra_state/shard_<layer_num>_<num_layers>"
+        # Keys with the extra states have the following format:
+        # <prefix>.layers.<layer>._extra_state/shard_<layer_number>_<number_of_layers>
         key_base, shard_key = key.split('/')
         if '_' not in shard_key:
             continue
@@ -134,8 +150,10 @@ def rename_extra_states(state_dict: dict) -> dict:
         if not shard_layer.isnumeric():
             continue
 
+        # Renames keys to:
+        # <prefix>.layers.<layer_number>.<layer>._extra_state
         mcore_key = key_base.replace("layers", f"layers.{shard_layer}")
-        if isinstance(value, list) and len(value) == 1:
+        if isinstance(value, list):
             value = value[0]
         mcore_extra_states[mcore_key] = value
 
@@ -477,7 +495,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
             model = load_sharded_metadata(dist_ckpt_folder)
             if not mcore_scales_format:
                 model.update({k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)})
-                model = standarize_distributed_scaling_factors(model)
+                model = preprocess_scaling_factors_for_local_export(model)
 
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
