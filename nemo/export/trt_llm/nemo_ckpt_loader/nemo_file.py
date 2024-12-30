@@ -17,11 +17,9 @@ import functools
 import json
 import logging
 import os
-import re
 import shutil
-from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
