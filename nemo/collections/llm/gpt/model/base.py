@@ -116,7 +116,10 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     from megatron.core.models.gpt import gpt_layer_specs
 
     return gpt_layer_specs.get_gpt_layer_with_transformer_engine_spec(
-        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
+        num_experts=config.num_moe_experts,
+        moe_grouped_gemm=config.moe_grouped_gemm,
+        qk_layernorm=config.qk_layernorm,
+        fp8=bool(config.num_moe_experts and (config.fp8 is not None)),
     )
 
 
@@ -171,7 +174,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     masked_softmax_fusion: bool = True
     cross_entropy_loss_fusion: bool = True
     gradient_accumulation_fusion: bool = _grad_accum_fusion_available
-    deallocate_pipeline_outputs = True
+    deallocate_pipeline_outputs: bool = True
+    scatter_embedding_sequence_parallel: bool = True
 
     use_transformer_engine_full_layer_spec: bool = False
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
@@ -180,6 +184,13 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = gpt_data_step
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+        if self.enable_cuda_graph:
+            assert HAVE_TE, "Transformer Engine is required for cudagraphs."
+            assert getattr(self, 'use_te_rng_tracker', False), (
+                "Transformer engine's RNG tracker is required for cudagraphs, it can be "
+                "enabled with use_te_rng_tracker=True'."
+            )
+
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
@@ -216,6 +227,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
             post_process=post_process or parallel_state.is_pipeline_last_stage(),
+            scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
         )
 
         # If using full TE layer, need to set TP, CP group since the module call
