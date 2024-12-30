@@ -35,6 +35,7 @@ from torch.distributed.tensor.parallel import (
     parallelize_module,
 )
 
+
 def parallelize(model, device_mesh: DeviceMesh):
     """Apply parallelisms and activation checkpointing to the model.
 
@@ -124,6 +125,7 @@ def parallelize(model, device_mesh: DeviceMesh):
 
     return model
 
+
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     # Env vars for jobs are configured here
     env_vars = {
@@ -170,6 +172,6 @@ if __name__ == '__main__':
     )
 
     recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=8, tensor_parallel_size=1)
-    recipe.trainer.plugins=None
+    recipe.trainer.plugins = None
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
     run.run(recipe, executor=executor)
