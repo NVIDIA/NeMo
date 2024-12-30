@@ -15,7 +15,7 @@
 
 import csv
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import tensorrt_llm
@@ -82,7 +82,7 @@ def prompt_convert(prompt_config, prompt_weights):
 
 
 def determine_quantization_settings(
-    nemo_model_config: dict, fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None
+    nemo_model_config: Dict[str, Any], fp8_quantized: Optional[bool] = None, fp8_kvcache: Optional[bool] = None
 ) -> Tuple[bool, bool]:
     """
     Determines the exported models quantization settings.

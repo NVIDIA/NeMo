@@ -77,7 +77,7 @@ class TarFileSystemReader(FileSystemReader):
             self.path = path  # overwrites path set in super().__init__ call
 
 
-def preprocess_scaling_factors_for_local_export(state_dict: dict) -> Dict[str, Any]:
+def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Scaling factors are kept in BufferIO objects.
     This function reads the exact scales, preparing them for export.
@@ -123,7 +123,7 @@ def preprocess_scaling_factors_for_local_export(state_dict: dict) -> Dict[str, A
     return state_dict | combined_scales
 
 
-def rename_extra_states(state_dict: dict) -> Dict[str, Any]:
+def rename_extra_states(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     This function preprocesses extra states for Megatron export.
 
