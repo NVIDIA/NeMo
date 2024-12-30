@@ -56,7 +56,7 @@ def llama3_70b_performance_recipe(
     # data module configs
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
-    recipe.data.num_train_samples = max_steps * (num_nodes * num_gpus_per_node)  # ensure only 1 epoch for whole run
+    recipe.data.num_train_samples = max_steps * gbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-70B")
 
     recipe.trainer.max_steps = max_steps
@@ -102,7 +102,7 @@ def llama3_70b_performance_recipe(
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
     recipe.trainer.enable_checkpointing = False
-    recipe.trainer.val_check_interval = MAX_STEPS
+    recipe.trainer.check_val_every_n_epoch=1
     recipe.trainer.log_every_n_steps = 1
 
     # tensorboard adds performance overhead. Comment the following line to enable tensorboard logger defined in
