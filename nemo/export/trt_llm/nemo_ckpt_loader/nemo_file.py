@@ -84,9 +84,9 @@ def preprocess_scaling_factors_for_local_export(state_dict: dict) -> Dict[str, A
     Scaling factors are kept in BufferIO objects.
     This function reads the exact scales, preparing them for export.
     Used only for local (non-mcore) path.
-    
+
     Args:
-        state_dict (dict): Model state dictionary 
+        state_dict (dict): Model state dictionary
     Returns:
         dict: The same dictionary, with explicitly loaded extra states from BufferIO objects.
     """
@@ -132,7 +132,7 @@ def rename_extra_states(state_dict: dict) -> Dict[str, Any]:
     Args:
         state_dict (dict): Model state dictionary
     Returns:
-        dict: Model state dictionary, with extra states consumable by mcore export 
+        dict: Model state dictionary, with extra states consumable by mcore export
     """
     mcore_extra_states = {}
 
