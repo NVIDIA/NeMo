@@ -88,6 +88,20 @@ userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
     fc2_fprop=PipelineOverlapCfg(num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, fp8_buf=True),
 )
 
+# llama3 70b
+userbuffers_bf16_h100_h8192_tp2_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
+    qkv_dgrad=BulkOverlapCfg(num_sm=8, cga_size=2, set_sm_margin=False),
+    qkv_wgrad=BulkOverlapCfg(num_sm=32, cga_size=2, set_sm_margin=False),
+    fc1_dgrad=BulkOverlapCfg(num_sm=2, cga_size=2, set_sm_margin=False),
+    fc1_wgrad=BulkOverlapCfg(num_sm=8, cga_size=2, set_sm_margin=False),
+    qkv_fprop=RingExchangeOverlapCfg(aggregate=False),
+    proj_dgrad=RingExchangeOverlapCfg(aggregate=False),
+    fc1_fprop=RingExchangeOverlapCfg(aggregate=False),
+    fc2_dgrad=RingExchangeOverlapCfg(aggregate=False),
+    proj_fprop=RingExchangeOverlapCfg(),
+    fc2_fprop=RingExchangeOverlapCfg(),
+)
+
 # llama3.1 405b
 userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
     qkv_dgrad=BulkOverlapCfg(num_sm=2, cga_size=2, set_sm_margin=False),
