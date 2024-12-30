@@ -241,7 +241,7 @@ model:
     train_ds:
       input_cfg:
       - type: group
-        weight: 0.3
+        weight: 0.00003
         input_cfg:
         - type: lhotse_shar
           shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/suno_20k/xaa/shar_dir/
@@ -279,7 +279,7 @@ model:
             s2s_duplex: True
 
       - type: group
-        weight: 1.0
+        weight: 0.0001
         input_cfg:
         - type: lhotse_shar
           shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/suno_100k/xaa/shar_dir/
@@ -404,14 +404,14 @@ model:
           tags:
             s2s_duplex: True
   
-        - type: lhotse_shar
-          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/nvolve_chatqa/
-          tags:
-            s2s_duplex: True
-        - type: lhotse_shar
-          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/precise_instruction_following_v4_system_multi_turn/
-          tags:
-            s2s_duplex: True
+            #- type: lhotse_shar
+            #  shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/nvolve_chatqa/
+            #  tags:
+            #    s2s_duplex: True
+            #- type: lhotse_shar
+            #  shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/precise_instruction_following_v4_system_multi_turn/
+            #  tags:
+            #    s2s_duplex: True
   
   
         - type: lhotse_shar
@@ -444,7 +444,7 @@ model:
             s2s_duplex: True
 
       - type: group
-        weight: 5.0
+        weight: 10.0
         input_cfg:
 
         - type: lhotse_shar
