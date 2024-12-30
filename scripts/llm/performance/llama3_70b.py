@@ -102,7 +102,7 @@ def llama3_70b_performance_recipe(
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
     recipe.trainer.enable_checkpointing = False
-    recipe.trainer.check_val_every_n_epoch=1
+    recipe.trainer.check_val_every_n_epoch = 1
     recipe.trainer.log_every_n_steps = 1
 
     # tensorboard adds performance overhead. Comment the following line to enable tensorboard logger defined in
