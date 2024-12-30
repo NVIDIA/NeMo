@@ -137,6 +137,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
+        use_te_rng_tracker (bool): If true, uses RNG state tracker in TransformerEngine. Defaults to False.
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
             'torch_dist' or 'zarr'. Defaults to 'torch_dist'.
         ckpt_async_save (bool): Whether to save checkpoints asynchronously to reduce checkpointing overhead.
