@@ -244,7 +244,7 @@ class MegatronCommOverlapCallback(Callback):
             logging.warning(
                 "Tensor parallel overlap: No overlap config provided. Initializing TP comm overlap with the default config."
             )
-        else:
+        elif not isinstance(self.tp_comm_overlap_cfg, dict):
             # ub_cfgs is a dataclass, however TE needs a dict, so convert here
             self.tp_comm_overlap_cfg = asdict(self.tp_comm_overlap_cfg)
 
