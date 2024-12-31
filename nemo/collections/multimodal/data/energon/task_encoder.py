@@ -25,17 +25,20 @@ from megatron.energon import (
     batch_list,
     batch_pad_stack,
 )
+from megatron.energon.task_encoder.base import stateless
 
-from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, PackedImageTextSample, \
-    PackedImageTextRawBatch
+from nemo.collections.multimodal.data.energon.config import (
+    ImageTextRawBatch,
+    ImageTextSample,
+    PackedImageTextRawBatch,
+    PackedImageTextSample,
+)
 from nemo.collections.multimodal.data.energon.sample_encoder import (
     InterleavedSampleEncoder,
     SampleEncoder,
     SimilarityInterleavedEncoder,
     VQASampleEncoder,
 )
-from megatron.energon.task_encoder.base import stateless
-
 from nemo.utils import logging
 
 
@@ -58,8 +61,15 @@ class MultiModalTaskEncoder(
     for model input.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config,
-                 packed_sequence=False, packing_seq_length=4096, num_image_embeddings_per_tile=576):
+    def __init__(
+        self,
+        tokenizer,
+        image_processor,
+        multimodal_sample_config,
+        packed_sequence=False,
+        packing_seq_length=4096,
+        num_image_embeddings_per_tile=576,
+    ):
         """
         Initialize the MultiModalTaskEncoder with specific encoders for different sample types.
 
@@ -202,20 +212,21 @@ class MultiModalTaskEncoder(
             batch_dict['attention_mask'] = None
         return batch_dict
 
-
     def select_samples_to_pack(self, samples):
         """Selects which samples will be packed together.
 
         NOTE: Energon dataloader calls this method internally if packing is used.
         Please see https://nvidia.github.io/Megatron-Energon/packing.html
         """
-        from nemo.collections.vlm.neva.data.sequence_packing import predict_seq_len, greedy_knapsack
+        from nemo.collections.vlm.neva.data.sequence_packing import greedy_knapsack, predict_seq_len
+
         media_token_id = self.sample_config.image_token.token_id
         lengths = [
             predict_seq_len(
                 sample.tokens,
                 media_token_index=media_token_id,
-                num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,)
+                num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
+            )
             for sample in samples
         ]
         packed_samples = greedy_knapsack(lengths, samples, self.packing_seq_length)
@@ -223,7 +234,8 @@ class MultiModalTaskEncoder(
         logging.info(
             f"[Seq Packing Info] - Packing seq len: {self.packing_seq_length}, "
             f"Buffered samples: {len(lengths)}, Total number of bins: {len(packed_samples)}, "
-            f"Average samples per bin: {avg_samples_per_bin}")
+            f"Average samples per bin: {avg_samples_per_bin}"
+        )
         return packed_samples
 
     @stateless
@@ -241,6 +253,7 @@ class MultiModalTaskEncoder(
             ImageTaskSamplePacked instance.
         """
         from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed
+
         packed_images = torch.stack([sample.images for sample in samples])
         media_token_id = self.sample_config.image_token.token_id
         packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = convert_to_packed(

@@ -93,13 +93,15 @@ def main(args):
             num_image_embeddings_per_tile=num_image_embeddings_per_tile,
         )
     elif args.data_type == "energon":
+        from transformers import AutoProcessor
+
         from nemo.collections.multimodal.data.energon import (
             ImageToken,
+            LLaVATemplateConfig,
             MultiModalSampleConfig,
             SimpleMultiModalDataModule,
-            LLaVATemplateConfig,
         )
-        from transformers import AutoProcessor
+
         processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
         tokenizer = processor.tokenizer
         image_processor = processor.image_processor

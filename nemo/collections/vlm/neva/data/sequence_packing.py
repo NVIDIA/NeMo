@@ -1,7 +1,8 @@
 import bisect
+from typing import List
+
 import torch
 import torch.nn.functional as F
-from typing import List
 from megatron.core.packed_seq_params import PackedSeqParams
 
 
@@ -35,7 +36,9 @@ def greedy_knapsack(item_sizes: List[int], samples: List, max_capacity: int) -> 
 
     # Check if all samples fit in the knapsack capacity.
     if sorted_item_sizes[-1] > max_capacity:
-        raise ValueError(f"knapsack: A sample is larger {sorted_item_sizes[-1]} than the max_sequence_length {max_capacity}.")
+        raise ValueError(
+            f"knapsack: A sample is larger {sorted_item_sizes[-1]} than the max_sequence_length {max_capacity}."
+        )
 
     while sorted_item_sizes:
         current_knapsack = []
@@ -44,7 +47,7 @@ def greedy_knapsack(item_sizes: List[int], samples: List, max_capacity: int) -> 
         while True:
             idx = search_for_fit(sorted_item_sizes, remaining_capacity)
             if idx == -1:
-                break   # Can't fit more samples.
+                break  # Can't fit more samples.
 
             remaining_capacity -= sorted_item_sizes[idx]
 
@@ -55,6 +58,7 @@ def greedy_knapsack(item_sizes: List[int], samples: List, max_capacity: int) -> 
         knapsacks.append(current_knapsack)
 
     return knapsacks
+
 
 def predict_seq_len(instance_tokens: torch.Tensor, num_image_embeddings_per_tile: int, media_token_index: int) -> int:
     """
@@ -78,7 +82,7 @@ def convert_to_packed(
     labels: List[torch.Tensor],
     num_image_embeddings_per_tile: int,
     media_token_index: int,
-    ignore_index: int
+    ignore_index: int,
 ):
     """
     Convert tokens, labels, and associated inputs into a packed version with padded sequence parameters.
@@ -108,9 +112,7 @@ def convert_to_packed(
 
         packed_tokens.append(instance_tokens)
         packed_labels.append(instance_labels)
-        packed_position_ids.append(
-            torch.arange(len(instance_tokens), dtype=torch.int, device=instance_tokens.device)
-        )
+        packed_position_ids.append(torch.arange(len(instance_tokens), dtype=torch.int, device=instance_tokens.device))
         seqlens_padded.append(seqlen_padded)
         cu_seqlens.append(cu_seqlens[-1] + seqlen)
         cu_seqlens_padded.append(cu_seqlens_padded[-1] + seqlen_padded)

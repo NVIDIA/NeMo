@@ -14,9 +14,12 @@
 
 from dataclasses import dataclass, field
 from typing import List, Tuple, Union
+
 import torch
-from nemo.collections.multimodal.data.energon.conversation import LLaVATemplateConfig
 from megatron.core.packed_seq_params import PackedSeqParams
+
+from nemo.collections.multimodal.data.energon.conversation import LLaVATemplateConfig
+
 
 @dataclass
 class MultiModalToken:
@@ -63,6 +66,7 @@ class ImageTextRawBatch:
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+
 
 @dataclass
 class PackedImageTextRawBatch(ImageTextRawBatch):
