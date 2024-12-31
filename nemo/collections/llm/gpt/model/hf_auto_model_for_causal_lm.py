@@ -102,13 +102,13 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = AutoModelForCausalLM.from_config(
                 config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
             )
-        
+
         # Apply FSDP2 and TP to the model
         parallelize(self.model, device_mesh=self.device_mesh)
 
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
-        
+
         print(self.model)
 
         self.model.train()
@@ -268,7 +268,7 @@ def parallelize(model, device_mesh: DeviceMesh):
             )
             model.model.layers[layer_id] = transformer_block
         model = fully_shard(model, **fsdp_config)
-    
+
     print("here")
 
     return model

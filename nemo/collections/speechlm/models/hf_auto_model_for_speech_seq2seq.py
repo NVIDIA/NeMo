@@ -105,7 +105,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
                 config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
                 self.model = AutoModelForSpeechSeq2Seq.from_config(config, trust_remote_code=self.trust_remote_code)
-        
+
         # Apply FSDP2 and TP to the model
         parallelize(self.model, device_mesh=self.device_mesh)
 

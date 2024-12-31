@@ -173,6 +173,6 @@ if __name__ == '__main__':
     )
 
     recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=4, tensor_parallel_size=2)
-    recipe.trainer.plugins=None
+    recipe.trainer.plugins = None
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
     run.run(recipe, executor=executor)
