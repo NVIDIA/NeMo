@@ -23,48 +23,17 @@ import safetensors.torch
 import tensorstore  # needed to register 'bfloat16' dtype with numpy for zarr compatibility
 import torch
 import zarr
-from torch.distributed.checkpoint import FileSystemReader
-from torch.distributed.checkpoint.metadata import TensorStorageMetadata
-from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from vllm.config import CacheConfig, DeviceConfig, LoRAConfig, ModelConfig, ParallelConfig, SchedulerConfig
 from vllm.model_executor.model_loader.loader import BaseModelLoader, _initialize_model
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.vllm.model_config import NemoModelConfig
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_sharded_metadata_torch_dist
 
 from .utils import is_nemo2_checkpoint
 
 LOGGER = logging.getLogger("NeMo")
-
-
-def load_sharded_metadata_torch_dist(checkpoint_dir: str) -> Dict[str, Any]:
-    """
-    Loads model state dictionary for NeMo 2.0 checkpoint.
-
-    Args:
-        checkpoint_dir (str): Path to the checkpoint.
-    Returns:
-        dict: Model state dictionary.
-    """
-
-    weights_dir = Path(checkpoint_dir) / 'weights'
-    fs_reader = FileSystemReader(weights_dir)
-    metadata = fs_reader.read_metadata()
-
-    state_dict = {
-        k: torch.empty(tp.size, dtype=tp.properties.dtype)
-        for k, tp in metadata.state_dict_metadata.items()
-        if isinstance(tp, TensorStorageMetadata)
-    }
-
-    load_state_dict(
-        state_dict,
-        storage_reader=fs_reader,
-        no_dist=True,
-    )
-
-    return state_dict
 
 
 class NemoModelLoader(BaseModelLoader):
@@ -78,13 +47,13 @@ class NemoModelLoader(BaseModelLoader):
 
     @staticmethod
     def _load_nemo_checkpoint_state(nemo_file: str):
-        if is_nemo2_checkpoint(nemo_file):
-            return load_sharded_metadata_torch_dist(nemo_file)
-
-        sharded_state_dict = {}
-
         LOGGER.info(f'Loading weights from {nemo_file}...')
 
+        if is_nemo2_checkpoint(nemo_file):
+            nemo2_weights_path = Path(nemo_file) / 'weights'
+            return load_sharded_metadata_torch_dist(nemo2_weights_path)
+
+        sharded_state_dict = {}
         with TarPath(nemo_file) as archive:
             for subdir in archive.iterdir():
                 if not subdir.is_dir() or not (subdir / '.zarray').exists():
