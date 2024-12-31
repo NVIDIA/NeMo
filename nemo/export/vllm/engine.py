@@ -27,7 +27,7 @@ from nemo.export.vllm.tokenizer_group import NemoTokenizerGroup
 LOGGER = logging.getLogger("NeMo")
 
 
-class VLLMTokenizerGroup(TokenizerGroup):
+class vLLMTokenizerGroup(TokenizerGroup):
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
 
@@ -64,7 +64,7 @@ class NemoLLMEngine(LLMEngine):
                 return NemoTokenizerGroup(tokenizer, add_bos_token=add_bos_token)
 
             if isinstance(tokenizer, PreTrainedTokenizerBase):
-                return VLLMTokenizerGroup(tokenizer)
+                return vLLMTokenizerGroup(tokenizer)
 
         # Find the tokenizer file name in the Nemo checkpoint config
         tokenizer_model = tokenizer_config.get('model', tokenizer_config.get('tokenizer_model', None))
