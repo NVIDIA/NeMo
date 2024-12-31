@@ -430,53 +430,17 @@ class NevaDataset(LazySupervisedDataset):
             raise ValueError(f"Unsupported media type {media_type}")
 
         if packed_sequence:
-            from megatron.core.packed_seq_params import PackedSeqParams
+            from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed
 
             media_token_id = self.data_config.media_token.token_index
-
-            tokens = []
-            labels = []
-            position_ids = []
-            seqlens_padded = []
-            cu_seqlens = [0]
-            cu_seqlens_padded = [0]
-            for instance in instances:
-                # Assume 1 tile per image
-                num_image_embeddings_per_tile = self.num_image_embeddings_per_tile
-                num_images = torch.sum(instance['tokens'] == media_token_id)
-                seqlen = len(instance['tokens']) + (num_image_embeddings_per_tile - 1) * num_images
-                seqlen_padded = (seqlen - 1) // 8 * 8 + 8
-                pad_len = seqlen_padded - seqlen
-                if pad_len > 0:
-                    instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
-                    instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
-                tokens.append(instance['tokens'])
-                labels.append(instance['labels'])
-                position_ids.append(
-                    torch.arange(len(instance['tokens']), dtype=torch.int, device=instance['tokens'].device)
-                )
-                seqlens_padded.append(seqlen_padded)
-                cu_seqlens.append(cu_seqlens[-1] + seqlen)
-                cu_seqlens_padded.append(cu_seqlens_padded[-1] + seqlen_padded)
-            tokens = torch.cat(tokens, dim=0).unsqueeze(0)
-            labels = torch.cat(labels, dim=0).unsqueeze(0)
-            position_ids = torch.cat(position_ids, dim=0).unsqueeze(0)
-            loss_mask = torch.ones_like(labels, dtype=torch.float, device=labels.device)
-            loss_mask[labels < 0] = 0.0
-            attention_mask = None
-
-            cu_seqlens = torch.IntTensor(cu_seqlens)
-            cu_seqlens_padded = torch.IntTensor(cu_seqlens_padded)
-            qkv_format = 'thd'
-            packed_seq_params = PackedSeqParams(
-                cu_seqlens_q=cu_seqlens,
-                cu_seqlens_kv=cu_seqlens,
-                cu_seqlens_q_padded=cu_seqlens_padded,
-                cu_seqlens_kv_padded=cu_seqlens_padded,
-                max_seqlen_q=int(max(seqlens_padded)),
-                max_seqlen_kv=int(max(seqlens_padded)),
-                qkv_format=qkv_format,
+            tokens, labels, position_ids, loss_mask, packed_seq_params = convert_to_packed(
+                tokens=[instance['tokens'] for instance in instances],
+                labels=[instance['labels'] for instance in instances],
+                num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
+                media_token_index=media_token_id,
+                ignore_index=IGNORE_INDEX,
             )
+            attention_mask = None
         else:  # regular dataset
             max_len = max(instance['tokens'].shape[0] for instance in instances)
             for instance in instances:
