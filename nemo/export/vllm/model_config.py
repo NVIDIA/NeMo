@@ -138,8 +138,10 @@ class NemoModelConfig(ModelConfig):
         self._verify_quantization()
         self._verify_cuda_graph()
 
-    def _load_hf_arguments(self, nemo_config: dict):
-        """Maps argument names used in NeMo to their corresponding names in HF"""
+    def _load_hf_arguments(self, nemo_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Maps argument names used in NeMo to their corresponding names in HF.
+        """
 
         hf_to_nemo_dict = {
             'hidden_size': 'hidden_size',

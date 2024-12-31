@@ -16,6 +16,14 @@ from pathlib import Path
 
 
 def is_nemo2_checkpoint(checkpoint_path: str) -> bool:
-    """Checks if the checkpoint is in NeMo 2.0 format."""
-    ckpt_path: Path = Path(checkpoint_path)
+    """
+    Checks if the checkpoint is in NeMo 2.0 format.
+    
+    Args:
+        checkpoint_path (str): Path to a checkpoint.
+    Returns:
+        bool: True if the path points to a NeMo 2.0 checkpoint; otherwise false.
+    """
+
+    ckpt_path = Path(checkpoint_path)
     return (ckpt_path / 'context').is_dir()

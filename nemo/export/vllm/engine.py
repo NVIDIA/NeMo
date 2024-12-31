@@ -28,6 +28,10 @@ LOGGER = logging.getLogger("NeMo")
 
 
 class vLLMTokenizerGroup(TokenizerGroup):
+    """
+    Implements a custom tokenizer for vLLM, based on a huggingface tokenizer
+    """
+
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
 

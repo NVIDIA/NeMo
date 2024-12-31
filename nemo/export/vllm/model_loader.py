@@ -16,7 +16,7 @@ import gc
 import logging
 import os.path
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import numpy
 import safetensors.torch
@@ -38,7 +38,16 @@ from .utils import is_nemo2_checkpoint
 LOGGER = logging.getLogger("NeMo")
 
 
-def load_sharded_metadata_torch_dist(checkpoint_dir: str):
+def load_sharded_metadata_torch_dist(checkpoint_dir: str) -> Dict[str, Any]:
+    """
+    Loads model state dictionary for NeMo 2.0 checkpoint.
+
+    Args:
+        checkpoint_dir (str): Path to the checkpoint.
+    Returns:
+        dict: Model state dictionary.
+    """
+
     weights_dir = Path(checkpoint_dir) / 'weights'
     fs_reader = FileSystemReader(weights_dir)
     metadata = fs_reader.read_metadata()
