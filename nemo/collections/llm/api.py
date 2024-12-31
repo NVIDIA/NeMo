@@ -476,6 +476,8 @@ def evaluate(
 
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
     tokenizer = io.load_context(nemo_checkpoint_path + "/context", subpath="model.tokenizer")
+    # Wait for server to be ready before starting evaluation
+    evaluation.wait_for_server_ready(url=url, model_name=model_name)
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
     model = evaluation.NeMoFWLMEval(
         model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos

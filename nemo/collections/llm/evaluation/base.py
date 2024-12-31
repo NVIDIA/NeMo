@@ -21,6 +21,7 @@ from tqdm import tqdm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.deploy.nlp import NemoQueryLLM
+from nemo.utils import logging
 
 
 class NeMoFWLMEval(LM):
@@ -163,3 +164,58 @@ class NeMoFWLMEval(LM):
             results.append(generated_text)
 
         return results
+
+def wait_for_server_ready(url, model_name, max_retries=100, retry_interval=2):
+    """
+    Wait for the Triton server and model to be ready, with retry logic.
+
+    Args:
+        url (str): The URL of the Triton server (e.g., "grpc://0.0.0.0:8001").
+        model_name (str): The name of the deployed model.
+        max_retries (int): Maximum number of retries before giving up.
+        retry_interval (int): Time in seconds to wait between retries.
+
+    Returns:
+        bool: True if both the server and model are ready within the retries, False otherwise.
+    """
+
+    import time
+    import requests
+    from pytriton.client import ModelClient
+    from pytriton.client.exceptions import PyTritonClientTimeoutError, PyTritonClientModelUnavailableError
+
+    # If gRPC URL, extract HTTP URL from gRPC URL for health checks
+    if url.startswith("grpc://"):
+        #TODO use triton port and grpc port instaed of harcoding
+        url = url.replace("grpc://", "http://").replace(":8001", ":8000")
+    health_url = f"{url}/v2/health/ready"
+
+    for attempt in range(1, max_retries + 1):
+        logging.info(f"Attempt {attempt}/{max_retries}: Checking server and model readiness...")
+
+        try:
+            # Check server readiness using HTTP health endpoint
+            response = requests.get(health_url)
+            if response.status_code != 200:
+                logging.info(f"Server is not ready. HTTP status code: {response.status_code}")
+                time.sleep(retry_interval)
+                continue
+            logging.info("Server is ready.")
+
+            # Check model readiness using ModelClient
+            with ModelClient(url, model_name=model_name, init_timeout_s=retry_interval) as client:
+                logging.info(f"Model '{model_name}' is ready.")
+                return True
+
+        except PyTritonClientTimeoutError:
+            logging.info(f"Timeout: Server or model '{model_name}' not ready yet.")
+        except PyTritonClientModelUnavailableError:
+            logging.info(f"Model '{model_name}' is unavailable on the server.")
+        except requests.exceptions.RequestException as e:
+            logging.info(f"Error checking server readiness: {e}")
+
+        # Wait before retrying
+        time.sleep(retry_interval)
+
+    logging.error(f"Server or model '{model_name}' not ready after {max_retries} attempts.")
+    return False
