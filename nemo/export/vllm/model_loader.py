@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import gc
+import json
 import logging
 import os.path
 from pathlib import Path
 from typing import Optional
-import json
 
 import numpy
 import safetensors.torch
@@ -57,7 +57,7 @@ class NemoModelLoader(BaseModelLoader):
         sharded_state_dict = {}
         with (TarPath(nemo_file) / 'model_weights' / 'metadata.json').open(mode='r') as f:
             config_dict = json.load(f)
-        
+
         if config_dict['sharded_backend'] == 'torch_dist':
             return load_sharded_metadata_torch_dist(TarPath(nemo_file) / 'model_weights')
 
