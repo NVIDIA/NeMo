@@ -434,7 +434,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         if self.streaming_mode:
             preds = self.forward_streaming(processed_signal, processed_signal_length)
         else:
-            emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length, pre_encode_input=False)
+            emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
             preds = self.forward_infer(emb_seq)
         return preds
      
@@ -528,7 +528,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         chunk_pre_encode_embs, _ = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
         
         mem_chunk_pre_encode_embs, mem_chunk_pre_encode_lengths = self.sortformer_modules.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], return_lengths=True, dim=1, device=self.device) 
-        mem_chunk_fc_encoder_embs, _ = self.frontend_encoder(processed_signal=mem_chunk_pre_encode_embs, processed_signal_length=mem_chunk_pre_encode_lengths, pre_encode_input=True)
+        mem_chunk_fc_encoder_embs, _ = self.frontend_encoder(processed_signal=mem_chunk_pre_encode_embs, processed_signal_length=mem_chunk_pre_encode_lengths) 
+        # , pre_encode_input=True)
         
         mem_chunk_preds = self.forward_infer(mem_chunk_fc_encoder_embs)
 

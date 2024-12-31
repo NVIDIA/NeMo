@@ -32,9 +32,11 @@ from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from asr_cache_aware_streaming.speech_to_text_with_streaming_sortformer import (
 DiarizationConfig,
-MultiSpeakerASRstreamer,
+SpeakerTaggedASR,
 
 )
+from nemo.collections.asr.models.sortformer_diar_models import SortformerEncLabelModel
+from nemo.core.config import hydra_runner
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
@@ -106,38 +108,34 @@ python transcribe_speech.py \
 """
 
 def perform_speakertagging(
-    cfg, 
+    cfg,
+    override_cfg,
     asr_model, 
     diar_model, 
-    streaming_buffer, 
     debug_mode=False):
-    batch_size = len(streaming_buffer.streams_length)
     final_offline_tran = None
-
-    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
-        batch_size=batch_size
-    )
-
     previous_hypotheses = None
-    streaming_buffer_iter = iter(streaming_buffer)
     asr_pred_out_stream, diar_pred_out_stream  = None, None
     mem_last_time, fifo_last_time = None, None
     left_offset, right_offset = 0, 0
 
-    multispk_asr_streamer = MultiSpeakerASRstreamer(cfg, asr_model, diar_model)
+    multispk_asr_streamer = SpeakerTaggedASR(cfg, asr_model, diar_model)
     session_start_time = time.time()
     feat_frame_count = 0
 
     transcriptions = asr_model.transcribe(
-        audio=filepaths,
+        audio=cfg.dataset_manifest,
         override_config=override_cfg,
     )
+    asr_hypotheses = transcriptions[0]
 
-    spk_timestamps, pred_tensors = diar_model.diarize(audio=filepaths)
-
-
-    # final_streaming_tran = extract_transcriptions(transcribed_texts)
-    return final_streaming_tran, final_offline_tran
+    spk_timestamps, pred_tensors = diar_model.diarize(audio=cfg.manifest_file, include_tensor_outputs=True)
+    speaker_transcriptions = multispk_asr_streamer.merge_transcript_and_diar_pred(
+                                        test_manifest_dict=diar_model._diarize_audio_rttm_map, 
+                                        asr_hypotheses=asr_hypotheses, 
+                                        diar_pred_out=pred_tensors
+                                    )
+    return transcriptions, speaker_transcriptions
 
 
 
@@ -160,6 +158,8 @@ class TranscriptionConfig:
     # diar_pretrained_name: Optional[str] = None  # Name of a pretrained model
     # audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     # dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
+    audio_file: Optional[str] = None
+    manifest_file: Optional[str] = None 
     
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
@@ -180,32 +180,25 @@ class TranscriptionConfig:
     collar: float = 0.25 # Collar in seconds for DER calculation
     ignore_overlap: bool = False # If True, DER will be calculated only for non-overlapping segments
 
-    # Streaming diarization configs
-    streaming_mode: bool = True # If True, streaming diarization will be used. 
-    mem_len: int = 188
-    # mem_refresh_rate: int = 0
-    fifo_len: int = 188
-    step_len: int = 0
-    step_left_context: int = 0
-    step_right_context: int = 0
-
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
     allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     matmul_precision: str = "highest"  # Literal["highest", "high", "medium"]
 
     # Speaker Diarization + Transcript Print Settings
+    generate_scripts: bool = True
+    diar_batch_size: int = 1
     word_window: int = 50
     fix_speaker_assignments: bool = True
     fix_prev_words_count: int = 5
     update_prev_words_sentence: int = 5
-    left_frame_shift: int = -1
-    right_frame_shift: int = -1
+    left_frame_shift: int = 0
+    right_frame_shift: int = 0
     min_sigmoid_val: float = 1e-2
     discarded_frames: int = 8
     limit_max_spks: int = 2
     print_time: bool = True
-    colored_text: bool = True
+    colored_text: bool = False
     real_time_mode: bool = False
     print_path: str = "./"
     ignored_initial_frame_steps: int = 5
@@ -360,6 +353,33 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 
+    # Load diarization model
+    if cfg.diar_model_path.endswith(".ckpt"):
+        diar_model = SortformerEncLabelModel.load_from_checkpoint(checkpoint_path=cfg.diar_model_path, 
+                                                                  map_location=map_location, strict=False)
+    elif cfg.diar_model_path.endswith(".nemo"):
+        diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.diar_model_path, 
+                                                          map_location=map_location)
+    else:
+        raise ValueError("cfg.diar_model_path must end with.ckpt or.nemo!")
+    
+    diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
+    trainer = pl.Trainer(devices=device, accelerator=accelerator)
+    diar_model.set_trainer(trainer)
+    
+    diar_model = diar_model.eval()
+    # diar_model._cfg.test_ds.manifest_filepath = cfg.manifest_file
+    cfg.manifest_file = cfg.dataset_manifest
+    diar_model._cfg.test_ds.manifest_filepath = cfg.dataset_manifest
+    diar_model._cfg.test_ds.batch_size = cfg.diar_batch_size
+    
+    # Model setup for inference 
+    diar_model._cfg.test_ds.num_workers = cfg.num_workers
+    diar_model.setup_test_data(test_data_config=diar_model._cfg.test_ds)    
+    
+    # Steaming mode setup 
+    diar_model.sortformer_modules.log = cfg.log
+
     if cfg.compute_dtype != "float32" and cfg.amp:
         raise ValueError("amp=true is mutually exclusive with a compute_dtype other than float32")
 
@@ -487,6 +507,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             override_cfg.text_field = cfg.gt_text_attr_name
             override_cfg.lang_field = cfg.gt_lang_attr_name
             override_cfg.timestamps = cfg.timestamps
+            override_cfg.manifest_file = cfg.dataset_manifest
             if hasattr(override_cfg, "prompt"):
                 override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
 
@@ -495,13 +516,12 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             #     override_config=override_cfg,
             # )
             
-            perform_speakertagging(
+            transcriptions, speaker_transcriptions = perform_speakertagging(
                 cfg=cfg,
+                override_cfg=override_cfg,
                 asr_model=asr_model,
                 diar_model=diar_model,
-                streaming_buffer=streaming_buffer,
             ) 
-            # import ipdb; ipdb.set_trace()  
             # transcriptions[0][0].timestep.keys() = dict_keys(['timestep', 'char', 'word', 'segment'])
             if cfg.calculate_rtfx:
                 transcribe_time = time.time() - start_time

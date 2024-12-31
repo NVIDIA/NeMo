@@ -36,7 +36,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 audio_rttm_map as get_audio_rttm_map,
 rttm_to_labels,
 )
-from start_words import COMMON_SENTENCE_STARTS
+from examples.asr.asr_cache_aware_streaming.start_words import COMMON_SENTENCE_STARTS
 from nemo.collections.asr.parts.utils.diarization_utils import (
 print_sentences,
 get_color_palette,
@@ -73,7 +73,7 @@ def write_seglst(output_filepath, seglst_list):
     with open(output_filepath, "w") as f:
         f.write(json.dumps(seglst_list, indent=2) + "\n")
 
-class MultiSpeakerASRstreamer:
+class SpeakerTaggedASR:
     def __init__(
         self,
         cfg,
@@ -95,8 +95,7 @@ class MultiSpeakerASRstreamer:
         self._frame_hop_length = self.asr_model.encoder.streaming_cfg.valid_out_len
     
     def _init_evaluator(self):  
-        self.online_evaluators = []
-        self._word_and_ts_seq = []
+        self.online_evaluators, self._word_and_ts_seq = [], []
         for idx, (uniq_id, data_dict) in enumerate(self.test_manifest_dict.items()):
             self._word_and_ts_seq.append({"words": [],
                                     "buffered_words": [],
@@ -112,8 +111,16 @@ class MultiSpeakerASRstreamer:
                                     "speaker_count_buffer": [],
                                     "sentence_memory": {},
                                     })
-            ref_seglst = read_seglst(data_dict['seglst_filepath'])
-            ref_rttm_labels = rttm_to_labels(data_dict.get('rttm_filepath', None))
+            
+            if data_dict['seglst_filepath'] is not None:
+                ref_seglst = read_seglst(data_dict['seglst_filepath'])
+            else:
+                ref_seglst = None
+            
+            if data_dict['rttm_filepath'] is not None:
+                ref_rttm_labels = rttm_to_labels(data_dict['rttm_filepath'])
+            else:
+                ref_rttm_labels = None
             
             eval_instance = OnlineEvaluation(ref_seglst=ref_seglst,
                                              ref_rttm_labels=ref_rttm_labels, 
@@ -218,28 +225,29 @@ class MultiSpeakerASRstreamer:
             It modifies the speaker assignments based on the speaker changes in the middle of the sequence.
         """
         WL = len(word_and_ts_seq["words"])
+       
+        if sentence_render_length is not None: 
+            if WL-sentence_render_length < 1 or WL-1 < 2 or sentence_render_length <= 1:
+                return word_and_ts_seq
+        elif sentence_render_length is None:
+            sentence_render_length = WL 
         
-        if WL-sentence_render_length < 1 or WL-1 < 2 or sentence_render_length <= 1:
-            return word_and_ts_seq
-        
-        # Correct a starting word attached to the previous speaker turn. 
         for idx in range(WL - sentence_render_length, WL-1):
             word_dict = word_and_ts_seq['words'][idx]
+            # Correct a starting word attached to the previous speaker turn. 
             if word_dict['is_stt_speaker_turn'] and not word_dict['is_end_speaker_turn']:
                 if word_and_ts_seq['words'][idx+1]['speaker'] != word_dict['speaker']:
+                    print(f"Case1- Correcting speaker assignment for word {word_dict['word']} at index {idx}.")
                     word_and_ts_seq['words'][idx]['speaker'] = word_and_ts_seq['words'][idx+1]['speaker']
                     
-        # Correct a ending word attached to the previous speaker turn. 
-        for idx in range(max(1, WL - sentence_render_length), max(2, WL-1)):
-            word_dict = word_and_ts_seq['words'][idx]
-            if word_dict['is_end_speaker_turn'] and not word_dict['is_stt_speaker_turn']:
+            # Correct a ending word attached to the previous speaker turn. 
+            if idx in range(max(1, WL - sentence_render_length), max(2, WL-1)) \
+            and word_dict['is_end_speaker_turn'] and not word_dict['is_stt_speaker_turn']:
                 if word_and_ts_seq['words'][idx-1]['speaker'] != word_dict['speaker']:
+                    print(f"Case2- Correcting speaker assignment for word {word_dict['word']} at index {idx}.")
                     word_and_ts_seq['words'][idx]['speaker'] = word_and_ts_seq['words'][idx-1]['speaker']
         
-        # Correct a middle word wrongly assigned to the other speaker, which is lower case and no punctuation.
-        for idx in range(WL - sentence_render_length, WL-1):
-            word_dict = word_and_ts_seq['words'][idx]
-            # Check whether the current word is start or end of speaker turn.
+            # Correct a middle word wrongly assigned to the other speaker, which is lower case and no punctuation.
             if (not word_dict['is_stt_speaker_turn'] and \
                 not word_dict['is_end_speaker_turn'] and \
                 not word_dict['word'][0].isupper()):
@@ -248,11 +256,72 @@ class MultiSpeakerASRstreamer:
                    word_and_ts_seq['words'][idx+1]['speaker'] != word_dict['speaker'] and \
                    word_and_ts_seq['words'][idx-1]['speaker'] == \
                    word_and_ts_seq['words'][idx+1]['speaker']:
-                    word_and_ts_seq['words'][idx]['speaker'] = word_and_ts_seq['words'][idx-1]['speaker'] 
+                   print(f"Case3- Correcting speaker assignment for word {word_dict['word']} at index {idx}.")
+                   word_and_ts_seq['words'][idx]['speaker'] = word_and_ts_seq['words'][idx-1]['speaker'] 
                     
         return word_and_ts_seq 
     
-    def get_frame_and_words(
+    def merge_transcript_and_diar_pred(self, test_manifest_dict, asr_hypotheses, diar_pred_out):
+        transcribed_speaker_texts = [None] * len(test_manifest_dict)
+        
+        for idx, (uniq_id, data_dict) in enumerate(test_manifest_dict.items()):
+            if not len( asr_hypotheses[idx].text) == 0:
+                # Get the word-level dictionaries for each word in the chunk
+                                                                            #  diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
+                                                                            
+                self._word_and_ts_seq[idx] = self.get_frame_and_words_offline(uniq_id=uniq_id,
+                                                                            diar_pred_out=diar_pred_out[idx].squeeze(0),
+                                                                            asr_hypothesis=asr_hypotheses[idx],
+                                                                            word_and_ts_seq=self._word_and_ts_seq[idx], 
+                                                                            )
+                if len(self._word_and_ts_seq[idx]["words"]) > 0:
+                    self._word_and_ts_seq[idx] = self.get_sentences_values(session_trans_dict=self._word_and_ts_seq[idx], 
+                                                                            sentence_render_length=self._sentence_render_length)
+                    if self.cfg.generate_scripts:
+                        transcribed_speaker_texts[idx] = \
+                            print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], 
+                            color_palette=get_color_palette(), 
+                            params=self.cfg)
+                        write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), 
+                                    transcribed_speaker_texts[idx].strip()) 
+        return transcribed_speaker_texts 
+     
+    def get_frame_and_words_offline(
+        self,
+        uniq_id, 
+        diar_pred_out, 
+        asr_hypothesis,
+        word_and_ts_seq,
+        offset: int = 0,
+        word_count_offset: int = 0
+    ):        
+        word_seq = [wdict['word'] for wdict in asr_hypothesis.timestep['word']]
+        new_words = word_seq[word_and_ts_seq["offset_count"]:]
+        word_and_ts_seq['uniq_id'] = uniq_id
+
+        for word_index, hyp_word_dict in enumerate(asr_hypothesis.timestep['word']):
+            time_stt_end_tuple=(hyp_word_dict['start_offset'], hyp_word_dict['end_offset'])
+            word_dict = get_word_dict_content_offline(cfg=self.cfg, 
+                                                        word=hyp_word_dict['word'],
+                                                        word_index=word_index,
+                                                        diar_pred_out=diar_pred_out,
+                                                        time_stt_end_tuple=time_stt_end_tuple,
+                                                        stt_words=self._stt_words,
+                                                        frame_len=self._frame_len_sec
+                                                        )
+            word_and_ts_seq["words"].append(word_dict)
+            word_and_ts_seq["speaker_count_buffer"].append(word_dict["speaker"])
+            word_and_ts_seq["word_window_seq"].append(word_dict['word'])
+            
+        word_and_ts_seq["buffered_words"] = word_and_ts_seq["words"] 
+        word_and_ts_seq["speaker_count"] = len(set(word_and_ts_seq["speaker_count_buffer"]))
+        if self.cfg.fix_speaker_assignments:     
+            word_and_ts_seq = self.correct_speaker_assignments(word_and_ts_seq=word_and_ts_seq, 
+                                                               sentence_render_length=None)
+        return word_and_ts_seq
+   
+    
+    def get_frame_and_words_online(
         self, 
         uniq_id, 
         step_num, 
@@ -286,16 +355,16 @@ class MultiSpeakerASRstreamer:
         # Get the FIFO queue preds to word_and_ts_seq 
         local_idx = 0
         for local_idx, (token_group, word) in enumerate(zip(new_token_group, new_words)):
-            word_dict = get_word_dict_content(cfg=self.cfg, 
-                                            word=word,
-                                            word_index= (word_count_offset + local_idx),
-                                            diar_pred_out_stream=diar_pred_out_stream,
-                                            token_group=token_group,
-                                            frame_inds_seq=frame_inds_seq,
-                                            time_step_local_offset=time_step_local_offset,
-                                            stt_words=self._stt_words,
-                                            frame_len=self._frame_len_sec
-                                            )
+            word_dict = get_word_dict_content_online(cfg=self.cfg, 
+                                                    word=word,
+                                                    word_index= (word_count_offset + local_idx),
+                                                    diar_pred_out_stream=diar_pred_out_stream,
+                                                    token_group=token_group,
+                                                    frame_inds_seq=frame_inds_seq,
+                                                    time_step_local_offset=time_step_local_offset,
+                                                    stt_words=self._stt_words,
+                                                    frame_len=self._frame_len_sec
+                                                    )
             # Count the number of speakers in the word window
             time_step_local_offset += len(token_group)
             word_idx_offset, word_and_ts_seq = append_word_and_ts_seq(cfg=self.cfg, 
@@ -373,19 +442,19 @@ class MultiSpeakerASRstreamer:
         for idx, (uniq_id, data_dict) in enumerate(self.test_manifest_dict.items()): 
             if not (len( previous_hypotheses[idx].text) == 0 and step_num <= self._initial_steps):
                 # Get the word-level dictionaries for each word in the chunk
-                self._word_and_ts_seq[idx] = self.get_frame_and_words(uniq_id=uniq_id,
-                                                                      step_num=step_num, 
-                                                                      diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
-                                                                      previous_hypothesis=previous_hypotheses[idx], 
-                                                                      word_and_ts_seq=self._word_and_ts_seq[idx],
-                                                                    )
+                self._word_and_ts_seq[idx] = self.get_frame_and_words_online(uniq_id=uniq_id,
+                                                                            step_num=step_num, 
+                                                                            diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
+                                                                            previous_hypothesis=previous_hypotheses[idx], 
+                                                                            word_and_ts_seq=self._word_and_ts_seq[idx],
+                                                                            )
                 if len(self._word_and_ts_seq[idx]["words"]) > 0:
                     self._word_and_ts_seq[idx] = self.get_sentences_values(session_trans_dict=self._word_and_ts_seq[idx], 
                                                                            sentence_render_length=self._sentence_render_length)
                     if self.cfg.eval_mode:
                         der, cpwer, is_update = self.online_evaluators[idx].evaluate_inloop(hyp_seglst=self._word_and_ts_seq[idx]["sentences"], 
                                                                                             end_step_time=self._word_and_ts_seq[idx]["sentences"][-1]["end_time"])
-                    if self.cfg.generate_online_scripts:
+                    if self.cfg.generate_scripts:
                         transcribed_speaker_texts[idx] = \
                             print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], 
                             color_palette=get_color_palette(), 
@@ -393,22 +462,7 @@ class MultiSpeakerASRstreamer:
                         write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), 
                                   transcribed_speaker_texts[idx].strip())
             
-            if self.cfg.log:         
-                logging.info(f"mem: {mem_last_time.shape}, "
-                             f"fifo: {fifo_last_time.shape}, "
-                             f"pred: {diar_pred_out_stream.shape}")
-        
-        return (transcribed_speaker_texts,
-                transcribed_texts,
-                asr_pred_out_stream,
-                transcribed_texts,
-                cache_last_channel,
-                cache_last_time,
-                cache_last_channel_len,
-                previous_hypotheses,
-                mem_last_time,
-                fifo_last_time,
-                diar_pred_out_stream)
+        return transcribed_speaker_texts
     
 @dataclass
 class DiarizationConfig:
@@ -469,7 +523,7 @@ class DiarizationConfig:
     pad_and_drop_preencoded: bool = False
     set_decoder: Optional[str] = None # ["ctc", "rnnt"]
     att_context_size: Optional[str] = None
-    generate_online_scripts: bool = True
+    generate_scripts: bool = True
     
     word_window: int = 50
     fix_speaker_assignments: bool = True
@@ -569,7 +623,64 @@ def get_speaker_turn_flags(word: str, stt_words: List[str]) -> Tuple[bool, bool]
         is_stt_speaker_turn = word[0].isupper() and (word in stt_words) or ("," in word)
     return is_stt_speaker_turn, is_end_speaker_turn
 
-def get_word_dict_content(
+def get_word_dict_content_offline(
+    cfg: Any,
+    word: str,
+    word_index: int,
+    diar_pred_out: torch.Tensor,
+    time_stt_end_tuple: Tuple[int],
+    stt_words: List[str],
+    frame_len: float = 0.08
+) -> Dict[str, Any]:
+    """
+    Generate a dictionary containing word information and speaker diarization results.
+
+    This function processes a single word and its associated tokens to determine
+    the start and end frames, speaker, and other relevant information.
+
+    Args:
+        cfg (Any): Configuration object containing diarization settings.
+        word (str): The word being processed.
+        word_index (int): Index of the word in the sequence.
+        diar_pred_out (torch.Tensor): Diarization prediction output stream.
+        time_stt_end_tuple (int): Local time step offset.
+        frame_len (float, optional): Length of each frame in seconds. Defaults to 0.08.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing word information and diarization results.
+    """    
+    frame_stt, frame_end = time_stt_end_tuple
+        
+    # Edge Cases: Sometimes, repeated token indexs can lead to incorrect frame and speaker assignment.
+    if frame_stt == frame_end:
+        if frame_stt >= diar_pred_out.shape[0] - 1:
+            frame_stt, frame_end = (diar_pred_out.shape[1] - 1, diar_pred_out.shape[0])
+        else:
+            frame_end = frame_stt + 1
+    
+    # Get the speaker based on the frame-wise softmax probabilities.
+    stt_p = max((frame_stt + cfg.left_frame_shift), 0)
+    end_p = (frame_end + cfg.right_frame_shift)
+    speaker_sigmoid = diar_pred_out[stt_p:end_p, :].mean(dim=0)
+    speaker_softmax = get_simulated_softmax(cfg, speaker_sigmoid)
+
+    speaker_softmax[cfg.limit_max_spks:] = 0.0
+    spk_id = speaker_softmax.argmax().item()
+    stt_sec, end_sec = frame_stt * frame_len, frame_end * frame_len
+    is_stt_speaker_turn, is_end_speaker_turn = get_speaker_turn_flags(word, stt_words=stt_words)
+    word_dict = {"word": word,
+                 "word_index": word_index,
+                'frame_stt': frame_stt,
+                'frame_end': frame_end,
+                'start_time': round(stt_sec, 3), 
+                'end_time': round(end_sec, 3), 
+                'speaker': f"speaker_{spk_id}",
+                'is_stt_speaker_turn': is_stt_speaker_turn,
+                'is_end_speaker_turn': is_end_speaker_turn,
+                'speaker_softmax': speaker_softmax} 
+    return word_dict
+
+def get_word_dict_content_online(
     cfg: Any,
     word: str,
     word_index: int,
@@ -723,7 +834,7 @@ def perform_streaming(
     mem_last_time, fifo_last_time = None, None
     left_offset, right_offset = 0, 0
 
-    multispk_asr_streamer = MultiSpeakerASRstreamer(cfg, asr_model, diar_model)
+    multispk_asr_streamer = SpeakerTaggedASR(cfg, asr_model, diar_model)
     session_start_time = time.time()
     feat_frame_count = 0
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):

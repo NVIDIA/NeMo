@@ -364,20 +364,24 @@ class SpkDiarizationMixin(ABC):
 
         # Check if audio is a list of strings (filepaths or manifests)
         if isinstance(audio[0], str):
+            tmp_dir = diarcfg._internal.temp_dir
             if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
                 # Assume it is a path to a manifest file
                 diarcfg._internal.manifest_filepath = audio[0]
                 self._diarize_audio_rttm_map = audio_rttm_map(audio[0])
-                audio_files = []
-                for uniq_id, meta_dict in self._diarize_audio_rttm_map.items():
-                    audio_files.append(meta_dict['audio_filepath'])
+                ds_config = self._diarize_input_manifest_processing(audio_files=None, 
+                                                                    test_manifest_dict=self._diarize_audio_rttm_map,
+                                                                    temp_dir=tmp_dir, 
+                                                                    diarcfg=diarcfg)
             else:
                 # Make `audio_files` a list of audio file paths
                 audio_files = list(audio)
                 self._diarize_audio_rttm_map = self._input_audio_to_rttm_processing(audio_files=audio_files)
-
-            tmp_dir = diarcfg._internal.temp_dir
-            ds_config = self._diarize_input_manifest_processing(audio_files, tmp_dir, diarcfg)
+                ds_config = self._diarize_input_manifest_processing(audio_files=audio_files, 
+                                                                    test_manifest_dict=None, 
+                                                                    temp_dir=tmp_dir, 
+                                                                    diarcfg=diarcfg
+                                                            )
 
             temp_dataloader = self._setup_diarize_dataloader(ds_config)
             return temp_dataloader
@@ -388,7 +392,7 @@ class SpkDiarizationMixin(ABC):
             )
 
     def _diarize_input_manifest_processing(
-        self, audio_files: List[str], temp_dir: str, diarcfg: DiarizeConfig
+        self, audio_files: List[str], test_manifest_dict: Dict[str, str], temp_dir: str, diarcfg: DiarizeConfig
     ) -> Dict[str, Any]:
         """
         Internal function to process the input audio filepaths and return a config dict for the dataloader.
@@ -402,21 +406,33 @@ class SpkDiarizationMixin(ABC):
             A config dict that is used to setup the dataloader for diarization.
         """
         with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
-            for audio_file in audio_files:
-                if isinstance(audio_file, str):
-                    entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
+            if audio_files is not None:
+                for audio_file in audio_files:
+                    if isinstance(audio_file, str):
+                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
+                        fp.write(json.dumps(entry) + '\n')
+                    elif isinstance(audio_file, dict):
+                        fp.write(json.dumps(audio_file) + '\n')
+                    else:
+                        raise ValueError(
+                            f"Input `audio` is of type {type(audio_file)}. "
+                            "Only `str` (path to audio file) or `dict` are supported as input."
+                        )
+            elif audio_files is None and test_manifest_dict is not None:
+                for uniq_id, meta_dict in test_manifest_dict.items():
+                    entry = {
+                        'audio_filepath': meta_dict['audio_filepath'],
+                        'duration': meta_dict['duration'],
+                        'text': meta_dict['text'],
+                    }
                     fp.write(json.dumps(entry) + '\n')
-                elif isinstance(audio_file, dict):
-                    fp.write(json.dumps(audio_file) + '\n')
-                else:
-                    raise ValueError(
-                        f"Input `audio` is of type {type(audio_file)}. "
-                        "Only `str` (path to audio file) or `dict` are supported as input."
-                    )
+            else:
+                raise ValueError("Input `audio_files` and `test_manifest_dict` cannot be both None.")
 
         ds_config = {
             'paths2audio_files': audio_files,
             'batch_size': get_value_from_diarization_config(diarcfg, 'batch_size', 1),
+            'manifest_filepath': f"{temp_dir}/manifest.json",
             'temp_dir': temp_dir,
             'session_len_sec': get_value_from_diarization_config(diarcfg, 'session_len_sec', diarcfg.session_len_sec),
             'num_workers': get_value_from_diarization_config(diarcfg, 'num_workers', 1),

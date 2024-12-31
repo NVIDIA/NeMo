@@ -13,7 +13,7 @@
 # limitations under the License.
 
 base_starts = [
-    "I", "I'm", "I'll", "My", "You", "You'll", 
+    "I", "I'm", "I'll", "I've", "My", "You", "You'll", 
     "And", "But", "So", "He", "He'll", "She", "She'll", 
     "They", "They'll", "We", "We'll", "What", "Where", 
     "When", "Why", "Who", "How", "Can", "Could", 
@@ -22,13 +22,13 @@ base_starts = [
     "Were", "Have", "Has", "Had", "It", "It's", 
     "Isn't", "Aren't", "Wasn't", "Weren't", "Don't", 
     "Doesn't", "Didn't", "Shouldn't", "Couldn't", "Can't", 
-    "Won't", "Wouldn't", "Oh", "No", "Yes", "Yeah",
-    "Let's", "Now", "Okay", "Alright", "Fine", 
+    "Won't", "Wouldn't", "Oh", "Wow", "No", "Yes", "Yeah",
+    "Let's", "Now", "Okay", "Alright", "Fine", "Sure", "Not", "Maybe",
     "Soon", "Thanks", "Thank", "Hey", "Hi", 
-    "Hello", "Well", "Indeed", "Frankly", "Clearly", ""
+    "Hello", "Well", "Indeed", "Frankly", "Clearly", "Obviously",
     "Unfortunately", "Fortunately", "Interestingly", "Actually", 
     "Basically", "Ultimately", "Simply", "Sure", "'Cause", 
-    "Perhaps", "Of", "For", "For", 
+    "Perhaps", "Of", "For", "For,", 
     "However", "Although", "Since", "Because", "Exactly", 
     "Meanwhile", "Later", "First", "Second", 
     "Third", "Finally", "Lastly", "Then", 
