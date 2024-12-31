@@ -110,6 +110,7 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     if args.log_dir != NEMORUN_HOME:
         import sys
+
         logging.error(f"Run `export NEMORUN_HOME={args.log_dir}` in your shell environment and rerun this script.")
         sys.exit(1)
 
@@ -150,7 +151,7 @@ if __name__ == "__main__":
         MAX_STEPS,
     )
 
-    if not args.tensorboard: # tensorboard adds performance overhead.
+    if not args.tensorboard:  # tensorboard adds performance overhead.
         recipe.log.tensorboard = None
         recipe.trainer.logger = False
     else:
