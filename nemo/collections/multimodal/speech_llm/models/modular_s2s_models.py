@@ -644,9 +644,15 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         for codes, metadata in zip(codes_list, metadata_list):
             codes = torch.tensor(codes).to(codec_model.device).T
             codec_len = torch.Tensor([codes.shape[1]]).long().to(codec_model.device)
+
             # get rid of bos and eos ids in the codec decoding
-            codes = torch.where(codes == self.cfg.data.train_ds.speech_eos_id, codes[:, :1], codes)
-            codes = torch.where(codes == self.cfg.data.train_ds.speech_bos_id, codes[:, :1], codes)
+            def replace_speech_code(codes, id):
+                return torch.where(codes == id, codes[:, :1], codes)
+
+            codes = replace_speech_code(codes, self.cfg.data.train_ds.speech_bos_id)
+            codes = replace_speech_code(codes, self.cfg.data.train_ds.speech_eos_id)
+            codes = replace_speech_code(codes, self.cfg.data.train_ds.speech_unk_id)
+            codes = replace_speech_code(codes, self.cfg.data.train_ds.speech_pad_id)
             wav, _ = codec_model.decode(tokens=codes.unsqueeze(0), tokens_len=codec_len)
             wav = wav[0]
             wavs.append(wav)
