@@ -14,12 +14,13 @@
 
 import nemo_run as run
 
+import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
 
-DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
+DATA_PATH = '/lustre/fsw/coreai_dlalgo_llm/boxiangw/squad'
 
 import torch
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
@@ -147,9 +148,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
-    parser.add_argument('--devices', default=1)
+    parser.add_argument('--devices', default=8)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--max-steps', type=int, default=100)
+    parser.add_argument('--max-steps', type=int, default=1000)
     args = parser.parse_args()
 
     recipe = llm.hf_auto_model_for_causal_lm.finetune_recipe(
@@ -171,7 +172,7 @@ if __name__ == '__main__':
         tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),
     )
 
-    recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=8, tensor_parallel_size=1)
-    recipe.trainer.plugins = None
+    recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=4, tensor_parallel_size=2)
+    recipe.trainer.plugins=None
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
     run.run(recipe, executor=executor)
