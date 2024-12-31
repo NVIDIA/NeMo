@@ -99,6 +99,7 @@ class ParallelismConfig:
     pipeline_dtype: torch.dtype
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
+    use_te_rng_tracker: bool = False
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -158,7 +159,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             Defaults to True.
         ckpt_load_strictness (StrictHandling, optional): defines loading strictness.
             If not None, overwrites the `strict` flag passed to `load_checkpoint`.
-            Defaults to None.
+            Defaults to None. For a list of supported values, refer to the Megatron Core documentation:
+            https://github.com/NVIDIA/Megatron-LM/blob/d4e72c0d33edc0c53aeb624f617eb77cebce6ae9/megatron/core/dist_checkpointing/validation.py#L46
         setup_optimizers (bool): Whether to call the trainer's setup_optimizers function to perform any
             necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
             Defaults to True.
@@ -198,6 +200,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
+        use_te_rng_tracker: bool = False,
         save_ckpt_format: str = "torch_dist",
         ckpt_async_save: bool = True,
         ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
@@ -243,7 +246,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
         self.ckpt_load_strictness = ckpt_load_strictness
-        self.pipeline_dtype = pipeline_dtype
+        self.use_te_rng_tracker = use_te_rng_tracker
+        self._pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
         self._init_model_parallel = init_model_parallel
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
@@ -278,6 +282,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
 
+    @property
+    def pipeline_dtype(self):
+        if self._pipeline_dtype is None:
+            dtype_config = getattr(self._precision_plugin, "dtype_config", None)
+            if dtype_config is not None:
+                self._pipeline_dtype = dtype_config.pipeline_dtype
+        return self._pipeline_dtype
+
+    @pipeline_dtype.setter
+    def pipeline_dtype(self, value):
+        self._pipeline_dtype = value
+
     @override
     def connect(self, model: pl.LightningModule) -> None:
         """Attaches a model to strategy."""
@@ -286,8 +302,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert not 'is_hf_model' in model.__dict__, "Cannot use HFAutoModelForCausalLM with MegatronParallel"
 
         dtype_config = getattr(self._precision_plugin, "dtype_config", None)
-        if self.pipeline_dtype is None and dtype_config:
-            self.pipeline_dtype = dtype_config.pipeline_dtype
 
         _maybe_mcore_config = _strategy_lib.set_model_parallel_attributes(model, self.parallelism)
         if _maybe_mcore_config:
@@ -693,6 +707,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         """Saves checkpoint"""
+        if (
+            isinstance(self.ddp_config, DistributedDataParallelConfig)
+            and self.ddp_config.use_distributed_optimizer
+            and self.ddp_config.overlap_param_gather
+        ):
+            self.megatron_parallel.force_param_sync()
+
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
         # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
         if "sharded_state_dict" not in checkpoint:
@@ -882,6 +903,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
             encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
             pipeline_dtype=self.pipeline_dtype,
+            use_te_rng_tracker=self.use_te_rng_tracker,
         )
 
     @contextmanager

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import inspect
 import json
 from pathlib import Path
 from typing import Optional, Union
@@ -24,9 +24,6 @@ from megatron.core.inference.common_inference_params import CommonInferenceParam
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
     AbstractModelInferenceWrapper,
-)
-from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
-    EncoderDecoderTextGenerationController,
 )
 from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import (
     SimpleTextGenerationController,
@@ -64,7 +61,10 @@ class MCoreTokenizerWrappper:
         Returns:
             str: The detokenized string.
         """
-        return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
+        if 'remove_special_tokens' in inspect.signature(self.tokenizer.ids_to_text).parameters:
+            return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
+        else:
+            return self.tokenizer.ids_to_text(tokens)
 
     def tokenize(self, prompt):
         """
@@ -232,6 +232,10 @@ def generate(
     Returns:
         dict: A dictionary containing the generated results.
     """
+    from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
+        EncoderDecoderTextGenerationController,
+    )
+
     if encoder_prompts is not None:
         text_generation_controller = EncoderDecoderTextGenerationController(
             inference_wrapped_model=model, tokenizer=tokenizer
