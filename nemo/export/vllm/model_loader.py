@@ -16,7 +16,8 @@ import gc
 import logging
 import os.path
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
+import json
 
 import numpy
 import safetensors.torch
@@ -54,6 +55,12 @@ class NemoModelLoader(BaseModelLoader):
             return load_sharded_metadata_torch_dist(nemo2_weights_path)
 
         sharded_state_dict = {}
+        with (TarPath(nemo_file) / 'model_weights' / 'metadata.json').open(mode='r') as f:
+            config_dict = json.load(f)
+        
+        if config_dict['sharded_backend'] == 'torch_dist':
+            return load_sharded_metadata_torch_dist(TarPath(nemo_file) / 'model_weights')
+
         with TarPath(nemo_file) as archive:
             for subdir in archive.iterdir():
                 if not subdir.is_dir() or not (subdir / '.zarray').exists():

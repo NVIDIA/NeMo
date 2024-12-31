@@ -23,8 +23,7 @@ from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
 from nemo.export.vllm.model_converters import get_model_converter
-
-from .utils import is_nemo2_checkpoint
+from nemo.export.vllm.utils import is_nemo2_checkpoint
 
 
 class NemoModelConfig(ModelConfig):
