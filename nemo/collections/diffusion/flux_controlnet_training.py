@@ -26,6 +26,7 @@ from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
 from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
 from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig, MegatronFluxControlNetModel
+from nemo.collections.diffusion.models.flux.model import MegatronFluxModel
 from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 from nemo.lightning.pytorch.optim import WarmupHoldPolicyScheduler
@@ -79,7 +80,7 @@ def main(args):
     model_params.clip_params['version'] = '/ckpts/text_encoder'
     model_params.vae_params.ckpt = '/ckpts/ae.safetensors'
     model_params.device = 'cuda'
-    model_params.flux_params.ckpt_path = '/ckpts/nemo_flux_transformer.safetensors'
+    model_params.flux_params.ckpt_path = '/root/.cache/nemo/models/black-forest-labs/FLUX.1-dev/weights'#'/ckpts/nemo_flux_transformer.safetensors'
 
     if args.image_precached:
         model_params.vae_params = None
@@ -91,7 +92,6 @@ def main(args):
         guidance_embed=True, num_joint_layers=args.num_joint_layers, num_single_layers=args.num_single_layers
     )
 
-    model = MegatronFluxControlNetModel(model_params, flux_controlnet_config)
 
     ddp = DistributedDataParallelConfig(
         use_custom_fsdp=True,
@@ -150,6 +150,9 @@ def main(args):
         hold_steps=1000000000000,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
+
+
+    model = MegatronFluxControlNetModel(model_params, flux_controlnet_config)
 
     llm.train(model=model, data=data, trainer=trainer, log=nemo_logger, resume=resume, optim=opt)
 

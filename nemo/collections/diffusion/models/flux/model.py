@@ -18,6 +18,7 @@ from typing import Callable, Optional
 import numpy as np
 import pytorch_lightning as L
 import torch
+from pathlib import Path
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
@@ -27,6 +28,7 @@ from torch import nn
 from torch.nn import functional as F
 from safetensors.torch import load_file as load_safetensors
 from safetensors.torch import save_file as save_safetensors
+from diffusers import FluxTransformer2DModel
 
 from nemo.collections.diffusion.encoders.conditioner import FrozenCLIPEmbedder, FrozenT5Embedder
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
@@ -39,14 +41,13 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
 from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
 from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderParams
+from nemo.collections.diffusion.utils.flux_ckpt_converter import _import_qkv, _import_qkv_bias
 from nemo.collections.llm import fn
-from nemo.lightning import io
+from nemo.lightning import io, teardown
 from nemo.lightning import megatron_parallel as mp
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
-
-##############
 
 
 def flux_data_step(dataloader_iter):
@@ -227,15 +228,23 @@ class Flux(VisionModule):
 
         return output
 
-    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=False, save_converted_model_to=None):
-        if do_convert_from_hf:
-            ckpt = flux_transformer_converter(ckpt_path, self.transformer.config)
-            if save_converted_model_to is not None:
-                save_path = os.path.join(save_converted_model_to, 'nemo_flux_transformer.safetensors')
-                save_safetensors(ckpt, save_path)
-                logging.info(f'saving converted transformer checkpoint to {save_path}')
+    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=False, save_converted_model_to=None, load_dist_ckpt=True):
+        if load_dist_ckpt:
+            from megatron.core import dist_checkpointing
+            sharded_state_dict = dict(state_dict=self.sharded_state_dict(prefix="module."))
+            loaded_state_dict = dist_checkpointing.load(
+                sharded_state_dict=sharded_state_dict, checkpoint_dir=ckpt_path
+            )
+            ckpt = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
         else:
-            ckpt = load_safetensors(ckpt_path)
+            if do_convert_from_hf:
+                ckpt = flux_transformer_converter(ckpt_path, self.transformer.config)
+                if save_converted_model_to is not None:
+                    save_path = os.path.join(save_converted_model_to, 'nemo_flux_transformer.safetensors')
+                    save_safetensors(ckpt, save_path)
+                    logging.info(f'saving converted transformer checkpoint to {save_path}')
+            else:
+                ckpt = load_safetensors(ckpt_path)
         missing, unexpected = self.load_state_dict(ckpt, strict=False)
         missing = [
             k for k in missing if not k.endswith('_extra_state')
@@ -246,6 +255,7 @@ class Flux(VisionModule):
                 f"The following keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
             )
             logging.info(f"Found unexepected keys: \n {unexpected}")
+        logging.info(f"Restored flux model weights from {ckpt_path}")
 
 class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
@@ -525,3 +535,230 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
+
+
+@io.model_importer(MegatronFluxModel, "hf")
+class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronFluxModel]):
+    def init(self) -> MegatronFluxModel:
+        return MegatronFluxModel(self.config)
+
+    def apply(self, output_path: Path) -> Path:
+
+        source = FluxTransformer2DModel.from_pretrained(str(self), subfolder="transformer")
+        target = self.init()
+        trainer = self.nemo_setup(target)
+        self.convert_state(source, target)
+        print(f"Converted flux transformer to Nemo, saving to {output_path}")
+
+        self.nemo_save(output_path, trainer)
+
+        print(f"Converted flux transformer saved to {output_path}")
+
+        teardown(trainer, target)
+
+        return output_path
+
+    @property
+    def config(self) -> FluxConfig:
+        source = FluxTransformer2DModel.from_pretrained(str(self), subfolder="transformer")
+        source_config = source.config
+        flux_config = FluxConfig(
+            num_layers = 1,  # dummy setting
+            num_joint_layers = source_config.num_layers,
+            num_single_layers = source_config.num_single_layers,
+            hidden_size = source_config.num_attention_heads * source_config.attention_head_dim,
+            num_attention_heads = source_config.num_attention_heads,
+            activation_func = openai_gelu,
+            add_qkv_bias = True,
+            in_channels = source_config.in_channels,
+            context_dim = source_config.joint_attention_dim,
+            model_channels = 256,
+            patch_size = source_config.patch_size,
+            guidance_embed = source_config.guidance_embeds,
+            vec_in_dim = source_config.pooled_projection_dim,
+            rotary_interleaved = True,
+            layernorm_epsilon = 1e-06,
+            hidden_dropout = 0,
+            attention_dropout = 0,
+            use_cpu_initialization = True,
+        )
+
+        output = FluxModelParams(
+            flux_params=flux_config,
+            vae_params=None,
+            clip_params=None,
+            t5_params=None,
+            scheduler_params={
+                'num_train_timesteps': 1000,
+            },
+            device='cuda',
+        )
+        return output
+
+    def convert_state(self, source, target):
+        mapping = {
+            'transformer_blocks.*.norm1.linear.weight': 'double_blocks.*.adaln.adaLN_modulation.1.weight',
+            'transformer_blocks.*.norm1.linear.bias': 'double_blocks.*.adaln.adaLN_modulation.1.bias',
+            'transformer_blocks.*.norm1_context.linear.weight': 'double_blocks.*.adaln_context.adaLN_modulation.1.weight',
+            'transformer_blocks.*.norm1_context.linear.bias': 'double_blocks.*.adaln_context.adaLN_modulation.1.bias',
+            'transformer_blocks.*.attn.norm_q.weight': 'double_blocks.*.self_attention.q_layernorm.weight',
+            'transformer_blocks.*.attn.norm_k.weight': 'double_blocks.*.self_attention.k_layernorm.weight',
+            'transformer_blocks.*.attn.norm_added_q.weight': 'double_blocks.*.self_attention.added_q_layernorm.weight',
+            'transformer_blocks.*.attn.norm_added_k.weight': 'double_blocks.*.self_attention.added_k_layernorm.weight',
+            'transformer_blocks.*.attn.to_out.0.weight': 'double_blocks.*.self_attention.linear_proj.weight',
+            'transformer_blocks.*.attn.to_out.0.bias': 'double_blocks.*.self_attention.linear_proj.bias',
+            'transformer_blocks.*.attn.to_add_out.weight': 'double_blocks.*.self_attention.added_linear_proj.weight',
+            'transformer_blocks.*.attn.to_add_out.bias': 'double_blocks.*.self_attention.added_linear_proj.bias',
+            'transformer_blocks.*.ff.net.0.proj.weight': 'double_blocks.*.mlp.linear_fc1.weight',
+            'transformer_blocks.*.ff.net.0.proj.bias': 'double_blocks.*.mlp.linear_fc1.bias',
+            'transformer_blocks.*.ff.net.2.weight': 'double_blocks.*.mlp.linear_fc2.weight',
+            'transformer_blocks.*.ff.net.2.bias': 'double_blocks.*.mlp.linear_fc2.bias',
+            'transformer_blocks.*.ff_context.net.0.proj.weight': 'double_blocks.*.context_mlp.linear_fc1.weight',
+            'transformer_blocks.*.ff_context.net.0.proj.bias': 'double_blocks.*.context_mlp.linear_fc1.bias',
+            'transformer_blocks.*.ff_context.net.2.weight': 'double_blocks.*.context_mlp.linear_fc2.weight',
+            'transformer_blocks.*.ff_context.net.2.bias': 'double_blocks.*.context_mlp.linear_fc2.bias',
+            'single_transformer_blocks.*.norm.linear.weight': 'single_blocks.*.adaln.adaLN_modulation.1.weight',
+            'single_transformer_blocks.*.norm.linear.bias': 'single_blocks.*.adaln.adaLN_modulation.1.bias',
+            'single_transformer_blocks.*.proj_mlp.weight': 'single_blocks.*.mlp.linear_fc1.weight',
+            'single_transformer_blocks.*.proj_mlp.bias': 'single_blocks.*.mlp.linear_fc1.bias',
+            'single_transformer_blocks.*.attn.norm_q.weight': 'single_blocks.*.self_attention.q_layernorm.weight',
+            'single_transformer_blocks.*.attn.norm_k.weight': 'single_blocks.*.self_attention.k_layernorm.weight',
+            'single_transformer_blocks.*.proj_out.bias':'single_blocks.*.mlp.linear_fc2.bias',
+            'norm_out.linear.bias': 'norm_out.adaLN_modulation.1.bias',
+            'norm_out.linear.weight': 'norm_out.adaLN_modulation.1.weight',
+            'proj_out.bias': 'proj_out.bias',
+            'proj_out.weight': 'proj_out.weight',
+            'time_text_embed.guidance_embedder.linear_1.bias': 'guidance_embedding.in_layer.bias',
+            'time_text_embed.guidance_embedder.linear_1.weight': 'guidance_embedding.in_layer.weight',
+            'time_text_embed.guidance_embedder.linear_2.bias': 'guidance_embedding.out_layer.bias',
+            'time_text_embed.guidance_embedder.linear_2.weight': 'guidance_embedding.out_layer.weight',
+            'x_embedder.bias': 'img_embed.bias',
+            'x_embedder.weight': 'img_embed.weight',
+            'time_text_embed.timestep_embedder.linear_1.bias': 'timestep_embedding.time_embedder.in_layer.bias',
+            'time_text_embed.timestep_embedder.linear_1.weight': 'timestep_embedding.time_embedder.in_layer.weight',
+            'time_text_embed.timestep_embedder.linear_2.bias': 'timestep_embedding.time_embedder.out_layer.bias',
+            'time_text_embed.timestep_embedder.linear_2.weight': 'timestep_embedding.time_embedder.out_layer.weight',
+            'context_embedder.bias': 'txt_embed.bias',
+            'context_embedder.weight': 'txt_embed.weight',
+            'time_text_embed.text_embedder.linear_1.bias': 'vector_embedding.in_layer.bias',
+            'time_text_embed.text_embedder.linear_1.weight': 'vector_embedding.in_layer.weight',
+            'time_text_embed.text_embedder.linear_2.bias': 'vector_embedding.out_layer.bias',
+            'time_text_embed.text_embedder.linear_2.weight': 'vector_embedding.out_layer.weight',
+        }
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[
+                import_double_block_qkv,
+                import_double_block_qkv_bias,
+                import_added_qkv,
+                import_added_qkv_bias,
+                import_single_block_qkv,
+                import_single_block_qkv_bias,
+                transform_single_proj_out,
+            ],
+        )
+
+
+@io.state_transform(
+    source_key=(
+        "transformer_blocks.*.attn.to_q.weight",
+        "transformer_blocks.*.attn.to_k.weight",
+        "transformer_blocks.*.attn.to_v.weight",
+    ),
+    target_key=(
+        "double_blocks.*.self_attention.linear_qkv.weight"
+    )
+)
+def import_double_block_qkv(ctx: io.TransformCTX, q, k, v):
+    transformer_config=ctx.target.config
+    return _import_qkv(transformer_config, q, k, v)
+
+
+@io.state_transform(
+    source_key=(
+        "transformer_blocks.*.attn.to_q.bias",
+        "transformer_blocks.*.attn.to_k.bias",
+        "transformer_blocks.*.attn.to_v.bias",
+    ),
+    target_key=(
+        "double_blocks.*.self_attention.linear_qkv.bias"
+    )
+)
+def import_double_block_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
+    transformer_config=ctx.target.config
+    return _import_qkv_bias(transformer_config, qb, kb, vb)
+
+
+@io.state_transform(
+    source_key=(
+        "transformer_blocks.*.attn.add_q_proj.weight",
+        "transformer_blocks.*.attn.add_k_proj.weight",
+        "transformer_blocks.*.attn.add_v_proj.weight",
+    ),
+    target_key=(
+        "double_blocks.*.self_attention.added_linear_qkv.weight"
+    )
+)
+def import_added_qkv(ctx: io.TransformCTX, q, k, v):
+    transformer_config=ctx.target.config
+    return _import_qkv(transformer_config, q, k, v)
+
+
+@io.state_transform(
+    source_key=(
+        "transformer_blocks.*.attn.add_q_proj.bias",
+        "transformer_blocks.*.attn.add_k_proj.bias",
+        "transformer_blocks.*.attn.add_v_proj.bias",
+    ),
+    target_key=(
+        "double_blocks.*.self_attention.added_linear_qkv.bias"
+    )
+)
+def import_added_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
+    transformer_config=ctx.target.config
+    return _import_qkv_bias(transformer_config, qb, kb, vb)
+
+@io.state_transform(
+    source_key=(
+        "single_transformer_blocks.*.attn.to_q.weight",
+        "single_transformer_blocks.*.attn.to_k.weight",
+        "single_transformer_blocks.*.attn.to_v.weight",
+    ),
+    target_key=(
+        "single_blocks.*.self_attention.linear_qkv.weight"
+    )
+)
+def import_single_block_qkv(ctx: io.TransformCTX, q, k, v):
+    transformer_config=ctx.target.config
+    return _import_qkv(transformer_config, q, k, v)
+
+
+@io.state_transform(
+    source_key=(
+        "single_transformer_blocks.*.attn.to_q.bias",
+        "single_transformer_blocks.*.attn.to_k.bias",
+        "single_transformer_blocks.*.attn.to_v.bias",
+    ),
+    target_key=(
+        "single_blocks.*.self_attention.linear_qkv.bias"
+    )
+)
+def import_single_block_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
+    transformer_config=ctx.target.config
+    return _import_qkv_bias(transformer_config, qb, kb, vb)
+
+@io.state_transform(
+    source_key=(
+        'single_transformer_blocks.*.proj_out.weight'
+    ),
+    target_key=(
+        'single_blocks.*.mlp.linear_fc2.weight',
+        'single_blocks.*.self_attention.linear_proj.weight'
+    )
+)
+def transform_single_proj_out(proj_weight):
+    linear_fc2 = proj_weight.detach()[:, 3072:].clone()
+    linear_proj = proj_weight.detach()[:, :3072].clone()
+    return linear_fc2, linear_proj
