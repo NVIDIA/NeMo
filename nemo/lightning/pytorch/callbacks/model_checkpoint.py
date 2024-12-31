@@ -27,12 +27,13 @@ from lightning.pytorch.callbacks.model_checkpoint import _is_local_file_protocol
 from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
+from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
 
-class ModelCheckpoint(PTLModelCheckpoint):
+class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
     """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
     Adds support for asyncronous checkpointing and provides some additional logic to clean up invalid checkpoints
     Args:
