@@ -183,6 +183,7 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
         for k, v in state_dict.items():
             if v.dtype == torch.bfloat16:
                 from tensorrt_llm._utils import np_bfloat16
+
                 state_dict[k] = v.view(torch.int16).numpy().view(np_bfloat16)
             else:
                 state_dict[k] = v.numpy()
@@ -223,6 +224,7 @@ def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tenso
                     sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
                 else:
                     from tensorrt_llm._utils import str_dtype_to_torch
+
                     sharded_state_dict[key] = torch.from_numpy(arr[:]).view(str_dtype_to_torch(arr.dtype.name))
             else:
                 sharded_state_dict[key] = arr[:]

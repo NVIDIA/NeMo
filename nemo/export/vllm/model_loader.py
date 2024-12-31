@@ -28,8 +28,8 @@ from vllm.model_executor.model_loader.loader import BaseModelLoader, _initialize
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
-from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_sharded_metadata_torch_dist
+from nemo.export.vllm.model_config import NemoModelConfig
 
 from .utils import is_nemo2_checkpoint
 
