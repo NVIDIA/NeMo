@@ -42,7 +42,7 @@ def main(args):
     max_steps = args.max_steps
 
     decoder_seq_length = 4096
-    if args.packed_sequence:
+    if args.use_packed_sequence:
         decoder_seq_length = 8192
 
     # Submodules configurations
@@ -111,6 +111,7 @@ def main(args):
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
+        context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=True,
         ddp=DistributedDataParallelConfig(
@@ -229,6 +230,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
+    parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--projector_type", type=str, required=False, default="mcore_mlp")
     parser.add_argument("--name", type=str, required=False, default="neva_pretrain")

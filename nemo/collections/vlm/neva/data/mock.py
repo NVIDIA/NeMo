@@ -149,7 +149,8 @@ class _MockNevaDataset(Dataset):
         self.seed = seed
         self.packed_sequence = packed_sequence
 
-        self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
+        # [parth] - Temp hack so that total seq len is 8192 (i.e. divisible by CP size) since mock dataset doesn't have padding yet
+        self.loss_mask = torch.ones(self.seq_length-575, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
     def __len__(self) -> int:
@@ -162,7 +163,8 @@ class _MockNevaDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
+        # tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
+        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1 - 575], dtype=np.int64))
         tokens[2] = IMAGE_TOKEN_INDEX  # ImageToken token index
         labels = tokens.clone()
         images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
@@ -192,7 +194,9 @@ class _MockNevaDataset(Dataset):
             cu_seqlens = torch.arange(
                 0, (batch_size + 1) * (valid_seqlen), step=(valid_seqlen), dtype=torch.int32, device=tokens.device
             )
-            cu_seqlens_padded = None
+            cu_seqlens_padded = torch.arange(
+                0, (batch_size + 1) * (valid_seqlen), step=(valid_seqlen), dtype=torch.int32, device=tokens.device
+            )
             qkv_format = 'thd'
             packed_seq_params = PackedSeqParams(
                 cu_seqlens_q=cu_seqlens,
