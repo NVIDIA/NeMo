@@ -385,6 +385,7 @@ class CLIPViTModel(MCoreCLIPViTModel):
 
         return super().forward(x, attention_mask)
 
+
 class _get_data_on_this_cp_rank(torch.autograd.Function):
     """Performs sharding for Context Parallelism"""
 
@@ -400,13 +401,19 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
                 )
                 raise e
             cp_rank = ps.get_context_parallel_rank()
-            index = tex.thd_get_partitioned_indices(packed_seq_params.cu_seqlens_q_padded, decoder_embeddings.size(0), cp_size, cp_rank)
+            index = tex.thd_get_partitioned_indices(
+                packed_seq_params.cu_seqlens_q_padded, decoder_embeddings.size(0), cp_size, cp_rank
+            )
             ctx.decoder_emb_index = index
             ctx.decoder_emb_seqlen = decoder_embeddings.size(0)
             decoder_embeddings = decoder_embeddings.index_select(0, index)
-            index = tex.thd_get_partitioned_indices(packed_seq_params.cu_seqlens_q_padded, labels.size(1), cp_size, cp_rank)
+            index = tex.thd_get_partitioned_indices(
+                packed_seq_params.cu_seqlens_q_padded, labels.size(1), cp_size, cp_rank
+            )
             labels = labels.index_select(1, index)
-            index = tex.thd_get_partitioned_indices(packed_seq_params.cu_seqlens_q_padded, loss_mask.size(1), cp_size, cp_rank)
+            index = tex.thd_get_partitioned_indices(
+                packed_seq_params.cu_seqlens_q_padded, loss_mask.size(1), cp_size, cp_rank
+            )
             loss_mask = loss_mask.index_select(1, index)
 
         return decoder_embeddings, labels, loss_mask
@@ -420,6 +427,7 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
         grad_in[ctx.decoder_emb_index] = grad_out
 
         return (grad_in, None, None, None)
+
 
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
@@ -644,7 +652,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
-        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(combined_embeddings, final_labels, final_loss_mask, packed_seq_params)
+        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(
+            combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+        )
 
         output = self.language_model(
             input_ids=None,
@@ -892,11 +902,14 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
 
         if final_embedding is not None:
-            if not (packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd') or self.context_parallel_lm == 1:
+            if (
+                not (packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd')
+                or self.context_parallel_lm == 1
+            ):
                 # Transpose to [s,b,h] if not using CP or not using packed_sequence/THD format
                 final_embedding = final_embedding.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
-            if final_embedding.shape[0] > self._language_max_sequence_length:                
+            if final_embedding.shape[0] > self._language_max_sequence_length:
                 final_embedding = final_embedding[: self._language_max_sequence_length]
                 if packed_sequence:
                     truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
@@ -910,12 +923,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
-    def _process_embedding_token_parallel(
-        self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params
-    ):
-        """ Processes the input data for model parallelism support. """
-        seq_dim = 0 #Assuming s, b, h
-        
+    def _process_embedding_token_parallel(self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params):
+        """Processes the input data for model parallelism support."""
+        seq_dim = 0  # Assuming s, b, h
+
         if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
             shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
         elif self.context_parallel_lm > 1:
@@ -948,12 +959,12 @@ class MCoreNevaModel(MCoreLLaVAModel):
             combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
             new_labels = batch["new_labels"]
             new_loss_mask = batch["new_loss_mask"]
-            
-            combined_embeddings = combined_embeddings.transpose(
-                    1, 0
-                ).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
+
+            combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
         else:
-            combined_embeddings, new_labels, new_loss_mask = _get_data_on_this_cp_rank.apply(combined_embeddings, new_labels, new_loss_mask, packed_seq_params)
+            combined_embeddings, new_labels, new_loss_mask = _get_data_on_this_cp_rank.apply(
+                combined_embeddings, new_labels, new_loss_mask, packed_seq_params
+            )
 
         if self.sequence_parallel_lm:
             combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
