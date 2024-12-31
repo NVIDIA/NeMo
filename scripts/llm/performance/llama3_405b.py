@@ -15,12 +15,14 @@
 from typing import Optional
 
 import nemo_run as run
+from nemo_run.config import NEMORUN_HOME
 from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor
 
 from nemo.collections.llm.recipes.llama31_405b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.utils import logging
 
 NUM_NODES = 72
 NUM_GPUS_PER_NODE = 8
@@ -34,7 +36,6 @@ MAX_STEPS = 100
 
 
 def llama3_405b_performance_recipe(
-    log_dir: str,
     compute_dtype: str,
     num_nodes: int,
     num_gpus_per_node: int,
@@ -51,7 +52,7 @@ def llama3_405b_performance_recipe(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe(dir=log_dir, performance_mode=True)
+    recipe = pretrain_recipe(performance_mode=True)
 
     # data module configs
     recipe.data.micro_batch_size = mbs
@@ -102,19 +103,18 @@ def llama3_405b_performance_recipe(
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
     recipe.trainer.enable_checkpointing = False
-    recipe.trainer.check_val_every_n_epoch = 1
+    recipe.trainer.val_check_interval = max_steps * gbs / dp_size
     recipe.trainer.log_every_n_steps = 1
-
-    # tensorboard adds performance overhead. Comment the following line to enable tensorboard logger defined in
-    # nemo.collections.llm.recipes.log.default.tensorboard_logger-
-    # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/log/default.py
-    recipe.log.tensorboard = None
 
     return recipe
 
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
+    if args.log_dir != NEMORUN_HOME:
+        import sys
+        logging.error(f"Run `export NEMORUN_HOME={args.log_dir}` in your shell environment and rerun this script.")
+        sys.exit(1)
 
     exp_name = "_".join(
         [
@@ -153,7 +153,15 @@ if __name__ == "__main__":
         MAX_STEPS,
     )
 
-    plugins = [PerfEnvPlugin(enable_vboost=True)]
+    if not args.tensorboard: # tensorboard adds performance overhead.
+        recipe.log.tensorboard = None
+        recipe.trainer.logger = False
+    else:
+        # default path is NOT intuitive- `<log_dir>/code/nemo_experiments/tb_logs/default/<tfevents_file>`
+        # following line ensures file is at- `<log_dir>/lightning_logs/tb_logs/default/<tfevents_file>`
+        recipe.log.log_dir = "/nemo_run/lightning_logs"
+
+    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152)]
     if args.enable_profiling:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 

@@ -17,6 +17,7 @@ import os
 from typing import Dict, List, Optional
 
 import nemo_run as run
+from nemo_run.config import NEMORUN_HOME
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
@@ -60,6 +61,7 @@ def slurm_executor(
         "NVTE_FUSED_ATTN": "1",
         "NVTE_FLASH_ATTN": "0",
         "NEMO_LOG_MEMORY_USAGE": "1",
+        "NEMORUN_HOME": log_dir,
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -72,7 +74,7 @@ def slurm_executor(
         account=account,
         partition=partition,
         tunnel=run.LocalTunnel(
-            job_dir=log_dir,
+            job_dir=os.path.join(log_dir, "experiments"),
         ),
         nodes=nodes,
         ntasks_per_node=num_gpus_per_node,
@@ -143,9 +145,9 @@ def parse_cli_args():
         "-l",
         "--log_dir",
         type=str,
-        help="Directory for logging experiment results. Defaults to '~/nemo_log_dir'",
+        help=f"Directory for logging experiment results. Defaults to {NEMORUN_HOME}",
         required=False,
-        default=os.path.expanduser("~/nemo_log_dir"),
+        default=NEMORUN_HOME,
     )
     parser.add_argument(
         "-t",
@@ -176,6 +178,12 @@ def parse_cli_args():
         "-ep",
         "--enable_profiling",
         help="Enable Nsys profiling. Diabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-tb",
+        "--tensorboard",
+        help="Enable tensorboard logging. Disabled by default",
         action="store_true",
     )
     parser.add_argument(
