@@ -12,4 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.deploy.nlp.query_llm import NemoQueryLLM, NemoQueryLLMPyTorch
+
+import nemo_run as run
+
+from nemo.lightning.pytorch.optim import PytorchOptimizerModule
+
+
+@run.cli.factory
+def pytorch_adam_with_flat_lr(
+    lr: float = 1e-5,
+) -> run.Config[PytorchOptimizerModule]:
+    from torch.optim import Adam
+
+    return run.Config(
+        PytorchOptimizerModule,
+        optimizer_fn=run.Partial(
+            Adam,
+            lr=lr,
+            weight_decay=0.1,
+            betas=(0.9, 0.95),
+            eps=1e-8,
+        ),
+    )

@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.deploy.nlp.query_llm import NemoQueryLLM, NemoQueryLLMPyTorch
+from nemo.collections.speechlm.models.hf_auto_model_for_speech_seq2seq import HFAutoModelForSpeechSeq2Seq
