@@ -138,7 +138,6 @@ if __name__ == "__main__":
     )
 
     recipe = llama3_8b_performance_recipe(
-        args.log_dir,
         args.compute_dtype,
         NUM_NODES,
         NUM_GPUS_PER_NODE,
