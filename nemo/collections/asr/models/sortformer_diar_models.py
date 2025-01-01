@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import itertools
-import os
+import os, math
 import random
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -235,7 +235,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             }
         )
 
-    def frontend_encoder(self, processed_signal, processed_signal_length):
+    def frontend_encoder(self, processed_signal, processed_signal_length, pre_encode_input: bool=False):
         """
         Generate encoder outputs from frontend encoder.
 
@@ -250,7 +250,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
-        emb_seq, emb_seq_length = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        emb_seq, emb_seq_length = self.encoder(audio_signal=processed_signal, length=processed_signal_length, pre_encode_input=pre_encode_input)
         emb_seq = emb_seq.transpose(1, 2)
         if self.sortformer_modules.encoder_proj is not None:
             emb_seq = self.sortformer_modules.encoder_proj(emb_seq)
@@ -528,8 +528,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         chunk_pre_encode_embs, _ = self.encoder.pre_encode(x=processed_signal, lengths=processed_signal_length)
         
         mem_chunk_pre_encode_embs, mem_chunk_pre_encode_lengths = self.sortformer_modules.concat_embs([mem_last_time, fifo_last_time, chunk_pre_encode_embs], return_lengths=True, dim=1, device=self.device) 
-        mem_chunk_fc_encoder_embs, _ = self.frontend_encoder(processed_signal=mem_chunk_pre_encode_embs, processed_signal_length=mem_chunk_pre_encode_lengths) 
-        # , pre_encode_input=True)
+        mem_chunk_fc_encoder_embs, _ = self.frontend_encoder(processed_signal=mem_chunk_pre_encode_embs, processed_signal_length=mem_chunk_pre_encode_lengths, pre_encode_input=True)
         
         mem_chunk_preds = self.forward_infer(mem_chunk_fc_encoder_embs)
 

@@ -36,6 +36,7 @@ SpeakerTaggedASR,
 
 )
 from nemo.collections.asr.models.sortformer_diar_models import SortformerEncLabelModel
+from nemo.collections.asr.parts.utils.multispk_transcribe_utils import SpeakerTaggedASR
 from nemo.core.config import hydra_runner
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
@@ -107,44 +108,11 @@ python transcribe_speech.py \
     pred_name_postfix="<remove or use another model name for output filename>"
 """
 
-def perform_speakertagging(
-    cfg,
-    override_cfg,
-    asr_model, 
-    diar_model, 
-    debug_mode=False):
-    final_offline_tran = None
-    previous_hypotheses = None
-    asr_pred_out_stream, diar_pred_out_stream  = None, None
-    mem_last_time, fifo_last_time = None, None
-    left_offset, right_offset = 0, 0
-
-    multispk_asr_streamer = SpeakerTaggedASR(cfg, asr_model, diar_model)
-    session_start_time = time.time()
-    feat_frame_count = 0
-
-    transcriptions = asr_model.transcribe(
-        audio=cfg.dataset_manifest,
-        override_config=override_cfg,
-    )
-    asr_hypotheses = transcriptions[0]
-
-    spk_timestamps, pred_tensors = diar_model.diarize(audio=cfg.manifest_file, include_tensor_outputs=True)
-    speaker_transcriptions = multispk_asr_streamer.merge_transcript_and_diar_pred(
-                                        test_manifest_dict=diar_model._diarize_audio_rttm_map, 
-                                        asr_hypotheses=asr_hypotheses, 
-                                        diar_pred_out=pred_tensors
-                                    )
-    return transcriptions, speaker_transcriptions
-
-
-
 @dataclass
 class ModelChangeConfig:
     """
     Sub-config for changes specific to the Conformer Encoder
     """
-
     conformer: ConformerChangeConfig = field(default_factory=ConformerChangeConfig)
 
 
@@ -155,7 +123,7 @@ class TranscriptionConfig:
     """
     # Required configs
     diar_model_path: Optional[str] = None  # Path to a .nemo file
-    # diar_pretrained_name: Optional[str] = None  # Name of a pretrained model
+    diar_pretrained_name: Optional[str] = None  # Name of a pretrained model
     # audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     # dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
     audio_file: Optional[str] = None
@@ -360,6 +328,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     elif cfg.diar_model_path.endswith(".nemo"):
         diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.diar_model_path, 
                                                           map_location=map_location)
+    elif cfg.diar_pretrained_name.startswith("nvidia/"):
+        diar_model = SortformerEncLabelModel.from_pretrained(cfg.diar_pretrained_name)
     else:
         raise ValueError("cfg.diar_model_path must end with.ckpt or.nemo!")
     
@@ -368,7 +338,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     diar_model.set_trainer(trainer)
     
     diar_model = diar_model.eval()
-    # diar_model._cfg.test_ds.manifest_filepath = cfg.manifest_file
     cfg.manifest_file = cfg.dataset_manifest
     diar_model._cfg.test_ds.manifest_filepath = cfg.dataset_manifest
     diar_model._cfg.test_ds.batch_size = cfg.diar_batch_size
@@ -511,17 +480,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             if hasattr(override_cfg, "prompt"):
                 override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
 
-            # transcriptions = asr_model.transcribe(
-            #     audio=filepaths,
-            #     override_config=override_cfg,
-            # )
-            
-            transcriptions, speaker_transcriptions = perform_speakertagging(
-                cfg=cfg,
+            speaker_tagging_asr = SpeakerTaggedASR(cfg, asr_model, diar_model)
+            transcriptions = speaker_tagging_asr.perform_offline_stt_spk(
                 override_cfg=override_cfg,
-                asr_model=asr_model,
-                diar_model=diar_model,
             ) 
+             
             # transcriptions[0][0].timestep.keys() = dict_keys(['timestep', 'char', 'word', 'segment'])
             if cfg.calculate_rtfx:
                 transcribe_time = time.time() - start_time
