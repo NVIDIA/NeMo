@@ -329,7 +329,6 @@ def deploy(
     triton_http_port: int = 8000,
     triton_grpc_port: int = 8001,
     triton_http_address: str = "0.0.0.0",
-    triton_request_timeout: int = 60,
     triton_model_repository: Path = None,
     num_gpus: int = 1,
     tensor_parallelism_size: int = 1,
@@ -353,7 +352,6 @@ def deploy(
         triton_http_port (int): HTTP port for the PyTriton server. Default: 8000.
         triton_grpc_port (int): gRPC Port for the PyTriton server. Default: 8001.
         triton_http_address (str): HTTP address for the PyTriton server. Default:  "0.0.0.0".
-        triton_request_timeout (int): Timeout in seconds for Triton server. Default: 60.
         triton_model_repository (Path): Folder for the trt-llm conversion, trt-llm engine gets saved in this specified
         path. If None, saves it in /tmp dir. Default: None.
         num_gpus (int): Number of GPUs for export to trtllm and deploy. Default: 1.

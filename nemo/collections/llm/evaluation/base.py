@@ -165,7 +165,7 @@ class NeMoFWLMEval(LM):
 
         return results
 
-def wait_for_server_ready(url, model_name, max_retries=100, retry_interval=2):
+def wait_for_server_ready(url, model_name, max_retries=600, retry_interval=2):
     """
     Wait for the Triton server and model to be ready, with retry logic.
 
@@ -190,8 +190,8 @@ def wait_for_server_ready(url, model_name, max_retries=100, retry_interval=2):
         url = url.replace("grpc://", "http://").replace(":8001", ":8000")
     health_url = f"{url}/v2/health/ready"
 
-    for attempt in range(1, max_retries + 1):
-        logging.info(f"Attempt {attempt}/{max_retries}: Checking server and model readiness...")
+    for _ in range(max_retries):
+        logging.info("Checking server and model readiness...")
 
         try:
             # Check server readiness using HTTP health endpoint
