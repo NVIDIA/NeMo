@@ -105,7 +105,7 @@ class ModelCheckpoint(PTLModelCheckpoint, IOMixin):
             every_n_train_steps=every_n_train_steps,
             train_time_interval=train_time_interval,
             save_on_train_epoch_end=save_on_train_epoch_end,
-            **kwargs,
+            #**kwargs,
         )
 
     def on_train_start(self, trainer, pl_module):
