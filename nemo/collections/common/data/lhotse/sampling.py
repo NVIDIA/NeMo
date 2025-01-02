@@ -15,9 +15,11 @@
 import bisect
 import logging
 import math
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from typing import Any, Sequence
 
+import numpy as np
 from lhotse.cut import Cut
 from lhotse.dataset import SamplingConstraint, TokenConstraint
 from lhotse.dataset.sampling.dynamic_bucketing import FixedBucketBatchSizeConstraint
@@ -110,11 +112,20 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
     """
     Sampling strategy that customizes Lhotse samplers to support 2D bucket selection (it also supports 1D).
     It is intended only for audio examples (i.e., Lhotse Cut objects).
+
+    When ``strict_2d`` is set, we only consider sub-buckets for a single bucket that is the best match.
+    When set to ``False``, we'll promote an example to buckets with larger 1st dim if they can accommodate the 2nd dim.
     """
+
+    strict_2d: bool = True
+
+    def __post_init__(self):
+        if isinstance(self.max_seq_len_buckets[0], Sequence):
+            self.max_seq_len_buckets = np.asarray(self.max_seq_len_buckets)
 
     @property
     def bucketing_2d_enabled(self) -> bool:
-        return isinstance(self.max_seq_len_buckets[0], Sequence) and len(self.max_seq_len_buckets[0]) == 2
+        return isinstance(self.max_seq_len_buckets, np.ndarray)
 
     def measure_length(self, example: Cut) -> tuple[float, float] | float:
         if self.bucketing_2d_enabled:
@@ -123,41 +134,54 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
             return example.duration
 
     def select_bucket(self, buckets: Any, example: Any = None, example_len: Any = None) -> int:
-        if not self.bucketing_2d_enabled:
-            return super().select_bucket(buckets=buckets, example=example, example_len=example_len)
         if example_len is None:
             example_len = self.measure_length(example)
-        bucket_idx = bisect.bisect_left(buckets, example_len)
-        # For 2D bucketing we have to refine the initially found bucket_idx, as bisect
-        # looks primarily at the first index of a tuple (i.e. duration).
-        # For example, with buckets [(1, 1), (1, 2), (2, 2), (2, 4)] and example (1.5, 3)
-        # bisect would allocate it to bucket_idx=2 instead of bucket_idx=3.
-        # To refine, we'll try to push the example to as many buckets to the right as possible,
-        # as long as they have the same dim0 length (e.g. audio duration) and the example's dim1
-        # is smaller than the bin's dim1 (e.g., output token sequence length).
-        bin_dim0, bin_dim1 = self.max_seq_len_buckets[bucket_idx]
-        num_buckets = len(self.max_seq_len_buckets)
-        while (
-            (next_idx := bucket_idx + 1) < num_buckets  # There is a next bucket
-            and (bin := self.max_seq_len_buckets[next_idx])[0] == bin_dim0  # The next bucket has the same 1st dim.
-            # The example's 2nd dim is between that of the current and the next bucket; or,
-            # the next bucket's 2nd dim is still smaller than example.
-            and (bin_dim1 < example_len[1] <= bin[1] or bin[1] < example_len[1])
-        ):
-            bucket_idx = next_idx
-            bin_dim0, bin_dim1 = self.max_seq_len_buckets[bucket_idx]
+        return find_smallest_bucket(self.max_seq_len_buckets, example_len, strict=self.strict_2d)
 
-        if example_len[0] > bin_dim0 or example_len[1] > bin_dim1:
-            logging.warning(
-                f"Data sample exceeds 2D bucket specification: lengths={example_len} bucket=({bin_dim0}, {bin_dim1}) "
-                f"(there is no larger bucket that would fit this example). "
-                f"We will keep it but expect OutOfMemoryError to happen during the training. "
-                f"You can fix this by stricter filtering with max_duration, max_tokens, max_tps, max_tpt; "
-                f"or re-estimating your bucket bins to match the actual data length distribution. "
-                f"Details: {example=}"
-            )
 
-        return bucket_idx
+def find_smallest_bucket(
+    buckets: np.ndarray, example_lens: float | Sequence[float], strict: bool = True
+) -> int | None:
+    """
+    Find the smallest bucket that fits a given example.
+    Each bucket and ``example_lens`` are floats (1-D bucketing)
+    or tuples of (dim0, dim1, dim2, ...) (N-D bucketing, typically 2-D).
+    Assumes the buckets have been sorted ascendingly.
+    Returns a tuple of (smallest_bin, bin_idx), or (None, None) if no bucket fits the example.
+    """
+    # 1D bucketing - binary search.
+    if isinstance(example_lens, float):  # 1-D
+        idx = bisect_left(buckets, example_lens)
+        if idx == len(buckets):
+            return None
+        return idx
+
+    # 2D bucketing 'strict' mode: only consider sub-buckets for the specific bucket that matches this example.
+    # E.g. for buckets = [(10, 5), (10, 10), (20, 12), (20, 18)]
+    #      and example_lens = (8, 11)
+    #      we will return None because we only consider the first two buckets based on dim0 (=8).
+    if strict:
+        dim0_begin = bisect_left(buckets[:, 0], example_lens[0])
+        if dim0_begin == buckets.shape[0]:
+            return None
+        dim0_end = dim0_begin
+        while dim0_end < buckets.shape[0] and buckets[dim0_end, 0] == buckets[dim0_begin, 0]:
+            dim0_end += 1
+        dim1_begin = bisect_left(buckets[dim0_begin:dim0_end, 1], example_lens[1])
+        if dim1_begin == dim0_end - dim0_begin:
+            return None
+        return dim0_begin + dim1_begin
+
+    # 2D bucketing 'lenient' mode - linear search (as 2nd dim may not be growing monotonically).
+    # E.g. for buckets = [(10, 5), (10, 10), (20, 12), (20, 18)]
+    #      and example_lens = (8, 11)
+    #      we will return bucket_idx=2 because (20, 12) fits (8, 11) at the cost of more padding.
+    does_fit = np.all(np.asarray(example_lens) <= buckets, axis=1)
+    min_fit_idx = np.argmax(does_fit)
+    if min_fit_idx or does_fit[min_fit_idx]:
+        return min_fit_idx.item()
+    else:
+        return None
 
 
 @dataclass
@@ -299,6 +323,24 @@ class TokenPerTokenFilter:
             return True  # pass-through for non-text examples.
         tpt = example.answer_ids.shape[0] / example.context_ids.shape[0]
         return self.tpt_min <= tpt <= self.tpt_max
+
+
+class BucketingFilter:
+    """
+    Filters out examples that did not fit into any of the buckets.
+    Intended mainly for 2D bucketing. This filter is only active when
+    the constraint passed to it is of type ``FixedBucketBatchSizeConstraint2D``,
+    and is otherwise disabled.
+    """
+
+    def __init__(self, sampling_constraint: SamplingConstraint) -> None:
+        self.constraint = sampling_constraint
+        self.enabled = isinstance(self.constraint, FixedBucketBatchSizeConstraint2D)
+
+    def __call__(self, example) -> bool:
+        if not self.enabled:
+            return True
+        return self.constraint.select_bucket(self.constraint.max_seq_len_buckets, example) is not None
 
 
 def _measure_tokens(cut: Cut) -> int:
