@@ -565,7 +565,7 @@ class SpeakerTaggedASR:
         session_trans_dict['sentences'] = sentences
         return session_trans_dict 
     
-    def merge_transcript_and_speakers(self, test_manifest_dict:, asr_hypotheses, diar_pred_out):
+    def merge_transcript_and_speakers(self, test_manifest_dict, asr_hypotheses, diar_pred_out):
         transcribed_speaker_texts = [None] * len(test_manifest_dict)
         
         for idx, (uniq_id, data_dict) in enumerate(test_manifest_dict.items()):

@@ -324,6 +324,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     # Load diarization model
     diar_model, model_name = setup_diarization_model(cfg, map_location)
     
+    # Model setup for inference 
     diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     diar_model.set_trainer(trainer)
@@ -333,7 +334,6 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     diar_model._cfg.test_ds.manifest_filepath = cfg.dataset_manifest
     diar_model._cfg.test_ds.batch_size = cfg.diar_batch_size
     
-    # Model setup for inference 
     diar_model._cfg.test_ds.num_workers = cfg.num_workers
     diar_model.setup_test_data(test_data_config=diar_model._cfg.test_ds)    
     
