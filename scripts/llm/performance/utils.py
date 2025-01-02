@@ -187,6 +187,12 @@ def parse_cli_args():
         action="store_true",
     )
     parser.add_argument(
+        "-f",
+        "--finetuning",
+        help="Finetuning scheme to use. Options- 'sft', 'lora'. Defaults is 'lora'",
+        default='lora',
+    )
+    parser.add_argument(
         "-d",
         "--dryrun",
         help="If true, prints sbatch script to terminal without launching experiment.",
