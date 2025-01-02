@@ -74,11 +74,13 @@ class ModelCheckpoint(PTLModelCheckpoint):
         save_optim_on_train_end: Optional[bool] = False,
         always_save_context: bool = True,
         save_context_on_train_end: bool = True,
+        save_last_n_optim_states: int = -1,
         **kwargs,
     ):
         self.always_save_context = always_save_context
         self.save_context_on_train_end = save_context_on_train_end
         self.save_optim_on_train_end = save_optim_on_train_end
+        self.save_last_n_optim_states = save_last_n_optim_states
 
         ## stores the next -last checkpoint to be saved, used only when save_last = 'link'
         ## this is needed because when using symlinks, we need to update the non-last checkpoint's
@@ -91,6 +93,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # is called, the last element is frozen and a new element is added.
         self.deferred_ckpts_to_remove: List[List[str]] = []
         self.ckpts_to_link: Dict[str, str] = {}
+
+        # used to drop optimizer states
+        self.base_checkpoint_io = None
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(
@@ -321,6 +326,39 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 ema_callback = callback
         return ema_callback
 
+    def _drop_optimizer_states(self, trainer, filepath: Union[str, Path], global_step: int) -> None:
+        from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
+
+        from nemo.utils.get_rank import is_global_rank_zero
+
+        # Get list of saved checkpoints
+        checkpoints = self._get_checkpoints_list(filepath, global_step)
+
+        # Drop optimizer states
+        checkpoint_index = len(checkpoints) - self.save_last_n_optim_states - 1
+        if len(checkpoints) > self.save_last_n_optim_states:
+            if is_global_rank_zero():
+                checkpoint_path = Path(checkpoints[checkpoint_index])
+                checkpoint_path = (
+                    checkpoint_path / "weights" if os.path.isdir(checkpoint_path / "weights") else checkpoint_path
+                )
+
+                ## get base checkpoint io in case of wrapping
+                if self.base_checkpoint_io is None:
+                    self.base_checkpoint_io = trainer.strategy.checkpoint_io
+                    while isinstance(self.base_checkpoint_io, _WrappingCheckpointIO):
+                        self.base_checkpoint_io = self.base_checkpoint_io.checkpoint_io
+                    assert hasattr(
+                        self.base_checkpoint_io, "drop_optimizer_states"
+                    ), f"{self.base_checkpoint_io} does not support dropping optimizer states. \
+                        Please disable dropping optimizer states by setting save_last_n_optim_states=-1."
+
+                logging.info(f'dropping optimizer states at {checkpoint_path}')
+                self.base_checkpoint_io.drop_optimizer_states(checkpoint_path)
+
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+
     @staticmethod
     def format_checkpoint_unfinished_marker_path(checkpoint_path: Union[Path, str]) -> Path:
         """Format the path to the unfinished checkpoint marker file.
@@ -516,6 +554,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
             # we don't want to remove the marker until all checkpointing is done.
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
 
+            if self.save_last_n_optim_states >= 0 and '-last' not in filepath:
+                self._drop_optimizer_states(trainer, filepath, global_step - 1)  ## want step to be zero-indexed here
+
             if not self.async_save:
                 return
 
@@ -639,3 +680,27 @@ class ModelCheckpoint(PTLModelCheckpoint):
             raise ValueError(f"{self.__class__}.dirpath is None.")
         dirpath = Path(self.dirpath).absolute()
         return dirpath in previous.parents
+
+    def _get_checkpoints_list(self, filepath: Union[str, Path], global_step: int) -> List[str]:
+        # Get a checkpoints directory
+        checkpoints_dir = os.path.dirname(filepath)
+
+        # Get a list of saved checkpoints
+        checkpoints = [
+            os.path.join(checkpoints_dir, d)
+            for d in os.listdir(checkpoints_dir)
+            if os.path.isdir(os.path.join(checkpoints_dir, d)) and '-last' not in d
+        ]
+
+        assert (
+            "step=" in checkpoints[0]
+        ), "'step' must be present in the checkpoint filename when dropping optimizer states"
+
+        def get_step(ckpt):
+            return int(ckpt.split("step=")[1].split("-")[0])
+
+        checkpoints = [ckpt for ckpt in checkpoints if get_step(ckpt) <= global_step]
+        ## sort by step
+        checkpoints = sorted(checkpoints, key=lambda pth: get_step(pth))
+
+        return checkpoints
