@@ -108,7 +108,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
-        
+
         self.model.train()
 
     def forward(self, batch):
@@ -269,6 +269,5 @@ def parallelize(model, device_mesh: DeviceMesh):
             )
             model.model.layers[layer_id] = transformer_block
         model = fully_shard(model, **fsdp_config)
-    
 
     return model
