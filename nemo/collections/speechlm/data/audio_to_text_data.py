@@ -228,8 +228,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             num_micro_batches = data_cfg.global_batch_size // (data_cfg.micro_batch_size * data_parallel_size)
             global_batch_size_on_this_data_parallel_rank = num_micro_batches * data_cfg.micro_batch_size
             dataloader = WrappedDataLoader(
-                mode,
-                dataset,
+                mode=mode,
+                dataset=dataset,
                 collate_fn=collate_fn,
                 shuffle=False,
                 batch_size=global_batch_size_on_this_data_parallel_rank,
@@ -240,8 +240,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             return dataloader
 
         return WrappedDataLoader(
-            mode,
-            dataset,
+            mode=mode,
+            dataset=dataset,
             num_workers=data_cfg.num_workers,
             pin_memory=data_cfg.pin_memory,
             persistent_workers=data_cfg.get("persistent_workers", False),
