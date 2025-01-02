@@ -362,7 +362,7 @@ class ConnectorMixin:
         return decorator
 
     @classmethod
-    def importer(cls, path: str, **kwargs) -> ModelConnector:
+    def importer(cls, path: str) -> ModelConnector:
         """
         Retrieves the appropriate model connector for importing based on the extension of the
         provided path.
@@ -374,7 +374,7 @@ class ConnectorMixin:
         -------
             ModelConnector: The model connector instance capable of handling the import.
         """
-        return cls._get_connector(path, importer=True, **kwargs)
+        return cls._get_connector(path, importer=True)
 
     @classmethod
     def exporter(cls, ext: str, path: Union[str, Path]) -> ModelConnector:
