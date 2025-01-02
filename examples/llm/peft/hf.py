@@ -16,9 +16,10 @@ import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
-def mk_hf_dataset(tokenizer):
+def make_squad_hf_dataset(tokenizer):
     EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
 
     def formatting_prompts_func(examples):
@@ -39,20 +40,25 @@ def mk_hf_dataset(tokenizer):
             output = output[0]
         text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
         ans = tokenizer(text)
-        tokens = ans['input_ids']
-        return {
-            'tokens': tokens,
-            'labels': tokens[1:] + [tokens[-1]],
-        }
+        # 'input_ids' is a list, we want to remove EOS_TOKEN from input_ids and the first token from
+        # labels to align the two:
+        ans['labels'] = list(ans['input_ids'][1:])
+        ans['input_ids'] = ans['input_ids'][:-1]
+        ans['attention_mask'] = ans['attention_mask'][:-1]
+        return ans
 
-    from datasets import load_dataset
+    tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_token_id)
+    datamodule.map(
+        formatting_prompts_func,
+        batched=False,
+        batch_size=2,
+        remove_columns=["id", "title", "context", "question", 'answers'],
+    )
+    return datamodule
 
-    dataset = load_dataset("rajpurkar/squad", split="train")
-    dataset = dataset.map(formatting_prompts_func, batched=False, batch_size=2)
-    return dataset
 
-
-if __name__ == '__main__':
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -62,6 +68,7 @@ if __name__ == '__main__':
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
+    parser.add_argument('--use-torch-jit', action='store_true')
     args = parser.parse_args()
 
     wandb = None
@@ -73,16 +80,20 @@ if __name__ == '__main__':
         )
     grad_clip = 0.5
     if args.strategy == 'fsdp':
-        # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
+        # See:
+        # https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     use_dist_samp = False
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
 
+    callbacks = []
+    if args.use_torch_jit:
+        jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': True}, use_thunder=False)
+        callbacks = [JitTransform(jit_config)]
+
     llm.api.finetune(
         model=llm.HFAutoModelForCausalLM(args.model),
-        data=llm.HFDatasetDataModule(
-            mk_hf_dataset(tokenizer.tokenizer), pad_token_id=tokenizer.tokenizer.eos_token_id
-        ),
+        data=make_squad_hf_dataset(tokenizer.tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
@@ -95,6 +106,8 @@ if __name__ == '__main__':
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
+            callbacks=callbacks,
+            precision="bf16",
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
@@ -103,3 +116,7 @@ if __name__ == '__main__':
             dim=32,
         ),
     )
+
+
+if __name__ == '__main__':
+    main()

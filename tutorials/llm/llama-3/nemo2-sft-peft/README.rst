@@ -20,7 +20,7 @@ Requirements
    
 * Software Requirements
     * Use the latest [NeMo Framework Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags) . Note that you must be logged in to the container registry to view this page.
-    * This notebook uses the container: `nvcr.io/nvidia/nemo:dev`.
+    * This notebook is tested on the container: `nvcr.io/nvidia/nemo:24.12-rc0`.
     * Get your Hugging Face [access token](https://huggingface.co/docs/hub/en/security-tokens), which will be used to obtain the tokenizer required during training.
 
 * NeMo 2.0 and NeMo-Run
@@ -35,14 +35,20 @@ Start the NeMo Framework Container
 .. code:: bash
 
    docker run \
-     --gpus device=1 \
+     --gpus all \
      --shm-size=2g \
      --net=host \
      --ulimit memlock=-1 \
      --rm -it \
      -v ${PWD}:/workspace \
      -w /workspace \
-     nvcr.io/nvidia/nemo:dev bash
+     nvcr.io/nvidia/nemo:24.12-rc0 bash
+
+Once you are inside the container, you can run `nvidia-smi` to verify that the GPUs are accessible.
+
+.. code:: bash
+
+   nvidia-smi
 
 
 2. You need to request download permission from Meta and Hugging Face. Then, from within the container, log in through `huggingface-cli` using your Hugging Face token. 
