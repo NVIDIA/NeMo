@@ -108,9 +108,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
-
-        print(self.model)
-
+        
         self.model.train()
 
     def forward(self, batch):
@@ -194,8 +192,7 @@ def parallelize(model, device_mesh: DeviceMesh):
     dp_mesh = device_mesh["data_parallel"]
     tp_mesh = device_mesh["tensor_parallel"]
 
-    print(dp_mesh)
-    print(tp_mesh)
+    print(model)
 
     if tp_mesh.size() > 1:
         # 1. Parallelize the first embedding and the last linear proj layer
@@ -204,39 +201,43 @@ def parallelize(model, device_mesh: DeviceMesh):
 
         # Parallelize the first embedding and the last linear out projection
         plan = {
-            "tok_embeddings": RowwiseParallel(input_layouts=Replicate()),
-            "output": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
-            "norm": SequenceParallel(),
-            "layers.0": PrepareModuleInput(
-                input_layouts=(Replicate(), None),
-                desired_input_layouts=(Shard(1), None),
+            "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
+            "lm_head": ColwiseParallel(
+                input_layouts=Shard(1),
+                # Optional: Shard the output along the class dimension to compute the loss in parallel.
+                # See `loss_parallel` in `train.py`
+                output_layouts=Shard(-1),
+                use_local_output=False,
+            ),
+            "model.norm": SequenceParallel(),
+            "model.layers.0": PrepareModuleInput(
+                input_layouts=(Replicate()),
+                desired_input_layouts=(Shard(1)),
                 use_local_output=True,
             ),
         }
         model = parallelize_module(model, tp_mesh, plan)
 
-        print(model.model.layers)
-
         # Parallelize each transformer block
         for transformer_block in model.model.layers:
             plan = {
-                "attention": PrepareModuleInput(
-                    input_layouts=(Shard(1), None),
-                    desired_input_layouts=(Replicate(), None),
+                "self_attn": PrepareModuleInput(
+                    input_layouts=(Shard(1)),
+                    desired_input_layouts=(Replicate()),
                 ),
-                "attention.wq": ColwiseParallel(),
-                "attention.wk": ColwiseParallel(),
-                "attention.wv": ColwiseParallel(),
-                "attention.wo": RowwiseParallel(output_layouts=Shard(1)),
-                "attention_norm": SequenceParallel(),
-                "feed_forward": PrepareModuleInput(
-                    input_layouts=(Shard(1),),
-                    desired_input_layouts=(Replicate(),),
+                "self_attn.q_proj": ColwiseParallel(),
+                "self_attn.k_proj": ColwiseParallel(),
+                "self_attn.v_proj": ColwiseParallel(),
+                "self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+                "mlp": PrepareModuleInput(
+                    input_layouts=Shard(1),
+                    desired_input_layouts=Replicate(),
                 ),
-                "feed_forward.w1": ColwiseParallel(),
-                "feed_forward.w2": RowwiseParallel(output_layouts=Shard(1)),
-                "feed_forward.w3": ColwiseParallel(),
-                "ffn_norm": SequenceParallel(),
+                "mlp.gate_proj": ColwiseParallel(),
+                "mlp.up_proj": ColwiseParallel(),
+                "mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+                "input_layernorm": SequenceParallel(),
+                "post_attention_layernorm": SequenceParallel(),
             }
 
             # Adjust attention module to use the local number of heads
@@ -257,7 +258,7 @@ def parallelize(model, device_mesh: DeviceMesh):
         fsdp_config = {"mesh": dp_mesh, "mp_policy": mp_policy}
         for layer_id, transformer_block in enumerate(model.model.layers):
             # Apply activation checkpointing
-            transformer_block = checkpoint_wrapper(transformer_block)
+            # transformer_block = checkpoint_wrapper(transformer_block)
             # As an optimization, do not reshard after forward for the last
             # transformer block since FSDP would prefetch it immediately
             reshard_after_forward = int(layer_id) < len(model.model.layers) - 1
@@ -268,7 +269,6 @@ def parallelize(model, device_mesh: DeviceMesh):
             )
             model.model.layers[layer_id] = transformer_block
         model = fully_shard(model, **fsdp_config)
-
-    print("here")
+    
 
     return model
