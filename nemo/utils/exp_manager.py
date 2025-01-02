@@ -67,6 +67,14 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_FT = False
 
+try:
+    from megatron.core import parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_MEGATRON_CORE = False
+
 
 class NotFoundError(NeMoBaseException):
     """Raised when a file or folder is not found"""
@@ -217,6 +225,8 @@ class ExpManagerConfig:
     # log step time with nemo logger instead of lightning logger to avoid lightning logger overhead
     log_delta_step_timing: Optional[bool] = False
     step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
+    # logs token-level performance of train steps
+    log_step_token_performance: Optional[bool] = False
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
     log_global_rank_0_only: Optional[bool] = False
@@ -341,6 +351,85 @@ class DeltaTimingCallback(Callback):
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
+
+class TokenPerformanceCallback(Callback):
+    """
+    Logs performance in token-level of train steps using nemo logger. Calculates
+    time from previous batch end to current batch end. This ensures accuracy.
+    """
+
+    def __init__(self, timer_kwargs={}):
+        self.timer = timers.NamedTimer(**timer_kwargs)
+
+    def _on_epoch_start(self, name, trainer, pl_module):
+        # synchronize pytorch cuda execution if supported
+        if torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+
+        # reset only if we do not return mean of a sliding window
+        if self.timer.buffer_size <= 0:
+            self.timer.reset(name)
+
+        if self.timer.is_active(name):
+            logging.warning(
+                f"Timer `{name}` was not correctly stopped, suggesting a "
+                "possible issue. The timer will be reset for now."
+            )
+            self.timer.reset(name)
+
+        self.timer.start(name)
+
+    def _on_batch_end(self, name, pl_module):
+        # synchronize pytorch cuda execution if supported
+        if torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+        # stop time for current batch
+        self.timer.stop(name)
+
+        # start timer for next batch
+        self.timer.start(name)
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        self._on_epoch_start("train_step_token_performance", trainer, pl_module)
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self._on_batch_end("train_step_token_performance", pl_module)
+    
+        elapsed_time = self.timer["train_step_token_performance"]
+
+        # sum local tokens
+        total_tokens = batch["tokens"].numel()
+        # sum tokens cross all data_parallel_group
+        total_tokens = torch.tensor([total_tokens]).cuda()
+        torch.distributed.all_reduce(total_tokens, group=parallel_state.get_data_parallel_group())
+        total_tokens_per_second = float(total_tokens) / elapsed_time
+        total_tokens_per_second_per_device = int(total_tokens_per_second / float(torch.distributed.get_world_size()))
+        
+        # sum local tokens
+        effective_tokens = sum(batch["token_count"])
+        # sum tokens cross all data_parallel_group
+        effective_tokens = torch.tensor([effective_tokens]).cuda()
+        torch.distributed.all_reduce(effective_tokens, group=parallel_state.get_data_parallel_group())
+        effective_tokens_per_second = float(effective_tokens) / elapsed_time
+        effective_tokens_per_second_per_device = int(effective_tokens_per_second / float(torch.distributed.get_world_size()))
+
+        pl_module.log(
+            'effective_tokens_per_second_per_device',
+            effective_tokens_per_second_per_device,
+            on_step=True,
+            on_epoch=False,
+            batch_size=1,
+            prog_bar=True,
+        )
+
+        pl_module.log(
+            'total_tokens_per_second_per_device',
+            total_tokens_per_second_per_device,
+            on_step=True,
+            on_epoch=False,
+            batch_size=1,
+            prog_bar=True,
+        )
 
 
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
@@ -559,6 +648,10 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
             cfg.create_neptune_logger,
             cfg.neptune_logger_kwargs,
         )
+
+    if cfg.log_step_token_performance:
+        performance_callback = TokenPerformanceCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+        trainer.callbacks.insert(0, performance_callback)
 
     # add loggers timing callbacks
     if cfg.log_delta_step_timing:
