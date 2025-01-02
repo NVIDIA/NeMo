@@ -249,7 +249,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     "currently only greedy and greedy_batch inference is supported for multi-blank models"
                 )
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'malsd_batch']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
@@ -354,6 +354,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         confidence_method_cfg=self.confidence_method_cfg,
                         loop_labels=self.cfg.greedy.get('loop_labels', True),
                         use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
+                        ngram_lm_model=self.cfg.greedy.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                     )
                 else:
                     self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
@@ -371,6 +373,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         include_duration_confidence=self.tdt_include_duration_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                         use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
+                        ngram_lm_model=self.cfg.greedy.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                     )
 
             else:
@@ -478,6 +482,19 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
                     )
+        elif self.cfg.strategy == 'malsd_batch':
+            self.decoding = rnnt_beam_decoding.Best1BeamBatchedMALSDInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                blank_index=self.blank_id,
+                beam_size=self.cfg.beam.beam_size,
+                max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                preserve_alignments=self.preserve_alignments,
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                score_norm=self.cfg.beam.get('score_norm', True),
+            )
         else:
 
             raise ValueError(

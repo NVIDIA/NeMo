@@ -39,10 +39,13 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from glob import glob
+from pathlib import Path
 from typing import List
 
 from omegaconf import MISSING
-from scripts.asr_language_modeling.ngram_lm import kenlm_utils
+
+sys.path.append(str(Path(__file__).parent))
+import kenlm_utils
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -59,9 +62,9 @@ class TrainKenlmConfig:
     Train an N-gram language model with KenLM to be used with beam search decoder of ASR models.
     """
 
-    train_paths: List[
-        str
-    ] = MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
+    train_paths: List[str] = (
+        MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
+    )
 
     nemo_model_file: str = MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
     kenlm_model_file: str = MISSING  # The path to store the KenLM binary model file
