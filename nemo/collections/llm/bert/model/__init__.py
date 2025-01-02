@@ -9,6 +9,11 @@ from nemo.collections.llm.bert.model.bert import (
     MegatronBertLargeConfig,
     HuggingFaceBert650MConfig,
 )
+from nemo.collections.llm.bert.model.esm import (
+    ESM3BConfig,
+    ESM15BConfig,
+    ESM650MConfig,
+)
 
 __all__ = [
     "BertConfig",
@@ -21,4 +26,7 @@ __all__ = [
     "MegatronBertConfig",
     "MegatronBertBaseConfig",
     "MegatronBertLargeConfig",
+    "ESM3BConfig",
+    "ESM15BConfig",
+    "ESM650MConfig",
 ]

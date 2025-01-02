@@ -30,6 +30,9 @@ from nemo.collections.llm.bert.model import (
     MegatronBertConfig,
     MegatronBertLargeConfig,
     HuggingFaceBert650MConfig,
+    ESM3BConfig,
+    ESM15BConfig,
+    ESM650MConfig,
 )
 from nemo.collections.llm.gpt.data import (
     AlpacaDataModule,

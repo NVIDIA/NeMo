@@ -169,7 +169,6 @@ class BertConfig(TransformerConfig, io.IOMixin):
         if self.num_tokentypes is None:
             self.num_tokentypes = 2 if self.bert_binary_head else 0
 
-        print(self.num_tokentypes)
         return MCoreBertModelWrapperWithPostLNSupport(
             bert_type=self.bert_type,
             add_pooler=self.add_pooler,
