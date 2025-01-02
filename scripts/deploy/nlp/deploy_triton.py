@@ -33,7 +33,7 @@ class UsageError(Exception):
 
 megatron_llm_supported = True
 try:
-    from nemo.deploy.nlp import MegatronLLMDeployable
+    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 except Exception as e:
     LOGGER.warning(f"Cannot import MegatronLLMDeployable, it will not be available. {type(e).__name__}: {e}")
     megatron_llm_supported = False
@@ -319,7 +319,6 @@ def get_trtllm_deployable(args):
             trt_llm_exporter.export(
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
-                n_gpus=args.num_gpus,
                 tensor_parallelism_size=args.tensor_parallelism_size,
                 pipeline_parallelism_size=args.pipeline_parallelism_size,
                 max_input_len=args.max_input_len,
