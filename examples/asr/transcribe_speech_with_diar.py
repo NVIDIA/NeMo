@@ -36,7 +36,7 @@ SpeakerTaggedASR,
 
 )
 from nemo.collections.asr.models.sortformer_diar_models import SortformerEncLabelModel
-from nemo.collections.asr.parts.utils.multispk_transcribe_utils import SpeakerTaggedASR
+from nemo.collections.asr.parts.utils.multispk_transcribe_utils import SpeakerTaggedASR, setup_diarization_model 
 from nemo.core.config import hydra_runner
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
@@ -322,16 +322,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     asr_model = asr_model.eval()
 
     # Load diarization model
-    if cfg.diar_model_path.endswith(".ckpt"):
-        diar_model = SortformerEncLabelModel.load_from_checkpoint(checkpoint_path=cfg.diar_model_path, 
-                                                                  map_location=map_location, strict=False)
-    elif cfg.diar_model_path.endswith(".nemo"):
-        diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.diar_model_path, 
-                                                          map_location=map_location)
-    elif cfg.diar_pretrained_name.startswith("nvidia/"):
-        diar_model = SortformerEncLabelModel.from_pretrained(cfg.diar_pretrained_name)
-    else:
-        raise ValueError("cfg.diar_model_path must end with.ckpt or.nemo!")
+    diar_model, model_name = setup_diarization_model(cfg, map_location)
     
     diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
     trainer = pl.Trainer(devices=device, accelerator=accelerator)

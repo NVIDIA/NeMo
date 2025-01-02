@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
+import os, json
 from dataclasses import dataclass, is_dataclass
 from typing import Optional, Union, List, Tuple, Dict, Any
 
 import torch
 import pytorch_lightning as pl
-from omegaconf import OmegaConf
-from omegaconf import open_dict
+from omegaconf import OmegaConf, open_dict, DictConfig
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
@@ -61,7 +60,6 @@ get_color_palette,
 write_txt,
 )
 
-
 from typing import List, Optional
 from dataclasses import dataclass
 from collections import OrderedDict
@@ -70,6 +68,23 @@ import itertools
 import time
 from functools import wraps
 import math
+
+def setup_diarization_model(cfg: DictConfig, map_location: Optional[str] = None) -> SortformerEncLabelModel:
+    """Setup model from cfg and return diarization model and model name for next step"""
+    if cfg.diar_model_path.endswith(".ckpt"):
+        diar_model = SortformerEncLabelModel.load_from_checkpoint(checkpoint_path=cfg.diar_model_path, 
+                                                                  map_location=map_location, strict=False)
+        model_name = os.path.splitext(os.path.basename(cfg.diar_model_path))[0]
+    elif cfg.diar_model_path.endswith(".nemo"):
+        diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.diar_model_path, 
+                                                          map_location=map_location)
+        model_name = os.path.splitext(os.path.basename(cfg.diar_model_path))[0]
+    elif cfg.diar_pretrained_name.startswith("nvidia/"):
+        diar_model = SortformerEncLabelModel.from_pretrained(cfg.diar_pretrained_name)
+        model_name = os.path.splitext(os.path.basename(cfg.diar_pretrained_name))[0]
+    else:
+        raise ValueError("cfg.diar_model_path must end with.ckpt or.nemo!")
+    return diar_model, model_name
 
 def measure_eta(func):
     @wraps(func)
@@ -526,8 +541,7 @@ class SpeakerTaggedASR:
         
         for k in range(stt_word_index + 1, len(session_trans_dict['words'])):
             word_dict = session_trans_dict['words'][k]
-            word, speaker = word_dict['word'], word_dict['speaker']
-            start_point, end_point = word_dict['start_time'], word_dict['end_time']
+            word, end_point = word_dict['word'], word_dict['end_time']
             if word_dict['speaker'] != prev_speaker:
                 sentence['text'] = sentence['text'].strip()
                 if len(sentence['text']) > 1:
@@ -536,7 +550,6 @@ class SpeakerTaggedASR:
                 sentence = self._get_sentence(word_dict=session_trans_dict['words'][k])
             else:
                 sentence['end_time'] = end_point
-            stt_sec, end_sec = start_point, end_point
             sentence['text'] += word.strip() + ' '
             if len(sentence['text']) > 1:
                 sentence['text'] = sentence['text'][:1].upper() + sentence['text'][1:]
@@ -552,7 +565,7 @@ class SpeakerTaggedASR:
         session_trans_dict['sentences'] = sentences
         return session_trans_dict 
     
-    def merge_transcript_and_speakers(self, test_manifest_dict, asr_hypotheses, diar_pred_out):
+    def merge_transcript_and_speakers(self, test_manifest_dict:, asr_hypotheses, diar_pred_out):
         transcribed_speaker_texts = [None] * len(test_manifest_dict)
         
         for idx, (uniq_id, data_dict) in enumerate(test_manifest_dict.items()):
@@ -583,11 +596,7 @@ class SpeakerTaggedASR:
         diar_pred_out, 
         asr_hypothesis,
         word_and_ts_seq,
-        offset: int = 0,
-        word_count_offset: int = 0
     ):        
-        word_seq = [wdict['word'] for wdict in asr_hypothesis.timestep['word']]
-        new_words = word_seq[word_and_ts_seq["offset_count"]:]
         word_and_ts_seq['uniq_id'] = uniq_id
 
         for word_index, hyp_word_dict in enumerate(asr_hypothesis.timestep['word']):
@@ -621,9 +630,9 @@ class SpeakerTaggedASR:
         offset = step_num * self._frame_hop_length
         word_seq = previous_hypothesis.text.split()
         new_words = word_seq[word_and_ts_seq["offset_count"]:]
-        frame_inds_seq = (torch.tensor(previous_hypothesis.timestep) + offset).tolist()
         new_token_group = self.asr_model.tokenizer.text_to_tokens(new_words)
         new_tokens = list(itertools.chain(*new_token_group))
+        frame_inds_seq = (torch.tensor(previous_hypothesis.timestep) + offset).tolist()
         frame_inds_seq = fix_frame_time_step(self.cfg, new_tokens, new_words, frame_inds_seq)
         min_len = min(len(new_words), len(frame_inds_seq))
         word_and_ts_seq['uniq_id'] = uniq_id
@@ -764,7 +773,18 @@ class SpeakerTaggedASR:
                 diar_pred_out_stream)
 
 
-    def _add_speaker_transcriptions(self, transcriptions, speaker_transcriptions, word_and_ts_seq):
+    def _add_speaker_transcriptions(self, transcriptions: list, speaker_transcriptions: List[str], word_and_ts_seq: List[Dict[str, Any]]) -> Tuple[List[Hypothesis], List[Hypothesis]]:
+        """ 
+        Add speaker tagging into the transcriptions generated from an ASR model.
+        
+        Args:
+            transcriptions:
+            speaker_transcriptions (List[str]): List of speaker transcriptions.
+            word_and_ts_seq (List[Dict[str, Any]]): List of word-level dictionaries.
+            
+        Returns:
+            Tuple[List[Hypothesis], List[Hypothesis]]: Tuple containing the updated transcriptions with speaker tags.
+        """
         trans_hyp, nbest_hyp = transcriptions
         for idx, hypothesis in enumerate(trans_hyp):
             if speaker_transcriptions[idx] is not None:
@@ -779,6 +799,15 @@ class SpeakerTaggedASR:
         return transcriptions
         
     def perform_offline_stt_spk(self, override_cfg):
+        """ 
+        Perform offline STT and speaker diarization on the provided manifest file.
+        
+        Args:
+            override_cfg (dict): Override configuration parameters.
+            
+        Returns:
+            transcriptions (Tuple): Tuple containing the speaker-tagged transcripts.
+        """
         transcriptions = self.asr_model.transcribe(
             audio=self.cfg.dataset_manifest,
             override_config=override_cfg,
@@ -793,4 +822,3 @@ class SpeakerTaggedASR:
                                 )
         transcriptions = self._add_speaker_transcriptions(transcriptions, speaker_transcriptions, word_and_ts_seq)
         return transcriptions
-    
