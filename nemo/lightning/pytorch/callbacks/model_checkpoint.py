@@ -700,7 +700,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             return int(ckpt.split("step=")[1].split("-")[0])
 
         checkpoints = [ckpt for ckpt in checkpoints if get_step(ckpt) <= global_step]
-        ## sort by time step
+        ## sort by step
         checkpoints = sorted(checkpoints, key=lambda pth: get_step(pth))
 
         return checkpoints
