@@ -14,11 +14,13 @@
 
 import copy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 
 import lightning.pytorch as L
 import torch
 import torch.distributed
+import torch.nn.functional as F
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.inference.model_inference_wrappers.t5.t5_inference_wrapper import T5InferenceWrapper
 from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
@@ -27,10 +29,14 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
+from transformers import T5Config as HFT5Config
+from transformers import T5ForConditionalGeneration
+
 from nemo.collections.llm import fn
-from nemo.lightning import get_vocab_size, io
+from nemo.lightning import get_vocab_size, io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.pytorch.utils import dtype_from_hf
 
 HAVE_TE = True
 try:
@@ -150,6 +156,8 @@ class T5Config(TransformerConfig, io.IOMixin):
     position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute"
     apply_rope_fusion: bool = True
     max_position_embeddings: int = 512
+    relative_attention_num_buckets: int = 32
+    relative_attention_max_distance: int = 128
     rotary_percent: float = 1.0
     seq_len_interpolation_factor: Optional[float] = None
     seq_length: int = 512
@@ -204,6 +212,8 @@ class T5Config(TransformerConfig, io.IOMixin):
             position_embedding_type=self.position_embedding_type,
             rotary_percent=self.rotary_percent,
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
+            relative_attention_num_buckets=self.relative_attention_num_buckets,
+            relative_attention_max_distance=self.relative_attention_max_distance,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
         )
@@ -337,6 +347,419 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self._validation_loss_reduction
 
+@io.model_importer(T5Model, "hf")
+class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
+    def init(self) -> T5Model:
+        return T5Model(self.config, tokenizer=self.tokenizer)
+
+    def apply(self, output_path: Path) -> Path:
+        from transformers import T5ForConditionalGeneration
+
+        source = T5ForConditionalGeneration.from_pretrained(str(self), torch_dtype='auto')
+        target = self.init()
+        trainer = self.nemo_setup(target)
+        self.convert_state(source, target)
+
+        self.nemo_save(output_path, trainer)
+
+        print(f"Converted T5 model to Nemo, model saved to {output_path} in {source.dtype}.")
+
+        teardown(trainer, target)
+        del trainer, target
+
+        return output_path
+
+    def convert_state(self, source, target):
+        mapping = {
+            "shared.weight": "embedding.word_embeddings.weight",
+            "lm_head.weight": "lm_head.output_layer.weight",
+            "encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight": "encoder_relative_pos_emb.relative_attention_bias.weight",
+            "decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight": "decoder_relative_pos_emb.relative_attention_bias.weight",
+            "encoder.block.*.layer.0.layer_norm.weight": "encoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "encoder.block.*.layer.0.SelfAttention.o.weight": "encoder.layers.*.self_attention.linear_proj.weight",
+            "encoder.block.*.layer.1.layer_norm.weight": "encoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+            "encoder.block.*.layer.1.DenseReluDense.wo.weight": "encoder.layers.*.mlp.linear_fc2.weight",
+            "encoder.final_layer_norm.weight": "encoder.final_layernorm.weight",
+            "decoder.block.*.layer.0.layer_norm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "decoder.block.*.layer.0.SelfAttention.o.weight": "decoder.layers.*.self_attention.linear_proj.weight",
+            "decoder.block.*.layer.1.layer_norm.weight": "decoder.layers.*.pre_cross_attn_layernorm.weight",
+            "decoder.block.*.layer.1.EncDecAttention.q.weight": "decoder.layers.*.cross_attention.linear_q.weight",
+            "decoder.block.*.layer.1.EncDecAttention.o.weight": "decoder.layers.*.cross_attention.linear_proj.weight",
+            "decoder.block.*.layer.2.layer_norm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+            "decoder.block.*.layer.2.DenseReluDense.wo.weight": "decoder.layers.*.mlp.linear_fc2.weight",
+            "decoder.final_layer_norm.weight": "decoder.final_layernorm.weight",
+        }
+        if getattr(source.config, "tie_word_embeddings", False):
+            del mapping["lm_head.weight"]
+
+        return io.apply_transforms(
+            source, 
+            target, 
+            mapping=mapping, 
+            transforms=[_import_encoder_qkv, _import_encoder_linear_fc1, _import_decoder_qkv, _import_decoder_kv, _import_decoder_linear_fc1],
+            state_dict_ignored_entries=['output_layer.weight']
+        )
+
+    @property
+    def tokenizer(self) -> "AutoTokenizer":
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        # Set special tokens to match HF
+        bos_token = "<pad>"
+
+        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), bos_token=bos_token)
+
+    @property
+    def config(self) -> T5Config:
+        from transformers import T5Config as HFT5Config
+
+        source = HFT5Config.from_pretrained(str(self))
+
+        def make_vocab_size_divisible_by(vocab_size):
+            base = 128
+            while vocab_size % base != 0:
+                base //= 2
+            return base
+
+        cls = T5Config
+        output = cls(
+            num_layers=source.num_layers,
+            encoder_num_layers=source.num_decoder_layers,
+            hidden_size=source.d_model,
+            ffn_hidden_size=source.d_ff,
+            kv_channels=source.d_kv,
+            num_attention_heads=source.num_heads,
+            position_embedding_type="relative",
+            relative_attention_num_buckets=source.relative_attention_num_buckets,
+            relative_attention_max_distance=source.relative_attention_max_distance,
+            activation_func=F.gelu, 
+            add_bias_linear=False,
+            init_method_std=source.initializer_factor,
+            normalization="RMSNorm",
+            layernorm_epsilon=source.layer_norm_epsilon,
+            gated_linear_unit=True,
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
+            fp16=False,
+            bf16=False,
+            params_dtype=torch.float32,
+            softmax_scale=1.0,
+        )
+
+        return output
+
+@io.state_transform(
+    source_key=(
+        "encoder.block.*.layer.0.SelfAttention.q.weight",
+        "encoder.block.*.layer.0.SelfAttention.k.weight",
+        "encoder.block.*.layer.0.SelfAttention.v.weight",
+    ),
+    target_key="encoder.layers.*.self_attention.linear_qkv.weight",
+)
+def _import_encoder_qkv(ctx: io.TransformCTX, q, k, v):
+    # T5 Model does not support GQA
+    megatron_config = ctx.target.config
+
+    head_num = megatron_config.num_attention_heads
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+
+    old_tensor_shape = q.size()
+    new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
+
+    q = q.view(*new_q_tensor_shape)
+    k = k.view(*new_q_tensor_shape)
+    v = v.view(*new_q_tensor_shape)
+
+    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
+    for i in range(head_num):
+        qkv_weights = torch.cat((qkv_weights, q[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
+    qkv_weights = qkv_weights.reshape([head_size * (3 * head_num), hidden_size])
+
+    return qkv_weights
+
+@io.state_transform(
+    source_key=(
+        "decoder.block.*.layer.0.SelfAttention.q.weight",
+        "decoder.block.*.layer.0.SelfAttention.k.weight",
+        "decoder.block.*.layer.0.SelfAttention.v.weight",
+    ),
+    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
+)
+def _import_decoder_qkv(ctx: io.TransformCTX, q, k, v):
+    # T5 Model does not support GQA
+    megatron_config = ctx.target.config
+
+    head_num = megatron_config.num_attention_heads
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+
+    old_tensor_shape = q.size()
+    new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
+
+    q = q.view(*new_q_tensor_shape)
+    k = k.view(*new_q_tensor_shape)
+    v = v.view(*new_q_tensor_shape)
+
+    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
+    for i in range(head_num):
+        qkv_weights = torch.cat((qkv_weights, q[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
+        qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
+    qkv_weights = qkv_weights.reshape([head_size * (3 * head_num), hidden_size])
+
+    return qkv_weights
+
+@io.state_transform(
+    source_key=(
+        "decoder.block.*.layer.1.EncDecAttention.k.weight",
+        "decoder.block.*.layer.1.EncDecAttention.v.weight",
+    ),
+    target_key="decoder.layers.*.cross_attention.linear_kv.weight",
+)
+def _import_decoder_kv(ctx: io.TransformCTX, k, v):
+    # T5 Model does not support GQA
+    megatron_config = ctx.target.config
+
+    head_num = megatron_config.num_attention_heads
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+
+    old_tensor_shape = k.size()
+    new_k_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
+
+    k = k.view(*new_k_tensor_shape)
+    v = v.view(*new_k_tensor_shape)
+
+    kv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
+    for i in range(head_num):
+        kv_weights = torch.cat((kv_weights, k[i : i + 1, :, :]))
+        kv_weights = torch.cat((kv_weights, v[i : i + 1, :, :]))
+    kv_weights = kv_weights.reshape([head_size * (2 * head_num), hidden_size])
+
+    return kv_weights
+ 
+@io.state_transform(
+    source_key=("encoder.block.*.layer.1.DenseReluDense.wi_0.weight", "encoder.block.*.layer.1.DenseReluDense.wi_1.weight"),
+    target_key="encoder.layers.*.mlp.linear_fc1.weight",
+)
+def _import_encoder_linear_fc1(down, gate):
+    return torch.cat((down, gate), axis=0)
+
+@io.state_transform(
+    source_key=("decoder.block.*.layer.2.DenseReluDense.wi_0.weight", "decoder.block.*.layer.2.DenseReluDense.wi_1.weight"),
+    target_key="decoder.layers.*.mlp.linear_fc1.weight",
+)
+def _import_decoder_linear_fc1(down, gate):
+    return torch.cat((down, gate), axis=0)
+
+
+@io.model_exporter(T5Model, "hf")
+class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
+    def init(self) -> "T5ForConditionalGeneration":
+        from transformers import AutoModelForCausalLM
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights(True):
+            return T5ForConditionalGeneration(config=self.config)
+
+    def apply(self, output_path: Path) -> Path:
+        source, _ = self.nemo_load(str(self))
+        target = self.init()
+        target = self.convert_state(source, target)
+
+        target = target.cpu()
+        target.save_pretrained(output_path)
+        self.tokenizer.save_pretrained(output_path)
+
+        return output_path
+
+    def convert_state(self, source, target):
+        mapping = {
+            "embedding.word_embeddings.weight": "shared.weight",
+            "lm_head.output_layer.weight": "lm_head.weight",
+            "encoder_relative_pos_emb.relative_attention_bias.weight": "encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight",
+            "decoder_relative_pos_emb.relative_attention_bias.weight": "decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight",
+            "encoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "encoder.block.*.layer.0.layer_norm.weight",
+            "encoder.layers.*.self_attention.linear_proj.weight": "encoder.block.*.layer.0.SelfAttention.o.weight",
+            "encoder.layers.*.mlp.linear_fc1.layer_norm_weight": "encoder.block.*.layer.1.layer_norm.weight",
+            "encoder.layers.*.mlp.linear_fc2.weight": "encoder.block.*.layer.1.DenseReluDense.wo.weight",
+            "encoder.final_layernorm.weight": "encoder.final_layer_norm.weight",
+            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "decoder.block.*.layer.0.layer_norm.weight",
+            "decoder.layers.*.self_attention.linear_proj.weight": "decoder.block.*.layer.0.SelfAttention.o.weight",
+            "decoder.layers.*.pre_cross_attn_layernorm.weight": "decoder.block.*.layer.1.layer_norm.weight",
+            "decoder.layers.*.cross_attention.linear_q.weight": "decoder.block.*.layer.1.EncDecAttention.q.weight",
+            "decoder.layers.*.cross_attention.linear_proj.weight": "decoder.block.*.layer.1.EncDecAttention.o.weight",
+            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "decoder.block.*.layer.2.layer_norm.weight",
+            "decoder.layers.*.mlp.linear_fc2.weight": "decoder.block.*.layer.2.DenseReluDense.wo.weight",
+            "decoder.final_layernorm.weight": "decoder.final_layer_norm.weight",
+        }
+
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_export_encoder_qkv, _export_encoder_linear_fc1, _export_decoder_qkv, _export_decoder_kv, _export_decoder_linear_fc1],
+            state_dict_ignored_entries=['encoder.embed_tokens.weight', 'decoder.embed_tokens.weight']
+        )
+
+    @property
+    def tokenizer(self):
+        # return io.load_context(str(self)).model.tokenizer.tokenizer
+        nemo_tokenizer = io.load_context(str(self)).model.tokenizer
+        self.bos_id = nemo_tokenizer.bos_id
+        self.pad_id = nemo_tokenizer.pad_id
+
+        return nemo_tokenizer.tokenizer
+
+    @property
+    def config(self) -> "HFT5Config":
+        source: T5Config = io.load_context(str(self)).model.config
+
+        from transformers import T5Config as HFT5Config
+
+        nemo_tokenizer = io.load_context(str(self)).model.tokenizer
+        bos_id = nemo_tokenizer.bos_id
+        pad_id = nemo_tokenizer.pad_id
+        eos_id = nemo_tokenizer.eos_id
+
+        def round_up_to_divisible(number, divisor):
+            import math
+            if divisor == 0:
+                raise ValueError("Divisor cannot be zero.")
+            return int(math.ceil(number / divisor) * divisor)
+
+        return HFT5Config(
+            num_layers=source.num_layers,
+            num_decoder_layers=source.encoder_num_layers,
+            d_model=source.hidden_size,
+            d_ff=source.ffn_hidden_size,
+            d_kv=source.kv_channels,
+            num_heads=source.num_attention_heads,
+            relative_attention_num_buckets=source.relative_attention_num_buckets,
+            relative_attention_max_distance=source.relative_attention_max_distance,
+            initializer_factor=source.init_method_std,
+            layer_norm_epsilon=source.layernorm_epsilon,
+            vocab_size=round_up_to_divisible(self.tokenizer.vocab_size + len(self.tokenizer.additional_special_tokens), 128),
+            feed_forward_proj="gated-gelu",
+            tie_word_embeddings=source.share_embeddings_and_output_weights,
+            decoder_start_token_id=bos_id,
+            pad_token_id=pad_id,
+            eos_token_id=eos_id,
+        )
+
+
+@io.state_transform(
+    source_key="encoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+        "encoder.block.*.layer.0.SelfAttention.q.weight",
+        "encoder.block.*.layer.0.SelfAttention.k.weight",
+        "encoder.block.*.layer.0.SelfAttention.v.weight",
+    ),
+)
+def _export_encoder_qkv(ctx: io.TransformCTX, linear_qkv):
+    megatron_config = ctx.source.config
+
+    head_num = megatron_config.num_attention_heads
+    num_query_groups = megatron_config.num_query_groups
+    heads_per_group = head_num // num_query_groups
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+    return q_proj, k_proj, v_proj
+
+@io.state_transform(
+    source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+        "decoder.block.*.layer.0.SelfAttention.q.weight",
+        "decoder.block.*.layer.0.SelfAttention.k.weight",
+        "decoder.block.*.layer.0.SelfAttention.v.weight",
+    ),
+)
+def _export_decoder_qkv(ctx: io.TransformCTX, linear_qkv):
+    megatron_config = ctx.source.config
+
+    head_num = megatron_config.num_attention_heads
+    num_query_groups = megatron_config.num_query_groups
+    heads_per_group = head_num // num_query_groups
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+    return q_proj, k_proj, v_proj
+
+@io.state_transform(
+    source_key="decoder.layers.*.cross_attention.linear_kv.weight",
+    target_key=(
+        "decoder.block.*.layer.1.EncDecAttention.k.weight",
+        "decoder.block.*.layer.1.EncDecAttention.v.weight",
+    ),
+)
+def _export_decoder_kv(ctx: io.TransformCTX, linear_kv):
+    megatron_config = ctx.source.config
+
+    num_query_groups = megatron_config.num_query_groups
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+    kv_total_dim = 2 * num_query_groups
+
+    linear_kv = linear_kv.reshape([kv_total_dim, head_size, hidden_size])
+    k_slice = torch.arange(0, kv_total_dim, 2)
+    v_slice = torch.arange(1, kv_total_dim, 2)
+
+    k_proj = linear_kv[k_slice].reshape(-1, hidden_size).cpu()
+    v_proj = linear_kv[v_slice].reshape(-1, hidden_size).cpu()
+
+    return k_proj, v_proj
+
+@io.state_transform(
+    source_key="encoder.layers.*.mlp.linear_fc1.weight",
+    target_key=("encoder.block.*.layer.1.DenseReluDense.wi_0.weight", "encoder.block.*.layer.1.DenseReluDense.wi_1.weight"),
+)
+def _export_encoder_linear_fc1(linear_fc1):
+    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
+
+    return gate_proj, up_proj
+
+@io.state_transform(
+    source_key="decoder.layers.*.mlp.linear_fc1.weight",
+    target_key=("decoder.block.*.layer.2.DenseReluDense.wi_0.weight", "decoder.block.*.layer.2.DenseReluDense.wi_1.weight"),
+)
+def _export_decoder_linear_fc1(linear_fc1):
+    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
+
+    return gate_proj, up_proj
 
 __all__ = [
     "T5Model",
