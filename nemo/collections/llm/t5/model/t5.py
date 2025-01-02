@@ -431,8 +431,6 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
             kv_channels=source.d_kv,
             num_attention_heads=source.num_heads,
             position_embedding_type="relative",
-            relative_attention_num_buckets=source.relative_attention_num_buckets,
-            relative_attention_max_distance=source.relative_attention_max_distance,
             activation_func=F.gelu, 
             add_bias_linear=False,
             init_method_std=source.initializer_factor,
