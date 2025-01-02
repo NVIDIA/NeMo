@@ -26,13 +26,17 @@ import pandas as pd
 from lhotse.cut import Cut
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data import apply_prompt_format_fn
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
 from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig, tokenize
 from nemo.collections.common.data.lhotse.sampling import DurationFilter, FixedBucketBatchSizeConstraint2D
 from nemo.collections.common.prompts.formatter import PromptFormatter
-from nemo.collections.common.tokenizers import AggregateTokenizer, SentencePieceTokenizer
+from nemo.collections.common.tokenizers import (
+    AggregateTokenizer,
+    CanaryTokenizer,
+    SentencePieceTokenizer,
+    TokenizerSpec,
+)
 
 
 def parse_args():
@@ -164,7 +168,7 @@ def estimate_duration_buckets(
 
     if not quiet:
         print("Duration distribution:")
-        print(pd.Series(sizes).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
+        print(pd.Series(sizes).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.995, 0.999]))
     if math.isinf(max_duration):
         max_duration = sizes[-1]
 
@@ -223,15 +227,19 @@ def find_non_outliers_z_score(data, threshold=4):
     return np.where(z_scores <= threshold)
 
 
-def load_tokenizer(paths: list[str], langs: list[str] = None) -> TokenizerWrapper:
+def load_tokenizer(paths: list[str], langs: list[str] = None, is_canary: bool = True) -> TokenizerSpec:
     if len(paths) == 1:
         tok = SentencePieceTokenizer(paths[0])
     else:
         assert langs is not None and len(paths) == len(
             langs
         ), f"Cannot create AggregateTokenizer; each tokenizer must have assigned a language via --langs option (we got --tokenizers={paths} and --langs={langs})"
-        tok = AggregateTokenizer({lang: SentencePieceTokenizer(p) for lang, p in zip(langs, paths)})
-    return TokenizerWrapper(tok)
+        if is_canary:
+            tokcls = CanaryTokenizer
+        else:
+            tokcls = AggregateTokenizer
+        tok = tokcls({lang: SentencePieceTokenizer(p) for lang, p in zip(langs, paths)})
+    return tok
 
 
 def apply_tokenizer(cut, tokenizer=None, prompt: PromptFormatter = None):
@@ -279,12 +287,12 @@ def main():
     tokenizer = None
     prompt = None
     if args.tokenizer is not None:
-        tokenizer = load_tokenizer(args.tokenizer, args.langs)
+        tokenizer = load_tokenizer(args.tokenizer, args.langs, 'canary' in args.prompt_format)
         if args.prompt_format is not None:
             prompt_defaults = None
             if args.prompt is not None:
                 prompt_defaults = ast.literal_eval(args.prompt)
-            prompt = PromptFormatter.resolve(args.prompt_format)(tokenizer._tokenizer, defaults=prompt_defaults)
+            prompt = PromptFormatter.resolve(args.prompt_format)(tokenizer, defaults=prompt_defaults)
 
     if '=' in args.input:
         inp_arg = args.input
