@@ -35,6 +35,7 @@ from nemo.collections.llm.bert.model import (
 )
 from nemo.collections.llm.gpt.data import (
     AlpacaDataModule,
+    ChatDataModule,
     DollyDataModule,
     FineTuningDataModule,
     HFDatasetDataModule,
@@ -226,6 +227,7 @@ __all__ = [
     "Qwen2Config72B",
     "PreTrainingDataModule",
     "FineTuningDataModule",
+    "ChatDataModule",
     "SquadDataModule",
     "T5PreTrainingDataModule",
     "T5FineTuningDataModule",
