@@ -2139,6 +2139,7 @@ model:
       duration_bins: null
 
     validation_ds:
+      force_map_dataset: True
       names: ['Mixtral', 'roleplay', 'suno_20k']
       input_cfg:
         - type: group
@@ -2219,6 +2220,7 @@ model:
         - name: "asr-wer"
           average: null
           num_classes: null
+        - name: "mos"
 
   optim:
     name: fused_adam

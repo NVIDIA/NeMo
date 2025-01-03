@@ -385,8 +385,57 @@ model:
           shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/suno_100k/xau/shar_dir/
           tags:
             s2s_duplex: True
+
       - type: group
-        weight: 1.5
+        weight: 0.5
+        input_cfg:
+
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/untrimmed/340b_8.07_lmsys_sft_8801rm3.7p/
+          tags:
+            s2s_duplex: True
+  
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/untrimmed/precise_instruction_following_v4_second_turn/
+          tags:
+            s2s_duplex: True
+  
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/untrimmed/340b_8.19_daring_anteater_lmsys_sft_8801rm3.7p/
+          tags:
+            s2s_duplex: True
+  
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/untrimmed/nvolve_chatqa/
+          tags:
+            s2s_duplex: True
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/untrimmed/precise_instruction_following_v4_system_multi_turn/
+          tags:
+            s2s_duplex: True
+  
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/untrimmed/precise_instruction_following_v4_single_turn/
+          tags:
+            s2s_duplex: True
+  
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/untrimmed/synthetic_roleplay_v2/
+          tags:
+            s2s_duplex: True
+  
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/untrimmed/340b_8.19_daring_anteater_synth_v2_prompts_8801rm3.7p/
+          tags:
+            s2s_duplex: True
+  
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/untrimmed/precise_instruction_following_v4_multi_turn/
+          tags:
+            s2s_duplex: True
+ 
+      - type: group
+        weight: 5.0
         input_cfg:
 
         - type: lhotse_shar
