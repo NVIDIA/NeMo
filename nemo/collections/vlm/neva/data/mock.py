@@ -150,7 +150,7 @@ class _MockNevaDataset(Dataset):
         self.packed_sequence = packed_sequence
 
         # [parth] - Temp hack so that total seq len is 8192 (i.e. divisible by CP size) since mock dataset doesn't have padding yet
-        self.loss_mask = torch.ones(self.seq_length-575, dtype=torch.float)
+        self.loss_mask = torch.ones(self.seq_length - 575, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
     def __len__(self) -> int:

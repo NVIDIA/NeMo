@@ -385,6 +385,7 @@ class CLIPViTModel(MCoreCLIPViTModel):
 
         return super().forward(x, attention_mask)
 
+
 class _get_data_on_this_cp_rank(torch.autograd.Function):
     """Performs sharding for Context Parallelism in THD format
 
@@ -436,6 +437,7 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
         grad_in[:, ctx.decoder_emb_index, :] = grad_out
 
         return (grad_in, None, None, None)
+
 
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
@@ -661,7 +663,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
-        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(combined_embeddings, final_labels, final_loss_mask, packed_seq_params)
+        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(
+            combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+        )
 
         output = self.language_model(
             input_ids=None,
@@ -913,7 +917,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 # Transpose to [s,b,h] if not using CP or not using packed_sequence/THD format
                 final_embedding = final_embedding.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
-            if final_embedding.shape[0] > self._language_max_sequence_length:                
+            if final_embedding.shape[0] > self._language_max_sequence_length:
                 final_embedding = final_embedding[: self._language_max_sequence_length]
                 if packed_sequence:
                     truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
