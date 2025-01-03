@@ -260,6 +260,7 @@ class Attention(torch.nn.Module):
 
         return y, attn_prob
 
+
 class SelfAttention(Attention):
     def __init__(
         self,
@@ -312,6 +313,7 @@ class SelfAttention(Attention):
         mask = query_mask[:, None, :, None] if query_mask is not None else None
         return q, k, v, mask
 
+
 class CrossAttention(Attention):
     def __init__(
         self,
@@ -359,6 +361,7 @@ class CrossAttention(Attention):
 
         mask = memory_mask[:, None, None] if memory_mask is not None else None
         return q, k, v, mask
+
 
 class TransformerLayer(torch.nn.Module):
     def __init__(
