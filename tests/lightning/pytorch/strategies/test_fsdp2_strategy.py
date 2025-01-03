@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 from nemo.lightning.pytorch.strategies import FSDP2Strategy
 
+
 def get_torch_version():
     """Get pytorch version from __version__; if not available use pip's. Use caching."""
 
@@ -32,7 +33,9 @@ def get_torch_version():
         _torch_version = PkgVersion(get_torch_version_str())
     return _torch_version
 
+
 if get_torch_version() >= PkgVersion("2.4"):
+
     class TestFSDP2Strategy:
         @patch('nemo.lightning.pytorch.strategies.fsdp2_strategy.create_checkpoint_io')
         def test_checkpoint_io(self, mock_create_checkpoint_io):
