@@ -43,7 +43,7 @@ def main(args):
 
     decoder_seq_length = 4096
     if args.use_packed_sequence:
-        decoder_seq_length = 8192
+        decoder_seq_length = 1024
 
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
@@ -117,8 +117,8 @@ def main(args):
         ddp=DistributedDataParallelConfig(
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
-            overlap_grad_reduce=True,
-            overlap_param_gather=True,
+            overlap_grad_reduce=False,
+            overlap_param_gather=False,
             average_in_collective=True,
         ),
     )

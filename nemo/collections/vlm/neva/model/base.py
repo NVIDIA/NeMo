@@ -386,38 +386,54 @@ class CLIPViTModel(MCoreCLIPViTModel):
         return super().forward(x, attention_mask)
 
 class _get_data_on_this_cp_rank(torch.autograd.Function):
-    """Performs sharding for Context Parallelism"""
+    """Performs sharding for Context Parallelism in THD format
+
+    In the forward pass, indices are selected for each CP rank and remaining tokens are dropped.
+    In the backward pass, this class takes care of managing gradients for dropped tokens on each
+    CP rank.
+    """
 
     @staticmethod
-    def forward(ctx, decoder_embeddings, labels, loss_mask, packed_seq_params):
+    # def forward(ctx, decoder_embeddings, labels, loss_mask, packed_seq_params):
+    def forward(ctx, batch, packed_seq_params):
         cp_size = ps.get_context_parallel_world_size()
         if cp_size > 1:
             try:
                 import transformer_engine_torch as tex
             except ModuleNotFoundError as e:
                 logging.error(
-                    "Please update Transformer Engine to >= 1.10 to use Context Parallel with THD format data"
+                    "Please update Transformer Engine to >= 1.10 to use \
+                        Context Parallel with THD format data"
                 )
                 raise e
             cp_rank = ps.get_context_parallel_rank()
-            index = tex.thd_get_partitioned_indices(packed_seq_params.cu_seqlens_q_padded, decoder_embeddings.size(0), cp_size, cp_rank)
-            ctx.decoder_emb_index = index
-            ctx.decoder_emb_seqlen = decoder_embeddings.size(0)
-            decoder_embeddings = decoder_embeddings.index_select(0, index)
-            index = tex.thd_get_partitioned_indices(packed_seq_params.cu_seqlens_q_padded, labels.size(1), cp_size, cp_rank)
-            labels = labels.index_select(1, index)
-            index = tex.thd_get_partitioned_indices(packed_seq_params.cu_seqlens_q_padded, loss_mask.size(1), cp_size, cp_rank)
-            loss_mask = loss_mask.index_select(1, index)
+            for key, data in batch.items():
+                index = tex.thd_get_partitioned_indices(
+                    packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
+                )
+                if key == "combined_embeddings":
+                    ctx.decoder_emb_index = index
+                    ctx.decoder_emb_seqlen = data.size(1)
+                batch[key] = data.index_select(1, index)
 
-        return decoder_embeddings, labels, loss_mask
+        return batch
 
     @staticmethod
     def backward(ctx, grad_out, grad_label, grad_loss):
         seqlen = ctx.decoder_emb_seqlen
         index = ctx.decoder_emb_index
-        assert grad_out.size(0) == index.size(0)
-        grad_in = torch.zeros((seqlen,) + grad_out.shape[1:], dtype=grad_out.dtype, device=grad_out.device)
-        grad_in[ctx.decoder_emb_index] = grad_out
+        assert grad_out.size(1) == index.size(
+            0
+        ), f"Shape mismatch in incoming gradient {grad_out.shape} and \
+                index from THD CP sharding {index.shape}"
+        grad_in = torch.zeros(
+            grad_out.size(0),
+            seqlen,
+            *grad_out.size()[2:],
+            dtype=grad_out.dtype,
+            device=grad_out.device,
+        )
+        grad_in[:, ctx.decoder_emb_index, :] = grad_out
 
         return (grad_in, None, None, None)
 
@@ -462,7 +478,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
             )
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
-            self._language_max_sequence_length = self.language_model.max_sequence_length
+            # self._language_max_sequence_length = self.language_model.max_sequence_length
+            self._language_max_sequence_length = 16384
             self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
             if config.language_model_from_pretrained is not None:
                 sharded_state_dict = dict(state_dict=self.language_model.sharded_state_dict(prefix="module."))
@@ -892,7 +909,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
 
         if final_embedding is not None:
-            if not (packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd') or self.context_parallel_lm == 1:
+            if self.context_parallel_lm == 1:
                 # Transpose to [s,b,h] if not using CP or not using packed_sequence/THD format
                 final_embedding = final_embedding.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
@@ -914,14 +931,16 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params
     ):
         """ Processes the input data for model parallelism support. """
-        seq_dim = 0 #Assuming s, b, h
         
         if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
             shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
+            seq_dim = 1
         elif self.context_parallel_lm > 1:
             shard_factor = self.context_parallel_lm * 2
+            seq_dim = 1
         elif self.sequence_parallel_lm:
             shard_factor = self.tensor_model_parallel_size_lm
+            seq_dim = 0
 
         assert (
             combined_embeddings.shape[seq_dim] % shard_factor == 0
@@ -933,27 +952,35 @@ class MCoreNevaModel(MCoreLLaVAModel):
             ), f"TP Comm overlap either requires Vision+Text token length \
              == language_max_sequence_length"
 
-        if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
-            # Distribute sequence across CP ranks
-            from megatron.training.utils import get_batch_on_this_cp_rank
+        if self.context_parallel_lm > 1:
+            if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
+                # Distribute sequence across CP ranks
+                from megatron.training.utils import get_batch_on_this_cp_rank
 
-            batch = get_batch_on_this_cp_rank(
-                {
-                    "combined_embeddings": combined_embeddings,
-                    "new_labels": new_labels,
-                    "new_loss_mask": new_loss_mask,
-                }
-            )
+                batch = get_batch_on_this_cp_rank(
+                    {
+                        "combined_embeddings": combined_embeddings,
+                        "new_labels": new_labels,
+                        "new_loss_mask": new_loss_mask,
+                    }
+                )
+            else:
+                batch = _get_data_on_this_cp_rank.apply(
+                    {
+                        "combined_embeddings": combined_embeddings,
+                        "new_labels": new_labels,
+                        "new_loss_mask": new_loss_mask,
+                    },
+                    packed_seq_params,
+                )
 
             combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
             new_labels = batch["new_labels"]
             new_loss_mask = batch["new_loss_mask"]
-            
+
             combined_embeddings = combined_embeddings.transpose(
-                    1, 0
-                ).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
-        else:
-            combined_embeddings, new_labels, new_loss_mask = _get_data_on_this_cp_rank.apply(combined_embeddings, new_labels, new_loss_mask, packed_seq_params)
+                1, 0
+            ).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
 
         if self.sequence_parallel_lm:
             combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
