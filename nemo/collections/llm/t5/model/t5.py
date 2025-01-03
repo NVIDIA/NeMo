@@ -420,8 +420,7 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
                 base //= 2
             return base
 
-        cls = T5Config
-        output = cls(
+        output = T5Config(
             num_layers=source.num_layers,
             encoder_num_layers=source.num_decoder_layers,
             hidden_size=source.d_model,
