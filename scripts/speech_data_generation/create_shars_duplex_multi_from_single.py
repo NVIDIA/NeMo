@@ -5,6 +5,9 @@ import os
 import shutil
 from pathlib import Path
 
+from io import BytesIO
+from nemo.utils import logging
+
 ### from nemo.collections.tts.models import AudioCodecModel
 import librosa
 import numpy as np
@@ -28,7 +31,7 @@ def json_reader(filename):
             yield json.loads(line)
 
 
-def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
+def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10, dataset_name='squadv2', turn_silence_sec=0.32):
     in_manifest = list(json_reader(manifest))
     print(f"...loaded {manifest} # of datapoints {len(in_manifest)}")
     shard_size = int(len(in_manifest) / num_shard)
@@ -51,34 +54,43 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
             conv["value"] = conv["value"].replace("fs7", "fsw")
 
         if convs[1]["transcript"] != 'I could not find the answer in the audio.':
-            cleaned_manifest.append(line)
-            # User_Speech
-            user_recording = Recording.from_file(convs[0]['value'])
-            user_recordings.append(user_recording)
+            try:
+                if 'value' not in convs[0] or not os.path.exists(convs[0]['value']):
+                    raise FileNotFoundError(f"File not found for convs[0]['value']: {convs[0]['value']}")
+                
+                if 'value' not in convs[1] or not os.path.exists(convs[1]['value']):
+                    raise FileNotFoundError(f"File not found for convs[1]['value']: {convs[1]['value']}")
 
-            # Instructions from the user. In case the question is part of the source audio this is a static text "Transcribe and answer",
-            # If not then this is the actual question from the user but in text.
-            # For direct_s2s instructions are always empty (else part)
-            if "instruction" in convs[0]:
-                instructions.append(convs[0]["instruction"])
-            else:
-                instructions.append("")
+                cleaned_manifest.append(line)
+                # User_Speech
+                user_recording = Recording.from_file(convs[0]['value'])
+                user_recordings.append(user_recording)
 
-            # Language source
-            if "lang" in convs[0]:
-                source_language.append(convs[0]["lang"])
-            else:
-                source_language.append("EN")
+                # Instructions from the user. In case the question is part of the source audio this is a static text "Transcribe and answer",
+                # If not then this is the actual question from the user but in text.
+                # For direct_s2s instructions are always empty (else part)
+                if "instruction" in convs[0]:
+                    instructions.append(convs[0]["instruction"])
+                else:
+                    instructions.append("")
 
-            # Loading agent audio and using only the extracted features as nd.array
-            target_recordings.append(Recording.from_file(convs[1]['value']))
-            # Agent answer transcript
-            answer_list.append(convs[1]["transcript"])
-            # Language target
-            if "lang" in convs[1]:
-                target_language.append(convs[1]["lang"])
-            else:
-                target_language.append("EN")
+                # Language source
+                if "lang" in convs[0]:
+                    source_language.append(convs[0]["lang"])
+                else:
+                    source_language.append("EN")
+
+                # Loading agent audio and using only the extracted features as nd.array
+                target_recordings.append(Recording.from_file(convs[1]['value']))
+                # Agent answer transcript
+                answer_list.append(convs[1]["transcript"])
+                # Language target
+                if "lang" in convs[1]:
+                    target_language.append(convs[1]["lang"])
+                else:
+                    target_language.append("EN")
+            except:
+                logging.info(f'Skipping {i}th json record.')
     in_manifest = cleaned_manifest
 
     print("Done extracting data from manifest")
@@ -88,19 +100,26 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
     # Attach text
     num_cuts = len(cuts)
     for j, cut in tqdm(enumerate(cuts)):
-        user_audio = np.array([[]])
-        agent_audio = np.array([[]])
+        user_audio_list = []
+        agent_audio_list = []
         total_dur = 0
+
         convs = in_manifest[j]["conversations"] + in_manifest[num_cuts - j - 1]["conversations"]
         for i in range(0, len(convs), 2):
 
-            user_duration = Recording.from_file(convs[i]['value']).duration
-            sample_rate = Recording.from_file(convs[i + 1]['value']).sampling_rate
-            agent_duration = Recording.from_file(convs[i + 1]['value']).duration
-            cur_user_audio = Recording.from_file(convs[i]['value']).resample(sample_rate).load_audio()
-            cur_agent_audio = Recording.from_file(convs[i + 1]['value']).load_audio()
-            user_audio = np.concatenate([user_audio, cur_user_audio, 0 * cur_agent_audio], axis=1)
-            agent_audio = np.concatenate([agent_audio, 0 * cur_user_audio, cur_agent_audio], axis=1)
+            user_recording = Recording.from_file(convs[i]['value'])
+            agent_recording = Recording.from_file(convs[i + 1]['value'])
+
+            sample_rate = agent_recording.sampling_rate
+            user_duration = user_recording.duration + turn_silence_sec
+            agent_duration = agent_recording.duration
+            cur_user_audio = user_recording.resample(sample_rate).load_audio()
+            cur_agent_audio = agent_recording.load_audio()
+
+            silence_padding = np.zeros((1, int(turn_silence_sec * sample_rate)))
+            user_audio_list.extend([cur_user_audio, silence_padding, np.zeros_like(cur_agent_audio)])
+            agent_audio_list.extend([np.zeros_like(cur_user_audio), silence_padding, cur_agent_audio])
+
             cut.supervisions.append(
                 SupervisionSegment(
                     id=cut.id,
@@ -124,31 +143,35 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10):
                 ),
             )
             total_dur += user_duration + agent_duration
-        cut.duration = total_dur
+
+        user_audio = np.concatenate(user_audio_list, axis=1)
+        agent_audio = np.concatenate(agent_audio_list, axis=1)    
+        # append trailing silence to help agent learn to stop
+        user_audio_list.append(silence_padding)
+        agent_audio_list.append(silence_padding)
+
+        cut.duration = total_dur + turn_silence_sec
+        cut.duration_no_sil = total_dur
+
         cut.start = 0.0
-        save_audio(f"/tmp/u{j}1.wav", user_audio, sample_rate)
-        cut.recording = Recording.from_file(f"/tmp/u{j}1.wav")
-        save_audio(f"/tmp/u{j}2.wav", agent_audio, sample_rate)
-        cut.target_audio = Recording.from_file(f"/tmp/u{j}2.wav")
+
+        user_stream = BytesIO()
+        agent_stream = BytesIO()
+        save_audio(dest=user_stream, src=user_audio, sampling_rate=sample_rate, format="wav")
+        save_audio(dest=agent_stream, src=agent_audio, sampling_rate=sample_rate, format="wav")    
+        user_stream.seek(0)
+        agent_stream.seek(0)
+        cut.recording = Recording.from_bytes(user_stream.getvalue(), f"{cut.id}_user")
+        cut.target_audio = Recording.from_bytes(agent_stream.getvalue(), f"{cut.id}_agent")
+
 
     print("...Making Shars")
     out_shar_dir = Path(out_shar_dir)
     out_shar_dir.mkdir(parents=True, exist_ok=True)
     shard_size = shard_size
     # assert len(user_recordings) % shard_size != 0, "Lhotse breaks if feat_list is a multiple of shard_size"
-    exported = cuts.to_shar(out_shar_dir, fields={}, num_jobs=1, shard_size=shard_size)
+    exported = cuts.to_shar(out_shar_dir, fields={"recording": "flac", "target_audio": "flac"}, num_jobs=1, shard_size=shard_size)
     print(f"...share created")
-    for i, path in tqdm(enumerate(exported["cuts"])):
-        out_path = path.replace("cuts", "target_audio").replace(".jsonl.gz", ".tar")
-        with AudioTarWriter(out_path, shard_size=None, format="wav") as writer:
-            for cut in CutSet.from_file(path):
-                writer.write(
-                    cut.id, cut.target_audio.load_audio(), manifest=cut.target_audio, sampling_rate=sample_rate
-                )
-        out_path = path.replace("cuts", "recording").replace(".jsonl.gz", ".tar")
-        with AudioTarWriter(out_path, shard_size=None, format="wav") as writer:
-            for cut in CutSet.from_file(path):
-                writer.write(cut.id, cut.recording.load_audio(), manifest=cut.recording, sampling_rate=sample_rate)
 
 
 def main():
@@ -168,6 +191,11 @@ def main():
         type=int,
         default=10,
     )
+    parser.add_argument(
+        '--dataset_name',
+        type=str,
+        default="squadv2",
+    )
 
     args = parser.parse_args()
     print(f"manifest {args.manifest}")
@@ -178,6 +206,7 @@ def main():
         manifest=args.manifest,
         out_shar_dir=args.out_shar_dir,
         num_shard=args.num_shard,
+        dataset_name=args.dataset_name
     )
 
 
