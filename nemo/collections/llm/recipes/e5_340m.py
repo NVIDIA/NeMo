@@ -177,6 +177,8 @@ def finetune_recipe(
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = None,
     seq_length: int = 512,
+    micro_batch_size: int = 4,
+    global_batch_size: int = 32,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Gemma2 2B model.
@@ -194,6 +196,8 @@ def finetune_recipe(
             Allowed values: 'none'/None.
         resume_path (str): Path to the NeMo checkpoint
         seq_length (int): Maximum number of tokens per microbatch.
+        micro_batch_size (int): Micro batch size.
+        global_batch_size (int): Global batch size.
 
 
     Returns:
@@ -215,7 +219,12 @@ def finetune_recipe(
     recipe = default_finetune_recipe(
         model(), resume_path, dir, name, num_nodes, num_gpus_per_node
     )
-    datamodule = run.Config(llm.SpecterDataModule, seq_length=seq_length, global_batch_size=128, micro_batch_size=1)
+    datamodule = run.Config(
+        llm.SpecterDataModule,
+        seq_length=seq_length,
+        global_batch_size=global_batch_size,
+        micro_batch_size=micro_batch_size
+    )
     recipe.data = datamodule
 
     assert peft_scheme is None or peft_scheme.lower() == 'none', 'E5 only supports SFT.'
