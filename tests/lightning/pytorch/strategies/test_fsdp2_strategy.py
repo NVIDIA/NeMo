@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from importlib.metadata import version
+from packaging.version import Version as PkgVersion
 from unittest.mock import patch
 
 from nemo.lightning.pytorch.strategies import FSDP2Strategy
@@ -25,7 +27,7 @@ def get_torch_version_str():
         return version("torch")
 
 
-if get_torch_version_str() >= PkgVersion("2.4"):
+if PkgVersion(get_torch_version_str()) >= PkgVersion("2.4"):
 
     class TestFSDP2Strategy:
         @patch('nemo.lightning.pytorch.strategies.fsdp2_strategy.create_checkpoint_io')
