@@ -36,7 +36,7 @@ def json_reader(filename):
             yield json.loads(line)
 
 
-def create_shar_from_manifest(audio_path, manifest, out_shar_dir, num_shard=10, segment_size=60):
+def create_shar_from_manifest(audio_path, manifest, out_shar_dir, num_shard=10, segment_size=120):
     # manifest = "/lustre/csfs12/portfolios/adlr/projects/adlr_audio_speech/datasets/duplex_speech/transcripts/manifests/callhome_eng_LDC97S42.ndjson"
     # audio_path = "/lustre/csfs12/portfolios/adlr/projects/adlr_audio_speech/datasets/duplex_speech/speakersep/callhome_eng_LDC97S42/8khz/"
     new_cuts = []
@@ -92,10 +92,22 @@ def create_shar_from_manifest(audio_path, manifest, out_shar_dir, num_shard=10, 
 
             user_segments = get_segements_between(user_manifest['segments'], segment_i_start, segment_i_end)
             agent_segments = get_segements_between(agent_manifest['segments'], segment_i_start, segment_i_end)
-            assert len(user_segments) > 0
-            assert len(agent_segments) > 0
+            if len(user_segments) <= 0 or len(agent_segments) <= 0:
+                print(f"skip {segment_i_start} {segment_i_end}")
+                segment_i_start += segment_size // 2
+                continue
+
+            def get_step_size(dur):
+                return int(dur * sample_rate1)
+
             segment_i_end = max(user_segments[-1]['end'], agent_segments[-1]['end'])
             assert segment_i_end - segment_i_start <= segment_size
+
+            if len(user_audio) < get_step_size(segment_i_end):
+                print(f"skip {segment_i_start} {segment_i_end} {len(user_audio)} {get_step_size(segment_i_end)}")
+                segment_i_start += segment_size // 2
+                continue
+
             # TODO: produce an example for every 60 sec chunk
             new_cut = MonoCut(
                 id=f"{os.path.basename(audio1_name)}_{segment_i_start}",
@@ -115,13 +127,11 @@ def create_shar_from_manifest(audio_path, manifest, out_shar_dir, num_shard=10, 
             new_cut.user_segments = offset_segments(user_segments, segment_i_start)
             new_cut.agent_segments = offset_segments(agent_segments, segment_i_start)
             if len(new_cut.user_segments) < 2 or len(new_cut.agent_segments) < 2:  # too short
+                print(f"skip {segment_i_start} {segment_i_end}")
                 segment_i_start += segment_size // 2
                 continue
             user_stream = BytesIO()
             agent_stream = BytesIO()
-
-            def get_step_size(dur):
-                return int(dur * sample_rate1)
 
             save_audio(
                 dest=user_stream,
@@ -141,6 +151,7 @@ def create_shar_from_manifest(audio_path, manifest, out_shar_dir, num_shard=10, 
             new_cut.target_audio = Recording.from_bytes(agent_stream.getvalue(), f"{new_cut.id}_agent")
             segment_i_start += segment_size // 2
             new_cuts.append(new_cut)
+        print(audio1_name)
 
     cuts = CutSet(cuts=new_cuts)
     shard_size = int(len(new_cuts) / num_shard)
