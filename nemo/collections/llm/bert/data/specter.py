@@ -19,7 +19,6 @@ from datasets import DatasetDict, load_dataset
 
 from nemo.collections.llm.bert.data.core import get_dataset_root
 from nemo.collections.llm.bert.data.fine_tuning import FineTuningDataModule
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 
