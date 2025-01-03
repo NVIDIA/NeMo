@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 
 def get_dataset_root(name: str) -> Path:
+    """Retrieve the root path for the dataset. Create the folder if not exists."""
     output = Path(NEMO_DATASETS_CACHE) / name
     output.mkdir(parents=True, exist_ok=True)
 
@@ -43,6 +44,7 @@ def create_sft_dataset(
     num_hard_negatives: int = 1,
     **kwargs,
 ) -> "BertEmbeddingDataset":
+    """Create BertEmbeddingDataset for SFT training."""
 
     return BertEmbeddingDataset(
         file_path=str(path),

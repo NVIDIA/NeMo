@@ -1,3 +1,16 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import sys
 from dataclasses import dataclass
 from typing import Callable, Dict, Optional
@@ -63,6 +76,7 @@ def bert_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch
 
 @dataclass
 class BertEmbeddingConfig(BertConfig):
+    """Bert Embedding Config"""
     bert_type: str = 'huggingface'
     ce_loss_scale: float = 20
     label_smoothing: float = 0.0
@@ -160,6 +174,10 @@ class BertEmbeddingModel(BertModel):
 
 @io.model_importer(BertEmbeddingModel, "hf")
 class BertEmbeddingImporter(HuggingFaceBertImporter):
+    """
+    Importer for BertEmbedding Model.
+    HuggingFace uses same model for Bert Embedding model and Bert model, thus the connector is identical.
+    """
     def __init__(self, *args, **kwargs):
         if sys.version_info > (3, 11):
             # In Python versions <= 3.11, *Path classes don’t have a __init__ method,

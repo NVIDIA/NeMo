@@ -30,13 +30,15 @@ if TYPE_CHECKING:
 class SpecterDataModule(FineTuningDataModule, IOMixin):
     """A data module for fine-tuning on the Specter dataset.
 
-    This class inherits from the `FineTuningDataModule` class and is specifically designed for fine-tuning models on the
-    SPECTER Datasets. It handles data download, preprocessing, splitting, and preparing the data
+    This class inherits from the `FineTuningDataModule` class and is specifically designed for fine-tuning models
+    on the SPECTER Datasets. It handles data download, preprocessing, splitting, and preparing the data
     in a format suitable for training, validation, and testing.
 
     Args:
-        force_redownload (bool, optional): Whether to force re-download the dataset even if it exists locally. Defaults to False.
-        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing. Defaults to True.
+        force_redownload (bool, optional): Whether to force re-download the dataset even if it exists locally.
+                                           Defaults to False.
+        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing.
+                                     Defaults to True.
         See FineTuningDataModule for the other args
     """
 
@@ -75,6 +77,7 @@ class SpecterDataModule(FineTuningDataModule, IOMixin):
         )
 
     def prepare_data(self) -> None:
+        """Prepare dataset for fine-tuning."""
         # if train file is specified, no need to do anything
         if not self.train_path.exists() or self.force_redownload:
             dset = self._download_data()
@@ -97,8 +100,8 @@ class SpecterDataModule(FineTuningDataModule, IOMixin):
             dset (DatasetDict): The downloaded dataset object.
             split_val_from_train (bool, optional): Whether to split the validation set from the training set.
                 If False, the validation set is split from the test set. Defaults to True.
-            val_proportion (float, optional): The proportion of the training or test set to be used for the validation split.
-                Defaults to 0.05.
+            val_proportion (float, optional): The proportion of the training or test set to be used
+                for the validation split. Defaults to 0.05.
         """
         logging.info(f"Preprocessing {self.__class__.__name__} to jsonl format and splitting...")
 
@@ -131,6 +134,7 @@ class SpecterDataModule(FineTuningDataModule, IOMixin):
                     p.unlink()
 
     def reconfigure_limit_batches(self):
+        """No need to reconfigure trainer.limit_val_batches for finetuning"""
         return
 
 
