@@ -55,8 +55,6 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         self.text_processor = None
         self._num_validation_dl = None
         self._num_test_dl = None
-        if 'common' not in self.cfg:
-            raise ValueError("`common` configuration is missing in the data config")
 
     @property
     def global_batch_size(self):
@@ -72,6 +70,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
 
     @property
     def data_cfg(self):
+        if 'common' not in self.cfg:
+            raise ValueError("`common` configuration is missing in the data config")
         return self.cfg.common
 
     def get_text_processor(self):
@@ -98,7 +98,6 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             context_key=data_cfg.get('context_key', 'context'),
             answer_key=data_cfg.get('answer_key', 'answer'),
             end_string=data_cfg.get('end_string', None),
-            sample_alpha=data_cfg.get('sample_alpha', None),
             add_boa_eoa=data_cfg.get('add_boa_eoa', False),
             boa_string=data_cfg.get('boa_string', None),
             eoa_string=data_cfg.get('eoa_string', None),

@@ -152,7 +152,11 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
     @override
     def load_checkpoint(
-        self, path: _PATH, sharded_state_dict=None, map_location: Optional[Callable] = None
+        self,
+        path: _PATH,
+        sharded_state_dict=None,
+        map_location: Optional[Callable] = None,
+        strict: Optional['StrictHandling'] | bool = None,
     ) -> Dict[str, Any]:
         """
         =====================
@@ -210,25 +214,18 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         return model_ckpt
 
     def _load_checkpoint(
-        self, path: _PATH, sharded_state_dict, map_location: Optional[Callable] = None, load_base: bool = False
+        self,
+        path: _PATH,
+        sharded_state_dict,
+        map_location: Optional[Callable] = None,
+        load_base: bool = False,
+        strict: Optional['StrictHandling'] | bool = None,
     ) -> None:
         if load_base:
             # handle empty state dict in load_model_state_dict() from
             # nemo/lightning/pytorch/strategies/megatron_strategy.py
             return {'state_dict': dict()}
         else:
-            model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location)
+            model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location, strict)
 
         return model_ckpt
-
-    def _fix_ckpt_device(self, ckpt: Dict[str, Any]) -> Dict[str, Any]:
-        assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
-        cur_dev = torch.device("cuda", index=torch.cuda.current_device())
-        from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
-
-        def _fix_device(t):
-            if isinstance(t, torch.Tensor) and t.device != cur_dev:
-                t = t.to(cur_dev)
-            return t
-
-        return dict_list_map_outplace(_fix_device, ckpt)
