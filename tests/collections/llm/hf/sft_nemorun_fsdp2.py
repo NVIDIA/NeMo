@@ -22,20 +22,6 @@ from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
-import torch
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy
-from torch.distributed._composable.fsdp.fully_shard import fully_shard
-from torch.distributed._tensor import Replicate, Shard
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
-from torch.distributed.device_mesh import DeviceMesh
-from torch.distributed.tensor.parallel import (
-    ColwiseParallel,
-    PrepareModuleInput,
-    RowwiseParallel,
-    SequenceParallel,
-    parallelize_module,
-)
-
 
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     # Env vars for jobs are configured here
