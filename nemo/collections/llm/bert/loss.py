@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Literal
 
 import torch
 import torch.nn.functional as F
@@ -118,7 +118,7 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
         scale: float = 20,
         label_smoothing: float = 0.0,
         global_in_batch_negatives: bool = False,
-        backprop_type: str = 'local',
+        backprop_type: Literal["local", "global"] = 'local',
     ) -> None:
         super().__init__()
         self.validation_step = validation_step

@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 class FineTuningDataModule(pl.LightningDataModule):
-    """Base class for fine-tuning an LLM.
+    """Base class for fine-tuning an Bert.
 
     This class provides a foundation for building custom data modules for fine-tuning Nemo NLP models. It inherits from
     `pl.LightningDataModule` from the PyTorch Lightning library and handles data loading, preprocessing, and batch

@@ -13,7 +13,7 @@
 # limitations under the License.
 import sys
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Literal
 
 import lightning.pytorch as L
 import torch
@@ -78,7 +78,7 @@ def bert_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch
 class BertEmbeddingConfig(BertConfig):
     """Bert Embedding Config"""
 
-    bert_type: str = 'huggingface'
+    bert_type: Literal["huggingface", "megatron"] = 'huggingface'
     ce_loss_scale: float = 20
     label_smoothing: float = 0.0
     add_lm_head: bool = False
@@ -86,7 +86,7 @@ class BertEmbeddingConfig(BertConfig):
     num_hard_negatives: int = 1
     num_tokentypes: int = 2
     global_in_batch_negatives: bool = True
-    backprop_type: str = 'local'
+    backprop_type: Literal["local", "global"] = 'local'
     forward_step_fn: Callable = bert_embedding_forward_step
     data_step_fn: Callable = bert_embedding_data_step
 
