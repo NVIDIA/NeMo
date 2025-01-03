@@ -212,8 +212,6 @@ class T5Config(TransformerConfig, io.IOMixin):
             position_embedding_type=self.position_embedding_type,
             rotary_percent=self.rotary_percent,
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            relative_attention_num_buckets=self.relative_attention_num_buckets,
-            relative_attention_max_distance=self.relative_attention_max_distance,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
         )
@@ -431,6 +429,8 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
             kv_channels=source.d_kv,
             num_attention_heads=source.num_heads,
             position_embedding_type="relative",
+            relative_attention_num_buckets=source.relative_attention_num_buckets,
+            relative_attention_max_distance=source.relative_attention_max_distance,
             activation_func=F.gelu, 
             add_bias_linear=False,
             init_method_std=source.initializer_factor,
