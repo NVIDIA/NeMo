@@ -84,10 +84,20 @@ def prepare_packed_sequence_data(
 
     # save output data
     np.save(output_path, output_data)
-    # save packing metadata
+
+    # save packing metadata, packing_metadata is appended to the packing file if it exists
     if output_metadata_path is not None:
+        try:
+            with open(output_metadata_path, "r") as f:
+                packing_metadata_file = json.load(f)
+                assert isinstance(packing_metadata_file, list), "invalid packing_metadata_file!"
+        except (FileNotFoundError):
+            packing_metadata_file = []
+
+        packing_metadata_file.append(packing_metadata)
         with open(output_metadata_path, "w") as f:
-            json.dump(packing_metadata, f)
+            json.dump(packing_metadata_file, f)
+
     logging.info(f"Packed sequence is prepared and saved to {output_path}")
 
 
@@ -117,14 +127,9 @@ class PackedSequenceSpecs:
     If specified, use this file for the packed validation dataset instead of the default path.
     """
 
-    packed_train_metadata_path: str = None
+    packed_metadata_path: str = None
     """
     If specified, use this file for the train packing metadata instead of the default path.
-    """
-
-    packed_val_metadata_path: str = None
-    """
-    If specified, use this file for the val packing metadata instead of the default path.
     """
 
     pad_cu_seqlens: bool = False
