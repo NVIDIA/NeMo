@@ -40,11 +40,25 @@ jobs:
           fromTag: ${{ inputs.last-release-tag }}
           toTag: ${{ inputs.release-branch }}
 
-      - name: Print Changelog
-        env:
+      - name: Update changelog file
+        env: 
+          RELEASE_BRANCH: ${{ inputs.release-branch }}
           CHANGELOG: ${{ steps.github_tag.outputs.changelog }}
         run: |
-          echo "$CHANGELOG"
+          RELEASE_VERSION=${RELEASE_BRANCH#r}
+          CHANGELOG=$(echo "$CHANGELOG" | sed '/^[[:blank:]]*#/s/#/##/')
+
+          RELEASE_NOTES="## NVIDIA Neural Modules $RELEASE_VERSION
+
+          ### Detailed Changelogs:
+
+          $CHANGELOG"
+
+          printf "%s\n" "$RELEASE_NOTES" | sed '/<!-- Next changelog -->/r /dev/stdin' CHANGELOG.md > CHANGELOG.tmp.md
+
+          mv CHANGELOG.tmp.md CHANGELOG.md
+
+          cat CHANGELOG.md
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
