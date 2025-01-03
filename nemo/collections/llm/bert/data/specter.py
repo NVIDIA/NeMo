@@ -136,16 +136,3 @@ class SpecterDataModule(FineTuningDataModule, IOMixin):
     def reconfigure_limit_batches(self):
         """No need to reconfigure trainer.limit_val_batches for finetuning"""
         return
-
-
-if __name__ == "__main__":
-    data_module = SpecterDataModule(
-        tokenizer=get_nmt_tokenizer(
-            "megatron", "BertWordPieceLowerCase", vocab_file="/aot/exp/bert/mcore_release/v2/vocab.txt"
-        )
-    )
-    data_module.prepare_data()
-    dataloader = data_module.train_dataloader()
-    for data in dataloader:
-        print(data)
-        break
