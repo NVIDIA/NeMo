@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from abc import abstractmethod
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -128,13 +129,9 @@ class Attention(torch.nn.Module):
         d_model: int,
         p_dropout: float,
         is_causal: bool = True,
-        is_self_attention: bool = True,
-        d_memory: Optional[int] = None,
-        deterministic: bool = False,
-        max_length_causal_mask: int = 4096,
     ):
         """
-        Attention module supporting both self-attention and cross-attention depending on `is_self_attention` arg.
+        Base Attention module supporting both self-attention and cross-attention.
         Does DotProductionAttention and additionally dropout inside the module.
 
         Args:
@@ -142,53 +139,28 @@ class Attention(torch.nn.Module):
             d_model (int): Dimension of the model.
             p_dropout (float): Dropout probability.
             is_causal (bool): Whether to use causal attention.
-            is_self_attention (bool): Whether to use self-attention or cross-attention.
-            d_memory (Optional[int]): Dimension of memory for cross-attention.
-            deterministic (bool): Whether to use deterministic attention.
-            max_length_causal_mask (int): Maximum length for causal mask.
         """
         super().__init__()
-        # context conditional attention dims
-        if is_self_attention:
-            assert d_model % n_heads == 0, "d_model % n_head != 0"
-            self.d_head = d_model // n_heads
-        else:
-            if d_memory is None:
-                raise ValueError("d_memory must be provided for cross-attention")
-
-            assert d_memory % n_heads == 0, "d_memory % n_head != 0"
-            self.d_head = d_memory // n_heads
-
+        assert d_model % n_heads == 0, "d_model % n_head != 0"
+        self.d_head = d_model // n_heads
         self.n_heads = n_heads
         self.d_model = d_model
         self.scale = self.d_head**-0.5
         self.is_causal = is_causal
-        self.is_self_attention = is_self_attention
-        self.deterministic = deterministic
-        self.max_length_causal_mask = max_length_causal_mask
-
-        if is_causal and is_self_attention:
-            # ~ 45 seconds mask, 4096 mel frames, 86 frames per second
-            # ~ 762 seconds mask, 65536 mel frames, 86 frames per second
-            self.register_buffer(
-                "causal_mask",
-                torch.tril(torch.ones(max_length_causal_mask, max_length_causal_mask)).view(
-                    1, 1, max_length_causal_mask, max_length_causal_mask
-                )
-                == 0,
-            )
-
-        if is_self_attention:
-            self.qkv_net = torch.nn.Linear(d_model, 3 * n_heads * self.d_head, bias=False)
-            self.o_net = torch.nn.Linear(n_heads * self.d_head, d_model, bias=False)
-        else:
-            self.q_net = torch.nn.Linear(d_model, n_heads * self.d_head, bias=False)
-            self.kv_net = torch.nn.Linear(d_memory, 2 * n_heads * self.d_head, bias=False)
-            self.o_net = torch.nn.Linear(n_heads * self.d_head, d_model, bias=False)
-
+        self.o_net = torch.nn.Linear(n_heads * self.d_head, d_model, bias=False)
         self.dropout = torch.nn.Dropout(p_dropout)
         self.use_cache = False
         self.cache = self._init_cache()
+
+    @abstractmethod
+    def compute_qkv_and_mask(
+        self,
+        query: torch.Tensor,
+        query_mask: Optional[torch.Tensor] = None,
+        memory: Optional[torch.Tensor] = None,
+        memory_mask: Optional[torch.Tensor] = None,
+    ):
+        pass
 
     @staticmethod
     def _init_cache() -> Dict[str, Optional[torch.Tensor]]:
@@ -220,59 +192,20 @@ class Attention(torch.nn.Module):
             else:
                 self.cache['is_initialized'] = True
 
-        B, T, _ = query.shape
-        mask = None
-
-        if self.is_self_attention:
-            qkv = self.qkv_net(query).reshape(B, T, 3, self.n_heads, self.d_head)
-            q, k, v = qkv.chunk(3, dim=2)
-            q, k, v = q.squeeze(2), k.squeeze(2), v.squeeze(2)
-            if self.use_cache:
-                if self.cache['self_k'] is not None:
-                    k = torch.cat([self.cache['self_k'], k], dim=1)
-                    v = torch.cat([self.cache['self_v'], v], dim=1)
-                self.cache['self_k'] = k
-                self.cache['self_v'] = v
-        else:
-            Bq, Tq, _ = query.shape
-            Bkv, Tkv, _ = memory.shape
-            q = self.q_net(query).reshape(Bq, Tq, self.n_heads, self.d_head)
-            if self.use_cache and self.cache['cross_kv'] is not None:
-                kv = self.cache['cross_kv']
-            else:
-                kv = self.kv_net(memory).reshape(Bkv, Tkv, 2, self.n_heads, self.d_head)
-
-            if self.use_cache and self.cache['cross_k'] is not None:
-                k = self.cache['cross_k']
-                v = self.cache['cross_v']
-            else:
-                k, v = kv.chunk(2, dim=2)
-                k, v = k.squeeze(2), v.squeeze(2)
-                if self.use_cache:
-                    self.cache['cross_kv'] = kv
-                    self.cache['cross_k'] = k
-                    self.cache['cross_v'] = v
-
-        # (B, T, nh * dh) -> (B, nh, T, dh)
+        q, k, v, mask = self.compute_qkv_and_mask(
+            query=query, query_mask=query_mask, memory=memory, memory_mask=memory_mask
+        )
+        # (B, T, nh, dh) -> (B, nh, T, dh)
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        bias = 0
-
-        attn_score = bias + torch.matmul(q, k.transpose(2, 3)) * self.scale
-
-        if not self.is_self_attention and memory_mask is not None:
-            mask = memory_mask[:, None, None]
-
-        if self.is_self_attention and query_mask is not None:
-            mask = query_mask[:, None, :, None]
-
+        attn_score = torch.matmul(q, k.transpose(2, 3)) * self.scale
         if mask is not None:
             # assumes there's at least one mask
             attn_score.masked_fill_(mask, float('-inf'))
-
-        if self.is_self_attention and self.is_causal:
+        if self.is_causal:
+            T = query.shape[1]
             attn_score.masked_fill_(self.causal_mask[..., :T, :T], float('-inf'))
 
         # attn_prior or square mask or vanilla attention
@@ -284,21 +217,17 @@ class Attention(torch.nn.Module):
             attn_score_log = F.log_softmax(attn_score, dim=-1) + attn_prior
             attn_prob = F.softmax(attn_score_log, dim=-1)
         else:
-            attn_score_log = F.log_softmax(attn_score, dim=-1)
-            _attn_score = attn_score_log
             attn_prob = F.softmax(attn_score, dim=-1)
 
         # replace inf and nans with 0.0
         if mask is not None:
-            _attn_score = attn_score
             attn_prob = attn_prob.masked_fill(mask, 0.0)
-
         attn_prob = self.dropout(attn_prob)
 
         y = torch.matmul(attn_prob, v)
         y = y.transpose(1, 2).contiguous().view(B, T, -1)
 
-        return y, [attn_prob, _attn_score]
+        return y, [attn_prob, attn_score]
 
     def forward(
         self,
@@ -331,6 +260,105 @@ class Attention(torch.nn.Module):
 
         return y, attn_prob
 
+class SelfAttention(Attention):
+    def __init__(
+        self,
+        n_heads: int,
+        d_model: int,
+        p_dropout: float,
+        is_causal: bool = True,
+        max_length_causal_mask: int = 4096,
+    ):
+        super().__init__(
+            n_heads=n_heads,
+            d_model=d_model,
+            p_dropout=p_dropout,
+            is_causal=is_causal,
+        )
+        if is_causal:
+            # ~ 45 seconds mask, 4096 mel frames, 86 frames per second
+            # ~ 762 seconds mask, 65536 mel frames, 86 frames per second
+            if max_length_causal_mask is None or max_length_causal_mask < 0:
+                raise ValueError(
+                    "Self Attention was called with is_causal True, but received an inappropriate value"
+                    f"of {max_length_causal_mask} for max_length_causal_mask"
+                )
+            self.register_buffer(
+                "causal_mask",
+                torch.tril(torch.ones(max_length_causal_mask, max_length_causal_mask)).view(
+                    1, 1, max_length_causal_mask, max_length_causal_mask
+                )
+                == 0,
+            )
+        self.qkv_net = torch.nn.Linear(d_model, 3 * n_heads * self.d_head, bias=False)
+
+    def compute_qkv_and_mask(
+        self,
+        query: torch.Tensor,
+        query_mask: Optional[torch.Tensor] = None,
+        memory: Optional[torch.Tensor] = None,
+        memory_mask: Optional[torch.Tensor] = None,
+    ):
+        B, T, _ = query.shape
+        qkv = self.qkv_net(query).reshape(B, T, 3, self.n_heads, self.d_head)
+        q, k, v = qkv.chunk(3, dim=2)
+        q, k, v = q.squeeze(2), k.squeeze(2), v.squeeze(2)
+        if self.use_cache:
+            if self.cache['self_k'] is not None:
+                k = torch.cat([self.cache['self_k'], k], dim=1)
+                v = torch.cat([self.cache['self_v'], v], dim=1)
+            self.cache['self_k'] = k
+            self.cache['self_v'] = v
+        mask = query_mask[:, None, :, None] if query_mask is not None else None
+        return q, k, v, mask
+
+class CrossAttention(Attention):
+    def __init__(
+        self,
+        n_heads: int,
+        d_model: int,
+        d_memory: int,
+        p_dropout: float,
+    ):
+        super().__init__(
+            n_heads=n_heads,
+            d_model=d_model,
+            p_dropout=p_dropout,
+            is_causal=False,
+        )
+        if d_memory is None:
+            raise ValueError("d_memory must be provided for cross-attention")
+        self.q_net = torch.nn.Linear(d_model, n_heads * self.d_head, bias=False)
+        self.kv_net = torch.nn.Linear(d_memory, 2 * n_heads * self.d_head, bias=False)
+
+    def compute_qkv_and_mask(
+        self,
+        query: torch.Tensor,
+        query_mask: Optional[torch.Tensor] = None,
+        memory: Optional[torch.Tensor] = None,
+        memory_mask: Optional[torch.Tensor] = None,
+    ):
+        Bq, Tq, _ = query.shape
+        Bkv, Tkv, _ = memory.shape
+        q = self.q_net(query).reshape(Bq, Tq, self.n_heads, self.d_head)
+        if self.use_cache and self.cache['cross_kv'] is not None:
+            kv = self.cache['cross_kv']
+        else:
+            kv = self.kv_net(memory).reshape(Bkv, Tkv, 2, self.n_heads, self.d_head)
+
+        if self.use_cache and self.cache['cross_k'] is not None:
+            k = self.cache['cross_k']
+            v = self.cache['cross_v']
+        else:
+            k, v = kv.chunk(2, dim=2)
+            k, v = k.squeeze(2), v.squeeze(2)
+            if self.use_cache:
+                self.cache['cross_kv'] = kv
+                self.cache['cross_k'] = k
+                self.cache['cross_v'] = v
+
+        mask = memory_mask[:, None, None] if memory_mask is not None else None
+        return q, k, v, mask
 
 class TransformerLayer(torch.nn.Module):
     def __init__(
@@ -346,7 +374,6 @@ class TransformerLayer(torch.nn.Module):
         is_causal: bool = True,
         apply_norm_to_cond: bool = True,
         layer_norm_method: str = 'pre',
-        deterministic: bool = False,
         max_length_causal_mask: int = 4096,
         conv_non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
     ):
@@ -364,7 +391,6 @@ class TransformerLayer(torch.nn.Module):
             is_causal <bool>: Whether to use causal attention
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
             layer_norm_method <str>: Layer normalization method
-            deterministic <bool>: Whether to use deterministic attention
             max_length_causal_mask <int>: Maximum length of causal mask
             conv_non_linearity <Callable>: Convolution non-linearity
         """
@@ -373,26 +399,21 @@ class TransformerLayer(torch.nn.Module):
         self.has_xattn = has_xattn
 
         self.norm_self = torch.nn.LayerNorm(d_model, bias=False)
-        self.self_attention = Attention(
+        self.self_attention = SelfAttention(
             n_heads=sa_n_heads,
             d_model=d_model,
             p_dropout=p_dropout,
-            is_self_attention=True,
-            deterministic=deterministic,
             max_length_causal_mask=max_length_causal_mask,
         )
 
         if self.has_xattn:
             self.apply_norm_to_cond = apply_norm_to_cond
             self.norm_xattn_query = torch.nn.LayerNorm(d_model, bias=False)
-            self.cross_attention = Attention(
+            self.cross_attention = CrossAttention(
                 n_heads=xa_n_heads,
                 d_model=d_model,
-                p_dropout=p_dropout,
-                is_causal=False,
-                is_self_attention=False,
                 d_memory=xa_d_memory,
-                deterministic=deterministic,
+                p_dropout=p_dropout,
             )
 
             if self.apply_norm_to_cond:
@@ -515,14 +536,13 @@ class Transformer(torch.nn.Module):
         kernel_size: int,
         p_dropout: float = 0.0,
         p_dropout_out: float = 0.0,
+        has_xattn: bool = False,
         xa_d_memory: Optional[int] = None,
         xa_n_heads: Optional[int] = None,
-        has_xattn: bool = False,
         is_causal: bool = True,
         apply_norm_to_cond: bool = True,
         apply_norm_out: bool = False,
         layer_norm_method: str = 'pre',
-        deterministic: bool = False,
         max_length_causal_mask: int = 4096,
         use_learnable_pos_emb: bool = False,
         conv_non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
@@ -538,15 +558,16 @@ class Transformer(torch.nn.Module):
             kernel_size <int>: Convolution kernel size for FFN
             p_dropout <float>: Dropout probability
             p_dropout_out <float>: Dropout probability for output
-            xa_d_memory <int>: Hidden dimension for cross attention
-            xa_n_heads <int>: Number of attention heads used in cross attention
             has_xattn <bool>: Whether to use cross attention
+            xa_d_memory <int>: Hidden dimension for cross attention; required if has_xattn is True
+            xa_n_heads <int>: Number of attention heads used in cross attention; required if has_xattn is True
             is_causal <bool>: Whether to use causal attention
-            apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
+            apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor; conditioning tensor being
+                the input to the memory part of cross-attention.
             apply_norm_out <bool>: Whether to apply normalization to output
             layer_norm_method <str>: Layer normalization method
-            deterministic <bool>: Whether to use deterministic attention
             max_length_causal_mask <int>: Maximum length of causal mask
+            use_learnable_pos_emb <bool>: Whether to add a learnable positionable embedding inside the class
             conv_non_linearity <Callable>: Convolution non-linearity
         """
         super().__init__()
@@ -573,19 +594,19 @@ class Transformer(torch.nn.Module):
                     sa_n_heads=sa_n_heads,
                     kernel_size=kernel_size,
                     p_dropout=p_dropout,
+                    has_xattn=has_xattn,
                     xa_d_memory=xa_d_memory,
                     xa_n_heads=xa_n_heads,
-                    has_xattn=has_xattn,
                     is_causal=is_causal,
                     apply_norm_to_cond=apply_norm_to_cond,
                     layer_norm_method=layer_norm_method,
-                    deterministic=deterministic,
                     max_length_causal_mask=max_length_causal_mask,
                     conv_non_linearity=conv_non_linearity,
                 )
             )
 
         self.use_learnable_pos_emb = use_learnable_pos_emb
+        self.position_embeddings = None
         if self.use_learnable_pos_emb:
             self.position_embeddings = torch.nn.Embedding(max_length_causal_mask, d_model)
         # Apply random uniform init for all layers, except for output layers: The second of the two layers in the MLP
