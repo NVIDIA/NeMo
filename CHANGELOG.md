@@ -1,5 +1,7 @@
 # Changelog
 
+<!-- Next changelog -->
+
 ## NVIDIA Neural Modules 2.0.0rc1
 
 ### Highlights
