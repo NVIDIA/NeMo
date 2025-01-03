@@ -21,8 +21,8 @@ import numpy as np
 import torch
 import torch.distributed
 import wrapt
+from lightning.pytorch.trainer.trainer import Trainer
 from megatron.core.inference.common_inference_params import CommonInferenceParams
-from pytorch_lightning.trainer.trainer import Trainer
 
 import nemo.lightning as nl
 from nemo.collections.llm import inference
