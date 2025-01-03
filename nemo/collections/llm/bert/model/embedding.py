@@ -30,7 +30,7 @@ def bert_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     required_keys = set()
     required_keys.add("attention_mask")
     required_keys.add("token_type_ids")
-    # required_keys.add("metadata")
+
     if parallel_state.is_pipeline_first_stage():
         required_keys.add("input_ids")
 
@@ -70,6 +70,8 @@ class BertEmbeddingConfig(BertConfig):
     bert_binary_head: bool = False
     num_hard_negatives: int = 1
     num_tokentypes: int = 2
+    global_in_batch_negatives: bool = True
+    backprop_type: str = 'local'
     forward_step_fn: Callable = bert_embedding_forward_step
     data_step_fn: Callable = bert_embedding_data_step
 
@@ -137,6 +139,8 @@ class BertEmbeddingModel(BertModel):
                 num_hard_negatives=self.config.num_hard_negatives,
                 scale=self.config.ce_loss_scale,
                 label_smoothing=self.config.label_smoothing,
+                global_in_batch_negatives=self.config.global_in_batch_negatives,
+                backprop_type=self.config.backprop_type,
             )
 
         return self._training_loss_reduction
