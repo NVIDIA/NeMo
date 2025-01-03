@@ -59,6 +59,12 @@ def create_shar_from_manifest(audio_path, manifest, out_shar_dir, num_shard=10, 
         audio2, sample_rate2 = get_wav(audio2_name)
         assert len(audio1) == len(audio2)
         assert sample_rate1 == sample_rate2
+
+        def filter_empty_segment(segments):
+            return [s for s in segments if s['text'] != '']
+
+        audio1_manifest['segments'] = filter_empty_segment(audio1_manifest['segments'])
+        audio2_manifest['segments'] = filter_empty_segment(audio2_manifest['segments'])
         # decide which one is user and which one is agent
         if audio1_manifest['segments'][0]['start'] < audio2_manifest['segments'][0]['start']:
             user_audio = audio1
@@ -104,9 +110,8 @@ def create_shar_from_manifest(audio_path, manifest, out_shar_dir, num_shard=10, 
             assert segment_i_end - segment_i_start <= segment_size
 
             if len(user_audio) < get_step_size(segment_i_end):
-                print(f"skip {segment_i_start} {segment_i_end} {len(user_audio)} {get_step_size(segment_i_end)}")
-                segment_i_start += segment_size // 2
-                continue
+                user_audio = np.pad(user_audio, (0, get_step_size(segment_i_end) - len(user_audio)))
+                agent_audio = np.pad(agent_audio, (0, get_step_size(segment_i_end) - len(agent_audio)))
 
             # TODO: produce an example for every 60 sec chunk
             new_cut = MonoCut(

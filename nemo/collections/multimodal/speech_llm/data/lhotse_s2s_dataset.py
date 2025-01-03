@@ -272,7 +272,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     skipped_source += 1
                     continue
                 elif supervisions[1].speaker.lower() == "agent" or supervisions[1].speaker.lower() == "assistant":
-                    # breakpoint()
                     use_word_alignment = getattr(cut, "s2s_duplex_align", False)
                     text = supervisions[1].text
                     if not use_word_alignment:
@@ -508,7 +507,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         answer_audios, answer_audio_lens = None, None
         assert self.load_answer_audio
-        assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
 
         def load_audio_from_cut(cuts, name, sample_rate):
             answer_audio_lens = []
@@ -615,7 +613,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             metadata.append({'audio_filepath': cut.id + '.wav'})
             total_steps = (
                 torch.ceil(
-                    answer_audio_lens[i] / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+                    answer_audio_lens[id] / self.codec_model_downsampling_factor / self.decoder_reduction_factor
                 ).int()
                 + 1
             )
@@ -632,7 +630,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 for i, segment in enumerate(segments):
                     # Extract agent text
                     pattern = r"<\|\d+\|>"
-                    output_text = re.sub(pattern, "", segment.text)
+                    output_text = re.sub(pattern, "", segment['text'])
                     output_text = re.sub(r'\s+', ' ', output_text).strip()
                     target_text = self.text_processor._process_example(context="", output=output_text)
                     # -1 to remove the eos token added by the text processor
@@ -641,8 +639,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     )
                     target_texts.append(target_text)
                     target_text_lengths.append(target_text_length)
-                    text_start_time = segment.start
-                    text_end_time = segment.end
+                    text_start_time = segment['start']
+                    text_end_time = segment['end']
                     text_start_time = validate_time(text_start_time)
                     text_end_time = validate_time(text_end_time)
                     text_start_step = get_step_by_time(text_start_time)

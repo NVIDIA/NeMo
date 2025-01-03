@@ -2173,6 +2173,11 @@ model:
               shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/suno_20k/xah/shar_dir/
               tags:
                 s2s_duplex: True
+            - type: lhotse_shar
+              shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/fisher/callhome_eng_LDC97S42.subset/
+              tags:
+                s2s_duplex_overlap: True
+ 
             # s2s_shars_21fps_with_wavs
             # - type: lhotse_shar
             #   shar_path: /lustre/fs7/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/s2s_synthetic_data/s2s_shars_21fps/alpaca_val/ # speech SQA
