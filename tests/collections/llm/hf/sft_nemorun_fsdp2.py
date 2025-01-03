@@ -20,7 +20,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
 
-DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
+DATA_PATH = '/lustre/fsw/coreai_dlalgo_llm/boxiangw/squad'
 
 
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
     parser.add_argument('--devices', default=2)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--max-steps', type=int, default=1000)
+    parser.add_argument('--max-steps', type=int, default=100)
     args = parser.parse_args()
 
     recipe = llm.hf_auto_model_for_causal_lm.finetune_recipe(
@@ -67,7 +67,7 @@ if __name__ == '__main__':
         tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),
     )
 
-    recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=1, tensor_parallel_size=2)
+    recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=2, tensor_parallel_size=1)
     recipe.trainer.plugins = None
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
     run.run(recipe, executor=executor)
