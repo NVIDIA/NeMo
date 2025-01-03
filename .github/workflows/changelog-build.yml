@@ -47,7 +47,7 @@ jobs:
         shell: bash -x -e -u -o pipefail {0}
         run: |
           RELEASE_VERSION=${RELEASE_BRANCH#r}
-          CHANGELOG=$(echo "$CHANGELOG" | sed '/^[[:blank:]]*#/s/#/##/')
+          CHANGELOG=$(echo "$CHANGELOG" | sed '/^[[:blank:]]*#/s/#/###/')
 
           RELEASE_NOTES="## NVIDIA Neural Modules $RELEASE_VERSION
 
