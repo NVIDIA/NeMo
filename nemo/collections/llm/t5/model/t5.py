@@ -345,6 +345,7 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self._validation_loss_reduction
 
+
 @io.model_importer(T5Model, "hf")
 class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
     def init(self) -> T5Model:
@@ -391,11 +392,17 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
             del mapping["lm_head.weight"]
 
         return io.apply_transforms(
-            source, 
-            target, 
-            mapping=mapping, 
-            transforms=[_import_encoder_qkv, _import_encoder_linear_fc1, _import_decoder_qkv, _import_decoder_kv, _import_decoder_linear_fc1],
-            state_dict_ignored_entries=['output_layer.weight']
+            source,
+            target,
+            mapping=mapping,
+            transforms=[
+                _import_encoder_qkv,
+                _import_encoder_linear_fc1,
+                _import_decoder_qkv,
+                _import_decoder_kv,
+                _import_decoder_linear_fc1,
+            ],
+            state_dict_ignored_entries=['output_layer.weight'],
         )
 
     @property
@@ -429,7 +436,7 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
             position_embedding_type="relative",
             relative_attention_num_buckets=source.relative_attention_num_buckets,
             relative_attention_max_distance=source.relative_attention_max_distance,
-            activation_func=F.gelu, 
+            activation_func=F.gelu,
             add_bias_linear=False,
             init_method_std=source.initializer_factor,
             normalization="RMSNorm",
@@ -444,6 +451,7 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
         )
 
         return output
+
 
 @io.state_transform(
     source_key=(
@@ -477,6 +485,7 @@ def _import_encoder_qkv(ctx: io.TransformCTX, q, k, v):
 
     return qkv_weights
 
+
 @io.state_transform(
     source_key=(
         "decoder.block.*.layer.0.SelfAttention.q.weight",
@@ -509,6 +518,7 @@ def _import_decoder_qkv(ctx: io.TransformCTX, q, k, v):
 
     return qkv_weights
 
+
 @io.state_transform(
     source_key=(
         "decoder.block.*.layer.1.EncDecAttention.k.weight",
@@ -537,16 +547,24 @@ def _import_decoder_kv(ctx: io.TransformCTX, k, v):
     kv_weights = kv_weights.reshape([head_size * (2 * head_num), hidden_size])
 
     return kv_weights
- 
+
+
 @io.state_transform(
-    source_key=("encoder.block.*.layer.1.DenseReluDense.wi_0.weight", "encoder.block.*.layer.1.DenseReluDense.wi_1.weight"),
+    source_key=(
+        "encoder.block.*.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.*.layer.1.DenseReluDense.wi_1.weight",
+    ),
     target_key="encoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_encoder_linear_fc1(down, gate):
     return torch.cat((down, gate), axis=0)
 
+
 @io.state_transform(
-    source_key=("decoder.block.*.layer.2.DenseReluDense.wi_0.weight", "decoder.block.*.layer.2.DenseReluDense.wi_1.weight"),
+    source_key=(
+        "decoder.block.*.layer.2.DenseReluDense.wi_0.weight",
+        "decoder.block.*.layer.2.DenseReluDense.wi_1.weight",
+    ),
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_decoder_linear_fc1(down, gate):
@@ -598,8 +616,14 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
             source,
             target,
             mapping=mapping,
-            transforms=[_export_encoder_qkv, _export_encoder_linear_fc1, _export_decoder_qkv, _export_decoder_kv, _export_decoder_linear_fc1],
-            state_dict_ignored_entries=['encoder.embed_tokens.weight', 'decoder.embed_tokens.weight']
+            transforms=[
+                _export_encoder_qkv,
+                _export_encoder_linear_fc1,
+                _export_decoder_qkv,
+                _export_decoder_kv,
+                _export_decoder_linear_fc1,
+            ],
+            state_dict_ignored_entries=['encoder.embed_tokens.weight', 'decoder.embed_tokens.weight'],
         )
 
     @property
@@ -624,6 +648,7 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
 
         def round_up_to_divisible(number, divisor):
             import math
+
             if divisor == 0:
                 raise ValueError("Divisor cannot be zero.")
             return int(math.ceil(number / divisor) * divisor)
@@ -639,7 +664,9 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
             relative_attention_max_distance=source.relative_attention_max_distance,
             initializer_factor=source.init_method_std,
             layer_norm_epsilon=source.layernorm_epsilon,
-            vocab_size=round_up_to_divisible(self.tokenizer.vocab_size + len(self.tokenizer.additional_special_tokens), 128),
+            vocab_size=round_up_to_divisible(
+                self.tokenizer.vocab_size + len(self.tokenizer.additional_special_tokens), 128
+            ),
             feed_forward_proj="gated-gelu",
             tie_word_embeddings=source.share_embeddings_and_output_weights,
             decoder_start_token_id=bos_id,
@@ -682,6 +709,7 @@ def _export_encoder_qkv(ctx: io.TransformCTX, linear_qkv):
 
     return q_proj, k_proj, v_proj
 
+
 @io.state_transform(
     source_key="decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
@@ -716,6 +744,7 @@ def _export_decoder_qkv(ctx: io.TransformCTX, linear_qkv):
 
     return q_proj, k_proj, v_proj
 
+
 @io.state_transform(
     source_key="decoder.layers.*.cross_attention.linear_kv.weight",
     target_key=(
@@ -740,23 +769,32 @@ def _export_decoder_kv(ctx: io.TransformCTX, linear_kv):
 
     return k_proj, v_proj
 
+
 @io.state_transform(
     source_key="encoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("encoder.block.*.layer.1.DenseReluDense.wi_0.weight", "encoder.block.*.layer.1.DenseReluDense.wi_1.weight"),
+    target_key=(
+        "encoder.block.*.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.*.layer.1.DenseReluDense.wi_1.weight",
+    ),
 )
 def _export_encoder_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
 
+
 @io.state_transform(
     source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("decoder.block.*.layer.2.DenseReluDense.wi_0.weight", "decoder.block.*.layer.2.DenseReluDense.wi_1.weight"),
+    target_key=(
+        "decoder.block.*.layer.2.DenseReluDense.wi_0.weight",
+        "decoder.block.*.layer.2.DenseReluDense.wi_1.weight",
+    ),
 )
 def _export_decoder_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
+
 
 __all__ = [
     "T5Model",
