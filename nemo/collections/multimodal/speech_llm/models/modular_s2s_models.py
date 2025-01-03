@@ -587,7 +587,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     for wav in answer_wavs
                 ]
                 squim_mos_scores = [
-                    squim_mos_model(pred_wav, answer_wav)
+                    squim_mos_model(pred_wav, answer_wav).cpu()
                     for pred_wav, answer_wav in zip(pred_wavs_resampled, answer_wavs_resampled)
                 ]
                 deduplicated_outputs['mos_scores'] = squim_mos_scores
