@@ -358,9 +358,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         # print out params in more details
         model.summarize(max_depth=2)
 
-        cls.codec_model = codec_model
-        cls.asr_model = asr_model
-        cls.mos_model = mos_model
+        cls.codec_model = codec_model.cuda()
+        cls.asr_model = asr_model.cuda()
+        cls.mos_model = mos_model.cuda()
         return model
 
     # change to add one more dimension
@@ -579,10 +579,12 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 logging.info(f"Running MOS prediction")
 
                 pred_wavs_resampled = [
-                    torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0) for wav in pred_wavs
+                    torchaudio.functional.resample(wav.cuda(), codec_sample_rate, 16000).unsqueeze(0)
+                    for wav in pred_wavs
                 ]
                 answer_wavs_resampled = [
-                    torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0) for wav in answer_wavs
+                    torchaudio.functional.resample(wav.cuda(), codec_sample_rate, 16000).unsqueeze(0)
+                    for wav in answer_wavs
                 ]
                 squim_mos_scores = [
                     squim_mos_model(pred_wav, answer_wav)

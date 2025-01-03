@@ -2170,6 +2170,7 @@ model:
         - name: "asr-wer"
           average: null
           num_classes: null
+        - name: "mos"
 
   optim:
     name: fused_adam
