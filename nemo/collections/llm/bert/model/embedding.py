@@ -1,15 +1,28 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import sys
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Literal
 
 import lightning.pytorch as L
 import torch
-from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from megatron.core import parallel_state
 from torch import nn
 
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, BERTLossReduction
-from nemo.collections.llm.bert.model import BertConfig, BertModel, HuggingFaceBertModel
+from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
+from nemo.collections.llm.bert.model import BertConfig, BertModel
 from nemo.collections.llm.bert.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.bert.model.bert import HuggingFaceBertImporter
 from nemo.collections.nlp.models.information_retrieval.bert_embedding_model import BertEmbeddingHead
@@ -30,7 +43,7 @@ def bert_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     required_keys = set()
     required_keys.add("attention_mask")
     required_keys.add("token_type_ids")
-    # required_keys.add("metadata")
+
     if parallel_state.is_pipeline_first_stage():
         required_keys.add("input_ids")
 
@@ -63,13 +76,17 @@ def bert_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch
 
 @dataclass
 class BertEmbeddingConfig(BertConfig):
-    bert_type: str = 'huggingface'
+    """Bert Embedding Config"""
+
+    bert_type: Literal["huggingface", "megatron"] = 'huggingface'
     ce_loss_scale: float = 20
     label_smoothing: float = 0.0
     add_lm_head: bool = False
     bert_binary_head: bool = False
     num_hard_negatives: int = 1
     num_tokentypes: int = 2
+    global_in_batch_negatives: bool = True
+    backprop_type: Literal["local", "global"] = 'local'
     forward_step_fn: Callable = bert_embedding_forward_step
     data_step_fn: Callable = bert_embedding_data_step
 
@@ -137,6 +154,8 @@ class BertEmbeddingModel(BertModel):
                 num_hard_negatives=self.config.num_hard_negatives,
                 scale=self.config.ce_loss_scale,
                 label_smoothing=self.config.label_smoothing,
+                global_in_batch_negatives=self.config.global_in_batch_negatives,
+                backprop_type=self.config.backprop_type,
             )
 
         return self._training_loss_reduction
@@ -156,6 +175,11 @@ class BertEmbeddingModel(BertModel):
 
 @io.model_importer(BertEmbeddingModel, "hf")
 class BertEmbeddingImporter(HuggingFaceBertImporter):
+    """
+    Importer for BertEmbedding Model.
+    HuggingFace uses same model for Bert Embedding model and Bert model, thus the connector is identical.
+    """
+
     def __init__(self, *args, **kwargs):
         if sys.version_info > (3, 11):
             # In Python versions <= 3.11, *Path classes don’t have a __init__ method,
