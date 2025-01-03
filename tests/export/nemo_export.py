@@ -41,7 +41,7 @@ except Exception as e:
 in_framework_supported = True
 try:
     from nemo.deploy.nlp import NemoQueryLLMPyTorch
-    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
+    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeploy, MegatronLLMDeployable, MegatronLLMDeployableNemo2
 except Exception as e:
     LOGGER.warning(
         "Cannot import MegatronLLMDeployable or NemoQueryLLMPyTorch,"
@@ -124,6 +124,9 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                     )
                     # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
                     model_output = model_output["sentences"][0][len(prompt) :].strip().lower()
+                elif in_framework_supported and isinstance(model, MegatronLLMDeployableNemo2):
+                    # There is no a direct generate method as in the case of MegatronLLMDeployable class above
+                    raise RuntimeError("MegatronLLMDeployableNemo2 is not supported for Lambada in-framework accuracy test.")
                 else:
                     model_output = model.forward(
                         input_texts=[prompt],
@@ -158,8 +161,11 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                         top_p=0,
                         temperature=0.1,
                     )
-                    # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt
-                    deployed_output = deployed_output["sentences"][0][0][len(prompt) :].decode().strip().lower()
+                    # MegatronLLMDeployable returns prompt + generated output, so need to slice off prompt.
+                    # On the other hand, MegatronLLMDeployableNeMo2 returns only generated text.
+                    if isinstance(model, MegatronLLMDeployable):
+                        # Accessing [0][0] of "text" is to get raw string entry from a NumPy array with batch size = 1
+                        deployed_output = deployed_output["choices"][0]["text"][0][0][len(prompt) :].strip().lower()
                 else:
                     deployed_output = nq.query_llm(
                         prompts=[prompt],
@@ -574,7 +580,7 @@ def run_in_framework_inference(
 
             print("Path: {0} and model: {1} will be tested".format(checkpoint_path, model_name))
 
-        deployed_model = MegatronLLMDeployable(checkpoint_path, num_gpus)
+        deployed_model = MegatronLLMDeploy.get_deployable(checkpoint_path, num_gpus)
 
         nm = DeployPyTriton(
             model=deployed_model,
@@ -588,10 +594,12 @@ def run_in_framework_inference(
         output_deployed = nq.query_llm(
             prompts=prompts, top_k=top_k, top_p=top_p, temperature=temperature, max_length=max_output_len
         )
-        output_deployed = output_deployed["sentences"]
-        # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt
-        for i, output in enumerate(output_deployed):
-            output_deployed[i, :] = output[0][len(prompts[i]) :]
+        output_deployed = output_deployed["choices"][0]["text"]
+        # MegatronLLMDeployable will return the prompt + generated output, so cut off the prompt.
+        # On the other hand, MegatronLLMDeployableNeMo2 returns only generated text.
+        if isinstance(deployed_model, MegatronLLMDeployable):
+            for i, output in enumerate(output_deployed):
+                output_deployed[i, :] = output[0][len(prompts[i]) :]
 
         # Unwrap the generator if needed
         output_deployed = list(output_deployed)
