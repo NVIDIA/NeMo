@@ -69,5 +69,4 @@ jobs:
           title: "Update changelog for `${{ inputs.release-branch }}`"
           signoff: true
           sign-commits: true
-          base: ${{ inputs.release-branch }}
           branch: bot/chore/update-changelog-into-${{ inputs.release-branch }}
