@@ -13,7 +13,6 @@
 # limitations under the License.
 import json
 import shutil
-from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from datasets import DatasetDict, load_dataset

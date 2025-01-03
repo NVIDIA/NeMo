@@ -4,12 +4,12 @@ from typing import Callable, Dict, Optional
 
 import lightning.pytorch as L
 import torch
-from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from megatron.core import parallel_state
 from torch import nn
 
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, BERTLossReduction
-from nemo.collections.llm.bert.model import BertConfig, BertModel, HuggingFaceBertModel
+from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
+from nemo.collections.llm.bert.model import BertConfig, BertModel
 from nemo.collections.llm.bert.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.bert.model.bert import HuggingFaceBertImporter
 from nemo.collections.nlp.models.information_retrieval.bert_embedding_model import BertEmbeddingHead
