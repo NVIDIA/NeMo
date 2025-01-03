@@ -142,16 +142,16 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
-    parser.add_argument('--hparams_file', type=str, default="/datap/misc/continuouscheckpoints/unnormalizedLalign005_multiEncoder_textcontext_kernel3_hparams.yaml")
-    parser.add_argument('--checkpoint_file', type=str, default="/datap/misc/continuouscheckpoints/unnormalizedLalign005_multiEncoder_textcontext_kernel3_epoch_18.ckpt")
+    parser.add_argument('--hparams_files', type=str, default="/datap/misc/checkpoints_roy/hparams.yaml")
+    parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/checkpoints_roy/roy_checkpoint.ckpt")
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo")
-    parser.add_argument('--datasets', type=str, default="riva_challenging_nozeros,vctk,riva_challenging,libri_val")
-    parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmount2")
-    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTSCFG_Finetunes")
+    parser.add_argument('--datasets', type=str, default="vctk,riva_challenging_nozeros,libri_val")
+    parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmount_ks1_fixedlossspikes")
+    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTS_FixedPosEmb/FixLossSpikes")
     parser.add_argument('--server_address', type=str, default="pneekhara@login-eos02.eos.clusters.nvidia.com")
-    parser.add_argument('--exp_names', type=str, default="decoder_21,singleencoder_20")
-    parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/continuouscheckpoints")
-    parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResultsNewT5_Unnormalized")
+    parser.add_argument('--exp_names', type=str, default="decodercontext_small_noctcprior")
+    parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/continuouscheckpoints_fixedposemb")
+    parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResults/KS1_KS3_ContinuousEval")
     parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--use_cfg', action='store_true')
     parser.add_argument('--cfg_scale', type=float, default=1.0)
@@ -159,19 +159,25 @@ def main():
     parser.add_argument('--batch_size', type=int, default=16)
     args = parser.parse_args()
 
-    if (args.hparams_file is not None) and (args.checkpoint_file is not None) and (args.hparams_file != "null"):
-        run_inference(
-            args.hparams_file, 
-            args.checkpoint_file, 
-            args.datasets.split(","), 
-            args.out_dir, 
-            args.temperature, 
-            args.topk,
-            args.codecmodel_path,
-            args.use_cfg,
-            args.cfg_scale,
-            args.batch_size
-        )
+    if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null"):
+        hparam_files = args.hparams_files.split(",")
+        checkpoint_files = args.checkpoint_files.split(",")
+        print("Running inference for hparams files: ", hparam_files)
+        print("Running inference for checkpoint files: ", checkpoint_files)
+        assert len(hparam_files) == len(checkpoint_files), "Number of hparams files and checkpoint files should be the same."
+        for hparams_file, checkpoint_file in zip(hparam_files, checkpoint_files):
+            run_inference(
+                hparams_file, 
+                checkpoint_file,
+                args.datasets.split(","),
+                args.out_dir,
+                args.temperature,
+                args.topk,
+                args.codecmodel_path,
+                args.use_cfg,
+                args.cfg_scale,
+                args.batch_size
+            )
         return
     else:
         BASE_EXP_DIR = args.base_exp_dir

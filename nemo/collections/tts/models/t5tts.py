@@ -822,7 +822,8 @@ class T5TTS_Model(ModelPT):
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
                         pred_token = all_codes_next_argmax[item_idx][0].item()
-                        if pred_token == self.audio_eos_id:
+                        pred_token_multinomial = audio_codes_next[item_idx][0].item()
+                        if (pred_token == self.audio_eos_id) or (pred_token_multinomial == self.audio_eos_id):
                             print("End detected for item {} at timestep {}".format(item_idx, idx))
                             end_indices[item_idx] = idx
 
