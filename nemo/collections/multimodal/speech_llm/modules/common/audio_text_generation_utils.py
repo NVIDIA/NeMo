@@ -751,6 +751,9 @@ def s2s_sample_sequence_batch(
         all_generated_indices = None  # used to track all generated indices
         # Generate enough tokens for the longest sequence
         maxlen = tokens_to_generate + audio_text_context_lengths.max().item()
+        duplex_method = inference_strategy.model.cfg.get("duplex_method", None)
+        if duplex_method == 'from_duplex':
+            maxlen = context_tokens.shape[1]
         maxlen = inference_strategy.clip_max_len(maxlen)
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
@@ -807,6 +810,8 @@ def s2s_sample_sequence_batch(
                         prev = torch.multinomial(probs, num_samples=1).view(-1)
                     return prev
 
+                # import pdb; pdb.set_trace()
+
                 prev = [get_prev(logits_i, started, temperature, extra) for logits_i in logits]
                 prev = torch.stack(prev, dim=1)
                 started_expand = started.unsqueeze(1).expand(-1, prev.size(1))
@@ -816,21 +821,25 @@ def s2s_sample_sequence_batch(
                 is_done_expand = is_done.unsqueeze(1).expand(-1, new_tokens.size(1))
                 new_tokens = switch(new_tokens, eod_id, is_done_expand)
 
-                # if starting speech generation, force to stop text generation to avoid text hallucination
-                speech_start_token = (
-                    (new_tokens[:, 1:] == model.cfg.speech_bos_id)
-                    .all(dim=1)
-                    .unsqueeze(1)
-                    .expand(-1, new_tokens.size(1))
-                )
-                new_tokens = switch(
-                    new_tokens,
-                    torch.cat(
-                        [torch.full([new_tokens.shape[0], 1], eod_id, device=new_tokens.device), new_tokens[:, 1:]],
-                        axis=1,
-                    ),
-                    speech_start_token,
-                )
+                if inference_strategy.model.cfg.get("duplex_method", None) is None:
+                    # if starting speech generation, force to stop text generation to avoid text hallucination
+                    speech_start_token = (
+                        (new_tokens[:, 1:] == model.cfg.speech_bos_id)
+                        .all(dim=1)
+                        .unsqueeze(1)
+                        .expand(-1, new_tokens.size(1))
+                    )
+                    new_tokens = switch(
+                        new_tokens,
+                        torch.cat(
+                            [
+                                torch.full([new_tokens.shape[0], 1], eod_id, device=new_tokens.device),
+                                new_tokens[:, 1:],
+                            ],
+                            axis=1,
+                        ),
+                        speech_start_token,
+                    )
 
                 # post process the inference tokens based on the strategy
                 inference_strategy.post_process(tokens, new_tokens, context_length)
@@ -852,6 +861,8 @@ def s2s_sample_sequence_batch(
                     end_strings,
                     model.cfg.speech_eos_id,
                 )
+
+                # import pdb; pdb.set_trace()
 
                 done_token = done_token.byte() & started.byte()
 
