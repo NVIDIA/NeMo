@@ -272,19 +272,23 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             self.proj_head_loss_weights = self.cfg.get('proj_head_loss_weights', [1.0])
             if self.decoder_reduction_factor != 1:
                 if getattr(self.cfg, 'predict_source_text', False):
-                    self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
-                        1:-1
-                    ] * self.decoder_reduction_factor + [self.proj_head_dims[-1]]
-                    self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
-                        1:-1
-                    ] * self.decoder_reduction_factor + [self.cfg.proj_head_loss_weights[-1]]
+                    self.proj_head_dims = (
+                        [self.proj_head_dims[0]]
+                        + self.proj_head_dims[1:-1] * self.decoder_reduction_factor
+                        + [self.proj_head_dims[-1]]
+                    )
+                    self.proj_head_loss_weights = (
+                        [self.cfg.proj_head_loss_weights[0]]
+                        + self.cfg.proj_head_loss_weights[1:-1] * self.decoder_reduction_factor
+                        + [self.cfg.proj_head_loss_weights[-1]]
+                    )
                 else:
                     self.proj_head_dims = [self.proj_head_dims[0]] + self.proj_head_dims[
                         1:
                     ] * self.decoder_reduction_factor
-                    self.proj_head_loss_weights = [self.cfg.proj_head_loss_weights[0]] + self.cfg.proj_head_loss_weights[
-                        1:
-                    ] * self.decoder_reduction_factor
+                    self.proj_head_loss_weights = [
+                        self.cfg.proj_head_loss_weights[0]
+                    ] + self.cfg.proj_head_loss_weights[1:] * self.decoder_reduction_factor
 
             model = S2sMCoreGPTModel(
                 config=self.transformer_config,
@@ -382,7 +386,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         """
         Used for validation and test steps, added postprocessing after calling self.predict_step().
         """
-        # import pdb; pdb.set_trace()
 
         # Evaluation of multimodal data follows the same pattern as training except predict_step
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
@@ -1163,12 +1166,13 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 )
                 sliced_text_channel = text_channel[: answer_codec.shape[0]]
 
-            # import pdb; pdb.set_trace()    
-
             if getattr(self.cfg, 'predict_source_text', False):
+                # TODO(kevinhu): Add delay to better predict user text.
+                # Predict user text when the agent turn starts.
                 all_channels.append(torch.cat([sliced_text_channel, answer_codec, sliced_source_text_channel], dim=-1))
             else:
                 if getattr(self.cfg, 'speech_delay', False):
+                    # TODO(kevinhu): Implement cascaded delays across all channels.
                     text_len, text_vocab = sliced_text_channel.shape
                     speech_len, speech_vocab = answer_codec.shape
                     assert text_len == speech_len
@@ -1198,7 +1202,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
         all_channels = pad_sequence(all_channels, batch_first=True)
         input_ids = all_channels[:, :-1]
-        # import pdb; pdb.set_trace()
         encoded = encoded[:, : input_ids.shape[1]]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
@@ -1228,7 +1231,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
 
-        # import pdb; pdb.set_trace()
         return encoder_input, attention_mask, labels, loss_mask, (encoded, encoder_length)
 
     def prepare_llm_input(self, audio_batch):

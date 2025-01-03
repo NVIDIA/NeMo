@@ -3,6 +3,7 @@ import csv
 import json
 import os
 import shutil
+from io import BytesIO
 from pathlib import Path
 
 from io import BytesIO
@@ -22,6 +23,8 @@ from lhotse.shar.writers import AudioTarWriter
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
+from nemo.utils import logging
+
 #  python -m pdb -c continue /lustre/fsw/portfolios/llmservice/users/zhehuaic/works/mod_speech_llm/code/NeMo_s2s_duplex2/scripts/speech_data_generation/create_shars_duplex_multi_from_single.py --manifest /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/tmp/msmarco_train_normalized.conversation_style_manifest_normalized_with_correctpath_with_evaluations.json.200 --out_shar_dir /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/tmp/msmarco_train_normalized.b.duplex.200/shars --num_shard 1
 
 
@@ -31,6 +34,7 @@ def json_reader(filename):
             yield json.loads(line)
 
 
+def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10, dataset_name='squadv2', turn_silence_sec=0.32):
 def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10, dataset_name='squadv2', turn_silence_sec=0.32):
     in_manifest = list(json_reader(manifest))
     print(f"...loaded {manifest} # of datapoints {len(in_manifest)}")
@@ -73,13 +77,36 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10, dataset_name
                     instructions.append(convs[0]["instruction"])
                 else:
                     instructions.append("")
+                # Instructions from the user. In case the question is part of the source audio this is a static text "Transcribe and answer",
+                # If not then this is the actual question from the user but in text.
+                # For direct_s2s instructions are always empty (else part)
+                if "instruction" in convs[0]:
+                    instructions.append(convs[0]["instruction"])
+                else:
+                    instructions.append("")
 
                 # Language source
                 if "lang" in convs[0]:
                     source_language.append(convs[0]["lang"])
                 else:
                     source_language.append("EN")
+                # Language source
+                if "lang" in convs[0]:
+                    source_language.append(convs[0]["lang"])
+                else:
+                    source_language.append("EN")
 
+                # Loading agent audio and using only the extracted features as nd.array
+                target_recordings.append(Recording.from_file(convs[1]['value']))
+                # Agent answer transcript
+                answer_list.append(convs[1]["transcript"])
+                # Language target
+                if "lang" in convs[1]:
+                    target_language.append(convs[1]["lang"])
+                else:
+                    target_language.append("EN")
+            except:
+                logging.info(f'Skipping {i}th json record.')
                 # Loading agent audio and using only the extracted features as nd.array
                 target_recordings.append(Recording.from_file(convs[1]['value']))
                 # Agent answer transcript
@@ -102,10 +129,26 @@ def create_shar_from_manifest(manifest, out_shar_dir, num_shard=10, dataset_name
     for j, cut in tqdm(enumerate(cuts)):
         user_audio_list = []
         agent_audio_list = []
+        user_audio_list = []
+        agent_audio_list = []
         total_dur = 0
+
 
         convs = in_manifest[j]["conversations"] + in_manifest[num_cuts - j - 1]["conversations"]
         for i in range(0, len(convs), 2):
+
+            user_recording = Recording.from_file(convs[i]['value'])
+            agent_recording = Recording.from_file(convs[i + 1]['value'])
+
+            sample_rate = agent_recording.sampling_rate
+            user_duration = user_recording.duration + turn_silence_sec
+            agent_duration = agent_recording.duration
+            cur_user_audio = user_recording.resample(sample_rate).load_audio()
+            cur_agent_audio = agent_recording.load_audio()
+
+            silence_padding = np.zeros((1, int(turn_silence_sec * sample_rate)))
+            user_audio_list.extend([cur_user_audio, silence_padding, np.zeros_like(cur_agent_audio)])
+            agent_audio_list.extend([np.zeros_like(cur_user_audio), silence_padding, cur_agent_audio])
 
             user_recording = Recording.from_file(convs[i]['value'])
             agent_recording = Recording.from_file(convs[i + 1]['value'])
@@ -190,6 +233,11 @@ def main():
         '--num_shard',
         type=int,
         default=10,
+    )
+    parser.add_argument(
+        '--dataset_name',
+        type=str,
+        default="squadv2",
     )
     parser.add_argument(
         '--dataset_name',
