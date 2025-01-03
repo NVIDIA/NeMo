@@ -174,7 +174,6 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     @lru_cache
     def _create_dataset(self, path, **kwargs):
-        # pylint: disable=C0115,C0116
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,
@@ -185,7 +184,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         )
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
-        # pylint: disable=C0115,C0116
         return WrappedDataLoader(
             mode=mode,
             dataset=dataset,
