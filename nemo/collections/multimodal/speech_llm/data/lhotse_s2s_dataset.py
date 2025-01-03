@@ -70,6 +70,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         t5_style: bool = False,
         load_answer_audio: bool = False,
         codec_model_downsampling_factor: float = 1023.5,
+        src_text_delay: int = 2,
+        merge_src_to_tgt_text: bool = False
     ):
         super().__init__()
         self.text_processor = text_processor
@@ -97,6 +99,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.sample_rate = sample_rate
         self.load_answer_audio = load_answer_audio
         self.codec_model_downsampling_factor = codec_model_downsampling_factor
+        self.src_text_delay = src_text_delay
+        self.merge_src_to_tgt_text = merge_src_to_tgt_text
 
         # To be consistent with SALM text processor
         self.text_processor.add_sep = False
@@ -176,7 +180,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 word_start_idx = 0  # Start index to keep track of the position within the concatenated word tokens
 
                 for word_idx, word_length in enumerate(word_lengths[batch_idx]):
-                    start_token = start_time_tokens[batch_idx][word_idx]
+                    try: 
+                        start_token = start_time_tokens[batch_idx][word_idx]
+                    except:
+                        import pdb; pdb.set_trace()
 
                     # Convert the start time token into a time index based on frame rate
                     start_time_index = discretize_time(start_token, frame_rate)
@@ -402,18 +409,30 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 text_start_step = get_step_by_time(text_start_time[i][j])
                 text_end_step = get_step_by_time(text_end_time[i][j]) + 1
                 cur_target_text[text_start_step] = self.text_processor.bos_id
-                cur_source_text[text_start_step] = self.text_processor.bos_id
+                src_text_start_step = 0 if j == 0 else get_step_by_time(text_end_time[i][j-1]) + 2
+                src_text_start_step += self.src_text_delay
+                src_text_end_step = src_text_start_step + source_texts[cnt].shape[0] + 1
+                if self.merge_src_to_tgt_text:
+                    cur_target_text[src_text_start_step] = self.text_processor.bos_id
+                else:
+                    cur_source_text[src_text_start_step] = self.text_processor.bos_id
                 # import pdb; pdb.set_trace()
                 if getattr(cut, "s2s_duplex", False):
+                    src_text_len = min(src_text_end_step - src_text_start_step - 1, source_texts[cnt].shape[0])
+                    if self.merge_src_to_tgt_text:
+                        cur_target_text[(src_text_start_step + 1) : (src_text_start_step + 1 + src_text_len)] = source_texts[cnt][
+                            :src_text_len
+                        ]
+                    else:
+                        cur_source_text[(src_text_start_step + 1) : (src_text_start_step + 1 + src_text_len)] = source_texts[cnt][
+                            :src_text_len
+                        ]
+                    # import pdb; pdb.set_trace()
                     # Note: text can be truncated
                     # logging.debug(f'target_text before truncation: {target_texts[cnt]}')
                     text_len = min(text_end_step - text_start_step - 1, target_texts[cnt].shape[0])
                     cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len)] = target_texts[cnt][
                         :text_len
-                    ]
-                    src_text_len = min(text_end_step - text_start_step - 1, source_texts[cnt].shape[0])
-                    cur_source_text[(text_start_step + 1) : (text_start_step + 1 + src_text_len)] = source_texts[cnt][
-                        :src_text_len
                     ]
                     # logging.debug(f'target_text after truncation: {target_texts[cnt][:text_len]}')
                     # logging.debug(f'source_text after truncation: {source_texts[cnt][:text_len]}')
@@ -439,7 +458,11 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     raise Exception("Undefined assistant channel text format.")
 
                 cur_target_text[text_end_step] = self.text_processor.eos_id
-                cur_source_text[text_end_step] = self.text_processor.eos_id
+                if self.merge_src_to_tgt_text:
+                    cur_target_text[src_text_end_step] = self.text_processor.eos_id
+                else:
+                    cur_source_text[src_text_end_step] = self.text_processor.eos_id
+                logging.debug(f'cur_target_text: {cur_target_text}')
                 cnt += 1
             new_target_texts.append(cur_target_text)
             new_source_texts.append(cur_source_text)
