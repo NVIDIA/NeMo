@@ -17,11 +17,12 @@ from typing import Dict, List, Tuple
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
+from torch.distributed import all_gather as all_gather_no_backprop
+from torch.distributed.nn.functional import all_gather as all_gather_with_backprop
 
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronLossReduction
-from torch.distributed import all_gather as all_gather_no_backprop
-from torch.distributed.nn.functional import all_gather as all_gather_with_backprop
+
 
 class BERTLossReduction(MegatronLossReduction):
     """Bert Loss Function.
