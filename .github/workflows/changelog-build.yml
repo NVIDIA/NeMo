@@ -44,6 +44,7 @@ jobs:
         env: 
           RELEASE_BRANCH: ${{ inputs.release-branch }}
           CHANGELOG: ${{ steps.github_tag.outputs.changelog }}
+        shell: bash -x -e -u -o pipefail {0}
         run: |
           RELEASE_VERSION=${RELEASE_BRANCH#r}
           CHANGELOG=$(echo "$CHANGELOG" | sed '/^[[:blank:]]*#/s/#/##/')
