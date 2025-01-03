@@ -26,6 +26,7 @@ from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
@@ -90,6 +91,47 @@ def main(args):
             num_workers=4,
             packed_sequence=args.use_packed_sequence,
             num_image_embeddings_per_tile=num_image_embeddings_per_tile,
+        )
+    elif args.data_type == "energon":
+        from transformers import AutoProcessor
+
+        from nemo.collections.multimodal.data.energon import (
+            ImageToken,
+            LLaVATemplateConfig,
+            MultiModalSampleConfig,
+            SimpleMultiModalDataModule,
+        )
+
+        processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
+        tokenizer = processor.tokenizer
+        image_processor = processor.image_processor
+
+        # Configure multimodal samples
+        config = MultiModalSampleConfig(
+            image_token=ImageToken(token_str="<image>", token_id=-200),
+            ignore_place_holder=-100,
+            conversation_template_config=LLaVATemplateConfig(),
+        )
+
+        # Initialize the data module
+        data = SimpleMultiModalDataModule(
+            path=args.data_path,
+            tokenizer=tokenizer,
+            image_processor=image_processor,
+            seq_length=decoder_seq_length,
+            micro_batch_size=mbs,
+            global_batch_size=gbs,
+            num_workers=0,
+            multimodal_sample_config=config,
+            task_encoder=MultiModalTaskEncoder(
+                tokenizer=tokenizer,
+                image_processor=image_processor,
+                multimodal_sample_config=config,
+                packed_sequence=args.use_packed_sequence,
+                packing_seq_length=decoder_seq_length,
+                num_image_embeddings_per_tile=num_image_embeddings_per_tile,
+            ),
+            packing_buffer_size=200 if args.use_packed_sequence else None,
         )
     elif args.data_type == "mock":
         data = vlm.NevaMockDataModule(
