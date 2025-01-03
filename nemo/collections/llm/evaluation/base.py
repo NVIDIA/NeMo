@@ -57,6 +57,7 @@ class NeMoFWLMEval(LM):
             top_k=payload['top_k'],
             top_p=payload['top_p'],
             temperature=payload['temperature'],
+            output_context_logits=True,
             output_generation_logits=True,
             openai_format_response=True,
         )
@@ -64,7 +65,7 @@ class NeMoFWLMEval(LM):
         if return_text:
             return response["choices"][0]["text"]  # shape[batch_size, 1]
         if return_logits:
-            return response["choices"][0]["generation_logits"]  # shape[batch_size, 1, num_tokens, vocab_size]
+            return response["choices"][0]["context_logits"], response["choices"][0]["generation_logits"]  # shape[batch_size, 1, num_tokens, vocab_size]
 
     def tokenizer_type(self, tokenizer):
         """
@@ -105,21 +106,27 @@ class NeMoFWLMEval(LM):
             if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
                 continuation_enc = continuation_enc[1:]
             num_cont_tokens = len(continuation_enc)
-            # Update self.max_tokens_to_generate with number of continuation tokens (or output tokens) in the request
-            self.max_tokens_to_generate = num_cont_tokens
+            # Set max_tokens_to_generate as 1
+            self.max_tokens_to_generate = 1
+            # Remove the last token from continuation by replacing it with empty string, to pass it to the ip prompt
+            prompt = context + continuation.replace(self.tokenizer.tokenizer.decode(continuation_enc[-1]), "")
             # Create payload to query the model deployed on PyTriton server
             payload = {
                 "model": self.model_name,
-                "prompt": context,
+                "prompt": prompt,
                 "max_tokens": self.max_tokens_to_generate,
                 "temperature": self.temperature,
                 "top_p": self.top_p,
                 "top_k": self.top_k,
             }
             # Get the logits from the model
-            generation_logits = self._generate_tokens_logits(payload, return_logits=True)
+            context_logits, generation_logits = self._generate_tokens_logits(payload, return_logits=True)
+            import numpy as np
+            are_equal=np.array_equal(context_logits[0][len(context_logits[0])-1], generation_logits[0][0][0])
+            logits = context_logits[:,-num_cont_tokens:,:]
             # Convert generation_logits to torch tensor to easily get logprobs wo manual implementation of log_softmax
-            multi_logits = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
+            #multi_logits = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
+            multi_logits = F.log_softmax(torch.tensor(logits), dim=-1)
             # Convert encoded continuation tokens to torch tensor
             cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
             # Get the greedy token from the logits (i.e token with the highest prob)
