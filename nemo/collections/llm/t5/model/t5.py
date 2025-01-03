@@ -36,7 +36,6 @@ from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
-from nemo.lightning.pytorch.utils import dtype_from_hf
 
 HAVE_TE = True
 try:
