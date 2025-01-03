@@ -14,15 +14,22 @@
 
 import numpy as np
 import pytest
+import torch.utils.data
 from lhotse import CutSet, Seconds, SupervisionSegment
 from lhotse.dataset import DynamicBucketingSampler
 from lhotse.testing.dummies import dummy_cut
-from nemo.collections.common.data.lhotse.dataloader import BucketingFilter, FixedBucketBatchSizeConstraint2D
+from lhotse.testing.random import deterministic_rng
+
+from nemo.collections.common.data.lhotse.dataloader import (
+    BucketingFilter,
+    FixedBucketBatchSizeConstraint2D,
+    get_lhotse_dataloader_from_config,
+)
 
 
 def make_cut(id_: int = 0, duration: Seconds = 1.0, num_tokens: int = 10):
     supervision = SupervisionSegment(f"blah-{id_}", f"blah-{id_}", 0.0, duration, text="a" * num_tokens)
-    supervision.tokens = np.zeros((num_tokens,), dtype=np.int32)
+    supervision.tokens = np.zeros((num_tokens,), dtype=np.int32).tolist()
     return dummy_cut(id_, duration=duration, supervisions=[supervision])
 
 
@@ -81,7 +88,7 @@ def test_2d_bucketing_expected_bucket_allocation(cuts):
         for cut in batch:
             # First, check that the sampled examples are indeed below the max duration/num_tokens for its bucket.
             assert cut.duration <= max_duration
-            assert cut.supervisions[0].tokens.shape[0] <= max_num_tokens
+            assert len(cut.supervisions[0].tokens) <= max_num_tokens
             # Then, find the previous compatible bucket for each of training example's dimensions,
             # and verify that it was not possible to assign the example to that smaller bucket.
             # We should skip this for bucket_idx==0 (no previous buckets available).
@@ -99,7 +106,7 @@ def test_2d_bucketing_expected_bucket_allocation(cuts):
                     prev_max_num_tokens = max(
                         tok for dur, tok in duration_bins[:bin_index] if dur == max_duration and tok < max_num_tokens
                     )
-                    assert cut.supervisions[0].tokens.shape[0] > prev_max_num_tokens
+                    assert len(cut.supervisions[0].tokens) > prev_max_num_tokens
                 except ValueError as e:
                     if "max() arg is an empty sequence" not in str(e):
                         raise
@@ -205,3 +212,50 @@ def test_2d_bucketing_filter_strict(duration, num_tokens, should_keep, bucket_id
     cut = make_cut(duration=duration, num_tokens=num_tokens)
     assert filter_2d(cut) == should_keep
     assert constraint.select_bucket(constraint.max_seq_len_buckets, cut) == bucket_idx
+
+
+class _Identity(torch.utils.data.Dataset):
+    def __getitem__(self, item):
+        return item
+
+
+def test_2d_bucketing_strict_mode_flag_works(deterministic_rng, tmp_path):
+    cuts_path = tmp_path / "cuts.jsonl"
+    CutSet([make_cut(0, duration=1.0, num_tokens=10), make_cut(0, duration=1.0, num_tokens=100)]).to_file(cuts_path)
+
+    # Strict mode enabled
+    dloader = get_lhotse_dataloader_from_config(
+        {
+            "cuts_path": cuts_path,
+            "use_bucketing": True,
+            "bucket_duration_bins": [(5.0, 10), (5.0, 20), (10.0, 150), (10.0, 300)],
+            "bucket_batch_size": [1, 1, 1, 1],
+            "bucketing_2d_strict_mode": True,
+        },
+        global_rank=0,
+        world_size=1,
+        dataset=_Identity(),
+    )
+    batches = [b for b in dloader]
+    assert len(batches) == 1
+    assert len(batches[0]) == 1
+    assert len(batches[0][0].supervisions[0].tokens) == 10
+
+    # Strict mode disabled
+    dloader = get_lhotse_dataloader_from_config(
+        {
+            "cuts_path": cuts_path,
+            "use_bucketing": True,
+            "bucket_duration_bins": [(5.0, 10), (5.0, 20), (10.0, 150), (10.0, 300)],
+            "bucket_batch_size": [1, 1, 1, 1],
+            "bucketing_2d_strict_mode": False,
+        },
+        global_rank=0,
+        world_size=1,
+        dataset=_Identity(),
+    )
+    batches = [b for b in dloader]
+    assert len(batches) == 2
+    assert len(batches[0]) == 1
+    assert len(batches[0][0].supervisions[0].tokens) == 100
+    assert len(batches[1][0].supervisions[0].tokens) == 10
