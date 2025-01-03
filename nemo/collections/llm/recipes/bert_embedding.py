@@ -21,7 +21,6 @@ from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
-from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm import (
     BertEmbeddingModel,
     BertEmbeddingMiniConfig,
