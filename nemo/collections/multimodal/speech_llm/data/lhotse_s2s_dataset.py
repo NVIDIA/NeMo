@@ -501,12 +501,206 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
         return return_batch
 
+    def __getitem__duplex_overlap_(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
+        import re
+
+        cuts = cuts.sort_by_duration()
+
+        answer_audios, answer_audio_lens = None, None
+        assert self.load_answer_audio
+        assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
+
+        def load_audio_from_cut(cuts, name, sample_rate):
+            answer_audio_lens = []
+            answer_audios = []  # b*N
+            features_lens = []
+            for i, cut in enumerate(cuts):
+                field = getattr(cut, name)
+                if isinstance(field, list):
+                    audios_list = field
+                else:
+                    audios_list = [field]
+                for audios in audios_list:
+                    if not isinstance(audios, Recording):
+                        # TODO: tmp solution for multiturn
+                        audios = Recording.from_file(audios['sources'][0]['source'])
+
+                    answer_audio = torch.tensor(audios.resample(sample_rate).load_audio()).float()
+                    answer_audio_len = torch.tensor(answer_audio.shape[1]).long()
+                    answer_audios.append(answer_audio)
+                    answer_audio_lens.append(answer_audio_len)
+                    features_lens.append(
+                        math.ceil(
+                            answer_audio_len / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+                        )
+                    )
+            answer_audios = collate_vectors(
+                [a.squeeze(0) for a in answer_audios], max_length=max(answer_audio_lens), padding_value=0.0
+            ).float()
+            answer_audio_lens = torch.tensor(answer_audio_lens).long()
+            features_lens = torch.tensor(features_lens, dtype=torch.int)
+            return answer_audios, answer_audio_lens, features_lens
+
+        # in duplex data, user channel is kept in cut.recording and agent channel is kept in cut.target_audio
+        # in the following, we keep target and source audio in different sample rates to be compatible with the single-turn and multi-turn branches
+        # may not be necessary in future
+        if hasattr(cuts[0], "target_audio"):
+            # 22k target audio
+            answer_audios, answer_audio_lens, features_lens = load_audio_from_cut(
+                cuts, "target_audio", self.codec_sample_rate
+            )
+            # 16k source audio
+            audio = [cut.resample(self.sample_rate).load_audio() for cut in cuts]
+            audio_lens = [torch.tensor(a.shape[1]).long() for a in audio]
+            audio = collate_vectors([a.squeeze(0) for a in audio], max_length=max(audio_lens), padding_value=0.0)
+            audio_lens = torch.tensor(audio_lens).long()
+        else:
+            raise ValueError(
+                "cut does not have target_audio. In duplex mode, recording keeps user channel and target_audio keeps agent channel"
+            )
+
+        text_pad_id = self.text_processor.pad_id
+
+        def get_3d_empty_tensor(batch_size, length, text_fill_id, speech_fill_id):
+            return torch.cat(
+                [
+                    torch.full((batch_size, length, 1), text_fill_id),
+                    torch.full(
+                        (batch_size, length, self.n_speech_codebooks * self.decoder_reduction_factor), speech_fill_id
+                    ),
+                ],
+                axis=2,
+            )
+
+        def collate_and_pad(inputs):
+            token_lengths = [len(seq) for seq in inputs]
+            max_length = max(token_lengths)
+            assert len(inputs[0].shape) < 3
+            if len(inputs[0].shape) < 2:
+                if self.pad_to_max_length:
+                    max_length = self.max_seq_length
+                else:
+                    max_length = min(self.max_seq_length, ceil_to_nearest(max_length, 8))
+
+                tokens = collate_vectors(inputs, max_length=max_length, padding_value=text_pad_id)
+            else:
+                tokens = get_3d_empty_tensor(len(inputs), max_length, text_pad_id, self.speech_pad_id)
+                for i in range(len(tokens)):
+                    tokens[i, : token_lengths[i], :] = inputs[i]
+            return tokens, torch.LongTensor(token_lengths)
+
+        def get_step_by_time(text_start_time):
+            text_start_step = (
+                text_start_time
+                * self.codec_sample_rate
+                / self.codec_model_downsampling_factor
+                // self.decoder_reduction_factor
+            )
+            return int(text_start_step) - 1
+
+        metadata = []
+        target_texts, target_text_lengths = [], []
+        source_texts, source_text_lengths = [], []
+        num_turns = []
+        new_target_texts = []
+        new_source_texts = []
+        for id, cut in enumerate(cuts):
+
+            def validate_time(input_time):
+                if input_time > cut.duration + 0.16:
+                    logging.info(f"{input_time} > {cut.duration} in {cut}")
+                return min(input_time, cut.duration)
+
+            num_turns.append(len(cut.user_segments) + len(cut.agent_segments))
+            metadata.append({'audio_filepath': cut.id + '.wav'})
+            total_steps = (
+                torch.ceil(
+                    answer_audio_lens[i] / self.codec_model_downsampling_factor / self.decoder_reduction_factor
+                ).int()
+                + 1
+            )
+
+            def get_text_from_segments(segments, total_steps):
+                cur_target_text = torch.full(
+                    [total_steps],
+                    (
+                        self.text_processor.tokenizer.pad_id
+                        if self.text_processor.tokenizer.pad_id >= 0
+                        else self.text_processor.tokenizer.unk_id
+                    ),
+                )
+                for i, segment in enumerate(segments):
+                    # Extract agent text
+                    pattern = r"<\|\d+\|>"
+                    output_text = re.sub(pattern, "", segment.text)
+                    output_text = re.sub(r'\s+', ' ', output_text).strip()
+                    target_text = self.text_processor._process_example(context="", output=output_text)
+                    # -1 to remove the eos token added by the text processor
+                    target_text, target_text_length = torch.as_tensor(target_text["answer_ids"][:-1]), torch.as_tensor(
+                        len(target_text["answer_ids"]) - 1
+                    )
+                    target_texts.append(target_text)
+                    target_text_lengths.append(target_text_length)
+                    text_start_time = segment.start
+                    text_end_time = segment.end
+                    text_start_time = validate_time(text_start_time)
+                    text_end_time = validate_time(text_end_time)
+                    text_start_step = get_step_by_time(text_start_time)
+                    text_end_step = get_step_by_time(text_end_time) + 1
+                    if text_end_step == total_steps:
+                        text_end_step = total_steps - 1  # boundary case
+                    elif text_end_step > total_steps:
+                        raise Exception("text_end_step too long")
+
+                    cur_target_text[text_start_step] = self.text_processor.bos_id
+                    # Note: text can be truncated
+                    text_len = min(text_end_step - text_start_step - 1, target_text.shape[0])
+                    cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len)] = target_text[:text_len]
+                    cur_target_text[text_end_step] = self.text_processor.eos_id
+                return cur_target_text
+
+            cur_target_text = get_text_from_segments(cut.agent_segments, total_steps)
+            cur_source_text = get_text_from_segments(cut.user_segments, total_steps)
+            new_target_texts.append(cur_target_text)
+            new_source_texts.append(cur_source_text)
+
+        target_texts_merge, target_text_lengths = collate_and_pad(new_target_texts)
+        source_texts_merge, source_text_lengths = collate_and_pad(new_source_texts)
+        assert target_texts_merge.shape[0] == len(num_turns)
+
+        # note: the codec id in labels and contexts and others do not consider the offset e.g. speech_eos is 1002
+        # the offset is all considered by SumVocabParallelEmbedding
+        return_batch = {
+            "sample_ids": list(cuts.ids),
+            "audio_signal": audio,
+            "audio_signal_length": audio_lens,
+            "metadata": metadata,
+            # For forward
+            "instructions": None,
+            "tokens": target_texts_merge,  # used in _reconfigure_and_process_inference_batch
+            "target_texts_merge": target_texts_merge,  # used in prepare_llm_input
+            "source_texts_merge": source_texts_merge,  # used in prepare_llm_input
+            "contexts": target_texts_merge[:, :1],  # used in inference
+            "context_lengths": torch.ones_like(target_text_lengths),
+            "target_texts": target_texts_merge,
+            "target_text_lengths": target_text_lengths,
+            "source_text_lengths": source_text_lengths,
+            "answers": target_texts_merge,
+            "answer_audio": answer_audios,
+            "answer_audio_lens": answer_audio_lens,
+            "num_turns": torch.Tensor(num_turns).long(),
+        }
+
+        return return_batch
+
     def __getitem__(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         import re
 
         # full-duplex data goes here
         if getattr(cuts[0], "s2s_duplex", False) or getattr(cuts[0], "s2s_duplex_align", False):
             return self.__getitem__duplex_(cuts)
+        if getattr(cuts[0], "s2s_duplex_overlap", False):
+            return self.__getitem__duplex_overlap_(cuts)
 
         '''
         # half-duplex single turn s2s data and multi turn s2s data go here
