@@ -132,7 +132,7 @@ class BatchedBeamHyps:
         self.next_timestep.copy_(self.current_lengths_wb - self.current_lengths_nb)
         self.last_timestep_lasts = torch.where(
             extended_with_blank,
-            torch.zeros_like(self.last_timestep_lasts),
+            0,
             torch.gather(self.last_timestep_lasts, dim=-1, index=hyps_indices) + extended_with_label,
         )
 
@@ -161,14 +161,14 @@ class BatchedBeamHyps:
         scores_matrix = torch.where(
             hyps_equal,
             self.scores[:, None, :].expand(self.batch_size, self.beam_size, self.beam_size),
-            torch.full_like(self.scores, fill_value=MINUS_INF)[:, :, None],
+            MINUS_INF,
         )
         scores_argmax = scores_matrix.argmax(-1, keepdim=False)
         scores_to_keep = (
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
         new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
-        torch.where(scores_to_keep, new_scores, torch.full_like(new_scores, fill_value=MINUS_INF), out=self.scores)
+        torch.where(scores_to_keep, new_scores, torch.tensor(MINUS_INF), out=self.scores)
 
     def recombine_prune_hyps(self, hyps_extenstions_probs, last_labels) -> torch.Tensor:
         if self.beam_size <= 1:
@@ -198,7 +198,7 @@ class BatchedBeamHyps:
             hyps_extenstions_probs[:, None, :].expand(
                 self.batch_size, self.beam_size * self.beam_size, self.beam_size * self.beam_size
             ),
-            torch.full_like(hyps_extenstions_probs, fill_value=MINUS_INF)[:, :, None],
+            MINUS_INF,
         )
         scores_argmax = scores_matrix.argmax(-1, keepdim=False)
         scores_to_keep = (
@@ -207,7 +207,7 @@ class BatchedBeamHyps:
         scores_to_copy = (hyps_equal.sum(-1) == 1) | torch.isinf(hyps_extenstions_probs)
         new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
         # assert (~torch.isnan(new_scores)).all()
-        scores = torch.where(scores_to_keep, new_scores, torch.full_like(new_scores, fill_value=MINUS_INF))
+        scores = torch.where(scores_to_keep, new_scores, MINUS_INF)
         scores = torch.where(scores_to_copy, hyps_extenstions_probs, scores)
         return scores.view(self.batch_size, self.beam_size, self.beam_size)
 
@@ -391,7 +391,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                     labels_top_k = labels_with_lm_nb_top_k
                     labels_top_k[..., -1] = torch.where(
                         (labels_top_k_no_lm == self._blank_index).any(dim=-1),
-                        torch.full_like(labels_top_k[..., -1], fill_value=self._blank_index),
+                        self._blank_index,
                         labels_top_k[..., -1],
                     )
                     log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
@@ -461,16 +461,14 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             hyps_candidates_prob = torch.where(
                 active_mask.unsqueeze(-1),
                 hyps_candidates_prob,
-                torch.full_like(hyps_candidates_prob, fill_value=MINUS_INF),
+                MINUS_INF,
             )
             hyps_candidates_prob[..., 0] = torch.where(
                 active_mask,
                 hyps_candidates_prob[..., 0],
                 hyps_scores,
             )
-            labels_top_k = torch.where(
-                active_mask.unsqueeze(-1), labels_top_k, torch.full_like(labels_top_k, fill_value=-1)
-            )
+            labels_top_k = torch.where(active_mask.unsqueeze(-1), labels_top_k, -1)
 
             # step 2.3: force blank extension with respect to self.max_symbols
             if self.max_symbols is not None:
@@ -478,17 +476,13 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             else:
                 force_blank = torch.full_like(active_mask, fill_value=False)
             # mask all extensions with -inf
-            hyps_candidates_prob = torch.where(
-                force_blank.unsqueeze(-1),
-                torch.full_like(hyps_candidates_prob, fill_value=MINUS_INF),
-                hyps_candidates_prob,
-            )
+            hyps_candidates_prob = torch.where(force_blank.unsqueeze(-1), MINUS_INF, hyps_candidates_prob)
             # first element in beam - score for hyp with forced blank
             hyps_candidates_prob[..., 0] = torch.where(
                 force_blank, hyps_candidates_prob_forced_blank, hyps_candidates_prob[..., 0]
             )
             labels_top_k = torch.where(
-                force_blank.unsqueeze(-1), torch.full_like(labels_top_k, fill_value=self._blank_index), labels_top_k
+                force_blank.unsqueeze(-1), self._blank_index, labels_top_k
             )
 
             # step 2.4: prune and recombine hyps
@@ -515,7 +509,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
 
             # step 4: update decoder state + decoder output (+ lm state/scores)
             last_labels_wb = torch.where(
-                next_labels >= 0, next_labels, torch.full_like(next_labels, fill_value=self._blank_index)
+                next_labels >= 0, next_labels, self._blank_index
             )
             preserve_state = last_labels_wb == self._blank_index
 
@@ -572,7 +566,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                     batch_lm_states.view(batch_size, self.beam_size), dim=1, index=hyps_indices
                 )
                 last_labels_wb_blank_replaced = torch.where(
-                    preserve_state, torch.zeros_like(last_labels_wb), last_labels_wb
+                    preserve_state, 0, last_labels_wb
                 )
 
                 batch_lm_states = torch.gather(
