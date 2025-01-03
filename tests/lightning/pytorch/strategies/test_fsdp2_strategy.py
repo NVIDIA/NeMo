@@ -17,8 +17,8 @@ from unittest.mock import patch
 from nemo.lightning.pytorch.strategies import FSDP2Strategy
 
 
-class TestMegatronStrategy:
-    @patch('nemo.lightning.pytorch.strategies.megatron_strategy.create_checkpoint_io')
+class TestFSDP2Strategy:
+    @patch('nemo.lightning.pytorch.strategies.fsdp2_strategy.create_checkpoint_io')
     def test_checkpoint_io(self, mock_create_checkpoint_io):
         class Dummy: ...
 
