@@ -77,6 +77,7 @@ def bert_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch
 @dataclass
 class BertEmbeddingConfig(BertConfig):
     """Bert Embedding Config"""
+
     bert_type: str = 'huggingface'
     ce_loss_scale: float = 20
     label_smoothing: float = 0.0
@@ -178,6 +179,7 @@ class BertEmbeddingImporter(HuggingFaceBertImporter):
     Importer for BertEmbedding Model.
     HuggingFace uses same model for Bert Embedding model and Bert model, thus the connector is identical.
     """
+
     def __init__(self, *args, **kwargs):
         if sys.version_info > (3, 11):
             # In Python versions <= 3.11, *Path classes don’t have a __init__ method,
