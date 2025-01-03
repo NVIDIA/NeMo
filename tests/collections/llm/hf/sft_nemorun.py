@@ -56,9 +56,8 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='meta-llama/Llama-3.1-8B')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
-    parser.add_argument('--devices', default=2)
+    parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
+    parser.add_argument('--devices', default=8)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--max-steps', type=int, default=1000)
     args = parser.parse_args()
@@ -82,7 +81,7 @@ if __name__ == '__main__':
         tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),
     )
 
-    recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=4, tensor_parallel_size=2)
+    recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=8, tensor_parallel_size=1)
     recipe.trainer.plugins = None
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
     run.run(recipe, executor=executor)

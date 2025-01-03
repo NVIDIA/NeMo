@@ -192,61 +192,7 @@ def parallelize(model, device_mesh: DeviceMesh):
     dp_mesh = device_mesh["data_parallel"]
     tp_mesh = device_mesh["tensor_parallel"]
 
-    print(model)
-
-    if tp_mesh.size() > 1:
-        # 1. Parallelize the first embedding and the last linear proj layer
-        # 2. Parallelize the root norm layer over the sequence dim
-        # 3. Shard the first transformer block's inputs
-
-        # Parallelize the first embedding and the last linear out projection
-        plan = {
-            "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
-            "lm_head": ColwiseParallel(
-                input_layouts=Shard(1),
-                # Optional: Shard the output along the class dimension to compute the loss in parallel.
-                # See `loss_parallel` in `train.py`
-                output_layouts=Shard(-1),
-                use_local_output=False,
-            ),
-            "model.norm": SequenceParallel(),
-            "model.layers.0": PrepareModuleInput(
-                input_layouts=(Replicate()),
-                desired_input_layouts=(Shard(1)),
-                use_local_output=True,
-            ),
-        }
-        model = parallelize_module(model, tp_mesh, plan)
-
-        # Parallelize each transformer block
-        for transformer_block in model.model.layers:
-            plan = {
-                "self_attn": PrepareModuleInput(
-                    input_layouts=(Shard(1)),
-                    desired_input_layouts=(Replicate()),
-                ),
-                "self_attn.q_proj": ColwiseParallel(),
-                "self_attn.k_proj": ColwiseParallel(),
-                "self_attn.v_proj": ColwiseParallel(),
-                "self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
-                "mlp": PrepareModuleInput(
-                    input_layouts=Shard(1),
-                    desired_input_layouts=Replicate(),
-                ),
-                "mlp.gate_proj": ColwiseParallel(),
-                "mlp.up_proj": ColwiseParallel(),
-                "mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
-                "input_layernorm": SequenceParallel(),
-                "post_attention_layernorm": SequenceParallel(),
-            }
-
-            # Adjust attention module to use the local number of heads
-            attn_layer = transformer_block.self_attn
-            attn_layer.num_heads = attn_layer.num_heads // tp_mesh.size()
-            attn_layer.num_key_value_heads = attn_layer.num_key_value_heads // tp_mesh.size()
-
-            # Apply the plan for the current transformer block
-            parallelize_module(transformer_block, tp_mesh, plan)
+    assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
 
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
