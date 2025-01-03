@@ -21,239 +21,8 @@ from omegaconf import DictConfig
 from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
+from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import BlankLMScoreMode, BatchedBeamHyps, PruningMode
 from nemo.utils import logging
-from nemo.utils.enum import PrettyStrEnum
-
-MINUS_INF = -float("inf")
-
-# https://stackoverflow.com/a/77213071
-MULTIPLIER = 6364136223846793005
-INCREMENT = 1
-# INCREMENT = 1442695040888963407
-MODULUS = 2**64
-
-
-def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor:
-    return prev_hash * MULTIPLIER + INCREMENT + add_labels
-
-
-class BatchedBeamHyps:
-    """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
-
-    def __init__(
-        self,
-        batch_size: int,
-        init_length: int,
-        beam_size: int,
-        blank_index: int,
-        device: Optional[torch.device] = None,
-        float_dtype: Optional[torch.dtype] = None,
-    ):
-        self._max_length = init_length
-        self.beam_size = beam_size
-        self.blank_index = blank_index
-        self.batch_size = batch_size
-
-        self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
-        self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
-        self.transcript_wb = torch.zeros(
-            (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
-        )
-        self.transcript_wb_prev_ptr = torch.full(
-            (batch_size, self.beam_size, self._max_length), fill_value=-1, device=device, dtype=torch.long
-        )
-        self.transcript_hash = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
-        self.last_label = torch.full([batch_size, self.beam_size], fill_value=-1, device=device, dtype=torch.long)
-        self.timesteps = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
-        # TODO: separate lm scores (is this necessary?)
-        self.scores = torch.zeros([batch_size, self.beam_size], device=device, dtype=float_dtype)
-        self.scores.fill_(MINUS_INF)
-        self.scores[:, 0].fill_(0.0)
-
-        self.next_timestep = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
-        self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
-
-    def clear_(self):
-        self.current_lengths_nb.fill_(0)
-        self.current_lengths_wb.fill_(0)
-        self.transcript_wb.fill_(0)
-        self.transcript_wb_prev_ptr.fill_(-1)
-        self.transcript_hash.fill_(0)
-        self.last_label.fill_(-1)
-        self.timesteps.fill_(0)
-        self.scores.fill_(MINUS_INF)
-        self.scores[:, 0].fill_(0.0)
-        self.next_timestep.fill_(0)
-        self.last_timestep_lasts.fill_(0)
-
-    def _allocate_more(self):
-        self.transcript_wb = torch.cat((self.transcript_wb, torch.zeros_like(self.transcript_wb)), dim=-1)
-        self.transcript_wb_prev_ptr = torch.cat(
-            (self.transcript_wb_prev_ptr, torch.zeros_like(self.transcript_wb_prev_ptr)), dim=-1
-        )
-        self.timesteps = torch.cat((self.timesteps, torch.zeros_like(self.timesteps)), dim=-1)
-        self._max_length *= 2
-
-    def add_results_(
-        self,
-        hyps_indices,
-        next_labels,
-        next_hyps_prob,
-    ):
-        if (self.current_lengths_wb + 1).max() >= self._max_length:
-            self._allocate_more()
-        self.add_results_no_checks_(
-            hyps_indices=hyps_indices,
-            next_labels=next_labels,
-            next_hyps_prob=next_hyps_prob,
-        )
-
-    def add_results_no_checks_(
-        self,
-        hyps_indices,
-        next_labels,
-        next_hyps_prob,
-    ):
-        # TODO: timesteps
-        self.scores.copy_(next_hyps_prob)
-        self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
-        self.transcript_wb_prev_ptr.scatter_(
-            dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1)
-        )
-        # self.transcript.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
-        # self.transcript_prev_ptr.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1))
-        self.current_lengths_wb += 1
-        extended_with_blank = next_labels == self.blank_index
-        extended_with_label = (~extended_with_blank) & (next_labels >= 0)
-        self.current_lengths_nb = (
-            torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
-        )
-        # self.next_timestep = torch.gather(self.next_timestep, dim=-1, index=hyps_indices) + 1 - extended_with_label
-        self.next_timestep.copy_(self.current_lengths_wb - self.current_lengths_nb)
-        self.last_timestep_lasts = torch.where(
-            extended_with_blank,
-            0,
-            torch.gather(self.last_timestep_lasts, dim=-1, index=hyps_indices) + extended_with_label,
-        )
-
-        # track last label
-        torch.where(
-            extended_with_label,
-            next_labels,
-            torch.gather(self.last_label, dim=-1, index=hyps_indices),
-            out=self.last_label,
-        )
-
-        prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
-        new_transcript_hash = hash_text(prev_transcript_hash, next_labels)
-        torch.where(extended_with_label, new_transcript_hash, prev_transcript_hash, out=self.transcript_hash)
-
-    def self_recombine_hyps_(self):
-        if self.beam_size <= 1:
-            return
-        # TODO: separate lm scores
-        hyps_equal = (
-            (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :])
-            & (self.last_label[:, :, None] == self.last_label[:, None, :])
-            & (self.current_lengths_nb[:, :, None] == self.current_lengths_nb[:, None, :])
-        )
-
-        scores_matrix = torch.where(
-            hyps_equal,
-            self.scores[:, None, :].expand(self.batch_size, self.beam_size, self.beam_size),
-            MINUS_INF,
-        )
-        scores_argmax = scores_matrix.argmax(-1, keepdim=False)
-        scores_to_keep = (
-            torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
-        )
-        new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
-        torch.where(scores_to_keep, new_scores, torch.tensor(MINUS_INF), out=self.scores)
-
-    def recombine_prune_hyps(self, hyps_extenstions_probs, last_labels) -> torch.Tensor:
-        if self.beam_size <= 1:
-            return hyps_extenstions_probs
-        device = hyps_extenstions_probs.device
-        extended_with_symbol = (last_labels != self.blank_index) & (last_labels >= 0)
-        current_lengths_nb = (self.current_lengths_nb.unsqueeze(-1) + extended_with_symbol).view(
-            self.batch_size, self.beam_size * self.beam_size
-        )
-        prev_hash = self.transcript_hash.unsqueeze(-1).expand_as(last_labels)
-        transcript_hash = hash_text(prev_hash, last_labels)
-        transcript_hash = torch.where(extended_with_symbol, transcript_hash, prev_hash).view(
-            self.batch_size, self.beam_size * self.beam_size
-        )
-
-        hyps_extenstions_probs = hyps_extenstions_probs.view(self.batch_size, self.beam_size * self.beam_size)
-        last_labels = last_labels.view(self.batch_size, self.beam_size * self.beam_size)
-        # TODO: separate lm scores?
-        hyps_equal = (
-            (transcript_hash[:, :, None] == transcript_hash[:, None, :])
-            & (last_labels[:, :, None] == last_labels[:, None, :])
-            & (current_lengths_nb[:, :, None] == current_lengths_nb[:, None, :])
-        )
-
-        scores_matrix = torch.where(
-            hyps_equal,
-            hyps_extenstions_probs[:, None, :].expand(
-                self.batch_size, self.beam_size * self.beam_size, self.beam_size * self.beam_size
-            ),
-            MINUS_INF,
-        )
-        scores_argmax = scores_matrix.argmax(-1, keepdim=False)
-        scores_to_keep = (
-            torch.arange(self.beam_size * self.beam_size, device=device, dtype=torch.long)[None, :] == scores_argmax
-        )
-        scores_to_copy = (hyps_equal.sum(-1) == 1) | torch.isinf(hyps_extenstions_probs)
-        new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
-        # assert (~torch.isnan(new_scores)).all()
-        scores = torch.where(scores_to_keep, new_scores, MINUS_INF)
-        scores = torch.where(scores_to_copy, hyps_extenstions_probs, scores)
-        return scores.view(self.batch_size, self.beam_size, self.beam_size)
-
-    def to_hyps_list(self, score_norm: bool = True) -> list[rnnt_utils.Hypothesis]:
-        transcript = self.transcript_wb.tolist()
-        transcript_wb_prev_ptr = self.transcript_wb_prev_ptr.tolist()
-        if score_norm:
-            end_indices = torch.argmax(self.scores / self.current_lengths_nb.to(self.scores.dtype), dim=-1).tolist()
-        else:
-            end_indices = torch.argmax(self.scores, dim=-1).tolist()
-        scores = self.scores.tolist()
-        batch_size = self.scores.shape[0]
-        hyp_length = self.current_lengths_wb[0, 0].cpu().item()
-        # TODO: faster parallel aggregation
-        # TODO: timesteps
-        hypotheses: list[rnnt_utils.Hypothesis] = []
-        for batch_i in range(batch_size):
-            cur_transcript = []
-            cur_index = end_indices[batch_i]
-            # hyp_length = self.last_timestep[i, cur_index]
-            for j in range(hyp_length - 1, -1, -1):
-                token = transcript[batch_i][cur_index][j]
-                if token > 0 and token != self.blank_index:
-                    cur_transcript.append(token)
-                cur_index = transcript_wb_prev_ptr[batch_i][cur_index][j]
-            hypotheses.append(
-                rnnt_utils.Hypothesis(
-                    score=scores[batch_i][end_indices[batch_i]],
-                    y_sequence=cur_transcript[::-1],
-                    timestep=[],
-                    alignments=None,
-                    dec_state=None,
-                )
-            )
-        return hypotheses
-
-
-class BlankLMScoreMode(PrettyStrEnum):
-    NO_SCORE = "no_score"
-    PRESERVE_BLANK = "preserve_blank"
-    LM_WEIGHTED = "lm_weighted"
-    LM_WEIGHTED_FULL = "lm_weighted_full"
-    LM_WEIGHTED_FULL_FIXED_BLANK = "lm_weighted_full_fixed_blank"
-    LM_MAX = "lm_max"
-    LM_TOP_MAX = "lm_top_max"
-
 
 class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
     """
@@ -273,9 +42,9 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
+        pruning_mode: Optional[str | PruningMode] = None,
         allow_recombine_hyps: bool = True,
         score_norm: bool = True,
-        # score_norm_selection: bool = False,
     ):
         super().__init__()
         self.decoder = decoder
@@ -289,24 +58,29 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         self.score_norm = score_norm
-        # self.score_norm_selection = score_norm_selection
-        # if score_norm_selection:
-        #     raise NotImplementedError
+        
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
-
+        assert not self.preserve_alignments
+        assert not self.preserve_frame_confidence
+        
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             self.ngram_lm_batch = FastNGramLM.from_arpa(lm_path=ngram_lm_model, vocab_size=self._blank_index)
-            if blank_lm_score_mode is None:
-                self.blank_lm_score_mode = BlankLMScoreMode.LM_WEIGHTED_FULL
-            else:
-                self.blank_lm_score_mode = BlankLMScoreMode(blank_lm_score_mode)
+            
+            self.pruning_mode = (
+                PruningMode.EARLY
+                if pruning_mode is None
+                else PruningMode(pruning_mode)
+            )
+            self.blank_lm_score_mode = (
+                BlankLMScoreMode.LM_WEIGHTED_FULL
+                if blank_lm_score_mode is None 
+                else BlankLMScoreMode(blank_lm_score_mode)
+            )
         else:
             self.ngram_lm_batch = None
             self.blank_lm_score_mode = None
         self.ngram_lm_alpha = ngram_lm_alpha
-        assert not self.preserve_alignments
-        assert not self.preserve_frame_confidence
 
     def modified_alsd_beam_torch(
         self,
@@ -315,9 +89,6 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
     ) -> list[rnnt_utils.Hypothesis]:
         batch_size, max_time, vocab_size = encoder_output.shape
         device = encoder_output.device
-        # TODO: better way?
-        if self.ngram_lm_batch is not None:
-            self.ngram_lm_batch.to(device)
 
         # do not recalculate joint projection, project only once
         encoder_output_projected = self.joint.project_encoder(encoder_output)
@@ -349,6 +120,8 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         active_mask = time_indices <= last_timesteps
 
         if self.ngram_lm_batch is not None:
+            self.ngram_lm_batch.to(device)
+            
             batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)  # vocab_size_no_blank
             lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
@@ -375,72 +148,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             )
             log_probs = F.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
             if self.ngram_lm_batch is not None:
-                if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
-                    log_probs[..., :-1] += lm_scores
-                    log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.PRESERVE_BLANK:
-                    _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
-                    log_probs[..., :-1] += lm_scores
-                    _, labels_with_lm_nb_top_k = torch.topk(
-                        log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                    # [(BxBeam), beam]
-                    # if blank was in labels_top_k -> add blank (last in beam)
-                    labels_top_k = labels_with_lm_nb_top_k
-                    labels_top_k[..., -1] = torch.where(
-                        (labels_top_k_no_lm == self._blank_index).any(dim=-1),
-                        self._blank_index,
-                        labels_top_k[..., -1],
-                    )
-                    log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
-                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED:
-                    log_probs[..., :-1] += lm_scores
-                    log_probs[..., -1] *= 1 + self.ngram_lm_alpha
-                    log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
-                    blank_logprob = log_probs[..., -1]
-                    non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
-                    # assert (abs(torch.exp(blank_logprob) + torch.exp(non_blank_logprob) - 1.0) < 1e-5).all()
-                    log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
-                    log_probs[..., -1] *= 1 + self.ngram_lm_alpha
-                    log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL_FIXED_BLANK:
-                    blank_logprob = log_probs[..., -1]
-                    non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
-                    log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) + lm_scores
-                    # blank prob - the same
-                    log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_MAX:
-                    log_probs[..., :-1] += lm_scores
-                    log_probs[..., -1] += lm_scores.max(dim=-1, keepdim=False).values
-                    log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                elif self.blank_lm_score_mode is BlankLMScoreMode.LM_TOP_MAX:
-                    log_probs[..., :-1] += lm_scores
-                    _, labels_with_lm_nb_top_k = torch.topk(
-                        log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                    # [(BxBeam), beam]
-                    lm_only_scores = torch.gather(
-                        lm_scores,
-                        dim=-1,
-                        index=labels_with_lm_nb_top_k,
-                    )
-                    log_probs[..., -1] += lm_only_scores.max(dim=-1, keepdim=False).values
-                    log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                else:
-                    raise NotImplementedError
+                log_probs_top_k, labels_top_k = self.topk_lm(lm_scores, log_probs)
             else:
                 log_probs_top_k, labels_top_k = torch.topk(
                     log_probs, self.beam_size, dim=-1, largest=True, sorted=True
@@ -461,7 +169,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             hyps_candidates_prob = torch.where(
                 active_mask.unsqueeze(-1),
                 hyps_candidates_prob,
-                MINUS_INF,
+                batched_hyps.INACTIVE_SCORE,
             )
             hyps_candidates_prob[..., 0] = torch.where(
                 active_mask,
@@ -476,7 +184,11 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             else:
                 force_blank = torch.full_like(active_mask, fill_value=False)
             # mask all extensions with -inf
-            hyps_candidates_prob = torch.where(force_blank.unsqueeze(-1), MINUS_INF, hyps_candidates_prob)
+            hyps_candidates_prob = torch.where(
+                force_blank.unsqueeze(-1),
+                batched_hyps.INACTIVE_SCORE,
+                hyps_candidates_prob
+            )
             # first element in beam - score for hyp with forced blank
             hyps_candidates_prob[..., 0] = torch.where(
                 force_blank, hyps_candidates_prob_forced_blank, hyps_candidates_prob[..., 0]
@@ -485,11 +197,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 force_blank.unsqueeze(-1), self._blank_index, labels_top_k
             )
 
-            # step 2.4: prune and recombine hyps
-            # if self.allow_recombine_hyps:
-            #     hyps_candidates_prob = batched_hyps.recombine_prune_hyps(hyps_candidates_prob, labels_top_k)
-
-            # step 2.5: final pruning - get top-k from (top-k x top-k) hyps
+            # step 2.4: final pruning - get top-k from (top-k x top-k) hyps
             hyps_indices = torch.arange(self.beam_size, dtype=torch.long, device=device)[None, :, None].expand(
                 batch_size, -1, self.beam_size
             )
@@ -520,6 +228,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 dim=1,
                 index=hyps_indices[:, :, None, None].expand(batch_size, self.beam_size, 1, decoder_output.shape[-1]),
             ).view(batch_size * self.beam_size, 1, -1)
+            
             # TODO: move state aggregation to decoder + support stateless decoder:
             #  self.decoder.batch_aggregate_states_beam(...)
             # state: tuple, each is of [Layers, (BxBeam), Dim]
@@ -586,6 +295,80 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             # torch.cuda.set_sync_debug_mode(0)
 
         return batched_hyps.to_hyps_list(score_norm=self.score_norm)
+
+    def topk_lm(self, lm_scores, log_probs):
+        if self.pruning_mode is PruningMode.LATE:
+            if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
+                log_probs[..., :-1] += lm_scores
+                log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+            elif self.blank_lm_score_mode is BlankLMScoreMode.PRESERVE_BLANK:
+                _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
+                log_probs[..., :-1] += lm_scores
+                _, labels_with_lm_nb_top_k = torch.topk(
+                        log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+                    # [(BxBeam), beam]
+                    # if blank was in labels_top_k -> add blank (last in beam)
+                labels_top_k = labels_with_lm_nb_top_k
+                labels_top_k[..., -1] = torch.where(
+                        (labels_top_k_no_lm == self._blank_index).any(dim=-1),
+                        self._blank_index,
+                        labels_top_k[..., -1],
+                    )
+                log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
+            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED:
+                log_probs[..., :-1] += lm_scores
+                log_probs[..., -1] *= 1 + self.ngram_lm_alpha
+                log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
+                blank_logprob = log_probs[..., -1]
+                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
+                log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
+                log_probs[..., -1] *= 1 + self.ngram_lm_alpha
+                log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL_FIXED_BLANK:
+                blank_logprob = log_probs[..., -1]
+                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
+                log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) + lm_scores # blank prob - the same
+                log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_MAX:
+                log_probs[..., :-1] += lm_scores
+                log_probs[..., -1] += lm_scores.max(dim=-1, keepdim=False).values
+                log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_TOP_MAX:
+                log_probs[..., :-1] += lm_scores
+                _, labels_with_lm_nb_top_k = torch.topk(
+                        log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+                    # [(BxBeam), beam]
+                lm_only_scores = torch.gather(
+                        lm_scores,
+                        dim=-1,
+                        index=labels_with_lm_nb_top_k,
+                    )
+                log_probs[..., -1] += lm_only_scores.max(dim=-1, keepdim=False).values
+                log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+            else:
+                raise NotImplementedError(
+                        f"The combination of blank scoring mode '{self.blank_lm_score_mode}' "
+                        f"and pruning mode '{self.pruning_mode}' is not implemented."
+                )
+        else:
+            raise NotImplementedError(f"Pruning mode {self.pruning_mode} is not implemented.")
+            
+        return log_probs_top_k, labels_top_k
 
     def __call__(
         self,

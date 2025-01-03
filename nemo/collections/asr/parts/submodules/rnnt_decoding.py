@@ -493,6 +493,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                 blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                pruning_mode=self.cfg.beam.get('pruning_mode', None),
                 score_norm=self.cfg.beam.get('score_norm', True),
             )
         else:
