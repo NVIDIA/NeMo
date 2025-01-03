@@ -16,27 +16,43 @@ from unittest.mock import patch
 
 from nemo.lightning.pytorch.strategies import FSDP2Strategy
 
+def get_torch_version():
+    """Get pytorch version from __version__; if not available use pip's. Use caching."""
 
-class TestFSDP2Strategy:
-    @patch('nemo.lightning.pytorch.strategies.fsdp2_strategy.create_checkpoint_io')
-    def test_checkpoint_io(self, mock_create_checkpoint_io):
-        class Dummy: ...
+    def get_torch_version_str():
+        import torch
 
-        mock_create_checkpoint_io.side_effect = lambda *args, **kwargs: Dummy()
-        strategy = FSDP2Strategy()
+        if hasattr(torch, '__version__'):
+            return str(torch.__version__)
+        else:
+            return version("torch")
 
-        first_io = strategy.checkpoint_io
-        mock_create_checkpoint_io.assert_called_once()
+    global _torch_version
+    if _torch_version is None:
+        _torch_version = PkgVersion(get_torch_version_str())
+    return _torch_version
 
-        assert first_io == strategy.checkpoint_io
+if get_torch_version() >= PkgVersion("2.4"):
+    class TestFSDP2Strategy:
+        @patch('nemo.lightning.pytorch.strategies.fsdp2_strategy.create_checkpoint_io')
+        def test_checkpoint_io(self, mock_create_checkpoint_io):
+            class Dummy: ...
 
-        new_io = object()
-        strategy.checkpoint_io = new_io
-        assert new_io == strategy.checkpoint_io
+            mock_create_checkpoint_io.side_effect = lambda *args, **kwargs: Dummy()
+            strategy = FSDP2Strategy()
 
-        strategy2 = FSDP2Strategy()
-        second_io = strategy2.checkpoint_io
-        mock_create_checkpoint_io.assert_called()
+            first_io = strategy.checkpoint_io
+            mock_create_checkpoint_io.assert_called_once()
 
-        assert first_io != second_io
-        assert second_io == strategy2.checkpoint_io
+            assert first_io == strategy.checkpoint_io
+
+            new_io = object()
+            strategy.checkpoint_io = new_io
+            assert new_io == strategy.checkpoint_io
+
+            strategy2 = FSDP2Strategy()
+            second_io = strategy2.checkpoint_io
+            mock_create_checkpoint_io.assert_called()
+
+            assert first_io != second_io
+            assert second_io == strategy2.checkpoint_io
