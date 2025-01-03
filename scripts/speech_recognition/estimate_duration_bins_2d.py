@@ -15,6 +15,7 @@
 import argparse
 import ast
 import math
+import warnings
 from functools import partial
 from itertools import islice
 from pathlib import Path
@@ -25,16 +26,17 @@ import pandas as pd
 from lhotse.cut import Cut
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
+from nemo.collections.common.data import apply_prompt_format_fn
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
 from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig, tokenize
-from nemo.collections.common.data.lhotse.sampling import (
-    DurationFilter,
-    FixedBucketBatchSizeConstraint2D,
-    TokenPerSecondFilter,
-)
+from nemo.collections.common.data.lhotse.sampling import DurationFilter, FixedBucketBatchSizeConstraint2D
 from nemo.collections.common.prompts.formatter import PromptFormatter
-from nemo.collections.common.tokenizers import AggregateTokenizer, SentencePieceTokenizer
+from nemo.collections.common.tokenizers import (
+    AggregateTokenizer,
+    CanaryTokenizer,
+    SentencePieceTokenizer,
+    TokenizerSpec,
+)
 
 
 def parse_args():
@@ -107,11 +109,7 @@ def parse_args():
         help="If specified, we'll filter out utterances longer than this.",
     )
     parser.add_argument(
-        "--max_tps",
-        type=float,
-        default=float("inf"),
-        help="If specified, we'll filter out utterances with more tokens/second than this. "
-        "On regular utterances and BPE tokenizers with 1024 tokens 10-12tps is generally a reasonable limit.",
+        "--max_tps", type=float, default=None, help="Deprecated. TPS is automatically determined per bucket."
     )
     parser.add_argument(
         "-q", "--quiet", type=bool, default=False, help="When specified, only print the estimated duration bins."
@@ -170,17 +168,9 @@ def estimate_duration_buckets(
 
     if not quiet:
         print("Duration distribution:")
-        print(pd.Series(sizes).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
+        print(pd.Series(sizes).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.995, 0.999]))
     if math.isinf(max_duration):
         max_duration = sizes[-1]
-
-    tps = num_tokens / sizes
-    if not quiet:
-        print("Token per second distribution:")
-        print(pd.Series(tps).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
-    if math.isinf(max_tps):
-        max_tps = tps.max()
-    del tps
 
     bins = []
     bin_indexes = [0]
@@ -193,8 +183,20 @@ def estimate_duration_buckets(
         # Note that this estimation is biased towards more padding if you have
         # a lot of zero-token examples (e.g. non-speech).
         nonlocal bins
+
+        # Start by discarding outlier examples as defined by token-per-second (TPS) attribute.
+        # We empirically determined high TPS examples to cause severe OOMs limiting batch sizes.
+        # We cap the TPS for each top-level bucket at 4 standard deviations of TPS.
+        # Examples exceeding that TPS value will be discarded during sampling at training time.
         num_tokens_bucket = num_tokens[bin_indexes[-1] : binidx]
+        non_outlier_indexes = find_non_outliers_z_score(num_tokens_bucket / sizes[bin_indexes[-1] : binidx])
+        num_tokens_bucket = num_tokens[non_outlier_indexes]
         num_tokens_bucket.sort()
+        if not quiet:
+            print(
+                f"[bucket <={max_bucket_duration}s] [{num_tokens_bucket.min()} - {num_tokens_bucket.max()}] Discarded {binidx - bin_indexes[-1] - len(num_tokens_bucket)} TPS outliers."
+            )
+
         tokens_per_subbucket = num_tokens_bucket.sum() / num_subbuckets
         tot_toks = 0
         # Iterate over token counts, and whenever we hit tokens_per_subbucket, create a new 2D bucket bin.
@@ -204,7 +206,7 @@ def estimate_duration_buckets(
                 bins.append((max_bucket_duration, num_toks))
                 tot_toks = 0
             tot_toks += num_toks
-        bins.append((size, math.ceil(size * max_tps)))
+        bins.append((size, num_toks))
 
     # Iterate over data, and whenever we hit size_per_bucket, create a new bucket bin.
     for binidx, size in enumerate(sizes):
@@ -220,28 +222,30 @@ def estimate_duration_buckets(
     return bins
 
 
-def load_tokenizer(paths: list[str], langs: list[str] = None) -> TokenizerWrapper:
+def find_non_outliers_z_score(data, threshold=4):
+    z_scores = np.abs((data - np.mean(data)) / np.std(data))
+    return np.where(z_scores <= threshold)
+
+
+def load_tokenizer(paths: list[str], langs: list[str] = None, is_canary: bool = True) -> TokenizerSpec:
     if len(paths) == 1:
         tok = SentencePieceTokenizer(paths[0])
     else:
         assert langs is not None and len(paths) == len(
             langs
         ), f"Cannot create AggregateTokenizer; each tokenizer must have assigned a language via --langs option (we got --tokenizers={paths} and --langs={langs})"
-        tok = AggregateTokenizer({lang: SentencePieceTokenizer(p) for lang, p in zip(langs, paths)})
-    return TokenizerWrapper(tok)
+        if is_canary:
+            tokcls = CanaryTokenizer
+        else:
+            tokcls = AggregateTokenizer
+        tok = tokcls({lang: SentencePieceTokenizer(p) for lang, p in zip(langs, paths)})
+    return tok
 
 
 def apply_tokenizer(cut, tokenizer=None, prompt: PromptFormatter = None):
     if prompt is not None:
-        turns = prompt.get_default_dialog_slots()
-        last_turn = {"role": prompt.OUTPUT_ROLE, "slots": prompt.get_slots(prompt.OUTPUT_ROLE)}
-        assert len(last_turn["slots"]) == 1  # TODO: not sure how to handle multi-slot for system output here
-        for key in last_turn["slots"]:
-            last_turn["slots"][key] = cut.supervisions[0].text
-        last_turn["slots"][prompt.PROMPT_LANGUAGE_SLOT] = cut.supervisions[0].language
-        turns.append(last_turn)
-        ans = prompt.encode_dialog(turns)
-        cut.supervisions[0].tokens = ans["input_ids"]
+        encoded = apply_prompt_format_fn(cut, prompt)
+        cut.supervisions[0].tokens = encoded["input_ids"]
 
     elif tokenizer is not None:
         cut = tokenize(cut, tokenizer)
@@ -274,15 +278,21 @@ def main():
     if not args.quiet:
         pd.set_option('display.float_format', lambda x: '%.2f' % x)
 
+    if args.max_tps is not None:
+        warnings.warn(
+            "The option --max_tps has been deprecated in favor of "
+            "automatic TPS determination that's variable across buckets."
+        )
+
     tokenizer = None
     prompt = None
     if args.tokenizer is not None:
-        tokenizer = load_tokenizer(args.tokenizer, args.langs)
+        tokenizer = load_tokenizer(args.tokenizer, args.langs, 'canary' in args.prompt_format)
         if args.prompt_format is not None:
             prompt_defaults = None
             if args.prompt is not None:
                 prompt_defaults = ast.literal_eval(args.prompt)
-            prompt = PromptFormatter.resolve(args.prompt_format)(tokenizer._tokenizer, defaults=prompt_defaults)
+            prompt = PromptFormatter.resolve(args.prompt_format)(tokenizer, defaults=prompt_defaults)
 
     if '=' in args.input:
         inp_arg = args.input
@@ -302,8 +312,6 @@ def main():
     duration_filter = RejectionsCounter(DurationFilter(args.min_duration, args.max_duration), "Duration filtering")
     cuts = cuts.filter(duration_filter)
     cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt))
-    tps_filter = RejectionsCounter(TokenPerSecondFilter(-1, args.max_tps), "Token per second filtering")
-    cuts = cuts.filter(tps_filter)
     if (N := args.num_examples) > 0:
         cuts = islice(cuts, N)
 
@@ -311,7 +319,6 @@ def main():
         cuts,
         num_buckets=args.buckets,
         num_subbuckets=args.sub_buckets,
-        max_tps=args.max_tps,
         max_duration=args.max_duration,
         quiet=args.quiet,
     )
@@ -320,7 +327,6 @@ def main():
         print(duration_bins)
         return
     duration_filter.print_report()
-    tps_filter.print_report()
     print("Use the following options in your config:")
     print(f"\tnum_buckets={args.buckets}")
     print(f"\tbucket_duration_bins={duration_bins}")

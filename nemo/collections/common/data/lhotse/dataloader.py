@@ -33,7 +33,7 @@ from lhotse.dataset import (
     make_worker_init_fn,
 )
 from lhotse.dataset.dataloading import resolve_seed
-from lhotse.dataset.sampling.base import CutSampler, TimeConstraint
+from lhotse.dataset.sampling.base import CutSampler, SamplingConstraint, TimeConstraint
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
@@ -44,6 +44,7 @@ from nemo.collections.common.data.lhotse.cutset import (
     read_cutset_from_config,
 )
 from nemo.collections.common.data.lhotse.sampling import (
+    BucketingFilter,
     DurationFilter,
     FixedBucketBatchSizeConstraint2D,
     MultimodalFixedBucketBatchSizeConstraint2D,
@@ -91,6 +92,7 @@ class LhotseDataLoadingConfig:
     bucket_duration_bins: Any = None  # list[float] | list[list[float]] | None = None
     bucket_buffer_size: int = 10000
     concurrent_bucketing: bool = True  # fetches data in a background thread
+    bucketing_2d_strict_mode: bool = True  # reduces padding by discarding significant outliers
     #   d. Other Lhotse sampling options.
     shuffle_buffer_size: int | None = 10000
     drop_last: bool = False
@@ -530,7 +532,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     # Select the strategy customizing Lhotse sampler behaviour.
     # Provides support for dynamic batch sizes, multimodal dataloading, 2D bucketing, etc.
     bucket_duration_bins = determine_bucket_duration_bins(config)
-    constraint = determine_sampling_constraint(bucket_duration_bins, config)
+    cuts, constraint = determine_sampling_constraint(cuts, bucket_duration_bins, config)
 
     # 3. The sampler.
     if config.use_bucketing:
@@ -608,12 +610,14 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     return sampler, use_iterable_dataset
 
 
-def determine_sampling_constraint(bucket_duration_bins, config):
+def determine_sampling_constraint(cuts: CutSet, bucket_duration_bins, config) -> tuple[CutSet, SamplingConstraint]:
     """
     Select an appropriate sampling strategy (constraint) for Lhotse samplers based on the configuration.
     Sampling constraint affects the batch size (static/dynamic) and bucketing behaviour (1D/2D).
     It is the appropriate customization point to introduce support of other modalities,
     as it defines a method for example sequence length measurement (audio duration, text tokens, etc.).
+
+    Some constraints apply extra filter on ``cuts`` which is why we accept and return the ``CutSet``.
 
     Lhotse's default is :class:`TimeConstraint` for regular audio data, other available options are
     multimodal constraints (joint text + audio) and their 2D bucketing extensions.
@@ -627,7 +631,9 @@ def determine_sampling_constraint(bucket_duration_bins, config):
                 max_seq_len_buckets=bucket_duration_bins,
                 batch_sizes=config.bucket_batch_size,
                 token_equivalent_duration=config.token_equivalent_duration,
+                strict_2d=config.bucketing_2d_strict_mode,
             )
+            cuts = cuts.filter(BucketingFilter(constraint))
         else:
             constraint = MultimodalSamplingConstraint(
                 token_equivalent_duration=config.token_equivalent_duration,
@@ -643,14 +649,16 @@ def determine_sampling_constraint(bucket_duration_bins, config):
             constraint = FixedBucketBatchSizeConstraint2D(
                 max_seq_len_buckets=bucket_duration_bins,
                 batch_sizes=config.bucket_batch_size,
+                strict_2d=config.bucketing_2d_strict_mode,
             )
+            cuts = cuts.filter(BucketingFilter(constraint))
         else:
             constraint = TimeConstraint(
                 max_cuts=config.batch_size,
                 max_duration=config.batch_duration,
                 quadratic_duration=config.quadratic_duration,
             )
-    return constraint
+    return cuts, constraint
 
 
 def determine_bucket_duration_bins(config):
