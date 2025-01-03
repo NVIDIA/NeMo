@@ -277,7 +277,9 @@ python scripts/t5tts/infer_and_evaluate.py \
 --datasets "vctk,libri_val" \
 --out_dir /datap/misc/Evals \
 --temperature 0.6 \
---topk 80
+--topk 80 \
+--use_cfg \
+--cfg_scale 1.8 ;
 ```
 
 Ignore the other params in the file, I also use this for evaluating ongoing experiments on the cluster by copying over the checkpoints and hparams..
