@@ -58,7 +58,8 @@ jobs:
 
           mv CHANGELOG.tmp.md CHANGELOG.md
 
-          cat CHANGELOG.md
+      - name: Inspect new changelog file
+        run: cat CHANGELOG.md
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
