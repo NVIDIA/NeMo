@@ -17,16 +17,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from torch.distributed._composable.fsdp.fully_shard import fully_shard
-from torch.distributed._tensor import Replicate, Shard
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
 from torch.distributed.device_mesh import DeviceMesh
-from torch.distributed.tensor.parallel import (
-    ColwiseParallel,
-    PrepareModuleInput,
-    RowwiseParallel,
-    SequenceParallel,
-    parallelize_module,
-)
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer

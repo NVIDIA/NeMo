@@ -22,6 +22,20 @@ from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
+import torch
+from torch.distributed._composable.fsdp import MixedPrecisionPolicy
+from torch.distributed._composable.fsdp.fully_shard import fully_shard
+from torch.distributed._tensor import Replicate, Shard
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
+from torch.distributed.device_mesh import DeviceMesh
+from torch.distributed.tensor.parallel import (
+    ColwiseParallel,
+    PrepareModuleInput,
+    RowwiseParallel,
+    SequenceParallel,
+    parallelize_module,
+)
+
 
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     # Env vars for jobs are configured here
@@ -43,7 +57,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
-    parser.add_argument('--devices', default=8)
+    parser.add_argument('--devices', default=2)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--max-steps', type=int, default=1000)
     args = parser.parse_args()
@@ -67,7 +81,7 @@ if __name__ == '__main__':
         tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),
     )
 
-    recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=8, tensor_parallel_size=1)
+    recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=1, tensor_parallel_size=2)
     recipe.trainer.plugins = None
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
     run.run(recipe, executor=executor)
