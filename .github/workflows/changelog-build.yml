@@ -19,7 +19,7 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release-branch }}
+          ref: main
           fetch-depth: 0
 
       - name: Build Changelog
@@ -69,4 +69,5 @@ jobs:
           title: "Update changelog for `${{ inputs.release-branch }}`"
           signoff: true
           sign-commits: true
+          base: ${{ inputs.release-branch }}
           branch: bot/chore/update-changelog-into-${{ inputs.release-branch }}
