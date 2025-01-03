@@ -3,8 +3,36 @@
 <!-- Next changelog -->
 ## NVIDIA Neural Modules 2.1.0
 
-### Detailed Changelogs:
+### Highlights
 
+- Training
+  - Fault Tolerance
+    - Straggler Detection
+    - Auto Relaunch
+- LLM & MM
+  - MM models
+    - Llava-next
+    - Llama 3.2
+  - Sequence Model Parallel for NeVa
+  - Enable Energon
+  - SigLIP (NeMo 1.0 only)
+  - LLM 2.0 migration
+    - Starcoder2
+    - Gemma 2
+    - T5
+    - Baichuan
+    - BERT
+    - Mamba
+    - ChatGLM
+  - DoRA support
+- Export
+  - Nemo 2.0 base model export path for NIM
+  - PTQ in Nemo 2.0
+- ASR
+  - Timestamps with TDT decoder
+  - Timestamps option with .transcribe()
+
+### Detailed Changelogs:
 
 #### ASR
 
@@ -372,6 +400,18 @@
 - r2.1.0 ptl fix by @pablo-garay :: PR: #11694
 
 </details>
+
+## NVIDIA Neural Modules 2.1.0rc2
+
+Prerelease: NVIDIA Neural Modules 2.1.0rc2 (2024-12-21)
+
+## NVIDIA Neural Modules 2.1.0rc1
+
+Prerelease: NVIDIA Neural Modules 2.1.0rc1 (2024-12-20)
+
+## NVIDIA Neural Modules 2.1.0rc0
+
+Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 
 ## NVIDIA Neural Modules 2.0.0rc1
 
