@@ -13,10 +13,12 @@
 # limitations under the License.
 
 from importlib.metadata import version
-from packaging.version import Version as PkgVersion
 from unittest.mock import patch
 
+from packaging.version import Version as PkgVersion
+
 from nemo.lightning.pytorch.strategies import FSDP2Strategy
+
 
 def get_torch_version_str():
     import torch
