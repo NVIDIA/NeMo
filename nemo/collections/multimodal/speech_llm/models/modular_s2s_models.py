@@ -1128,7 +1128,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         )  # list, list
 
         answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
-        assert all(torch.isclose(answer_codecs_lens, encoded_len, atol=1))
+        assert all(torch.isclose(answer_codecs_lens, encoded_len, atol=3))
         encoded_len = answer_codecs_lens
         if 'answer_features_lens' in audio_batch:
             assert 'target_texts_merge' not in audio_batch

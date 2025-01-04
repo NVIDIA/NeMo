@@ -243,10 +243,14 @@ model:
       - type: group
         tags:
           s2s_duplex_overlap: True
-        weight: 1.0
+        weight: 2.0
         input_cfg:
         - type: lhotse_shar
-          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/fisher/callhome_eng_LDC97S42.subset/
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/fisher/callfriend_eng_south2_LDC2020S08/
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/fisher/fisher_eng_p1_LDC2004S13/
+        - type: lhotse_shar
+          shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/fisher/fisher_eng_p2_LDC2005S13/
  
       - type: group
         weight: 0.00003
@@ -395,7 +399,7 @@ model:
             s2s_duplex: True
 
       - type: group
-        weight: 1.5
+        weight: 0.5
         input_cfg:
 
         - type: lhotse_shar
@@ -443,7 +447,7 @@ model:
             s2s_duplex: True
  
       - type: group
-        weight: 1.5
+        weight: 5.0
         input_cfg:
 
         - type: lhotse_shar
@@ -2174,7 +2178,7 @@ model:
               tags:
                 s2s_duplex: True
             - type: lhotse_shar
-              shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/fisher/callhome_eng_LDC97S42.subset/
+              shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/fisher/callhome_eng_LDC97S42/
               tags:
                 s2s_duplex_overlap: True
  
