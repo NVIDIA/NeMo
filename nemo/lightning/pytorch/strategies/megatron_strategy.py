@@ -935,7 +935,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
-            virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
+            pipeline_model_parallel_comm_backend=self.pipeline_model_parallel_comm_backend,virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
             microbatch_group_size_per_vp_stage=self.microbatch_group_size_per_vp_stage,
             context_parallel_size=self.context_parallel_size,
             sequence_parallel=self.sequence_parallel,
