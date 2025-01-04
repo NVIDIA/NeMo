@@ -95,7 +95,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             )
 
         # Apply FSDP2 and TP to the model
-        parallelize(self.model, device_mesh=self.device_mesh)
+        if hasattr(self, 'device_mesh'):
+            parallelize(self.model, device_mesh=self.device_mesh)
 
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
