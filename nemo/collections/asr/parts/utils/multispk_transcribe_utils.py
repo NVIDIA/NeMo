@@ -786,15 +786,29 @@ class SpeakerTaggedASR:
             Tuple[List[Hypothesis], List[Hypothesis]]: Tuple containing the updated transcriptions with speaker tags.
         """
         trans_hyp, nbest_hyp = transcriptions
-        for idx, hypothesis in enumerate(trans_hyp):
-            if speaker_transcriptions[idx] is not None:
-                trans_hyp[idx].text = speaker_transcriptions[idx]
+        for sess_idx, hypothesis in enumerate(trans_hyp):
+            if speaker_transcriptions[sess_idx] is not None:
+                trans_hyp[sess_idx].text = speaker_transcriptions[sess_idx]
             speaker_added_word_dicts = [] 
-            for trans_wdict in trans_hyp[0].timestep['word']:
-                diar_wdict = word_and_ts_seq[idx]['words'][idx]
-                trans_wdict['speaker'] = diar_wdict['speaker']
-                speaker_added_word_dicts.append(trans_wdict)
-            trans_hyp[idx].timestep['word'] = speaker_added_word_dicts
+            for word_idx, trans_wdict in enumerate(trans_hyp[0].timestep['word']):
+                trans_wdict_copy = deepcopy(trans_wdict)
+                trans_wdict_copy['speaker'] = word_and_ts_seq[sess_idx]['words'][word_idx]['speaker']
+                speaker_added_word_dicts.append(trans_wdict_copy)
+            trans_hyp[sess_idx].timestep['word'] = speaker_added_word_dicts
+            w_count = 0
+            segment_list = []
+            for word_idx, trans_segdict in enumerate(trans_hyp[0].timestep['segment']):
+                words = trans_segdict['segment'].split()
+                spk_vote_pool = []
+                for word in words:
+                    assert word.lower() == word_and_ts_seq[sess_idx]['words'][w_count]['word'].lower()
+                    spk_int = int(word_and_ts_seq[sess_idx]['words'][w_count]['speaker'].split('_')[-1])
+                    spk_vote_pool.append(spk_int)
+                    w_count += 1
+                trans_segdict['speaker'] = f"speaker_{torch.mode(torch.tensor(spk_vote_pool), dim=0).values.item()}"
+                segment_list.append(trans_segdict)
+            trans_hyp[sess_idx].timestep['segment'] = segment_list
+                
         transcriptions = (trans_hyp, trans_hyp)
         return transcriptions
         
