@@ -112,6 +112,7 @@ class ParallelismConfig:
     use_te_rng_tracker: bool = False
     expert_tensor_parallel_size: int = None
     use_tp_pp_dp_mapping: bool = False
+    pipeline_model_parallel_comm_backend: str = 'nccl'
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -203,6 +204,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self,
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
+        pipeline_model_parallel_comm_backend: str = 'nccl',
         virtual_pipeline_model_parallel_size: Optional[int] = None,
         microbatch_group_size_per_vp_stage: Optional[int] = None,
         context_parallel_size: int = 1,
@@ -254,6 +256,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.data_sampler: Optional["DataSampler"] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
+        self.pipeline_model_parallel_comm_backend = pipeline_model_parallel_comm_backend
         self.microbatch_group_size_per_vp_stage = (
             microbatch_group_size_per_vp_stage
             if microbatch_group_size_per_vp_stage is not None
