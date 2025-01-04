@@ -88,7 +88,7 @@ def init_parallel_ranks(
         expert_model_parallel_size=parallel_config.expert_model_parallel_size,
         expert_tensor_parallel_size=parallel_config.expert_tensor_parallel_size,
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
-        pipeline_model_parallel_comm_backend=parallel_config.get('pipeline_model_parallel_comm_backend', 'nccl'),
+        pipeline_model_parallel_comm_backend=parallel_config.pipeline_model_parallel_comm_backend,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         context_parallel_size=parallel_config.context_parallel_size,
         encoder_tensor_model_parallel_size=getattr(parallel_config, "encoder_tensor_model_parallel_size", 0),
