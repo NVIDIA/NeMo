@@ -70,6 +70,7 @@ class FabricMegatronStrategy(DDPStrategy):
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
+        pipeline_model_parallel_comm_backend: str = 'nccl',
         microbatch_group_size_per_vp_stage: Optional[int] = None,
         context_parallel_size: int = 1,
         sequence_parallel: bool = False,
@@ -108,6 +109,7 @@ class FabricMegatronStrategy(DDPStrategy):
         self.data_sampler: Optional['DataSampler'] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
+        self.pipeline_model_parallel_comm_backend = pipeline_model_parallel_comm_backend
         self.microbatch_group_size_per_vp_stage = (
             microbatch_group_size_per_vp_stage
             if microbatch_group_size_per_vp_stage is not None
@@ -413,6 +415,7 @@ class FabricMegatronStrategy(DDPStrategy):
         return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
+            pipeline_model_parallel_comm_backend=self.pipeline_model_parallel_comm_backend,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
             microbatch_group_size_per_vp_stage=self.microbatch_group_size_per_vp_stage,
             context_parallel_size=self.context_parallel_size,
@@ -496,6 +499,7 @@ def convert_megatron_strategy(strategy: MegatronStrategy) -> FabricMegatronStrat
     return FabricMegatronStrategy(
         tensor_model_parallel_size=strategy.tensor_model_parallel_size,
         pipeline_model_parallel_size=strategy.pipeline_model_parallel_size,
+        pipeline_model_parallel_comm_backend=strategy.pipeline_model_parallel_comm_backend,
         virtual_pipeline_model_parallel_size=strategy.virtual_pipeline_model_parallel_size,
         context_parallel_size=strategy.context_parallel_size,
         sequence_parallel=strategy.sequence_parallel,
