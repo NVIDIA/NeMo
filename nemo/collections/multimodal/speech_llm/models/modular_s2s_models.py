@@ -65,11 +65,20 @@ class SumVocabParallelEmbedding(tensor_parallel.VocabParallelEmbedding):
     def __init__(
         self,
         proj_head_dims,
+        include_proj=False,
         *args,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.proj_head_dims = proj_head_dims
+        self.include_proj = include_proj
+        if include_proj:
+            self.output_proj = tensor_parallel.ColumnParallelLinear(
+                kwargs['embedding_dim'] * len(proj_head_dims),
+                output_size=kwargs['embedding_dim'],
+                config=kwargs['config'],
+                init_method=kwargs['init_method'],
+            )
 
     def forward(self, input_):
 
@@ -82,8 +91,12 @@ class SumVocabParallelEmbedding(tensor_parallel.VocabParallelEmbedding):
             assert input_.max() < sum(self.proj_head_dims)
         embeddings = super().forward(input_)
         if input_.ndim == 3:
+            if self.include_proj:
+                embeddings = embeddings.reshape(embeddings.shape[0], embeddings.shape[1], -1)
+                embeddings = self.output_proj(embeddings)
             # sum the multi proj embeddings as the final embeddings
             embeddings = torch.sum(embeddings, axis=2)
+            # TODO: add a fixed # of channels proj here
         return embeddings
 
 
@@ -93,6 +106,7 @@ class SumMultiEmbedding(LanguageModelEmbedding):
     def __init__(
         self,
         proj_head_dims,
+        include_proj=False,
         *args,
         **kwargs,
     ) -> None:
@@ -105,6 +119,7 @@ class SumMultiEmbedding(LanguageModelEmbedding):
             reduce_scatter_embeddings=self.reduce_scatter_embeddings,
             config=self.config,
             proj_head_dims=proj_head_dims,
+            include_proj=include_proj,
         )
 
 
@@ -143,7 +158,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
 
     # TODO rewrite setup_embeddings_and_output_layer to include self.output_layers
 
-    def extend_embedding(self, vocab_size: int):
+    def extend_embedding(self, vocab_size: int, include_proj=False):
         """Extend the embedding layer with new vocab size."""
 
         # Extend word embedding table if self.padded_vocab_size is larger than the size of the pre-trained word embedding
@@ -155,6 +170,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             max_sequence_length=self.max_sequence_length,
             position_embedding_type=self.position_embedding_type,
             proj_head_dims=self.proj_head_dims,
+            include_proj=include_proj,
         )
         self.embedding.word_embeddings.weight.data[: pretrained_emb.word_embeddings.weight.shape[0]] = (
             pretrained_emb.word_embeddings.weight.data
@@ -354,7 +370,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         else:
             base_model = model.model
 
-        base_model.extend_embedding(model.padded_vocab_size)
+        base_model.extend_embedding(model.padded_vocab_size, include_proj=cfg.model.get('combine_emb_by_proj', False))
         # print out params in more details
         model.summarize(max_depth=2)
 
