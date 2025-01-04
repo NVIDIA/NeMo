@@ -15,6 +15,9 @@
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
+from torch.distributed._composable.fsdp import MixedPrecisionPolicy
+from torch.distributed._composable.fsdp.fully_shard import fully_shard
+from torch.distributed.device_mesh import DeviceMesh
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -91,6 +94,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
             )
 
+        # Apply FSDP2 and TP to the model
+        if hasattr(self, 'device_mesh'):
+            parallelize(self.model, device_mesh=self.device_mesh)
+
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
 
@@ -99,7 +106,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def forward(self, batch):
         return self.model(**batch)
 
-    def training_step(self, batch):
+    def training_step(self, batch, batch_idx=None):
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
@@ -164,3 +171,41 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         fwd_signature = inspect.signature(self.model.forward)
         allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
         return {k: batch[k] for k in allowed_keys if k in batch}
+
+
+# Taken and modified from torchtitan
+# https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py
+def parallelize(model, device_mesh: DeviceMesh):
+    """Apply parallelisms and activation checkpointing to the model.
+    NOTE: The passed-in model preferably should be on meta device. Otherwise,
+    the model must fit on GPU or CPU memory.
+    """
+
+    dp_mesh = device_mesh["data_parallel"]
+    tp_mesh = device_mesh["tensor_parallel"]
+
+    assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
+
+    if dp_mesh.size() > 1:
+        assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
+
+        # NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
+        # because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
+        mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
+
+        fsdp_config = {"mesh": dp_mesh, "mp_policy": mp_policy}
+        for layer_id, transformer_block in enumerate(model.model.layers):
+            # Apply activation checkpointing
+            # transformer_block = checkpoint_wrapper(transformer_block)
+            # As an optimization, do not reshard after forward for the last
+            # transformer block since FSDP would prefetch it immediately
+            reshard_after_forward = int(layer_id) < len(model.model.layers) - 1
+            fully_shard(
+                transformer_block,
+                **fsdp_config,
+                reshard_after_forward=reshard_after_forward,
+            )
+            model.model.layers[layer_id] = transformer_block
+        model = fully_shard(model, **fsdp_config)
+
+    return model
