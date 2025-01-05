@@ -613,6 +613,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     logging.info(f"{input_time} > {cut.duration} in {cut}")
                 return min(input_time, cut.duration)
 
+            if not hasattr(cut, 'user_segments'):
+                raise ValueError(f"user_segments: {cut}")
+
             num_turns.append(len(cut.user_segments) + len(cut.agent_segments))
             metadata.append({'audio_filepath': cut.id + '.wav'})
             total_steps = (
