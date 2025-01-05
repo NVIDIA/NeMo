@@ -17,15 +17,15 @@ from typing import Callable, Dict, Literal, Optional
 
 import lightning.pytorch as L
 import torch
+import torch.nn.functional as F
 from megatron.core import parallel_state
-from torch import nn
+from torch import Tensor, nn
 
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
 from nemo.collections.llm.bert.model import BertConfig, BertModel
 from nemo.collections.llm.bert.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.bert.model.bert import HuggingFaceBertImporter
-from nemo.collections.nlp.models.information_retrieval.bert_embedding_model import BertEmbeddingHead
 from nemo.lightning import io
 from nemo.lightning.pytorch.optim import OptimizerModule
 
@@ -109,6 +109,38 @@ class BertEmbeddingMiniConfig(BertEmbeddingConfig):
     hidden_size: int = 384
     intermediate_size: int = 1536
     num_attention_heads: int = 12
+
+
+class BertEmbeddingHead(nn.Module):
+    """Performs mean pooling on the token embeddings.
+    """
+
+    def __init__(
+        self, word_embedding_dimension: int, pooling_mode_mean_tokens: bool = True,
+    ):
+        super(BertEmbeddingHead, self).__init__()
+
+        self.config_keys = [
+            "word_embedding_dimension",
+            "pooling_mode_mean_tokens",
+        ]
+        self.word_embedding_dimension = word_embedding_dimension
+        self.pooling_mode_mean_tokens = pooling_mode_mean_tokens
+
+    def forward(self, token_embeddings: Tensor, attention_mask: Tensor):
+        """ Forward function for embedding head. Performs mean pooling.
+        """
+        token_embeddings = token_embeddings.permute(1, 0, 2)
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
+
+        sum_mask = input_mask_expanded.sum(1)
+        sum_mask = torch.clamp(sum_mask, min=1e-9)
+
+        output_vector = sum_embeddings / sum_mask
+        output_vector = F.normalize(output_vector, p=2, dim=1)
+
+        return output_vector
 
 
 class BertEmbeddingModel(BertModel):
