@@ -1218,7 +1218,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
                     all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
 
-            if loss_mask is not None:
+            if 'target_texts_merge' not in audio_batch and loss_mask is not None:
                 cur_loss_mask = torch.cat(
                     [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]).cuda(), loss_mask[i, base_length:]],
                     dim=0,
@@ -1229,16 +1229,16 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         encoded = encoded[:, : input_ids.shape[1]]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
-        if loss_mask is not None:
-            loss_mask = pad_sequence(new_loss_mask, batch_first=True)
-            assert loss_mask.shape == labels.shape
-            if self.cfg.get('duplex_loss_on_all_steps', False):
-                loss_mask = torch.ones_like(labels)  # include loss on silence too
-        elif 'target_texts_merge' in audio_batch:
+        if 'target_texts_merge' in audio_batch:
             loss_mask = torch.ones_like(labels)
             assert self.cfg.get(
                 'duplex_loss_on_all_steps', False
             ), "only support duplex_loss_on_all_steps in real duplex data read from dataloader"
+        elif loss_mask is not None:
+            loss_mask = pad_sequence(new_loss_mask, batch_first=True)
+            assert loss_mask.shape == labels.shape
+            if self.cfg.get('duplex_loss_on_all_steps', False):
+                loss_mask = torch.ones_like(labels)  # include loss on silence too
         assert labels.shape[1] == encoded.shape[1]
         # lookup input_ids
         if self.cfg.get('megatron_amp_O2', False):

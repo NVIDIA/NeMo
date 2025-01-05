@@ -2,6 +2,7 @@ import math
 import random
 import re
 
+import numpy as np
 import torch.utils.data
 from lhotse import CutSet, Recording
 from lhotse.dataset import AudioSamples
@@ -216,7 +217,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         skipped_source = 0
         processed_cuts = []
         for cut in cuts:
-            is_valid = True
+            if np.isclose(cut.target_audio.duration, cut.recording.duration):
+                is_valid = True
+            else:
+                is_valid = False
             for id, sup in enumerate(cut.supervisions):
                 if id % 2 == 0:
                     if sup.speaker.lower() != "user":

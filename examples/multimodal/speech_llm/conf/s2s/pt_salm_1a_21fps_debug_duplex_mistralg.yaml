@@ -2152,7 +2152,7 @@ model:
 
     validation_ds:
       force_map_dataset: True
-      names: ['Mixtral', 'roleplay', 'suno_20k']
+      names: ['Mixtral', 'roleplay', 'suno_20k', 'callhome']
       input_cfg:
         - type: group
           weight: 1.0
