@@ -63,7 +63,7 @@ def apply_transforms(
             are applied. Defaults to None.
         state_dict_ignored_entries: List of entries to ignore in _target.state_dict(). There are cases
             where multiple entries in model's state_dict point to one entry in model's named_parameter.
-            E.g., model has multiple pointers pointing to one shared parameters (`encoder.embed_tokens.weight`, 
+            E.g., model has multiple pointers pointing to one shared parameters (`encoder.embed_tokens.weight`,
             `decoder.embed_tokens.weight` and `shared.weight` all points to `shared.weight
             in T5 Huggingface implementation.). In these cases, ignore redundant entries.
 

@@ -1,9 +1,9 @@
 from nemo.collections.llm.t5.model.t5 import (
     MaskedTokenLossReduction,
     T5Config,
-    T5Config220M,
     T5Config3B,
     T5Config11B,
+    T5Config220M,
     T5Model,
     local_layer_spec,
     t5_data_step,
