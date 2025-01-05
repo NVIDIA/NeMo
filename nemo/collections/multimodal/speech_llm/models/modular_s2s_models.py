@@ -92,8 +92,9 @@ class SumVocabParallelEmbedding(tensor_parallel.VocabParallelEmbedding):
         embeddings = super().forward(input_)
         if input_.ndim == 3:
             if self.include_proj:
-                embeddings = embeddings.reshape(embeddings.shape[0], embeddings.shape[1], -1)
-                embeddings, _ = self.output_proj(embeddings)
+                new_embeddings = embeddings.reshape(embeddings.shape[0], embeddings.shape[1], -1)
+                new_embeddings, _ = self.output_proj(new_embeddings)
+                embeddings = embeddings[:, :, 0] + new_embeddings
             else:
                 # sum the multi proj embeddings as the final embeddings
                 embeddings = torch.sum(embeddings, axis=2)
