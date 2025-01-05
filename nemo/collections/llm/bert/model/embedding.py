@@ -112,11 +112,12 @@ class BertEmbeddingMiniConfig(BertEmbeddingConfig):
 
 
 class BertEmbeddingHead(nn.Module):
-    """Performs mean pooling on the token embeddings.
-    """
+    """Performs mean pooling on the token embeddings."""
 
     def __init__(
-        self, word_embedding_dimension: int, pooling_mode_mean_tokens: bool = True,
+        self,
+        word_embedding_dimension: int,
+        pooling_mode_mean_tokens: bool = True,
     ):
         super(BertEmbeddingHead, self).__init__()
 
@@ -128,8 +129,7 @@ class BertEmbeddingHead(nn.Module):
         self.pooling_mode_mean_tokens = pooling_mode_mean_tokens
 
     def forward(self, token_embeddings: Tensor, attention_mask: Tensor):
-        """ Forward function for embedding head. Performs mean pooling.
-        """
+        """Forward function for embedding head. Performs mean pooling."""
         token_embeddings = token_embeddings.permute(1, 0, 2)
         input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
         sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
