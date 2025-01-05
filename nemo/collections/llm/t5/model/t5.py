@@ -48,6 +48,8 @@ if TYPE_CHECKING:
 
 
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+    """ Processing data for one step of T5 model """
+
     from megatron.core import parallel_state
 
     from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import AttnMaskType
@@ -101,6 +103,7 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 
 def t5_forward_step(model, batch) -> torch.Tensor:
+    """ Processing a forward step for T5 model """
     forward_args = {
         "encoder_input_ids": batch["text_enc"],
         "decoder_input_ids": batch["text_dec"],
@@ -114,6 +117,7 @@ def t5_forward_step(model, batch) -> torch.Tensor:
 
 
 def transformer_engine_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
+    """ Spec for T5 when using transformer_engine mcore implementation """
     from megatron.core.models.T5.t5_spec import (
         get_t5_decoder_with_transformer_engine_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec,
@@ -126,6 +130,7 @@ def transformer_engine_layer_spec(encoder_config: "T5Config", decoder_config: "T
 
 
 def local_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
+    """ Spec for T5 when using local mcore implementation """
     from megatron.core.models.T5.t5_spec import (
         get_t5_decoder_with_local_block_spec,
         get_t5_encoder_with_local_block_spec,
@@ -138,6 +143,7 @@ def local_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> 
 
 
 def default_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
+    """ Set layer spec conditioning on whether transformer_engine is available """
     if HAVE_TE:
         return transformer_engine_layer_spec(encoder_config, decoder_config)
     else:
@@ -146,7 +152,8 @@ def default_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -
 
 @dataclass
 class T5Config(TransformerConfig, io.IOMixin):
-    # From megatron.core.models.t5.t5_model.T5Model
+    """ Model config for T5 model. Adpated from megatron.core.models.t5.t5_model.T5Model"""
+
     encoder_num_layers: int = None
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
@@ -179,6 +186,8 @@ class T5Config(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = t5_data_step
 
     def configure_model(self, tokenizer) -> "MCoreT5Model":
+        """Setup the T5 Model based on config definition."""
+
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
@@ -234,6 +243,7 @@ class T5Config220M(T5Config):
 
 @dataclass
 class T5Config3B(T5Config):
+    """Config for 3B T5 model """
     num_layers: int = 24
     encoder_num_layers: int = 24
     hidden_size: int = 2048
@@ -243,6 +253,7 @@ class T5Config3B(T5Config):
 
 @dataclass
 class T5Config11B(T5Config):
+    """Config for 11B T5 model """
     num_layers: int = 24
     encoder_num_layers: int = 24
     hidden_size: int = 4096
@@ -251,6 +262,8 @@ class T5Config11B(T5Config):
 
 
 class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+    """T5 Lightning Module"""
+
     def __init__(
         self,
         config: T5Config,
@@ -269,6 +282,7 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self._validation_loss_reduction = None
 
     def configure_model(self) -> None:
+        """Setup the T5 Model based on config definition."""
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
 
@@ -282,6 +296,7 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         lm_labels: Optional[torch.Tensor] = None,
         inference_params=None,
     ) -> torch.Tensor:
+        """Call the forward method of the underlying model, and return whatever it outputs."""
 
         output_tensor = self.module(
             encoder_input_ids=encoder_input_ids,
@@ -295,23 +310,23 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return output_tensor
 
-    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
+    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:    # pylint: disable=C0115,C0116
         return self.config.data_step_fn(dataloader_iter)
 
-    def forward_step(self, batch) -> torch.Tensor:
+    def forward_step(self, batch) -> torch.Tensor:  # pylint: disable=C0115,C0116
         return self.config.forward_step_fn(self, batch)
 
-    def training_step(self, batch, batch_idx=None) -> torch.Tensor:
+    def training_step(self, batch, batch_idx=None) -> torch.Tensor: # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
-    def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
+    def validation_step(self, batch, batch_idx=None) -> torch.Tensor:  # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
 
         return self.forward_step(batch)
 
     def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
-        # This is to get the MCore model required in T5InferenceWrapper.
+        """ This is to get the MCore model required in T5InferenceWrapper """
         mcore_model = self.module
         while mcore_model:
             if type(mcore_model) is MCoreT5Model:
@@ -332,14 +347,14 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return model_inference_wrapper
 
     @property
-    def training_loss_reduction(self) -> MaskedTokenLossReduction:
+    def training_loss_reduction(self) -> MaskedTokenLossReduction:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
             self._training_loss_reduction = MaskedTokenLossReduction()
 
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> MaskedTokenLossReduction:
+    def validation_loss_reduction(self) -> MaskedTokenLossReduction:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
@@ -347,6 +362,7 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
 @io.model_importer(T5Model, "hf")
 class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
+    """Importer Connector for converting HF Google T5 Model to NeMo"""
     def init(self) -> T5Model:
         return T5Model(self.config, tokenizer=self.tokenizer)
 
@@ -368,6 +384,7 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
         return output_path
 
     def convert_state(self, source, target):
+        """Converting HF state dict to NeMo state dict."""
         mapping = {
             "shared.weight": "embedding.word_embeddings.weight",
             "lm_head.weight": "lm_head.output_layer.weight",
@@ -394,12 +411,19 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
             source, 
             target, 
             mapping=mapping, 
-            transforms=[_import_encoder_qkv, _import_encoder_linear_fc1, _import_decoder_qkv, _import_decoder_kv, _import_decoder_linear_fc1],
+            transforms=[
+                _import_encoder_qkv, 
+                _import_encoder_linear_fc1, 
+                _import_decoder_qkv, 
+                _import_decoder_kv, 
+                _import_decoder_linear_fc1
+            ],
             state_dict_ignored_entries=['output_layer.weight']
         )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """Retrieve Tokenizer from HF"""
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         # Set special tokens to match HF
@@ -409,6 +433,7 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
 
     @property
     def config(self) -> T5Config:
+        """Generate NeMo Config based on HF config"""
         from transformers import T5Config as HFT5Config
 
         source = HFT5Config.from_pretrained(str(self))
@@ -539,14 +564,20 @@ def _import_decoder_kv(ctx: io.TransformCTX, k, v):
     return kv_weights
  
 @io.state_transform(
-    source_key=("encoder.block.*.layer.1.DenseReluDense.wi_0.weight", "encoder.block.*.layer.1.DenseReluDense.wi_1.weight"),
+    source_key=(
+        "encoder.block.*.layer.1.DenseReluDense.wi_0.weight", 
+        "encoder.block.*.layer.1.DenseReluDense.wi_1.weight"
+    ),
     target_key="encoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_encoder_linear_fc1(down, gate):
     return torch.cat((down, gate), axis=0)
 
 @io.state_transform(
-    source_key=("decoder.block.*.layer.2.DenseReluDense.wi_0.weight", "decoder.block.*.layer.2.DenseReluDense.wi_1.weight"),
+    source_key=(
+        "decoder.block.*.layer.2.DenseReluDense.wi_0.weight", 
+        "decoder.block.*.layer.2.DenseReluDense.wi_1.weight"
+    ),
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_decoder_linear_fc1(down, gate):
@@ -555,6 +586,7 @@ def _import_decoder_linear_fc1(down, gate):
 
 @io.model_exporter(T5Model, "hf")
 class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
+    """Exporter Connector for converting NeMo T5 Model to HF"""
     def init(self) -> "T5ForConditionalGeneration":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
@@ -574,6 +606,7 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
         return output_path
 
     def convert_state(self, source, target):
+        """Convert NeMo state dict to HF style"""
         mapping = {
             "embedding.word_embeddings.weight": "shared.weight",
             "lm_head.output_layer.weight": "lm_head.weight",
@@ -598,12 +631,19 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
             source,
             target,
             mapping=mapping,
-            transforms=[_export_encoder_qkv, _export_encoder_linear_fc1, _export_decoder_qkv, _export_decoder_kv, _export_decoder_linear_fc1],
+            transforms=[
+                _export_encoder_qkv, 
+                _export_encoder_linear_fc1, 
+                _export_decoder_qkv, 
+                _export_decoder_kv, 
+                _export_decoder_linear_fc1
+            ],
             state_dict_ignored_entries=['encoder.embed_tokens.weight', 'decoder.embed_tokens.weight']
         )
 
     @property
     def tokenizer(self):
+        """Retrieve Tokenizer from HF"""
         # return io.load_context(str(self)).model.tokenizer.tokenizer
         nemo_tokenizer = io.load_context(str(self)).model.tokenizer
         self.bos_id = nemo_tokenizer.bos_id
@@ -613,6 +653,7 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
 
     @property
     def config(self) -> "HFT5Config":
+        """Generate NeMo Config based on HF config"""
         source: T5Config = io.load_context(str(self)).model.config
 
         from transformers import T5Config as HFT5Config
@@ -639,7 +680,9 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
             relative_attention_max_distance=source.relative_attention_max_distance,
             initializer_factor=source.init_method_std,
             layer_norm_epsilon=source.layernorm_epsilon,
-            vocab_size=round_up_to_divisible(self.tokenizer.vocab_size + len(self.tokenizer.additional_special_tokens), 128),
+            vocab_size=round_up_to_divisible(
+                self.tokenizer.vocab_size + len(self.tokenizer.additional_special_tokens), 128
+            ),
             feed_forward_proj="gated-gelu",
             tie_word_embeddings=source.share_embeddings_and_output_weights,
             decoder_start_token_id=bos_id,
@@ -742,7 +785,10 @@ def _export_decoder_kv(ctx: io.TransformCTX, linear_kv):
 
 @io.state_transform(
     source_key="encoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("encoder.block.*.layer.1.DenseReluDense.wi_0.weight", "encoder.block.*.layer.1.DenseReluDense.wi_1.weight"),
+    target_key=(
+        "encoder.block.*.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.*.layer.1.DenseReluDense.wi_1.weight"
+    ),
 )
 def _export_encoder_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
@@ -751,7 +797,10 @@ def _export_encoder_linear_fc1(linear_fc1):
 
 @io.state_transform(
     source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("decoder.block.*.layer.2.DenseReluDense.wi_0.weight", "decoder.block.*.layer.2.DenseReluDense.wi_1.weight"),
+    target_key=(
+        "decoder.block.*.layer.2.DenseReluDense.wi_0.weight", 
+        "decoder.block.*.layer.2.DenseReluDense.wi_1.weight"
+    ),
 )
 def _export_decoder_linear_fc1(linear_fc1):
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
