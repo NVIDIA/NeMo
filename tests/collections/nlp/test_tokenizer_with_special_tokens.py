@@ -13,11 +13,6 @@
 # limitations under the License.
 
 
-import json
-import os
-import random
-from functools import partial
-
 import pytest
 
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -25,7 +20,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 TOKENIZER_SPM_FILE = '/home/TestData/nlp/tokenizer_with_special_tokens/tokenizer.model'
 
 def test_spm_with_special_tokens() -> None:
-    special_tokens = ['[INST]', '[/INST]', '[TOOL_CALLS]', '[AVAILABLE_TOOLS]', '[/AVAILABLE_TOOLS]', '[TOOL_RESULTS]', '[/TOOL_RESULTS]']
+    special_tokens = ['<s>', '</s>', '[INST]', '[/INST]', '[TOOL_CALLS]', '[AVAILABLE_TOOLS]', '[/AVAILABLE_TOOLS]', '[TOOL_RESULTS]', '[/TOOL_RESULTS]']
     tokenizer_cfg = {
         "library": "sentencepiece",
         "type": None,
