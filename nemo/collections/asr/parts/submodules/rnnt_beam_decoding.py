@@ -48,6 +48,7 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
 from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
 
 try:
@@ -1186,6 +1187,11 @@ class BeamRNNTInfer(Typing):
                 prefix_alpha=self.maes_prefix_alpha,
             )  # type: List[Hypothesis]
             kept_hyps = []
+            
+            for x in hyps:
+                print(f"{t} Score: ", x.score)
+                print(f"{t} Y_sequence: ", x.y_sequence)
+                print(f"{t} Timesteps: ", x.timestep)
 
             # Prepare output tensor
             beam_enc_out = enc_out_t
@@ -1501,7 +1507,7 @@ class BeamRNNTInfer(Typing):
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
 
-class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
+class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
@@ -1517,13 +1523,17 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
             joint_model: rnnt_abstract.AbstractRNNTJoint,
             blank_index: int,
             beam_size: int,
-            max_symbols_per_step: Optional[int] = None,
+            search_type: str = 'malsd_batch',
+            score_norm: bool = True,
+            maes_num_steps: Optional[int] = None,
+            maes_expansion_gamma: Optional[float] = None,
+            maes_expansion_beta: Optional[int] = None,
+            malsd_max_symbols_per_step: Optional[int] = None,
             preserve_alignments: bool = False,
             ngram_lm_model: Optional[str | Path] = None,
             ngram_lm_alpha: float = 0.0,
             blank_lm_score_mode: Optional[str] = None,
             pruning_mode: Optional[str] = None,
-            score_norm: bool = True,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -1533,26 +1543,43 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
         self._SOS = blank_index  # Start of single index
         self.beam_size = beam_size
 
-        if max_symbols_per_step is not None and max_symbols_per_step <= 0:
-            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
-        self.max_symbols = max_symbols_per_step
+        if malsd_max_symbols_per_step is not None and malsd_max_symbols_per_step <= 0:
+            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {malsd_max_symbols_per_step}")
+        self.max_symbols = malsd_max_symbols_per_step
         self.preserve_alignments = preserve_alignments
 
-        # Depending on availability of `blank_as_pad` support
-        # switch between more efficient batch decoding technique
-        self._decoding_computer = ModifiedALSDBatchedRNNTComputer(
-            decoder=self.decoder,
-            joint=self.joint,
-            beam_size=self.beam_size,
-            blank_index=self._blank_index,
-            max_symbols_per_step=self.max_symbols,
-            preserve_alignments=preserve_alignments,
-            ngram_lm_model=ngram_lm_model,
-            ngram_lm_alpha=ngram_lm_alpha,
-            blank_lm_score_mode=blank_lm_score_mode,
-            score_norm=score_norm,
-            pruning_mode=pruning_mode
-        )
+        if search_type == "malsd_batch":
+            # Depending on availability of `blank_as_pad` support
+            # switch between more efficient batch decoding technique
+            self._decoding_computer = ModifiedALSDBatchedRNNTComputer(
+                decoder=self.decoder,
+                joint=self.joint,
+                beam_size=self.beam_size,
+                blank_index=self._blank_index,
+                max_symbols_per_step=self.max_symbols,
+                preserve_alignments=preserve_alignments,
+                ngram_lm_model=ngram_lm_model,
+                ngram_lm_alpha=ngram_lm_alpha,
+                blank_lm_score_mode=blank_lm_score_mode,
+                score_norm=score_norm,
+                pruning_mode=pruning_mode
+            )
+        elif search_type == "maes_batch":
+            self._decoding_computer = ModifiedAESBatchedRNNTComputer(
+                decoder=self.decoder,
+                joint=self.joint,
+                beam_size=self.beam_size,
+                blank_index=self._blank_index,
+                maes_num_steps=maes_num_steps,
+                maes_expansion_beta=maes_expansion_beta,
+                maes_expansion_gamma=maes_expansion_gamma,
+                preserve_alignments=preserve_alignments,
+                ngram_lm_model=ngram_lm_model,
+                ngram_lm_alpha=ngram_lm_alpha,
+                blank_lm_score_mode=blank_lm_score_mode,
+                score_norm=score_norm,
+                pruning_mode=pruning_mode
+            )
 
     @property
     def output_types(self):

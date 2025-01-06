@@ -132,11 +132,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
         decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
         # decoder_output: [(B x Beam), 1, Dim]
 
-        # step = -1
         while active_mask.any():
-            # step += 1
-            # logging.warning(f"Step: {step} {batched_hyps.transcript_wb[:, :, batched_hyps.current_lengths_wb[0, 0].item() - 1]} {batched_hyps.scores}")
-            # torch.cuda.set_sync_debug_mode(2)
             # step 1: get joint output + fuse with LM (if present)
             logits = (
                 self.joint.joint_after_projection(
@@ -147,6 +143,7 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 .squeeze(1)
             )
             log_probs = F.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)  # [(B x Beam), V]
+            
             if self.ngram_lm_batch is not None:
                 log_probs_top_k, labels_top_k = self.topk_lm(lm_scores, log_probs)
             else:
@@ -295,6 +292,8 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
             # torch.cuda.set_sync_debug_mode(0)
 
         return batched_hyps.to_hyps_list(score_norm=self.score_norm)
+    
+        
 
     def topk_lm(self, lm_scores, log_probs):
         if self.pruning_mode is PruningMode.LATE:
