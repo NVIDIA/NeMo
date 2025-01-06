@@ -19,7 +19,7 @@ class ESM3BConfig(HuggingFaceBertConfig):
     hidden_size: int = 2560
     ffn_hidden_size: int = 10240
     num_attention_heads: int = 40
-    bert_binary_head: bool = True
+    bert_binary_head: bool = False
     position_embedding_type: str = "rope"
 
 
