@@ -331,6 +331,7 @@ def pyt_to_mcore_state_dict(
 
     return state_dict
 
+
 # Taken and modified from torchtitan
 # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py
 def fsdp2_strategy_parallelize(model, device_mesh: DeviceMesh = None):
