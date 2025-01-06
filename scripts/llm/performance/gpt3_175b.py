@@ -57,7 +57,8 @@ def gpt3_175b_performance_recipe(
     # data module configs
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
-    recipe.data.num_train_samples = max_steps * gbs  # ensure only 1 epoch for whole run
+    recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
+    recipe.data.tokenizer = hf_tokenizer("nvidia/megatron-gpt2-345m")
 
     recipe.trainer.max_steps = max_steps
     recipe.trainer.num_nodes = num_nodes
@@ -100,7 +101,7 @@ def gpt3_175b_performance_recipe(
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
     recipe.trainer.enable_checkpointing = False
-    recipe.trainer.val_check_interval = max_steps * gbs / dp_size
+    recipe.trainer.val_check_interval = max_steps
     recipe.trainer.log_every_n_steps = 1
 
     recipe.model.config.tp_only_amax_red = True
