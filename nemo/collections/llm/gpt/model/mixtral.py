@@ -72,10 +72,11 @@ class MixtralConfig(GPTConfig):
     params_dtype: torch.dtype = torch.bfloat16
 
     # fusions
-    apply_rope_fusion=True
-    bias_activation_fusion=True
-    bias_dropout_fusion=True
-    masked_softmax_fusion=False
+    apply_rope_fusion = True
+    bias_activation_fusion = True
+    bias_dropout_fusion = True
+    masked_softmax_fusion = False
+
 
 @dataclass
 class MixtralConfig8x3B(MixtralConfig):

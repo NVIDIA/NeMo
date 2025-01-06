@@ -71,7 +71,7 @@ def mixtral_8x22b_performance_recipe(
     recipe.trainer.strategy.pipeline_model_parallel_size = pp_size
     recipe.trainer.strategy.context_parallel_size = cp_size
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = vp_size
-    recipe.trainer.strategy.expert_model_parallel_size=ep_size
+    recipe.trainer.strategy.expert_model_parallel_size = ep_size
     if tp_size > 1:
         recipe.trainer.strategy.sequence_parallel = True
     else:

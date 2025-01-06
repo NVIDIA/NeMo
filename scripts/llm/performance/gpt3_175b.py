@@ -34,6 +34,7 @@ CP_SIZE = 1
 VP_SIZE = 6
 MAX_STEPS = 100
 
+
 def gpt3_175b_performance_recipe(
     compute_dtype: str,
     num_nodes: int,
@@ -105,6 +106,7 @@ def gpt3_175b_performance_recipe(
     recipe.model.config.tp_only_amax_red = True
 
     return recipe
+
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
