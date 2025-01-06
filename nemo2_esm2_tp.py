@@ -22,6 +22,7 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.utils.exp_manager import TimingCallback
 from pytorch_lightning.loggers import WandbLogger
+from nemo.lightning.pytorch import callbacks as nl_callbacks
 from nemo.lightning.pytorch.optim.lr_scheduler import CosineAnnealingScheduler
 from datetime import timedelta
 
@@ -45,6 +46,11 @@ def get_args():
     parser.add_argument('--warmup', type=int, default=2000, help="warmup steps")
     parser.add_argument('--full', action='store_true', help="whether to use debug features")
     parser.add_argument('--lr', type=int, default=1, help="learning rate")
+    parser.add_argument('--nsys-profiling', action='store_true', help="enable nsys profiling for a defined step range. To actually get profiling output you must run the whole program with `nsys`. For example: "
+        "`nsys profile -s none -o output_report_name -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop  [regular python command here]`")
+    parser.add_argument('--nsys-start-step', type=int, required=False, default=0, help="Start nsys profiling at this step.")
+    parser.add_argument('--nsys-end-step', type=int, required=False, help="End nsys profiling after this step.")
+    parser.add_argument("--nsys-ranks", type=int, nargs="+", required=False, default=[0], help="Enable nsys profiling for these ranks.")
 
     return parser.parse_args()
 
@@ -79,6 +85,13 @@ if __name__ == '__main__':
 
     # Trainer
     callbacks = [TimingCallback()]
+    if args.nsys_profiling:
+        callbacks.append(
+            nl_callbacks.NsysCallback(
+                start_step=args.nsys_start_step, end_step=args.nsys_end_step, ranks=args.nsys_ranks, gen_shape=True
+            ),
+        )
+
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_parallel_size=args.pp_size,
