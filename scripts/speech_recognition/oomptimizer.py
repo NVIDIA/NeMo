@@ -408,7 +408,7 @@ def oomptimizer(
         (
             "text"
             if any(
-                isinstance(item["type"].elements_type, LabelsType) and item["seq_length"] == direction
+                isinstance(item["type"], NeuralType) and isinstance(item["type"].elements_type, LabelsType) and item["seq_length"] == direction
                 for item in schema["inputs"]
                 if item["type"] != "dummy"
             )
