@@ -268,7 +268,11 @@ Full implementation from NeMo repo: ::
             context=None,
             context_mask=None,
             rotary_pos_emb=None,
+            rotary_pos_cos=None,
+            rotary_pos_sin=None,
+            attention_bias=None,
             inference_params=None,
+            sequence_len_offset=None
         ):
 
             residual = hidden_states
