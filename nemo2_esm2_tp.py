@@ -44,6 +44,8 @@ def get_args():
     parser.add_argument('--warmup', type=int, default=2000, help="warmup steps")
     parser.add_argument('--full', action='store_true', help="whether to use debug features")
     parser.add_argument('--lr', type=int, default=1, help="learning rate")
+    parser.add_argument('--memory-profiling', action='store_true', help="enable memory profiling")
+    parser.add_argument('--memory-profiling-dir', type=str, help="directory to dump memory profiling pickle")
     parser.add_argument(
         '--nsys-profiling',
         action='store_true',
@@ -95,6 +97,10 @@ if __name__ == '__main__':
             nl_callbacks.NsysCallback(
                 start_step=args.nsys_start_step, end_step=args.nsys_end_step, ranks=args.nsys_ranks, gen_shape=True
             ),
+        )
+    if args.memory_profiling:
+        callbacks.append(
+            nl_callbacks.MemoryProfileCallback(dir=args.memory_profiling_dir, warn_cycles=False, ranks=[0])
         )
 
     strategy = nl.MegatronStrategy(
