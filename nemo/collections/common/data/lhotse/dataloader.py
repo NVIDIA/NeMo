@@ -119,7 +119,7 @@ class LhotseDataLoadingConfig:
     min_duration: float | None = -1
     max_duration: float | None = float("inf")
     min_tps: int = -1  # allowed tokens per second (audio-only)
-    max_tps: float = float("inf")
+    max_tps: Any = float("inf")  # float | list[float]
     #   * Text input
     min_tokens: int | None = None
     max_tokens: int | None = None
@@ -127,7 +127,7 @@ class LhotseDataLoadingConfig:
     # For 2D bucketing it's always false, as we report a tuple of (context_len, answer_len).
     measure_total_length: bool = True
     min_tpt: int = -1  # allowed tokens per token (text-only)
-    max_tpt: float = float("inf")
+    max_tpt: Any = float("inf")  # float | list[float]
 
     # 3. Supported existing NeMo options.
     shuffle: bool = False
