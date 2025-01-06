@@ -1,4 +1,3 @@
-
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-
+from datetime import timedelta
 
 from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.utils.exp_manager import TimingCallback
-from pytorch_lightning.loggers import WandbLogger
 from nemo.lightning.pytorch import callbacks as nl_callbacks
 from nemo.lightning.pytorch.optim.lr_scheduler import CosineAnnealingScheduler
-from datetime import timedelta
+from nemo.utils.exp_manager import TimingCallback
 
 
 def get_args():
@@ -46,11 +44,19 @@ def get_args():
     parser.add_argument('--warmup', type=int, default=2000, help="warmup steps")
     parser.add_argument('--full', action='store_true', help="whether to use debug features")
     parser.add_argument('--lr', type=int, default=1, help="learning rate")
-    parser.add_argument('--nsys-profiling', action='store_true', help="enable nsys profiling for a defined step range. To actually get profiling output you must run the whole program with `nsys`. For example: "
-        "`nsys profile -s none -o output_report_name -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop  [regular python command here]`")
-    parser.add_argument('--nsys-start-step', type=int, required=False, default=0, help="Start nsys profiling at this step.")
+    parser.add_argument(
+        '--nsys-profiling',
+        action='store_true',
+        help="enable nsys profiling for a defined step range. To actually get profiling output you must run the whole program with `nsys`. For example: "
+        "`nsys profile -s none -o output_report_name -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop  [regular python command here]`",
+    )
+    parser.add_argument(
+        '--nsys-start-step', type=int, required=False, default=0, help="Start nsys profiling at this step."
+    )
     parser.add_argument('--nsys-end-step', type=int, required=False, help="End nsys profiling after this step.")
-    parser.add_argument("--nsys-ranks", type=int, nargs="+", required=False, default=[0], help="Enable nsys profiling for these ranks.")
+    parser.add_argument(
+        "--nsys-ranks", type=int, nargs="+", required=False, default=[0], help="Enable nsys profiling for these ranks."
+    )
 
     return parser.parse_args()
 
@@ -66,7 +72,7 @@ if __name__ == '__main__':
         save_on_train_epoch_end=True,
         save_optim_on_train_end=True,
         train_time_interval=timedelta(minutes=30),
-        filename='epoch={epoch}-step={step}'
+        filename='epoch={epoch}-step={step}',
     )
     if args.name is not None:
         wandb = WandbLogger(
@@ -81,7 +87,6 @@ if __name__ == '__main__':
         ckpt=ckpt,
         wandb=wandb,
     )
-
 
     # Trainer
     callbacks = [TimingCallback()]
@@ -129,14 +134,16 @@ if __name__ == '__main__':
             warmup_steps=args.warmup,
             constant_steps=0,
             min_lr=1e-5 * args.lr,
-        )
+        ),
     )
-
 
     # Model
     from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
-    tokenizer = get_nmt_tokenizer("megatron", "facebook/esm2_t33_650M_UR50D", )
+    tokenizer = get_nmt_tokenizer(
+        "megatron",
+        "facebook/esm2_t33_650M_UR50D",
+    )
 
     # config = llm.ESM3BConfig()
     # config = llm.ESM650MConfig()
@@ -161,11 +168,4 @@ if __name__ == '__main__':
         resume_ignore_no_checkpoint=True,
     )
 
-    llm.pretrain(
-        model=model,
-        data=data,
-        trainer=trainer,
-        log=logger,
-        optim=adam,
-        resume=resume
-    )
+    llm.pretrain(model=model, data=data, trainer=trainer, log=logger, optim=adam, resume=resume)

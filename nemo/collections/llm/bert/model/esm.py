@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from nemo.collections.llm.bert.model.bert import HuggingFaceBertModel, HuggingFaceBertConfig
+from nemo.collections.llm.bert.model.bert import HuggingFaceBertConfig, HuggingFaceBertModel
 
 
 @dataclass
