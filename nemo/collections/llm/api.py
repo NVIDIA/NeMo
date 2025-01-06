@@ -425,7 +425,6 @@ def evaluate(
     limit: Optional[Union[int, float]] = None,
     bootstrap_iters: int = 100000,
     # inference params
-    max_tokens_to_generate: Optional[int] = 256,
     temperature: Optional[float] = 0.000000001,
     top_p: Optional[float] = 0.0,
     top_k: Optional[int] = 1,
@@ -454,7 +453,6 @@ def evaluate(
         bootstrap_iters (int): Number of iterations for bootstrap statistics, used when calculating stderrs. Set to 0
         for no stderr calculations to be performed. Default: 100000.
         # inference params
-        max_tokens_to_generate (int): max tokens to generate. Default: 256.
         temperature: Optional[float]: float value between 0 and 1. temp of 0 indicates greedy decoding, where the token
         with highest prob is chosen. Temperature can't be set to 0.0 currently, due to a bug with TRTLLM
         (# TODO to be investigated). Hence using a very samll value as the default. Default: 0.000000001.
@@ -481,7 +479,7 @@ def evaluate(
     evaluation.wait_for_server_ready(url=url, triton_http_port=triton_http_port, model_name=model_name)
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
     model = evaluation.NeMoFWLMEval(
-        model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos
+        model_name, url, tokenizer, temperature, top_p, top_k, add_bos
     )
     results = evaluator.simple_evaluate(
         model=model,

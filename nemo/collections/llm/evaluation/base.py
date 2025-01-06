@@ -33,11 +33,10 @@ class NeMoFWLMEval(LM):
     Created based on: https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/docs/model_guide.md
     """
 
-    def __init__(self, model_name, api_url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos):
+    def __init__(self, model_name, api_url, tokenizer, temperature, top_p, top_k, add_bos):
         self.model_name = model_name
         self.api_url = api_url
         self.tokenizer = tokenizer
-        self.max_tokens_to_generate = max_tokens_to_generate
         self.temperature = temperature
         self.top_p = top_p
         self.top_k = top_k
@@ -106,9 +105,9 @@ class NeMoFWLMEval(LM):
             if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
                 continuation_enc = continuation_enc[1:]
             num_cont_tokens = len(continuation_enc)
-            # Set max_tokens_to_generate as 1
+            # Hard code max_tokens_to_generate to 1 to always generate just 1 token
             self.max_tokens_to_generate = 1
-            # Remove the last token from continuation by replacing it with empty string, to pass it to the ip prompt
+            # Delete the last token from continuation before passing it to the ip prompt by replacing with empty string
             prompt = context + continuation.replace(self.tokenizer.tokenizer.decode(continuation_enc[-1]), "")
             # Create payload to query the model deployed on PyTriton server
             payload = {
@@ -120,23 +119,25 @@ class NeMoFWLMEval(LM):
                 "top_k": self.top_k,
             }
             # Get the logits from the model
+            # #TODO for mmlu, lambada get only generation_logits, for others (multi token prediction) get context_logits
             context_logits, generation_logits = self._generate_tokens_logits(payload, return_logits=True)
-            import numpy as np
-            are_equal=np.array_equal(context_logits[0][len(context_logits[0])-1], generation_logits[0][0][0])
+            # import numpy as np
+            # are_equal=np.array_equal(context_logits[0][len(context_logits[0])-1], generation_logits[0][0][0])
+            # Get only the logits corresponding to the continuation tokens
             logits = context_logits[:,-num_cont_tokens:,:]
-            # Convert generation_logits to torch tensor to easily get logprobs wo manual implementation of log_softmax
-            #multi_logits = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
-            multi_logits = F.log_softmax(torch.tensor(logits), dim=-1)
+            # Convert logits to torch tensor to easily get logprobs wo manual implementation of log_softmax
+            #logProbs = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
+            logProbs = F.log_softmax(torch.tensor(logits), dim=-1)
             # Convert encoded continuation tokens to torch tensor
             cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
             # Get the greedy token from the logits (i.e token with the highest prob)
-            greedy_tokens = multi_logits.argmax(dim=-1)
+            greedy_tokens = logProbs.argmax(dim=-1)
             # Check if all greedy_tokens match the the actual continuation tokens
             is_greedy = (greedy_tokens == cont_toks).all()
             # Get the logits corresponding to the actual continuation tokens
-            logits = torch.gather(multi_logits, 2, cont_toks.unsqueeze(-1)).squeeze(-1)
+            logProbs_actual = torch.gather(logProbs, 2, cont_toks.unsqueeze(-1)).squeeze(-1)
             # result is tuple of logProb of generating the continuation token and is_greedy
-            result = (float(logits.sum()), bool(is_greedy))
+            result = (float(logProbs_actual.sum()), bool(is_greedy))
 
             results.append(result)
 
