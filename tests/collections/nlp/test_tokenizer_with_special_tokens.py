@@ -13,8 +13,6 @@
 # limitations under the License.
 
 
-import pytest
-
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 TOKENIZER_SPM_FILE = '/home/TestData/nlp/tokenizer_with_special_tokens/tokenizer.model'
@@ -42,5 +40,6 @@ def test_spm_with_special_tokens() -> None:
     )
 
     assert tokenizer.text_to_ids('[INST]') == [3]
-    for special_token in special_tokens:
+    for i, special_token in enumerate(special_tokens):
         assert special_token in tokenizer.special_token_to_id, f'Expected {special_token} to be a special token'
+        assert tokenizer.special_token_to_id[special_token] == i + 1
