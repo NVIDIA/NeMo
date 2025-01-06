@@ -53,7 +53,6 @@ if __name__ == '__main__':
         name="pt",
         num_nodes=1,
         num_gpus_per_node=args.devices,
-        peft_scheme='none',
         max_steps=args.max_steps,
     )
     recipe.trainer.val_check_interval = 50
