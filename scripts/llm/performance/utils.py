@@ -99,7 +99,8 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
 
     Args:
         model_name (str): corresponds to HuggingFace-AutoTokenizer's 'pretrained_model_name_or_path' input argument.
-                For more details please refer to https://huggingface.co/docs/transformers/v4.47.1/en/model_doc/auto#transformers.AutoTokenizer
+                For more details please refer to-
+                huggingface.co/docs/transformers/v4.47.1/en/model_doc/auto#transformers.AutoTokenizer
     """
     log_msg = [
         "AutoTokenizer first searches for tokenizer files locally in env var 'NEMO_HOME'.",
