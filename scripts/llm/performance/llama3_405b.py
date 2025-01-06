@@ -57,7 +57,7 @@ def llama3_405b_performance_recipe(
     # data module configs
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
-    recipe.data.num_train_samples = max_steps * gbs * mbs # ensure only 1 epoch for whole run
+    recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("meta-llama/Llama-3.1-405B")
 
     recipe.trainer.max_steps = max_steps

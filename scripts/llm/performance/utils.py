@@ -24,6 +24,7 @@ from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.utils import logging
 
+
 def slurm_executor(
     account: str,
     partition: str,
@@ -100,11 +101,13 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         model_name (str): corresponds to HuggingFace-AutoTokenizer's 'pretrained_model_name_or_path' input argument.
                 For more details please refer to https://huggingface.co/docs/transformers/v4.47.1/en/model_doc/auto#transformers.AutoTokenizer
     """
-    log_msg = ["AutoTokenizer first searches for tokenizer files locally in env var 'NEMO_HOME'.",
-               "If files are missing locally, AutoTokenizer will try downloading from HuggingFace.",
-               "Make sure 'TRANSFORMERS_OFFLINE=0' and 'HF_TOKEN:<token_value>'.",
-               "You can set them as scripts.llm.performance.utils.slurm_executor(custom_env_vars=",
-               "{'TRANSFORMERS_OFFLINE: 0', 'HF_TOKEN: <token_value>'}"]
+    log_msg = [
+        "AutoTokenizer first searches for tokenizer files locally in env var 'NEMO_HOME'.",
+        "If files are missing locally, AutoTokenizer will try downloading from HuggingFace.",
+        "Make sure 'TRANSFORMERS_OFFLINE=0' and 'HF_TOKEN:<token_value>'.",
+        "You can set them as scripts.llm.performance.utils.slurm_executor(custom_env_vars=",
+        "{'TRANSFORMERS_OFFLINE: 0', 'HF_TOKEN: <token_value>'}",
+    ]
     logging.warning(" ".join(log_msg))
 
     return run.Config(
