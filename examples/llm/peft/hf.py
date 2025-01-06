@@ -17,7 +17,7 @@ from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning import AutoResume, NeMoLogger
+from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
@@ -126,7 +126,6 @@ def main():
             target_modules=['*_proj'],
             dim=8,
         ),
-        # resume=AutoResume(restore_config=RestoreConfig(path=args.ckpt_folder, adapter_path=args.ckpt_folder, load_model_state=False)),
     )
 
 
