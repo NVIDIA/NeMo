@@ -112,8 +112,11 @@ def parse_args():
         "--max_tps", type=float, default=None, help="Deprecated. TPS is automatically determined per bucket."
     )
     parser.add_argument(
-        "--token_outlier_threshold", type=float, default=4.0, help="The lower this is, the more outliers in transcript token count will be filtered out. "
-        "By default allow token counts at 4 sigma away from distribution mean, computed separately for every bucket."
+        "--token_outlier_threshold",
+        type=float,
+        default=4.0,
+        help="The lower this is, the more outliers in transcript token count will be filtered out. "
+        "By default allow token counts at 4 sigma away from distribution mean, computed separately for every bucket.",
     )
     parser.add_argument(
         "-q", "--quiet", type=bool, default=False, help="When specified, only print the estimated duration bins."
@@ -199,7 +202,9 @@ def estimate_duration_buckets(
         # Examples exceeding that TPS value will be discarded during sampling at training time.
         num_tokens_bucket_all = num_tokens[bin_indexes[-1] : binidx]
         sizes_bucket_all = sizes[bin_indexes[-1] : binidx]
-        non_outlier_indexes = find_non_outliers_z_score(num_tokens_bucket_all / sizes_bucket_all, threshold=token_outlier_threshold)
+        non_outlier_indexes = find_non_outliers_z_score(
+            num_tokens_bucket_all / sizes_bucket_all, threshold=token_outlier_threshold
+        )
         num_tokens_bucket = num_tokens_bucket_all[non_outlier_indexes]
         sizes_bucket = sizes_bucket_all[non_outlier_indexes]
         max_tps_bucket = (num_tokens_bucket / sizes_bucket).max()
@@ -207,7 +212,8 @@ def estimate_duration_buckets(
         if not quiet:
             outlier_tps = np.delete(num_tokens_bucket_all / sizes_bucket_all, non_outlier_indexes)
             print(
-                f"[bucket <= {max_bucket_duration:.2f}s] [{num_tokens_bucket.min()} - {num_tokens_bucket.max()}] [approx-max-tps: {max_tps_bucket:.2f}] Discarded {binidx - bin_indexes[-1] - len(num_tokens_bucket)} max token outliers", end=" "
+                f"[bucket <= {max_bucket_duration:.2f}s] [{num_tokens_bucket.min()} - {num_tokens_bucket.max()}] [approx-max-tps: {max_tps_bucket:.2f}] Discarded {binidx - bin_indexes[-1] - len(num_tokens_bucket)} max token outliers",
+                end=" ",
             )
             if len(outlier_tps) > 0:
                 print(f"min-outlier: {outlier_tps.min():.2f}, max-outlier: {outlier_tps.max():.2f}).", end="")
