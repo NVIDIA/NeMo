@@ -746,7 +746,7 @@ class T5TTS_Model(ModelPT):
             if self.use_kv_cache_for_inference:
                 assert self.cfg.t5_decoder.use_flash_self_attention is False, "KV cache is not supported with flash self attention"
                 assert self.cfg.t5_decoder.use_flash_x_attention is False, "KV cache is not supported with flash cross attention"
-                assert self.cfg.t5_decoder.pos_emb.name == "learnable", "KV cache is not tested with Rope, Alibi yet. Disable this assert, if you still want to use it."
+                assert self.cfg.t5_decoder.pos_emb.name in ["learnable", "learnable_v2"], "KV cache is not tested with Rope, Alibi yet. Disable this assert, if you still want to use it."
 
             self.t5_decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
             

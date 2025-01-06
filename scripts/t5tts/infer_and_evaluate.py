@@ -49,7 +49,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
 
     model = T5TTS_Model(cfg=model_cfg)
-    if model_cfg.t5_decoder.pos_emb == "learnable":
+    if model_cfg.t5_decoder.pos_emb.name in ["learnable", "learnable_v2"]:
         if (model_cfg.t5_decoder.use_flash_self_attention) is False and (model_cfg.t5_decoder.use_flash_self_attention is False):
             model.use_kv_cache_for_inference = True
 
@@ -149,7 +149,7 @@ def main():
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmount_ks1_fixedlossspikes")
     parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTS_FixedPosEmb/FixLossSpikes")
     parser.add_argument('--server_address', type=str, default="pneekhara@login-eos02.eos.clusters.nvidia.com")
-    parser.add_argument('--exp_names', type=str, default="decodercontext_small_noctcprior")
+    parser.add_argument('--exp_names', type=str, default="decodercontext_small_onlyponeme,singleencoder_small_onlyphoneme,decodercontext_small_noctcprior,multiencoder_small_onlyphoneme")
     parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/continuouscheckpoints_fixedposemb")
     parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResults/KS1_KS3_ContinuousEval")
     parser.add_argument('--temperature', type=float, default=0.6)
