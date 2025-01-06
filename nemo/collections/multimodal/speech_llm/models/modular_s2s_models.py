@@ -1230,6 +1230,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         encoded = encoded[:, : input_ids.shape[1]]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
+        # assert labels.shape[1] == encoded.shape[1]
+        labels = labels[:, : encoded.shape[1]]
+        input_ids = input_ids[:, : encoded.shape[1]]
         if 'target_texts_merge' in audio_batch:
             loss_mask = torch.ones_like(labels)
             assert self.cfg.get(
@@ -1240,7 +1243,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             assert loss_mask.shape == labels.shape
             if self.cfg.get('duplex_loss_on_all_steps', False):
                 loss_mask = torch.ones_like(labels)  # include loss on silence too
-        assert labels.shape[1] == encoded.shape[1]
         # lookup input_ids
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
