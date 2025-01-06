@@ -64,7 +64,10 @@ class NeMoFWLMEval(LM):
         if return_text:
             return response["choices"][0]["text"]  # shape[batch_size, 1]
         if return_logits:
-            return response["choices"][0]["context_logits"], response["choices"][0]["generation_logits"]  # shape[batch_size, 1, num_tokens, vocab_size]
+            return (
+                response["choices"][0]["context_logits"],
+                response["choices"][0]["generation_logits"],
+            )  # shape[batch_size, 1, num_tokens, vocab_size]
 
     def tokenizer_type(self, tokenizer):
         """
@@ -124,9 +127,9 @@ class NeMoFWLMEval(LM):
             # import numpy as np
             # are_equal=np.array_equal(context_logits[0][len(context_logits[0])-1], generation_logits[0][0][0])
             # Get only the logits corresponding to the continuation tokens
-            logits = context_logits[:,-num_cont_tokens:,:]
+            logits = context_logits[:, -num_cont_tokens:, :]
             # Convert logits to torch tensor to easily get logprobs wo manual implementation of log_softmax
-            #logProbs = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
+            # logProbs = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
             logProbs = F.log_softmax(torch.tensor(logits), dim=-1)
             # Convert encoded continuation tokens to torch tensor
             cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
@@ -192,6 +195,7 @@ def wait_for_server_ready(url, triton_http_port, model_name, max_retries=600, re
     """
 
     import time
+
     import requests
     from pytriton.client import ModelClient
     from pytriton.client.exceptions import PyTritonClientModelUnavailableError, PyTritonClientTimeoutError

@@ -478,9 +478,7 @@ def evaluate(
     # Wait for server to be ready before starting evaluation
     evaluation.wait_for_server_ready(url=url, triton_http_port=triton_http_port, model_name=model_name)
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
-    model = evaluation.NeMoFWLMEval(
-        model_name, url, tokenizer, temperature, top_p, top_k, add_bos
-    )
+    model = evaluation.NeMoFWLMEval(model_name, url, tokenizer, temperature, top_p, top_k, add_bos)
     results = evaluator.simple_evaluate(
         model=model,
         tasks=eval_task,
