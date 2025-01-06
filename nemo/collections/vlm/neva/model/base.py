@@ -663,9 +663,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
             packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
-        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(
-            combined_embeddings, final_labels, final_loss_mask, packed_seq_params
-        )
+        if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
+            combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(
+                combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+            )
 
         output = self.language_model(
             input_ids=None,
@@ -935,58 +936,60 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params
     ):
         """ Processes the input data for model parallelism support. """
-        
-        if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
-            shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
-            seq_dim = 1
-        elif self.context_parallel_lm > 1:
-            shard_factor = self.context_parallel_lm * 2
-            seq_dim = 1
-        elif self.sequence_parallel_lm:
-            shard_factor = self.tensor_model_parallel_size_lm
-            seq_dim = 0
 
-        assert (
-            combined_embeddings.shape[seq_dim] % shard_factor == 0
-        ), f"Sequence length should be divisible by {shard_factor} for \
-            Sequence/Context parallelism"
-        if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
+        # No pre or post processing needed with PP middle chunks.
+        if not self.pre_process and not self.post_process:
+            return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
+        
+        if self.pre_process:
+            if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
+                shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
+                seq_dim = 1
+            elif self.context_parallel_lm > 1:
+                shard_factor = self.context_parallel_lm * 2
+                seq_dim = 1
+            elif self.sequence_parallel_lm:
+                shard_factor = self.tensor_model_parallel_size_lm
+                seq_dim = 0
+
             assert (
-                combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
-            ), f"TP Comm overlap either requires Vision+Text token length \
-             == language_max_sequence_length"
+                combined_embeddings.shape[seq_dim] % shard_factor == 0
+            ), f"Sequence length should be divisible by {shard_factor} for \
+                Sequence/Context parallelism"
+            if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
+                assert (
+                    combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
+                ), f"TP Comm overlap either requires Vision+Text token length \
+                == language_max_sequence_length"
 
         if self.context_parallel_lm > 1:
+            batch = dict()
+            if self.pre_process:
+                batch.update({
+                    "combined_embeddings": combined_embeddings,
+                })
+            if self.post_process:
+                batch.update({
+                   "new_labels": new_labels,
+                    "new_loss_mask": new_loss_mask, 
+                })
+            # Distribute sequence across CP ranks
             if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
-                # Distribute sequence across CP ranks
                 from megatron.training.utils import get_batch_on_this_cp_rank
-
-                batch = get_batch_on_this_cp_rank(
-                    {
-                        "combined_embeddings": combined_embeddings,
-                        "new_labels": new_labels,
-                        "new_loss_mask": new_loss_mask,
-                    }
-                )
+                batch = get_batch_on_this_cp_rank(batch)
             else:
-                batch = _get_data_on_this_cp_rank.apply(
-                    {
-                        "combined_embeddings": combined_embeddings,
-                        "new_labels": new_labels,
-                        "new_loss_mask": new_loss_mask,
-                    },
-                    packed_seq_params,
-                )
+                batch = _get_data_on_this_cp_rank.apply(batch, packed_seq_params)
 
-            combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
-            new_labels = batch["new_labels"]
-            new_loss_mask = batch["new_loss_mask"]
+            if self.pre_process:
+                combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
+                combined_embeddings = combined_embeddings.transpose(
+                    1, 0
+                ).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
+            if self.post_process:
+                new_labels = batch["new_labels"]
+                new_loss_mask = batch["new_loss_mask"]
 
-            combined_embeddings = combined_embeddings.transpose(
-                1, 0
-            ).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
-
-        if self.sequence_parallel_lm:
+        if self.sequence_parallel_lm and self.pre_process:
             combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
                 combined_embeddings
             )  # [S/(CP*TP),B,H]
