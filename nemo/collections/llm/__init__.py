@@ -32,6 +32,7 @@ from nemo.collections.llm.bert.model import (
 )
 from nemo.collections.llm.gpt.data import (
     AlpacaDataModule,
+    ChatDataModule,
     DollyDataModule,
     FineTuningDataModule,
     HFDatasetDataModule,
@@ -133,7 +134,15 @@ from nemo.collections.llm.t5.data import FineTuningDataModule as T5FineTuningDat
 from nemo.collections.llm.t5.data import MockDataModule as T5MockDataModule
 from nemo.collections.llm.t5.data import PreTrainingDataModule as T5PreTrainingDataModule
 from nemo.collections.llm.t5.data import SquadDataModule as T5SquadDataModule
-from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
+from nemo.collections.llm.t5.model import (
+    T5Config,
+    T5Config3B,
+    T5Config11B,
+    T5Config220M,
+    T5Model,
+    t5_data_step,
+    t5_forward_step,
+)
 
 __all__ = [
     "MockDataModule",
@@ -144,6 +153,9 @@ __all__ = [
     "gpt_forward_step",
     "T5Model",
     "T5Config",
+    "T5Config220M",
+    "T5Config3B",
+    "T5Config11B",
     "BertConfig",
     "BertModel",
     "t5_data_step",
@@ -220,6 +232,7 @@ __all__ = [
     "Qwen2Config72B",
     "PreTrainingDataModule",
     "FineTuningDataModule",
+    "ChatDataModule",
     "SquadDataModule",
     "T5PreTrainingDataModule",
     "T5FineTuningDataModule",
