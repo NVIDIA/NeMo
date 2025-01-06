@@ -16,26 +16,23 @@ import types
 from abc import ABCMeta
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import modelopt.torch.distill as mtd
 import modelopt.torch.opt as mto
 import torch
 import torch.nn.functional as F
+from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.parallel_state import (
-    get_context_parallel_group,
-    get_context_parallel_world_size,
-    get_tensor_model_parallel_group,
-)
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor
 from torch.nn.modules.loss import _Loss
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank
 from nemo.collections.llm.quantization import load_with_modelopt_layer_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
@@ -43,13 +40,60 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.utils import logging
 
 
+def gpt_distillation_data_step(dataloader_iter, attn_mask_cpu=False) -> Dict[str, torch.Tensor]:
+    batch = next(dataloader_iter)
+
+    _batch: dict
+    if isinstance(batch, tuple) and len(batch) == 3:
+        _batch = batch[0]
+    else:
+        _batch = batch
+
+    required_device_keys = set()
+    required_host_keys = set()
+
+    if attn_mask_cpu:
+        # [ModelOpt]: We cache data for PP distillation, and save GPU mem by storing masks on CPU mem.
+        required_host_keys.add("attention_mask")
+    else:
+        required_device_keys.add("attention_mask")
+
+    if 'cu_seqlens' in _batch:
+        required_device_keys.add('cu_seqlens')
+        required_host_keys.add('cu_seqlens_argmin')
+        required_host_keys.add('max_seqlen')
+
+    if parallel_state.is_pipeline_first_stage():
+        required_device_keys.update(("tokens", "position_ids"))
+    if parallel_state.is_pipeline_last_stage():
+        required_device_keys.update(("labels", "loss_mask"))
+
+    _batch_required_keys = {}
+    for key, val in _batch.items():
+        if key in required_device_keys:
+            _batch_required_keys[key] = val.cuda(non_blocking=True)
+        elif key in required_host_keys:
+            _batch_required_keys[key] = val.cpu()
+        else:
+            _batch_required_keys[key] = None
+
+    # slice batch along sequence dimension for context parallelism
+    output = get_batch_on_this_context_parallel_rank(_batch_required_keys)
+
+    return output
+
+
 @dataclass
 class DistillationGPTConfig(llm.GPTConfig):
     kd_teacher_restore_from_path: str = ""  # default set only for dataclass inheritance
 
+    data_step_fn: Callable = gpt_distillation_data_step
+
     def configure_model(self, *args, **kwargs) -> MCoreGPTModel:
         if not self.kd_teacher_restore_from_path:
             raise ValueError("Config attribute `kd_teacher_restore_from_path` must be set.")
+        if self.virtual_pipeline_model_parallel_size is not None:
+            raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
 
         model = super().configure_model(*args, **kwargs)
 
@@ -74,7 +118,7 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
     def __init__(self, model, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._distillation_model: mtd.DistillationModel = model.module
-        self._cp_size = get_context_parallel_world_size()
+        self._cp_size = parallel_state.get_context_parallel_world_size()
 
     def forward(self, batch: Dict[str, Tensor], forward_out: Tensor) -> Tuple[Tensor, Dict[str, Tensor]]:
         if isinstance(forward_out, tuple):
@@ -105,18 +149,42 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
             if num_valid_tokens_in_ub < 0.5:  # no valid tokens
                 num_valid_tokens_in_ub += 1.0
             loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
-            torch.distributed.all_reduce(loss, group=get_context_parallel_group())
+            torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
         else:
             loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
 
         if tp_reduce is True:
-            torch.distributed.all_reduce(loss, group=get_tensor_model_parallel_group())
+            torch.distributed.all_reduce(loss, group=parallel_state.get_tensor_model_parallel_group())
 
         return loss
 
 
+class _LoopingCachedDataIterator:
+    def __init__(self, data):
+        self.data = data
+        self.it = iter(self.data)
+
+    def __next__(self):
+        try:
+            return next(self.it)
+        except StopIteration:
+            self.it = iter(self.data)
+            return next(self.it)
+
+
 class DistillationGPTModel(llm.GPTModel):
     """Custom GPT subclass for distillation-related modifications."""
+
+    def data_step(self, dataloader_iter, cache_num_batches: Optional[int] = None) -> Dict[str, torch.Tensor]:
+        if cache_num_batches:
+            batches = [self.config.data_step_fn(dataloader_iter, attn_mask_cpu=True) for _ in range(cache_num_batches)]
+            return _LoopingCachedDataIterator(batches)
+        elif isinstance(dataloader_iter, _LoopingCachedDataIterator):
+            batch = next(dataloader_iter)
+            batch["attention_mask"] = batch["attention_mask"].cuda(non_blocking=True)  # move back to GPU
+            return batch
+        else:
+            return self.config.data_step_fn(dataloader_iter)
 
     @property
     def training_loss_reduction(self) -> _DistillationLossReduction:
@@ -199,26 +267,26 @@ class LogitsKLLoss(BaseLoss):
             torch.distributed.all_reduce(
                 teacher_logits_max,
                 op=torch.distributed.ReduceOp.MAX,
-                group=get_tensor_model_parallel_group(),
+                group=parallel_state.get_tensor_model_parallel_group(),
             )
             output_teacher = output_teacher - teacher_logits_max.unsqueeze(dim=-1)
 
             denom_teacher = torch.sum(torch.exp(output_teacher), dim=-1)
             # We can't use standard reduction function here since the computation
             # that follows it isn't identical across TP ranks.
-            denom_teacher = all_reduce_autograd(denom_teacher, group=get_tensor_model_parallel_group())
+            denom_teacher = all_reduce_autograd(denom_teacher, group=parallel_state.get_tensor_model_parallel_group())
 
             # Maximum value along vocab dimension across all GPUs.
             student_logits_max, _ = torch.max(output_student, dim=-1)
             torch.distributed.all_reduce(
                 student_logits_max,
                 op=torch.distributed.ReduceOp.MAX,
-                group=get_tensor_model_parallel_group(),
+                group=parallel_state.get_tensor_model_parallel_group(),
             )
             output_student = output_student - student_logits_max.unsqueeze(dim=-1).detach()
 
             denom_student = torch.sum(torch.exp(output_student), dim=-1)
-            denom_student = all_reduce_autograd(denom_student, group=get_tensor_model_parallel_group())
+            denom_student = all_reduce_autograd(denom_student, group=parallel_state.get_tensor_model_parallel_group())
 
             slen, bsz, sharded_vocab_size = output_student.shape
             student_log_prob = output_student - torch.log(denom_student).view(slen, bsz, 1).expand(
@@ -296,26 +364,15 @@ def load_distillation_config(cfg: TransformerConfig) -> Dict[str, Any]:
         student_cfg: Model config for student model.
     """
     logit_pair = ("output_layer", "output_layer")  # logit module names for MCoreGPTModel
-    cfg = {
-        "criterion": {tuple(logit_pair): LogitsKLLoss(cfg)},
+    distill_cfg = {
+        "criterion": {},
         "loss_balancer": None,
         "skip_lm_loss": True,
     }
-    return cfg
+    if cfg.pipeline_model_parallel_size == 1 or parallel_state.is_pipeline_last_stage():
+        distill_cfg["criterion"][tuple(logit_pair)] = LogitsKLLoss(cfg)
 
-
-def _adjust_layer_index_for_pp(submodule_name, model_cfg):
-    """
-    Adjust any sequence-based layer indices found in a submodule name for Pipeline Parallelism.
-
-    For example, on PP=2, layer called `"decoder.layers.17.input_layernorm"` in a model with 32 layers
-    will be assumed to be evely distributed among PP ranks and now be referenced on the final rank as
-    `"decoder.layers.2.input_layernorm"`.
-
-    NOTE: Operates under assumption of being final PP rank and only one numerical index per layer name.
-    """
-    ...
-    # TODO
+    return distill_cfg
 
 
 def _teacher_provider(cfg: TransformerConfig) -> MCoreGPTModel:
