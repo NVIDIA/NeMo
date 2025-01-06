@@ -20,7 +20,7 @@ from transformers import AutoModelForCausalLM
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
-from nemo.lightning.pytorch.strategy.utils import fsdp2_strategy_parallelize
+from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 from nemo.utils import logging
 
 
