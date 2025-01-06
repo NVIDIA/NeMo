@@ -22,7 +22,7 @@ from nemo.collections.diffusion.vae.blocks import AttnBlock, Downsample, Normali
 
 
 @dataclass
-class AutoEncoderParams:
+class AutoEncoderConfig:
     ch_mult: list[int]
     attn_resolutions: list[int]
     resolution: int = 256
@@ -276,7 +276,7 @@ class DiagonalGaussian(nn.Module):
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, params: AutoEncoderParams):
+    def __init__(self, params: AutoEncoderConfig):
         super().__init__()
         self.encoder = Encoder(
             resolution=params.resolution,

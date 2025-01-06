@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from typing import Callable, Optional
+from dataclasses import dataclass, field
+from typing import Callable, Optional, Dict, Any
 
 import numpy as np
 import pytorch_lightning as L
@@ -40,7 +40,7 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
 )
 from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
 from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
-from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderParams
+from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderConfig
 from nemo.collections.diffusion.utils.flux_ckpt_converter import _import_qkv, _import_qkv_bias
 from nemo.collections.llm import fn
 from nemo.lightning import io, teardown
@@ -101,15 +101,25 @@ class FluxConfig(TransformerConfig, io.IOMixin):
         model = Flux(config=self)
         return model
 
+@dataclass
+class T5Config:
+    version: Optional[str] = "google/t5-v1_1-xxl"
+    max_length: Optional[int] = 512
+
+@dataclass
+class ClipConfig:
+    version: Optional[str] = "openai/clip-vit-large-patch14"
+    max_length: Optional[int] = 77
+    always_return_pooled: Optional[bool] = True
 
 @dataclass
 class FluxModelParams:
-    flux_params: FluxConfig
-    vae_params: AutoEncoderParams
-    clip_params: dict | None
-    t5_params: dict | None
-    scheduler_params: dict | None
-    device: str | torch.device
+    flux_config : FluxConfig = FluxConfig()
+    vae_config : AutoEncoderConfig = AutoEncoderConfig(ch_mult=[1,2,4,4], attn_resolutions=[])
+    clip_params : ClipConfig = ClipConfig()
+    t5_params : T5Config = T5Config()
+    scheduler_steps: int = 1000
+    device: str = 'cuda'
 
 
 class Flux(VisionModule):
@@ -264,26 +274,25 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         optim: Optional[OptimizerModule] = None,
     ):
         self.params = params
-        self.config = params.flux_params
+        self.config = params.flux_config
         super().__init__()
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
 
-        self.vae_params = self.params.vae_params
+        self.vae_config = self.params.vae_config
         self.clip_params = self.params.clip_params
         self.t5_params = self.params.t5_params
-        self.scheduler_params = self.params.scheduler_params
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=False))
         self.optim.connect(self)
         self.model_type = ModelType.encoder_or_decoder
         self.text_precached = self.t5_params is None or self.clip_params is None
-        self.image_precached = self.vae_params is None
+        self.image_precached = self.vae_config is None
 
     def configure_model(self):
         if not hasattr(self, "module"):
             self.module = self.config.configure_model()
-        self.configure_vae(self.vae_params)
-        self.configure_scheduler(self.scheduler_params)
+        self.configure_vae(self.vae_config)
+        self.configure_scheduler()
         self.configure_text_encoders(self.clip_params, self.t5_params)
         for name, param in self.module.named_parameters():
             if self.config.num_single_layers == 0:
@@ -294,8 +303,8 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             if 'single_blocks' in name and 'self_attention.linear_proj.bias' in name:
                 param.requires_grad = False
 
-    def configure_scheduler(self, scheduler):
-        self.scheduler = FlowMatchEulerDiscreteScheduler(**scheduler)
+    def configure_scheduler(self):
+        self.scheduler = FlowMatchEulerDiscreteScheduler(num_train_timesteps=self.params.scheduler_steps,)
 
     def configure_vae(self, vae):
         if isinstance(vae, nn.Module):
@@ -303,7 +312,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             self.vae_scale_factor = 2 ** (len(self.vae.params.ch_mult))
             for param in self.vae.parameters():
                 param.requires_grad = False
-        elif isinstance(vae, AutoEncoderParams):
+        elif isinstance(vae, AutoEncoderConfig):
             self.vae = AutoEncoder(vae).eval().cuda()
             self.vae_scale_factor = 2 ** (len(vae.ch_mult))
             for param in self.vae.parameters():
@@ -317,7 +326,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         if isinstance(clip, nn.Module):
             self.clip = clip
         elif isinstance(clip, dict):
-            self.clip = FrozenCLIPEmbedder(**clip, device=torch.cuda.current_device())
+            self.clip = FrozenCLIPEmbedder(version=self.clip_params.version, max_length=self.clip_params.max_length,always_return_pooled=self.clip_params.always_return_pooled, device=torch.cuda.current_device())
         else:
             logging.info("CLIP encoder not provided, assuming the text embeddings is precached...")
             self.clip = None
@@ -325,7 +334,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         if isinstance(t5, nn.Module):
             self.t5 = t5
         elif isinstance(t5, dict):
-            self.t5 = FrozenT5Embedder(**t5, device=torch.cuda.current_device())
+            self.t5 = FrozenT5Embedder(self.t5_params.version, max_length=self.t5_params.max_length, device=torch.cuda.current_device())
         else:
             logging.info("T5 encoder not provided, assuming the text embeddings is precached...")
             self.t5 = None
@@ -584,13 +593,11 @@ class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronF
         )
 
         output = FluxModelParams(
-            flux_params=flux_config,
-            vae_params=None,
+            flux_config=flux_config,
+            vae_config=None,
             clip_params=None,
             t5_params=None,
-            scheduler_params={
-                'num_train_timesteps': 1000,
-            },
+            scheduler_steps=1000,
             device='cuda',
         )
         return output

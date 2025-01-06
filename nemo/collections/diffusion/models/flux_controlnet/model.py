@@ -237,8 +237,8 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
         if not hasattr(self, "module"):
             self.module = FluxControlnetForwardWrapper(self.config, self.flux_controlnet_config)
 
-            self.configure_vae(self.vae_params)
-            self.configure_scheduler(self.scheduler_params)
+            self.configure_vae(self.vae_config)
+            self.configure_scheduler()
             self.configure_text_encoders(self.clip_params, self.t5_params)
             ## Have to disable requiring grads for those params not getting one, otherwise custom fsdp fails at assert
             ## when there is no single layer, encoder_hidden_states related params are not included in computation graph
