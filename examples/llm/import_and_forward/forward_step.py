@@ -20,6 +20,8 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
 
 def run_forward(model_path: str):
+    """Run a single forward step given the model path."""
+
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=1,
     )
