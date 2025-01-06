@@ -171,6 +171,7 @@ def get_nmt_tokenizer(
     """
     import omegaconf
     from omegaconf import OmegaConf
+
     if isinstance(special_tokens, omegaconf.listconfig.ListConfig):
         special_tokens = OmegaConf.to_container(special_tokens)
     if special_tokens is None:
