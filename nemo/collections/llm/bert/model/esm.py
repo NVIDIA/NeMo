@@ -11,6 +11,7 @@ class ESM650MConfig(HuggingFaceBertConfig):
     num_attention_heads: int = 20
     bert_binary_head: bool = False
 
+
 @dataclass
 class ESM3BConfig(HuggingFaceBertConfig):
     num_layers: int = 36
@@ -18,6 +19,7 @@ class ESM3BConfig(HuggingFaceBertConfig):
     ffn_hidden_size: int = 10240
     num_attention_heads: int = 40
     bert_binary_head: bool = True
+
 
 @dataclass
 class ESM15BConfig(HuggingFaceBertConfig):
