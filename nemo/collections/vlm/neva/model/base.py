@@ -480,8 +480,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
             )
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
-            # self._language_max_sequence_length = self.language_model.max_sequence_length
-            self._language_max_sequence_length = 16384
+            self._language_max_sequence_length = self.language_model.max_sequence_length
             self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
             if config.language_model_from_pretrained is not None:
                 sharded_state_dict = dict(state_dict=self.language_model.sharded_state_dict(prefix="module."))

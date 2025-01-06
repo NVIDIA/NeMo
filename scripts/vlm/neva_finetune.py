@@ -44,7 +44,7 @@ def main(args):
 
     decoder_seq_length = 4096
     if args.use_packed_sequence:
-        decoder_seq_length = 1024
+        decoder_seq_length = 8192
 
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
