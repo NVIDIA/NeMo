@@ -191,6 +191,7 @@ def patch_linear_module(
 
     LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
     fwd = None
+    # If the model uses quantized weights, we want to use orig_linear's forward
     if orig_linear.weight.dtype == torch.uint8:
         fwd = orig_linear.forward
     orig_linear.forward = lambda x: LinearAdapter._forward(orig_linear, x, fwd)
