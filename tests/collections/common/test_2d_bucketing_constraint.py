@@ -214,6 +214,26 @@ def test_2d_bucketing_filter_strict(duration, num_tokens, should_keep, bucket_id
     assert constraint.select_bucket(constraint.max_seq_len_buckets, cut) == bucket_idx
 
 
+def test_2d_bucketing_filter_strict_max_ratio():
+    buckets = [(5.0, 10), (5.0, 20), (10.0, 15), (10.0, 30)]
+    max_ratio = [4.0, 4.0, 3.0, 3.0]
+    batch_sizes = [4, 3, 2, 1]
+
+    # Without max_ratio it works because both dims fit bucket at idx 1
+    constraint = FixedBucketBatchSizeConstraint2D(buckets, batch_sizes, strict_2d=True)
+    filter_2d = BucketingFilter(constraint)
+    cut = make_cut(duration=2.0, num_tokens=20)
+    assert filter_2d(cut) == True
+    assert constraint.select_bucket(constraint.max_seq_len_buckets, cut) == 1
+
+    # With max_ratio it's filtered out because 20 / 2.0 = 10.0 but max_ratio is 4.0
+    constraint = FixedBucketBatchSizeConstraint2D(buckets, batch_sizes, strict_2d=True, max_ratio=max_ratio)
+    filter_2d = BucketingFilter(constraint)
+    cut = make_cut(duration=2.0, num_tokens=20)
+    assert filter_2d(cut) == False
+    assert constraint.select_bucket(constraint.max_seq_len_buckets, cut) == None
+
+
 class _Identity(torch.utils.data.Dataset):
     def __getitem__(self, item):
         return item
