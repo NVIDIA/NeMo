@@ -1254,6 +1254,18 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         input_embeds = lm_embedding.word_embeddings(input_ids)
         # merge with encoded
         encoder_input = input_embeds + encoded * self.cfg.get("duplex_user_channel_weight", 0.3)
+
+        limit_max_seq_length = self.cfg.get("limit_max_seq_length", None)
+        if limit_max_seq_length is not None and limit_max_seq_length < labels.shape[1] and self.training:
+            import random
+
+            start = random.randint(0, labels.shape[1] - limit_max_seq_length - 1)
+            encoder_input = encoder_input[:, start : start + limit_max_seq_length]
+            labels = labels[:, start : start + limit_max_seq_length]
+            loss_mask = loss_mask[:, start : start + limit_max_seq_length]
+            encoder_length = torch.minimum(encoder_length, torch.tensor(limit_max_seq_length).long().cuda())
+            encoded = encoded[:, start : start + limit_max_seq_length]
+
         attention_mask = self._create_attention_mask(encoder_input)
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
