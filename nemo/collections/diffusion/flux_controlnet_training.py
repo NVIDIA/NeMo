@@ -34,10 +34,11 @@ from nemo.lightning.pytorch.optim import WarmupHoldPolicyScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback, PreemptionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
+
 
 
 from nemo.collections.diffusion.models.flux_controlnet.model import MegatronFluxControlNetModel, FluxControlNetConfig
-from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 from megatron.core.distributed import DistributedDataParallelConfig
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
 from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
@@ -70,7 +71,7 @@ def flux_mock_datamodule() -> pl.LightningDataModule:
         image_h=1024,
         image_w=1024,
         micro_batch_size=1,
-        global_batch_size=2,
+        global_batch_size=1,
         image_precached=True,
         text_precached=True,
     )
@@ -136,9 +137,10 @@ def flux_controlnet_training() -> run.Partial:
             config=run.Config(
                 OptimizerConfig,
                 lr=1e-4,
-                bf16=True,
+                adam_beta1=0.9,
+                adam_beta2=0.999,
                 use_distributed_optimizer=True,
-                weight_decay=0,
+                bf16=True,
             ),
         ),
         tokenizer=None,
@@ -152,11 +154,33 @@ def flux_controlnet_training() -> run.Partial:
     )
 
 
+@run.cli.factory(target=llm.train)
+def full_model_tp2_dp4_mock() -> run.Partial:
+    recipe = flux_controlnet_training()
+    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
+    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    recipe.model.flux_params.vae_config = None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    recipe.model.flux_params.device = 'cuda'
+    recipe.trainer.strategy.tensor_model_parallel_size=2
+    recipe.trainer.devices=8
+    recipe.data.global_batch_size = 8
+    recipe.trainer.callbacks.append(
+        run.Config(
+            NsysCallback,
+            start_step=10,
+            end_step=11,
+            gen_shape=True
+        )
+    )
+    recipe.model.flux_controlnet_config.num_single_layers = 10
+    recipe.model.flux_controlnet_config.num_joint_layers = 4
+    return recipe
 
 
 
 @run.cli.factory(target=llm.train)
 def unit_test() -> run.Partial:
+    '''Basic functional test, with mock dataset, text/vae encoders not initialized, ddp strategy, frozen and trainable layers both set to 1'''
     recipe = flux_controlnet_training()
     recipe.model.flux_params.t5_params = None #run.Config(T5Config, version='/ckpts/text_encoder_2')
     recipe.model.flux_params.clip_params = None #run.Config(ClipConfig, version='/ckpts/text_encoder')
@@ -165,11 +189,17 @@ def unit_test() -> run.Partial:
     recipe.model.flux_params.flux_config=run.Config(
         FluxConfig,
         num_joint_layers=1,
-        num_single_layers=1
+        num_single_layers=1,
     )
     recipe.model.flux_controlnet_config.num_single_layers = 1
     recipe.model.flux_controlnet_config.num_joint_layers = 1
-    recipe.data.global_batch_size=1
+    recipe.data.global_batch_size = 1
+    recipe.trainer.strategy.ddp = run.Config(
+        DistributedDataParallelConfig,
+        check_for_nan_in_grad=True,
+        grad_reduce_in_fp32=True,
+    )
+
     return recipe
 
 

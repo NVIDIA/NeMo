@@ -95,7 +95,9 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     guidance_scale: float = 3.5
     data_step_fn: Callable = flux_data_step
     ckpt_path: Optional[str] = None
+    load_dist_ckpt: bool = False
     convert_from_hf: bool = False
+
 
     def configure_model(self):
         model = Flux(config=self)
@@ -171,7 +173,7 @@ class Flux(VisionModule):
         self.norm_out = AdaLNContinuous(config=config, conditioning_embedding_dim=self.hidden_size)
         self.proj_out = nn.Linear(self.hidden_size, self.patch_size * self.patch_size * self.out_channels, bias=True)
         if self.config.ckpt_path is not None:
-            self.load_from_pretrained(self.config.ckpt_path, do_convert_from_hf=self.config.convert_from_hf)
+            self.load_from_pretrained(self.config.ckpt_path, do_convert_from_hf=self.config.convert_from_hf, load_dist_ckpt=self.config.load_dist_ckpt)
 
 
     def forward(
@@ -238,7 +240,7 @@ class Flux(VisionModule):
 
         return output
 
-    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=False, save_converted_model_to=None, load_dist_ckpt=True):
+    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=False, save_converted_model_to=None, load_dist_ckpt=False):
         if load_dist_ckpt:
             from megatron.core import dist_checkpointing
             sharded_state_dict = dict(state_dict=self.sharded_state_dict(prefix="module."))
@@ -270,11 +272,11 @@ class Flux(VisionModule):
 class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
-        params: FluxModelParams,
+        flux_params: FluxModelParams,
         optim: Optional[OptimizerModule] = None,
     ):
-        self.params = params
-        self.config = params.flux_config
+        self.params = flux_params
+        self.config = flux_params.flux_config
         super().__init__()
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
