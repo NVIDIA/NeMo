@@ -19,6 +19,9 @@ from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
+from utils import get_torch_version_str
+
+from packaging.version import Version as PkgVersion
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -61,73 +64,74 @@ def make_squad_hf_dataset(data_path, tokenizer):
 
 
 if __name__ == '__main__':
-    import argparse
+    if PkgVersion(get_torch_version_str()) >= PkgVersion("2.4"):
+        import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
-    parser.add_argument('--devices', default=2)
-    parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--model-accelerator', default=None, choices=['te'])
-    parser.add_argument('--max-steps', type=int, default=5)
-    parser.add_argument("--fp8-autocast", default=False, action='store_true')
-    parser.add_argument('--wandb-project', type=str, default=None)
-    parser.add_argument('--model-save-path', type=str, default=None)
-    args = parser.parse_args()
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
+        parser.add_argument('--devices', default=2)
+        parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
+        parser.add_argument('--model-accelerator', default=None, choices=['te'])
+        parser.add_argument('--max-steps', type=int, default=5)
+        parser.add_argument("--fp8-autocast", default=False, action='store_true')
+        parser.add_argument('--wandb-project', type=str, default=None)
+        parser.add_argument('--model-save-path', type=str, default=None)
+        args = parser.parse_args()
 
-    wandb = None
-    if args.wandb_project is not None:
-        model = '_'.join(args.model.split('/')[-2:])
-        wandb = WandbLogger(
-            project=args.wandb_project,
-            name=f'{model}_dev{args.devices}_strat_{args.strategy}',
-        )
-    grad_clip = None
-    use_dist_samp = False
+        wandb = None
+        if args.wandb_project is not None:
+            model = '_'.join(args.model.split('/')[-2:])
+            wandb = WandbLogger(
+                project=args.wandb_project,
+                name=f'{model}_dev{args.devices}_strat_{args.strategy}',
+            )
+        grad_clip = None
+        use_dist_samp = False
 
-    model_accelerator = None
-    if args.model_accelerator == "te":
-        from functools import partial
+        model_accelerator = None
+        if args.model_accelerator == "te":
+            from functools import partial
+
+            from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+
+            model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
 
         from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
-        model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
+        model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
+        tokenizer = model.tokenizer
 
-    from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+        llm.api.finetune(
+            model=model,
+            data=make_squad_hf_dataset(DATA_PATH, tokenizer),
+            trainer=nl.Trainer(
+                devices=args.devices,
+                max_steps=args.max_steps,
+                accelerator=args.accelerator,
+                strategy=nl.FSDP2Strategy(data_parallel_size=2, tensor_parallel_size=1),
+                log_every_n_steps=1,
+                limit_val_batches=0.0,
+                num_sanity_val_steps=0,
+                accumulate_grad_batches=10,
+                gradient_clip_val=grad_clip,
+                use_distributed_sampler=use_dist_samp,
+                callbacks=[],
+                logger=wandb,
+            ),
+            optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
+            log=None,
+        )
 
-    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
-    tokenizer = model.tokenizer
+        # Check memory usage compared to non-parallelized version
+        assert (
+            torch.cuda.max_memory_allocated(device=None) / 1024 / 1024 < 29326
+        ), f"using {torch.cuda.max_memory_allocated(device=None)/1024/1024} MB, larger than 29326 MB when not using parallelization."
 
-    llm.api.finetune(
-        model=model,
-        data=make_squad_hf_dataset(DATA_PATH, tokenizer),
-        trainer=nl.Trainer(
-            devices=args.devices,
-            max_steps=args.max_steps,
-            accelerator=args.accelerator,
-            strategy=nl.FSDP2Strategy(data_parallel_size=2, tensor_parallel_size=1),
-            log_every_n_steps=1,
-            limit_val_batches=0.0,
-            num_sanity_val_steps=0,
-            accumulate_grad_batches=10,
-            gradient_clip_val=grad_clip,
-            use_distributed_sampler=use_dist_samp,
-            callbacks=[],
-            logger=wandb,
-        ),
-        optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-        log=None,
-    )
+        if args.model_accelerator:
+            if args.model_accelerator == "te":
+                te_acc = is_te_accelerated(model.model)
+                assert te_acc, "Transformer Engine acceleration was unsuccessful"
+                print("TE Accelerated: ", te_acc)
 
-    # Check memory usage compared to non-parallelized version
-    assert (
-        torch.cuda.max_memory_allocated(device=None) / 1024 / 1024 < 29326
-    ), f"using {torch.cuda.max_memory_allocated(device=None)/1024/1024} MB, larger than 29326 MB when not using parallelization."
-
-    if args.model_accelerator:
-        if args.model_accelerator == "te":
-            te_acc = is_te_accelerated(model.model)
-            assert te_acc, "Transformer Engine acceleration was unsuccessful"
-            print("TE Accelerated: ", te_acc)
-
-    if args.model_save_path is not None:
-        model.save_pretrained(args.model_save_path)
+        if args.model_save_path is not None:
+            model.save_pretrained(args.model_save_path)
