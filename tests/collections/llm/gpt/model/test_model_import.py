@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import torch
-
+import os
 torch.set_grad_enabled(False)
 
 
@@ -95,5 +95,8 @@ def import_from_hf(config_name, hf_path):
 
 if __name__ == '__main__':
     for config_name, hf_id in config_name_to_hf_id.items():
+        for env_var in ['NVTE_FLASH_ATTN', 'NVTE_FUSED_ATTN', 'NVTE_UNFUSED_ATTN']:
+            if env_var in os.environ:
+                 del os.environ[env_var]
         src = f'hf:///home/TestData/nemo2_ckpt/{config_name}'
         import_from_hf(config_name, src)
