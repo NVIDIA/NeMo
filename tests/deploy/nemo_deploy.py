@@ -21,7 +21,7 @@ from pathlib import Path
 
 import torch
 
-from nemo.deploy.nlp import MegatronLLMDeployable
+from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 from tests.infer_data_path import get_infer_test_data
 
 run_export_tests = True
@@ -136,7 +136,7 @@ def run_in_framework_inference(
     nm = DeployPyTriton(
         model=model,
         triton_model_name=model_name,
-        port=8000,
+        http_port=8000,
     )
     nm.deploy()
     nm.run()
@@ -286,7 +286,7 @@ def run_trt_llm_inference(
             nm = DeployPyTriton(
                 model=trt_llm_exporter,
                 triton_model_name=model_name,
-                port=8000,
+                http_port=8000,
             )
             nm.deploy()
             nm.run()
