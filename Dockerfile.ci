@@ -92,11 +92,6 @@ EOF
 # Copy over NeMo code
 COPY ./ ./
 RUN <<"EOF" bash -ex
-pip install --no-cache-dir --no-build-isolation ".[all]"
-
-# set permission
-chmod 777 -R /workspace
-EOF
 
 # Install vLLM in virtualenv
 RUN pip install virtualenv && \
@@ -105,5 +100,10 @@ RUN pip install virtualenv && \
         -r /workspace/requirements/requirements_vllm.txt \
         -r /workspace/requirements/requirements_infer.txt
 
+pip install --no-cache-dir --no-build-isolation ".[all]"
+
+# set permission
+chmod 777 -R /workspace
+EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
