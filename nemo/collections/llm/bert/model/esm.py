@@ -10,7 +10,6 @@ class ESM650MConfig(HuggingFaceBertConfig):
     ffn_hidden_size: int = 5120
     num_attention_heads: int = 20
     bert_binary_head: bool = False
-    position_embedding_type: str = "rope"
 
 
 @dataclass
@@ -19,8 +18,7 @@ class ESM3BConfig(HuggingFaceBertConfig):
     hidden_size: int = 2560
     ffn_hidden_size: int = 10240
     num_attention_heads: int = 40
-    bert_binary_head: bool = False
-    position_embedding_type: str = "rope"
+    bert_binary_head: bool = True
 
 
 @dataclass
@@ -30,4 +28,3 @@ class ESM15BConfig(HuggingFaceBertConfig):
     ffn_hidden_size: int = 20480
     num_attention_heads: int = 40
     bert_binary_head: bool = False
-    position_embedding_type: str = "rope"
