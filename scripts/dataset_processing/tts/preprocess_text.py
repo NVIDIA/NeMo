@@ -27,8 +27,6 @@ $ python <nemo_root_path>/scripts/dataset_processing/tts/preprocess_text.py \
     --joblib_batch_size=16
 """
 import argparse
-import json
-import os
 from pathlib import Path
 
 from hydra.utils import instantiate
