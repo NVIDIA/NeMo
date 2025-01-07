@@ -414,7 +414,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 [total_steps],
                 (
                     self.text_processor.tokenizer.pad_id
-                    if self.text_processor.tokenizer.pad_id >= 0
+                    if hasattr(self.text_processor.tokenizer, 'pad_id') and self.text_processor.tokenizer.pad_id >= 0
                     else self.text_processor.tokenizer.unk_id
                 ),
             )
@@ -422,7 +422,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 [total_steps],
                 (
                     self.text_processor.tokenizer.pad_id
-                    if self.text_processor.tokenizer.pad_id >= 0
+                    if hasattr(self.text_processor.tokenizer, 'pad_id') and self.text_processor.tokenizer.pad_id >= 0
                     else self.text_processor.tokenizer.unk_id
                 ),
             )
@@ -630,7 +630,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     [total_steps],
                     (
                         self.text_processor.tokenizer.pad_id
-                        if self.text_processor.tokenizer.pad_id >= 0
+                        if hasattr(self.text_processor.tokenizer, 'pad_id')
+                        and self.text_processor.tokenizer.pad_id >= 0
                         else self.text_processor.tokenizer.unk_id
                     ),
                 )
