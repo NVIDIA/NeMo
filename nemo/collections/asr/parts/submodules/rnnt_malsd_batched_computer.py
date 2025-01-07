@@ -293,8 +293,6 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
 
         return batched_hyps.to_hyps_list(score_norm=self.score_norm)
     
-        
-
     def topk_lm(self, lm_scores, log_probs):
         if self.pruning_mode is PruningMode.LATE:
             if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
@@ -359,6 +357,35 @@ class ModifiedALSDBatchedRNNTComputer(ConfidenceMethodMixin):
                 log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
+            else:
+                raise NotImplementedError(
+                        f"The combination of blank scoring mode '{self.blank_lm_score_mode}' "
+                        f"and pruning mode '{self.pruning_mode}' is not implemented."
+                )
+        elif self.pruning_mode is PruningMode.EARLY:
+            if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
+                # log_probs[..., :-1] += lm_scores
+                log_probs_top_k, labels_top_k = torch.topk(
+                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                    )
+                masked_labels = torch.where(labels_top_k==self._blank_index, 0, labels_top_k)
+                log_probs_top_k = torch.where(
+                    labels_top_k==self._blank_index,
+                    log_probs_top_k,
+                    log_probs_top_k + torch.gather(lm_scores, dim=-1,index=masked_labels))
+            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
+                # choosing topk from acoustic model
+                log_probs_top_k, labels_top_k = log_probs.topk(self.beam_size, dim=-1, largest=True, sorted=True)
+                
+                blank_logprob = log_probs[..., -1]
+                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
+                
+                masked_labels = torch.where(labels_top_k==self._blank_index, 0, labels_top_k)
+                log_probs_top_k = torch.where(
+                    labels_top_k==self._blank_index,
+                    log_probs_top_k * (1 + self.ngram_lm_alpha),
+                    log_probs_top_k + non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + torch.gather(lm_scores, dim=-1, index=masked_labels)
+                )
             else:
                 raise NotImplementedError(
                         f"The combination of blank scoring mode '{self.blank_lm_score_mode}' "
