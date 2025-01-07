@@ -15,13 +15,12 @@
 import fiddle as fdl
 import torch
 from lightning.pytorch.loggers import WandbLogger
+from packaging.version import Version as PkgVersion
+from utils import get_torch_version_str
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
-from utils import get_torch_version_str
-
-from packaging.version import Version as PkgVersion
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
