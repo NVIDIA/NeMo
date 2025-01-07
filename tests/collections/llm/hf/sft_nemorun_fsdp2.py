@@ -20,7 +20,8 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
-DATA_PATH = '/lustre/fsw/coreai_dlalgo_llm/boxiangw/squad'
+
+DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
 
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
