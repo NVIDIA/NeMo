@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import torch
 import torch.nn.functional as F
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
 from tqdm import tqdm
-import re
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
@@ -166,6 +167,7 @@ class NeMoFWLMEval(LM):
 
         return results
 
+
 def wait_for_server_ready(url, triton_http_port, model_name, max_retries=600, retry_interval=2):
     """
     Wait for PyTriton server and model to be ready.
@@ -182,9 +184,10 @@ def wait_for_server_ready(url, triton_http_port, model_name, max_retries=600, re
     """
 
     import time
+
     import requests
     from pytriton.client import ModelClient
-    from pytriton.client.exceptions import PyTritonClientTimeoutError, PyTritonClientModelUnavailableError
+    from pytriton.client.exceptions import PyTritonClientModelUnavailableError, PyTritonClientTimeoutError
 
     # If gRPC URL, extract HTTP URL from gRPC URL for health checks
     if url.startswith("grpc://"):
