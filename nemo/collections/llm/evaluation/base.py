@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
 from tqdm import tqdm
+import re
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
@@ -165,12 +166,13 @@ class NeMoFWLMEval(LM):
 
         return results
 
-def wait_for_server_ready(url, model_name, max_retries=600, retry_interval=2):
+def wait_for_server_ready(url, triton_http_port, model_name, max_retries=600, retry_interval=2):
     """
-    Wait for the Triton server and model to be ready, with retry logic.
+    Wait for PyTriton server and model to be ready.
 
     Args:
         url (str): The URL of the Triton server (e.g., "grpc://0.0.0.0:8001").
+        triton_http_port (int): http port of the triton server.
         model_name (str): The name of the deployed model.
         max_retries (int): Maximum number of retries before giving up.
         retry_interval (int): Time in seconds to wait between retries.
@@ -186,8 +188,12 @@ def wait_for_server_ready(url, model_name, max_retries=600, retry_interval=2):
 
     # If gRPC URL, extract HTTP URL from gRPC URL for health checks
     if url.startswith("grpc://"):
-        #TODO use triton port and grpc port instaed of harcoding
-        url = url.replace("grpc://", "http://").replace(":8001", ":8000")
+        # Extract the gRPC port using regex
+        pattern = r":(\d+)"  # Matches a colon followed by one or more digits
+        match = re.search(pattern, url)
+        grpc_port = match.group(1)
+        # Replace 'grpc' with 'http' and replace the grpc_port with http port
+        url = url.replace("grpc://", "http://").replace(f":{grpc_port}", f":{triton_http_port}")
     health_url = f"{url}/v2/health/ready"
 
     for _ in range(max_retries):
@@ -211,8 +217,8 @@ def wait_for_server_ready(url, model_name, max_retries=600, retry_interval=2):
             logging.info(f"Timeout: Server or model '{model_name}' not ready yet.")
         except PyTritonClientModelUnavailableError:
             logging.info(f"Model '{model_name}' is unavailable on the server.")
-        except requests.exceptions.RequestException as e:
-            logging.info(f"Error checking server readiness: {e}")
+        except requests.exceptions.RequestException:
+            logging.info(f"Pytriton server not ready yet. Retrying in {retry_interval} seconds...")
 
         # Wait before retrying
         time.sleep(retry_interval)
