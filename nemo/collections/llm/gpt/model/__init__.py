@@ -64,6 +64,7 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaConfig,
     LlamaModel,
 )
+from nemo.collections.llm.gpt.model.nvembed_llama import NVEmbedLlama32Config1B, NVEmbedLlamaModel
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
 from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig,
@@ -145,6 +146,8 @@ __all__ = [
     "Nemotron3Config22B",
     "Nemotron4Config340B",
     "NemotronModel",
+    "NVEmbedLlamaModel",
+    "NVEmbedLlama32Config1B",
     "Phi3Config",
     "Phi3ConfigMini",
     "Phi3Model",
