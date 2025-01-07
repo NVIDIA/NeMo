@@ -56,7 +56,7 @@ class AppState(metaclass=Singleton):
         self._data_parallel_size = None
         self._data_parallel_group = None
         self._use_tp_pp_dp_mapping = False
-        self._partial_data_parallel_shard_factor = 1
+        self._num_distributed_optimizer_instances = 1
         self._megatron_checkpoint_version = None
         self._use_fp8 = False
         self._context_parallel_size = None
@@ -210,20 +210,20 @@ class AppState(metaclass=Singleton):
         self._use_tp_pp_dp_mapping = use_new_mapping
 
     @property
-    def partial_data_parallel_shard_factor(self):
+    def num_distributed_optimizer_instances(self):
         """Property returns the factor by which the Partial DistOpt is sharded.
         Returns:
             The partial DistOpt shard factor
         """
-        return self._partial_data_parallel_shard_factor
+        return self._num_distributed_optimizer_instances
 
-    @partial_data_parallel_shard_factor.setter
-    def partial_data_parallel_shard_factor(self, shard_factor):
+    @num_distributed_optimizer_instances.setter
+    def num_distributed_optimizer_instances(self, shard_factor):
         """Property sets the factor by which the Partial DistOpt is sharded.
         Args:
             shard_factor (int):  The partial DistOpt shard factor.
         """
-        self._partial_data_parallel_shard_factor = shard_factor
+        self._num_distributed_optimizer_instances = shard_factor
 
     @property
     def virtual_pipeline_model_parallel_size(self):
