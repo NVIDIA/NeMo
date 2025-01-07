@@ -46,7 +46,8 @@ from nemo.collections.asr.parts.utils.rnnt_utils import (
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
+from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
 
 from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
@@ -1415,13 +1416,6 @@ class BeamRNNTInfer(Typing):
                 prefix_alpha=self.maes_prefix_alpha,
             )  # type: List[Hypothesis]
             kept_hyps = []
-            
-            # print("After")
-            # for hyp1 in sorted(hyps, key = lambda x: x.score, reverse=True):
-            #     print("Sequence: ", hyp1.y_sequence)
-            #     print("Timesteps: ", hyp1.timestep)
-            #     print("Score: ", hyp1.score)
-            #     print()
 
             # Prepare output tensor
             beam_enc_out = enc_out_t
@@ -1749,37 +1743,7 @@ class BeamRNNTInfer(Typing):
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
 
-@dataclass
-class BeamRNNTInferConfig:
-    """
-    Beam RNNT Inference config.
-    """
-
-    beam_size: int
-    search_type: str = 'default'
-    score_norm: bool = True
-    return_best_hypothesis: bool = True
-    tsd_max_sym_exp_per_step: Optional[int] = 50
-    alsd_max_target_len: float = 1.0
-    nsc_max_timesteps_expansion: int = 1
-    nsc_prefix_alpha: int = 1
-    maes_num_steps: int = 2
-    maes_prefix_alpha: int = 1
-    maes_expansion_gamma: float = 2.3
-    maes_expansion_beta: int = 2
-    language_model: Optional[Dict[str, Any]] = None
-    softmax_temperature: float = 1.0
-    preserve_alignments: bool = False
-    max_symbols_per_step: int = 10
-    ngram_lm_model: Optional[str] = None
-    ngram_lm_alpha: Optional[float] = 0.0
-    blank_lm_score_mode: Optional[str] = None
-    pruning_mode: Optional[str] = None
-    hat_subtract_ilm: bool = False
-    hat_ilm_weight: float = 0.0
-    use_kenlm: bool = True
-
-class BeamBatchedMAESRNNTInfer(Typing, ConfidenceMethodMixin):
+class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
@@ -1795,118 +1759,17 @@ class BeamBatchedMAESRNNTInfer(Typing, ConfidenceMethodMixin):
             joint_model: rnnt_abstract.AbstractRNNTJoint,
             blank_index: int,
             beam_size: int,
-            maes_num_steps: int,
-            maes_expansion_gamma: float,
-            maes_expansion_beta: float,
-            preserve_alignments=False,
-            ngram_lm_model: Optional[str | Path] = None,
-            ngram_lm_alpha: float = 0.0,
-            blank_lm_score_mode: Optional[str | rnnt_utils.BlankLMScoreMode] = None,
-            pruning_mode: Optional[str | rnnt_utils.PruningMode] = None,
+            search_type: str = 'malsd_batch',
             score_norm: bool = True,
-            allow_recombine_hyps: bool = False,
-    ):
-        super().__init__()
-        self.decoder = decoder_model
-        self.joint = joint_model
-
-        self._blank_index = blank_index
-        self._SOS = blank_index  # Start of single index
-        self.beam_size = beam_size
-
-        self.maes_num_steps = maes_num_steps
-        self.maes_expansion_gamma = maes_expansion_gamma
-        self.maes_expansion_beta = maes_expansion_beta
-        self.preserve_alignments = preserve_alignments
-        
-        self.allow_recombine_hyps = allow_recombine_hyps
-        self.score_norm=score_norm
-
-        # Depending on availability of `blank_as_pad` support
-        # switch between more efficient batch decoding technique
-        self._decoding_computer = ModifiedAESBatchedRNNTComputer(
-            decoder=self.decoder,
-            joint=self.joint,
-            beam_size=self.beam_size,
-            blank_index=self._blank_index,
-            maes_num_steps=self.maes_num_steps,
-            maes_expansion_gamma=self.maes_expansion_gamma,
-            maes_expansion_beta=self.maes_expansion_beta,
-            preserve_alignments=preserve_alignments,
-            ngram_lm_model=ngram_lm_model,
-            ngram_lm_alpha=ngram_lm_alpha,
-            blank_lm_score_mode=blank_lm_score_mode,
-            pruning_mode=pruning_mode,
-            allow_recombine_hyps=self.allow_recombine_hyps,
-            score_norm = score_norm
-        )
-
-    @property
-    def output_types(self):
-        """Returns definitions of module output ports."""
-        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-    @typecheck()
-    def forward(
-            self,
-            encoder_output: torch.Tensor,
-            encoded_lengths: torch.Tensor,
-            partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
-    ) -> Tuple[list[rnnt_utils.Hypothesis]]:
-        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
-        Output token is generated auto-regressively.
-        Args:
-            encoder_output: A tensor of size (batch, features, timesteps).
-            encoded_lengths: list of int representing the length of each sequence
-                output sequence.
-        Returns:
-            packed list containing batch number of sentences (Hypotheses).
-        """
-        # Preserve decoder and joint training state
-        decoder_training_state = self.decoder.training
-        joint_training_state = self.joint.training
-
-        with torch.inference_mode():
-            # Apply optional preprocessing
-            encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
-            logitlen = encoded_lengths
-
-            self.decoder.eval()
-            self.joint.eval()
-
-            inseq = encoder_output  # [B, T, D]
-            hyps = self._decoding_computer(x=inseq, out_len=logitlen)
-
-        self.decoder.train(decoder_training_state)
-        self.joint.train(joint_training_state)
-
-        return (hyps,)
-    
-class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
-    @property
-    def input_types(self):
-        """Returns definitions of module input ports."""
-        return {
-            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-            "partial_hypotheses": [NeuralType(elements_type=HypothesisType(), optional=True)],  # must always be last
-        }
-
-    def __init__(
-            self,
-            decoder_model: rnnt_abstract.AbstractRNNTDecoder,
-            joint_model: rnnt_abstract.AbstractRNNTJoint,
-            blank_index: int,
-            beam_size: int,
-            max_symbols_per_step: Optional[int] = None,
+            maes_num_steps: Optional[int] = None,
+            maes_expansion_gamma: Optional[float] = None,
+            maes_expansion_beta: Optional[int] = None,
+            malsd_max_symbols_per_step: Optional[int] = None,
             preserve_alignments: bool = False,
             ngram_lm_model: Optional[str | Path] = None,
             ngram_lm_alpha: float = 0.0,
             blank_lm_score_mode: Optional[str] = None,
-            score_norm: bool = True,
+            pruning_mode: Optional[str] = None,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -1916,25 +1779,43 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
         self._SOS = blank_index  # Start of single index
         self.beam_size = beam_size
 
-        if max_symbols_per_step is not None and max_symbols_per_step <= 0:
-            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
-        self.max_symbols = max_symbols_per_step
+        if malsd_max_symbols_per_step is not None and malsd_max_symbols_per_step <= 0:
+            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {malsd_max_symbols_per_step}")
+        self.max_symbols = malsd_max_symbols_per_step
         self.preserve_alignments = preserve_alignments
 
-        # Depending on availability of `blank_as_pad` support
-        # switch between more efficient batch decoding technique
-        self._decoding_computer = ModifiedALSDBatchedRNNTComputer(
-            decoder=self.decoder,
-            joint=self.joint,
-            beam_size=self.beam_size,
-            blank_index=self._blank_index,
-            max_symbols_per_step=self.max_symbols,
-            preserve_alignments=preserve_alignments,
-            ngram_lm_model=ngram_lm_model,
-            ngram_lm_alpha=ngram_lm_alpha,
-            blank_lm_score_mode=blank_lm_score_mode,
-            score_norm=score_norm,
-        )
+        if search_type == "malsd_batch":
+            # Depending on availability of `blank_as_pad` support
+            # switch between more efficient batch decoding technique
+            self._decoding_computer = ModifiedALSDBatchedRNNTComputer(
+                decoder=self.decoder,
+                joint=self.joint,
+                beam_size=self.beam_size,
+                blank_index=self._blank_index,
+                max_symbols_per_step=self.max_symbols,
+                preserve_alignments=preserve_alignments,
+                ngram_lm_model=ngram_lm_model,
+                ngram_lm_alpha=ngram_lm_alpha,
+                blank_lm_score_mode=blank_lm_score_mode,
+                score_norm=score_norm,
+                pruning_mode=pruning_mode
+            )
+        elif search_type == "maes_batch":
+            self._decoding_computer = ModifiedAESBatchedRNNTComputer(
+                decoder=self.decoder,
+                joint=self.joint,
+                beam_size=self.beam_size,
+                blank_index=self._blank_index,
+                maes_num_steps=maes_num_steps,
+                maes_expansion_beta=maes_expansion_beta,
+                maes_expansion_gamma=maes_expansion_gamma,
+                preserve_alignments=preserve_alignments,
+                ngram_lm_model=ngram_lm_model,
+                ngram_lm_alpha=ngram_lm_alpha,
+                blank_lm_score_mode=blank_lm_score_mode,
+                score_norm=score_norm,
+                pruning_mode=pruning_mode
+            )
 
     @property
     def output_types(self):
@@ -1985,3 +1866,33 @@ class Best1BeamBatchedMALSDInfer(Typing, ConfidenceMethodMixin):
         self.joint.train(joint_training_state)
 
         return (hyps,)
+
+
+@dataclass
+class BeamRNNTInferConfig:
+    """
+    Beam RNNT Inference config.
+    """
+
+    beam_size: int
+    search_type: str = 'default'
+    score_norm: bool = True
+    return_best_hypothesis: bool = True
+    tsd_max_sym_exp_per_step: Optional[int] = 50
+    alsd_max_target_len: float = 1.0
+    nsc_max_timesteps_expansion: int = 1
+    nsc_prefix_alpha: int = 1
+    maes_num_steps: int = 2
+    maes_prefix_alpha: int = 1
+    maes_expansion_gamma: float = 2.3
+    maes_expansion_beta: int = 2
+    language_model: Optional[Dict[str, Any]] = None
+    softmax_temperature: float = 1.0
+    preserve_alignments: bool = False
+    max_symbols_per_step: int = 10
+    ngram_lm_model: Optional[str] = None
+    ngram_lm_alpha: Optional[float] = 0.0
+    blank_lm_score_mode: Optional[str] = None
+    pruning_mode: Optional[str] = None
+    hat_subtract_ilm: bool = False
+    hat_ilm_weight: float = 0.0

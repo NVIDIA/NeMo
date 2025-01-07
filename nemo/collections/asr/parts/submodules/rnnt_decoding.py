@@ -249,7 +249,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     "currently only greedy and greedy_batch inference is supported for multi-blank models"
                 )
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'malsd_batch', 'maes_batch']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'malsd_batch', "maes_batch"]
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
@@ -484,34 +484,37 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
                     )
-        elif self.cfg.strategy == 'malsd_batch':
-            self.decoding = rnnt_beam_decoding.Best1BeamBatchedMALSDInfer(
+elif self.cfg.strategy == 'malsd_batch':
+            self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
                 beam_size=self.cfg.beam.beam_size,
-                max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                search_type='malsd_batch',
+                malsd_max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
                 preserve_alignments=self.preserve_alignments,
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                 blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                pruning_mode=self.cfg.beam.get('pruning_mode', None),
                 score_norm=self.cfg.beam.get('score_norm', True),
             )
         elif self.cfg.strategy == 'maes_batch':
-            self.decoding = rnnt_beam_decoding.BeamBatchedMAESRNNTInfer(
+            self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
                 beam_size=self.cfg.beam.beam_size,
-                preserve_alignments=self.preserve_alignments,
-                maes_num_steps = self.cfg.beam.get('maes_num_steps', 2),
-                maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                search_type='maes_batch',
+                maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
                 maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2),
+                maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                preserve_alignments=self.preserve_alignments,
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                 blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
-                pruning_mode=self.cfg.beam.get('pruning_mode', 'early'),
-                score_norm = self.cfg.beam.get('score_norm', True)
+                pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                score_norm=self.cfg.beam.get('score_norm', True),
             )
         else:
             raise ValueError(
