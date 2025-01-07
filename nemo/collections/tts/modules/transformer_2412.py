@@ -17,7 +17,10 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
+from nemo.utils import logging
 
+# TODO: Move the cache implementation out of the Module class, and pass it as part of the forward so we can reset
+# as needed in the inference pipeline.
 
 class ConvolutionLayer(torch.nn.Module):
     def __init__(
@@ -47,8 +50,18 @@ class ConvolutionLayer(torch.nn.Module):
         """
         super().__init__()
 
-        padding = 0 if is_causal else padding
-        if padding is None:
+        # Setup up padding; should be 0 if set to causal
+        # If not causal and padding is None, set an appropriate value for padding
+        self.causal_padding = None
+        if is_causal:
+            self.causal_padding = (((self.kernel_size - 1) * self.dilation), 0)
+            if padding is not None:
+                logging.warning(
+                    f'{self} was initiliazed with is_causal set to True, and padding set to {padding}. '
+                    f'The provided padding value will be ignored and set to {self.causal_padding}.'
+                )
+            padding = 0
+        elif padding is None:
             if kernel_size % 2 == 0:
                 raise ValueError("`kernel_size` must be odd when `padding` is None.")
             else:
@@ -70,8 +83,7 @@ class ConvolutionLayer(torch.nn.Module):
 
     def forward(self, signal):
         if self.is_causal:  # TODO: maybe replace with identify rather than keep conditional if in forward
-            padding = (((self.kernel_size - 1) * self.dilation), 0)
-            signal = F.pad(signal, padding)
+            signal = F.pad(signal, self.causal_padding)
 
         conv_signal = self.conv(signal)
 
@@ -131,14 +143,16 @@ class Attention(torch.nn.Module):
         is_causal: bool = True,
     ):
         """
-        Base Attention module supporting both self-attention and cross-attention.
-        Does DotProductionAttention and additionally dropout inside the module.
+        Base Attention parent class. Users should not be instantiating this class, but rather use SelfAttention or
+        CrossAttention classes as appropriate.
+        Does DotProductionAttention and additionally dropout inside the module. The class does not currently support
+        RoPE nor ALiBi.
 
         Args:
             n_heads (int): Number of attention heads.
             d_model (int): Dimension of the model.
             p_dropout (float): Dropout probability.
-            is_causal (bool): Whether to use causal attention.
+            is_causal (bool): Whether to use causal attention. Onlu supported when used in SelfAttention.
         """
         super().__init__()
         assert d_model % n_heads == 0, "d_model % n_head != 0"
@@ -192,9 +206,11 @@ class Attention(torch.nn.Module):
             else:
                 self.cache['is_initialized'] = True
 
+        # Calls into children classes to compute qkv tensors and mask tensor
         q, k, v, mask = self.compute_qkv_and_mask(
             query=query, query_mask=query_mask, memory=memory, memory_mask=memory_mask
         )
+
         # (B, T, nh, dh) -> (B, nh, T, dh)
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
@@ -260,7 +276,6 @@ class Attention(torch.nn.Module):
 
         return y, attn_prob
 
-
 class SelfAttention(Attention):
     def __init__(
         self,
@@ -270,6 +285,16 @@ class SelfAttention(Attention):
         is_causal: bool = True,
         max_length_causal_mask: int = 4096,
     ):
+        """
+        Implements SelfAttention. See parent class for forward implementation.
+
+        Args:
+            n_heads (int): Number of attention heads.
+            d_model (int): Dimension of the model.
+            p_dropout (float): Dropout probability.
+            is_causal (bool): Whether to use causal attention. Onlu supported when used in SelfAttention.
+            max_length_causal_mask (int): Maximum sequence length for Attention module.
+        """
         super().__init__(
             n_heads=n_heads,
             d_model=d_model,
@@ -313,7 +338,6 @@ class SelfAttention(Attention):
         mask = query_mask[:, None, :, None] if query_mask is not None else None
         return q, k, v, mask
 
-
 class CrossAttention(Attention):
     def __init__(
         self,
@@ -322,6 +346,15 @@ class CrossAttention(Attention):
         d_memory: int,
         p_dropout: float,
     ):
+        """
+        Implements CrossAttention. See parent class for forward implementation. Must be non-causal.
+
+        Args:
+            n_heads (int): Number of attention heads.
+            d_model (int): Dimension of the model.
+            d_memory (int): Dimension of the conditioning / cross-attention input.
+            p_dropout (float): Dropout probability.
+        """
         super().__init__(
             n_heads=n_heads,
             d_model=d_model,
@@ -361,7 +394,6 @@ class CrossAttention(Attention):
 
         mask = memory_mask[:, None, None] if memory_mask is not None else None
         return q, k, v, mask
-
 
 class TransformerLayer(torch.nn.Module):
     def __init__(
