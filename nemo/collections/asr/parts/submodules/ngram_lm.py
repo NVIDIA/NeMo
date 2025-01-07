@@ -14,6 +14,7 @@
 
 import re
 from collections import defaultdict
+from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
 
@@ -139,7 +140,9 @@ class FastNGramLM(nn.Module):
 
     UNK_ID = -3
     BACKOFF_ID = -10
-    SPECIAL_SYMBOLS_MAP = {"<s>": -1, "</s>": -2, "<unk>": UNK_ID}
+    BOS_ID = -1  # Begin-of-Sentence
+    EOS_ID = -2  # End-of-Sentence
+    SPECIAL_SYMBOLS_MAP = {"<s>": BOS_ID, "</s>": EOS_ID, "<unk>": UNK_ID}
     START_STATE = 0
     BOS_STATE = 1
 
@@ -178,15 +181,19 @@ class FastNGramLM(nn.Module):
         self.arcs_weights = nn.Parameter(torch.zeros([num_arcs_extended]))
         self.backoff_weights = nn.Parameter(torch.zeros([num_states]))
 
+        if max(num_states, num_arcs_extended) < torch.iinfo(torch.int32).max:
+            int_dtype = torch.int32
+        else:
+            int_dtype = torch.int64
         # buffers: LM (suffix tree) structure
-        self.register_buffer("from_states", torch.zeros([num_arcs_extended], dtype=torch.int64))
-        self.register_buffer("to_states", torch.zeros([num_arcs_extended], dtype=torch.int64))
-        self.register_buffer("ilabels", torch.zeros([num_arcs_extended], dtype=torch.int64))
-        self.register_buffer("backoff_to_states", torch.zeros([num_states], dtype=torch.int64))
+        self.register_buffer("from_states", torch.zeros([num_arcs_extended], dtype=int_dtype))
+        self.register_buffer("to_states", torch.zeros([num_arcs_extended], dtype=int_dtype))
+        self.register_buffer("ilabels", torch.zeros([num_arcs_extended], dtype=int_dtype))
+        self.register_buffer("backoff_to_states", torch.zeros([num_states], dtype=int_dtype))
 
-        self.register_buffer("state_start_arcs", torch.zeros([num_states], dtype=torch.int64))
-        self.register_buffer("state_end_arcs", torch.zeros([num_states], dtype=torch.int64))
-        self.register_buffer("state_order", torch.zeros([num_states], dtype=torch.int64))
+        self.register_buffer("state_start_arcs", torch.zeros([num_states], dtype=int_dtype))
+        self.register_buffer("state_end_arcs", torch.zeros([num_states], dtype=int_dtype))
+        self.register_buffer("state_order", torch.zeros([num_states], dtype=int_dtype))
 
     @classmethod
     def from_arpa(
@@ -207,15 +214,24 @@ class FastNGramLM(nn.Module):
             FastNGramLM module
         """
         logging.info(f"{cls.__name__}: reading LM from {lm_path}")
-        ngrams = cls._read_ngrams(lm_path=lm_path, token_offset=token_offset)
-        adjacency, num_states = cls._build_suffix_tree(ngrams=ngrams)
+        adjacency: list[dict[int, Arc]] = [dict(), dict()]
+        states_cache = dict()
+        with open(lm_path, "r", encoding="utf-8") as f:
+            order2cnt = cls._read_header(f=f)
+            max_order = max(order2cnt.keys())
+            total_ngrams = sum(order2cnt.values())
+            for ngram in tqdm(cls._read_ngrams(f=f, token_offset=token_offset), total=total_ngrams, mininterval=1.0):
+                cls._build_suffix_tree_iterative(
+                    adjacency=adjacency, ngram=ngram, max_order=max_order, states_cache=states_cache
+                )
+        num_states = len(adjacency)
         num_arcs = sum(
             len(state_arcs) if state != cls.START_STATE else vocab_size for state, state_arcs in enumerate(adjacency)
         )
         model = FastNGramLM(
             num_states=num_states,
             num_arcs=num_arcs,
-            max_order=len(ngrams),
+            max_order=max_order,
             vocab_size=vocab_size,
             use_triton=use_triton,
         )
@@ -223,54 +239,55 @@ class FastNGramLM(nn.Module):
         return model
 
     @classmethod
-    def _read_ngrams(cls, lm_path: Path | str, token_offset: int) -> list[list[NGram]]:
-        ngram2cnt_read = defaultdict(int)
-        ngram2cnt = defaultdict(int)
-        ngrams = []
-        special_words_pattern = '|'.join(re.escape(symbol) for symbol in cls.SPECIAL_SYMBOLS_MAP.keys())
-        pattern = re.compile(rf'({special_words_pattern}|.)\s?')
-        with open(lm_path, "r", encoding="utf-8") as f:
-            is_header = True
-            cur_order = 0
-            for i, line in enumerate(tqdm(f.readlines())):
-                if i == 0:
-                    assert line.strip() == "\\data\\"
-                    continue
+    def _read_header(cls, f) -> dict[int, int]:
+        is_start = True
+        order2cnt: dict[int, int] = defaultdict(int)
+        for line in f:
+            line = line.strip()
+            if is_start:
+                assert line == "\\data\\"
+                is_start = False
+                continue
 
-                if line.endswith("\n"):
-                    line = line[:-1]
-
-                if not line:
-                    continue
-
-                if line.startswith("\\end\\"):
-                    break
-
-                if is_header:
-                    if line.startswith("ngram"):
-                        ngram_order, cnt = line.split("=")
-                        order = int(ngram_order.split()[-1])
-                        cnt = int(cnt)
-                        ngram2cnt[order] = cnt
-                        continue
-                    else:
-                        is_header = False
-                        max_order = max(ngram2cnt.keys())
-
-                if line.startswith("\\"):
-                    cur_order = int(line.split("-")[0][1:])
-                    ngrams.append([])
-                    continue
-
-                ngrams[-1].append(cls._line_to_ngram(line, pattern=pattern, token_offset=token_offset))
-                ngram2cnt_read[cur_order] += 1
-            assert ngram2cnt == ngram2cnt_read
-            assert len(ngrams) == max_order
-            logging.info(f"Loaded model, order={max_order}")
-            return ngrams
+            if line.startswith("ngram"):
+                ngram_order, cnt = line.split("=")
+                order = int(ngram_order.split()[-1])
+                cnt = int(cnt)
+                order2cnt[order] = cnt
+                continue
+            else:
+                assert not line, "empty line expected after header"
+                break
+        return order2cnt
 
     @classmethod
-    def _line_to_ngram(cls, line: str, pattern: re.Pattern, token_offset: int) -> NGram:
+    def _read_ngrams(cls, f, token_offset: int) -> Iterator[NGram]:
+        special_words_pattern = '|'.join(re.escape(symbol) for symbol in cls.SPECIAL_SYMBOLS_MAP.keys())
+        pattern = re.compile(rf'({special_words_pattern}|.)\s?')
+        for line in f:
+            if line.endswith("\n"):
+                line = line[:-1]
+
+            if not line:
+                continue
+
+            if line.startswith("\\end\\"):
+                break
+
+            if line.startswith("\\"):
+                # cur_order = int(line.split("-")[0][1:])
+                # ngrams.append([])
+                continue
+
+            ngram = cls._line_to_ngram(
+                special_symbols_map=cls.SPECIAL_SYMBOLS_MAP, line=line, pattern=pattern, token_offset=token_offset
+            )
+            yield ngram
+
+    @staticmethod
+    def _line_to_ngram(
+        special_symbols_map: dict[str, int], line: str, pattern: re.Pattern, token_offset: int
+    ) -> NGram:
         weight, symbols_str, *backoff_opt = line.split("\t")
         if backoff_opt:
             assert len(backoff_opt) == 1
@@ -281,10 +298,47 @@ class FastNGramLM(nn.Module):
         symbols_re = pattern.findall(symbols_str)
 
         symbols = tuple(
-            (ord(symbol) - token_offset if symbol not in cls.SPECIAL_SYMBOLS_MAP else cls.SPECIAL_SYMBOLS_MAP[symbol])
+            (ord(symbol) - token_offset if symbol not in special_symbols_map else special_symbols_map[symbol])
             for symbol in symbols_re
         )
         return NGram(weight=weight, backoff=backoff, symbols=symbols)
+
+    @classmethod
+    def _build_suffix_tree_iterative(
+        cls, adjacency: list[dict[int, Arc]], ngram: NGram, max_order: int, states_cache: dict[tuple[int, ...], int]
+    ):
+        # adjacency: list[dict[int, Arc]] = [dict(), dict()]
+        # num_states = 2  # start, bos
+        order = len(ngram.symbols)
+        symbol = ngram.symbols[-1]
+        if order == 1:
+            if symbol == cls.BOS_ID:
+                # bos
+                adjacency[cls.START_STATE][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=cls.BOS_STATE)
+                adjacency[cls.BOS_STATE][cls.BACKOFF_ID] = Arc(
+                    weight=ngram.backoff, ilabel=cls.BACKOFF_ID, to=cls.START_STATE
+                )
+                states_cache[ngram.symbols] = cls.BOS_STATE
+            else:
+                assert symbol >= 0 or symbol in {cls.EOS_ID, cls.UNK_ID}
+                to_state = len(adjacency)
+                # num_states += 1
+                adjacency[cls.START_STATE][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
+                adjacency.append(
+                    {cls.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=cls.BACKOFF_ID, to=cls.START_STATE)}
+                )
+                states_cache[ngram.symbols] = to_state
+        else:
+            state = states_cache[ngram.symbols[:-1]]
+            backoff_state = states_cache[ngram.symbols[1:]]
+            if order < max_order:
+                to_state = len(adjacency)
+                # num_states += 1
+                adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
+                adjacency.append({cls.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=cls.BACKOFF_ID, to=backoff_state)})
+                states_cache[ngram.symbols] = to_state
+            else:
+                adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=backoff_state)
 
     @classmethod
     def _build_suffix_tree(cls, ngrams: list[list[NGram]]) -> tuple[list[dict[int, Arc]], int]:
@@ -296,7 +350,7 @@ class FastNGramLM(nn.Module):
         for ngram in ngrams[0]:
             assert len(ngram.symbols) == 1
             symbol = ngram.symbols[0]
-            if symbol == -1:
+            if symbol == cls.BOS_ID:
                 # bos
                 adjacency[cls.START_STATE][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=cls.BOS_STATE)
                 adjacency[cls.BOS_STATE][cls.BACKOFF_ID] = Arc(
@@ -304,7 +358,7 @@ class FastNGramLM(nn.Module):
                 )
                 states_cache[ngram.symbols] = cls.BOS_STATE
             else:
-                assert symbol >= 0 or symbol in {-2, cls.UNK_ID}
+                assert symbol >= 0 or symbol in {cls.EOS_ID, cls.UNK_ID}
                 to_state = num_states
                 num_states += 1
                 adjacency[cls.START_STATE][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
@@ -332,7 +386,7 @@ class FastNGramLM(nn.Module):
                     adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=backoff_state)
         return adjacency, num_states
 
-    def _init_from_suffix_tree(self, adjacency):
+    def _init_from_suffix_tree(self, adjacency: list[dict[int, Arc]]):
         logging.info("Converting suffix tree to PyTorch")
         num_arcs = sum(
             len(state_arcs) if state != self.START_STATE else self.vocab_size
@@ -341,19 +395,24 @@ class FastNGramLM(nn.Module):
 
         num_arcs_extended = num_arcs + self.vocab_size  # + extra padding
 
+        if max(self.num_states, num_arcs_extended) < np.iinfo(np.int32).max:
+            int_np_dtype = np.int32
+        else:
+            int_np_dtype = np.int64
+
         # NB: using numpy -> PyTorch, since assigning items directly to PyTorch tensors is extremely slow
 
         arcs_weights = np.zeros([num_arcs_extended], dtype=np.float32)
-        from_states = np.zeros([num_arcs_extended], dtype=np.int64)
-        to_states = np.zeros([num_arcs_extended], dtype=np.int64)
-        ilabels = np.zeros([num_arcs_extended], dtype=np.int64)
+        from_states = np.zeros([num_arcs_extended], dtype=int_np_dtype)
+        to_states = np.zeros([num_arcs_extended], dtype=int_np_dtype)
+        ilabels = np.zeros([num_arcs_extended], dtype=int_np_dtype)
 
         backoff_weights = np.zeros([self.num_states], dtype=np.float32)
-        backoff_to_states = np.zeros([self.num_states], dtype=np.int64)
+        backoff_to_states = np.zeros([self.num_states], dtype=int_np_dtype)
 
-        state_start_arcs = np.zeros([self.num_states], dtype=np.int64)
-        state_end_arcs = np.zeros([self.num_states], dtype=np.int64)
-        state_order = np.zeros([self.num_states], dtype=np.int64)
+        state_start_arcs = np.zeros([self.num_states], dtype=int_np_dtype)
+        state_end_arcs = np.zeros([self.num_states], dtype=int_np_dtype)
+        state_order = np.zeros([self.num_states], dtype=int_np_dtype)
 
         unk_prob = adjacency[0][self.UNK_ID].weight
 

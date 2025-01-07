@@ -70,4 +70,4 @@ def _ngram_advance_triton_kernel(
             tl.load(scores_ptr + batch_i * vocab_size + vocab_offsets, mask=vocab_mask) + cur_backoff_weight,
             mask=not_final_mask,
         )
-        cur_state = tl.load(backoff_to_states_ptr + cur_state)
+        cur_state = tl.load(backoff_to_states_ptr + cur_state).to(states_ptr.dtype.element_ty)
