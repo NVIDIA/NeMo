@@ -1,3 +1,4 @@
+
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +20,6 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
 
 def make_squad_hf_dataset(tokenizer):
