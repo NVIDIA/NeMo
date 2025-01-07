@@ -26,7 +26,8 @@ $ python <nemo_root_path>/scripts/dataset_processing/tts/preprocess_text.py \
     --num_workers=4 \
     --joblib_batch_size=16
 """
-
+import os
+import json
 import argparse
 from pathlib import Path
 
@@ -102,14 +103,44 @@ def _process_entry(
     text = entry[text_key]
 
     if normalizer is not None:
-        if lower_case_norm:
-            text = text.lower()
-        text = normalizer.normalize(text, punct_pre_process=True, punct_post_process=True)
+        # Define additional split symbols to enhance splitting
+        additional_split_symbols = ";|:"  # Adjust based on your dataset's characteristics
+
+        # Split text into sentences using additional split symbols
+        sentences = normalizer.split_text_into_sentences(text, additional_split_symbols=additional_split_symbols)
+        
+        # Further split sentences longer than 500 words
+        split_sentences = []
+        for sentence in sentences:
+            words = sentence.split()
+            if len(words) > 500:
+                # Split into chunks of 500 words
+                for i in range(0, len(words), 500):
+                    chunk = ' '.join(words[i:i+500])
+                    split_sentences.append(chunk)
+            else:
+                split_sentences.append(sentence)
+        
+        # Log sentences exceeding 500 words (for debugging)
+        for idx, sentence in enumerate(split_sentences):
+            word_count = len(sentence.split())
+            if word_count > 500:
+                print(f"Warning: Sentence {idx} with {word_count} words is still too long.")
+
+        # Normalize each sentence individually
+        normalized_sentences = [
+            normalizer.normalize(sentence, punct_pre_process=True, punct_post_process=True) 
+            for sentence in split_sentences
+        ]
+        # Concatenate normalized sentences
+        normalized_text = ' '.join(normalized_sentences)
+    else:
+        normalized_text = text
 
     if lower_case:
-        text = text.lower()
+        normalized_text = normalized_text.lower()
 
-    entry[normalized_text_key] = text
+    entry[normalized_text_key] = normalized_text
 
     return entry
 
