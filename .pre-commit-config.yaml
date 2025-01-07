@@ -24,7 +24,7 @@ ci:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.3.0
+    rev: v5.0.0
     hooks:
       - id: check-yaml
       - id: check-case-conflict
@@ -42,7 +42,7 @@ repos:
 
   # Using this mirror lets us use mypyc-compiled black, which is about 2x faster
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.3.0
+    rev: 24.10.0
     hooks:
       - id: black
         # It is recommended to specify the latest version of Python
