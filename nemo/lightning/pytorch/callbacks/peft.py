@@ -142,7 +142,11 @@ class PEFT(IOMixin, ABC, ModelTransform):
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
 
-        if hasattr(trainer.model, "is_hf_model"):
+        is_hf_model = getattr(trainer.model, "is_hf_model", False)
+        if not type(is_hf_model) == type(True):
+            is_hf_model = False
+
+        if is_hf_model:
             ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
         else:
             ckpt_io_kwarg_names = [
