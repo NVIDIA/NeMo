@@ -22,7 +22,7 @@ from nemo_run.config import NEMORUN_HOME
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
-
+from nemo.collections.llm.gpt.model import GPTModel
 
 def slurm_executor(
     account: str,
@@ -106,6 +106,14 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         use_fast=True,
     )
 
+def import_ckpt_experiment(num_nodes: int, executor: run.SlurmExecutor, model: run.Config[GPTModel], source: str):
+    from copy import deepcopy
+    from nemo.collections.llm import import_ckpt
+
+    import_executor = deepcopy(executor)
+    import_executor.ntasks_per_node = num_nodes
+
+    return run.Partial(import_ckpt, model = model,source = source, overwrite = False), import_executor, "import_ckpt_exp"
 
 def get_comm_overlap_callback_idx(callbacks: List[Callback]):
     """

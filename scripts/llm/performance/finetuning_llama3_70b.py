@@ -18,7 +18,7 @@ import nemo_run as run
 from nemo_run.config import NEMORUN_HOME
 from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor, import_ckpt_experiment
 
-from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
+from nemo.collections.llm.recipes.llama3_70b import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 from nemo.utils import logging
@@ -27,15 +27,15 @@ NUM_NODES = 1
 NUM_GPUS_PER_NODE = 8
 MICRO_BATCH_SIZE = 1
 GLOBAL_BATCH_SIZE = 32
-TP_SIZE = 1
-PP_SIZE = 1
+TP_SIZE = 2
+PP_SIZE = 4
 CP_SIZE = 1
-VP_SIZE = None
+VP_SIZE = 20
 MAX_STEPS = 100
 
-HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
+HF_MODEL_URI = "meta-llama/Meta-Llama-3-70B"
 
-def llama3_8b_performance_recipe(
+def llama3_70b_performance_recipe(
     finetuning_scheme: str,
     compute_dtype: str,
     num_nodes: int,
@@ -49,7 +49,7 @@ def llama3_8b_performance_recipe(
     max_steps: int,
 ):
     """
-    llama3 8b pre-train recipe aimed at achieving best possible performance.
+    llama3 70b pre-train recipe aimed at achieving best possible performance.
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     exp_name = "_".join(
         [
             args.finetuning.lower(),
-            f"llama3_8b",
+            f"llama3_70b",
             args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",
@@ -138,7 +138,7 @@ if __name__ == "__main__":
         retries=0,
     )
 
-    recipe = llama3_8b_performance_recipe(
+    recipe = llama3_70b_performance_recipe(
         args.finetuning.lower(),
         args.compute_dtype,
         NUM_NODES,
