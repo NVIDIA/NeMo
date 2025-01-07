@@ -16,7 +16,7 @@ from typing import Optional
 
 import nemo_run as run
 from nemo_run.config import NEMORUN_HOME
-from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor, import_ckpt_experiment
+from utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, parse_cli_args, slurm_executor
 
 from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
@@ -34,6 +34,7 @@ VP_SIZE = None
 MAX_STEPS = 100
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
+
 
 def llama3_8b_performance_recipe(
     finetuning_scheme: str,
