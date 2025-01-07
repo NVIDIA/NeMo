@@ -17,6 +17,7 @@ from typing import Tuple
 
 import torch
 
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = [
@@ -86,6 +87,13 @@ class BaseMegatronBatchSampler:
                     data_parallel_rank, data_parallel_size
                 )
             )
+        if total_samples <= consumed_samples:
+            new_consumed_samples = consumed_samples % total_samples
+            logging.warning(
+                f"total_samples ({total_samples}) <= consumed_samples ({consumed_samples}), resetting with `consumed_samples % total_samples` ({new_consumed_samples})."
+            )
+            consumed_samples = new_consumed_samples
+
         # Keep a copy of input params for later use.
         self.total_samples: int = total_samples
         self.consumed_samples: int = consumed_samples
