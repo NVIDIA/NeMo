@@ -70,7 +70,8 @@ class MixtralConfig(GPTConfig):
     rotary_base: float = 1000000.0
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
-
+    apply_rope_fusion: bool = True
+    bias_activation_fusion: bool = True
 
 @dataclass
 class MixtralConfig8x3B(MixtralConfig):
