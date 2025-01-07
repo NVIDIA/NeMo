@@ -148,7 +148,7 @@ class Llama3Config70B(Llama3Config):
     rotary_base: int = 500_000
     seq_length: int = 8192
     num_layers: int = 80
-    hidden_size: int = 8192
+    hidden_size: int = 1024
     ffn_hidden_size: int = 28672
     num_attention_heads: int = 64
     init_method_std: float = 0.008944

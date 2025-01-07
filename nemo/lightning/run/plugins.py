@@ -367,3 +367,5 @@ class PerfEnvPlugin(run.Plugin):
                 if (executor.setup_lines and len(executor.setup_lines) > 0)
                 else vboost_cmd
             )
+
+        executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"

@@ -262,6 +262,13 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         else:
             forward_step_func = _forward_step
 
+
+        # if isinstance(forward_step, _ModuleStepFunction):
+        #     forward_step_func = _forward_step(self)
+        # else:
+        #     forward_step_func = _forward_step
+
+
         step = MegatronStep.infer(
             self,
             data,
@@ -271,6 +278,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             num_microbatches=num_microbatches,
             seq_length=seq_length,
             step_i=step_i,
+            data_step=_data_step,
         )
         _forward_context["step"] = step
         step = self.callbacks.transform_event("on_megatron_step_start", step)
@@ -461,13 +469,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         @functools.wraps(forward_step)
         def wrapped_forward_step_func(dataloader_iter, model):
-            if isinstance(data_step, _ModuleStepFunction):
-                _data_step = data_step(model)
-            else:
-                _data_step = data_step
+            # if isinstance(data_step, _ModuleStepFunction):
+            #     _data_step = data_step(model)
+            # else:
+            #     _data_step = data_step
+            # batch = _data_step(dataloader_iter)
+            # torch.distributed.breakpoint()
 
-            batch = _data_step(dataloader_iter)
             step = context["step"]
+            batch = dataloader_iter.pop(0)
 
             if isinstance(loss_reduction, _ModuleStepFunction):
                 forward_callback = loss_reduction(model)
@@ -1072,6 +1082,7 @@ class MegatronStep(Generic[ModelT, DataT]):
     num_microbatches: Optional[int] = None
     step_i: Optional[int] = None
     decoder_seq_length: Optional[int] = None
+    data_step: Optional[int] = None
 
     @classmethod
     def infer(
@@ -1084,6 +1095,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         seq_length: Optional[int] = None,
         num_microbatches: Optional[int] = None,
         step_i: Optional[int] = None,
+        data_step = None,
     ) -> "MegatronStep[ModelT, DataT]":
         """
         Creates a MegatronStep instance, inferring missing parameters if possible.
@@ -1115,6 +1127,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             seq_length=seq_length or cls.infer_seq_length(data),
             num_microbatches=num_microbatches or cls.infer_num_microbatches(data),
             step_i=step_i,
+            data_step=data_step,
         )
 
     def __call__(self) -> List[Any]:
@@ -1144,9 +1157,21 @@ class MegatronStep(Generic[ModelT, DataT]):
         data_iterator, seq_length = self.get_data_iterator_and_seq_length()
         seq_length = seq_length or self.seq_length
 
+        if isinstance(self.data_step, _ModuleStepFunction):
+            _data_step = self.data_step(self.model)
+        else:
+            _data_step = self.data_step
+
+
+        data_list = []
+        for _ in range(self.num_microbatches):
+            data_list.append(_data_step(data_iterator))
+
+        data_list = [data_list]
+
         return self.forward_backward_func(
             forward_step_func=self.forward_step_func,
-            data_iterator=data_iterator,
+            data_iterator=data_list,
             model=self.model,
             num_microbatches=self.num_microbatches,
             seq_length=seq_length,
