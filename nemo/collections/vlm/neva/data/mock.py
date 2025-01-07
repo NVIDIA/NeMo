@@ -77,8 +77,10 @@ class MockDataModule(pl.LightningDataModule):
         seq_length = self.seq_length
         if self.packed_sequence and self.micro_batch_size > 1:
             seq_length = seq_length // self.micro_batch_size
-            logging.warning(f"Packed sequence is used with mock dataset. Sequence length for each "
-                            f"sample is update to `seq_length // self.micro_batch_size = {seq_length}`!")
+            logging.warning(
+                f"Packed sequence is used with mock dataset. Sequence length for each "
+                f"sample is update to `seq_length // self.micro_batch_size = {seq_length}`!"
+            )
         self._train_ds = _MockNevaDataset(
             self.tokenizer,
             self.image_processor,
