@@ -268,8 +268,129 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         return tokens_loss
 
 
+class S2sMCoreGPTModelDepth(S2sMCoreGPTModel):
+
+    def __init__(
+        self,
+        config: TransformerConfig,
+        proj_head_dims: List[int],
+        proj_head_loss_weights: List[float],
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(config, proj_head_dims, proj_head_loss_weights, *args, **kwargs)
+        from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
+
+        self.proj_head_dims = proj_head_dims
+        self.depth = TransformerEncoder(
+            hidden_size=config.hidden_size,
+            num_layers=1,
+            inner_size=1 * config.hidden_size,
+            num_attention_heads=8,
+            mask_future=True,
+        )
+
+    def forward(
+        self,
+        input_ids: Tensor,
+        position_ids: Tensor,
+        attention_mask: Tensor,
+        decoder_input: Tensor = None,
+        labels: Tensor = None,
+        inference_params: InferenceParams = None,
+        packed_seq_params: PackedSeqParams = None,
+        extra_block_kwargs: dict = None,
+    ) -> Tensor:
+        """Forward function of the GPT Model This function passes the input tensors
+        through the embedding layer, and then the decoeder and finally into the post
+        processing layer (optional).
+
+        It either returns the Loss values if labels are given  or the final hidden units
+        """
+        # If decoder_input is provided (not None), then input_ids and position_ids are ignored.
+        # Otherwise, apply embedding layer on input_ids and position_ids to get decoder_input.
+
+        # Decoder embedding.
+        if decoder_input is not None:
+            pass
+        elif self.pre_process:
+            decoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids)
+        else:
+            # intermediate stage of pipeline
+            # decoder will get hidden_states from encoder.input_tensor
+            decoder_input = None
+
+        # Rotary positional embeddings (embedding is None for PP intermediate devices)
+        rotary_pos_emb = None
+        if self.position_embedding_type == 'rope':
+            rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
+                inference_params, self.decoder, decoder_input, self.config
+            )
+            rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
+
+        # Run decoder.
+        hidden_states = self.decoder(
+            hidden_states=decoder_input,
+            attention_mask=attention_mask,
+            inference_params=inference_params,
+            rotary_pos_emb=rotary_pos_emb,
+            packed_seq_params=packed_seq_params,
+            **(extra_block_kwargs or {}),
+        )
+
+        if not self.post_process:
+            return hidden_states
+
+        depth_hidden_states = (
+            hidden_states.squeeze(2)
+            .tile([1, 1, len(self.proj_head_dims), 1])
+            .reshape(-1, len(self.proj_head_dims), hidden_states.shape[-1])
+        )
+        y = self.depth(
+            depth_hidden_states,
+            torch.ones_like(depth_hidden_states[:, :, 0]),
+        )
+        depth_hidden_states = y.reshape(hidden_states.shape[0], hidden_states.shape[1], len(self.proj_head_dims), -1)
+        # logits and loss
+        if self.share_embeddings_and_output_weights:
+            output_weight = self.shared_embedding_or_output_weight()
+        else:
+            output_weight = None
+        all_logits = []
+        cur_dims = 0
+        for i in range(self.n_proj_heads):
+            cur_output_weight = (
+                output_weight[cur_dims : cur_dims + self.proj_head_dims[i]] if output_weight is not None else None
+            )
+            all_logits.append(self.output_layers[i](depth_hidden_states[:, :, i], weight=cur_output_weight)[0])
+            cur_dims += self.proj_head_dims[i]
+        assert self.vocab_size == self.proj_head_dims[0]
+        all_logits[0], _ = self.output_layer(
+            depth_hidden_states[:, :, 0],
+            weight=output_weight[: self.vocab_size] if output_weight is not None else None,
+        )
+
+        if labels is None:
+            # [s b h] => [b s h]
+            return_logits = [logits.transpose(0, 1).contiguous() for logits in all_logits]
+            return torch.cat(return_logits, dim=-1)  # cat the last dim together to make other mcore code happy
+
+        tokens_loss = torch.stack(
+            [self.compute_language_model_loss(labels[:, :, i], all_logits[i]) for i in range(self.n_proj_heads)],
+            axis=2,
+        )
+        tokens_loss = (
+            tokens_loss
+            * torch.FloatTensor(self.proj_head_loss_weights).to(tokens_loss.device)
+            / sum(self.proj_head_loss_weights)
+        )
+        return tokens_loss
+
+
 class S2sModularAudioGPTModel(ModularAudioGPTModel):
     """S2S version of Modularized speech GPT model."""
+
+    gpt_model_cls = S2sMCoreGPTModel
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
@@ -300,7 +421,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                         self.cfg.proj_head_loss_weights[0]
                     ] + self.cfg.proj_head_loss_weights[1:] * self.decoder_reduction_factor
 
-            model = S2sMCoreGPTModel(
+            model = self.gpt_model_cls(
                 config=self.transformer_config,
                 transformer_layer_spec=get_specs(
                     self.spec_name,
@@ -1439,3 +1560,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 param.requires_grad = True
             for param in self.model.output_layers.parameters():
                 param.requires_grad = True
+
+
+class S2sModularAudioGPTModelDepth(S2sModularAudioGPTModel):
+    """S2S version of Modularized speech GPT model."""
+
+    gpt_model_cls = S2sMCoreGPTModelDepth
