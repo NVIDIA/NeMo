@@ -183,6 +183,27 @@ class AudioCodecModel(ModelPT):
         self.lr_schedule_interval = None
         self.automatic_optimization = False
 
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        if hasattr(self, '_no_state_dict') and self._no_state_dict:
+            return {}
+        # Don't save the speaker verification and codec model in the state dict
+        state_dict = super().state_dict(destination, prefix, keep_vars)
+        for key in list(state_dict.keys()):
+            if self.use_scl_loss and "speaker_encoder." in key:
+                del state_dict[key]
+            if "discriminator" in key and ".slm_model.ssl_model." in key:
+                del state_dict[key]
+        return state_dict
+
+    def load_state_dict(self, state_dict, strict=True):
+        # Override to load all the keys except .speaker_encoder. and WavLM model
+        for key in list(state_dict.keys()):
+            if self.use_scl_loss and "speaker_encoder." in key:
+                del state_dict[key]
+            if "discriminator" in key and ".slm_model.ssl_model." in key:
+                del state_dict[key]
+
+        super().load_state_dict(state_dict, strict=False)
 
     def get_speaker_embedding(self, audio, requires_grad=False):
         if not requires_grad:
