@@ -22,6 +22,7 @@ from nemo.utils import logging
 # TODO: Move the cache implementation out of the Module class, and pass it as part of the forward so we can reset
 # as needed in the inference pipeline.
 
+
 class ConvolutionLayer(torch.nn.Module):
     def __init__(
         self,
@@ -276,6 +277,7 @@ class Attention(torch.nn.Module):
 
         return y, attn_prob
 
+
 class SelfAttention(Attention):
     def __init__(
         self,
@@ -338,6 +340,7 @@ class SelfAttention(Attention):
         mask = query_mask[:, None, :, None] if query_mask is not None else None
         return q, k, v, mask
 
+
 class CrossAttention(Attention):
     def __init__(
         self,
@@ -394,6 +397,7 @@ class CrossAttention(Attention):
 
         mask = memory_mask[:, None, None] if memory_mask is not None else None
         return q, k, v, mask
+
 
 class TransformerLayer(torch.nn.Module):
     def __init__(
