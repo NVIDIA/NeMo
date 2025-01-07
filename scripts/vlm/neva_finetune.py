@@ -99,7 +99,7 @@ def main(args):
             ImageToken,
             LLaVATemplateConfig,
             MultiModalSampleConfig,
-            SimpleMultiModalDataModule,
+            EnergonMultiModalDataModule,
         )
 
         processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
@@ -114,7 +114,7 @@ def main(args):
         )
 
         # Initialize the data module
-        data = SimpleMultiModalDataModule(
+        data = EnergonMultiModalDataModule(
             path=args.data_path,
             tokenizer=tokenizer,
             image_processor=image_processor,
