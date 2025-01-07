@@ -1,3 +1,4 @@
+
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +19,6 @@ from pathlib import Path
 def is_nemo2_checkpoint(checkpoint_path: str) -> bool:
     """
     Checks if the checkpoint is in NeMo 2.0 format.
-
     Args:
         checkpoint_path (str): Path to a checkpoint.
     Returns:

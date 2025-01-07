@@ -57,7 +57,7 @@ class NemoLLMEngine(LLMEngine):
         add_bos_token = self.model_config.model_converter.requires_bos_token()
         tokenizer_config = self.model_config.nemo_model_config.get('tokenizer', {})
 
-        if tokenizer_config is not dict and hasattr(tokenizer_config, 'tokenizer'):
+        if not isinstance(tokenizer_config, dict) and hasattr(tokenizer_config, 'tokenizer'):
             tokenizer = tokenizer_config.tokenizer
 
             if isinstance(tokenizer, SentencePieceProcessor):

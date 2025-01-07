@@ -17,7 +17,7 @@ import json
 import logging
 import os.path
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import numpy
 import safetensors.torch
@@ -31,8 +31,7 @@ from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_sharded_metadata_torch_dist
 from nemo.export.vllm.model_config import NemoModelConfig
-
-from .utils import is_nemo2_checkpoint
+from nemo.export.utils import is_nemo2_checkpoint
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -128,6 +127,8 @@ class NemoModelLoader(BaseModelLoader):
         state_dict = NemoModelLoader._load_nemo_checkpoint_state(model_config.nemo_checkpoint)
 
         config = model_config.nemo_model_config
+
+        # NeMo2 checkpoint loads the whole TrainerContext where the config is stored under 'config' key
         if 'config' in config:
             config = config['config']
         state_dict = NemoModelLoader._standardize_nemo2_naming(state_dict)
@@ -138,5 +139,5 @@ class NemoModelLoader(BaseModelLoader):
         safetensors.torch.save_file(tensors, safetensors_file)
 
     @staticmethod
-    def _standardize_nemo2_naming(state_dict: dict) -> dict:
+    def _standardize_nemo2_naming(state_dict: Dict[str, Any]) -> Dict[str, Any]:
         return {k.replace('module', 'model'): v for k, v in state_dict.items()}
