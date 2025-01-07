@@ -234,9 +234,9 @@ model.prior_scaling_factor=null \
 
 | Model Type | Cluster | Training Sub File |
 |------------|---------|--------|
-| multi_encoder_context_tts | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/multiencoder_t5tts.sub |
-| decoder_context_tts | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/decodercontext_t5tts.sub |
-| single_encoder_sv_tts | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/singleencoder_svt5tts.sub |
+| multi_encoder_context_tts | draco-oci-login-01.draco-oci-iad.nvidia.com |/lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalized_me.sub |
+| decoder_context_tts | draco-oci-login-01.draco-oci-iad.nvidia.com | /lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalizedt5_decoder.sub |
+| single_encoder_sv_tts | draco-oci-login-01.draco-oci-iad.nvidia.com | /lustre/fsw/portfolios/llmservice/users/pneekhara/launchscripts/unnormalizedt5_singleencoder.sub |
 | decoder_pretrain_synthesizer | login-eos | /lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/scriptsSimpleT5/newt5_pretrain.sub |
 
 ## Pretrained Models and Results
@@ -277,9 +277,7 @@ python scripts/t5tts/infer_and_evaluate.py \
 --datasets "vctk,libri_val" \
 --out_dir /datap/misc/Evals \
 --temperature 0.6 \
---topk 80 \
---use_cfg \
---cfg_scale 1.8 ;
+--topk 80
 ```
 
 Ignore the other params in the file, I also use this for evaluating ongoing experiments on the cluster by copying over the checkpoints and hparams..
@@ -287,3 +285,119 @@ Ignore the other params in the file, I also use this for evaluating ongoing expe
 ### Inference Notebook
 
 Inference Notebook: `t5tts_inference.ipynb` For quickly trying custom texts/contexts.
+
+### DPO Preference Alignment
+
+Preference Alignment (DPO) involves the following steps
+1) Create a list of text-context pairs for which we will generate preference data.
+2) For each text-context pair generate multiple audios from a base T5-TTS checkpoint and calculate metrics (CER/SSIM) for each generation.
+3) Create chosen-rejected pairs from the generated audio.
+4) Finetune the base T5-TTS checkpoint on the chosen-rejected pairs.
+
+#### 1. Create text-context pairs
+We pair a list of challenging texts with context audios from from Riva and LibriTTS dataset. We add a similar number of regular texts from LibriTTS and Riva (paired with random context audios). We also include examples with text contexts. There are other options for generating text-context pairs. 
+
+```
+python scripts/t5tts/dpo/create_text_contextpairs.py \
+    --challenging_texts /Data/DPOPairsInputData/challenging_texts_nemollm.txt \
+    --regular_texts_for_audiocontext /Data/DPOPairsInputData/regular_texts_for_audiocontext.txt \
+    --regular_texts_for_textcontext /Data/DPOPairsInputData/regular_texts_for_textcontext.txt \
+    --audio_contexts /Data/DPOPairsInputData/audio_context_list.json \
+    --text_contexts /Data/DPOPairsInputData/text_context_list.txt \
+    --output_manifest /Data/DPOPairsInputData/text_context_pairs_v2.json \
+    --nsamples_perpair 6 ;
+```
+Each pair is repeated `nsamples_perpair` times which specifies how many samples we want to generate for each pair. The output manifest serves as the input for the next step.
+
+We can also explore other options for these text-context pairs as well depending on the task. 
+
+#### 2. Generate audios for each text-context pair
+
+Next, we can generate audios from a base T5-TTS checkpoint using the following command. We pass the `audio_dir` as "/" since our text context pairs contains absolute paths. Model config arguments should be modified accordingly to match the base checkpoint architecture. We can run the below command on cluster to generate audios across multiple nodes. This command saves the generated audios along with the metrics for each generation in the `exp_dir`. Each generated audio file is accompanied with a `.json` file that has the CER/SSIM metrics. 
+
+Sample sub file on EOS: `/lustre/fsw/llmservice_nemo_speechlm/users/shehzeenh/launchscripts/newdatagendpo_decoder.sub`
+
+```
+python examples/tts/t5tts.py \
+--config-name=t5tts_inference \
+batch_size=64 \
++init_from_ptl_ckpt="/mountdir/checkpoints/continuouscheckpoints_ks1_ks3/decodercontext_small_282.ckpt" \
+exp_manager.exp_dir="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/DPOData/Generations/decodercontext_small_282" \
++test_ds_meta.textcontextpairs.manifest_path="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/DPOData/manifests/dpo_textcontext_pairs.json" \
++test_ds_meta.textcontextpairs.audio_dir="/" \
++test_ds_meta.textcontextpairs.feature_dir="/" \
+model.model_type="decoder_context_tts" \
+model.t5_encoder.kernel_size=3 \
+model.t5_decoder.kernel_size=1 \
+model.context_duration_min=5.0 \
+model.context_duration_max=5.0 \
+model.use_text_conditioning_encoder=true \
+model.codecmodel_path="/mountdir/checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
+model.alignment_loss_scale=0.002 \
+model.prior_scaling_factor=null \
+model.load_cached_codes_if_available=false \
++model.use_kv_cache_for_inference=true \
+trainer.num_nodes=${SLURM_JOB_NUM_NODES}
+```
+#### 3. Create chosen-rejected pairs from the generations
+
+Next, we go through the generated audio directory and create chosen-rejected pairs. 
+
+```
+python scripts/t5tts/dpo/create_preference_pairs.py \
+--input_manifest /lustre/fsw/llmservice_nemo_speechlm/data/TTS/DPOData/manifests/dpo_textcontext_pairs.json \
+--generated_audio_dir /lustre/fsw/llmservice_nemo_speechlm/data/TTS/DPOData/Generations/decodercontext_small_282/T5TTS/version_0/audios \
+--group_size 6 \
+--cer_threshold 0.01 \
+--val_size 256 ;
+```
+
+`cer_threshold=0.01` means that filter out pairs in which the chosen CER > 0.01.
+
+This command should save train and val manifests for DPO finetuning in the base directory of the generated_audio_dir, that is, `/lustre/fsw/llmservice_nemo_speechlm/data/TTS/DPOData/Generations/decodercontext_small_282/T5TTS/version_0/manifests/` 
+
+#### 4. DPO Finetuning Command
+
+Finally, we perform DPO finetuning using the following command:
+
+```
+python examples/tts/t5tts.py \
+batch_size=4 \
++init_from_ptl_ckpt="/mountdir/checkpoints/decoder_21_epoch_2.ckpt" \
++mode="dpo_train" \
+max_epochs=10 \
+exp_manager.exp_dir="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/DPOData/TrainingsICML/decodercontext_small_282" \
+exp_manager.checkpoint_callback_params.always_save_nemo=false \
+model.train_ds.dataset._target_="nemo.collections.tts.data.text_to_speech_dataset.T5TTSDatasetDPO" \
+model.validation_ds.dataset._target_="nemo.collections.tts.data.text_to_speech_dataset.T5TTSDatasetDPO" \
++train_ds_meta.dpopreftrain.manifest_path="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/DPOData/Generations/decodercontext_small_282/T5TTS/version_0/manifests/dpo_train_manifest.json" \
++train_ds_meta.dpopreftrain.audio_dir="/" \
++train_ds_meta.dpopreftrain.feature_dir="/" \
++val_ds_meta.dpoprefval.manifest_path="/lustre/fsw/llmservice_nemo_speechlm/data/TTS/DPOData/Generations/decodercontext_small_282/T5TTS/version_0/manifests/dpo_val_manifest.json" \
++val_ds_meta.dpoprefval.audio_dir="/" \
++val_ds_meta.dpoprefval.feature_dir="/" \
++model.dpo_beta=0.01 \
++model.dpo_sft_loss_weight=0.0 \
+model.model_type="decoder_context_tts" \
+model.context_duration_min=5.0 \
+model.context_duration_max=5.0 \
+model.use_text_conditioning_encoder=true \
+model.codecmodel_path="/mountdir/checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
+model.alignment_loss_scale=0.001 \
+model.prior_scaling_factor=null \
+trainer.val_check_interval=200 \
+trainer.log_every_n_steps=10 \
+model.optim.lr=2e-7 \
+~model.optim.sched \
+trainer.num_nodes=${SLURM_JOB_NUM_NODES}
+```
+
+Note the following overrides in the above command: 
+
+```
++mode="dpo_train" \
+model.train_ds.dataset._target_="nemo.collections.tts.data.text_to_speech_dataset.T5TTSDatasetDPO" \
+model.validation_ds.dataset._target_="nemo.collections.tts.data.text_to_speech_dataset.T5TTSDatasetDPO" \
+```
+
+Again, our manifest contain absolute paths so we specify `audio_dir="/"` .
