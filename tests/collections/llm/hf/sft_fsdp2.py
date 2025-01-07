@@ -13,14 +13,12 @@
 # limitations under the License.
 
 import fiddle as fdl
-from lightning.pytorch.loggers import WandbLogger
-
 import torch
+from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
-
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -89,6 +87,7 @@ if __name__ == '__main__':
     model_accelerator = None
     if args.model_accelerator == "te":
         from functools import partial
+
         from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
         model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
@@ -120,8 +119,9 @@ if __name__ == '__main__':
     )
 
     # Check memory usage compared to non-parallelized version
-    assert torch.cuda.max_memory_allocated(device=None)/1024/1024 < 29326, \
-        f"using {torch.cuda.max_memory_allocated(device=None)/1024/1024} MB, larger than 29326 MB when not using parallelization."
+    assert (
+        torch.cuda.max_memory_allocated(device=None) / 1024 / 1024 < 29326
+    ), f"using {torch.cuda.max_memory_allocated(device=None)/1024/1024} MB, larger than 29326 MB when not using parallelization."
 
     if args.model_accelerator:
         if args.model_accelerator == "te":

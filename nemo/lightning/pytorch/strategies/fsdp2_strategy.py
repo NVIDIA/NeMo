@@ -209,7 +209,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         """Converts PyT checkpoints to MCore format and save using MCore dist ckpt library."""
-        checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(checkpoint.pop("state_dict"), device_mesh=self.device_mesh)
+        checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(
+            checkpoint.pop("state_dict"), device_mesh=self.device_mesh
+        )
         checkpoint["state_dict"] = OrderedDict([])
 
         if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
@@ -222,7 +224,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             ## the checkpoint will contain only model weights. Optimizer states will be omitted.
             if self.ckpt_save_optimizer:
                 checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
-                pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.", device_mesh=self.device_mesh)
+                pyt_to_mcore_state_dict(
+                    checkpoint['optimizer']['state'], prefix="optimizer.state.", device_mesh=self.device_mesh
+                )
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
