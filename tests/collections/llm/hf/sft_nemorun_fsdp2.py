@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import nemo_run as run
-import torch
 
 import nemo.lightning as nl
 from nemo.collections import llm
