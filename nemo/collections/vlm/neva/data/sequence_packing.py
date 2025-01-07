@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from megatron.core.packed_seq_params import PackedSeqParams
 
 
+# pylint:disable=line-too-long
 # Based on https://github.com/hiyouga/LLaMA-Factory/blob/641d0dab08d96a93c34657742213d8994d9ed476/src/llamafactory/data/processors/processor_utils.py#L19
 # Copyright (c) 2024 LLaMA-Factory. Apache license 2.0.
 def search_for_fit(numbers: List[int], capacity: int) -> int:
@@ -14,6 +15,7 @@ def search_for_fit(numbers: List[int], capacity: int) -> int:
     return -1 if index == 0 else (index - 1)
 
 
+# pylint: disable=line-too-long
 # Based on https://github.com/hiyouga/LLaMA-Factory/blob/641d0dab08d96a93c34657742213d8994d9ed476/src/llamafactory/data/processors/processor_utils.py#L27
 # Copyright (c) 2024 LLaMA-Factory. Apache license 2.0.
 def greedy_knapsack(item_sizes: List[int], samples: List, max_capacity: int) -> List:
@@ -83,6 +85,7 @@ def convert_to_packed(
     num_image_embeddings_per_tile: int,
     media_token_index: int,
     ignore_index: int,
+    pad_to_multiple_of: int = 64,
 ):
     """
     Convert tokens, labels, and associated inputs into a packed version with padded sequence parameters.
@@ -93,6 +96,7 @@ def convert_to_packed(
         num_image_embeddings_per_tile (int): Number of image embeddings per tile.
         media_token_index (int): Token ID representing media.
         ignore_index (int): Value to use for padding labels.
+        pad_to_multiple_of (int): Sequence length will be padded to a multiple of this value. Default is 8.
     """
     packed_tokens = []
     packed_labels = []
@@ -103,7 +107,7 @@ def convert_to_packed(
 
     for instance_tokens, instance_labels in zip(tokens, labels):
         seqlen = predict_seq_len(instance_tokens, num_image_embeddings_per_tile, media_token_index)
-        seqlen_padded = (seqlen - 1) // 8 * 8 + 8
+        seqlen_padded = (seqlen + pad_to_multiple_of - 1) // pad_to_multiple_of * pad_to_multiple_of
         pad_len = seqlen_padded - seqlen
 
         if pad_len > 0:
