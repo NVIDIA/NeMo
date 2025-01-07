@@ -26,9 +26,9 @@ $ python <nemo_root_path>/scripts/dataset_processing/tts/preprocess_text.py \
     --num_workers=4 \
     --joblib_batch_size=16
 """
-import os
-import json
 import argparse
+import json
+import os
 from pathlib import Path
 
 from hydra.utils import instantiate
@@ -50,13 +50,20 @@ from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write
 
 def get_args():
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Process and normalize text data.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Process and normalize text data.",
     )
     parser.add_argument(
-        "--input_manifest", required=True, type=Path, help="Path to input training manifest.",
+        "--input_manifest",
+        required=True,
+        type=Path,
+        help="Path to input training manifest.",
     )
     parser.add_argument(
-        "--output_manifest", required=True, type=Path, help="Path to output training manifest with processed text.",
+        "--output_manifest",
+        required=True,
+        type=Path,
+        help="Path to output training manifest with processed text.",
     )
     parser.add_argument(
         "--overwrite",
@@ -64,13 +71,21 @@ def get_args():
         help="Whether to overwrite the output manifest file if it exists.",
     )
     parser.add_argument(
-        "--text_key", default="text", type=str, help="Input text field to normalize.",
+        "--text_key",
+        default="text",
+        type=str,
+        help="Input text field to normalize.",
     )
     parser.add_argument(
-        "--normalized_text_key", default="normalized_text", type=str, help="Output field to save normalized text to.",
+        "--normalized_text_key",
+        default="normalized_text",
+        type=str,
+        help="Output field to save normalized text to.",
     )
     parser.add_argument(
-        "--lower_case", action=argparse.BooleanOptionalAction, help="Whether to convert the final text to lower case.",
+        "--lower_case",
+        action=argparse.BooleanOptionalAction,
+        help="Whether to convert the final text to lower case.",
     )
     parser.add_argument(
         "--normalizer_config_path",
@@ -108,7 +123,7 @@ def _process_entry(
 
         # Split text into sentences using additional split symbols
         sentences = normalizer.split_text_into_sentences(text, additional_split_symbols=additional_split_symbols)
-        
+
         # Further split sentences longer than 500 words
         split_sentences = []
         for sentence in sentences:
@@ -116,11 +131,11 @@ def _process_entry(
             if len(words) > 500:
                 # Split into chunks of 500 words
                 for i in range(0, len(words), 500):
-                    chunk = ' '.join(words[i:i+500])
+                    chunk = ' '.join(words[i : i + 500])
                     split_sentences.append(chunk)
             else:
                 split_sentences.append(sentence)
-        
+
         # Log sentences exceeding 500 words (for debugging)
         for idx, sentence in enumerate(split_sentences):
             word_count = len(sentence.split())
@@ -129,7 +144,7 @@ def _process_entry(
 
         # Normalize each sentence individually
         normalized_sentences = [
-            normalizer.normalize(sentence, punct_pre_process=True, punct_post_process=True) 
+            normalizer.normalize(sentence, punct_pre_process=True, punct_post_process=True)
             for sentence in split_sentences
         ]
         # Concatenate normalized sentences
