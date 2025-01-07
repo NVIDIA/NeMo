@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import tarfile
 from contextlib import nullcontext
 from typing import Callable, Optional
@@ -120,7 +121,7 @@ class Quantizer:
             enable_quant_kv_cache = quantization_config.get("enable_kv_cache", None)
             if enable_quant_kv_cache is None:
                 enable_quant_kv_cache = (
-                    "int8" not in quantization_config.algorithm and quantization_config.decoder_type != "gptnext"
+                    "int8" not in quantization_config.algorithm and quantization_config.decoder_type != "gpt"
                 )
             logging.info(f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization')
             quant_cfg["quant_cfg"]["*output_quantizer"] = {
@@ -196,7 +197,7 @@ class Quantizer:
 
         model = mtq.quantize(model, self.quant_cfg, forward_loop)
 
-        if self.quantization_config.decoder_type == "gptnext":
+        if self.quantization_config.decoder_type == "gpt":
             # We found squared_relu may have an under-calibration problem.
             # Clamp the scaling_factor with a min threshold to avoid under-calibration.
             maxbound = 0
@@ -250,5 +251,6 @@ class Quantizer:
             if dist.get_rank() == 0:
                 save_artifacts(model, export_dir)
                 if compress:
-                    with tarfile.open(self.export_config.save_path, "w:gz") as tar:
+                    os.makedirs(os.path.dirname(self.export_config.save_path), exist_ok=True)
+                    with tarfile.open(self.export_config.save_path, "w") as tar:
                         tar.add(export_dir, arcname="./")
