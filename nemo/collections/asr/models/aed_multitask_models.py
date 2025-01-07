@@ -21,8 +21,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
@@ -43,10 +43,10 @@ from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifi
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.prompt_fn import get_prompt_format_fn
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.collections.common.prompts.fn import get_prompt_format_fn
 from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import (
@@ -62,7 +62,6 @@ from nemo.core.neural_types import (
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import deprecated
 
-
 __all__ = ['EncDecMultiTaskModel']
 
 
@@ -71,7 +70,8 @@ def lens_to_mask(lens, max_length):
     Create a mask from a tensor of lengths.
     """
     batch_size = lens.shape[0]
-    mask = torch.arange(max_length).repeat(batch_size, 1).to(lens.device) < lens[:, None]
+    arange = torch.arange(max_length, device=lens.device)
+    mask = arange.expand(batch_size, max_length) < lens.unsqueeze(1)
     return mask
 
 
@@ -133,14 +133,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         self.prompt_format = cfg.prompt_format
         self.sample_rate = cfg.sample_rate
         self._setup_tokenizer(cfg.tokenizer)
-
-        super().__init__(cfg=cfg, trainer=trainer)
-
         prompt_cls = PromptFormatter.resolve(self.prompt_format)
         self.prompt = prompt_cls(
             tokenizer=self.tokenizer,
             defaults=OmegaConf.to_container(pd) if (pd := cfg.get("prompt_defaults")) is not None else None,
         )
+
+        super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup audio preprocessor
         self.preprocessor = EncDecMultiTaskModel.from_config_dict(self.cfg.preprocessor)
@@ -537,7 +536,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             world_size=world_size,
             dataset=PromptedAudioToTextLhotseDataset(
                 tokenizer=self.tokenizer,
-                prompt_format_fn=get_prompt_format_fn(self.prompt_format),
+                prompt=self.prompt,
             ),
             tokenizer=self.tokenizer,
         )
@@ -698,24 +697,34 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             return torch.tensor([0.0])
 
         input_ids, labels = batch.get_decoder_inputs_outputs()
+        input_ids_lens = batch.prompted_transcript_lens - 1
+
+        num_frames = batch.audio_lens.sum().float()
+        num_tokens = batch.prompted_transcript_lens.sum().float()
+        tot_frames = torch.as_tensor(batch.audio.numel(), device=num_frames.device, dtype=torch.float)
+        tot_tokens = torch.as_tensor(batch.prompted_transcript.numel(), device=num_frames.device, dtype=torch.float)
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=batch.audio,
             input_signal_length=batch.audio_lens,
             transcript=input_ids,
-            transcript_length=batch.prompted_transcript_lens,
+            transcript_length=input_ids_lens,
         )
 
-        audio_loss = self.loss(log_probs=transf_log_probs, labels=labels)
+        # Mask components: 1) discard padding  &  2) discard prompt (notice the negation)
+        # For a full decoder sequence O with len M, the loss mask skips the first element,
+        # covering the remaining M-1 elements - hence we subtract 1 from prompt lens to account BOS.
+        if self.cfg.get("use_loss_mask_for_prompt", False):
+            maxlen = batch.prompted_transcript.shape[1] - 1
+            loss_mask = lens_to_mask(input_ids_lens, maxlen) & ~lens_to_mask(batch.prompt_lens - 1, maxlen)
+        else:
+            loss_mask = None
+        audio_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
 
-        num_frames = batch.audio_lens.sum()
-        num_tokens = batch.prompted_transcript_lens.sum()
-        tot_frames = batch.audio.numel()
-        tot_tokens = batch.prompted_transcript.numel()
         tensorboard_logs = {
             'train_loss': audio_loss,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-            'batch_size': batch.audio.shape[0],
+            'learning_rate': torch.as_tensor(self._optimizer.param_groups[0]['lr']),
+            'batch_size': torch.as_tensor(batch.audio.shape[0]),
             'num_frames': num_frames,
             'num_tokens': num_tokens,
             'input_to_padding_ratio': num_frames / tot_frames,
@@ -726,6 +735,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
     def validation_pass(self, batch: PromptedAudioToTextMiniBatch, batch_idx, dataloader_idx=0, eval_mode="val"):
         input_ids, labels = batch.get_decoder_inputs_outputs()
+        input_ids_lens = batch.prompted_transcript_lens - 1
 
         transf_log_probs, encoded_len, enc_states, enc_mask = self.forward(
             input_signal=batch.audio,
@@ -734,11 +744,19 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             transcript_length=batch.prompted_transcript_lens,
         )
 
-        transf_loss = self.loss(log_probs=transf_log_probs, labels=labels)
-        self.val_loss(loss=transf_loss, num_measurements=transf_log_probs.shape[0] * transf_log_probs.shape[1])
-        output_dict = {
-            f'{eval_mode}_loss': transf_loss,
-        }
+        # Mask components: 1) discard padding  &  2) discard prompt (notice the negation)
+        # For a full decoder sequence O with len M, the loss mask skips the first element,
+        # covering the remaining M-1 elements - hence we subtract 1 from prompt lens to account BOS.
+        if self.cfg.get("use_loss_mask_for_prompt", False):
+            maxlen = batch.prompted_transcript.shape[1] - 1
+            loss_mask = lens_to_mask(input_ids_lens, maxlen) & ~lens_to_mask(batch.prompt_lens - 1, maxlen)
+            num_measurements = loss_mask.long().sum()
+        else:
+            loss_mask = None
+            num_measurements = transf_log_probs.shape[0] * transf_log_probs.shape[1]
+        transf_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
+        self.val_loss(loss=transf_loss, num_measurements=num_measurements)
+        output_dict = {f'{eval_mode}_loss': transf_loss}
 
         self.wer.update(
             predictions=enc_states,
@@ -984,6 +1002,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             'text_field': config.get('text_field', 'answer'),
             'lang_field': config.get('lang_field', 'target_lang'),
             'channel_selector': config.get('channel_selector', None),
+            'pad_min_duration': config.get('pad_min_duration', 1.0),
+            'pad_direction': config.get('pad_direction', 'both'),
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))

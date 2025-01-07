@@ -25,7 +25,7 @@ from nemo.collections.common.tokenizers.chat_template_mixin import ChatTemplateM
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
-__all__ = ['SentencePieceTokenizer', 'create_spt_model']
+__all__ = ['SentencePieceTokenizer', 'SentencePieceSpeechLLMTTSTokenizer', 'create_spt_model']
 
 
 class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
@@ -237,6 +237,9 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     self.special_token_to_id[token] = self.vocab_size
                     self.id_to_special_token[self.vocab_size] = token
                     self.vocab_size += 1
+                elif self.tokenizer.piece_to_id(token) != self.tokenizer.unk_id():
+                    self.special_token_to_id[token] = self.tokenizer.piece_to_id(token)
+
         elif isinstance(special_tokens, dict):
             for token_name, token in special_tokens.items():
                 setattr(self, token_name, token)
@@ -247,6 +250,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     self.special_token_to_id[token] = self.vocab_size
                     self.id_to_special_token[self.vocab_size] = token
                     self.vocab_size += 1
+        else:
+            raise ValueError("Expected special_tokens to be a list or a dict " + str(type(special_tokens)))
 
     @property
     def pad_id(self):
@@ -313,6 +318,14 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
             for i in range(self.vocab_size - self.original_vocab_size)
         ]
         return main_vocab + special_tokens
+
+
+class SentencePieceSpeechLLMTTSTokenizer(SentencePieceTokenizer):
+    def add_phone_tokens_to_special_tokens(self):
+        for i, word in enumerate(self.vocab):
+            if word.startswith("p{"):
+                self.special_token_to_id[word] = i
+                self.id_to_special_token[i] = word
 
 
 def create_spt_model(
