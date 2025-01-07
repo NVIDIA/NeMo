@@ -271,6 +271,10 @@ class AdapterWrapper(nn.Module):
         x -> [layernorm/identity] -> layernorm_output -> [linear] -> linear_output, bias
 
         layernorm_output is different from input x only when linear layer is LayerNormColumnParallelLinear.
+
+        Note:
+            1. layernorm, despite the name, can be LayerNorm or RMSNorm
+            2. layernorm bias (if any) is already added to layernorm_output
         """
         linear_output = self.to_wrap(x)
         assert isinstance(

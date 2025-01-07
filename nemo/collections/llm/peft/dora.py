@@ -38,11 +38,11 @@ class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
         """
         self.weight_magnitude = nn.Parameter(value, requires_grad=True)
 
-    def get_weight_magnitude(self):
+    def get_weight_magnitude(self, eps=1e-8):
         """
         Public function to get the weight magnitude parameter
         """
-        return self.weight_magnitude
+        return self.weight_magnitude + eps
 
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
@@ -81,7 +81,7 @@ class DoRALinear(AdapterWrapper):
         self.scaling = adapter.alpha / adapter.dim
         self.adapter.init_weight_magnitude(self._get_weight_norm())
 
-    def _get_weight_norm(self):
+    def _get_weight_norm(self, eps=1e-8):
         if self.adapter.input_is_parallel:
             linear_out_weight = gather_from_tensor_model_parallel_region(self.adapter.linear_out.weight.T).T
             linear_in_weight = self.adapter.linear_in.weight
@@ -90,7 +90,7 @@ class DoRALinear(AdapterWrapper):
             linear_in_weight = gather_from_tensor_model_parallel_region(self.adapter.linear_in.weight.T).T
 
         weight = self.to_wrap.weight + self.scaling * linear_out_weight @ linear_in_weight
-        return torch.linalg.norm(weight, dim=1).to(weight.dtype).detach()
+        return torch.linalg.norm(weight, dim=1).to(weight.dtype).detach() + eps
 
     def forward(self, x):
         """
