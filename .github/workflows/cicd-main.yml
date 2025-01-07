@@ -4808,7 +4808,7 @@ jobs:
       SCRIPT: |
         python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
 
-        /opt/venv/bin/python tests/export/nemo_export.py \
+         source /opt/venv/bin/activate && tests/export/nemo_export.py \
           --min_tps 1 \
           --max_tps 1 \
           --use_vllm True \
