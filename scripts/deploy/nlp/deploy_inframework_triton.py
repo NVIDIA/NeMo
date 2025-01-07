@@ -23,7 +23,7 @@ LOGGER = logging.getLogger("NeMo")
 
 megatron_llm_supported = True
 try:
-    from nemo.deploy.nlp import MegatronLLMDeploy
+    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeploy
 except Exception as e:
     LOGGER.warning(f"Cannot import MegatronLLMDeployable, it will not be available. {type(e).__name__}: {e}")
     megatron_llm_supported = False
@@ -91,7 +91,7 @@ def nemo_deploy(argv):
                 triton_model_name=args.triton_model_name,
                 triton_model_version=args.triton_model_version,
                 max_batch_size=args.max_batch_size,
-                port=args.triton_port,
+                http_port=args.triton_port,
                 address=args.triton_http_address,
             )
 
