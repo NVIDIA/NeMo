@@ -14,8 +14,10 @@
 
 import json
 import math
+import os
 import re
-from typing import List, Mapping, Optional
+from dataclasses import dataclass
+from typing import List, Mapping, Optional, TYPE_CHECKING
 
 import datasets
 import numpy as np
@@ -30,6 +32,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import g
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, OnlineSampleMapping
 from nemo.core.classes import Dataset
 from nemo.utils import logging
+
+if TYPE_CHECKING:
+    from numpy._typing import NDArray
 
 __all__ = ['GPTSFTDataset']
 
@@ -523,6 +528,17 @@ class GPTSFTDataset(Dataset):
 
         return processed_batch
 
+@dataclass
+class _PackedDataset:
+    """
+    Internal data class for packed sequence dataset.
+    N: Number of samples in dataset
+    P: Packed sequence size
+    M: Max number of sequences among all packs
+    """
+    input_ids: NDArray[np.int32]  # (N, P), padded with -1
+    loss_mask: NDArray[np.bool_]  # (N, P), padded with True
+    seq_start_id: NDArray[np.int32]  # (N, M), padded with -1
 
 class GPTSFTPackedDataset(GPTSFTDataset):
     def __init__(
@@ -565,16 +581,31 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             # assert idx < len(self.samples_mapping)
             idx = self.samples_mapping[idx]
 
-        input_ids = self.indexed_dataset[idx]['input_ids']
-        seq_boundaries = self.indexed_dataset[idx]['seq_start_id'] + [len(input_ids)]
-        loss_mask = self.indexed_dataset[idx]['loss_mask']
+        if isinstance(self.indexed_dataset, _PackedDataset):
+            input_ids = self.indexed_dataset.input_ids[idx].tolist()
+            input_ids = input_ids[: input_ids.index(-1)]  # remove -1 padding
+
+            loss_mask = self.indexed_dataset.loss_mask[idx][:len(input_ids)]
+
+            seq_start_id = self.indexed_dataset.seq_start_id[idx].tolist()
+            seq_start_id = seq_start_id[: seq_start_id.index(-1)]  # remove -1 padding
+            seq_boundaries = seq_start_id + [len(input_ids)]
+        else:
+            input_ids = self.indexed_dataset[idx]['input_ids']
+            seq_boundaries = self.indexed_dataset[idx]['seq_start_id'] + [len(input_ids)]
+            loss_mask = self.indexed_dataset[idx]['loss_mask']
         if idx < 0:
             loss_mask = [0] * len(loss_mask)
         return {'input_ids': input_ids, 'seq_boundaries': seq_boundaries, 'loss_mask': loss_mask}
 
     def _load_dataset(self):
         try:
-            self.indexed_dataset = np.load(self.file_path, allow_pickle=True)
+            if os.path.exists(self.file_path.replace(".npy", ".input_ids.npy")):
+                self.indexed_dataset = self._load_dataset_alt()
+            elif os.path.exists(self.file_path):
+                self.indexed_dataset = np.load(self.file_path, allow_pickle=True)
+            else:
+                raise FileNotFoundError(f"File not found: {self.file_path}")
         except Exception as e:
             logging.error(
                 f"Failed to load packed dataset. The dataset should be a `.npy` file. "
@@ -582,12 +613,24 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             )
             exit(1)
 
+    def _load_dataset_alt(self) -> _PackedDataset:
+        # TODO rename
+        input_ids = np.load(self.file_path.replace(".npy", ".input_ids.npy"), mmap_mode="r")
+        loss_mask = np.load(self.file_path.replace(".npy", ".loss_mask.npy"), mmap_mode="r")
+        seq_start_id = np.load(self.file_path.replace(".npy", ".seq_start_id.npy"), mmap_mode="r")
+        return _PackedDataset(input_ids, loss_mask, seq_start_id)
+
+
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
             # custom samples mapping logic, following the format for unpacked sft dataset
             # Note: this is epoch-level shuffling, i.e. sampling without replacement until end of epoch, then repeat.
             # Unpacked dataset shuffles by sampling with replacement indefinitely.
-            dataset_len = len(self.indexed_dataset)
+
+            if isinstance(self.indexed_dataset, _PackedDataset):
+                dataset_len = len(self.indexed_dataset.input_ids)
+            else:
+                dataset_len = len(self.indexed_dataset)
             max_num_epochs = np.ceil(self.max_num_samples / dataset_len)
             indices = np.arange(dataset_len)[None, :].repeat(max_num_epochs, axis=0)
             [np.random.shuffle(x) for x in indices]
