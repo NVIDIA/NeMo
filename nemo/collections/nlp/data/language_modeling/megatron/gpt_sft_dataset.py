@@ -17,7 +17,7 @@ import math
 import os
 import re
 from dataclasses import dataclass
-from typing import List, Mapping, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Mapping, Optional
 
 import datasets
 import numpy as np
@@ -528,6 +528,7 @@ class GPTSFTDataset(Dataset):
 
         return processed_batch
 
+
 @dataclass
 class _PackedDataset:
     """
@@ -536,9 +537,11 @@ class _PackedDataset:
     P: Packed sequence size
     M: Max number of sequences among all packs
     """
+
     input_ids: NDArray[np.int32]  # (N, P), padded with -1
     loss_mask: NDArray[np.bool_]  # (N, P), padded with True
     seq_start_id: NDArray[np.int32]  # (N, M), padded with -1
+
 
 class GPTSFTPackedDataset(GPTSFTDataset):
     def __init__(
@@ -585,7 +588,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             input_ids = self.indexed_dataset.input_ids[idx].tolist()
             input_ids = input_ids[: input_ids.index(-1)]  # remove -1 padding
 
-            loss_mask = self.indexed_dataset.loss_mask[idx][:len(input_ids)]
+            loss_mask = self.indexed_dataset.loss_mask[idx][: len(input_ids)]
 
             seq_start_id = self.indexed_dataset.seq_start_id[idx].tolist()
             seq_start_id = seq_start_id[: seq_start_id.index(-1)]  # remove -1 padding
@@ -619,7 +622,6 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         loss_mask = np.load(self.file_path.replace(".npy", ".loss_mask.npy"), mmap_mode="r")
         seq_start_id = np.load(self.file_path.replace(".npy", ".seq_start_id.npy"), mmap_mode="r")
         return _PackedDataset(input_ids, loss_mask, seq_start_id)
-
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
