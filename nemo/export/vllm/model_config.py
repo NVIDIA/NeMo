@@ -22,8 +22,8 @@ from vllm.config import ModelConfig, _get_and_verify_dtype, _get_and_verify_max_
 from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
-from nemo.export.vllm.model_converters import get_model_converter
 from nemo.export.utils import is_nemo2_checkpoint
+from nemo.export.vllm.model_converters import get_model_converter
 
 
 class NemoModelConfig(ModelConfig):
@@ -95,8 +95,7 @@ class NemoModelConfig(ModelConfig):
 
             nemo_checkpoint: Path = Path(nemo_checkpoint)
 
-            
-            with (nemo_checkpoint / "context/model.yaml").open('r') as config_file: 
+            with (nemo_checkpoint / "context/model.yaml").open('r') as config_file:
                 self.nemo_model_config: dict = yaml.load(config_file, Loader=yaml.SafeLoader)
 
             hf_args = self._load_hf_arguments(self.nemo_model_config['config'])

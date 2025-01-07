@@ -14,6 +14,4 @@
 
 from nemo.export.utils.utils import is_nemo2_checkpoint
 
-__all__ = [
-    "is_nemo2_checkpoint"
-]
+__all__ = ["is_nemo2_checkpoint"]
