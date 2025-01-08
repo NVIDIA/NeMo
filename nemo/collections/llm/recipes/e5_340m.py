@@ -17,8 +17,8 @@ from typing import Optional
 import lightning.pytorch as pl
 import nemo_run as run
 from nemo.collections import llm
-from nemo.collections.llm.api import pretrain, finetune
-from nemo.collections.llm.recipes.bert_embedding import bert_embedding_model, bert_trainer
+from nemo.collections.llm.api import finetune
+from nemo.collections.llm.recipes.bert_embedding import bert_embedding_model
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 
 NAME = "e5_340m"
