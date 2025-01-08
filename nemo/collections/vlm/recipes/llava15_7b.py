@@ -16,7 +16,7 @@
 from typing import Optional
 
 import nemo_run as run
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
 

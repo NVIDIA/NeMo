@@ -144,7 +144,7 @@ class MultiModalTaskEncoder(
         encoded_sample = encoder.encode(input_sample=sample, output_sample=ImageTextSample())
         return encoded_sample
 
-    def batch(self, samples: List[ImageTextSample, PackedImageTextSample]) \
+    def batch(self, samples: List[Union[ImageTextSample, PackedImageTextSample]]) \
             -> Union[ImageTextRawBatch, PackedImageTextRawBatch]:
         """
         Batch a list of encoded samples into a single raw batch.
@@ -162,12 +162,11 @@ class MultiModalTaskEncoder(
             if len(samples) > 1:
                 raise ValueError(
                     "Micro batch size should be 1 when training with packed sequence, but your micro batch size "
-                    f"is {self.micro_batch_size}. \nThe following config is equivalent to your current setting for "
+                    f"is {len(samples)}. \nThe following config is equivalent to your current setting for "
                     f"a packed dataset. Please update your config to the following: \n"
-                    f"Set micro batch size to 1 (currently {self.micro_batch_size})\n"
-                    f"Set global batch size to {self.global_batch_size // self.micro_batch_size} "
-                    f"(currently {self.global_batch_size}) \n"
-                    f"Set packed sequence length to {self.packed_sequence_size * self.micro_batch_size} "
+                    f"Set micro batch size to 1 (currently {len(samples)})\n"
+                    f"Set global batch size to `global_batch_size // {len(samples)}` "
+                    f"Set packed sequence length to `original_sample_seq_len * {len(samples)}` "
                     f"(currently {self.packed_sequence_size}) \n"
                     f"For details please visit "
                     f"https://docs.nvidia.com/nemo-framework/user-guide/latest/sft_peft/packed_sequence.html"
