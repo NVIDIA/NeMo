@@ -43,31 +43,38 @@ class NeMoFWLMEval(LM):
         self.add_bos = add_bos
         super().__init__()
 
-    def _generate_tokens_logits(self, payload, return_text: bool = False, return_logits: bool = False):
+    def _generate_tokens_logits(self, payload, single_prediction_token, return_text: bool = False, return_logits: bool = False):
         """
         A private method that sends post request to the model on PyTriton server and returns either generated text or
         logits.
         """
         nq = NemoQueryLLM(url=self.api_url, model_name=payload['model'])
 
+        output_context_logits = False
+        output_generation_logits= False
+        if single_prediction_token:
+            output_generation_logits=True
+        else:
+            output_context_logits=True
         response = nq.query_llm(
             prompts=payload['prompt'] if isinstance(payload['prompt'], list) else [payload['prompt']],
             max_output_len=payload['max_tokens'],
             top_k=payload['top_k'],
             top_p=payload['top_p'],
             temperature=payload['temperature'],
-            output_context_logits=True,
-            output_generation_logits=True,
+            output_context_logits=output_context_logits,
+            output_generation_logits=output_generation_logits,
             openai_format_response=True,
         )
 
         if return_text:
             return response["choices"][0]["text"]  # shape[batch_size, 1]
-        if return_logits:
-            return (
-                response["choices"][0]["context_logits"],
-                response["choices"][0]["generation_logits"],
-            )  # shape[batch_size, 1, num_tokens, vocab_size]
+        elif return_logits:
+            if output_context_logits:
+                return response["choices"][0]["context_logits"] 
+            else:
+                return response["choices"][0]["generation_logits"]
+
 
     def tokenizer_type(self, tokenizer):
         """
@@ -96,6 +103,12 @@ class NeMoFWLMEval(LM):
         elif tokenizer_type == "AutoTokenizer":
             special_tokens_kwargs['add_special_tokens'] = self.add_bos
 
+        single_prediction_token = False
+        # Assuming evaluating on only one benchmark/task at a time, hence all instances in requests are of the same
+        # task.
+        if requests[0].task_name in ['mmlu', 'lambada_openai', 'lambada_standard']:
+            single_prediction_token = True
+
         results = []
         for request in tqdm(requests):
             # get the input prompt from the request
@@ -122,12 +135,18 @@ class NeMoFWLMEval(LM):
                 "top_k": self.top_k,
             }
             # Get the logits from the model
-            # #TODO for mmlu, lambada get only generation_logits, for others (multi token prediction) get context_logits
-            context_logits, generation_logits = self._generate_tokens_logits(payload, return_logits=True)
+            if single_prediction_token:
+                # Get only the generation logits and not context logits
+                logits = self._generate_tokens_logits(payload, single_prediction_token, return_logits=True)
+            else:
+                # Get context logits
+                logits = self._generate_tokens_logits(payload, single_prediction_token, return_logits=True)
             # import numpy as np
             # are_equal=np.array_equal(context_logits[0][len(context_logits[0])-1], generation_logits[0][0][0])
-            # Get only the logits corresponding to the continuation tokens
-            logits = context_logits[:, -num_cont_tokens:, :]
+            # In case of multiple token prediction where full context logits are returned, get only logits
+            # corresponding to the continuation tokens from the context logits tensor.
+            if not single_prediction_token:
+                logits = logits[:, -num_cont_tokens:, :]
             # Convert logits to torch tensor to easily get logprobs wo manual implementation of log_softmax
             # logProbs = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
             logProbs = F.log_softmax(torch.tensor(logits), dim=-1)

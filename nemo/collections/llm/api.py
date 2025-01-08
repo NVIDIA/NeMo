@@ -337,6 +337,7 @@ def deploy(
     max_input_len: int = 256,
     max_output_len: int = 256,
     max_batch_size: int = 8,
+    output_context_logits: bool = True,
     output_generation_logits: bool = True,
 ):
     """
@@ -364,8 +365,11 @@ def deploy(
         Needs to be True to be able to run evaluation. Default: True.
         openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
         be True while running evaluation. Default: True.
+        output_context_logits (bool): If True builds trtllm engine with gather_context_logits set to True. Default: True.
+        context_logits are used to compute the logProb of the output token in case of multi token prediction benchmarks. 
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
-        generation_logits are used to compute the logProb of the output token. Default: True.
+        generation_logits are used to compute the logProb of the output token in case of single token prediction
+        benchmarks (like MMLU, lambada). Default: True.
     """
     from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
@@ -383,6 +387,7 @@ def deploy(
         max_output_len,
         max_batch_size,
         dtype,
+        output_context_logits,
         output_generation_logits,
     )
 

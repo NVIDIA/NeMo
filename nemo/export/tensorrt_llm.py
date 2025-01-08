@@ -1189,10 +1189,12 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["output_context_logits"] = inputs.pop("output_context_logits")[0][0]
 
             if generation_logits_available:
-                output_texts, generation_logits, context_logits = self.forward(**infer_input)
-                context_logits = context_logits[0].unsqueeze(0)
+                output_texts, generation_logits = self.forward(**infer_input)
                 output_dict["generation_logits"] = np.array(generation_logits.cpu().numpy())
-                ## context logits is avaiable as [torch.tensor(x.xx,y.sd...)] hence context_logits[0].cpu()
+            elif context_logits_available:
+                output_texts, context_logits = self.forward(**infer_input)
+                ## context logits is avaiable as [torch.tensor(x.xx,y.sd...)]
+                context_logits = context_logits[0].unsqueeze(0)
                 output_dict["context_logits"] = np.array(context_logits.cpu().numpy())
             else:
                 output_texts = self.forward(**infer_input)
