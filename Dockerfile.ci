@@ -94,15 +94,15 @@ COPY ./ ./
 RUN <<"EOF" bash -ex
 pip install --no-cache-dir --no-build-isolation ".[all]"
 
+# set permission
+chmod 777 -R /workspace
+EOF
+
 # Install vLLM in virtualenv
-pip install --no-cache-dir --no-build-isolation virtualenv && \
+RUN pip install --no-cache-dir --no-build-isolation virtualenv && \
   virtualenv /opt/venv && \
   /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
       -r /workspace/requirements/requirements_vllm.txt \
       -r /workspace/requirements/requirements_infer.txt
-
-# set permission
-chmod 777 -R /workspace
-EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
