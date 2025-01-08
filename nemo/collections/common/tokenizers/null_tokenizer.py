@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,13 @@ from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
 
 
 class NullTokenizer(MegatronTokenizer):
+    """
+    Synthetic tokenizer for performance benchmarking and debugging
+
+    Args:
+        vocab_size: vocabulary size for embedding
+    """
+
     def __init__(self, vocab_size):
         super().__init__(None, vocab_size=vocab_size)
         self._vocab_size_without_eod = int(vocab_size)
