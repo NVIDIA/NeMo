@@ -384,7 +384,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             vae=self.vae,
             t5=self.t5,
             clip=self.clip,
-            scheduler=self.params.scheduler_params,
+            scheduler_steps=self.params.scheduler_steps,
             flux_controlnet=self.module.module.module.flux_controlnet,
         )
 
