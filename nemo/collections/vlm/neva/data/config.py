@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from .multimodal_tokens import ImageToken, MultiModalToken, VideoToken
@@ -31,7 +31,7 @@ class DataConfig:
 @dataclass
 class ImageDataConfig(DataConfig):
     media_type: str = "image"
-    media_token: MultiModalToken = ImageToken()
+    media_token: MultiModalToken = field(default_factory=lambda: ImageToken())
     image_folder: Optional[str] = None
     image_process_mode: str = 'pad'
 
