@@ -1,11 +1,11 @@
 import argparse
 
 import torch
-import wandb
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import WandbLogger
 from transformers import AutoProcessor
 
+import wandb
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -62,7 +62,7 @@ def main(args):
 
     mimo_config = MimoConfig(
         stage=stage,
-        language_transformer_config=Llama2Config7B(num_layers=1),
+        language_transformer_config=Llama2Config7B(),
         vocab_size=tokenizer.vocab_size,
         image_special_token_indices=image_special_token_indices,
         image_special_tokens=image_special_tokens,
@@ -93,12 +93,12 @@ def main(args):
     trainer = nl.Trainer(
         num_nodes=args.num_nodes,
         devices=args.devices,
-        max_steps=100,
+        max_steps=args.max_steps,
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="32"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=200,
+        val_check_interval=50,
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
@@ -159,16 +159,17 @@ if __name__ == "__main__":
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--name", type=str, required=False, default="mimo_decoder")
-    parser.add_argument("--wandb_project", type=str, required=False, default=None)
+    parser.add_argument("--wandb_project", type=str, required=False, default="mimo_decoder_alignment")
     parser.add_argument("--restore_path", type=str, required=False, default=None)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
 
-    parser.add_argument("--gbs", type=int, required=False, default=2, help="Global batch size")
-    parser.add_argument("--mbs", type=int, required=False, default=1, help="Micro batch size")
+    parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
+    parser.add_argument("--mbs", type=int, required=False, default=16, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-4, help="Learning rate")
 
     parser.add_argument("--data_path", type=str, required=True)
     parser.add_argument("--language_model_path", type=str, required=False, default=None)
+    parser.add_argument("--max_steps", type=int, required=False, default=2500)
 
     args = parser.parse_args()
     main(args)

@@ -281,7 +281,7 @@ class MimoConfig(TransformerConfig, io.IOMixin):
     vision_model_path: Optional[str] = None
     mlp_projector_path: Optional[str] = None
 
-    # These below variables are placeholders, needed for TransormerConfig assertions. not used anywhere
+    # These below variables are placeholders, needed for TransformerConfig assertions. not used anywhere
     seq_length: int = 2048
     max_position_embeddings: int = 2048
     num_layers: int = 1
@@ -299,18 +299,17 @@ class MimoConfig(TransformerConfig, io.IOMixin):
 
         if self.language_model_path:
             sharded_state_dict = dict(state_dict=model.language_model.sharded_state_dict(prefix="module."))
-
             strict = StrictHandling.LOG_UNEXPECTED
             loaded_state_dict = dist_checkpointing.load(
-                ckpt_to_weights_subdir(self.load_language_model_path),
                 sharded_state_dict=sharded_state_dict,
-                checkpoint_dir='load_language_model_path',
+                checkpoint_dir=ckpt_to_weights_subdir(self.language_model_path, is_saving=False),
                 strict=strict,
             )
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
 
             model.language_model.load_state_dict(loaded_state_dict)
-            logging.info(f"Loaded language model from {self.load_language_model_path}")
+            logging.info(f"Loaded language model from {self.language_model_path}")
+            print(f"Loaded language model from {self.language_model_path}")
 
         model.freeze(
             freeze_language_model=self.freeze_language_model,
