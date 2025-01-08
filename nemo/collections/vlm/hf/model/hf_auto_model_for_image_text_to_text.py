@@ -19,6 +19,7 @@ from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor
 
 from nemo.collections.llm import fn
 from nemo.lightning import io
+from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 from nemo.utils import logging
 
 
@@ -95,6 +96,11 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = AutoModelForImageTextToText.from_config(
                 config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
             )
+        
+        # Apply FSDP2 and TP to the model
+        if self.device_mesh is not None:
+            fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh)
+
         self.model.train()
 
     def forward(self, batch):
