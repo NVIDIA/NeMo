@@ -49,8 +49,8 @@ ${PIP} install \
   "transformer-engine @ git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG}" \
   "git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}" \
   "git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}" \
-  "git+https://github.com/NVIDIA/Megatron-LM.git@{MCORE_TAG}" \
-  "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@{NV_RESILIENCY_EXT_TAG}" \
+  "git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG}" \
+  "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@${NV_RESILIENCY_EXT_TAG}" \
   "onnxscript @ git+https://github.com/microsoft/onnxscript"
 
 echo 'Installing nemo'
