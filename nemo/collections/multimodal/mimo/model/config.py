@@ -272,8 +272,6 @@ class MimoConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = mimo_data_step
 
     vocab_size: Optional[int] = None
-    num_layers: int = 1  # placeholder, NOT used!
-    num_attention_heads: int = 8  # placeholder, NOT used!
     image_special_tokens: Optional[List[str]] = None
     image_special_token_indices: Optional[List[int]] = None
     make_vocab_size_divisible_by: int = 128
@@ -284,12 +282,12 @@ class MimoConfig(TransformerConfig, io.IOMixin):
     mlp_projector_path: Optional[str] = None
 
     # TODO: Yash These below asserts are not needed (hack to overcome llm.pretrain api assertions)
-    seq_length: int = 1
+    seq_length: int = 2048
     max_position_embeddings: int = 1
     num_layers: int = 1
-    hidden_size: int = 1
-    num_attention_heads: int = 1
-    ffn_hidden_size: int = 1
+    hidden_size: int = 2048
+    num_attention_heads: int = 8
+    ffn_hidden_size: int = 8
 
     stage: str = "encoder_alignment"  # [encoder_alignment, decoder_alignment, 'interleaved_pretrain']
 
