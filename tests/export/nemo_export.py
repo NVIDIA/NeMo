@@ -745,6 +745,11 @@ def get_args():
         type=str,
         default="False",
     )
+    parser.add_argument(
+        "--accuracy_threshold",
+        type=float,
+        default=0.5,
+    )
     parser.add_argument("--streaming", default=False, action="store_true")
     parser.add_argument(
         "--test_cpp_runtime",
@@ -1008,8 +1013,8 @@ def run_inference_tests(args):
             print(f"Deployed Model Accuracy:         {accuracy_result.deployed_accuracy:.4f}")
             print(f"Deployed Relaxed Model Accuracy: {accuracy_result.deployed_accuracy_relaxed:.4f}")
             print(f"Evaluation Time [s]:             {accuracy_result.evaluation_time:.2f}")
-            if (deployed_tests_only and accuracy_result.deployed_accuracy_relaxed < 0.5) or (
-                not deployed_tests_only and accuracy_result.accuracy_relaxed < 0.5
+            if (deployed_tests_only and accuracy_result.deployed_accuracy_relaxed < args.accuracy_threshold) or (
+                not deployed_tests_only and accuracy_result.accuracy_relaxed < args.accuracy_threshold
             ):
                 accuracy_test_result = "FAIL"
 
@@ -1023,7 +1028,7 @@ def run_inference_tests(args):
         raise Exception("Functional test failed")
 
     if accuracy_test_result == "FAIL":
-        raise Exception("Model accuracy is below 0.5")
+        raise Exception(f"Model accuracy is below {args.accuracy_threshold}")
 
 
 if __name__ == '__main__':
