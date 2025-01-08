@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from nemo.collections.llm.fn.activation import openai_gelu, quick_gelu
 
-from nemo.collections.vlm.vision.module import CLIPViTConfig
+from nemo.collections.vlm.vision.base import CLIPViTConfig
 
 
 @dataclass
