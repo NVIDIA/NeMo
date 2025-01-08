@@ -19,7 +19,7 @@ import nemo_run as run
 import torch
 
 from nemo.collections import llm
-from nemo.collections.llm.api import pretrain, finetune
+from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.bert.data.mock import BERTMockDataModule
 from nemo.collections.llm.recipes.bert_embedding import bert_embedding_model, bert_trainer
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
@@ -47,6 +47,7 @@ def model() -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return bert_embedding_model(version=NAME)
+
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
@@ -96,14 +97,12 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
-    recipe = default_finetune_recipe(
-        model(), resume_path, dir, name, num_nodes, num_gpus_per_node
-    )
+    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node)
     datamodule = run.Config(
         llm.SpecterDataModule,
         seq_length=seq_length,
         global_batch_size=global_batch_size,
-        micro_batch_size=micro_batch_size
+        micro_batch_size=micro_batch_size,
     )
     recipe.data = datamodule
 
