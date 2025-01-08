@@ -293,7 +293,9 @@ class MimoConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer) -> "BaseMimoModel":
 
+        original_vocab_size = tokenizer.vocab_size - len(self.image_special_token_indices)
         self.vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
+
         logging.info(f"padded vocab size to {self.vocab_size}")
         model = BaseMimoModel(config=self)
 
@@ -310,7 +312,13 @@ class MimoConfig(TransformerConfig, io.IOMixin):
             model.language_model.load_state_dict(loaded_state_dict)
             logging.info(f"Loaded language model from {self.language_model_path}")
             print(f"Loaded language model from {self.language_model_path}")
-
+        # initializing the special token embedings to be the average of the original embeddings
+        average_embedding = model.language_model.embedding.word_embeddings.weight.data[:original_vocab_size].mean(
+            dim=0, keepdim=True
+        )
+        model.language_model.embedding.word_embeddings.weight.data[
+            original_vocab_size : original_vocab_size + len(self.image_special_token_indices)
+        ] = average_embedding.repeat(len(self.image_special_token_indices), 1)
         model.freeze(
             freeze_language_model=self.freeze_language_model,
             freeze_vision_model=self.freeze_image_encoder,
