@@ -2,7 +2,7 @@ datasets
 einops
 inflect
 mediapy==1.1.6
+nvidia-modelopt[torch]~=0.21.0
 pandas
 sacremoses>=0.0.43
 sentencepiece<1.0.0
-nvidia-modelopt[torch]~=0.21.0
