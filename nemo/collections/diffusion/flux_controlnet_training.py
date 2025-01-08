@@ -155,6 +155,42 @@ def flux_controlnet_training() -> run.Partial:
 
 
 @run.cli.factory(target=llm.train)
+def convergence_test() -> run.Partial:
+    recipe = flux_controlnet_training()
+    recipe.model.flux_params.t5_params = run.Config(T5Config, version='/ckpts/text_encoder_2')
+    recipe.model.flux_params.clip_params = run.Config(ClipConfig, version='/ckpts/text_encoder')
+    recipe.model.flux_params.vae_config = run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    recipe.model.flux_params.device = 'cuda'
+    recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/nemo_flux_transformer.safetensors')
+    recipe.trainer.devices=8
+    recipe.data = flux_datamodule('/mingyuanm/dataset/fill50k/fill50k_tarfiles/')
+    recipe.model.flux_controlnet_config.num_single_layers = 10
+    recipe.model.flux_controlnet_config.num_joint_layers = 4
+    return recipe
+
+@run.cli.factory(target=llm.train)
+def full_model_tp2_dp4_mock() -> run.Partial:
+    recipe = flux_controlnet_training()
+    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
+    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    recipe.model.flux_params.vae_config = None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    recipe.model.flux_params.device = 'cuda'
+    recipe.trainer.strategy.tensor_model_parallel_size=2
+    recipe.trainer.devices=8
+    recipe.data.global_batch_size = 8
+    recipe.trainer.callbacks.append(
+        run.Config(
+            NsysCallback,
+            start_step=10,
+            end_step=11,
+            gen_shape=True
+        )
+    )
+    recipe.model.flux_controlnet_config.num_single_layers = 10
+    recipe.model.flux_controlnet_config.num_joint_layers = 4
+    return recipe
+
+@run.cli.factory(target=llm.train)
 def full_model_tp2_dp4_mock() -> run.Partial:
     recipe = flux_controlnet_training()
     recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')

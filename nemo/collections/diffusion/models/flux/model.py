@@ -327,7 +327,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
     def configure_text_encoders(self, clip, t5):
         if isinstance(clip, nn.Module):
             self.clip = clip
-        elif isinstance(clip, dict):
+        elif isinstance(clip, ClipConfig):
             self.clip = FrozenCLIPEmbedder(version=self.clip_params.version, max_length=self.clip_params.max_length,always_return_pooled=self.clip_params.always_return_pooled, device=torch.cuda.current_device())
         else:
             logging.info("CLIP encoder not provided, assuming the text embeddings is precached...")
@@ -335,7 +335,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
 
         if isinstance(t5, nn.Module):
             self.t5 = t5
-        elif isinstance(t5, dict):
+        elif isinstance(t5, T5Config):
             self.t5 = FrozenT5Embedder(self.t5_params.version, max_length=self.t5_params.max_length, device=torch.cuda.current_device())
         else:
             logging.info("T5 encoder not provided, assuming the text embeddings is precached...")
