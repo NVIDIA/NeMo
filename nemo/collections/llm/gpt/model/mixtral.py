@@ -119,7 +119,7 @@ class MixtralConfig8x22B(MixtralConfig):
     num_attention_heads: int = 48
     ffn_hidden_size: int = 16384
     max_position_embeddings: int = 4096
-    seq_length: int = 4096
+    seq_length: int = 65536
 
 
 class MixtralModel(GPTModel):
