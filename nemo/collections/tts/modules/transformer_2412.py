@@ -412,7 +412,6 @@ class TransformerLayer(torch.nn.Module):
         xa_n_heads: Optional[int] = None,
         is_causal: bool = True,
         apply_norm_to_cond: bool = True,
-        layer_norm_method: str = 'pre',
         max_length_causal_mask: int = 4096,
         conv_non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
     ):
@@ -429,12 +428,10 @@ class TransformerLayer(torch.nn.Module):
             xa_n_heads <int>: Number of attention heads used in cross attention
             is_causal <bool>: Whether to use causal attention
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
-            layer_norm_method <str>: Layer normalization method
             max_length_causal_mask <int>: Maximum length of causal mask
             conv_non_linearity <Callable>: Convolution non-linearity
         """
         super().__init__()
-        self.layer_norm_method = layer_norm_method
         self.has_xattn = has_xattn
 
         self.norm_self = torch.nn.LayerNorm(d_model, bias=False)
@@ -443,6 +440,7 @@ class TransformerLayer(torch.nn.Module):
             d_model=d_model,
             p_dropout=p_dropout,
             max_length_causal_mask=max_length_causal_mask,
+            is_causal=is_causal,
         )
 
         if self.has_xattn:
@@ -502,62 +500,37 @@ class TransformerLayer(torch.nn.Module):
         """
         x_mask_inv_float = (~x_mask).to(x.dtype).unsqueeze(-1)
         s_attn_prob = None
-        if self.layer_norm_method == 'pre':
-            x_, s_attn_prob = self.self_attention(query=self.norm_self(x), query_mask=x_mask)
-            if self.use_cache:
-                if self.cache['self_attn_output'] is not None:
-                    x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
-                self.cache['self_attn_output'] = x_
-            x = x + x_
-            x = x * x_mask_inv_float
-        elif self.layer_norm_method == 'post':
-            x_, s_attn_prob = self.self_attention(query=x, query_mask=x_mask)
-            if self.use_cache:
-                if self.cache['self_attn_output'] is not None:
-                    x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
-                self.cache['self_attn_output'] = x_
-            x = x + x_
-            x = self.norm_self(x) * x_mask_inv_float
+        x_, s_attn_prob = self.self_attention(query=self.norm_self(x), query_mask=x_mask)
+        if self.use_cache:
+            if self.cache['self_attn_output'] is not None:
+                x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
+            self.cache['self_attn_output'] = x_
+        x = x + x_
+        x = x * x_mask_inv_float
 
         x_attn_prob = None
         if self.has_xattn and cond is not None:
-            if self.layer_norm_method == 'pre':
-                x_normed = self.norm_xattn_query(x)
-                if self.use_cache and self.cache['memory'] is not None:
-                    memory = self.cache['memory']
-                else:
-                    memory = self.norm_xattn_memory(cond) if self.apply_norm_to_cond else cond
-                    if self.use_cache:
-                        self.cache['memory'] = memory
+            x_normed = self.norm_xattn_query(x)
+            if self.use_cache and self.cache['memory'] is not None:
+                memory = self.cache['memory']
+            else:
+                memory = self.norm_xattn_memory(cond) if self.apply_norm_to_cond else cond
+                if self.use_cache:
+                    self.cache['memory'] = memory
 
-                x_res, x_attn_prob = self.cross_attention(
-                    query=x_normed, query_mask=x_mask, memory=memory, memory_mask=cond_mask, attn_prior=attn_prior
-                )
-                if self.use_cache:
-                    if self.cache['cross_attn_output'] is not None:
-                        x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
-                    self.cache['cross_attn_output'] = x_res
-                x = x + x_res
-                x = x * x_mask_inv_float
-            elif self.layer_norm_method == 'post':
-                x_res, x_attn_prob = self.cross_attention(
-                    query=x, query_mask=x_mask, memory=cond, memory_mask=cond_mask, attn_prior=attn_prior
-                )
-                if self.use_cache:
-                    if self.cache['cross_attn_output'] is not None:
-                        x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
-                    self.cache['cross_attn_output'] = x_res
-                x = (x + x_res) * x_mask_inv_float
-                x = self.norm_xattn_query(x)
+            x_res, x_attn_prob = self.cross_attention(
+                query=x_normed, query_mask=x_mask, memory=memory, memory_mask=cond_mask, attn_prior=attn_prior
+            )
+            if self.use_cache:
+                if self.cache['cross_attn_output'] is not None:
+                    x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
+                self.cache['cross_attn_output'] = x_res
+            x = x + x_res
+            x = x * x_mask_inv_float
 
         # mlp final projection
-        if self.layer_norm_method == 'pre':
-            x = x + self.pos_ff(self.norm_pos_ff(x))
-            x *= x_mask_inv_float
-        elif self.layer_norm_method == 'post':
-            x = x + self.pos_ff(x)
-            x *= x_mask_inv_float
-            x = self.norm_pos_ff(x)
+        x = x + self.pos_ff(self.norm_pos_ff(x))
+        x *= x_mask_inv_float
 
         return {
             'output': x,
@@ -581,7 +554,6 @@ class Transformer(torch.nn.Module):
         is_causal: bool = True,
         apply_norm_to_cond: bool = True,
         apply_norm_out: bool = False,
-        layer_norm_method: str = 'pre',
         max_length_causal_mask: int = 4096,
         use_learnable_pos_emb: bool = False,
         conv_non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
@@ -600,11 +572,10 @@ class Transformer(torch.nn.Module):
             has_xattn <bool>: Whether to use cross attention
             xa_d_memory <int>: Hidden dimension for cross attention; required if has_xattn is True
             xa_n_heads <int>: Number of attention heads used in cross attention; required if has_xattn is True
-            is_causal <bool>: Whether to use causal attention
+            is_causal <bool>: Whether to make attention and the convolution feedforward networks causal.
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor; conditioning tensor being
                 the input to the memory part of cross-attention.
             apply_norm_out <bool>: Whether to apply normalization to output
-            layer_norm_method <str>: Layer normalization method
             max_length_causal_mask <int>: Maximum length of causal mask
             use_learnable_pos_emb <bool>: Whether to add a learnable positionable embedding inside the class
             conv_non_linearity <Callable>: Convolution non-linearity
@@ -638,7 +609,6 @@ class Transformer(torch.nn.Module):
                     xa_n_heads=xa_n_heads,
                     is_causal=is_causal,
                     apply_norm_to_cond=apply_norm_to_cond,
-                    layer_norm_method=layer_norm_method,
                     max_length_causal_mask=max_length_causal_mask,
                     conv_non_linearity=conv_non_linearity,
                 )
