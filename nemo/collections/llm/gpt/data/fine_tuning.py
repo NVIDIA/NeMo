@@ -264,15 +264,23 @@ class FineTuningDataModule(pl.LightningDataModule):
         return self.dataset_root / "training.jsonl"
 
     @property
+    def default_pack_path(self) -> Path:
+        '''The default directory to write packing files.'''
+        tokenizer_model_name = self._extract_tokenizer_model_name()
+        default_pack_path = self.dataset_root / "packed" / tokenizer_model_name
+        if not default_pack_path.exists():
+            default_pack_path.mkdir(parents=True, exist_ok=True)
+            logging.info(f"Using default path for packing files: {str(default_pack_path)}")
+
+        return default_pack_path
+
+    @property
     def pack_metadata(self) -> Path:
         """Path to metadata dataset file for packed sequence."""
         if self.packed_sequence_size > 0:
             if self.packed_sequence_specs.packed_metadata_path is not None:
                 return self.packed_sequence_specs.packed_metadata_path
-            tokenizer_model_name = self._extract_tokenizer_model_name()
-            folder_name = self.dataset_root / "packed" / tokenizer_model_name
-            folder_name.mkdir(parents=True, exist_ok=True)
-            return folder_name / f"{self.packed_sequence_size}_metadata.jsonl"
+            return self.default_pack_path / f"{self.packed_sequence_size}_metadata.jsonl"
         else:
             raise ValueError("pack_metadata invalid since packed sequence size is not specified.")
 
@@ -283,10 +291,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         if self.packed_sequence_size > 0:
             if self.packed_sequence_specs.packed_train_data_path is not None:
                 return self.packed_sequence_specs.packed_train_data_path
-            tokenizer_model_name = self._extract_tokenizer_model_name()
-            folder_name = self.dataset_root / "packed" / tokenizer_model_name
-            folder_name.mkdir(parents=True, exist_ok=True)
-            return folder_name / f"training_{self.packed_sequence_size}.npy"
+            return self.default_pack_path / f"training_{self.packed_sequence_size}.npy"
         else:
             raise ValueError("`train_path_packed` invalid since packed sequence size is not specified.")
 
@@ -297,10 +302,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         if self.packed_sequence_size > 0:
             if self.packed_sequence_specs.packed_val_data_path is not None:
                 return self.packed_sequence_specs.packed_val_data_path
-            tokenizer_model_name = self._extract_tokenizer_model_name()
-            folder_name = self.dataset_root / "packed" / tokenizer_model_name
-            folder_name.mkdir(parents=True, exist_ok=True)
-            return folder_name / f"validation_{self.packed_sequence_size}.npy"
+            return self.default_pack_path / f"validation_{self.packed_sequence_size}.npy"
         else:
             raise ValueError("`validation_path_packed` invalid since packed sequence size is not specified.")
 

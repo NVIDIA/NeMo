@@ -691,7 +691,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             if self.pad_cu_seqlens:
                 # pad cu_seqlens with zero length sequences
                 max_samples_per_bin = max(p['max_samples_per_bin'] for p in self.pack_metadata)
-                pad_num = max_samples_per_bin - len(cu_seqlens[-1])
+                pad_num = max_samples_per_bin + 1 - len(cu_seqlens[-1])
                 cu_seqlens[-1].extend([max_length] * pad_num)
 
         assert len(input_ids[0]) == len(

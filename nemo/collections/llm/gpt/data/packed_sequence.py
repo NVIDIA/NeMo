@@ -90,6 +90,12 @@ def prepare_packed_sequence_data(
         try:
             with open(output_metadata_path, "r") as f:
                 packing_metadata_file = json.load(f)
+                # 'packing_metadata_file' is expected to be a list of dicts: List[Dict[str, int]]
+                # Each dict corresponds to a packed dataset. Typically there will be two dicts, 
+                # one each for the packed val and train datasets. 
+                # Each dict records two values: 'max_samples_per_bin', the max
+                # number of samples per packed sequence, and 'dataset_max_seqlen', the max 
+                # sequence length per sample in the packed dataset.
                 assert isinstance(packing_metadata_file, list), "invalid packing_metadata_file!"
         except (FileNotFoundError):
             packing_metadata_file = []
@@ -129,7 +135,7 @@ class PackedSequenceSpecs:
 
     packed_metadata_path: str = None
     """
-    If specified, use this file for the train packing metadata instead of the default path.
+    If specified, use this file for the training and validation packing metadata file instead of the default path.
     """
 
     pad_cu_seqlens: bool = False
