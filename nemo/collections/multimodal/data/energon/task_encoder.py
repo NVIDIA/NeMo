@@ -144,8 +144,9 @@ class MultiModalTaskEncoder(
         encoded_sample = encoder.encode(input_sample=sample, output_sample=ImageTextSample())
         return encoded_sample
 
-    def batch(self, samples: List[ImageTextSample, PackedImageTextSample]) \
-            -> Union[ImageTextRawBatch, PackedImageTextRawBatch]:
+    def batch(
+        self, samples: List[ImageTextSample, PackedImageTextSample]
+    ) -> Union[ImageTextRawBatch, PackedImageTextRawBatch]:
         """
         Batch a list of encoded samples into a single raw batch.
 
