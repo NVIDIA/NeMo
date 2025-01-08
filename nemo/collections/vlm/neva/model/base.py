@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import re
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional
 
 import lightning.pytorch as L
 import torch
@@ -26,21 +25,18 @@ from megatron.core import parallel_state as ps
 from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
-from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
-    TENorm,
     TERowParallelLinear,
 )
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
-from transformers import CLIPVisionConfig, CLIPVisionModel
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
@@ -212,89 +208,6 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
 
 
 @dataclass
-class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
-    """
-    https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/clip/configuration_clip.py#L261
-    """
-
-    hidden_size: int = 1024
-    num_image_embeddings_per_tile: Optional[int] = None
-    pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
-
-    def __post_init__(self, *args, **kwargs) -> None:
-        CLIPVisionConfig.__init__(self, *args, **kwargs, hidden_size=self.hidden_size)
-        if self.pretrained_model_name_or_path is not None:
-            config = CLIPVisionConfig.from_pretrained(self.pretrained_model_name_or_path)
-            for key, value in config.to_dict().items():
-                setattr(self, key, value)
-        self.num_image_embeddings_per_tile = get_image_sequence_length(
-            img_h=self.image_size,
-            img_w=self.image_size,
-            patch_dim=self.patch_size,
-            add_class_token=False,
-            class_token_len=1,
-        )
-
-    def configure_model(self) -> "CLIPVisionModel":
-        # Monkey patch the method to the vision encoder
-        CLIPVisionModel.set_input_tensor = set_input_tensor
-
-        if self.pretrained_model_name_or_path is None:
-            model = CLIPVisionModel(self)
-        else:
-            model = CLIPVisionModel.from_pretrained(self.pretrained_model_name_or_path)
-        return model
-
-
-@dataclass
-class CLIPViTConfig(TransformerConfig, io.IOMixin):
-    ln_pre_impl: Union[ModuleSpec, type] = TENorm
-    ln_post_impl: Union[ModuleSpec, type] = TENorm
-    add_class_token: bool = True
-    class_token_len: int = 1
-    patch_dim: int = 14
-    img_h: int = 336
-    img_w: int = 336
-    vision_model_type: str = "clip"  # ["clip", "siglip"]
-    num_image_embeddings_per_tile: Optional[int] = None
-    transformer_layer_spec: ModuleSpec = transformer_engine_layer_spec
-
-    num_layers: int = 1  # Placeholder, NOT used!
-    num_attention_heads: int = 8  # Placeholder, NOT used!
-
-    def __post_init__(self):
-        if self.vision_model_type == "siglip":
-            self.add_class_token = False
-            self.class_token_len = 0
-        self.num_image_embeddings_per_tile = get_image_sequence_length(
-            img_h=self.img_h,
-            img_w=self.img_w,
-            patch_dim=self.patch_dim,
-            add_class_token=self.add_class_token,
-            class_token_len=self.class_token_len,
-        )
-
-    def configure_model(self) -> "CLIPViTModel":
-        transformer_layer_spec = self.transformer_layer_spec
-        if not isinstance(transformer_layer_spec, ModuleSpec):
-            from nemo.collections.vlm.layer_specs import get_layer_spec_te
-
-            transformer_layer_spec = get_layer_spec_te(is_vit=True)
-        return CLIPViTModel(
-            self,
-            transformer_layer_spec,
-            ln_pre_impl=self.ln_pre_impl,
-            ln_post_impl=self.ln_post_impl,
-            add_class_token=self.add_class_token,
-            class_token_len=self.class_token_len,
-            patch_dim=self.patch_dim,
-            img_h=self.img_h,
-            img_w=self.img_w,
-            model_subtype=self.vision_model_type,
-        )
-
-
-@dataclass
 class NevaConfig(TransformerConfig, io.IOMixin):
     language_transformer_config: Optional[TransformerConfig] = None
     vision_transformer_config: Optional[TransformerConfig] = None
@@ -353,39 +266,23 @@ class NevaConfig(TransformerConfig, io.IOMixin):
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
             add_decoder=ps.is_pipeline_last_stage()
-            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+                        or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
         )
 
         return model
 
 
-class CLIPViTModel(MCoreCLIPViTModel):
-    """CLIP ViT vision model."""
-
-    def forward(
-        self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
-    ) -> torch.Tensor:
-        if num_unused_layers > 0:
-            unused_layers = self.decoder.layers[-num_unused_layers:]
-            self.decoder.layers = self.decoder.layers[:-num_unused_layers]
-            x = super().forward(x, attention_mask)
-            self.decoder.layers.append(unused_layers)
-            return x
-
-        return super().forward(x, attention_mask)
-
-
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
-        self,
-        config: NevaConfig,
-        tokenizer: Optional = None,
-        pre_process: bool = True,
-        post_process: bool = True,
-        add_encoder: bool = True,
-        add_decoder: bool = True,
-        drop_vision_class_token: bool = False,
+            self,
+            config: NevaConfig,
+            tokenizer: Optional = None,
+            pre_process: bool = True,
+            post_process: bool = True,
+            add_encoder: bool = True,
+            add_decoder: bool = True,
+            drop_vision_class_token: bool = False,
     ) -> None:
         super(MCoreLLaVAModel, self).__init__(config=config)
 
@@ -456,19 +353,19 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
 
     def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        loss_mask: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        images: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
-        inference_params: Optional[InferenceParams] = None,
-        num_image_tiles: Optional[List[int]] = None,
-        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
-        runtime_gather_output: Optional[bool] = None,
-        image_token_mask: Optional[torch.Tensor] = None,
-        packed_seq_params: Optional[PackedSeqParams] = None,
+            self,
+            input_ids: torch.Tensor,
+            position_ids: torch.Tensor,
+            loss_mask: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            images: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            inference_params: Optional[InferenceParams] = None,
+            num_image_tiles: Optional[List[int]] = None,
+            image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+            runtime_gather_output: Optional[bool] = None,
+            image_token_mask: Optional[torch.Tensor] = None,
+            packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         """Forward function of the LLaVA model.
 
@@ -497,7 +394,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         """
 
         use_inference_kv_cache = (
-            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+                inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = images is not None and images.shape[0] > 0
 
@@ -536,7 +433,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # Store the image tokens sequence length to be used as an offset to the KV cache later.
             if inference_params is not None:
                 inference_params.key_value_memory_dict["image_tokens_count"] = (
-                    image_embeddings.shape[0] * image_embeddings.shape[1]
+                        image_embeddings.shape[0] * image_embeddings.shape[1]
                 )
         else:
             image_embeddings = self.encoder_hidden_state
@@ -556,8 +453,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 # Pad to nearest multiple of TP world size for embedding.
                 tp_world_size = ps.get_tensor_model_parallel_world_size()
                 padded_seq_len = (
-                    int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
-                    - input_ids_text.shape[1]
+                        int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
+                        - input_ids_text.shape[1]
                 )
                 if padded_seq_len != 0:
                     input_ids_text = torch.nn.functional.pad(input_ids_text, (0, padded_seq_len))
@@ -632,16 +529,16 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self.language_model.set_input_tensor(input_tensor[0])
 
     def _preprocess_data(
-        self,
-        image_embeddings,
-        language_embeddings,
-        input_ids,
-        loss_mask,
-        labels,
-        use_inference_kv_cache,
-        image_token_index,
-        num_image_tiles,
-        attention_mask,
+            self,
+            image_embeddings,
+            language_embeddings,
+            input_ids,
+            loss_mask,
+            labels,
+            use_inference_kv_cache,
+            image_token_index,
+            num_image_tiles,
+            attention_mask,
     ):
         """Preprocess input data before input to language model.
 
@@ -695,7 +592,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         has_labels = labels is not None
         if has_labels:
             assert (
-                labels.shape == loss_mask.shape
+                    labels.shape == loss_mask.shape
             ), f"mismatching labels shape {labels.shape} and loss mask shape {loss_mask.shape}"
 
         # Create indices for new text and label positions.
@@ -764,7 +661,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             images_mask[
                 torch.arange(max_seq_len, device=first_padding_idx.device).repeat(batch_size, 1)
                 >= first_padding_idx.unsqueeze(1)
-            ] = False
+                ] = False
 
         # Create the final input embedding (if this is the first language model stage).
         final_embedding = None
@@ -822,7 +719,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if final_embedding is not None and has_labels:
             assert (
-                final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
+                    final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
             ), "unexpected shapes after data preprocessing"
 
         truncate_labels = has_labels and final_labels.shape[1] > self._language_max_sequence_length
@@ -865,11 +762,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
-        self,
-        config: NevaConfig,
-        optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
-        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+            self,
+            config: NevaConfig,
+            optim: Optional[OptimizerModule] = None,
+            tokenizer: Optional["TokenizerSpec"] = None,
+            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
@@ -885,19 +782,19 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        loss_mask: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        images: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
-        inference_params: Optional[InferenceParams] = None,
-        num_image_tiles: Optional[List[int]] = None,
-        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
-        runtime_gather_output: Optional[bool] = None,
-        image_token_mask: Optional[torch.Tensor] = None,
-        packed_seq_params: Optional[PackedSeqParams] = None,
+            self,
+            input_ids: torch.Tensor,
+            position_ids: torch.Tensor,
+            loss_mask: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            images: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            inference_params: Optional[InferenceParams] = None,
+            num_image_tiles: Optional[List[int]] = None,
+            image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+            runtime_gather_output: Optional[bool] = None,
+            image_token_mask: Optional[torch.Tensor] = None,
+            packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         output_tensor = self.module(
             images=images,
