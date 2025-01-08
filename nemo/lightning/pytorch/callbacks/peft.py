@@ -138,6 +138,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         super().setup(trainer, pl_module, stage=stage)
 
+        self._is_fsdp_v1 = type(trainer.strategy).__name__ == 'FSDPStrategy'
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
 
@@ -313,12 +314,11 @@ class AdapterWrapper(nn.Module):
             destination = {}
 
         # Get state dict of the main module
-        main_state_dict = self.to_wrap.state_dict(destination, prefix, keep_vars)
+        self.to_wrap.state_dict(destination, prefix, keep_vars)
 
-        # Store adapter state dict under the special "adapters" key in the destination dict
-        adapter_state_dict = self.adapter.state_dict(None, prefix, keep_vars)
-        destination[f'{prefix}adapters'] = adapter_state_dict
-        return main_state_dict
+        # Store adapter state dict under the "adapter" prefix in the destination dict
+        self.adapter.state_dict(destination, f'{prefix}adapter.', keep_vars)
+        return destination
 
     def sharded_state_dict(
         self,
@@ -448,7 +448,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         if getattr(path, "base_model_path", None):
             ## PEFT Resume, FIRST TIME
             self.adapter_ckpt_path = Path(str(path))
-            adapter_ckpt = self.checkpoint_io.load_checkpoint(path)  # Loads only metadata
+            adapter_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict={})  # Loads only metadata
             # path is adapter path to restore the training metadata, but switch to loading base model here.
             path = self.model_ckpt_path = path.base_model_path
         elif adapter_meta_path.exists():

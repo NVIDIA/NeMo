@@ -86,6 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--disable-ckpt', action='store_false')
+    parser.add_argument('--use-4bit', help="Load model in 4bit", action="store_true")
     args = parser.parse_args()
 
     wandb = None
@@ -103,7 +104,7 @@ if __name__ == '__main__':
     processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
 
     llm.api.finetune(
-        model=vlm.HFAutoModelForImageTextToText(args.model),
+        model=vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit),
         data=mk_hf_vlm_dataset(processor, args.mbs, args.gbs),
         trainer=nl.Trainer(
             devices=args.devices,
@@ -118,11 +119,13 @@ if __name__ == '__main__':
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
             enable_checkpointing=args.disable_ckpt,
+            precision='bf16',
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],
             dim=16,
+            lora_dtype=torch.bfloat16 if args.use_4bit else None,
         ),
     )

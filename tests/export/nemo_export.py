@@ -40,7 +40,8 @@ except Exception as e:
 
 in_framework_supported = True
 try:
-    from nemo.deploy.nlp import MegatronLLMDeployable, NemoQueryLLMPyTorch
+    from nemo.deploy.nlp import NemoQueryLLMPyTorch
+    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 except Exception as e:
     LOGGER.warning(
         "Cannot import MegatronLLMDeployable or NemoQueryLLMPyTorch,"
@@ -397,7 +398,7 @@ def run_inference(
             nm = DeployPyTriton(
                 model=exporter,
                 triton_model_name=model_name,
-                port=8000,
+                http_port=8000,
             )
             nm.deploy()
             nm.run()
@@ -578,7 +579,7 @@ def run_in_framework_inference(
         nm = DeployPyTriton(
             model=deployed_model,
             triton_model_name=model_name,
-            port=8000,
+            http_port=8000,
         )
         nm.deploy()
         nm.run()
