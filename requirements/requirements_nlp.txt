@@ -23,3 +23,5 @@ sentence_transformers
 tensorstore
 tiktoken==0.7.0
 zarr
+llama-index==0.10.43
+unstructured==0.14.9
