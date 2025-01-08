@@ -281,9 +281,9 @@ class MimoConfig(TransformerConfig, io.IOMixin):
     vision_model_path: Optional[str] = None
     mlp_projector_path: Optional[str] = None
 
-    # TODO: Yash These below asserts are not needed (hack to overcome llm.pretrain api assertions)
+    # These below variables are placeholders, needed for TransormerConfig assertions. not used anywhere
     seq_length: int = 2048
-    max_position_embeddings: int = 1
+    max_position_embeddings: int = 2048
     num_layers: int = 1
     hidden_size: int = 2048
     num_attention_heads: int = 8
