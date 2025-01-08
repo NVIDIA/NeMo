@@ -557,8 +557,6 @@ if __name__ == '__main__':
         os.makedirs(args.tmp_dir, exist_ok=True)
 
     parallel_state.set_expert_model_parallel_world_size(1)
-    parallel_state.set_expert_tensor_parallel_world_size(1)
-
     checkpoint = OrderedDict()
     for i, ckpt_part in enumerate(convert(args)):
         if args.low_ram:
