@@ -42,6 +42,7 @@ def model() -> run.Config[pl.LightningModule]:
     """
     return bert_embedding_model(version=NAME)
 
+
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
@@ -90,14 +91,12 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
-    recipe = default_finetune_recipe(
-        model(), resume_path, dir, name, num_nodes, num_gpus_per_node
-    )
+    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node)
     datamodule = run.Config(
         llm.SpecterDataModule,
         seq_length=seq_length,
         global_batch_size=global_batch_size,
-        micro_batch_size=micro_batch_size
+        micro_batch_size=micro_batch_size,
     )
     recipe.data = datamodule
 
