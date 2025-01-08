@@ -30,6 +30,8 @@ from nemo.utils import logging
 
 from nemo.utils.import_utils import safe_import
 
+import torch
+
 res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
 
 # This file contains plugins based on NeMo-Run's run.Plugin API.
@@ -342,9 +344,24 @@ class PerfEnvPlugin(run.Plugin):
         """Enable the performance environment settings"""
 
         if task.trainer.strategy.__fn_or_cls__ == MegatronStrategy:
-            # Force program order kernel launch for TP, CP overlap
-            if self.custom_cuda_device_max_connections:
-                executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = str(self.custom_cuda_device_max_connections)
+            if torch.cuda.is_available():
+                major, _ = torch.cuda.get_device_capability()
+                if major > 9:
+                    if self.custom_cuda_device_max_connections is not None:
+                        executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = str(self.custom_cuda_device_max_connections)
+                else:
+                    # When TP or CP size is larger than 1, need to use a single cuda device connection to enforce
+                    # the kernel queuing order of the host to GPU for their execution. This is needed  for the optimal
+                    # overlap between communication and computation kernels.
+                    tp_size = task.trainer.strategy.tensor_model_parallel_size
+                    cp_size = task.trainer.strategy.context_parallel_size
+                    if tp_size > 1 or cp_size > 1:
+                        executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = "1"
+                    else:
+                        if self.custom_cuda_device_max_connections is not None:
+                            executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = str(
+                                self.custom_cuda_device_max_connections
+                            )
 
             # Set LayerNorm SM margin to support the overlap with LayerNorm kernel
             if self.enable_layernorm_sm_margin:
