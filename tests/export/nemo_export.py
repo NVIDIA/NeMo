@@ -42,7 +42,11 @@ in_framework_supported = True
 try:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
     from nemo.deploy.nlp import NemoQueryLLMPyTorch
-    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeploy, MegatronLLMDeployable, MegatronLLMDeployableNemo2
+    from nemo.deploy.nlp.megatronllm_deployable import (
+        MegatronLLMDeploy,
+        MegatronLLMDeployable,
+        MegatronLLMDeployableNemo2,
+    )
 except Exception as e:
     LOGGER.warning(
         "Cannot import MegatronLLMDeployable or NemoQueryLLMPyTorch,"
@@ -128,7 +132,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                 elif in_framework_supported and isinstance(model, MegatronLLMDeployableNemo2):
                     model_output = model.generate(
                         prompts=[prompt],
-                        inference_params = CommonInferenceParams(
+                        inference_params=CommonInferenceParams(
                             temperature=0.1,
                             top_k=1,
                             top_p=0,
@@ -181,7 +185,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
 
                     # Accessing [0][0] of "text" is to get a raw string entry from a NumPy array
                     # for a single prompt (batch size = 1) and stripping prefix if needed:
-                    deployed_output = deployed_output["choices"][0]["text"][0][0][prefix_len :].strip().lower()
+                    deployed_output = deployed_output["choices"][0]["text"][0][0][prefix_len:].strip().lower()
                 else:
                     deployed_output = nq.query_llm(
                         prompts=[prompt],
