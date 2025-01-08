@@ -1,14 +1,15 @@
 from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP
 
+
 def gpt3(mdl):
     """Model FLOPs for GPT3 family"""
 
     vocab_size = LLM_VOCAB_SIZE_MAP["gpt3"]
 
     return (
-        24 * mdl.gbs * mdl.enc_seq_len * mdl.hs * mdl.hs
-        + 4 * mdl.gbs * mdl.enc_seq_len * mdl.enc_seq_len * mdl.hs
+        24 * mdl.gbs * mdl.enc_seq_len * mdl.hs * mdl.hs + 4 * mdl.gbs * mdl.enc_seq_len * mdl.enc_seq_len * mdl.hs
     ) * (3 * mdl.layers) + (6 * mdl.gbs * mdl.enc_seq_len * mdl.hs * vocab_size)
+
 
 def llama2(mdl):
     """Model FLOPs for llama2 family"""
@@ -29,6 +30,7 @@ def llama2(mdl):
         )
     )
 
+
 def llama3(mdl):
     """Model FLOPs for llama3 family"""
     vocab_size = LLM_VOCAB_SIZE_MAP["llama3"]
@@ -47,6 +49,7 @@ def llama3(mdl):
             + (6 * vocab_size / (mdl.layers * mdl.hs))
         )
     )
+
 
 def nemotron(mdl):
     """Model FLOPs for nemotron family"""
@@ -67,6 +70,7 @@ def nemotron(mdl):
         )
     )
 
+
 def mixtral(mdl):
     """Model FLOPs for mixtral family"""
     vocab_size = LLM_VOCAB_SIZE_MAP["mixtral"]
@@ -85,6 +89,7 @@ def mixtral(mdl):
             + (6 * vocab_size / (mdl.layers * mdl.hs))
         )
     )
+
 
 def bert(mdl):
     """Model FLOPs for BERT family"""
