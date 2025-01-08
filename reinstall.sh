@@ -48,7 +48,7 @@ ${PIP} install \
 
 echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
-  ${PIP} install --editable ".[all]"
+  ${PIP} install --editable --extra-index-url https://pypi.nvidia.com ".[all]"
 else
   rm -rf dist/
   ${PIP} install build pytest-runner
