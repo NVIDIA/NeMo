@@ -17,13 +17,21 @@ ${PIP} uninstall -y nemo_nlp
 ${PIP} uninstall -y nemo_tts
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
-  echo 'Installing NeMo in NVIDIA PyTorch container:' "${NVIDIA_PYTORCH_VERSION}" 'so will not install numba'
+  echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
+
+  echo "Will not install numba"
+  ${PIP} install --no-build-isolation "apex @ git+https://github.com/NVIDIA/apex.git@${APEX_TAG}"
+
 else
   if [ -n "${CONDA_PREFIX}" ]; then
     NUMBA_VERSION=0.57.1
     echo 'Installing numba=='${NUMBA_VERSION}
     conda install -y -c conda-forge numba==${NUMBA_VERSION}
   fi
+
+  ${PIP} install torch
+  ${PIP} install "apex @ git+https://github.com/NVIDIA/apex.git@${APEX_TAG}"
+
 fi
 
 export MAMBA_FORCE_BUILD=TRUE
@@ -39,7 +47,6 @@ export NV_RESILIENCY_EXT_TAG=97aad77609d2e25ed38ac5c99f0c13f93c48464e
 ${PIP} install \
   "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG}" \
   "transformer-engine @ git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG}" \
-  "apex @ git+https://github.com/NVIDIA/apex.git@${APEX_TAG}" \
   "git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}" \
   "git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}" \
   "git+https://github.com/NVIDIA/Megatron-LM.git@{MCORE_TAG}" \
