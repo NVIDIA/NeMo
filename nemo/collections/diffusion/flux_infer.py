@@ -87,9 +87,9 @@ if __name__ == '__main__':
 
     print('Initializing flux inference pipeline')
     params = configs[args.version]
-    params.vae_params.ckpt = args.vae_ckpt
-    params.clip_params['version'] = args.clip_version
-    params.t5_params['version'] = args.t5_version
+    params.vae_config.ckpt = args.vae_ckpt
+    params.clip_params.version = args.clip_version
+    params.t5_params.version = args.t5_version
     pipe = FluxInferencePipeline(params)
 
     print('Loading transformer weights')

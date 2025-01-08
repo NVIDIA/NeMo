@@ -19,13 +19,13 @@ import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import openai_gelu
 
-from nemo.collections.diffusion.models.flux.model import FluxConfig, FluxModelParams
-from nemo.collections.diffusion.vae.autoencoder import AutoEncoderParams
+from nemo.collections.diffusion.models.flux.model import FluxConfig, FluxModelParams, ClipConfig, T5Config
+from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
 from nemo.lightning import io
 
 configs = {
     "dev": FluxModelParams(
-        flux_params=FluxConfig(
+        flux_config=FluxConfig(
             num_joint_layers=19,
             num_single_layers=38,
             hidden_size=3072,
@@ -41,7 +41,7 @@ configs = {
             ckpt_path=None,
             convert_from_hf=None
         ),
-        vae_params=AutoEncoderParams(
+        vae_config=AutoEncoderConfig(
             ch_mult=[1, 2, 4, 4],
             attn_resolutions=[],
             resolution=256,
@@ -54,16 +54,14 @@ configs = {
             shift_factor=0.1159,
             ckpt=None,
         ),
-        clip_params={
-            'max_length': 77,
-            'always_return_pooled': True,
-        },
-        t5_params={
-            'max_length': 512,
-        },
-        scheduler_params={
-            'num_train_timesteps': 1000,
-        },
+        clip_params=ClipConfig(
+            max_length=77,
+            always_return_pooled=True,
+        ),
+        t5_params=T5Config(
+            max_length=512,
+        ),
+        scheduler_steps=1000,
         device='cpu',
     )
 }

@@ -35,24 +35,31 @@ from nemo.utils import logging
 
 class FluxInferencePipeline(nn.Module):
     def __init__(self,
-                 params: Optional[FluxModelParams] = None,
-                 flux: Flux = None,
-                 vae: AutoEncoder = None,
-                 t5: FrozenT5Embedder = None,
-                 clip: FrozenCLIPEmbedder = None,
-                 scheduler: FlowMatchEulerDiscreteScheduler = None,
+                 params: FluxModelParams = None,
+                 flux: Optional[Flux] = None,
+                 vae: Optional[AutoEncoder] = None,
+                 t5: Optional[FrozenT5Embedder] = None,
+                 clip: Optional[FrozenCLIPEmbedder] = None,
+                 scheduler_steps: int = 1000,
                  ):
         super().__init__()
         self.device = params.device
-        params.clip_params['device'] = self.device
-        params.t5_params['device'] = self.device
+        params.clip_params.device = self.device
+        params.t5_params.device = self.device
 
-        self.vae = AutoEncoder(params.vae_params).to(self.device).eval() if vae is None else vae
-        self.clip_encoder = FrozenCLIPEmbedder(**params.clip_params) if clip is None else clip
-        self.t5_encoder = FrozenT5Embedder(**params.t5_params) if t5 is None else t5
-        self.transformer = Flux(params.flux_params).to(self.device).eval() if flux is None else flux
+        self.vae = AutoEncoder(params.vae_config).to(self.device).eval() if vae is None else vae
+        self.clip_encoder = FrozenCLIPEmbedder(
+            version=params.clip_params.version,
+            max_length=params.clip_params.max_length,
+            always_return_pooled=params.clip_params.always_return_pooled,
+            device=params.clip_params.device) if clip is None else clip
+        self.t5_encoder = FrozenT5Embedder(
+            params.t5_params.version,
+            max_length=params.t5_params.max_length,
+            device=params.t5_params.device) if t5 is None else t5
+        self.transformer = Flux(params.flux_config).to(self.device).eval() if flux is None else flux
         self.vae_scale_factor = 2 ** (len(self.vae.params.ch_mult))
-        self.scheduler = FlowMatchEulerDiscreteScheduler(**params.scheduler_params)
+        self.scheduler = FlowMatchEulerDiscreteScheduler(num_train_timesteps=scheduler_steps)
         self.params = params
 
     def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model_to=None):
