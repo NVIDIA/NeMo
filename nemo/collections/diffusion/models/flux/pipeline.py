@@ -365,7 +365,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
                  vae: AutoEncoder = None,
                  t5: FrozenT5Embedder = None,
                  clip: FrozenCLIPEmbedder = None,
-                 scheduler: FlowMatchEulerDiscreteScheduler = None,
+                 scheduler_steps: int = 1000,
                  flux_controlnet: FluxControlNet = None, ):
         super().__init__(
             params,
@@ -373,7 +373,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
             vae,
             t5,
             clip,
-            scheduler,
+            scheduler_steps,
         )
         self.flux_controlnet = FluxControlNet(contorlnet_config) if flux_controlnet is None else flux_controlnet
 
