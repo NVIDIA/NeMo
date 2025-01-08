@@ -19,7 +19,7 @@ import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import openai_gelu
 
-from nemo.collections.diffusion.models.flux.model import FluxConfig, FluxModelParams, ClipConfig, T5Config
+from nemo.collections.diffusion.models.flux.model import ClipConfig, FluxConfig, FluxModelParams, T5Config
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
 from nemo.lightning import io
 
@@ -39,7 +39,7 @@ configs = {
             guidance_embed=True,
             vec_in_dim=768,
             ckpt_path=None,
-            convert_from_hf=None
+            convert_from_hf=None,
         ),
         vae_config=AutoEncoderConfig(
             ch_mult=[1, 2, 4, 4],

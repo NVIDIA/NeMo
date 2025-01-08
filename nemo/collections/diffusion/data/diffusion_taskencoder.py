@@ -445,7 +445,6 @@ def concat_pad(tensor_list, max_seq_length):
 pos_id_3d = PosID3D()
 
 
-
 def cook_raw_iamges(sample: dict) -> dict:
     """
     Processes a raw sample dictionary from energon dataset and returns a new dictionary with specific keys.

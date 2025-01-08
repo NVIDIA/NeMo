@@ -131,8 +131,8 @@ flux_key_mapping = {
     'time_text_embed.text_embedder.linear_1.weight': 'vector_embedding.in_layer.weight',
     'time_text_embed.text_embedder.linear_2.bias': 'vector_embedding.out_layer.bias',
     'time_text_embed.text_embedder.linear_2.weight': 'vector_embedding.out_layer.weight',
-    'controlnet_x_embedder.weight':'controlnet_x_embedder.weight',
-    'controlnet_x_embedder.bias':'controlnet_x_embedder.bias',
+    'controlnet_x_embedder.weight': 'controlnet_x_embedder.weight',
+    'controlnet_x_embedder.bias': 'controlnet_x_embedder.bias',
 }
 
 
@@ -207,11 +207,19 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
             transformer_config, diffuser_state_dict[qk], diffuser_state_dict[kk], diffuser_state_dict[vk]
         )
 
-        new_state_dict[f'single_blocks.{str(i)}.mlp.linear_fc2.weight'], new_state_dict[f'single_blocks.{str(i)}.self_attention.linear_proj.weight'] = \
-            diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.weight'].detach()[:, 3072:].clone(), diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.weight'].detach()[:, :3072].clone()
+        (
+            new_state_dict[f'single_blocks.{str(i)}.mlp.linear_fc2.weight'],
+            new_state_dict[f'single_blocks.{str(i)}.self_attention.linear_proj.weight'],
+        ) = (
+            diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.weight'].detach()[:, 3072:].clone(),
+            diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.weight'].detach()[:, :3072].clone(),
+        )
 
-        new_state_dict[f'single_blocks.{str(i)}.mlp.linear_fc2.bias'] = diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.bias'].detach().clone()
-        new_state_dict[f'single_blocks.{str(i)}.self_attention.linear_proj.bias'] = diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.bias'].detach().clone()
+        new_state_dict[f'single_blocks.{str(i)}.mlp.linear_fc2.bias'] = (
+            diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.bias'].detach().clone()
+        )
+        new_state_dict[f'single_blocks.{str(i)}.self_attention.linear_proj.bias'] = (
+            diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.bias'].detach().clone()
+        )
 
     return new_state_dict
-

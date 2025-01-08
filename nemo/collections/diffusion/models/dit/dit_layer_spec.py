@@ -635,7 +635,6 @@ class FluxSingleTransformerBlock(TransformerLayer):
             config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False
         )
 
-
     def forward(
         self,
         hidden_states,

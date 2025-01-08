@@ -13,22 +13,22 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Dict, Any
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional
 
 import numpy as np
 import pytorch_lightning as L
 import torch
-from pathlib import Path
+from diffusers import FluxTransformer2DModel
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import openai_gelu
-from torch import nn
-from torch.nn import functional as F
 from safetensors.torch import load_file as load_safetensors
 from safetensors.torch import save_file as save_safetensors
-from diffusers import FluxTransformer2DModel
+from torch import nn
+from torch.nn import functional as F
 
 from nemo.collections.diffusion.encoders.conditioner import FrozenCLIPEmbedder, FrozenT5Embedder
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
@@ -40,11 +40,12 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
 )
 from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
 from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
-from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderConfig
 from nemo.collections.diffusion.utils.flux_ckpt_converter import _import_qkv, _import_qkv_bias
+from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderConfig
 from nemo.collections.llm import fn
-from nemo.lightning import io, teardown
+from nemo.lightning import io
 from nemo.lightning import megatron_parallel as mp
+from nemo.lightning import teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
@@ -98,15 +99,16 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     load_dist_ckpt: bool = False
     convert_from_hf: bool = False
 
-
     def configure_model(self):
         model = Flux(config=self)
         return model
+
 
 @dataclass
 class T5Config:
     version: Optional[str] = "google/t5-v1_1-xxl"
     max_length: Optional[int] = 512
+
 
 @dataclass
 class ClipConfig:
@@ -114,12 +116,13 @@ class ClipConfig:
     max_length: Optional[int] = 77
     always_return_pooled: Optional[bool] = True
 
+
 @dataclass
 class FluxModelParams:
-    flux_config : FluxConfig = FluxConfig()
-    vae_config : AutoEncoderConfig = AutoEncoderConfig(ch_mult=[1,2,4,4], attn_resolutions=[])
-    clip_params : ClipConfig = ClipConfig()
-    t5_params : T5Config = T5Config()
+    flux_config: FluxConfig = FluxConfig()
+    vae_config: AutoEncoderConfig = AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
+    clip_params: ClipConfig = ClipConfig()
+    t5_params: T5Config = T5Config()
     scheduler_steps: int = 1000
     device: str = 'cuda'
 
@@ -173,8 +176,11 @@ class Flux(VisionModule):
         self.norm_out = AdaLNContinuous(config=config, conditioning_embedding_dim=self.hidden_size)
         self.proj_out = nn.Linear(self.hidden_size, self.patch_size * self.patch_size * self.out_channels, bias=True)
         if self.config.ckpt_path is not None:
-            self.load_from_pretrained(self.config.ckpt_path, do_convert_from_hf=self.config.convert_from_hf, load_dist_ckpt=self.config.load_dist_ckpt)
-
+            self.load_from_pretrained(
+                self.config.ckpt_path,
+                do_convert_from_hf=self.config.convert_from_hf,
+                load_dist_ckpt=self.config.load_dist_ckpt,
+            )
 
     def forward(
         self,
@@ -240,9 +246,12 @@ class Flux(VisionModule):
 
         return output
 
-    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=False, save_converted_model_to=None, load_dist_ckpt=False):
+    def load_from_pretrained(
+        self, ckpt_path, do_convert_from_hf=False, save_converted_model_to=None, load_dist_ckpt=False
+    ):
         if load_dist_ckpt:
             from megatron.core import dist_checkpointing
+
             sharded_state_dict = dict(state_dict=self.sharded_state_dict(prefix="module."))
             loaded_state_dict = dist_checkpointing.load(
                 sharded_state_dict=sharded_state_dict, checkpoint_dir=ckpt_path
@@ -258,9 +267,7 @@ class Flux(VisionModule):
             else:
                 ckpt = load_safetensors(ckpt_path)
         missing, unexpected = self.load_state_dict(ckpt, strict=False)
-        missing = [
-            k for k in missing if not k.endswith('_extra_state')
-        ]
+        missing = [k for k in missing if not k.endswith('_extra_state')]
         # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
@@ -268,6 +275,7 @@ class Flux(VisionModule):
             )
             logging.info(f"Found unexepected keys: \n {unexpected}")
         logging.info(f"Restored flux model weights from {ckpt_path}")
+
 
 class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
@@ -306,7 +314,9 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
                 param.requires_grad = False
 
     def configure_scheduler(self):
-        self.scheduler = FlowMatchEulerDiscreteScheduler(num_train_timesteps=self.params.scheduler_steps,)
+        self.scheduler = FlowMatchEulerDiscreteScheduler(
+            num_train_timesteps=self.params.scheduler_steps,
+        )
 
     def configure_vae(self, vae):
         if isinstance(vae, nn.Module):
@@ -328,7 +338,12 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         if isinstance(clip, nn.Module):
             self.clip = clip
         elif isinstance(clip, ClipConfig):
-            self.clip = FrozenCLIPEmbedder(version=self.clip_params.version, max_length=self.clip_params.max_length,always_return_pooled=self.clip_params.always_return_pooled, device=torch.cuda.current_device())
+            self.clip = FrozenCLIPEmbedder(
+                version=self.clip_params.version,
+                max_length=self.clip_params.max_length,
+                always_return_pooled=self.clip_params.always_return_pooled,
+                device=torch.cuda.current_device(),
+            )
         else:
             logging.info("CLIP encoder not provided, assuming the text embeddings is precached...")
             self.clip = None
@@ -336,7 +351,9 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         if isinstance(t5, nn.Module):
             self.t5 = t5
         elif isinstance(t5, T5Config):
-            self.t5 = FrozenT5Embedder(self.t5_params.version, max_length=self.t5_params.max_length, device=torch.cuda.current_device())
+            self.t5 = FrozenT5Embedder(
+                self.t5_params.version, max_length=self.t5_params.max_length, device=torch.cuda.current_device()
+            )
         else:
             logging.info("T5 encoder not provided, assuming the text embeddings is precached...")
             self.t5 = None
@@ -574,24 +591,24 @@ class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronF
         source = FluxTransformer2DModel.from_pretrained(str(self), subfolder="transformer")
         source_config = source.config
         flux_config = FluxConfig(
-            num_layers = 1,  # dummy setting
-            num_joint_layers = source_config.num_layers,
-            num_single_layers = source_config.num_single_layers,
-            hidden_size = source_config.num_attention_heads * source_config.attention_head_dim,
-            num_attention_heads = source_config.num_attention_heads,
-            activation_func = openai_gelu,
-            add_qkv_bias = True,
-            in_channels = source_config.in_channels,
-            context_dim = source_config.joint_attention_dim,
-            model_channels = 256,
-            patch_size = source_config.patch_size,
-            guidance_embed = source_config.guidance_embeds,
-            vec_in_dim = source_config.pooled_projection_dim,
-            rotary_interleaved = True,
-            layernorm_epsilon = 1e-06,
-            hidden_dropout = 0,
-            attention_dropout = 0,
-            use_cpu_initialization = True,
+            num_layers=1,  # dummy setting
+            num_joint_layers=source_config.num_layers,
+            num_single_layers=source_config.num_single_layers,
+            hidden_size=source_config.num_attention_heads * source_config.attention_head_dim,
+            num_attention_heads=source_config.num_attention_heads,
+            activation_func=openai_gelu,
+            add_qkv_bias=True,
+            in_channels=source_config.in_channels,
+            context_dim=source_config.joint_attention_dim,
+            model_channels=256,
+            patch_size=source_config.patch_size,
+            guidance_embed=source_config.guidance_embeds,
+            vec_in_dim=source_config.pooled_projection_dim,
+            rotary_interleaved=True,
+            layernorm_epsilon=1e-06,
+            hidden_dropout=0,
+            attention_dropout=0,
+            use_cpu_initialization=True,
         )
 
         output = FluxModelParams(
@@ -632,7 +649,7 @@ class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronF
             'single_transformer_blocks.*.proj_mlp.bias': 'single_blocks.*.mlp.linear_fc1.bias',
             'single_transformer_blocks.*.attn.norm_q.weight': 'single_blocks.*.self_attention.q_layernorm.weight',
             'single_transformer_blocks.*.attn.norm_k.weight': 'single_blocks.*.self_attention.k_layernorm.weight',
-            'single_transformer_blocks.*.proj_out.bias':'single_blocks.*.mlp.linear_fc2.bias',
+            'single_transformer_blocks.*.proj_out.bias': 'single_blocks.*.mlp.linear_fc2.bias',
             'norm_out.linear.bias': 'norm_out.adaLN_modulation.1.bias',
             'norm_out.linear.weight': 'norm_out.adaLN_modulation.1.weight',
             'proj_out.bias': 'proj_out.bias',
@@ -676,12 +693,10 @@ class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronF
         "transformer_blocks.*.attn.to_k.weight",
         "transformer_blocks.*.attn.to_v.weight",
     ),
-    target_key=(
-        "double_blocks.*.self_attention.linear_qkv.weight"
-    )
+    target_key=("double_blocks.*.self_attention.linear_qkv.weight"),
 )
 def import_double_block_qkv(ctx: io.TransformCTX, q, k, v):
-    transformer_config=ctx.target.config
+    transformer_config = ctx.target.config
     return _import_qkv(transformer_config, q, k, v)
 
 
@@ -691,12 +706,10 @@ def import_double_block_qkv(ctx: io.TransformCTX, q, k, v):
         "transformer_blocks.*.attn.to_k.bias",
         "transformer_blocks.*.attn.to_v.bias",
     ),
-    target_key=(
-        "double_blocks.*.self_attention.linear_qkv.bias"
-    )
+    target_key=("double_blocks.*.self_attention.linear_qkv.bias"),
 )
 def import_double_block_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
-    transformer_config=ctx.target.config
+    transformer_config = ctx.target.config
     return _import_qkv_bias(transformer_config, qb, kb, vb)
 
 
@@ -706,12 +719,10 @@ def import_double_block_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
         "transformer_blocks.*.attn.add_k_proj.weight",
         "transformer_blocks.*.attn.add_v_proj.weight",
     ),
-    target_key=(
-        "double_blocks.*.self_attention.added_linear_qkv.weight"
-    )
+    target_key=("double_blocks.*.self_attention.added_linear_qkv.weight"),
 )
 def import_added_qkv(ctx: io.TransformCTX, q, k, v):
-    transformer_config=ctx.target.config
+    transformer_config = ctx.target.config
     return _import_qkv(transformer_config, q, k, v)
 
 
@@ -721,13 +732,12 @@ def import_added_qkv(ctx: io.TransformCTX, q, k, v):
         "transformer_blocks.*.attn.add_k_proj.bias",
         "transformer_blocks.*.attn.add_v_proj.bias",
     ),
-    target_key=(
-        "double_blocks.*.self_attention.added_linear_qkv.bias"
-    )
+    target_key=("double_blocks.*.self_attention.added_linear_qkv.bias"),
 )
 def import_added_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
-    transformer_config=ctx.target.config
+    transformer_config = ctx.target.config
     return _import_qkv_bias(transformer_config, qb, kb, vb)
+
 
 @io.state_transform(
     source_key=(
@@ -735,12 +745,10 @@ def import_added_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
         "single_transformer_blocks.*.attn.to_k.weight",
         "single_transformer_blocks.*.attn.to_v.weight",
     ),
-    target_key=(
-        "single_blocks.*.self_attention.linear_qkv.weight"
-    )
+    target_key=("single_blocks.*.self_attention.linear_qkv.weight"),
 )
 def import_single_block_qkv(ctx: io.TransformCTX, q, k, v):
-    transformer_config=ctx.target.config
+    transformer_config = ctx.target.config
     return _import_qkv(transformer_config, q, k, v)
 
 
@@ -750,22 +758,16 @@ def import_single_block_qkv(ctx: io.TransformCTX, q, k, v):
         "single_transformer_blocks.*.attn.to_k.bias",
         "single_transformer_blocks.*.attn.to_v.bias",
     ),
-    target_key=(
-        "single_blocks.*.self_attention.linear_qkv.bias"
-    )
+    target_key=("single_blocks.*.self_attention.linear_qkv.bias"),
 )
 def import_single_block_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
-    transformer_config=ctx.target.config
+    transformer_config = ctx.target.config
     return _import_qkv_bias(transformer_config, qb, kb, vb)
 
+
 @io.state_transform(
-    source_key=(
-        'single_transformer_blocks.*.proj_out.weight'
-    ),
-    target_key=(
-        'single_blocks.*.mlp.linear_fc2.weight',
-        'single_blocks.*.self_attention.linear_proj.weight'
-    )
+    source_key=('single_transformer_blocks.*.proj_out.weight'),
+    target_key=('single_blocks.*.mlp.linear_fc2.weight', 'single_blocks.*.self_attention.linear_proj.weight'),
 )
 def transform_single_proj_out(proj_weight):
     linear_fc2 = proj_weight.detach()[:, 3072:].clone()

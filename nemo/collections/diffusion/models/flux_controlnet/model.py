@@ -16,7 +16,7 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     get_flux_single_transformer_engine_spec,
 )
 from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
-from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel, FluxConfig
+from nemo.collections.diffusion.models.flux.model import FluxConfig, FluxModelParams, MegatronFluxModel
 from nemo.collections.diffusion.models.flux_controlnet.layers import ControlNetConditioningEmbedding
 from nemo.lightning import io
 
@@ -279,7 +279,6 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             hint = batch['hint'].cuda(non_blocking=True)
             control_latents = self.vae.encode(hint).to(dtype=self.autocast_dtype)
 
-
         latent_image_ids = self._prepare_latent_image_ids(
             batch_size=latents.shape[0],
             height=latents.shape[2],
@@ -295,8 +294,6 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             height=latents.shape[2],
             width=latents.shape[3],
         )
-
-
 
         control_image = self._pack_latents(
             control_latents,
@@ -377,6 +374,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
     def validation_step(self, batch, batch_idx=None):
         print("Start validation step")
         from nemo.collections.diffusion.models.flux.pipeline import FluxControlNetInferencePipeline
+
         pipe = FluxControlNetInferencePipeline(
             params=self.params,
             contorlnet_config=self.flux_controlnet_config,
@@ -394,7 +392,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
             pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
             log_images = pipe(
-                latents = latents,
+                latents=latents,
                 control_image=control_latents,
                 prompt_embeds=prompt_embeds,
                 pooled_prompt_embeds=pooled_prompt_embeds,
@@ -419,12 +417,10 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 width=img.shape[3],
                 guidance_scale=7.0,
                 dtype=self.autocast_dtype,
-                save_to_disk=False
+                save_to_disk=False,
             )
         log_images[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_{text}.png")
         hint = pipe.torch_to_numpy(hint)
         hint = pipe.numpy_to_pil(hint)
         hint[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_control.png")
         return torch.tensor([0.0], device=torch.cuda.current_device())
-
-

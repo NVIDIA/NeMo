@@ -326,13 +326,14 @@ class FluxSingleAttention(SelfAttention):
     Self-attention layer takes input with size [s, b, h]
     and returns output of the same size.
     """
+
     def __init__(
-            self,
-            config: TransformerConfig,
-            submodules: SelfAttentionSubmodules,
-            layer_number: int,
-            attn_mask_type=AttnMaskType.padding,
-            cp_comm_type: str = None,
+        self,
+        config: TransformerConfig,
+        submodules: SelfAttentionSubmodules,
+        layer_number: int,
+        attn_mask_type=AttnMaskType.padding,
+        cp_comm_type: str = None,
     ):
         super().__init__(
             config=config,

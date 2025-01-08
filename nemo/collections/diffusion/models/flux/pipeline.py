@@ -34,29 +34,38 @@ from nemo.utils import logging
 
 
 class FluxInferencePipeline(nn.Module):
-    def __init__(self,
-                 params: FluxModelParams = None,
-                 flux: Optional[Flux] = None,
-                 vae: Optional[AutoEncoder] = None,
-                 t5: Optional[FrozenT5Embedder] = None,
-                 clip: Optional[FrozenCLIPEmbedder] = None,
-                 scheduler_steps: int = 1000,
-                 ):
+    def __init__(
+        self,
+        params: FluxModelParams = None,
+        flux: Optional[Flux] = None,
+        vae: Optional[AutoEncoder] = None,
+        t5: Optional[FrozenT5Embedder] = None,
+        clip: Optional[FrozenCLIPEmbedder] = None,
+        scheduler_steps: int = 1000,
+    ):
         super().__init__()
         self.device = params.device
         params.clip_params.device = self.device
         params.t5_params.device = self.device
 
         self.vae = AutoEncoder(params.vae_config).to(self.device).eval() if vae is None else vae
-        self.clip_encoder = FrozenCLIPEmbedder(
-            version=params.clip_params.version,
-            max_length=params.clip_params.max_length,
-            always_return_pooled=params.clip_params.always_return_pooled,
-            device=params.clip_params.device) if clip is None else clip
-        self.t5_encoder = FrozenT5Embedder(
-            params.t5_params.version,
-            max_length=params.t5_params.max_length,
-            device=params.t5_params.device) if t5 is None else t5
+        self.clip_encoder = (
+            FrozenCLIPEmbedder(
+                version=params.clip_params.version,
+                max_length=params.clip_params.max_length,
+                always_return_pooled=params.clip_params.always_return_pooled,
+                device=params.clip_params.device,
+            )
+            if clip is None
+            else clip
+        )
+        self.t5_encoder = (
+            FrozenT5Embedder(
+                params.t5_params.version, max_length=params.t5_params.max_length, device=params.t5_params.device
+            )
+            if t5 is None
+            else t5
+        )
         self.transformer = Flux(params.flux_config).to(self.device).eval() if flux is None else flux
         self.vae_scale_factor = 2 ** (len(self.vae.params.ch_mult))
         self.scheduler = FlowMatchEulerDiscreteScheduler(num_train_timesteps=scheduler_steps)
@@ -358,15 +367,17 @@ class FluxInferencePipeline(nn.Module):
 
 
 class FluxControlNetInferencePipeline(FluxInferencePipeline):
-    def __init__(self,
-                 params: Optional[FluxModelParams] = None,
-                 contorlnet_config: Optional[FluxControlNetConfig] = None,
-                 flux: Flux = None,
-                 vae: AutoEncoder = None,
-                 t5: FrozenT5Embedder = None,
-                 clip: FrozenCLIPEmbedder = None,
-                 scheduler_steps: int = 1000,
-                 flux_controlnet: FluxControlNet = None, ):
+    def __init__(
+        self,
+        params: Optional[FluxModelParams] = None,
+        contorlnet_config: Optional[FluxControlNetConfig] = None,
+        flux: Flux = None,
+        vae: AutoEncoder = None,
+        t5: FrozenT5Embedder = None,
+        clip: FrozenCLIPEmbedder = None,
+        scheduler_steps: int = 1000,
+        flux_controlnet: FluxControlNet = None,
+    ):
         super().__init__(
             params,
             flux,

@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import argparse
+import os
 
+import nemo_run as run
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -24,22 +27,22 @@ from transformers import AutoProcessor
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
-from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
 from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
-from nemo.collections.diffusion.models.flux.model import MegatronFluxModel, FluxModelParams, FluxConfig, T5Config, ClipConfig
+from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
+from nemo.collections.diffusion.models.flux.model import (
+    ClipConfig,
+    FluxConfig,
+    FluxModelParams,
+    MegatronFluxModel,
+    T5Config,
+)
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
+from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
 from nemo.lightning.pytorch.optim import WarmupHoldPolicyScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
-
 from nemo.utils.exp_manager import TimingCallback
 
-from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
-from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
 
-import nemo_run as run
-import os
-import pytorch_lightning as pl
 @run.cli.factory
 @run.autoconvert
 def flux_datamodule(dataset_dir) -> pl.LightningDataModule:
@@ -47,7 +50,9 @@ def flux_datamodule(dataset_dir) -> pl.LightningDataModule:
     data_module = DiffusionDataModule(
         dataset_dir,
         seq_length=4096,
-        task_encoder=run.Config(RawImageDiffusionTaskEncoder,),
+        task_encoder=run.Config(
+            RawImageDiffusionTaskEncoder,
+        ),
         micro_batch_size=1,
         global_batch_size=8,
         num_workers=23,
@@ -69,6 +74,7 @@ def flux_mock_datamodule() -> pl.LightningDataModule:
         text_precached=True,
     )
     return data_module
+
 
 @run.cli.factory(target=llm.train)
 def flux_training() -> run.Partial:
@@ -141,14 +147,17 @@ def flux_training() -> run.Partial:
         model_transform=None,
     )
 
+
 @run.cli.factory(target=llm.train)
 def convergence_test() -> run.Partial:
     recipe = flux_training()
     recipe.model.flux_params.t5_params = run.Config(T5Config, version='/ckpts/text_encoder_2')
     recipe.model.flux_params.clip_params = run.Config(ClipConfig, version='/ckpts/text_encoder')
-    recipe.model.flux_params.vae_config = run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    recipe.model.flux_params.vae_config = run.Config(
+        AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1, 2, 4, 4], attn_resolutions=[]
+    )
     recipe.model.flux_params.device = 'cuda'
-    recipe.trainer.devices=8
+    recipe.trainer.devices = 8
     recipe.data = flux_datamodule('/dataset/fill50k/fill50k_tarfiles/')
     return recipe
 
@@ -158,10 +167,12 @@ def full_model_tp2_dp4_mock() -> run.Partial:
     recipe = flux_training()
     recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
     recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
-    recipe.model.flux_params.vae_config = None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    recipe.model.flux_params.vae_config = (
+        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    )
     recipe.model.flux_params.device = 'cuda'
-    recipe.trainer.strategy.tensor_model_parallel_size=2
-    recipe.trainer.devices=8
+    recipe.trainer.strategy.tensor_model_parallel_size = 2
+    recipe.trainer.devices = 8
     recipe.data.global_batch_size = 8
     return recipe
 
@@ -169,22 +180,21 @@ def full_model_tp2_dp4_mock() -> run.Partial:
 @run.cli.factory(target=llm.train)
 def unit_test() -> run.Partial:
     recipe = flux_training()
-    recipe.model.flux_params.t5_params = None #run.Config(T5Config, version='/ckpts/text_encoder_2')
-    recipe.model.flux_params.clip_params = None #run.Config(ClipConfig, version='/ckpts/text_encoder')
-    recipe.model.flux_params.vae_config = None #run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
-    recipe.model.flux_params.device = 'cuda'
-    recipe.model.flux_params.flux_config=run.Config(
-        FluxConfig,
-        num_joint_layers=1,
-        num_single_layers=1
+    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
+    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    recipe.model.flux_params.vae_config = (
+        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
     )
-    recipe.data.global_batch_size=1
+    recipe.model.flux_params.device = 'cuda'
+    recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=1, num_single_layers=1)
+    recipe.data.global_batch_size = 1
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
     )
     return recipe
+
 
 if __name__ == "__main__":
     OOM_DEBUG = False
