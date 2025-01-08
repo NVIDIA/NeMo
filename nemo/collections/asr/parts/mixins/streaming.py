@@ -47,6 +47,7 @@ class StreamingEncoder(ABC):
         cache_last_channel_len=None,
         keep_all_outputs=True,
         drop_extra_pre_encoded=None,
+        pre_encode_input=False
     ):
         if self.streaming_cfg is None:
             self.setup_streaming_params()
@@ -65,6 +66,7 @@ class StreamingEncoder(ABC):
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
             cache_last_channel_len=cache_last_channel_len,
+            pre_encode_input=pre_encode_input
         )
 
         encoder_output = self.streaming_post_process(encoder_output, keep_all_outputs=keep_all_outputs)
