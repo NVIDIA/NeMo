@@ -18,7 +18,14 @@ from typing import Optional
 
 import nemo_run as run
 from nemo_run.config import NEMORUN_HOME
-from utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, parse_cli_args, slurm_executor, isfile_train_pack_metadata
+from utils import (
+    get_comm_overlap_callback_idx,
+    hf_tokenizer,
+    import_ckpt_experiment,
+    isfile_train_pack_metadata,
+    parse_cli_args,
+    slurm_executor,
+)
 
 from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
@@ -136,7 +143,7 @@ if __name__ == "__main__":
             "NVTE_FLASH_ATTN": "1",
         },
         hf_token=args.hf_token,
-        nemo_home=args.nemo_home
+        nemo_home=args.nemo_home,
     )
 
     recipe = llama3_8b_performance_recipe(

@@ -21,11 +21,11 @@ from lightning.pytorch.callbacks.callback import Callback
 from nemo_run.config import NEMORUN_HOME
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
+
 
 def slurm_executor(
     account: str,
@@ -119,17 +119,19 @@ def import_ckpt_experiment(num_nodes: int, executor: run.SlurmExecutor, model: r
 
     return run.Partial(import_ckpt, model=model, source=source, overwrite=False), import_executor, "import_ckpt_exp"
 
+
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]):
     train_pack_metadata_filepath = ""
     if data_config.__fn_or_cls__ == SquadDataModule:
         datasets_dir = os.getenv(
             "NEMO_DATASETS_CACHE", os.path.join(os.getenv("NEMO_HOME", DEFAULT_NEMO_CACHE_HOME), "datasets")
-            )
+        )
         model_dir = hf_model_uri.replace("/", "--")
         metadata_filename = f"train_{data_config.seq_length}_metadata.jsonl"
 
         train_pack_metadata_filepath = os.path.join(datasets_dir, "squad", "packed", model_dir, metadata_filename)
     return os.path.exists(train_pack_metadata_filepath) and os.path.isfile(train_pack_metadata_filepath)
+
 
 def get_comm_overlap_callback_idx(callbacks: List[Callback]):
     """
@@ -223,9 +225,11 @@ def parse_cli_args():
         help="HuggingFace token. Defaults to None. Required for accessing tokenizers and checkpoints.",
         default=None,
     )
-    nemo_home_msg = ["Directory where NeMo searches for models and checkpoints.",
-                     "This saves a lot of time (especially for bigger models) if checkpoints already exist here.",
-                     f"Missing files will be downloaded from HuggingFace. Defaults to {DEFAULT_NEMO_CACHE_HOME}"]
+    nemo_home_msg = [
+        "Directory where NeMo searches for models and checkpoints.",
+        "This saves a lot of time (especially for bigger models) if checkpoints already exist here.",
+        f"Missing files will be downloaded from HuggingFace. Defaults to {DEFAULT_NEMO_CACHE_HOME}",
+    ]
     parser.add_argument(
         "-nh",
         "--nemo_home",
