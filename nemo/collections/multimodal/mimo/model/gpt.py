@@ -28,9 +28,6 @@ class MimoGPTModel(MCoreGPTModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        model_id = "llava-hf/llava-v1.6-vicuna-7b-hf"
-        self.tokenizer = AutoTokenizer(model_id)
-
     def forward(
         self,
         input_ids: Tensor,
@@ -70,12 +67,5 @@ class MimoGPTModel(MCoreGPTModel):
         if labels is None:
             return logits.transpose(0, 1).contiguous(), hidden_states
         loss = self.compute_language_model_loss(labels, logits)
-
-        token_ids = torch.argmax(logits, dim=-1)
-        last_5_token_ids = token_ids[-8:]
-        batch_index = 0
-        last_5_token_ids_batch = last_5_token_ids[:, batch_index]
-        decoded_tokens = self.tokenizer.tokenizer.decode(last_5_token_ids_batch.tolist(), skip_special_tokens=True)
-        print("Decoded Tokens:", decoded_tokens)
 
         return loss, hidden_states

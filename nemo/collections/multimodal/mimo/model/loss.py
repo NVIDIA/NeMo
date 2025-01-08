@@ -35,26 +35,26 @@ class MimoLossReduction(MaskedTokenLossReduction):
         just_token_loss = token_loss_info['avg'].clone().detach()
 
         total_loss = token_loss
-        # # L2 loss
-        # l2_loss = self._calculate_l2_loss(output_projection_embeddings, image_caption_embeddings)
-        # l2_loss = self.l2_weight * l2_loss
-        # reduced_l2_loss = average_losses_across_data_parallel_group([l2_loss])
+        # L2 loss
+        l2_loss = self._calculate_l2_loss(output_projection_embeddings, image_caption_embeddings)
+        l2_loss = self.l2_weight * l2_loss
+        reduced_l2_loss = average_losses_across_data_parallel_group([l2_loss])
 
-        # total_loss = token_loss + l2_loss
-        # token_loss_info['avg'] = token_loss_info['avg'] + reduced_l2_loss
-        # token_loss_info.update({"l2_loss": reduced_l2_loss})
+        total_loss = total_loss + l2_loss
+        token_loss_info['avg'] = token_loss_info['avg'] + reduced_l2_loss
+        token_loss_info.update({"l2_loss": reduced_l2_loss})
 
-        # # denoise loss
+        # denoise loss
 
-        # model_pred = output_dict['denoise_model_pred']
-        # target = output_dict['denoise_target']
-        # gen_loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
-        # reduced_gen_l2_loss = average_losses_across_data_parallel_group([gen_loss])
+        model_pred = output_dict['denoise_model_pred']
+        target = output_dict['denoise_target']
+        gen_loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+        reduced_gen_l2_loss = average_losses_across_data_parallel_group([gen_loss])
 
-        # total_loss = total_loss + gen_loss
-        # token_loss_info['avg'] = token_loss_info['avg'] + reduced_gen_l2_loss
-        # logging.info(f"token_loss: {just_token_loss}, l2_loss: {l2_loss}, gen_loss: {gen_loss}")
-        # print(f"token_loss: {just_token_loss}, l2_loss: {l2_loss}, gen_loss: {gen_loss}")
+        total_loss = total_loss + gen_loss
+        token_loss_info['avg'] = token_loss_info['avg'] + reduced_gen_l2_loss
+        logging.info(f"token_loss: {just_token_loss}, l2_loss: {l2_loss}, gen_loss: {gen_loss}")
+        print(f"token_loss: {just_token_loss}, l2_loss: {l2_loss}, gen_loss: {gen_loss}")
         return total_loss, token_loss_info
 
     def _calculate_l2_loss(self, embeddings1: torch.Tensor, embeddings2: torch.Tensor) -> torch.Tensor:
