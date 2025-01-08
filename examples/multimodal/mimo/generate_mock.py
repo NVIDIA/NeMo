@@ -89,7 +89,7 @@ def main(args) -> None:
         max_steps=1000,
         accelerator="gpu",
         strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+        plugins=nl.MegatronMixedPrecision(precision="32"),
         val_check_interval=1000,
         limit_val_batches=50,
     )
