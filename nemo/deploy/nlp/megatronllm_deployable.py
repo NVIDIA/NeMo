@@ -15,13 +15,14 @@
 import logging
 from enum import IntEnum, auto
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import torch
 import torch.distributed
 import wrapt
 from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.inference_request import InferenceRequest
 from lightning.pytorch.trainer.trainer import Trainer
 
 import nemo.lightning as nl
@@ -107,7 +108,7 @@ class MegatronLLMDeploy:
 
     @staticmethod
     def get_deployable(
-        nemo_checkpoint_filepath: str = None,
+        nemo_checkpoint_filepath: str,
         num_devices: int = 1,
         num_nodes: int = 1,
         tensor_model_parallel_size: int = 1,
@@ -178,6 +179,39 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
         )
 
+    def generate(
+        self,
+        prompts: List[str],
+        max_batch_size: int = 4,
+        inference_params: Optional[CommonInferenceParams] = None,
+        random_seed: Optional[int] = None,
+    ) -> List[InferenceRequest]:
+        """
+        Generates text based on the provided input prompts.
+
+        Args:
+            prompts (List[str]): A list of input strings.
+            max_batch_size (int): The maximum batch size used for inference.
+            inference_params (Optional[CommonInferenceParams]): Parameters for controlling the inference process.
+            random_seed (Optional[int]): A random seed for reproducibility.
+
+        Returns:
+            List[InferenceRequest]: A list containing the generated results.
+        """
+        # TODO: This function doesn't account for parallelism settings currently
+
+        inference_params = inference_params or CommonInferenceParams()
+
+        results = inference.generate(
+            model=self.inference_wrapped_model,
+            tokenizer=self.mcore_tokenizer,
+            prompts=prompts,
+            max_batch_size=max_batch_size,
+            random_seed=random_seed,
+            inference_params=inference_params,
+        )
+        return list(results)
+
     @property
     def get_triton_input(self):
         inputs = (
@@ -222,14 +256,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 return_log_probs=log_probs,
             )
 
-            results = inference.generate(
-                model=self.inference_wrapped_model,
-                tokenizer=self.mcore_tokenizer,
-                prompts=prompts,
-                max_batch_size=max_batch_size,
-                random_seed=random_seed,
-                inference_params=inference_params,
-            )
+            results = self.generate(prompts, max_batch_size, inference_params, random_seed)
 
             output_texts = [r.generated_text if text_only else r for r in results]
             output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
