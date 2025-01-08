@@ -144,7 +144,8 @@ class ProgressPrinter(ProgressBar):
             prefix = self.train_description + f" epoch {trainer.current_epoch}, iteration {n-1}/{self.total-1}"
             log_string = self.format_string(prefix, self.average_metrics_dict)
             print(log_string)
-            print(megatron_log_string, flush=True)
+            if megatron_log_string:
+                print(megatron_log_string, flush=True)
 
             self.total_metrics_dict = defaultdict(lambda: 0.0)
 
@@ -213,3 +214,4 @@ class ProgressPrinter(ProgressBar):
         output_string = timers.get_all_timers_string(names=None, normalizer=self.log_interval)
         if output_string is not None:
             return output_string + "\n"
+        return None
