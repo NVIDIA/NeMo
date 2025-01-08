@@ -32,6 +32,7 @@ from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.lightning.pytorch.utils import is_trainer_attached
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
@@ -105,7 +106,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         else:
             model.walk(self.transform)
 
-        if hasattr(model, "trainer") and model.trainer.state.fn != TrainerFn.FITTING:
+        if is_trainer_attached(model) and model.trainer.state.fn != TrainerFn.FITTING:
             self.freeze_model(model)
         return model
 
@@ -128,7 +129,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
             model.module.freeze()
         else:
             model.freeze()
-        if hasattr(model, "trainer") and model.trainer.state.fn == TrainerFn.FITTING:
+        if is_trainer_attached(model) and model.trainer.state.fn == TrainerFn.FITTING:
             model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
@@ -137,6 +138,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         super().setup(trainer, pl_module, stage=stage)
 
+        self._is_fsdp_v1 = type(trainer.strategy).__name__ == 'FSDPStrategy'
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
 
@@ -203,7 +205,12 @@ class PEFT(IOMixin, ABC, ModelTransform):
             )
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
             if trainer.state.fn == TrainerFn.FITTING:
-                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
+                # Load optimizer
+                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=False)
+                # Load lr scheduler
+                if (lr_schedulers := adapter_state.get('lr_schedulers', None)) is not None:
+                    for config, lrs_state in zip(trainer.lr_scheduler_configs, lr_schedulers):
+                        config.scheduler.load_state_dict(lrs_state)
 
         for cb in trainer.callbacks[::-1]:
             if isinstance(cb, MegatronOptimizerModule):
@@ -307,12 +314,11 @@ class AdapterWrapper(nn.Module):
             destination = {}
 
         # Get state dict of the main module
-        main_state_dict = self.to_wrap.state_dict(destination, prefix, keep_vars)
+        self.to_wrap.state_dict(destination, prefix, keep_vars)
 
-        # Store adapter state dict under the special "adapters" key in the destination dict
-        adapter_state_dict = self.adapter.state_dict(None, prefix, keep_vars)
-        destination[f'{prefix}adapters'] = adapter_state_dict
-        return main_state_dict
+        # Store adapter state dict under the "adapter" prefix in the destination dict
+        self.adapter.state_dict(destination, f'{prefix}adapter.', keep_vars)
+        return destination
 
     def sharded_state_dict(
         self,
@@ -442,7 +448,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         if getattr(path, "base_model_path", None):
             ## PEFT Resume, FIRST TIME
             self.adapter_ckpt_path = Path(str(path))
-            adapter_ckpt = self.checkpoint_io.load_checkpoint(path)  # Loads only metadata
+            adapter_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict={})  # Loads only metadata
             # path is adapter path to restore the training metadata, but switch to loading base model here.
             path = self.model_ckpt_path = path.base_model_path
         elif adapter_meta_path.exists():

@@ -116,7 +116,10 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     from megatron.core.models.gpt import gpt_layer_specs
 
     return gpt_layer_specs.get_gpt_layer_with_transformer_engine_spec(
-        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
+        num_experts=config.num_moe_experts,
+        moe_grouped_gemm=config.moe_grouped_gemm,
+        qk_layernorm=config.qk_layernorm,
+        fp8=bool(config.num_moe_experts and (config.fp8 is not None)),
     )
 
 
@@ -171,7 +174,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     masked_softmax_fusion: bool = True
     cross_entropy_loss_fusion: bool = True
     gradient_accumulation_fusion: bool = _grad_accum_fusion_available
-    deallocate_pipeline_outputs = True
+    deallocate_pipeline_outputs: bool = True
+    scatter_embedding_sequence_parallel: bool = True
+    tp_only_amax_red: bool = False
 
     use_transformer_engine_full_layer_spec: bool = False
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
@@ -180,6 +185,13 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = gpt_data_step
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+        if self.enable_cuda_graph:
+            assert HAVE_TE, "Transformer Engine is required for cudagraphs."
+            assert getattr(self, 'use_te_rng_tracker', False), (
+                "Transformer engine's RNG tracker is required for cudagraphs, it can be "
+                "enabled with use_te_rng_tracker=True'."
+            )
+
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
@@ -195,10 +207,11 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
         if hasattr(self, 'vocab_size'):
             vocab_size = self.vocab_size
-            logging.info(
-                f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
-                f" {vocab_size - tokenizer.vocab_size}."
-            )
+            if tokenizer is not None:
+                logging.info(
+                    f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
+                    f" {vocab_size - tokenizer.vocab_size}."
+                )
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
@@ -216,6 +229,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
             post_process=post_process or parallel_state.is_pipeline_last_stage(),
+            scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
         )
 
         # If using full TE layer, need to set TP, CP group since the module call
@@ -393,11 +407,21 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         if mcore_model is None or type(mcore_model) is not MCoreGPTModel:
             raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
 
+        vocab_size = None
+        if self.tokenizer is not None:
+            vocab_size = self.tokenizer.vocab_size
+        elif hasattr(self.config, 'vocab_size'):
+            vocab_size = self.config.vocab_size
+        else:
+            raise ValueError(
+                'Unable to find vocab size. Either pass in a tokenizer with vocab size, or set vocab size in the model config'
+            )
+
         inference_wrapper_config = InferenceWrapperConfig(
             hidden_size=mcore_model.config.hidden_size,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            padded_vocab_size=self.tokenizer.vocab_size,
+            padded_vocab_size=vocab_size,
         )
 
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)

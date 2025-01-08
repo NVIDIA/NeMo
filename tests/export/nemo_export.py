@@ -40,7 +40,8 @@ except Exception as e:
 
 in_framework_supported = True
 try:
-    from nemo.deploy.nlp import MegatronLLMDeployable, NemoQueryLLMPyTorch
+    from nemo.deploy.nlp import NemoQueryLLMPyTorch
+    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 except Exception as e:
     LOGGER.warning(
         "Cannot import MegatronLLMDeployable or NemoQueryLLMPyTorch,"
@@ -397,7 +398,7 @@ def run_inference(
             nm = DeployPyTriton(
                 model=exporter,
                 triton_model_name=model_name,
-                port=8000,
+                http_port=8000,
             )
             nm.deploy()
             nm.run()
@@ -578,7 +579,7 @@ def run_in_framework_inference(
         nm = DeployPyTriton(
             model=deployed_model,
             triton_model_name=model_name,
-            port=8000,
+            http_port=8000,
         )
         nm.deploy()
         nm.run()
@@ -807,6 +808,7 @@ def get_args():
             return None
         raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
 
+    args.model_type = None if str(args.model_type).lower() == "none" else args.model_type
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
     args.test_deployment = str_to_bool("test_deployment", args.test_deployment)
     args.functional_test = str_to_bool("functional_test", args.functional_test)

@@ -570,10 +570,25 @@ jobs:
           prune.ffn_hidden_size=192 \
           prune.num_attention_heads=2 \
           prune.num_query_groups=2 \
-          prune.hidden_size=null \
-          export.save_path=examples/nlp/language_modeling/ci_prune_width.nemo
-      AFTER_SCRIPT: |
-          rm -rf examples/nlp/language_modeling/ci_prune_width.nemo
+          prune.hidden_size=128 \
+          export.save_path=/tmp/ci_prune_width.nemo
+
+  L2_Prune_Depth_Llama2:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Prune_Depth_Llama2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/nlp/language_modeling/megatron_gpt_prune.py \
+          trainer.devices=2 \
+          trainer.num_nodes=1 \
+          trainer.precision=bf16 \
+          model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
+          model.tensor_model_parallel_size=2 \
+          model.pipeline_model_parallel_size=1 \
+          'prune.drop_layers=[1]' \
+          export.save_path=/tmp/ci_prune_depth.nemo
 
   # L2: ASR dev run
   ASR_dev_run_Speech_to_Text:
@@ -815,6 +830,33 @@ jobs:
         trainer.accelerator="gpu" \
         +trainer.fast_dev_run=True \
         exp_manager.exp_dir=/tmp/speaker_diarization_results
+
+  L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        python examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py \
+        trainer.devices="[0]" \
+        batch_size=3 \
+        model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/eesd_train_tiny.json \
+        model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
+        exp_manager.exp_dir=/tmp/speaker_diarization_results \
+        +trainer.fast_dev_run=True 
+
+  L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \
+        model_path=/home/TestData/an4_diarizer/diar_sortformer_4spk-v1-tiny.nemo \
+        dataset_manifest=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
+        batch_size=1 
 
   L2_Speaker_dev_run_Speech_to_Label:
     needs: [cicd-test-container-setup]
@@ -2895,7 +2937,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-2-h100
       SCRIPT: |
-        CUDA_DEVICE_MAX_CONNECTIONS=1 NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=1 python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
+        CUDA_DEVICE_MAX_CONNECTIONS=1 python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
         trainer.max_epochs=9999 \
@@ -2923,6 +2965,7 @@ jobs:
         +model.tp_comm_overlap_ag=False \
         +model.tp_comm_overlap_rs=False \
         +model.tp_comm_overlap_disable_qkv=True \
+        +model.attention_backend="unfused" \
         model.peft.peft_scheme="lora" \
         model.peft.lora_tuning.adapter_dim=16 \
         model.peft.lora_tuning.alpha=32 \
@@ -3573,6 +3616,36 @@ jobs:
         inference.repetition_penalty=1.0 \
         inference.outfile_path=/tmp/nlp_mcore_t5_lora_tuning_tp2/out.jsonl
 
+  L2_VLM_HF_Transformer_PEFT:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --disable-ckpt
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_VLM_HF_Transformer_PEFT_FSDP:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_FSDP') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --disable-ckpt --strategy fsdp --devices 2
+
+  L2_VLM_HF_Transformer_PEFT_4bit:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_4bit') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --disable-ckpt --use-4bit
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
 
   L2_HF_Transformer_PEFT:
     needs: [ cicd-test-container-setup ]
@@ -3582,6 +3655,17 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --disable-ckpt
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_PEFT_nemorun:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_PEFT_nemorun') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --disable-ckpt
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3596,6 +3680,17 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
+  L2_HF_Transformer_PEFT_2gpu_nemorun:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_nemorun') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp --disable-ckpt
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
   L2_HF_Transformer_SFT_2gpu:
     needs: [ cicd-test-container-setup ]
     uses: ./.github/workflows/_test_template.yml
@@ -3604,6 +3699,83 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+  
+  L2_HF_Transformer_SFT_FSDP2_2gpu:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_SFT_FSDP2_2gpu') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_PT_2gpu:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_PT_2gpu') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_SFT_2gpu_nemorun:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+  
+  L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_PT_2gpu_nemorun:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_PT_2gpu_nemorun') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_PT:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_PT') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_PT_nemorun:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_PT_nemorun') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3618,6 +3790,17 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
+  L2_HF_Transformer_SFT_nemorun:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_SFT_nemorun') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
   L2_HF_Transformer_SFT_TE_Acceleration:
     needs: [ cicd-test-container-setup ]
     uses: ./.github/workflows/_test_template.yml
@@ -3626,6 +3809,17 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --model-accelerator te --max-steps 10
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_PT_TE_Acceleration:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_HF_Transformer_PT_TE_Acceleration') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --model-accelerator te --max-steps 10
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -4027,7 +4221,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_SSM_Pretraining') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
 
         python tests/collections/llm/gpt/model/megatron_ssm_pretraining.py \
@@ -4041,7 +4235,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_SSM_Finetuning') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
 
         python tests/collections/llm/gpt/model/megatron_ssm_finetuning.py \
@@ -4062,6 +4256,16 @@ jobs:
 
       AFTER_SCRIPT: |
         rm -rf ~/.cache/nemo/models
+
+  L2_NeMo_2_jit_callback:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_jit_callback') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/test_nemo_jit_cb.py
 
   L2_NeMo_2_T5_Pretraining:
     needs: [cicd-test-container-setup]
@@ -4150,7 +4354,7 @@ jobs:
       with:
         RUNNER: self-hosted-azure
         SCRIPT: |
-          NVTE_FUSED_ATTN=0 NVTE_FLASH_ATTN=0 python3 tests/collections/llm/megatron_mixtral_pretraining.py \
+          python3 tests/collections/llm/megatron_mixtral_pretraining.py \
           --experiment-dir=/tmp/mixtral_pretrain_results \
           --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document
 
@@ -4163,7 +4367,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4173,7 +4377,7 @@ jobs:
         --mbs 1
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4192,7 +4396,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4202,7 +4406,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4221,7 +4425,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4231,7 +4435,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4250,7 +4454,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4260,7 +4464,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4279,7 +4483,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4289,7 +4493,7 @@ jobs:
         --mbs 1 --packed
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4308,7 +4512,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4318,7 +4522,7 @@ jobs:
         --mbs 1
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4337,7 +4541,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4347,7 +4551,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4366,7 +4570,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4376,7 +4580,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4395,7 +4599,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4405,7 +4609,7 @@ jobs:
         --mbs 2
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4423,7 +4627,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4433,7 +4637,7 @@ jobs:
         --mbs 1 --packed
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4451,7 +4655,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4461,7 +4665,7 @@ jobs:
         --mbs 1 --packed
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4478,7 +4682,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4488,7 +4692,7 @@ jobs:
         --mbs 1 --packed
         
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4496,6 +4700,36 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 --packed
+
+  L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/gpt_finetuning.py \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --devices 2 \
+        --max_steps 3 \
+        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
+        --peft lora \
+        --tp_size 1 \
+        --pp_size 1 \
+        --mbs 1 \
+        --chat_dataset_path /home/TestData/nemo2_data/chat
+        
+        python tests/collections/llm/gpt_finetuning.py \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --devices 2 \
+        --max_steps 6 \
+        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
+        --peft lora \
+        --tp_size 1 \
+        --pp_size 1 \
+        --mbs 1 \
+        --chat_dataset_path /home/TestData/nemo2_data/chat
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
     needs: [cicd-test-container-setup]
@@ -4581,8 +4815,37 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/peft/lora_merge.py \
-        --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint/ \
+        --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
         --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }}
+
+  L2_NEMO_2_LoRA_Export:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NEMO_2_LoRA_Export') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+
+        python tests/collections/llm/peft/lora_export.py \
+        --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
+        --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }}
+
+  L2_NEMO_2_LoRA_Inference:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NEMO_2_LoRA_Inference') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        
+        python scripts/llm/generate.py \
+          --model_path /home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
+          --tp 1 \
+          --pp 1 \
+          --devices 1 \
+          --top_p 0.0 \
+          --top_k 1 \
+          --num_tokens_to_generate 3
 
   L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact:
     needs: [cicd-test-container-setup]
@@ -4607,6 +4870,21 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/nemo2_ptq_engine
+
+  L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING:
+    needs: [cicd-test-container-setup]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        python tests/collections/vlm/test_llava_next_train.py \
+        --devices=1 \
+        --max-steps=5 \
+        --experiment-dir=/tmp/nemo2_llava_next_results/${{ github.run_id }}
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_llava_next_results
 
   Nemo_CICD_Test:
     needs:
@@ -4654,6 +4932,8 @@ jobs:
       - L2_Speech_to_Text_EMA
       - L2_Speaker_dev_run_Speaker_Recognition
       - L2_Speaker_dev_run_Speaker_Diarization
+      - L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
+      - L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
       - L2_Speaker_dev_run_Speech_to_Label
       - L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
       - L2_Speaker_dev_run_Clustering_Diarizer_Inference
@@ -4729,10 +5009,23 @@ jobs:
       - L2_NeMo_2_llama3_fault_tolerance_plugin
       - L2_NeMo_2_llama3_straggler_detection
       - L2_HF_Transformer_PEFT
+      - L2_HF_Transformer_PEFT_nemorun
       - L2_HF_Transformer_PEFT_2gpu
+      - L2_HF_Transformer_PEFT_2gpu_nemorun
       - L2_HF_Transformer_SFT
+      - L2_HF_Transformer_SFT_nemorun
       - L2_HF_Transformer_SFT_2gpu
+      - L2_VLM_HF_Transformer_PEFT
+      - L2_VLM_HF_Transformer_PEFT_FSDP
+      - L2_VLM_HF_Transformer_PEFT_4bit
+      - L2_HF_Transformer_SFT_2gpu_nemorun
       - L2_HF_Transformer_SFT_TE_Acceleration
+      - L2_HF_Transformer_PT
+      - L2_HF_Transformer_PT_nemorun
+      - L2_HF_Transformer_PT_2gpu
+      - L2_HF_Transformer_PT_2gpu_nemorun
+      - L2_HF_Transformer_PT_TE_Acceleration
+      - L2_VLM_HF_Transformer_PEFT
       - L2_NeMo_2_SSM_Pretraining
       - L2_NeMo_2_SSM_Finetuning
       - L2_NeMo_2_T5_Pretraining
@@ -4747,6 +5040,7 @@ jobs:
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
       - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
       - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
+      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat
       - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
@@ -4756,11 +5050,14 @@ jobs:
       - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
       - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
       - L2_NEMO_2_LoRA_MERGE
+      - L2_NEMO_2_LoRA_Export
+      - L2_NEMO_2_LoRA_Inference
       - L2_NeMo_2_Mixtral_Pretraining
       - L2_PTQ_Llama2_FP8
       - L2_Community_LLM_Checkpoints_tests_Llama3
       - L2_Distill_Llama2
       - L2_Prune_Width_Llama2
+      - L2_Prune_Depth_Llama2
       - L2_Speech_to_Text_AED
       - L2_Speech_Estimate_Duration_Bins
       - L2_Speech_Batch_Size_OOMptimizer
@@ -4771,6 +5068,10 @@ jobs:
       - L2_Megatron_GPT_Reranker
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
       - L2_NeMo_2_PTQ_Llama2_FP8
+      - L2_NeMo_2_jit_callback
+      - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
+      - L2_HF_Transformer_SFT_FSDP2_2gpu
+      - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
     if: always()
     runs-on: ubuntu-latest
     steps:
