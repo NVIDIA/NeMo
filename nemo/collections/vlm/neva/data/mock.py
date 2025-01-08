@@ -74,12 +74,19 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
+        seq_length = self.seq_length
+        if self.packed_sequence and self.micro_batch_size > 1:
+            seq_length = seq_length // self.micro_batch_size
+            logging.warning(
+                f"Packed sequence is used with mock dataset. Sequence length for each "
+                f"sample is update to `seq_length // self.micro_batch_size = {seq_length}`!"
+            )
         self._train_ds = _MockNevaDataset(
             self.tokenizer,
             self.image_processor,
             "train",
             self.num_train_samples,
-            self.seq_length,
+            seq_length,
             packed_sequence=self.packed_sequence,
         )
         self._validation_ds = _MockNevaDataset(
@@ -87,7 +94,7 @@ class MockDataModule(pl.LightningDataModule):
             self.image_processor,
             "valid",
             self.num_val_samples,
-            self.seq_length,
+            seq_length,
             packed_sequence=self.packed_sequence,
         )
         self._test_ds = _MockNevaDataset(
@@ -95,7 +102,7 @@ class MockDataModule(pl.LightningDataModule):
             self.image_processor,
             "test",
             self.num_test_samples,
-            self.seq_length,
+            seq_length,
             packed_sequence=self.packed_sequence,
         )
 
@@ -135,6 +142,7 @@ class _MockNevaDataset(Dataset):
         seq_length: int,
         seed: int = 42,
         packed_sequence: bool = False,
+        num_image_embeddings_per_tile=576,
     ) -> None:
         super().__init__()
         self.name = name
@@ -148,9 +156,9 @@ class _MockNevaDataset(Dataset):
         self.length = num_samples
         self.seed = seed
         self.packed_sequence = packed_sequence
+        self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
 
-        # [parth] - Temp hack so that total seq len is 8192 (i.e. divisible by CP size) since mock dataset doesn't have padding yet
-        self.loss_mask = torch.ones(self.seq_length - 575, dtype=torch.float)
+        self.loss_mask = torch.ones(self.seq_length + 1 - num_image_embeddings_per_tile, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
     def __len__(self) -> int:
@@ -163,8 +171,11 @@ class _MockNevaDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        # tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1 - 575], dtype=np.int64))
+        tokens = torch.from_numpy(
+            np_gen.integers(
+                self.vocab_size, size=[self.seq_length + 2 - self.num_image_embeddings_per_tile], dtype=np.int64
+            )
+        )
         tokens[2] = IMAGE_TOKEN_INDEX  # ImageToken token index
         labels = tokens.clone()
         images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
