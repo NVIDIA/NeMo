@@ -14,6 +14,7 @@
 
 from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
 
+
 class NullTokenizer(MegatronTokenizer):
     def __init__(self, vocab_size):
         super().__init__(None, vocab_size=vocab_size)
