@@ -43,7 +43,7 @@ RUN \
 pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com \
   -r tools/ctc_segmentation/requirements.txt
 
-bash reinstall.sh "all"
+bash reinstall.sh "dev"
 EOF
 
 # Copy over NeMo code
