@@ -30,7 +30,6 @@ from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh
 
 from nemo.lightning import _strategy_lib
-from nemo.lightning.io.pl import HuggingFaceCheckpointIO, MegatronCheckpointIO
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
@@ -122,8 +121,12 @@ def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
         model_library = kwargs["model_library"]
 
     if model_library == "huggingface":
+        from nemo.lightning.io.pl import HuggingFaceCheckpointIO
+
         checkpoint_io = HuggingFaceCheckpointIO(lora=kwargs["lora"])
     else:
+        from nemo.lightning.io.pl import MegatronCheckpointIO
+
         checkpoint_io = MegatronCheckpointIO(**kwargs)
 
     if wrapping_ckpt_io:
