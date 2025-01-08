@@ -111,10 +111,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel):
         self.sortformer_modules = SortformerEncLabelModel.from_config_dict(self._cfg.sortformer_modules)
         self.transformer_encoder = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_encoder)
 
-        self.transformer_memory_compressor = SortformerEncLabelModel.from_config_dict(self._cfg.transformer_memory_compressor)
-        if self.sortformer_modules.use_memory_pe:
-            self.memory_position_embedding = SortformerEncLabelModel.from_config_dict(self._cfg.memory_position_embedding)
-
         self._init_loss_weights()
 
         self.eps = 1e-3

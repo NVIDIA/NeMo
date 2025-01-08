@@ -1021,25 +1021,149 @@ class LibriSpeechMixSimulator():
 
     def __init__(
         self,
-        min_duration: float = 80.0,
-        max_duration: float = 100.0,
-        n_mix_speakers: List[int] = [1, 2, 3],
-        speaker_count_distribution: List[float] = [1, 1, 1],
+        data_type: str = "msasr",
+        min_delay: float = 0.5,
+        max_num_speakers: int = 4,
+        speaker_token_position: str = 'sot',
+        speaker_count_distribution: List[float] = [0, 2, 3, 4],
+        delay_factor: int = 1
     ):
         """
-        :param min_duration: the minimum duration of the simulated meeting. [Default: 80.0]
-        :param max_duration: the maximum duration of the simulated meeting. [Default: 100.0]
+        Args:
+        data_type: the type of data to simulate. Either 'msasr', 'tsasr' or 'diar'. [Default: 'msasr']
+        min_delay: the minimum delay between the segments. [Default: 0.5]
+        max_num_speakers: the maximum number of speakers in the meeting. [Default: 4]
+        speaker_token_position: the position of the speaker token in the text. Either 'sot', 'word', or 'segments'. [Default: 'sot']
+        speaker_count_distribution: the speaker count distribution for the simulated meetings. [Default: [0, 2, 3, 4]]
+        delay_factor: the number of times to repeat the meeting with the same speakers. [Default: 1]
         """
         super().__init__()
-        self.min_duration = min_duration
-        self.max_duration = max_duration
-        self.n_mix_speakers = n_mix_speakers
+        self.data_type = data_type
+        self.min_delay = min_delay
+        self.delay_factor = delay_factor
+        self.max_num_speakers = max_num_speakers
+        self.speaker_token_position = speaker_token_position
         self.speaker_count_distribution = speaker_count_distribution
-        assert len(speaker_count_distribution) == len(n_mix_speakers), f"Length of speaker_count_distribution {len(speaker_count_distribution)} must be equal to max_num_speakers {len(n_mix_speakers)}"
+        assert len(speaker_count_distribution) == max_num_speakers, f"Length of speaker_count_distribution {len(speaker_count_distribution)} must be equal to max_num_speakers {max_num_speakers}"
 
     def fit(self, cuts) -> CutSet:
-        pass
+        self.speaker_id2cut_ids = defaultdict(list)
+        self.id2cuts = defaultdict(list)
+        for cut in tqdm(cuts, desc="Reading segments", ncols=100):
+            # if not hasattr(cut, 'dataset_id') or cut.dataset_id != 'librispeech':
+            #     continue
+            if hasattr(cuts[0], 'speaker_id'):
+                speaker_id = cut.speaker_id
+            else: #LibriSpeech
+                speaker_id = cut.recording_id.split('-')[0]
+                cut.speaker_id = speaker_id
+            self.speaker_id2cut_ids[speaker_id].append(cut.id)
+            self.id2cuts[cut.id] = cut
+        
+        self.speaker_ids = list(self.speaker_id2cut_ids.keys())
 
+    def _create_mixture(self, n_speakers: int) -> MixedCut:
+        sampled_speaker_ids = random.sample(self.speaker_ids, n_speakers)
+        
+        mono_cuts = []
+        for speaker_id in sampled_speaker_ids:
+            cut_id = random.choice(self.speaker_id2cut_ids[speaker_id])
+            cut = self.id2cuts[cut_id]
+            mono_cuts.append(cut)
+
+        mixed_cuts = []
+        for i in range(self.delay_factor):
+            tracks = []
+            offset = 0.0
+            for mono_cut in mono_cuts:
+                custom = {
+                        'pnc': 'no',
+                        'source_lang': 'en',
+                        'target_lang': 'en',
+                        'task': 'asr'
+                    }
+                mono_cut.custom.update(custom)
+                tracks.append(MixTrack(cut=deepcopy(mono_cut), type=type(mono_cut), offset=offset))
+                offset += random.uniform(self.min_delay, cut.duration)
+        
+            mixed_cut = MixedCut(id='lsmix_' + '_'.join([track.cut.id for track in tracks]) + '_' + str(uuid4()), tracks=tracks)
+            
+            if self.data_type == "msasr":
+                text = self.get_text(mixed_cut, speaker_token_position=self.speaker_token_position)
+                sup = SupervisionSegment(id=mixed_cut.id, recording_id=mixed_cut.id, start=0, duration=mixed_cut.duration, text=text)
+                mixed_cut.tracks[0].cut.supervisions = [sup]
+
+            if self.data_type == "tsasr":
+                query_speaker_id = random.choice(sampled_speaker_ids)
+                query_audio_path = random.choice(self.speaker_id2cut_ids[query_speaker_id])
+                pass # TODO: need to implement the query audio path
+
+            if self.data_type == "diar":
+                pass # TODO: need to implement the diar data type
+
+            mixed_cuts.append(mixed_cut)
+
+        return mixed_cuts
+    
+    # TODO: text is necessary for msasr and tsasr, but not for diar
+    def get_text(self, cut: MixedCut, speaker_token_style='<|spltoken*|>', speaker_token_position='sot') -> str:
+        text = ''
+        stt_words_spks = []
+        if speaker_token_position == 'word' or speaker_token_position == 'segment':
+            SSP = SyllableTokenizer()
+            for i, track in enumerate(cut.tracks):
+                stt_time, end_time = track.offset, track.offset + track.cut.duration
+                word_seq = track.cut.text
+                word_list = word_seq.split()
+                syllab_word_list = [[] for _ in range(len(word_list))]
+                syllab_list = []
+                for idx,word in enumerate(word_list):
+                    syllables = SSP.tokenize(word)
+                    syllab_word_list[idx].extend(syllables)
+                    syllab_list.extend(syllables)
+                avg_sylllable_dur = (end_time - stt_time) / len(syllab_list)
+                offset = stt_time
+                stt_times, end_times = [], []
+                for word, syllabs in zip(word_list, syllab_word_list):
+                    stt_times.append(round(offset, 3))
+                    end_time = round(offset + avg_sylllable_dur * len(syllabs), 3)
+                    end_times.append(end_time)
+                    offset = end_time
+                    stt_words_spks.append([offset, word, speaker_token_style.replace('*', str(i))])
+            stt_words_spks = sorted(stt_words_spks, key=lambda x: x[0])
+            if speaker_token_position == 'word':
+                text += ' '.join([f'{spk} {word}' for stt_time, word, spk in stt_words_spks])   
+            elif speaker_token_position == 'segment':
+                pre_spk = ''
+                for stt_time, word, spk in stt_words_spks:
+                    if pre_spk != spk:
+                        text += spk + ' '
+                        pre_spk = spk
+                    text += word + ' '
+        elif speaker_token_position == 'sot':
+            for i, track in enumerate(cut.tracks):
+                cut = track.cut
+                text += speaker_token_style.replace('*', str(i)) + ' ' + cut.text + ' '
+        else:
+            raise ValueError(f"speaker_token_position must be either 'sot', 'word', or 'segments', but got {speaker_token_position}")
+        return text
+    
+    def apply_speaker_distribution(self, num_meetings: int, speaker_count_distribution) -> Dict[int, int]:
+        """
+        Balance the speaker distribution for the simulated meetings.
+        Args:
+            num_meetings: The total number of simulated meetings.
+            speaker_count_distribution: The speaker count distribution for the simulated meetings.
+        For each number of speakers, calculate the number of meetings needed to balance the distribution.
+        """
+
+        total_spk = sum(speaker_count_distribution)
+        num_speakers2num_meetings = {}
+        for i_spk in range(self.max_num_speakers):
+            num_speakers2num_meetings[i_spk+1] = round(num_meetings * speaker_count_distribution[i_spk] / total_spk)
+
+        return num_speakers2num_meetings
+            
     def simulate(self, 
         cuts: CutSet,
         num_meetings: int = 10000,
@@ -1048,13 +1172,18 @@ class LibriSpeechMixSimulator():
     ) -> CutSet:
         random.seed(seed)
 
+        self.fit(cuts)
+
+        self.num_speakers2num_meetings = self.apply_speaker_distribution(num_meetings, self.speaker_count_distribution)
+
         cut_set = []
-        for n_speakers, n_mt in zip(self.n_mix_speakers, self.speaker_count_distribution):
+        for n_speakers, n_mt in self.num_speakers2num_meetings.items():
             if n_mt <= 0:
                 continue
             for i in tqdm(range(n_mt), desc=f"Simulating {n_speakers}-speaker mixtures", ncols=128):
-                cut_set.append(self._create_mixture(n_speakers=n_speakers))
-        return CutSet.from_cuts(cut_set)
+                cut_set.extend(self._create_mixture(n_speakers=n_speakers))
+
+        return CutSet.from_cuts(cut_set).shuffle()
 
 class LibriSpeechMixGenerator():
     def __init__(self):
@@ -1116,43 +1245,34 @@ class LibriSpeechMixGenerator():
 
 def speaker_to_target(
     a_cut,
-    num_speakers: int = 4,
-    num_sample_per_mel_frame: int = 160,
-    num_mel_frame_per_asr_frame: int = 8,
+    num_speakers: int = 4, 
+    num_sample_per_mel_frame: int = 160, 
+    num_mel_frame_per_asr_frame: int = 8, 
     spk_tar_all_zero: bool = False,
     boundary_segments: bool = False,
     soft_label: bool = False,
     ignore_num_spk_mismatch: bool = True,
     soft_thres: float = 0.5,
-):
-    """
-    Get rttm samples corresponding to one cut, generate speaker mask numpy.ndarray with shape
-    (num_speaker, hidden_length). This function is needed for speaker diarization with ASR model trainings.
+    ):
+    '''
+    Get rttm samples corresponding to one cut, generate speaker mask numpy.ndarray with shape (num_speaker, hidden_length)
+    This function is needed for speaker diarization with ASR model trainings.
 
     Args:
-        a_cut (MonoCut, MixedCut):
-            Lhotse Cut instance which is MonoCut or MixedCut instance.
-        num_speakers (int):
-            Max number of speakers for all cuts ("mask" dim0), 4 by default
-        num_sample_per_mel_frame (int):
-            Number of sample per mel frame, sample_rate / 1000 * window_stride, 160 by default (10ms window stride)
-        num_mel_frame_per_asr_frame (int):
-            Encoder subsampling_factor, 8 by default
-        spk_tar_all_zero (Tensor):
-            Set to True gives all zero "mask"
-        boundary_segments (bool):
-            Set to True to include segments containing the boundary of the cut,
-            False by default for multi-speaker ASR training
-        soft_label (bool):
-            Set to True to use soft label that enables values in [0, 1] range,
-            False by default and leads to binary labels.
-        ignore_num_spk_mismatch (bool):
-            This is a temporary solution to handle speaker mismatch. Will be removed in the future.
-
+        a_cut (MonoCut, MixedCut): Lhotse Cut instance which is MonoCut or MixedCut instance.
+        num_speakers (int): max number of speakers for all cuts ("mask" dim0), 4 by default
+        num_sample_per_mel_frame (int): number of sample per mel frame, sample_rate / 1000 * window_stride, 160 by default (10ms window stride)
+        num_mel_frame_per_asr_frame (int): encoder subsampling_factor, 8 by default
+        spk_tar_all_zero (Tensor): set to True gives all zero "mask"
+        boundary_segments (bool): set to True to include segments containing the boundary of the cut, False by default for multi-speaker ASR training
+        soft_label (bool): set to True to use soft label that enables values in [0, 1] range, False by default and leads to binary labels.
+        ignore_num_spk_mismatch (bool): This is a temporary solution to handle speaker mismatch. Will be removed in the future.
+    
     Returns:
-        mask (Tensor): Speaker mask with shape (num_speaker, hidden_lenght)
-    """
+        mask (Tensor): speaker mask with shape (num_speaker, hidden_lenght)
+    '''
     # get cut-related segments from rttms
+    # basename = os.path.basename(a_cut.rttm_filepath).replace('.rttm', '')
     if isinstance(a_cut, MixedCut):
         cut_list = [track.cut for track in a_cut.tracks if isinstance(track.cut, MonoCut)]
         offsets = [track.offset for track in a_cut.tracks if isinstance(track.cut, MonoCut)]
@@ -1161,18 +1281,28 @@ def speaker_to_target(
         offsets = [0]
     else:
         raise ValueError(f"Unsupported cut type type{a_cut}: only MixedCut and MonoCut are supported")
-
+    
     segments_total = []
     for i, cut in enumerate(cut_list):
-        rttms = SupervisionSet.from_rttm(cut.rttm_filepath)
-        if boundary_segments:  # segments with seg_start < total_end and seg_end > total_start are included
-            segments_iterator = find_segments_from_rttm(
-                recording_id=cut.recording_id, rttms=rttms, start_after=cut.start, end_before=cut.end, tolerance=0.0
-            )
-        else:  # segments with seg_start > total_start and seg_end < total_end are included
-            segments_iterator = rttms.find(
-                recording_id=cut.recording_id, start_after=cut.start, end_before=cut.end, adjust_offset=True
-            )
+        if hasattr(cut, 'rttm_filepath') and cut.rttm_filepath is not None:
+            rttms = SupervisionSet.from_rttm(cut.rttm_filepath)
+        elif hasattr(cut, 'speaker_id') and cut.speaker_id is not None:
+            rttms = SupervisionSet.from_segments([SupervisionSegment(
+                id=uuid4(),
+                recording_id=cut.recording_id,
+                start=0,
+                duration=cut.duration,
+                channel=1,
+                speaker=cut.speaker_id,
+                language=None
+            )])
+        else:
+            raise ValueError(f"Cut {cut.id} does not have rttm_filepath or speaker_id")
+
+        if boundary_segments: # segments with seg_start < total_end and seg_end > total_start are included
+            segments_iterator = find_segments_from_rttm(recording_id=cut.recording_id, rttms=rttms, start_after=cut.start, end_before=cut.end, tolerance=0.0)
+        else: # segments with seg_start > total_start and seg_end < total_end are included
+            segments_iterator = rttms.find(recording_id=cut.recording_id, start_after=cut.start, end_before=cut.end, adjust_offset=True)
 
         for seg in segments_iterator:
             if seg.start < 0:
@@ -1182,32 +1312,28 @@ def speaker_to_target(
                 seg.duration -= seg.end - cut.duration
             seg.start += offsets[i]
             segments_total.append(seg)
-
+    
     # apply arrival time sorting to the existing segments
-    segments_total.sort(key=lambda rttm_sup: rttm_sup.start)
+    segments_total.sort(key = lambda rttm_sup: rttm_sup.start)
 
     seen = set()
     seen_add = seen.add
     speaker_ats = [s.speaker for s in segments_total if not (s.speaker in seen or seen_add(s.speaker))]
-
-    speaker_to_idx_map = {spk: idx for idx, spk in enumerate(speaker_ats)}
+     
+    speaker_to_idx_map = {
+            spk: idx
+            for idx, spk in enumerate(speaker_ats)
+    }
     if len(speaker_to_idx_map) > num_speakers and not ignore_num_spk_mismatch:  # raise error if number of speakers
-        raise ValueError(
-            f"Number of speakers {len(speaker_to_idx_map)} is larger than "
-            f"the maximum number of speakers {num_speakers}"
-        )
-
+        raise ValueError(f"Number of speakers {len(speaker_to_idx_map)} is larger than the maximum number of speakers {num_speakers}")
+        
     # initialize mask matrices (num_speaker, encoder_hidden_len)
-    feat_per_sec = int(a_cut.sampling_rate / num_sample_per_mel_frame)  # 100 by default
-    num_samples = get_hidden_length_from_sample_length(
-        a_cut.num_samples, num_sample_per_mel_frame, num_mel_frame_per_asr_frame
-    )
-    if spk_tar_all_zero:
+    feat_per_sec = int(a_cut.sampling_rate / num_sample_per_mel_frame) # 100 by default
+    num_samples = get_hidden_length_from_sample_length(a_cut.num_samples, num_sample_per_mel_frame, num_mel_frame_per_asr_frame)
+    if spk_tar_all_zero: 
         frame_mask = torch.zeros((num_samples, num_speakers))
     else:
-        frame_mask = get_mask_from_segments(
-            segments_total, a_cut, speaker_to_idx_map, num_speakers, feat_per_sec, ignore_num_spk_mismatch
-        )
+        frame_mask = get_mask_from_segments(segments_total, a_cut, speaker_to_idx_map, num_speakers, feat_per_sec, ignore_num_spk_mismatch)
     soft_mask = get_soft_mask(frame_mask, num_samples, num_mel_frame_per_asr_frame)
 
     if soft_label:
