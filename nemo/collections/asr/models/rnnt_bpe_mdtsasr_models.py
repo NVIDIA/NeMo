@@ -616,6 +616,19 @@ class EncDecRNNTBPEMDTSASRModel(EncDecRNNTBPEModel):
         # pre-encode the input
         processed_signal, processed_signal_length = self.encoder.pre_encode(x=processed_signal.transpose(1, 2).contiguous(), lengths=processed_signal_length)
 
+        if len(spk_targets.size()) == 3:
+            # spk_targets: (B, T, N) -> (BN, T)
+            # processed_signal: (B, T, D) -> (BN, T, D)
+            n_spk = spk_targets.size(2)
+            spk_targets = spk_targets.transpose(1, 2).reshape(-1, spk_targets.size(1))
+            processed_signal = processed_signal.unsqueeze(1).repeat(1, n_spk, 1, 1).reshape(-1, processed_signal.size(1), processed_signal.size(2))
+            processed_signal_length = processed_signal_length.unsqueeze(1).repeat(1, n_spk).reshape(-1)
+        
+        if cache_last_channel_len.shape[0] != processed_signal.shape[0]:
+            cache_last_channel = cache_last_channel.unsqueeze(2).repeat(1, 1, n_spk, 1, 1).reshape(cache_last_channel.size(0), -1, cache_last_channel.size(2), cache_last_channel.size(3))
+            cache_last_time = cache_last_time.unsqueeze(2).repeat(1, 1, n_spk, 1, 1).reshape(cache_last_time.size(0), -1, cache_last_time.size(2), cache_last_time.size(3))
+            cache_last_channel_len = cache_last_channel_len.unsqueeze(1).repeat(1, n_spk).reshape(-1)
+
         # apply diarization kernel
         if self.diar_kernel_type:
             processed_signal = self.forward_diar_kernel(processed_signal.transpose(1, 2), processed_signal_length, spk_targets)

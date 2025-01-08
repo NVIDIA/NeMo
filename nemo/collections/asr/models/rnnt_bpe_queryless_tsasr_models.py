@@ -70,30 +70,66 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
         if 'diar_model_path' in self.cfg:
             self._init_diar_model()
 
-            self.diar_kernel_type = cfg.get('diar_kernel', None)
+            self.pre_diar_kernel = cfg.get('pre_diar_kernel', None)
+            self.post_diar_kernel = cfg.get('post_diar_kernel', None)
             self.binary_diar_preds = cfg.get('binary_diar_preds', True)
             self.spk_supervision = cfg.get('spk_supervision', 'rttm')
 
-            if self.diar_kernel_type == 'metacat':
+            if self.pre_diar_kernel == 'metacat':
                 # projection layer
                 proj_in_size = cfg.model_defaults.enc_hidden
                 proj_out_size = cfg.model_defaults.enc_hidden
-                self.joint_proj = torch.nn.Sequential(
+                self.pre_proj = torch.nn.Sequential(
                     torch.nn.Linear(proj_in_size, proj_out_size*2),
                     torch.nn.ReLU(),
                     torch.nn.Linear(proj_out_size*2, proj_out_size)
                 )
-                self.diar_kernel = self.joint_proj
-            elif self.diar_kernel_type == 'metacat_residule':
+            elif self.pre_diar_kernel == 'metacat_residule':
                 # projection layer
                 proj_in_size = cfg.model_defaults.enc_hidden
                 proj_out_size = cfg.model_defaults.enc_hidden
-                self.joint_proj = torch.nn.Sequential(
+                self.pre_proj = torch.nn.Sequential(
                     torch.nn.Linear(proj_in_size, proj_out_size*2),
                     torch.nn.ReLU(),
                     torch.nn.Linear(proj_out_size*2, proj_out_size)
                 )
-                self.diar_kernel = self.joint_proj
+            elif self.pre_diar_kernel == 'metacat_projection':
+                # projection layer
+                proj_in_size = cfg.model_defaults.enc_hidden + 1
+                proj_out_size = cfg.model_defaults.enc_hidden
+                self.pre_proj = torch.nn.Sequential(
+                    torch.nn.Linear(proj_in_size, proj_out_size*2),
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(proj_out_size*2, proj_out_size)
+                )
+
+            if self.post_diar_kernel == 'metacat':
+                # projection layer
+                proj_in_size = cfg.model_defaults.enc_hidden
+                proj_out_size = cfg.model_defaults.enc_hidden
+                self.post_proj = torch.nn.Sequential(
+                    torch.nn.Linear(proj_in_size, proj_out_size*2),
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(proj_out_size*2, proj_out_size)
+                )
+            elif self.post_diar_kernel == 'metacat_residule':
+                # projection layer
+                proj_in_size = cfg.model_defaults.enc_hidden
+                proj_out_size = cfg.model_defaults.enc_hidden
+                self.post_proj = torch.nn.Sequential(
+                    torch.nn.Linear(proj_in_size, proj_out_size*2),
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(proj_out_size*2, proj_out_size)
+                )
+            elif self.post_diar_kernel == 'metacat_projection':
+                # projection layer
+                proj_in_size = cfg.model_defaults.enc_hidden + 1
+                proj_out_size = cfg.model_defaults.enc_hidden
+                self.post_proj = torch.nn.Sequential(
+                    torch.nn.Linear(proj_in_size, proj_out_size*2),
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(proj_out_size*2, proj_out_size)
+                )
 
 
     def _init_diar_model(self):
@@ -154,28 +190,45 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
         self,
         encoded,
         encoded_len,
-        diar_preds
+        diar_preds,
+        position='pre'
     ):
         """
         Args:
             encoded: torch.tensor, shape (B, D, T)
             encoded_len: torch.tensor, shape (B)
             diar_preds: torch.tensor, shape (B, T)
+            position: str, 'pre' or 'post'
         """
-        if self.diar_kernel_type == 'metacat_residule':
+        if position == 'pre':
+            joint_proj = self.pre_proj
+            diar_kernel_type = self.pre_diar_kernel
+        elif position == 'post':
+            joint_proj = self.post_proj
+            diar_kernel_type = self.post_diar_kernel
+        else:
+            raise ValueError(f"Invalid position {position}")
+        
+
+        if diar_kernel_type == 'metacat_residule':
             if diar_preds.shape[1] != encoded.shape[2]:
                 diar_preds = F.pad(diar_preds, (0, encoded.shape[2] - diar_preds.shape[1]), value=0)
             enc_states_with_metacat = encoded * diar_preds.unsqueeze(1)
-            encoded = encoded + self.joint_proj(enc_states_with_metacat.transpose(1, 2)).transpose(1, 2)
+            encoded = encoded + joint_proj(enc_states_with_metacat.transpose(1, 2)).transpose(1, 2)
+        elif diar_kernel_type == 'metacat_projection':
+            if diar_preds.shape[1] != encoded.shape[2]:
+                diar_preds = F.pad(diar_preds, (0, encoded.shape[2] - diar_preds.shape[1]), value=0)
+            enc_states_with_metacat = torch.cat([encoded, diar_preds.unsqueeze(1)], dim=1)
+            encoded = joint_proj(enc_states_with_metacat.transpose(1, 2)).transpose(1, 2)
 
-        elif self.diar_kernel_type == 'metacat':
+        elif diar_kernel_type == 'metacat':
             pass
 
-        elif self.diar_kernel_type == 'sinusoidal':
+        elif diar_kernel_type == 'sinusoidal':
             pass
 
         else:
-            pass
+            raise ValueError(f"Invalid diar_kernel_type {diar_kernel_type}")
 
         return encoded
 
@@ -217,10 +270,13 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
             input_signal=signal, input_signal_length=signal_len
         )
 
-        if self.diar_kernel_type:
-            pre_encoded = self.forward_diar_kernel(pre_encoded.transpose(1, 2), pre_encoded_len, spk_targets)
+        if self.pre_diar_kernel:
+            pre_encoded = self.forward_diar_kernel(pre_encoded.transpose(1, 2), pre_encoded_len, spk_targets, 'pre')
 
         encoded, encoded_len = self.encoder(audio_signal=pre_encoded.transpose(1, 2), length=pre_encoded_len, pre_encode_input=True)
+
+        if self.post_diar_kernel:
+            pre_encoded = self.forward_diar_kernel(encoded, encoded_len, spk_targets, 'post')
 
         return encoded, encoded_len
 

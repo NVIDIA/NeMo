@@ -193,6 +193,8 @@ def perform_streaming(
     s_idx, e_idx = 0, 0
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         e_idx = s_idx + chunk_audio.shape[-1]
+        if round(s_idx/8) >= spk_targets.shape[1]:
+            continue
         with torch.inference_mode():
             with autocast:
                 # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
@@ -221,6 +223,7 @@ def perform_streaming(
                         return_transcription=True,
                         spk_targets=spk_targets[:, round(s_idx/8):round(s_idx/8)+14]
                     )
+                    
 
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
@@ -331,6 +334,13 @@ def main():
         "--spk_id",
         type=int,
         default=None,
+        help="",
+    )
+
+    parser.add_argument(
+        "--num_speakers",
+        type=int,
+        default=2,
         help="",
     )
 
@@ -450,6 +460,10 @@ def main():
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
                 spk_targets = collate_matrices(spk_targets_list).to(asr_model.device)
+                if args.spk_id is not None:
+                    spk_targets = spk_targets[:, :, args.spk_id]
+                else:
+                    spk_targets = spk_targets[:, :, :args.num_speakers]
 
                 streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
@@ -457,13 +471,14 @@ def main():
                     compare_vs_offline=args.compare_vs_offline,
                     debug_mode=args.debug_mode,
                     pad_and_drop_preencoded=args.pad_and_drop_preencoded,
-                    spk_targets=spk_targets[:, :, args.spk_id]
+                    spk_targets=spk_targets
                 )
                 all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:
                     all_offline_tran.extend(offline_tran)
                 streaming_buffer.reset_buffer()
                 spk_targets_list = []
+
 
         if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
             offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
@@ -476,16 +491,18 @@ def main():
         logging.info(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
 
         # stores the results including the transcriptions of the streaming inference in a json file
-        if args.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
+        if args.output_path is not None:
 
             hyp_json = args.output_path
             records = []
             
             for i, hyp in enumerate(all_streaming_tran):
+                audio_filepath = samples[i//args.num_speakers]["audio_filepath"]
+                uniq_id = uniq_ids[i//args.num_speakers]
                 record = {
-                    "audio_filepath": samples[i]["audio_filepath"],
-                    "session_id": uniq_ids[i],
-                    "speaker": uniq_ids[i] + '-' + str(args.spk_id),
+                    "audio_filepath": audio_filepath,
+                    "session_id": uniq_id,
+                    "speaker": uniq_id + '-' + str(i),
                     "words": hyp,
                 }
                 records.append(record)
