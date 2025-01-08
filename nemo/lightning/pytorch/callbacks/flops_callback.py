@@ -101,7 +101,7 @@ class FLOPsMeasurementCallback(Callback):
         n = trainer.strategy.current_epoch_step
         if n % trainer.log_every_n_steps == 0:
             ## skip calculation if we haven't accumulated any timing data
-            if (self.avg_train_step_time == 0):
+            if self.avg_train_step_time == 0:
                 return
             tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(
                 self.avg_train_step_time / trainer.log_every_n_steps
