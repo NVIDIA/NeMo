@@ -5069,6 +5069,8 @@ jobs:
       - L2_NeMo_2_PTQ_Llama2_FP8
       - L2_NeMo_2_jit_callback
       - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
+      - L2_HF_Transformer_SFT_FSDP2_2gpu
+      - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
     if: always()
     runs-on: ubuntu-latest
     steps:
