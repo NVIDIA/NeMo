@@ -163,7 +163,7 @@ def convergence_test() -> run.Partial:
     recipe.model.flux_params.device = 'cuda'
     recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/nemo_flux_transformer.safetensors')
     recipe.trainer.devices=8
-    recipe.data = flux_datamodule('/mingyuanm/dataset/fill50k/fill50k_tarfiles/')
+    recipe.data = flux_datamodule('/dataset/fill50k/fill50k_tarfiles/')
     recipe.model.flux_controlnet_config.num_single_layers = 10
     recipe.model.flux_controlnet_config.num_joint_layers = 4
     return recipe
