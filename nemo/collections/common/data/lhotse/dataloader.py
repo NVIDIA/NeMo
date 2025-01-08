@@ -449,9 +449,9 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
         cuts = cuts.filter(lambda cut: not cut.custom.pop("_skipme", 0))
     else:
         logging.warning(
-                """You have chosen to ignore the '_skipme' keys in your manifest. 
+            """You have chosen to ignore the '_skipme' keys in your manifest. 
                 This may lead to unintended behavior, potentially including some unwanted samples."""
-            )
+        )
 
     # Apply channel selector
     if config.channel_selector is not None:
