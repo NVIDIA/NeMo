@@ -33,9 +33,6 @@ from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
-from nemo.utils.get_rank import get_rank, is_global_rank_zero
-
-SPEECHLM_TEMP_CKPT_DIR = '/tmp/speechlm_dummy_ckpt'
 
 
 class SpeechToTextLLMPEFT(PEFT):

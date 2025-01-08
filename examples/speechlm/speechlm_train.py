@@ -39,7 +39,7 @@ python salm_train.py \
 """
 
 
-from nemo.collections.speechlm.api import speech_to_text_llm_train
+from nemo.collections.speechlm.recipes import speech_to_text_llm_train
 from nemo.core.config import hydra_runner
 
 

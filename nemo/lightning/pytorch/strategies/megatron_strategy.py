@@ -820,14 +820,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         """loads model state dict"""
-        if checkpoint is None or len(checkpoint) == 0 or len(checkpoint["state_dict"]) == 0:
-            logging.info(
-                "No checkpoint found, skipping model loading. If this is not intended, please inspect the checkpoint."
-            )
-            return  # nothing to load
         assert self.megatron_parallel is not None
 
-        strict = strict if self.ckpt_load_strictness is None else self.ckpt_load_strictness
+        if "state_dict" not in checkpoint or len(checkpoint["state_dict"]) == 0:
+            logging.info(
+                "No state_dict found in checkpoint, skipping state_dict loading. If this is not intended, please inspect the checkpoint."
+            )
+            strict = False
+        else:
+            strict = strict if self.ckpt_load_strictness is None else self.ckpt_load_strictness
+
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
 
         if not 'optimizer' in checkpoint:
