@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import sys
 from typing import Optional
 
 import nemo_run as run
 from nemo_run.config import NEMORUN_HOME
-from utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, parse_cli_args, slurm_executor
+from utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, parse_cli_args, slurm_executor, isfile_train_pack_metadata
 
 from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
@@ -61,6 +63,8 @@ def llama3_8b_performance_recipe(
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    if not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
+        recipe.data.force_redownload = True
 
     recipe.trainer.max_steps = max_steps
     recipe.trainer.num_nodes = num_nodes
@@ -101,9 +105,10 @@ def llama3_8b_performance_recipe(
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     if args.log_dir != NEMORUN_HOME:
-        import sys
-
         logging.error(f"Run `export NEMORUN_HOME={args.log_dir}` in your shell environment and rerun this script.")
+        sys.exit(1)
+    if args.nemo_home and args.nemo_home != os.getenv("NEMO_HOME"):
+        logging.error(f"Run `export NEMO_HOME={args.nemo_home}` in your shell environment and rerun this script.")
         sys.exit(1)
 
     exp_name = "_".join(
@@ -129,14 +134,9 @@ if __name__ == "__main__":
         custom_env_vars={
             "NVTE_FUSED_ATTN": "0",
             "NVTE_FLASH_ATTN": "1",
-            # default NEMO_HOME is Path.home() which resolves to '/root' inside NeMo container
-            # observed behavior is the finetuning task does not recognize the ckpt stored under
-            # '/root' by 'import_ckpt' task (both tasks under same exp) possibly due to different
-            # Python processes (need to debug to avoid explicitly setting 'NEMO_HOME'). Paths
-            # outside '/root' are recognized by both tasks.
-            "NEMO_HOME": args.log_dir,
         },
-        retries=0,
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home
     )
 
     recipe = llama3_8b_performance_recipe(

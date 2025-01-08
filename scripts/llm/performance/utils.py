@@ -14,7 +14,7 @@
 
 import argparse
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
@@ -23,7 +23,9 @@ from nemo_run.config import NEMORUN_HOME
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
-
+from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 
 def slurm_executor(
     account: str,
@@ -31,12 +33,13 @@ def slurm_executor(
     log_dir: str,
     nodes: int,
     num_gpus_per_node: int,
-    time_limit: str = "01:00:00",
+    time_limit: str = "00:30:00",
     container_image: str = "nvcr.io/nvidia/nemo:dev",
-    custom_mounts: Optional[List[str]] = None,
-    custom_env_vars: Optional[Dict[str, str]] = None,
-    custom_srun_args: Optional[List[str]] = None,
-    retries: int = 0,
+    custom_mounts: List[str] = [],
+    custom_env_vars: Dict[str, str] = {},
+    custom_srun_args: List[str] = [],
+    hf_token: str = None,
+    nemo_home: str = DEFAULT_NEMO_CACHE_HOME,
 ) -> run.SlurmExecutor:
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
@@ -48,9 +51,9 @@ def slurm_executor(
             "function.",
         )
 
-    mounts = []
-    if custom_mounts:
-        mounts.extend(custom_mounts)
+    if nemo_home != DEFAULT_NEMO_CACHE_HOME:
+        custom_mounts.extend([f"{nemo_home}:{nemo_home}"])
+        custom_env_vars.update({"NEMO_HOME": nemo_home})
 
     env_vars = {
         "TRANSFORMERS_OFFLINE": "1",
@@ -64,12 +67,12 @@ def slurm_executor(
         "NEMO_LOG_MEMORY_USAGE": "1",
         "NEMORUN_HOME": log_dir,
     }
-    if custom_env_vars:
-        env_vars |= custom_env_vars
+    if hf_token is not None:
+        custom_env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
+    env_vars |= custom_env_vars
 
     srun_args = ["--mpi=pmix"]
-    if custom_srun_args:
-        srun_args.extend(custom_srun_args)
+    srun_args.extend(custom_srun_args)
 
     executor = run.SlurmExecutor(
         account=account,
@@ -79,17 +82,15 @@ def slurm_executor(
         ),
         nodes=nodes,
         ntasks_per_node=num_gpus_per_node,
+        container_image=container_image,
+        container_mounts=custom_mounts,
+        env_vars=env_vars,
+        srun_args=srun_args,
+        time=time_limit,
         mem="0",
         exclusive=True,
         packager=run.GitArchivePackager(),
     )
-
-    executor.container_image = container_image
-    executor.container_mounts = mounts
-    executor.env_vars = env_vars
-    executor.srun_args = srun_args
-    executor.retries = retries
-    executor.time = time_limit
 
     return executor
 
@@ -118,6 +119,17 @@ def import_ckpt_experiment(num_nodes: int, executor: run.SlurmExecutor, model: r
 
     return run.Partial(import_ckpt, model=model, source=source, overwrite=False), import_executor, "import_ckpt_exp"
 
+def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]):
+    train_pack_metadata_filepath = ""
+    if data_config.__fn_or_cls__ == SquadDataModule:
+        datasets_dir = os.getenv(
+            "NEMO_DATASETS_CACHE", os.path.join(os.getenv("NEMO_HOME", DEFAULT_NEMO_CACHE_HOME), "datasets")
+            )
+        model_dir = hf_model_uri.replace("/", "--")
+        metadata_filename = f"train_{data_config.seq_length}_metadata.jsonl"
+
+        train_pack_metadata_filepath = os.path.join(datasets_dir, "squad", "packed", model_dir, metadata_filename)
+    return os.path.exists(train_pack_metadata_filepath) and os.path.isfile(train_pack_metadata_filepath)
 
 def get_comm_overlap_callback_idx(callbacks: List[Callback]):
     """
@@ -203,6 +215,23 @@ def parse_cli_args():
         "--finetuning",
         help="Finetuning scheme to use. Options- 'sft', 'lora'. Defaults is 'lora'",
         default='lora',
+    )
+    parser.add_argument(
+        "-hf",
+        "--hf_token",
+        type=str,
+        help="HuggingFace token. Defaults to None. Required for accessing tokenizers and checkpoints.",
+        default=None,
+    )
+    nemo_home_msg = ["Directory where NeMo searches for models and checkpoints.",
+                     "This saves a lot of time (especially for bigger models) if checkpoints already exist here.",
+                     f"Missing files will be downloaded from HuggingFace. Defaults to {DEFAULT_NEMO_CACHE_HOME}"]
+    parser.add_argument(
+        "-nh",
+        "--nemo_home",
+        type=str,
+        help=" ".join(nemo_home_msg),
+        default=DEFAULT_NEMO_CACHE_HOME,
     )
     parser.add_argument(
         "-d",
