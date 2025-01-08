@@ -19,6 +19,7 @@ from typing import Callable, Dict, List, Optional, Union
 import torch
 import torch.nn.functional as F
 from megatron.core import dist_checkpointing
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.transformer.custom_layers.transformer_engine import (
@@ -35,6 +36,7 @@ from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parall
 from nemo.collections.multimodal.mimo.model.base import BaseMimoModel
 from nemo.collections.multimodal.mimo.model.projection import ImageOutputProjectionPoolingHead
 from nemo.lightning import get_vocab_size, io
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
 
 def mimo_forward_step(model, batch) -> torch.Tensor:
@@ -261,8 +263,8 @@ class MimoConfig(TransformerConfig, io.IOMixin):
         default_factory=lambda: ImageOutputProjectionConfig()
     )
 
-    freeze_language_model: bool = True
-    freeze_image_encoder: bool = True
+    freeze_language_model: bool = False
+    freeze_image_encoder: bool = False
     freeze_image_input_projection: bool = False
     freeze_image_output_projection: bool = False
 
@@ -277,9 +279,9 @@ class MimoConfig(TransformerConfig, io.IOMixin):
     make_vocab_size_divisible_by: int = 128
 
     load_vision_mlp_language_model_path: Optional[str] = None
-    load_language_model_path: Optional[str] = None
-    load_vision_model_path: Optional[str] = None
-    load_mlp_projector_path: Optional[str] = None
+    language_model_path: Optional[str] = None
+    vision_model_path: Optional[str] = None
+    mlp_projector_path: Optional[str] = None
 
     # TODO: Yash These below asserts are not needed (hack to overcome llm.pretrain api assertions)
     seq_length: int = 1
@@ -296,4 +298,26 @@ class MimoConfig(TransformerConfig, io.IOMixin):
         self.vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
         logging.info(f"padded vocab size to {self.vocab_size}")
         model = BaseMimoModel(config=self)
+
+        if self.language_model_path:
+            sharded_state_dict = dict(state_dict=model.language_model.sharded_state_dict(prefix="module."))
+
+            strict = StrictHandling.LOG_UNEXPECTED
+            loaded_state_dict = dist_checkpointing.load(
+                ckpt_to_weights_subdir(self.load_language_model_path),
+                sharded_state_dict=sharded_state_dict,
+                checkpoint_dir='load_language_model_path',
+                strict=strict,
+            )
+            loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+
+            model.language_model.load_state_dict(loaded_state_dict)
+            logging.info(f"Loaded language model from {self.load_language_model_path}")
+
+        model.freeze(
+            freeze_language_model=self.freeze_language_model,
+            freeze_vision_model=self.freeze_image_encoder,
+            freeze_vision_projection=self.freeze_image_input_projection,
+        )
+
         return model
