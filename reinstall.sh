@@ -44,8 +44,9 @@ else
 
 fi
 
-${PIP} install \
-  "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG}" \
+${PIP} install --extra-index-url https://pypi.nvidia.com \
+  "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'" \
+"nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@$ {NEMO_RUN_TAG}" \
   "transformer-engine @ git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG}" \
   "git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}" \
   "git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}" \
@@ -55,7 +56,7 @@ ${PIP} install \
 
 echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
-  ${PIP} install --editable --extra-index-url https://pypi.nvidia.com ".[all]"
+  ${PIP} install --editable ".[all]"
 else
   rm -rf dist/
   ${PIP} install build pytest-runner
