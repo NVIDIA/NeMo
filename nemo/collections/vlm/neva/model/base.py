@@ -282,7 +282,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             post_process: bool = True,
             add_encoder: bool = True,
             add_decoder: bool = True,
-            drop_vision_class_token: bool = False,
+            drop_vision_class_token: bool = True,
     ) -> None:
         super(MCoreLLaVAModel, self).__init__(config=config)
 
@@ -339,6 +339,19 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self.vision_projection = vision_projection_config.configure_model()
             self._drop_vision_class_token = drop_vision_class_token
 
+            config.vision_model_from_pretrained = "/root/.cache/nemo/models/OpenGVLab/InternViT-6B-448px-V1-5"
+            if config.vision_model_from_pretrained is not None:
+                sharded_state_dict = dict(state_dict=self.vision_model.sharded_state_dict(prefix="module."))
+                loaded_state_dict = dist_checkpointing.load(
+                    sharded_state_dict=sharded_state_dict,
+                    checkpoint_dir=ckpt_to_weights_subdir(config.vision_model_from_pretrained, is_saving=False),
+                    validate_access_integrity=False,
+                )
+                loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+                self.vision_model.load_state_dict(loaded_state_dict)
+                logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
+                import pdb; pdb.set_trace()
+
         self.freeze(
             freeze_language_model=config.freeze_language_model,
             freeze_vision_model=config.freeze_vision_model,
@@ -351,6 +364,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         self.vision_model_from_hf = hasattr(vision_transformer_config, "image_size")
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
+        if drop_vision_class_token and vision_transformer_config.add_class_token:
+            self._img_seq_len -= vision_transformer_config.class_token_len
 
     def forward(
             self,

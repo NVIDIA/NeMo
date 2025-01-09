@@ -99,7 +99,7 @@ class InternViTRMSNorm(torch.nn.Module):
     def _gather_var(self, input_, max_dim, valid_ranks=6):
         """Compute statistic across the non-dummy heads."""
         world_size = get_tensor_model_parallel_world_size()
-        assert world_size == 8, "tested only with TP=8"
+        # assert world_size == 8, "tested only with TP=8"
 
         # Size and dimension.
         last_dim = input_.dim() - 1
@@ -265,16 +265,14 @@ def get_internvit_layer_spec(use_te) -> ModuleSpec:
 
 
 @dataclass
-class InternViT_6B_448px_V1_5_Config(CLIPViTConfig):
-    """Clip vit large patch14 config"""
-
+class InternViTConfig(CLIPViTConfig):
     vision_model_type: str = "internvit"
     patch_dim: int = 14
     img_h: int = 448
     img_w: int = 448
     num_layers: int = 45
-    num_attention_heads: int = 32  # Padded for TP=8
-    num_query_groups: int = 32  # Padded for TP=8
+    num_attention_heads: int = 25
+    num_query_groups: int = 25
     kv_channels: int = 128
     add_bias_linear: bool = True
     add_qkv_bias: bool = False
@@ -293,6 +291,10 @@ class InternViT_6B_448px_V1_5_Config(CLIPViTConfig):
     layernorm_epsilon: float = 1e-6
     apply_rope_fusion: bool = False
     transformer_layer_spec: ModuleSpec = get_internvit_layer_spec(use_te=True)
+
+@dataclass
+class InternViT_6B_448px_V1_5_Config(InternViTConfig):
+    vision_model_type: str = "internvit"
 
 
 class InternVitModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
@@ -327,67 +329,36 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
 
         return output_path
 
-    def convert_state(self, source, target, image_newline=False):
+    def convert_state(self, source, target):
+        ss = source
         mapping = {
-            "language_model.model.embed_tokens.weight": "language_model.embedding.word_embeddings.weight",
-            "language_model.model.layers.*.self_attn.o_proj.weight": "language_model.decoder.layers.*.self_attention.linear_proj.weight",
-            "language_model.model.layers.*.mlp.down_proj.weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
-            "language_model.model.layers.*.input_layernorm.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-            "language_model.model.layers.*.post_attention_layernorm.weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-            "language_model.model.norm.weight": "language_model.decoder.final_layernorm.weight",
-            "language_model.lm_head.weight": "language_model.output_layer.weight",
+            # Embeddings
+            "embeddings.class_embedding": "class_token",
+            "embeddings.patch_embedding.weight": "conv1.weight",
+            "embeddings.patch_embedding.bias": "conv1.bias",
+
+            # Transformer Layers
+            "encoder.layers.*.ls1": "decoder.layers.*.ls1",
+            "encoder.layers.*.ls2": "decoder.layers.*.ls2",
+
+            # Attention QKV
+            "encoder.layers.*.attn.qkv.weight": "decoder.layers.*.self_attention.linear_qkv.weight",
+            "encoder.layers.*.attn.q_norm.weight": "decoder.layers.*.self_attention.q_layernorm.weight",
+            "encoder.layers.*.attn.k_norm.weight": "decoder.layers.*.self_attention.k_layernorm.weight",
+            "encoder.layers.*.attn.proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
+            "encoder.layers.*.attn.proj.bias": "decoder.layers.*.self_attention.linear_proj.bias",
+
+            # MLP
+            "encoder.layers.*.mlp.fc1.weight": "decoder.layers.*.mlp.linear_fc1.weight",
+            "encoder.layers.*.mlp.fc1.bias": "decoder.layers.*.mlp.linear_fc1.bias",
+            "encoder.layers.*.mlp.fc2.weight": "decoder.layers.*.mlp.linear_fc2.weight",
+            "encoder.layers.*.mlp.fc2.bias": "decoder.layers.*.mlp.linear_fc2.bias",
+
+            # Layer Norm
+            "encoder.layers.*.norm1.weight": "decoder.layers.*.input_layernorm.weight",
+            "encoder.layers.*.norm2.weight": "decoder.layers.*.pre_mlp_layernorm.weight",
         }
-        if "vision_projection.encoder.linear_fc1.weight" in target.module.state_dict().keys():
-            mapping.update(
-                {
-                    "multi_modal_projector.linear_1.weight": "vision_projection.encoder.linear_fc1.weight",
-                    "multi_modal_projector.linear_1.bias": "vision_projection.encoder.linear_fc1.bias",
-                    "multi_modal_projector.linear_2.weight": "vision_projection.encoder.linear_fc2.weight",
-                    "multi_modal_projector.linear_2.bias": "vision_projection.encoder.linear_fc2.bias",
-                }
-            )
-        elif "vision_projection.0.weight" in target.module.state_dict().keys():
-            mapping.update(
-                {
-                    "multi_modal_projector.linear_1.weight": "vision_projection.0.weight",
-                    "multi_modal_projector.linear_1.bias": "vision_projection.0.bias",
-                    "multi_modal_projector.linear_2.weight": "vision_projection.2.weight",
-                    "multi_modal_projector.linear_2.bias": "vision_projection.2.bias",
-                }
-            )
-        else:
-            raise KeyError("Unable to map vision projection keys.")
 
-        if image_newline:
-            mapping.update({"image_newline": "image_newline"})
-
-        if "vision_model.vision_model.embeddings.class_embedding" in target.module.state_dict().keys():
-            mapping.update(
-                {
-                    "vision_tower.vision_model.**": "vision_model.vision_model.**",
-                }
-            )
-        elif "vision_model.class_token" in target.module.state_dict().keys():
-            mapping.update(
-                {
-                    "vision_tower.vision_model.embeddings.patch_embedding.weight": "vision_model.conv1.weight",
-                    "vision_tower.vision_model.embeddings.position_embedding.weight": "vision_model.position_embeddings.weight",
-                    "vision_tower.vision_model.encoder.layers.*.layer_norm1.weight": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-                    "vision_tower.vision_model.encoder.layers.*.layer_norm1.bias": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
-                    "vision_tower.vision_model.encoder.layers.*.layer_norm2.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-                    "vision_tower.vision_model.encoder.layers.*.layer_norm2.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.out_proj.weight": "vision_model.decoder.layers.*.self_attention.linear_proj.weight",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.out_proj.bias": "vision_model.decoder.layers.*.self_attention.linear_proj.bias",
-                    "vision_tower.vision_model.encoder.layers.*.mlp.fc1.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.weight",
-                    "vision_tower.vision_model.encoder.layers.*.mlp.fc1.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.bias",
-                    "vision_tower.vision_model.encoder.layers.*.mlp.fc2.weight": "vision_model.decoder.layers.*.mlp.linear_fc2.weight",
-                    "vision_tower.vision_model.encoder.layers.*.mlp.fc2.bias": "vision_model.decoder.layers.*.mlp.linear_fc2.bias",
-                    "vision_tower.vision_model.pre_layrnorm.weight": "vision_model.ln_pre.weight",
-                    "vision_tower.vision_model.pre_layrnorm.bias": "vision_model.ln_pre.bias",
-                }
-            )
-        else:
-            raise KeyError("Unable to map vision encoder keys.")
         return io.apply_transforms(
             source,
             target,
@@ -396,10 +367,27 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
         )
 
     @property
-    def config(self):
+    def config(self) -> CLIPViTConfig:
         from transformers import AutoConfig
 
         source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
-        output = InternViT_6B_448px_V1_5_Config()
-
+        output = InternViTConfig(
+            patch_dim=source.patch_size,
+            attention_dropout=source.attention_dropout,
+            hidden_size=source.hidden_size,
+            img_h=source.image_size,
+            img_w=source.image_size,
+            ffn_hidden_size=source.intermediate_size,
+            layernorm_epsilon=source.layer_norm_eps,
+            num_attention_heads=source.num_attention_heads,
+            num_layers=source.num_hidden_layers,
+        )
         return output
+
+
+@io.state_transform(
+    source_key="embeddings.position_embedding",
+    target_key="position_embeddings.weight",
+)
+def _import_position_embedding(ctx: io.TransformCTX, pos_emb):
+    return pos_emb.squeeze(0)

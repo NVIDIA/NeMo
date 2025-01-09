@@ -48,6 +48,8 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
     """
 
     hidden_size: int = 1024
+    add_class_token: bool = False
+    class_token_len: int = 1
     num_image_embeddings_per_tile: Optional[int] = None
     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
 
@@ -61,8 +63,8 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
             img_h=self.image_size,
             img_w=self.image_size,
             patch_dim=self.patch_size,
-            add_class_token=False,
-            class_token_len=1,
+            add_class_token=self.add_class_token,
+            class_token_len=self.class_token_len,
         )
 
     def configure_model(self) -> "CLIPVisionModel":
