@@ -58,7 +58,7 @@ class ConvolutionLayer(torch.nn.Module):
             self.causal_padding = (((self.kernel_size - 1) * self.dilation), 0)
             if padding is not None:
                 logging.warning(
-                    f'{self} was initiliazed with is_causal set to True, and padding set to {padding}. '
+                    f'{self} was initialized with is_causal set to True, and padding set to {padding}. '
                     f'The provided padding value will be ignored and set to {self.causal_padding}.'
                 )
             padding = 0
@@ -153,7 +153,7 @@ class Attention(torch.nn.Module):
             n_heads (int): Number of attention heads.
             d_model (int): Dimension of the model.
             p_dropout (float): Dropout probability.
-            is_causal (bool): Whether to use causal attention. Onlu supported when used in SelfAttention.
+            is_causal (bool): Whether to use causal attention. Only supported when used in SelfAttention.
         """
         super().__init__()
         assert d_model % n_heads == 0, "d_model % n_head != 0"
@@ -178,7 +178,7 @@ class Attention(torch.nn.Module):
         pass
 
     @staticmethod
-    def _init_cache() -> Dict[str, Optional[torch.Tensor]]:
+    def _init_cache() -> Dict[str, Optional[Union[bool, torch.Tensor]]]:
         return {
             'is_initialized': False,
             'self_k': None,
@@ -294,7 +294,7 @@ class SelfAttention(Attention):
             n_heads (int): Number of attention heads.
             d_model (int): Dimension of the model.
             p_dropout (float): Dropout probability.
-            is_causal (bool): Whether to use causal attention. Onlu supported when used in SelfAttention.
+            is_causal (bool): Whether to use causal attention. Only supported when used in SelfAttention.
             max_length_causal_mask (int): Maximum sequence length for Attention module.
         """
         super().__init__(
@@ -499,7 +499,6 @@ class TransformerLayer(torch.nn.Module):
             attn_probabilities <dict>: Attention probabilities
         """
         x_mask_inv_float = (~x_mask).to(x.dtype).unsqueeze(-1)
-        s_attn_prob = None
         x_, s_attn_prob = self.self_attention(query=self.norm_self(x), query_mask=x_mask)
         if self.use_cache:
             if self.cache['self_attn_output'] is not None:
