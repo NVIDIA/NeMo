@@ -19,7 +19,7 @@ from collections import OrderedDict
 import torch
 from lightning.pytorch import Trainer
 from omegaconf import open_dict
-from transformers import AutoModelForCausalLM, LlamaTokenizer, LlamaTokenizerFast, convert_slow_tokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -255,15 +255,11 @@ def replace_hf_weights_and_tokenizer(
 
     if tokenizer_path:
         try:
-            tokenizer = LlamaTokenizer.from_pretrained(
+            tokenizer = AutoTokenizer.from_pretrained(
                 tokenizer_path,
                 local_files_only=True,
-                legacy=False,
             )
-            tmp_tokenizer = convert_slow_tokenizer.convert_slow_tokenizer(tokenizer)
-            fast_tokenizer = LlamaTokenizerFast(tokenizer_object=tmp_tokenizer)
-            tokenizer_length = len(fast_tokenizer)
-            model.resize_token_embeddings(tokenizer_length)
+            model.resize_token_embeddings(len(tokenizer))
         except:
             tokenizer = None
             logging.warning("Could not load custom tokenizer, proceeding with default tokenizer")
@@ -273,7 +269,6 @@ def replace_hf_weights_and_tokenizer(
     logging.info(f"Full HF model saved to {output_hf_path}")
 
     if tokenizer_path and (tokenizer is not None):
-        fast_tokenizer.save_pretrained(output_hf_tokenizer)
         tokenizer.save_pretrained(output_hf_tokenizer)
         logging.info(f"Tokenizer saved to {output_hf_tokenizer}")
 
