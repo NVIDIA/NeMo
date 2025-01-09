@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
 from typing import Optional
 
 import nemo_run as run
-from nemo_run.config import NEMORUN_HOME
 from utils import (
     get_comm_overlap_callback_idx,
     hf_tokenizer,
@@ -30,7 +27,6 @@ from utils import (
 from nemo.collections.llm.recipes.llama3_70b import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-from nemo.utils import logging
 
 NUM_NODES = 1
 NUM_GPUS_PER_NODE = 8
@@ -111,12 +107,6 @@ def llama3_70b_performance_recipe(
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
-    if args.log_dir != NEMORUN_HOME:
-        logging.error(f"Run `export NEMORUN_HOME={args.log_dir}` in your shell environment and rerun this script.")
-        sys.exit(1)
-    if args.nemo_home and args.nemo_home != os.getenv("NEMO_HOME"):
-        logging.error(f"Run `export NEMO_HOME={args.nemo_home}` in your shell environment and rerun this script.")
-        sys.exit(1)
 
     exp_name = "_".join(
         [

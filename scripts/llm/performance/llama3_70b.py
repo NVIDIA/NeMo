@@ -15,14 +15,12 @@
 from typing import Optional
 
 import nemo_run as run
-from nemo_run.config import NEMORUN_HOME
 from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor
 
 from nemo.collections.llm.recipes.llama3_70b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-from nemo.utils import logging
 
 NUM_NODES = 8
 NUM_GPUS_PER_NODE = 8
@@ -111,11 +109,6 @@ def llama3_70b_performance_recipe(
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
-    if args.log_dir != NEMORUN_HOME:
-        import sys
-
-        logging.error(f"Run `export NEMORUN_HOME={args.log_dir}` in your shell environment and rerun this script.")
-        sys.exit(1)
 
     exp_name = "_".join(
         [

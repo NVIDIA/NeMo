@@ -14,6 +14,7 @@
 
 import argparse
 import os
+import sys
 from typing import Dict, List
 
 import nemo_run as run
@@ -27,6 +28,7 @@ from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.utils import logging
 
+DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
 def slurm_executor(
     account: str,
@@ -40,21 +42,20 @@ def slurm_executor(
     custom_env_vars: Dict[str, str] = {},
     custom_srun_args: List[str] = [],
     hf_token: str = None,
-    nemo_home: str = DEFAULT_NEMO_CACHE_HOME,
+    nemo_home: str = DEFAULT_NEMO_HOME,
 ) -> run.SlurmExecutor:
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
     and fine-tuning experiments
     """
-    if not (log_dir and account and partition and nodes and num_gpus_per_node):
-        raise RuntimeError(
-            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
-            "function.",
-        )
-
-    if nemo_home != DEFAULT_NEMO_CACHE_HOME:
-        custom_mounts.extend([f"{nemo_home}:{nemo_home}"])
-        custom_env_vars.update({"NEMO_HOME": nemo_home})
+    err_msgs = []
+    if log_dir != NEMORUN_HOME:
+        err_msgs.append(f"Run `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
+    if nemo_home != DEFAULT_NEMO_HOME:
+        err_msgs.append(f"Run `export NEMO_HOME={nemo_home}` in your shell environment and rerun this script.")
+    if len(err_msgs) > 0:
+        logging.error(err_msgs)
+        sys.exit(1)
 
     env_vars = {
         "TRANSFORMERS_OFFLINE": "1",
@@ -67,11 +68,17 @@ def slurm_executor(
         "NEMO_LOG_MEMORY_USAGE": "1",
         "NEMORUN_HOME": log_dir,
     }
-    if hf_token is not None:
-        custom_env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
-    env_vars |= custom_env_vars
-
+    mounts = []
     srun_args = ["--mpi=pmix"]
+
+    if nemo_home != DEFAULT_NEMO_HOME:
+        env_vars.update({"NEMO_HOME": nemo_home})
+        mounts.extend([f"{nemo_home}:{nemo_home}"])
+    if hf_token is not None:
+        env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
+    
+    env_vars |= custom_env_vars
+    mounts.extend(custom_mounts)
     srun_args.extend(custom_srun_args)
 
     executor = run.SlurmExecutor(
@@ -83,7 +90,7 @@ def slurm_executor(
         nodes=nodes,
         ntasks_per_node=num_gpus_per_node,
         container_image=container_image,
-        container_mounts=custom_mounts,
+        container_mounts=mounts,
         env_vars=env_vars,
         srun_args=srun_args,
         time=time_limit,
@@ -134,13 +141,12 @@ def import_ckpt_experiment(num_nodes: int, executor: run.SlurmExecutor, model: r
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]):
     train_pack_metadata_filepath = ""
     if data_config.__fn_or_cls__ == SquadDataModule:
-        datasets_dir = os.getenv(
-            "NEMO_DATASETS_CACHE", os.path.join(os.getenv("NEMO_HOME", DEFAULT_NEMO_CACHE_HOME), "datasets")
-        )
+        datasets_dir = os.getenv("NEMO_DATASETS_CACHE", os.path.join(DEFAULT_NEMO_HOME, "datasets"))
         model_dir = hf_model_uri.replace("/", "--")
         metadata_filename = f"train_{data_config.seq_length}_metadata.jsonl"
 
         train_pack_metadata_filepath = os.path.join(datasets_dir, "squad", "packed", model_dir, metadata_filename)
+    
     return os.path.exists(train_pack_metadata_filepath) and os.path.isfile(train_pack_metadata_filepath)
 
 
@@ -194,12 +200,15 @@ def parse_cli_args():
         required=False,
         default="00:30:00",
     )
+    container_img_msg = [
+        "NeMo container to use for experiment. Defaults to latest dev container- 'nvcr.io/nvidia/nemo:dev'",
+        "Make sure your NGC credentials are accessible in your environment.",
+    ]
     parser.add_argument(
         "-i",
         "--container_image",
         type=str,
-        help="NeMo container to use for experiment. Defaults to latest dev container- 'nvcr.io/nvidia/nemo:dev'\
-            Make sure your NGC credentials are accessible in your environment.",
+        help=" ".join(container_img_msg),
         required=False,
         default="nvcr.io/nvidia/nemo:dev",
     )
@@ -239,14 +248,15 @@ def parse_cli_args():
     nemo_home_msg = [
         "Directory where NeMo searches for models and checkpoints.",
         "This saves a lot of time (especially for bigger models) if checkpoints already exist here.",
-        f"Missing files will be downloaded from HuggingFace. Defaults to {DEFAULT_NEMO_CACHE_HOME}",
+        "Missing files will be downloaded from HuggingFace., "
+        f"Defaults to {DEFAULT_NEMO_HOME}",
     ]
     parser.add_argument(
         "-nh",
         "--nemo_home",
         type=str,
         help=" ".join(nemo_home_msg),
-        default=DEFAULT_NEMO_CACHE_HOME,
+        default=DEFAULT_NEMO_HOME,
     )
     parser.add_argument(
         "-d",
