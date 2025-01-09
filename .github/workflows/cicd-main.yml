@@ -3623,7 +3623,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3634,7 +3634,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --strategy fsdp --devices 2
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --strategy fsdp --devices 2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
   L2_VLM_HF_Transformer_PEFT_4bit:
@@ -3644,7 +3644,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --disable-ckpt --use-4bit
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --use-4bit
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
