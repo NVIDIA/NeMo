@@ -120,7 +120,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         parallel_save: bool = True,
         parallel_save_within_dp: bool = False,
         parallel_load: bool = False,
-        use_optim_separation_hint: bool = False,
+        use_optim_separation_hint: bool = True,
     ):
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
