@@ -145,8 +145,8 @@ def flux_training() -> run.Partial:
 @run.cli.factory(target=llm.train)
 def convergence_test() -> run.Partial:
     '''
-        A convergence recipe with real data loader.
-        Image and text embedding calculated on the fly.
+    A convergence recipe with real data loader.
+    Image and text embedding calculated on the fly.
     '''
     recipe = flux_training()
     recipe.model.flux_params.t5_params = run.Config(T5Config, version='/ckpts/text_encoder_2')
@@ -163,7 +163,7 @@ def convergence_test() -> run.Partial:
 @run.cli.factory(target=llm.train)
 def full_model_tp2_dp4_mock() -> run.Partial:
     '''
-        An example recipe uses tp 2 dp 4 with mock dataset.
+    An example recipe uses tp 2 dp 4 with mock dataset.
     '''
     recipe = flux_training()
     recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
@@ -181,9 +181,9 @@ def full_model_tp2_dp4_mock() -> run.Partial:
 @run.cli.factory(target=llm.train)
 def unit_test() -> run.Partial:
     '''
-        Basic functional test, with mock dataset,
-        text/vae encoders not initialized, ddp strategy,
-        frozen and trainable layers both set to 1
+    Basic functional test, with mock dataset,
+    text/vae encoders not initialized, ddp strategy,
+    frozen and trainable layers both set to 1
     '''
     recipe = flux_training()
     recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')

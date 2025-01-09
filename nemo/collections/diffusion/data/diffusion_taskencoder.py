@@ -471,6 +471,7 @@ class RawImageDiffusionTaskEncoder(DefaultTaskEncoder, IOMixin):
     '''
     Dummy task encoder takes raw image input on CrudeDataset.
     '''
+
     cookers = [
         # Cooker(cook),
         Cooker(cook_raw_iamges),

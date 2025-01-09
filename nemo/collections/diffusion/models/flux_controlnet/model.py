@@ -60,6 +60,7 @@ class FluxControlNetConfig(TransformerConfig, io.IOMixin):
     '''
     Flux config inherits from TransformerConfig class.
     '''
+
     num_layers: int = 1  # dummy setting
     patch_size: int = 1
     in_channels: int = 64
@@ -95,6 +96,7 @@ class FluxControlNet(VisionModule):
         config (FluxControlNetConfig): Configuration object containing model parameters such as input channels, hidden size, patch size,
             and number of transformer layers.
     """
+
     def __init__(self, config: FluxControlNetConfig):
         """
         Initializes the FluxControlNet model with embeddings, transformer layers, and optional conditioning blocks.
@@ -275,6 +277,7 @@ class FluxControlnetForwardWrapper(VisionModule):
     '''
     A wrapper combines flux and flux controlnet forward pass for easier initialization.
     '''
+
     def __init__(self, flux_config: FluxConfig, flux_controlnet_config: FluxControlNetConfig):
         '''
         Create flux and flux controlnet instances by their config.
@@ -307,6 +310,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
         forward_step: Handles the forward pass specific to training, computing the model's output.
         validation_step: Calls inference pipeline with current model weights and output inference result together with the control image.
     """
+
     def __init__(self, flux_params: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):
         super().__init__(flux_params)
         self.flux_controlnet_config = flux_controlnet_config

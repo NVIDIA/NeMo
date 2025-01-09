@@ -43,6 +43,7 @@ class MockDataModule(pl.LightningDataModule):
         image_precached (bool): Whether the images are pre-cached. Default is False.
         text_precached (bool): Whether the text data is pre-cached. Default is False.
     """
+
     def __init__(
         self,
         image_h: int = 1024,
@@ -163,37 +164,38 @@ class MockDataModule(pl.LightningDataModule):
 
 class _MockT2IDataset(Dataset):
     """
-      A mock dataset class for text-to-image tasks, simulating data samples for training and testing.
+    A mock dataset class for text-to-image tasks, simulating data samples for training and testing.
 
-      This dataset generates synthetic data for both image and text inputs, with options to use
-      pre-cached latent representations or raw data. The class is designed for use in testing and
-      prototyping machine learning models.
+    This dataset generates synthetic data for both image and text inputs, with options to use
+    pre-cached latent representations or raw data. The class is designed for use in testing and
+    prototyping machine learning models.
 
-      Attributes:
-          image_H (int): Height of the generated images.
-          image_W (int): Width of the generated images.
-          length (int): Total number of samples in the dataset.
-          image_key (str): Key for accessing image data in the output dictionary.
-          txt_key (str): Key for accessing text data in the output dictionary.
-          hint_key (str): Key for accessing hint data in the output dictionary.
-          image_precached (bool): Whether to use pre-cached latent representations for images.
-          text_precached (bool): Whether to use pre-cached embeddings for text.
-          prompt_seq_len (int): Sequence length for text prompts.
-          pooled_prompt_dim (int): Dimensionality of pooled text embeddings.
-          context_dim (int): Dimensionality of the text embedding context.
-          vae_scale_factor (int): Scaling factor for the VAE latent representation.
-          vae_channels (int): Number of channels in the VAE latent representation.
-          latent_shape (tuple): Shape of the latent representation for images (if pre-cached).
-          prompt_embeds_shape (tuple): Shape of the text prompt embeddings (if pre-cached).
-          pooped_prompt_embeds_shape (tuple): Shape of pooled text embeddings (if pre-cached).
-          text_ids_shape (tuple): Shape of the text token IDs (if pre-cached).
+    Attributes:
+        image_H (int): Height of the generated images.
+        image_W (int): Width of the generated images.
+        length (int): Total number of samples in the dataset.
+        image_key (str): Key for accessing image data in the output dictionary.
+        txt_key (str): Key for accessing text data in the output dictionary.
+        hint_key (str): Key for accessing hint data in the output dictionary.
+        image_precached (bool): Whether to use pre-cached latent representations for images.
+        text_precached (bool): Whether to use pre-cached embeddings for text.
+        prompt_seq_len (int): Sequence length for text prompts.
+        pooled_prompt_dim (int): Dimensionality of pooled text embeddings.
+        context_dim (int): Dimensionality of the text embedding context.
+        vae_scale_factor (int): Scaling factor for the VAE latent representation.
+        vae_channels (int): Number of channels in the VAE latent representation.
+        latent_shape (tuple): Shape of the latent representation for images (if pre-cached).
+        prompt_embeds_shape (tuple): Shape of the text prompt embeddings (if pre-cached).
+        pooped_prompt_embeds_shape (tuple): Shape of pooled text embeddings (if pre-cached).
+        text_ids_shape (tuple): Shape of the text token IDs (if pre-cached).
 
-      Methods:
-          __getitem__(index):
-              Retrieves a single sample from the dataset based on the specified index.
-          __len__():
-              Returns the total number of samples in the dataset.
-      """
+    Methods:
+        __getitem__(index):
+            Retrieves a single sample from the dataset based on the specified index.
+        __len__():
+            Returns the total number of samples in the dataset.
+    """
+
     def __init__(
         self,
         image_H,
@@ -228,26 +230,26 @@ class _MockT2IDataset(Dataset):
 
     def __getitem__(self, index):
         """
-            Retrieves a single sample from the dataset.
+        Retrieves a single sample from the dataset.
 
-            The sample can include raw image and text data or pre-cached latent representations,
-            depending on the configuration.
+        The sample can include raw image and text data or pre-cached latent representations,
+        depending on the configuration.
 
-            Args:
-                index (int): Index of the sample to retrieve.
+        Args:
+            index (int): Index of the sample to retrieve.
 
-            Returns:
-                dict: A dictionary containing the generated data sample. The keys and values
-                      depend on whether `image_precached` and `text_precached` are set.
-                      Possible keys include:
-                        - 'latents': Pre-cached latent representation of the image.
-                        - 'control_latents': Pre-cached control latent representation.
-                        - 'images': Raw image tensor.
-                        - 'hint': Hint tensor for the image.
-                        - 'prompt_embeds': Pre-cached text prompt embeddings.
-                        - 'pooled_prompt_embeds': Pooled text prompt embeddings.
-                        - 'text_ids': Text token IDs.
-                        - 'txt': Text input string (if text is not pre-cached).
+        Returns:
+            dict: A dictionary containing the generated data sample. The keys and values
+                  depend on whether `image_precached` and `text_precached` are set.
+                  Possible keys include:
+                    - 'latents': Pre-cached latent representation of the image.
+                    - 'control_latents': Pre-cached control latent representation.
+                    - 'images': Raw image tensor.
+                    - 'hint': Hint tensor for the image.
+                    - 'prompt_embeds': Pre-cached text prompt embeddings.
+                    - 'pooled_prompt_embeds': Pooled text prompt embeddings.
+                    - 'text_ids': Text token IDs.
+                    - 'txt': Text input string (if text is not pre-cached).
         """
         item = {}
         if self.image_precached:

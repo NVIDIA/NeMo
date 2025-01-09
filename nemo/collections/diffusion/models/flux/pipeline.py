@@ -79,6 +79,7 @@ class FluxInferencePipeline(nn.Module):
             guidance_scale=7.5
         )
     """
+
     def __init__(
         self,
         params: FluxModelParams = None,
@@ -267,25 +268,25 @@ class FluxInferencePipeline(nn.Module):
     @staticmethod
     def _unpack_latents(latents, height, width, vae_scale_factor):
         """
-            Unpacks the latents from the model output into an image format suitable for further processing.
+        Unpacks the latents from the model output into an image format suitable for further processing.
 
-            The method reshapes and permutes the latents, adjusting their dimensions according to the
-            specified `vae_scale_factor` to match the expected resolution of the image.
+        The method reshapes and permutes the latents, adjusting their dimensions according to the
+        specified `vae_scale_factor` to match the expected resolution of the image.
 
-            Args:
-                latents (torch.Tensor): The latents output from the model, typically in a compact, compressed format.
-                height (int): The original height of the image before scaling, used to adjust the latent dimensions.
-                width (int): The original width of the image before scaling, used to adjust the latent dimensions.
-                vae_scale_factor (int): A scale factor used to adjust the resolution of the image when unpacking. This factor is
-                    typically the inverse of the VAE downsampling factor.
+        Args:
+            latents (torch.Tensor): The latents output from the model, typically in a compact, compressed format.
+            height (int): The original height of the image before scaling, used to adjust the latent dimensions.
+            width (int): The original width of the image before scaling, used to adjust the latent dimensions.
+            vae_scale_factor (int): A scale factor used to adjust the resolution of the image when unpacking. This factor is
+                typically the inverse of the VAE downsampling factor.
 
-            Returns:
-                torch.Tensor: The unpacked latents reshaped to match the expected dimensions for image reconstruction.
-                    The output tensor will have shape `(batch_size, channels, height * 2, width * 2)`.
+        Returns:
+            torch.Tensor: The unpacked latents reshaped to match the expected dimensions for image reconstruction.
+                The output tensor will have shape `(batch_size, channels, height * 2, width * 2)`.
 
-            Notes:
-                - This function is intended to convert latents back into a format that can be decoded into images by the VAE.
-            """
+        Notes:
+            - This function is intended to convert latents back into a format that can be decoded into images by the VAE.
+        """
         batch_size, num_patches, channels = latents.shape
 
         height = height // vae_scale_factor

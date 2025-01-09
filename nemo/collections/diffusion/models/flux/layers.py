@@ -161,6 +161,7 @@ class TimeStepEmbedder(nn.Module):
     Methods:
         forward: Takes a tensor of timesteps and returns their embedded representation.
     """
+
     def __init__(
         self,
         embedding_dim: int,

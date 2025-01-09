@@ -27,7 +27,7 @@ def parse_args():
     # pylint: disable=C0116
     parser = argparse.ArgumentParser(
         description="The flux inference pipeline is utilizing megatron core transformer.\n"
-                    "Please prepare the necessary checkpoints for flux model on local disk in order to use this script"
+        "Please prepare the necessary checkpoints for flux model on local disk in order to use this script"
     )
 
     parser.add_argument("--flux_ckpt", type=str, default="", help="Path to Flux transformer checkpoint(s)")

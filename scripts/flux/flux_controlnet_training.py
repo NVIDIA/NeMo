@@ -26,12 +26,7 @@ from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
 from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
 from nemo.collections.diffusion.data.diffusion_taskencoder import RawImageDiffusionTaskEncoder
-from nemo.collections.diffusion.models.flux.model import (
-    ClipConfig,
-    FluxConfig,
-    FluxModelParams,
-    T5Config,
-)
+from nemo.collections.diffusion.models.flux.model import ClipConfig, FluxConfig, FluxModelParams, T5Config
 from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig, MegatronFluxControlNetModel
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
@@ -148,8 +143,8 @@ def flux_controlnet_training() -> run.Partial:
 @run.cli.factory(target=llm.train)
 def convergence_test() -> run.Partial:
     '''
-        A convergence recipe with real data loader.
-        Image and text embedding calculated on the fly.
+    A convergence recipe with real data loader.
+    Image and text embedding calculated on the fly.
     '''
     recipe = flux_controlnet_training()
     recipe.model.flux_params.t5_params = run.Config(T5Config, version='/ckpts/text_encoder_2')
@@ -166,18 +161,15 @@ def convergence_test() -> run.Partial:
     return recipe
 
 
-
 @run.cli.factory(target=llm.train)
 def full_model_tp2_dp4_mock() -> run.Partial:
     '''
-        An example recipe uses tp 2 dp 4 with mock dataset.
+    An example recipe uses tp 2 dp 4 with mock dataset.
     '''
     recipe = flux_controlnet_training()
     recipe.model.flux_params.t5_params = None
     recipe.model.flux_params.clip_params = None
-    recipe.model.flux_params.vae_config = (
-        None
-    )
+    recipe.model.flux_params.vae_config = None
     recipe.model.flux_params.device = 'cuda'
     recipe.trainer.strategy.tensor_model_parallel_size = 2
     recipe.trainer.devices = 8
@@ -191,16 +183,14 @@ def full_model_tp2_dp4_mock() -> run.Partial:
 @run.cli.factory(target=llm.train)
 def unit_test() -> run.Partial:
     '''
-        Basic functional test, with mock dataset,
-        text/vae encoders not initialized, ddp strategy,
-        frozen and trainable layers both set to 1
+    Basic functional test, with mock dataset,
+    text/vae encoders not initialized, ddp strategy,
+    frozen and trainable layers both set to 1
     '''
     recipe = flux_controlnet_training()
     recipe.model.flux_params.t5_params = None
     recipe.model.flux_params.clip_params = None
-    recipe.model.flux_params.vae_config = (
-        None
-    )
+    recipe.model.flux_params.vae_config = None
     recipe.model.flux_params.device = 'cuda'
     recipe.model.flux_params.flux_config = run.Config(
         FluxConfig,
