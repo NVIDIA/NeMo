@@ -55,7 +55,7 @@ class ConvolutionLayer(torch.nn.Module):
         # If not causal and padding is None, set an appropriate value for padding
         self.causal_padding = None
         if is_causal:
-            self.causal_padding = (((self.kernel_size - 1) * self.dilation), 0)
+            self.causal_padding = ((self.kernel_size - 1) * self.dilation, 0)
             if padding is not None:
                 logging.warning(
                     f'{self} was initialized with is_causal set to True, and padding set to {padding}. '
@@ -504,8 +504,7 @@ class TransformerLayer(torch.nn.Module):
             if self.cache['self_attn_output'] is not None:
                 x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
             self.cache['self_attn_output'] = x_
-        x = x + x_
-        x = x * x_mask_inv_float
+        x = (x + x_) * x_mask_inv_float
 
         x_attn_prob = None
         if self.has_xattn and cond is not None:
@@ -524,12 +523,10 @@ class TransformerLayer(torch.nn.Module):
                 if self.cache['cross_attn_output'] is not None:
                     x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
                 self.cache['cross_attn_output'] = x_res
-            x = x + x_res
-            x = x * x_mask_inv_float
+            x = (x + x_res) * x_mask_inv_float
 
         # mlp final projection
-        x = x + self.pos_ff(self.norm_pos_ff(x))
-        x *= x_mask_inv_float
+        x = (x + self.pos_ff(self.norm_pos_ff(x))) * x_mask_inv_float
 
         return {
             'output': x,
