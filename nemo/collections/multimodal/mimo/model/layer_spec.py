@@ -40,11 +40,9 @@ from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 
-from nemo.collections.multimodal.mimo.model.projection import ImageOutputProjectionPoolingHead
-
 
 def get_image_output_projection_layer_spec() -> ModuleSpec:
-    transformer_encoder_submodules = ModuleSpec(
+    transformer_encoder_spec = ModuleSpec(
         module=TransformerLayer,
         submodules=TransformerLayerSubmodules(
             self_attention=ModuleSpec(
@@ -68,7 +66,7 @@ def get_image_output_projection_layer_spec() -> ModuleSpec:
         ),
     )
 
-    transformer_decoder_submodules = ModuleSpec(
+    transformer_decoder_spec = ModuleSpec(
         module=TransformerLayer,
         submodules=TransformerLayerSubmodules(
             self_attention=ModuleSpec(
@@ -102,32 +100,6 @@ def get_image_output_projection_layer_spec() -> ModuleSpec:
             mlp_bda=get_bias_dropout_add,
         ),
     )
+    output_linear_projection = ColumnParallelLinear
 
-    return transformer_encoder_submodules, transformer_decoder_submodules
-
-
-def get_output_projection_layer_spec() -> ModuleSpec:
-    output_projection_submodules = TransformerLayerSubmodules(
-        cross_attention=ModuleSpec(
-            module=CrossAttention,
-            params={"attn_mask_type": MCoreAttnMaskType.no_mask},
-            submodules=CrossAttentionSubmodules(
-                linear_q=TEColumnParallelLinear,
-                linear_kv=TEColumnParallelLinear,
-                core_attention=TEDotProductAttention,
-                linear_proj=TERowParallelLinear,
-            ),
-        ),
-        cross_attn_bda=get_bias_dropout_add,
-        mlp=ModuleSpec(
-            module=MLP,
-            submodules=MLPSubmodules(
-                linear_fc1=TELayerNormColumnParallelLinear,
-                linear_fc2=TERowParallelLinear,
-            ),
-        ),
-        mlp_bda=get_bias_dropout_add,
-    )
-    output_projection_submodules.output_linear_layer = ColumnParallelLinear
-
-    return ModuleSpec(module=ImageOutputProjectionPoolingHead, submodules=output_projection_submodules)
+    return (transformer_encoder_spec, transformer_decoder_spec, output_linear_projection)

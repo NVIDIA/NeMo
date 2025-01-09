@@ -34,7 +34,8 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.collections.llm import Llama2Config7B
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank
 from nemo.collections.multimodal.mimo.model.base import BaseMimoModel
-from nemo.collections.multimodal.mimo.model.projection import ImageOutputProjectionPoolingHead
+from nemo.collections.multimodal.mimo.model.layer_spec import get_image_output_projection_layer_spec
+from nemo.collections.multimodal.mimo.model.projection import ImageOutputProjectionModule
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
@@ -130,9 +131,6 @@ class ImageInputProjectionConfig(TransformerConfig, io.IOMixin):
 
 @dataclass
 class ImageOutputProjectionConfig(TransformerConfig, io.IOMixin):
-
-    from nemo.collections.multimodal.mimo.model.layer_spec import get_output_projection_layer_spec
-
     num_layers: int = 2
     num_attention_heads: int = 16
     num_query_token: int = 77
@@ -149,14 +147,19 @@ class ImageOutputProjectionConfig(TransformerConfig, io.IOMixin):
     bias_dropout_fusion: bool = False
     attention_softmax_in_fp32: bool = True
     normalization = 'LayerNorm'
-    layer_spec: ModuleSpec = get_output_projection_layer_spec()
 
     def configure_model(self):
-        return ImageOutputProjectionPoolingHead(
+
+        enc_layer_spec, dec_layer_spec, output_linear_projection = get_image_output_projection_layer_spec()
+
+        output_projection = ImageOutputProjectionModule(
             config=self,
-            submodules=self.layer_spec.submodules,
-            num_query_token=self.num_query_token,
+            encoder_config=self,
+            transformer_encoder_layer_spec=enc_layer_spec,
+            transformer_decoder_layer_spec=dec_layer_spec,
+            output_linear_projection=output_linear_projection,
         )
+        return output_projection
 
 
 @dataclass
