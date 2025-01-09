@@ -204,7 +204,7 @@ def mcore_model_customize(cfg, model):
             scale_factor=cfg.get('scale_factor', 8),
             low_freq_factor=cfg.get('low_freq_factor', 1),
             high_freq_factor=cfg.get('high_freq_factor', 4),
-            high_freq_factor=cfg.get('old_context_len', 8192),
+            old_context_len=cfg.get('old_context_len', 8192),
         )
     if cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
         from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
