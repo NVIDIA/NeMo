@@ -102,6 +102,8 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
                     torch.nn.ReLU(),
                     torch.nn.Linear(proj_out_size*2, proj_out_size)
                 )
+            elif self.pre_diar_kernel == 'sinusoidal':
+                self.pre_proj = self.get_sinusoid_position_encoding(self.num_speakers, cfg.model_defaults.enc_hidden)
 
             if self.post_diar_kernel == 'metacat':
                 # projection layer
@@ -130,6 +132,8 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
                     torch.nn.ReLU(),
                     torch.nn.Linear(proj_out_size*2, proj_out_size)
                 )
+            elif self.post_diar_kernel == 'sinusoidal':
+                self.post_proj = self.get_sinusoid_position_encoding(self.num_speakers, cfg.model_defaults.enc_hidden)
 
 
     def _init_diar_model(self):
@@ -147,8 +151,8 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
             pretrained_diar_model = SortformerEncLabelModel.load_from_checkpoint(model_path, map_location="cpu")
             logging.info("Diarization Model restored locally from {}".format(model_path))
         else:
-            pretrained_diar_model = None
-            logging.info("Model path incorrect")
+            pretrained_diar_model = SortformerEncLabelModel.from_pretrained(model_path)
+            logging.info("Diarization Model restored from NGC")
 
         self.diarization_model = pretrained_diar_model
 
@@ -210,7 +214,12 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
             raise ValueError(f"Invalid position {position}")
         
 
-        if diar_kernel_type == 'metacat_residule':
+        if diar_kernel_type == 'metacat':
+            if diar_preds.shape[1] != encoded.shape[2]:
+                diar_preds = F.pad(diar_preds, (0, encoded.shape[2] - diar_preds.shape[1]), value=0)
+            enc_states_with_metacat = encoded * diar_preds.unsqueeze(1)
+            encoded = joint_proj(enc_states_with_metacat.transpose(1, 2)).transpose(1, 2)
+        elif diar_kernel_type == 'metacat_residule':
             if diar_preds.shape[1] != encoded.shape[2]:
                 diar_preds = F.pad(diar_preds, (0, encoded.shape[2] - diar_preds.shape[1]), value=0)
             enc_states_with_metacat = encoded * diar_preds.unsqueeze(1)
@@ -220,9 +229,6 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
                 diar_preds = F.pad(diar_preds, (0, encoded.shape[2] - diar_preds.shape[1]), value=0)
             enc_states_with_metacat = torch.cat([encoded, diar_preds.unsqueeze(1)], dim=1)
             encoded = joint_proj(enc_states_with_metacat.transpose(1, 2)).transpose(1, 2)
-
-        elif diar_kernel_type == 'metacat':
-            pass
 
         elif diar_kernel_type == 'sinusoidal':
             pass
@@ -276,9 +282,32 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
         encoded, encoded_len = self.encoder(audio_signal=pre_encoded.transpose(1, 2), length=pre_encoded_len, pre_encode_input=True)
 
         if self.post_diar_kernel:
-            pre_encoded = self.forward_diar_kernel(encoded, encoded_len, spk_targets, 'post')
+            encoded = self.forward_diar_kernel(encoded, encoded_len, spk_targets, 'post')
 
         return encoded, encoded_len
+
+    def get_sinusoid_position_encoding(self, max_position, embedding_dim):
+        """
+        Generates a sinusoid position encoding matrix.
+        
+        Args:
+        - max_position (int): The maximum position to generate encodings for.
+        - embedding_dim (int): The dimension of the embeddings.
+        
+        Returns:
+        - torch.Tensor: A tensor of shape (max_position, embedding_dim) containing the sinusoid position encodings.
+        """
+        position = np.arange(max_position)[:, np.newaxis]
+        div_term = np.exp(np.arange(0, embedding_dim, 2) * -(np.log(10000.0) / embedding_dim))
+        
+        position_encoding = np.zeros((max_position, embedding_dim))
+        position_encoding[:, 0::2] = np.sin(position * div_term)
+        position_encoding[:, 1::2] = np.cos(position * div_term)
+        
+        # Convert the numpy array to a PyTorch tensor
+        position_encoding_tensor = torch.tensor(position_encoding, dtype=torch.float32)
+        
+        return position_encoding_tensor
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get("use_lhotse"):
@@ -672,9 +701,22 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
         # pre-encode the input
         processed_signal, processed_signal_length = self.encoder.pre_encode(x=processed_signal.transpose(1, 2).contiguous(), lengths=processed_signal_length)
 
+        if len(spk_targets.size()) == 3:
+            # spk_targets: (B, T, N) -> (BN, T)
+            # processed_signal: (B, T, D) -> (BN, T, D)
+            n_spk = spk_targets.size(2)
+            spk_targets = spk_targets.transpose(1, 2).reshape(-1, spk_targets.size(1))
+            processed_signal = processed_signal.unsqueeze(1).repeat(1, n_spk, 1, 1).reshape(-1, processed_signal.size(1), processed_signal.size(2))
+            processed_signal_length = processed_signal_length.unsqueeze(1).repeat(1, n_spk).reshape(-1)
+        
+        if cache_last_channel_len.shape[0] != processed_signal.shape[0]:
+            cache_last_channel = cache_last_channel.unsqueeze(2).repeat(1, 1, n_spk, 1, 1).reshape(cache_last_channel.size(0), -1, cache_last_channel.size(2), cache_last_channel.size(3))
+            cache_last_time = cache_last_time.unsqueeze(2).repeat(1, 1, n_spk, 1, 1).reshape(cache_last_time.size(0), -1, cache_last_time.size(2), cache_last_time.size(3))
+            cache_last_channel_len = cache_last_channel_len.unsqueeze(1).repeat(1, n_spk).reshape(-1)
+
         # apply diarization kernel
-        if self.diar_kernel_type:
-            processed_signal = self.forward_diar_kernel(processed_signal.transpose(1, 2), processed_signal_length, spk_targets)
+        if self.pre_diar_kernel:
+            processed_signal = self.forward_diar_kernel(processed_signal.transpose(1, 2), processed_signal_length, spk_targets, 'pre')  
 
         processed_signal = processed_signal.transpose(1, 2)
 
@@ -700,6 +742,9 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
             drop_extra_pre_encoded=drop_extra_pre_encoded,
             pre_encode_input=True
         )
+
+        if self.post_diar_kernel:
+            encoded = self.forward_diar_kernel(encoded, encoded_len, spk_targets, 'post')
 
         if isinstance(self, asr_models.EncDecCTCModel) or (
             isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "ctc"

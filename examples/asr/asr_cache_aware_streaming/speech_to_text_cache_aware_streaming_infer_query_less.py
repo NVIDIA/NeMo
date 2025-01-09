@@ -260,6 +260,12 @@ def main():
         help="Path to an ASR model .nemo file or name of a pretrained model.",
     )
     parser.add_argument(
+        "--diar_model_path",
+        type=str,
+        default="nvidia/diar_sortformer_4spk-v1",
+        help="Path to an diarization model .nemo file or name of a pretrained model.",
+    )
+    parser.add_argument(
         "--device", type=str, help="The device to load the model onto and perform the streaming", default="cuda"
     )
     parser.add_argument("--audio_file", type=str, help="Path to an audio file to perform streaming", default=None)
@@ -344,6 +350,7 @@ def main():
         help="",
     )
 
+
     args = parser.parse_args()
     if (args.audio_file is None and args.manifest_file is None) or (
         args.audio_file is not None and args.manifest_file is not None
@@ -352,7 +359,9 @@ def main():
 
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=args.asr_model)
+        model_cfg = nemo_asr.models.ASRModel.restore_from(restore_path=args.asr_model, return_config=True)
+        model_cfg.diar_model_path = args.diar_model_path
+        asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=args.asr_model, override_config_path=model_cfg)
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=args.asr_model)

@@ -490,15 +490,23 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
                 simulated_cuts += simulator.simulate(cuts_for_simulation, num_meetings=simulator_config.num_meetings, num_jobs=1, seed=global_rank+config.seed)
 
             if simulator_config.get('lsmix', False):
-                simulator = LibriSpeechMixSimulator(
-                    data_type=simulator_config.ms_data_type,
-                    min_delay=0.5,
-                    max_num_speakers=simulator_config.max_num_speakers,
-                    speaker_token_position=simulator_config.speaker_token_position,
-                    speaker_count_distribution=simulator_config.speaker_count_distribution,
-                    delay_factor=simulator_config.delay_factor,
-                )
-                simulated_cuts += simulator.simulate(cuts_for_simulation, num_meetings=simulator_config.num_meetings, num_jobs=1, seed=global_rank+config.seed)
+                
+                if simulator_config.get('save_to', None) and os.path.exists(simulator_config.save_to):
+                    lsmix_cuts = CutSet.from_jsonl(simulator_config.save_to)
+                else:
+                    simulator = LibriSpeechMixSimulator(
+                        data_type=simulator_config.ms_data_type,
+                        min_delay=0.5,
+                        max_num_speakers=simulator_config.max_num_speakers,
+                        speaker_token_position=simulator_config.speaker_token_position,
+                        speaker_count_distribution=simulator_config.speaker_count_distribution,
+                        delay_factor=simulator_config.delay_factor,
+                    )
+                    lsmix_cuts = simulator.simulate(cuts_for_simulation, num_meetings=simulator_config.num_meetings, num_jobs=1, seed=global_rank+config.seed)
+                    if simulator_config.get('save_to', None):
+                        lsmix_cuts.to_jsonl(simulator_config.save_to)
+                    
+                simulated_cuts += lsmix_cuts
 
         if config.including_real_data:
             cuts = CutSet.from_cuts(cuts + simulated_cuts)
