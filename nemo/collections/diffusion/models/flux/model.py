@@ -43,8 +43,7 @@ from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete 
 from nemo.collections.diffusion.utils.flux_ckpt_converter import _import_qkv, _import_qkv_bias
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderConfig
 from nemo.collections.llm import fn
-from nemo.lightning import io
-from nemo.lightning import teardown
+from nemo.lightning import io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
