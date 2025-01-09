@@ -710,20 +710,25 @@ def make_structured_with_schema_warnings(config: DictConfig | dict) -> DictConfi
         config = DictConfig(config)
 
     if config.get("tarred_random_access", False):
-        warnings.warn(
+        logging.warning(
             "Option 'tarred_random_access' is deprecated and replaced with 'skip_missing_manifest_entries'.",
-            category=DeprecationWarning,
         )
         config.skip_missing_manifest_entries = True
+
+    if config.skip_missing_manifest_entries:
+        logging.warning(
+            "Note: skip_missing_manifest_entries is set to True. "
+            "If any of your manifests and tar files are mismatched, the entire tar file will be skipped without warning. "
+            "It's your responsibility to ensure data integrity with this setting."
+        )
 
     # Remove unsupported keys and warn about them.
     supported_keys = set(OmegaConf.to_container(default).keys())
     received_keys = set(OmegaConf.to_container(config).keys())
     unsupported_keys = received_keys - supported_keys
     if unsupported_keys:
-        warnings.warn(
-            f"The following configuration keys are no longer supported and ignored: {','.join(unsupported_keys)}",
-            category=DeprecationWarning,
+        logging.warning(
+            f"The following configuration keys are ignored by Lhotse dataloader: {','.join(unsupported_keys)}",
         )
     config = OmegaConf.masked_copy(config, list(supported_keys))
 
