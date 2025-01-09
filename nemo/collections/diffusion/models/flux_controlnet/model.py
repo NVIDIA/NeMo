@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-from typing import Callable, List
+from typing import Callable
 
-import numpy as np
 import torch
 import torch.nn as nn
 from megatron.core.models.common.vision_module.vision_module import VisionModule
@@ -9,7 +8,6 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.nn import functional as F
 
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
-    AdaLNContinuous,
     FluxSingleTransformerBlock,
     MMDiTLayer,
     get_flux_double_transformer_engine_spec,
@@ -19,15 +17,34 @@ from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, 
 from nemo.collections.diffusion.models.flux.model import FluxConfig, FluxModelParams, MegatronFluxModel
 from nemo.collections.diffusion.models.flux_controlnet.layers import ControlNetConditioningEmbedding
 from nemo.lightning import io
+from nemo.utils import logging
 
 
 def zero_module(module):
+    """
+    Initializes all parameters of the given module to zero.
+
+    Args:
+        module (nn.Module): The module whose parameters will be initialized to zero.
+
+    Returns:
+        nn.Module: The same module with zero-initialized parameters.
+    """
     for p in module.parameters():
         nn.init.zeros_(p)
     return module
 
 
 def flux_controlnet_data_step(dataloader_iter):
+    """
+    Processes a single step of data from a dataloader iterator for the Flux ControlNet.
+
+    Args:
+        dataloader_iter (Iterator): An iterator over the dataloader that provides batches of data.
+
+    Returns:
+        dict: A processed batch dictionary with an added 'loss_mask' key.
+    """
     batch = next(dataloader_iter)
     if isinstance(batch, tuple) and len(batch) == 3:
         _batch = batch[0]
@@ -40,6 +57,9 @@ def flux_controlnet_data_step(dataloader_iter):
 
 @dataclass
 class FluxControlNetConfig(TransformerConfig, io.IOMixin):
+    '''
+    Flux config inherits from TransformerConfig class.
+    '''
     num_layers: int = 1  # dummy setting
     patch_size: int = 1
     in_channels: int = 64
@@ -67,7 +87,21 @@ class FluxControlNetConfig(TransformerConfig, io.IOMixin):
 
 
 class FluxControlNet(VisionModule):
+    """
+    A VisionModule-based neural network designed for Flux ControlNet tasks. It includes mechanisms for image and text embedding,
+    positional encoding, and various transformer-based layers for joint and single processing.
+
+    Args:
+        config (FluxControlNetConfig): Configuration object containing model parameters such as input channels, hidden size, patch size,
+            and number of transformer layers.
+    """
     def __init__(self, config: FluxControlNetConfig):
+        """
+        Initializes the FluxControlNet model with embeddings, transformer layers, and optional conditioning blocks.
+
+        Args:
+            config (FluxControlNetConfig): Configuration object with model parameters.
+        """
         super().__init__(config)
         self.out_channels = config.in_channels
         self.hidden_size = config.hidden_size
@@ -126,6 +160,12 @@ class FluxControlNet(VisionModule):
             self.controlnet_x_embedder = zero_module(torch.nn.Linear(config.in_channels, self.hidden_size))
 
     def load_from_flux_transformer(self, flux):
+        """
+        Loads pre-trained weights from a Flux Transformer model into the FluxControlNet.
+
+        Args:
+            flux (FluxTransformer): A pre-trained Flux Transformer model.
+        """
         self.pos_embed.load_state_dict(flux.pos_embed.state_dict())
         self.img_embed.load_state_dict(flux.img_embed.state_dict())
         self.txt_embed.load_state_dict(flux.txt_embed.state_dict())
@@ -146,6 +186,23 @@ class FluxControlNet(VisionModule):
         guidance: torch.Tensor = None,
         conditioning_scale: float = 1.0,
     ):
+        """
+        Forward pass for the FluxControlNet model.
+
+        Args:
+            img (torch.Tensor): Input image tensor.
+            controlnet_cond (torch.Tensor): Conditioning tensor for ControlNet.
+            txt (torch.Tensor, optional): Text embedding tensor. Default is None.
+            y (torch.Tensor, optional): Vector embedding tensor. Default is None.
+            timesteps (torch.LongTensor, optional): Time step tensor. Default is None.
+            img_ids (torch.Tensor, optional): Image IDs. Default is None.
+            txt_ids (torch.Tensor, optional): Text IDs. Default is None.
+            guidance (torch.Tensor, optional): Guidance tensor. Default is None.
+            conditioning_scale (float, optional): Scaling factor for conditioning. Default is 1.0.
+
+        Returns:
+            torch.Tensor: The output of the forward pass.
+        """
         hidden_states = self.img_embed(img)
         encoder_hidden_states = self.txt_embed(txt)
         if self.input_hint_block is not None:
@@ -215,7 +272,13 @@ class FluxControlNet(VisionModule):
 
 
 class FluxControlnetForwardWrapper(VisionModule):
+    '''
+    A wrapper combines flux and flux controlnet forward pass for easier initialization.
+    '''
     def __init__(self, flux_config: FluxConfig, flux_controlnet_config: FluxControlNetConfig):
+        '''
+        Create flux and flux controlnet instances by their config.
+        '''
         super().__init__(flux_config)
 
         self.flux = self.config.configure_model()
@@ -228,12 +291,31 @@ class FluxControlnetForwardWrapper(VisionModule):
 
 
 class MegatronFluxControlNetModel(MegatronFluxModel):
+    """
+    Megatron wrapper for flux controlnet model.
+
+    Args:
+        flux_params (FluxModelParams): Parameters to configure the Flux model.
+        flux_controlnet_config (FluxControlNetConfig): Configuration specific to the FluxControlNet.
+
+    Methods:
+        configure_model: Configures the model by wrapping the FluxControlNet with the appropriate layers and settings,
+                          configuring the VAE, scheduler, and text encoders, and controlling gradient requirements for certain parameters.
+        data_step: A wrapper around the data-step function specific to FluxControlNet, controlling how data is processed.
+        forward: Executes a forward pass through FluxControlNet.
+        training_step: A wrapper step method that calls forward_step with a data batch from data loader.
+        forward_step: Handles the forward pass specific to training, computing the model's output.
+        validation_step: Calls inference pipeline with current model weights and output inference result together with the control image.
+    """
     def __init__(self, flux_params: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):
         super().__init__(flux_params)
         self.flux_controlnet_config = flux_controlnet_config
         self.optim.connect(self)
 
     def configure_model(self):
+        '''
+        Initialize flux and controlnet modules, vae, scheduler, and text encoders with given configs.
+        '''
         if not hasattr(self, "module"):
             self.module = FluxControlnetForwardWrapper(self.config, self.flux_controlnet_config)
 
@@ -252,17 +334,29 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                     param.requires_grad = False
 
     def data_step(self, dataloader_iter):
+        '''
+        Retrive data batch from dataloader iterator and do necessary processing before feeding into train steps.
+        '''
         return self.flux_controlnet_config.data_step_fn(dataloader_iter)
 
     def forward(self, *args, **kwargs):
+        '''
+        Calling the controlnet forward pass.
+        '''
         # FSDP module -> Bfloat16 module -> ForwardWrapper -> flux controlnet
         return self.module.module.module.flux_controlnet(*args, **kwargs)
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
+        '''
+        A wrapper method takes data batch and returns the results of forward_step.
+        '''
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
     def forward_step(self, batch) -> torch.Tensor:
+        '''
+        The main forward step function.
+        '''
         if self.optim.config.bf16:
             self.autocast_dtype = torch.bfloat16
         elif self.optim.config.fp16:
@@ -372,7 +466,12 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             return loss
 
     def validation_step(self, batch, batch_idx=None):
-        print("Start validation step")
+        '''
+        Initialize flux controlnet pipeline with current model components.
+
+        Saves the inference results together with the hint image to log folder.
+        '''
+        logging.info("Start validation step")
         from nemo.collections.diffusion.models.flux.pipeline import FluxControlNetInferencePipeline
 
         pipe = FluxControlNetInferencePipeline(

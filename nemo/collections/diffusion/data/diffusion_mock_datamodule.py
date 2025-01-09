@@ -25,6 +25,24 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
 class MockDataModule(pl.LightningDataModule):
+    """
+    A PyTorch Lightning DataModule for creating mock datasets for training, validation, and testing.
+
+    Args:
+        image_h (int): Height of the images in the dataset. Default is 1024.
+        image_w (int): Width of the images in the dataset. Default is 1024.
+        micro_batch_size (int): Micro batch size for the data sampler. Default is 4.
+        global_batch_size (int): Global batch size for the data sampler. Default is 8.
+        rampup_batch_size (Optional[List[int]]): Ramp-up batch size for the data sampler. Default is None.
+        num_train_samples (int): Number of training samples. Default is 10,000.
+        num_val_samples (int): Number of validation samples. Default is 10,000.
+        num_test_samples (int): Number of testing samples. Default is 10,000.
+        num_workers (int): Number of worker threads for data loading. Default is 8.
+        pin_memory (bool): Whether to use pinned memory for data loading. Default is True.
+        persistent_workers (bool): Whether to use persistent workers for data loading. Default is False.
+        image_precached (bool): Whether the images are pre-cached. Default is False.
+        text_precached (bool): Whether the text data is pre-cached. Default is False.
+    """
     def __init__(
         self,
         image_h: int = 1024,
@@ -41,6 +59,7 @@ class MockDataModule(pl.LightningDataModule):
         image_precached=False,
         text_precached=False,
     ):
+
         super().__init__()
         self.image_h = image_h
         self.image_w = image_w
@@ -61,6 +80,12 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
+        """
+        Sets up datasets for training, validation, and testing.
+
+        Args:
+            stage (str): The stage of the process (e.g., 'fit', 'test'). Default is an empty string.
+        """
         self._train_ds = _MockT2IDataset(
             image_H=1024,
             image_W=1024,
@@ -84,21 +109,49 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        """
+        Returns the training DataLoader.
+
+        Returns:
+            TRAIN_DATALOADERS: DataLoader for the training dataset.
+        """
         if not hasattr(self, "_train_ds"):
             self.setup()
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        """
+        Returns the validation DataLoader.
+
+        Returns:
+            EVAL_DATALOADERS: DataLoader for the validation dataset.
+        """
         if not hasattr(self, "_validation_ds"):
             self.setup()
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        """
+        Returns the testing DataLoader.
+
+        Returns:
+            EVAL_DATALOADERS: DataLoader for the testing dataset.
+        """
         if not hasattr(self, "_test_ds"):
             self.setup()
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+        """
+        Creates a DataLoader for the given dataset.
+
+        Args:
+            dataset: The dataset to load.
+            **kwargs: Additional arguments for the DataLoader.
+
+        Returns:
+            DataLoader: Configured DataLoader for the dataset.
+        """
         return DataLoader(
             dataset,
             num_workers=self.num_workers,
@@ -109,6 +162,38 @@ class MockDataModule(pl.LightningDataModule):
 
 
 class _MockT2IDataset(Dataset):
+    """
+      A mock dataset class for text-to-image tasks, simulating data samples for training and testing.
+
+      This dataset generates synthetic data for both image and text inputs, with options to use
+      pre-cached latent representations or raw data. The class is designed for use in testing and
+      prototyping machine learning models.
+
+      Attributes:
+          image_H (int): Height of the generated images.
+          image_W (int): Width of the generated images.
+          length (int): Total number of samples in the dataset.
+          image_key (str): Key for accessing image data in the output dictionary.
+          txt_key (str): Key for accessing text data in the output dictionary.
+          hint_key (str): Key for accessing hint data in the output dictionary.
+          image_precached (bool): Whether to use pre-cached latent representations for images.
+          text_precached (bool): Whether to use pre-cached embeddings for text.
+          prompt_seq_len (int): Sequence length for text prompts.
+          pooled_prompt_dim (int): Dimensionality of pooled text embeddings.
+          context_dim (int): Dimensionality of the text embedding context.
+          vae_scale_factor (int): Scaling factor for the VAE latent representation.
+          vae_channels (int): Number of channels in the VAE latent representation.
+          latent_shape (tuple): Shape of the latent representation for images (if pre-cached).
+          prompt_embeds_shape (tuple): Shape of the text prompt embeddings (if pre-cached).
+          pooped_prompt_embeds_shape (tuple): Shape of pooled text embeddings (if pre-cached).
+          text_ids_shape (tuple): Shape of the text token IDs (if pre-cached).
+
+      Methods:
+          __getitem__(index):
+              Retrieves a single sample from the dataset based on the specified index.
+          __len__():
+              Returns the total number of samples in the dataset.
+      """
     def __init__(
         self,
         image_H,
@@ -142,6 +227,28 @@ class _MockT2IDataset(Dataset):
             self.text_ids_shape = (prompt_seq_len, 3)
 
     def __getitem__(self, index):
+        """
+            Retrieves a single sample from the dataset.
+
+            The sample can include raw image and text data or pre-cached latent representations,
+            depending on the configuration.
+
+            Args:
+                index (int): Index of the sample to retrieve.
+
+            Returns:
+                dict: A dictionary containing the generated data sample. The keys and values
+                      depend on whether `image_precached` and `text_precached` are set.
+                      Possible keys include:
+                        - 'latents': Pre-cached latent representation of the image.
+                        - 'control_latents': Pre-cached control latent representation.
+                        - 'images': Raw image tensor.
+                        - 'hint': Hint tensor for the image.
+                        - 'prompt_embeds': Pre-cached text prompt embeddings.
+                        - 'pooled_prompt_embeds': Pooled text prompt embeddings.
+                        - 'text_ids': Text token IDs.
+                        - 'txt': Text input string (if text is not pre-cached).
+        """
         item = {}
         if self.image_precached:
             item['latents'] = torch.randn(self.latent_shape)
@@ -160,4 +267,10 @@ class _MockT2IDataset(Dataset):
         return item
 
     def __len__(self):
+        """
+        Returns the total number of samples in the dataset.
+
+        Returns:
+            int: Total number of samples (`length` attribute).
+        """
         return self.length

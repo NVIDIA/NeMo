@@ -136,6 +136,9 @@ class AdaLN(MegatronModule):
 
 
 class AdaLNContinuous(MegatronModule):
+    '''
+    A variant of AdaLN used for flux models.
+    '''
     def __init__(
         self,
         config: TransformerConfig,

@@ -144,6 +144,23 @@ class Timesteps(nn.Module):
 
 
 class TimeStepEmbedder(nn.Module):
+    """
+    A neural network module that embeds timesteps for use in models such as diffusion models.
+    It projects the input timesteps to a higher-dimensional space and then embeds them using
+    an MLP (Multilayer Perceptron). The projection and embedding provide a learned representation
+    of the timestep that can be used in further computations.
+
+    Args:
+        embedding_dim (int): The dimensionality of the timestep embedding space.
+        hidden_dim (int): The dimensionality of the hidden layer in the MLPEmbedder.
+        flip_sin_to_cos (bool, optional): Whether to flip the sine and cosine components during the projection (default is True).
+        downscale_freq_shift (float, optional): A scaling factor for the frequency shift during the projection (default is 0).
+        scale (float, optional): A scaling factor applied to the timestep projections (default is 1).
+        max_period (int, optional): The maximum period for the sine and cosine functions used in projection (default is 10000).
+
+    Methods:
+        forward: Takes a tensor of timesteps and returns their embedded representation.
+    """
     def __init__(
         self,
         embedding_dim: int,

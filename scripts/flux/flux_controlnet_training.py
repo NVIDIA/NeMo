@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import os
 
 import nemo_run as run
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import WandbLogger
-from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -33,17 +30,12 @@ from nemo.collections.diffusion.models.flux.model import (
     ClipConfig,
     FluxConfig,
     FluxModelParams,
-    MegatronFluxModel,
     T5Config,
 )
 from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig, MegatronFluxControlNetModel
-from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
-from nemo.lightning.pytorch.optim import WarmupHoldPolicyScheduler
-from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.utils.exp_manager import PreemptionCallback, TimingCallback
+from nemo.utils.exp_manager import TimingCallback
 
 
 @run.cli.factory
@@ -155,6 +147,10 @@ def flux_controlnet_training() -> run.Partial:
 
 @run.cli.factory(target=llm.train)
 def convergence_test() -> run.Partial:
+    '''
+        A convergence recipe with real data loader.
+        Image and text embedding calculated on the fly.
+    '''
     recipe = flux_controlnet_training()
     recipe.model.flux_params.t5_params = run.Config(T5Config, version='/ckpts/text_encoder_2')
     recipe.model.flux_params.clip_params = run.Config(ClipConfig, version='/ckpts/text_encoder')
@@ -170,31 +166,17 @@ def convergence_test() -> run.Partial:
     return recipe
 
 
-@run.cli.factory(target=llm.train)
-def full_model_tp2_dp4_mock() -> run.Partial:
-    recipe = flux_controlnet_training()
-    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
-    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
-    recipe.model.flux_params.vae_config = (
-        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
-    )
-    recipe.model.flux_params.device = 'cuda'
-    recipe.trainer.strategy.tensor_model_parallel_size = 2
-    recipe.trainer.devices = 8
-    recipe.data.global_batch_size = 8
-    recipe.trainer.callbacks.append(run.Config(NsysCallback, start_step=10, end_step=11, gen_shape=True))
-    recipe.model.flux_controlnet_config.num_single_layers = 10
-    recipe.model.flux_controlnet_config.num_joint_layers = 4
-    return recipe
-
 
 @run.cli.factory(target=llm.train)
 def full_model_tp2_dp4_mock() -> run.Partial:
+    '''
+        An example recipe uses tp 2 dp 4 with mock dataset.
+    '''
     recipe = flux_controlnet_training()
-    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
-    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    recipe.model.flux_params.t5_params = None
+    recipe.model.flux_params.clip_params = None
     recipe.model.flux_params.vae_config = (
-        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+        None
     )
     recipe.model.flux_params.device = 'cuda'
     recipe.trainer.strategy.tensor_model_parallel_size = 2
@@ -208,12 +190,16 @@ def full_model_tp2_dp4_mock() -> run.Partial:
 
 @run.cli.factory(target=llm.train)
 def unit_test() -> run.Partial:
-    '''Basic functional test, with mock dataset, text/vae encoders not initialized, ddp strategy, frozen and trainable layers both set to 1'''
+    '''
+        Basic functional test, with mock dataset,
+        text/vae encoders not initialized, ddp strategy,
+        frozen and trainable layers both set to 1
+    '''
     recipe = flux_controlnet_training()
-    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
-    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    recipe.model.flux_params.t5_params = None
+    recipe.model.flux_params.clip_params = None
     recipe.model.flux_params.vae_config = (
-        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+        None
     )
     recipe.model.flux_params.device = 'cuda'
     recipe.model.flux_params.flux_config = run.Config(

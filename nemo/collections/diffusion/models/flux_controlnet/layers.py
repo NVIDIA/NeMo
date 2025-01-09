@@ -34,6 +34,14 @@ class ControlNetConditioningEmbedding(nn.Module):
         conditioning_channels: int = 3,
         block_out_channels: Tuple[int, ...] = (16, 32, 96, 256),
     ):
+        """
+        Initializes the model with convolutional layers for processing conditioning inputs.
+
+        Args:
+            conditioning_embedding_channels (int): Number of output channels for the conditioning embedding.
+            conditioning_channels (int): Number of input channels for the conditioning data. Default is 3.
+            block_out_channels (Tuple[int, ...]): Tuple specifying the output channels for each block. Default is (16, 32, 96, 256).
+        """
         super().__init__()
 
         self.conv_in = nn.Conv2d(conditioning_channels, block_out_channels[0], kernel_size=3, padding=1)
@@ -51,6 +59,15 @@ class ControlNetConditioningEmbedding(nn.Module):
         )
 
     def forward(self, conditioning):
+        """
+        Passes the conditioning input through the model to produce an embedding.
+
+        Args:
+            conditioning (torch.Tensor): Input tensor representing conditioning data.
+
+        Returns:
+            torch.Tensor: The resulting embedding tensor after processing through the network.
+        """
         embedding = self.conv_in(conditioning)
         embedding = F.silu(embedding)
 

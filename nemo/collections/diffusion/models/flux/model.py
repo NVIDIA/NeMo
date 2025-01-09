@@ -128,6 +128,38 @@ class FluxModelParams:
 
 
 class Flux(VisionModule):
+    """
+        NeMo implementation of Flux model, with flux transformer and single flux transformer blocks implemented with
+        Megatron Core.
+
+        Args:
+            config (FluxConfig): Configuration object containing the necessary parameters for setting up the model,
+                                  such as the number of channels, hidden size, attention heads, and more.
+
+        Attributes:
+            out_channels (int): The number of output channels for the model.
+            hidden_size (int): The size of the hidden layers.
+            num_attention_heads (int): The number of attention heads for the transformer.
+            patch_size (int): The size of the image patches.
+            in_channels (int): The number of input channels for the image.
+            guidance_embed (bool): A flag to indicate if guidance embedding should be used.
+            pos_embed (EmbedND): Position embedding layer for the model.
+            img_embed (nn.Linear): Linear layer to embed image input into the hidden space.
+            txt_embed (nn.Linear): Linear layer to embed text input into the hidden space.
+            timestep_embedding (TimeStepEmbedder): Embedding layer for timesteps, used in generative models.
+            vector_embedding (MLPEmbedder): MLP embedding for vector inputs.
+            guidance_embedding (nn.Module or nn.Identity): Optional MLP embedding for guidance, or identity if not used.
+            double_blocks (nn.ModuleList): A list of transformer blocks for the double block layers.
+            single_blocks (nn.ModuleList): A list of transformer blocks for the single block layers.
+            norm_out (AdaLNContinuous): Normalization layer for the output.
+            proj_out (nn.Linear): Final linear layer for output projection.
+
+        Methods:
+            forward: Performs a forward pass through the network, processing images, text, timesteps, and guidance.
+            load_from_pretrained: Loads model weights from a pretrained checkpoint, with optional support for distribution
+                                  and conversion from Hugging Face format.
+
+        """
     def __init__(self, config: FluxConfig):
 
         super().__init__(config)
@@ -194,6 +226,23 @@ class Flux(VisionModule):
         controlnet_double_block_samples: torch.Tensor = None,
         controlnet_single_block_samples: torch.Tensor = None,
     ):
+        """
+            Forward pass through the model, processing image, text, and additional inputs like guidance and timesteps.
+
+            Args:
+                img (torch.Tensor): The image input tensor.
+                txt (torch.Tensor, optional): The text input tensor (default is None).
+                y (torch.Tensor, optional): The vector input for embedding (default is None).
+                timesteps (torch.LongTensor, optional): The timestep input, typically used in generative models (default is None).
+                img_ids (torch.Tensor, optional): Image IDs for positional encoding (default is None).
+                txt_ids (torch.Tensor, optional): Text IDs for positional encoding (default is None).
+                guidance (torch.Tensor, optional): Guidance input for conditioning (default is None).
+                controlnet_double_block_samples (torch.Tensor, optional): Optional controlnet samples for double blocks (default is None).
+                controlnet_single_block_samples (torch.Tensor, optional): Optional controlnet samples for single blocks (default is None).
+
+            Returns:
+                torch.Tensor: The final output tensor from the model after processing all inputs.
+        """
         hidden_states = self.img_embed(img)
         encoder_hidden_states = self.txt_embed(txt)
 
@@ -278,11 +327,18 @@ class Flux(VisionModule):
 
 
 class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+    '''
+        Megatron wrapper for flux.
+
+        Args:
+            flux_params (FluxModelParams): Parameters to configure the Flux model.
+    '''
     def __init__(
         self,
         flux_params: FluxModelParams,
         optim: Optional[OptimizerModule] = None,
     ):
+        # pylint: disable=C0116
         self.params = flux_params
         self.config = flux_params.flux_config
         super().__init__()
@@ -559,14 +615,21 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
 
     @property
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
+        # pylint: disable=C0116
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
 
         return self._validation_loss_reduction
 
 
+
 @io.model_importer(MegatronFluxModel, "hf")
 class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronFluxModel]):
+    '''
+    Convert a HF ckpt into NeMo dist-ckpt compatible format.
+    '''
+
+    # pylint: disable=C0116
     def init(self) -> MegatronFluxModel:
         return MegatronFluxModel(self.config)
 
@@ -773,3 +836,4 @@ def transform_single_proj_out(proj_weight):
     linear_fc2 = proj_weight.detach()[:, 3072:].clone()
     linear_proj = proj_weight.detach()[:, :3072].clone()
     return linear_fc2, linear_proj
+# pylint: disable=C0116
