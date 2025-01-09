@@ -30,6 +30,7 @@ from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
+
 def slurm_executor(
     account: str,
     partition: str,
@@ -76,7 +77,7 @@ def slurm_executor(
         mounts.extend([f"{nemo_home}:{nemo_home}"])
     if hf_token is not None:
         env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
-    
+
     env_vars |= custom_env_vars
     mounts.extend(custom_mounts)
     srun_args.extend(custom_srun_args)
@@ -146,7 +147,7 @@ def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadD
         metadata_filename = f"train_{data_config.seq_length}_metadata.jsonl"
 
         train_pack_metadata_filepath = os.path.join(datasets_dir, "squad", "packed", model_dir, metadata_filename)
-    
+
     return os.path.exists(train_pack_metadata_filepath) and os.path.isfile(train_pack_metadata_filepath)
 
 
@@ -248,8 +249,7 @@ def parse_cli_args():
     nemo_home_msg = [
         "Directory where NeMo searches for models and checkpoints.",
         "This saves a lot of time (especially for bigger models) if checkpoints already exist here.",
-        "Missing files will be downloaded from HuggingFace., "
-        f"Defaults to {DEFAULT_NEMO_HOME}",
+        "Missing files will be downloaded from HuggingFace., " f"Defaults to {DEFAULT_NEMO_HOME}",
     ]
     parser.add_argument(
         "-nh",
