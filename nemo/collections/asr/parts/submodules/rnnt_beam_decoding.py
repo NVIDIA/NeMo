@@ -308,6 +308,8 @@ class BeamRNNTInfer(Typing):
             # self.search_algorithm = self.nsc_beam_search
         elif search_type == "maes":
             if use_kenlm:
+                print("#"*100)
+                print(use_kenlm)
                 self.search_algorithm = self.modified_adaptive_expansion_search
             else:
                 self.search_algorithm = self.modified_adaptive_expansion_search_gpu_lm
