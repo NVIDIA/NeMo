@@ -32,18 +32,6 @@
       <br><br>
     </details>
 </details>
-<details open>
-  <summary><b>Generative AI Models</b></summary>
-    <details>
-      <summary>
-        <a href="https://developer.nvidia.com/blog/state-of-the-art-multimodal-generative-ai-model-development-with-nvidia-nemo/">
-          State-of-the-Art Multimodal Generative AI Model Development with NVIDIA NeMo
-        </a> (2024-11-06)
-      </summary>
-        NVIDIA recently announced significant enhancements to the NeMo platform, focusing on multimodal generative AI models. The update includes NeMo Curator and the Cosmos tokenizer, which streamline the data curation process and enhance the quality of visual data. These tools are designed to handle large-scale data efficiently, making it easier to develop high-quality AI models for various applications, including robotics and autonomous driving. The Cosmos tokenizers, in particular, efficiently map visual data into compact, semantic tokens, which is crucial for training large-scale generative models. The tokenizer is available now on the <a href=http://github.com/NVIDIA/cosmos-tokenizer/NVIDIA/cosmos-tokenizer>NVIDIA/cosmos-tokenizer</a> GitHub repo and on <a href=https://huggingface.co/nvidia/Cosmos-Tokenizer-CV8x8x8>Hugging Face</a>.
-      <br><br>
-    </details>
-</details>
 
 <details open>
   <summary><b>Large Language Models and Multimodal Models</b></summary>
@@ -203,6 +191,19 @@ The Cosmos Tokenizer is available now on the <a href=http://github.com/NVIDIA/co
 - To transition from NeMo 1.0 to 2.0, see the [Migration Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/index.html#migration-guide) for step-by-step instructions.
 
 ## LLMs and MMs Training, Alignment, and Customization
+
+<details open>
+  <summary><b>Generative AI Models</b></summary>
+    <details>
+      <summary>
+        <a href="https://developer.nvidia.com/blog/state-of-the-art-multimodal-generative-ai-model-development-with-nvidia-nemo/">
+          State-of-the-Art Multimodal Generative AI Model Development with NVIDIA NeMo
+        </a> (2024-11-06)
+      </summary>
+        NVIDIA recently announced significant enhancements to the NeMo platform, focusing on multimodal generative AI models. The update includes NeMo Curator and the Cosmos tokenizer, which streamline the data curation process and enhance the quality of visual data. These tools are designed to handle large-scale data efficiently, making it easier to develop high-quality AI models for various applications, including robotics and autonomous driving. The Cosmos tokenizers, in particular, efficiently map visual data into compact, semantic tokens, which is crucial for training large-scale generative models. The tokenizer is available now on the <a href=http://github.com/NVIDIA/cosmos-tokenizer/NVIDIA/cosmos-tokenizer>NVIDIA/cosmos-tokenizer</a> GitHub repo and on <a href=https://huggingface.co/nvidia/Cosmos-Tokenizer-CV8x8x8>Hugging Face</a>.
+      <br><br>
+    </details>
+</details>
 
 All NeMo models are trained with
 [Lightning](https://github.com/Lightning-AI/lightning). Training is
