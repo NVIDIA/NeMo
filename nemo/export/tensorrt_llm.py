@@ -1190,10 +1190,13 @@ class TensorRTLLM(ITritonDeployable):
 
             if generation_logits_available:
                 output_texts, generation_logits = self.forward(**infer_input)
-                output_dict["generation_logits"] = np.array(generation_logits.cpu().numpy())
+                # generation_logits is a 4d tensor of dim [1,1,#generated_tokens, vocab_size], return just the 3d tensor
+                # in output dict.
+                output_dict["generation_logits"] = np.array(generation_logits[0].cpu().numpy())
             elif context_logits_available:
                 output_texts, context_logits = self.forward(**infer_input)
-                ## context logits is avaiable as [torch.tensor(x.xx,y.sd...)]
+                # convert context logits to 3d tensor from list since its avaiable as a list of tensor shaped
+                # [#tokens, vocab_size]
                 context_logits = context_logits[0].unsqueeze(0)
                 output_dict["context_logits"] = np.array(context_logits.cpu().numpy())
             else:

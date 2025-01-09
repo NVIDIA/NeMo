@@ -53,8 +53,10 @@ class NeMoFWLMEval(LM):
         output_context_logits = False
         output_generation_logits= False
         if single_prediction_token:
+            # In case of single token prediction return the generation logits
             output_generation_logits=True
         else:
+            # In case of multiple token prediction return the context logits
             output_context_logits=True
         response = nq.query_llm(
             prompts=payload['prompt'] if isinstance(payload['prompt'], list) else [payload['prompt']],
@@ -106,7 +108,9 @@ class NeMoFWLMEval(LM):
         single_prediction_token = False
         # Assuming evaluating on only one benchmark/task at a time, hence all instances in requests are of the same
         # task.
-        if requests[0].task_name in ['mmlu', 'lambada_openai', 'lambada_standard']:
+        mmlu_regex_pattern = r"^mmlu_"
+        lambada_regex_pattern = r"^lambada_"
+        if re.match(mmlu_regex_pattern, requests[0].task_name) or re.match(lambada_regex_pattern, requests[0].task_name):
             single_prediction_token = True
 
         results = []
@@ -135,20 +139,14 @@ class NeMoFWLMEval(LM):
                 "top_k": self.top_k,
             }
             # Get the logits from the model
-            if single_prediction_token:
-                # Get only the generation logits and not context logits
-                logits = self._generate_tokens_logits(payload, single_prediction_token, return_logits=True)
-            else:
-                # Get context logits
-                logits = self._generate_tokens_logits(payload, single_prediction_token, return_logits=True)
-            # import numpy as np
-            # are_equal=np.array_equal(context_logits[0][len(context_logits[0])-1], generation_logits[0][0][0])
+            logits = self._generate_tokens_logits(payload, single_prediction_token, return_logits=True)
             # In case of multiple token prediction where full context logits are returned, get only logits
-            # corresponding to the continuation tokens from the context logits tensor.
+            # corresponding to the continuation tokens from the context logits tensor.context_logits contains logits
+            # for all tokens in the ip prompt along with the logit for the next token prediction after the final token
+            # in the prompt. Shape of context_logits: [1, #tokens_in_prompt+1, vocab_size]
             if not single_prediction_token:
                 logits = logits[:, -num_cont_tokens:, :]
             # Convert logits to torch tensor to easily get logprobs wo manual implementation of log_softmax
-            # logProbs = F.log_softmax(torch.tensor(generation_logits[0]), dim=-1)
             logProbs = F.log_softmax(torch.tensor(logits), dim=-1)
             # Convert encoded continuation tokens to torch tensor
             cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
