@@ -18,14 +18,27 @@
     </details>
   </details>
 
-<!-- TODO: publish Cosmos news announcement -->
+<details open>
+  <summary><b>New Cosmos World Foundation Models Support</b></summary>
+    <details>
+      <summary>
+        <a href="https://developer.nvidia.com/blog/accelerate-custom-video-foundation-model-pipelines-with-new-nvidia-nemo-framework-capabilities/">
+          Accelerate Custom Video Foundation Model Pipelines with New NVIDIA NeMo Framework Capabilities
+        </a> (2025-01-07)
+      </summary>
+        The NeMo Framework now supports training and customizing the <a href="https://github.com/NVIDIA/Cosmos">NVIDIA Cosmos</a> collection of world foundation models. Cosmos leverages advanced text-to-world generation techniques to create fluid, coherent video content from natural language prompts.
+        <br><br>
+        You can also now accelerate your video processing step using the <a href="https://developer.nvidia.com/nemo-curator-video-processing-early-access">NeMo Curator</a> library, which provides optimized video processing and captioning features that can deliver up to 89x faster video processing when compared to an unoptimized CPU pipeline.
+      <br><br>
+    </details>
+</details>
 <details open>
   <summary><b>Generative AI Models</b></summary>
     <details>
       <summary>
         <a href="https://developer.nvidia.com/blog/state-of-the-art-multimodal-generative-ai-model-development-with-nvidia-nemo/">
           State-of-the-Art Multimodal Generative AI Model Development with NVIDIA NeMo
-        </a> (2025-01-06)
+        </a> (2024-11-06)
       </summary>
         NVIDIA recently announced significant enhancements to the NeMo platform, focusing on multimodal generative AI models. The update includes NeMo Curator and the Cosmos tokenizer, which streamline the data curation process and enhance the quality of visual data. These tools are designed to handle large-scale data efficiently, making it easier to develop high-quality AI models for various applications, including robotics and autonomous driving. The Cosmos tokenizers, in particular, efficiently map visual data into compact, semantic tokens, which is crucial for training large-scale generative models. The tokenizer is available now on the <a href=http://github.com/NVIDIA/cosmos-tokenizer/NVIDIA/cosmos-tokenizer>NVIDIA/cosmos-tokenizer</a> GitHub repo and on <a href=https://huggingface.co/nvidia/Cosmos-Tokenizer-CV8x8x8>Hugging Face</a>.
       <br><br>
@@ -169,12 +182,11 @@ Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendl
 > [!IMPORTANT]  
 > NeMo 2.0 is currently supported by the LLM (large language model) and VLM (vision language model) collections.
 
-<!-- TODO: publish Cosmos subsection  -->
 ### Cosmos Diffusion and Autoregressive Models
 
 NVIDIA has made notable advancements in visual foundation models with the introduction of the Cosmos diffusion and autoregressive (AR) models. These models are designed to create high-quality visual content efficiently and effectively.
 
-- **Cosmos Diffusion Models**: Use continuous latent embeddings to generate images and videos by sampling from continuous distributions. This approach is particularly effective for tasks like image synthesis and video generation, providing high-quality outputs.
+- **Cosmos Diffusion Models**: Use continuous latent embeddings to generate videos by sampling from continuous distributions. This approach is particularly effective for tasks like image synthesis and video generation, providing high-quality outputs.
 
 - **Cosmos Autoregressive (AR) Models**: Employ discrete latent codes to generate visual data, optimizing cross-entropy loss. They are well-suited for sequential data generation tasks, such as video prediction and text-to-image generation.
 
