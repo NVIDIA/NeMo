@@ -15,25 +15,35 @@
 from typing import Optional
 
 import nemo_run as run
-from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor
+from utils import (
+    get_comm_overlap_callback_idx,
+    hf_tokenizer,
+    import_ckpt_experiment,
+    isfile_train_pack_metadata,
+    parse_cli_args,
+    slurm_executor,
+)
 
-from nemo.collections.llm.recipes.llama3_70b import pretrain_recipe
+from nemo.collections.llm.recipes.llama31_405b import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
 
-NUM_NODES = 8
+NUM_NODES = 3
 NUM_GPUS_PER_NODE = 8
 MICRO_BATCH_SIZE = 1
-GLOBAL_BATCH_SIZE = 128
+GLOBAL_BATCH_SIZE = 24
 TP_SIZE = 4
-PP_SIZE = 4
-CP_SIZE = 2
-VP_SIZE = 5
+PP_SIZE = 6
+CP_SIZE = 1
+VP_SIZE = 7
 MAX_STEPS = 100
 
+HF_MODEL_URI = "meta-llama/Llama-3.1-405B"
 
-def llama3_70b_performance_recipe(
+
+def llama31_405b_performance_recipe(
+    finetuning_scheme: str,
     compute_dtype: str,
     num_nodes: int,
     num_gpus_per_node: int,
@@ -46,17 +56,20 @@ def llama3_70b_performance_recipe(
     max_steps: int,
 ):
     """
-    llama3 70b pre-train recipe aimed at achieving best possible performance.
+    llama3.1 405b pre-train recipe aimed at achieving best possible performance.
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe(performance_mode=True)
+    finetuning_scheme = "none" if finetuning_scheme == "sft" else finetuning_scheme
+    recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
 
     # data module configs
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
-    recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
-    recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-70B")
+    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
+        # flag is valid only for SquadDataModule
+        recipe.data.force_redownload = True
 
     recipe.trainer.max_steps = max_steps
     recipe.trainer.num_nodes = num_nodes
@@ -77,22 +90,9 @@ def llama3_70b_performance_recipe(
     # compute dtype configs
     if compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.proj_fprop.fp8_buf = True
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.fc2_fprop.fp8_buf = True
-
     recipe.trainer.plugins.grad_reduce_in_fp32 = False  # bf16 grad dtype
 
     # callback configs
-    garbage_collection_callback = run.Config(
-        GarbageCollectionCallback,
-        gc_interval_train=100,
-        gc_interval_val=500,
-    )
-    recipe.trainer.callbacks.extend(
-        [
-            garbage_collection_callback,
-        ]
-    )
     dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
     if dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1:
         if comm_overlap_callback_idx >= 0:
@@ -112,7 +112,8 @@ if __name__ == "__main__":
 
     exp_name = "_".join(
         [
-            f"llama3_70b",
+            args.finetuning.lower(),
+            f"llama31_405b",
             args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",
@@ -129,11 +130,16 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=[],
-        custom_env_vars={},
-        retries=0,
+        custom_env_vars={
+            "NVTE_FUSED_ATTN": "0",
+            "NVTE_FLASH_ATTN": "1",
+        },
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home,
     )
 
-    recipe = llama3_70b_performance_recipe(
+    recipe = llama31_405b_performance_recipe(
+        args.finetuning.lower(),
         args.compute_dtype,
         NUM_NODES,
         NUM_GPUS_PER_NODE,
@@ -154,11 +160,12 @@ if __name__ == "__main__":
         # following line ensures file is at- `<log_dir>/lightning_logs/tb_logs/default/<tfevents_file>`
         recipe.log.log_dir = "/nemo_run/lightning_logs"
 
-    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152)]
+    plugins = [PerfEnvPlugin(enable_vboost=True)]
     if args.enable_profiling:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
     with run.Experiment(exp_name) as exp:
+        exp.add(*import_ckpt_experiment(NUM_NODES, executor, model(), source=f"hf://{HF_MODEL_URI}"))
         exp.add(
             recipe,
             executor=executor,

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -129,6 +129,14 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
 
 
 def import_ckpt_experiment(num_nodes: int, executor: run.SlurmExecutor, model: run.Config[GPTModel], source: str):
+    """
+    Downloads/Acceses checkpoint to be used for fine-tuning. `import_ckpt` first tries find the nemo checkpoint in
+    <NEMO_HOME>/models/. For eg: for llama3 8b, the path will look like- <NEMO_HOME>/models/meta-llama/Meta-Llama-3-8B
+    If missing, tries to downloads at the same location from HuggingFace and converts it nemo format.
+
+    Args:
+        source (str): HuggingFace URL. For eg- hf://meta-llama/Meta-Llama-3-70B
+    """
     from copy import deepcopy
 
     from nemo.collections.llm import import_ckpt
@@ -140,13 +148,16 @@ def import_ckpt_experiment(num_nodes: int, executor: run.SlurmExecutor, model: r
 
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]):
-    train_pack_metadata_filepath = ""
-    if data_config.__fn_or_cls__ == SquadDataModule:
-        datasets_dir = os.getenv("NEMO_DATASETS_CACHE", os.path.join(DEFAULT_NEMO_HOME, "datasets"))
-        model_dir = hf_model_uri.replace("/", "--")
-        metadata_filename = f"train_{data_config.seq_length}_metadata.jsonl"
+    """
+    This method is used for fine-tuning. It checks if packed train data for a partiular 
+    sequence length exists locally. This is needed to set data flag (force_redownload=True)
+    which avoids experiment crash in case files are missing.
+    """
+    datasets_dir = os.getenv("NEMO_DATASETS_CACHE", os.path.join(DEFAULT_NEMO_HOME, "datasets"))
+    model_dir = hf_model_uri.replace("/", "--")
+    metadata_filename = f"train_{data_config.seq_length}_metadata.jsonl"
 
-        train_pack_metadata_filepath = os.path.join(datasets_dir, "squad", "packed", model_dir, metadata_filename)
+    train_pack_metadata_filepath = os.path.join(datasets_dir, "squad", "packed", model_dir, metadata_filename)
 
     return os.path.exists(train_pack_metadata_filepath) and os.path.isfile(train_pack_metadata_filepath)
 

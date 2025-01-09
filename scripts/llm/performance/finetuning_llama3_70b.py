@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ from utils import (
 from nemo.collections.llm.recipes.llama3_70b import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
 
 NUM_NODES = 1
 NUM_GPUS_PER_NODE = 8
@@ -66,7 +67,8 @@ def llama3_70b_performance_recipe(
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    if not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
+    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
+        # flag is valid only for SquadDataModule
         recipe.data.force_redownload = True
 
     recipe.trainer.max_steps = max_steps
