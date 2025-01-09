@@ -29,6 +29,8 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 @dataclass
 class TransformCTX:
+    """Transform Data class Definition."""
+
     source: nn.Module
     source_state: dict
     target: nn.Module
@@ -41,6 +43,7 @@ def apply_transforms(
     target: TargetModuleT,
     mapping: Dict[str, str],
     transforms: Optional[List[Callable[[TransformCTX], TransformCTX]]] = [],
+    state_dict_ignored_entries: List = [],
 ) -> TargetModuleT:
     """
     Applies a series of transformations to adapt the state dictionary of a source module to
@@ -58,6 +61,11 @@ def apply_transforms(
         transforms (Optional[List[Callable[[TransformCTX], TransformCTX]]]): A list of functions
             that modify the `TransformCTX` object. If None, no transformations beyond key renaming
             are applied. Defaults to None.
+        state_dict_ignored_entries: List of entries to ignore in _target.state_dict(). There are cases
+            where multiple entries in model's state_dict point to one entry in model's named_parameter.
+            E.g., model has multiple pointers pointing to one shared parameters (`encoder.embed_tokens.weight`,
+            `decoder.embed_tokens.weight` and `shared.weight` all points to `shared.weight
+            in T5 Huggingface implementation.). In these cases, ignore redundant entries.
 
     Returns
     -------
@@ -164,6 +172,7 @@ def apply_transforms(
         _module.register_buffer(_key, val)
 
     keys = list(filter(lambda x: x is not None and not x.endswith("_extra_state"), target_state.keys()))
+    keys = [key for key in keys if key not in state_dict_ignored_entries]
     if len(keys) != 0:
         raise RuntimeError(f"Additional keys: {keys} in checkpoint but not in model.")
 
@@ -242,7 +251,12 @@ class StateDictTransform(Generic[F]):
             source_matches_dict = {k: _match_keys(list(source_dict.keys()), v) for k, v in source_key_dict.items()}
             target_matches = _match_keys(list(target_dict.keys()), target_key)
             param_names = list(filter(lambda x: x in source_matches_dict, fn_params))
-            for layer_names_group in zip(*([source_matches_dict[v] for v in param_names] + [target_matches])):
+            source_matches = [
+                source_matches_dict[v] if source_matches_dict[v].ndim > 0 else [source_matches_dict[v].item()]
+                for v in param_names
+            ]
+            target_matches = [target_matches if target_matches.ndim > 0 else [target_matches.item()]]
+            for layer_names_group in zip(*(source_matches + target_matches)):
                 # Wrap in a list if it's a single layer (ie non-expert)
                 if isinstance(layer_names_group[0], str):
                     layer_names_group = [[x] for x in layer_names_group]
@@ -327,6 +341,7 @@ class StateDictTransform(Generic[F]):
         return ctx
 
     def call_transform(self, ctx: TransformCTX, *args, **kwargs):
+        """Perform transform and check if the given args valid."""
         func_params = inspect.signature(self.transform).parameters
         expected_num_args = len([p for p in func_params if p not in ['self', 'ctx']])
         provided_num_args = len(args) + len(kwargs)
@@ -381,6 +396,9 @@ def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
     # Determine the shape of the output array based on the unique matches for each wildcard
     shape = [len(matches) for matches in wildcard_matches]
 
+    if len(wildcard_matches) == 0:
+        # If there is no wildcard matches, assuming it is a single match
+        shape = [1]
     # Initialize an empty array with the determined shape
     output_array = np.empty(shape, dtype=object)
 
@@ -448,3 +466,72 @@ def state_transform(
         return wrapper
 
     return wrapper(fn)
+
+
+class TransformFns:
+    """
+    A collection of common functions used in state dict transformation.
+    """
+
+    @staticmethod
+    def split_qkv(ctx: TransformCTX, linear_qkv):
+        """
+        Split interleave-concatenated qkv to q, k, v
+
+        Example: export layer linear_qkv to HF {q|k|v}_proj
+        """
+        megatron_config = ctx.source.config
+
+        head_num = megatron_config.num_attention_heads
+        num_query_groups = megatron_config.num_query_groups
+        heads_per_group = head_num // num_query_groups
+        # hidden_size = megatron_config.hidden_size
+        head_size = megatron_config.kv_channels
+        qkv_total_dim = head_num + 2 * num_query_groups
+
+        linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, -1])
+        # when converting base model (linear_qkv), hidden size = megatron_config.hidden_size
+        # when converting lora (linear_qkv.adapter.linear_out), hidden size = lora_r
+        hidden_size = linear_qkv.size(-1)
+        q_slice = torch.cat(
+            [
+                torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+                for i in range(num_query_groups)
+            ]
+        )
+        k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+        v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+        q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+        k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+        v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+        return q_proj, k_proj, v_proj
+
+    @staticmethod
+    def split_fc1(linear_fc1):
+        """
+        Split concatenated fc1 to gate and up proj
+
+        Example: export layer linear_fc1 to HF {gate|up}_proj
+        """
+        gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
+        return gate_proj, up_proj
+
+    @staticmethod
+    def duplicate2(param):
+        """
+        Duplicate the source parameter to two target parameters
+
+        Example: export Performant LoRA linear_fc1.adapter.linear_in to HF {gate|up}_proj.lora_A
+        """
+        return param, param
+
+    @staticmethod
+    def duplicate3(param):
+        """
+        Duplicate the source parameter to three target parameters
+
+        Example: export Performant LoRA linear_qkv.adapter.linear_in to HF {q|k|v}_proj.lora_A
+        """
+        return param, param, param

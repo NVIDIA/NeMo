@@ -15,14 +15,14 @@
 import logging
 from typing import Any, Dict, Literal
 
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS
 from megatron.core import parallel_state
 from megatron.energon import DefaultTaskEncoder, WorkerConfig, get_savable_loader, get_train_dataset
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS
 
-from nemo.collections.multimodal.data.energon.base import SimpleMultiModalDataModule
+from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
 
 
-class DiffusionDataModule(SimpleMultiModalDataModule):
+class DiffusionDataModule(EnergonMultiModalDataModule):
     """
     A PyTorch Lightning DataModule for handling multimodal datasets with images and text.
 
@@ -62,7 +62,7 @@ class DiffusionDataModule(SimpleMultiModalDataModule):
         max_samples_per_sequence: int | None = None,
     ) -> None:
         """
-        Initialize the SimpleMultiModalDataModule.
+        Initialize the EnergonMultiModalDataModule.
 
         Parameters:
         path (str): Path to the dataset.
