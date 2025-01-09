@@ -355,10 +355,11 @@ def main():
     tps_thresholds = "[" + ",".join(f"{t:.2f}" for t in tps_thresholds) + "]"
     if not args.quiet:
         duration_filter.print_report()
-        print("Use the following options in your config:")
+    print("Use the following options in your config:")
     print(f"\tuse_bucketing=1")
     print(f"\tnum_buckets={args.buckets}")
     print(f"\tbucket_duration_bins={duration_bins}")
+    print(f"The max_tps setting below is optional, use it if your data has low quality long transcript outliers:")
     print(f"\tmax_tps={tps_thresholds}")
 
 

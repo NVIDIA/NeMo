@@ -77,7 +77,8 @@ class LhotseDataLoadingConfig:
     cuts_path: str | None = None
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
     #  Enable this to support dataloading from JSON manifests that reference subsets of audio tar files.
-    tarred_random_access: bool = False
+    skip_missing_manifest_entries: bool = False
+    tarred_random_access: bool = False  # deprecated, replaced by: skip_missing_manifest_entries
     # 2. Batch size.
     #   a. Existing NeMo options.
     batch_size: int | None = None
@@ -708,26 +709,25 @@ def make_structured_with_schema_warnings(config: DictConfig | dict) -> DictConfi
     if not isinstance(config, DictConfig):
         config = DictConfig(config)
 
+    if config.get("tarred_random_access", False):
+        warnings.warn(
+            "Option 'tarred_random_access' is deprecated and replaced with 'skip_missing_manifest_entries'.",
+            category=DeprecationWarning,
+        )
+        config.skip_missing_manifest_entries = True
+
     # Remove unsupported keys and warn about them.
     supported_keys = set(OmegaConf.to_container(default).keys())
     received_keys = set(OmegaConf.to_container(config).keys())
     unsupported_keys = received_keys - supported_keys
     if unsupported_keys:
         warnings.warn(
-            f"The following configuration keys are no longer supported " f"and ignored: {','.join(unsupported_keys)}",
+            f"The following configuration keys are no longer supported and ignored: {','.join(unsupported_keys)}",
             category=DeprecationWarning,
         )
     config = OmegaConf.masked_copy(config, list(supported_keys))
 
     return OmegaConf.merge(default, config)
-
-
-def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
-    assert not (
-        config.force_map_dataset and config.force_iterable_dataset
-    ), "Conflicting options: force_map_dataset=True and force_iterable_dataset=True"
-    use_iterable_dataset = (use_iterable_dataset or config.force_iterable_dataset) and not config.force_map_dataset
-    return use_iterable_dataset
 
 
 def tokenize(example, tokenizer):
