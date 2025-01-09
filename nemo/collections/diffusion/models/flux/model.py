@@ -50,7 +50,7 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 
-
+# pylint: disable=C0116
 def flux_data_step(dataloader_iter):
     # latents = torch.randn(4096, b, 64)
     # prompt_embeds = torch.randn(256, b, 4096)
@@ -125,7 +125,7 @@ class FluxModelParams:
     t5_params: T5Config = T5Config()
     scheduler_steps: int = 1000
     device: str = 'cuda'
-
+# pylint: disable=C0116
 
 class Flux(VisionModule):
     """
@@ -162,7 +162,7 @@ class Flux(VisionModule):
     """
 
     def __init__(self, config: FluxConfig):
-
+        # pylint: disable=C0116
         super().__init__(config)
         self.out_channels = config.in_channels
         self.hidden_size = config.hidden_size
@@ -231,15 +231,24 @@ class Flux(VisionModule):
         Forward pass through the model, processing image, text, and additional inputs like guidance and timesteps.
 
         Args:
-            img (torch.Tensor): The image input tensor.
-            txt (torch.Tensor, optional): The text input tensor (default is None).
-            y (torch.Tensor, optional): The vector input for embedding (default is None).
-            timesteps (torch.LongTensor, optional): The timestep input, typically used in generative models (default is None).
-            img_ids (torch.Tensor, optional): Image IDs for positional encoding (default is None).
-            txt_ids (torch.Tensor, optional): Text IDs for positional encoding (default is None).
-            guidance (torch.Tensor, optional): Guidance input for conditioning (default is None).
-            controlnet_double_block_samples (torch.Tensor, optional): Optional controlnet samples for double blocks (default is None).
-            controlnet_single_block_samples (torch.Tensor, optional): Optional controlnet samples for single blocks (default is None).
+            img (torch.Tensor):
+                The image input tensor.
+            txt (torch.Tensor, optional):
+                The text input tensor (default is None).
+            y (torch.Tensor, optional):
+                The vector input for embedding (default is None).
+            timesteps (torch.LongTensor, optional):
+                The timestep input, typically used in generative models (default is None).
+            img_ids (torch.Tensor, optional):
+                Image IDs for positional encoding (default is None).
+            txt_ids (torch.Tensor, optional):
+                Text IDs for positional encoding (default is None).
+            guidance (torch.Tensor, optional):
+                Guidance input for conditioning (default is None).
+            controlnet_double_block_samples (torch.Tensor, optional):
+                Optional controlnet samples for double blocks (default is None).
+            controlnet_single_block_samples (torch.Tensor, optional):
+                Optional controlnet samples for single blocks (default is None).
 
         Returns:
             torch.Tensor: The final output tensor from the model after processing all inputs.
@@ -299,6 +308,7 @@ class Flux(VisionModule):
     def load_from_pretrained(
         self, ckpt_path, do_convert_from_hf=False, save_converted_model_to=None, load_dist_ckpt=False
     ):
+        # pylint: disable=C0116
         if load_dist_ckpt:
             from megatron.core import dist_checkpointing
 
@@ -321,7 +331,8 @@ class Flux(VisionModule):
         # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
-                f"The following keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
+                f"The following keys are missing during checkpoint loading, "
+                f"please check the ckpt provided or the image quality may be compromised.\n {missing}"
             )
             logging.info(f"Found unexepected keys: \n {unexpected}")
         logging.info(f"Restored flux model weights from {ckpt_path}")
@@ -357,6 +368,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         self.image_precached = self.vae_config is None
 
     def configure_model(self):
+        # pylint: disable=C0116
         if not hasattr(self, "module"):
             self.module = self.config.configure_model()
         self.configure_vae(self.vae_config)
@@ -372,11 +384,13 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
                 param.requires_grad = False
 
     def configure_scheduler(self):
+        # pylint: disable=C0116
         self.scheduler = FlowMatchEulerDiscreteScheduler(
             num_train_timesteps=self.params.scheduler_steps,
         )
 
     def configure_vae(self, vae):
+        # pylint: disable=C0116
         if isinstance(vae, nn.Module):
             self.vae = vae.eval().cuda()
             self.vae_scale_factor = 2 ** (len(self.vae.params.ch_mult))
@@ -393,6 +407,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             self.vae_scale_factor = 16
 
     def configure_text_encoders(self, clip, t5):
+        # pylint: disable=C0116
         if isinstance(clip, nn.Module):
             self.clip = clip
         elif isinstance(clip, ClipConfig):
@@ -416,6 +431,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             logging.info("T5 encoder not provided, assuming the text embeddings is precached...")
             self.t5 = None
 
+    # pylint: disable=C0116
     def data_step(self, dataloader_iter):
         return self.config.data_step_fn(dataloader_iter)
 
@@ -431,7 +447,9 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
 
         return self.forward_step(batch)
 
+    # pylint: disable=C0116
     def forward_step(self, batch) -> torch.Tensor:
+        # pylint: disable=C0116
         if self.optim.config.bf16:
             self.autocast_dtype = torch.bfloat16
         elif self.optim.config.fp16:
@@ -482,6 +500,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         return loss
 
     def encode_prompt(self, prompt, device='cuda', dtype=torch.float32):
+        # pylint: disable=C0116
         prompt_embeds = self.t5(prompt).transpose(0, 1)
         _, pooled_prompt_embeds = self.clip(prompt)
         text_ids = torch.zeros(prompt_embeds.shape[1], prompt_embeds.shape[0], 3).to(device=device, dtype=dtype)
@@ -515,6 +534,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         return u
 
     def prepare_image_latent(self, latents):
+        # pylint: disable=C0116
         latent_image_ids = self._prepare_latent_image_ids(
             latents.shape[0],
             latents.shape[2],
@@ -570,6 +590,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         )
 
     def _unpack_latents(self, latents, height, width, vae_scale_factor):
+        # pylint: disable=C0116
         batch_size, num_patches, channels = latents.shape
 
         height = height // vae_scale_factor
@@ -585,6 +606,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
     def _prepare_latent_image_ids(
         self, batch_size: int, height: int, width: int, device: torch.device, dtype: torch.dtype
     ):
+        # pylint: disable=C0116
         latent_image_ids = torch.zeros(height // 2, width // 2, 3)
         latent_image_ids[..., 1] = latent_image_ids[..., 1] + torch.arange(height // 2)[:, None]
         latent_image_ids[..., 2] = latent_image_ids[..., 2] + torch.arange(width // 2)[None, :]
@@ -599,6 +621,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         return latent_image_ids.to(device=device, dtype=dtype)
 
     def _pack_latents(self, latents, batch_size, num_channels_latents, height, width):
+        # pylint: disable=C0116
         latents = latents.view(batch_size, num_channels_latents, height // 2, 2, width // 2, 2)
         latents = latents.permute(0, 2, 4, 1, 3, 5)
         latents = latents.reshape(batch_size, (height // 2) * (width // 2), num_channels_latents * 4)
@@ -606,10 +629,12 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         return latents
 
     def set_input_tensor(self, tensor):
+        # pylint: disable=C0116
         pass
 
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
+        # pylint: disable=C0116
         if not self._training_loss_reduction:
             self._training_loss_reduction = MaskedTokenLossReduction()
 
@@ -617,6 +642,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
 
     @property
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
+        # pylint: disable=C0116
         # pylint: disable=C0116
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)

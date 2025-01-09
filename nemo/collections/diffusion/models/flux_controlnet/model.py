@@ -89,11 +89,12 @@ class FluxControlNetConfig(TransformerConfig, io.IOMixin):
 
 class FluxControlNet(VisionModule):
     """
-    A VisionModule-based neural network designed for Flux ControlNet tasks. It includes mechanisms for image and text embedding,
-    positional encoding, and various transformer-based layers for joint and single processing.
+    A VisionModule-based neural network designed for Flux ControlNet tasks.
+
 
     Args:
-        config (FluxControlNetConfig): Configuration object containing model parameters such as input channels, hidden size, patch size,
+        config (FluxControlNetConfig):
+        Configuration object containing model parameters such as input channels, hidden size, patch size,
             and number of transformer layers.
     """
 
@@ -302,13 +303,20 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
         flux_controlnet_config (FluxControlNetConfig): Configuration specific to the FluxControlNet.
 
     Methods:
-        configure_model: Configures the model by wrapping the FluxControlNet with the appropriate layers and settings,
-                          configuring the VAE, scheduler, and text encoders, and controlling gradient requirements for certain parameters.
-        data_step: A wrapper around the data-step function specific to FluxControlNet, controlling how data is processed.
-        forward: Executes a forward pass through FluxControlNet.
-        training_step: A wrapper step method that calls forward_step with a data batch from data loader.
-        forward_step: Handles the forward pass specific to training, computing the model's output.
-        validation_step: Calls inference pipeline with current model weights and output inference result together with the control image.
+        configure_model:
+            Configures the model by wrapping the FluxControlNet with the appropriate layers and settings,
+            configuring the VAE, scheduler, and text encoders.
+        data_step:
+            A wrapper around the data-step function specific to FluxControlNet, controlling how data is processed.
+        forward:
+            Executes a forward pass through FluxControlNet.
+        training_step:
+            A wrapper step method that calls forward_step with a data batch from data loader.
+        forward_step:
+            Handles the forward pass specific to training, computing the model's output.
+        validation_step:
+            Calls inference pipeline with current model weights and save inference result together with the control
+            image.
     """
 
     def __init__(self, flux_params: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):

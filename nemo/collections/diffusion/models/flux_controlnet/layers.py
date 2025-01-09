@@ -14,7 +14,6 @@
 
 from typing import Tuple
 
-import torch
 import torch.nn as nn
 
 
@@ -38,9 +37,12 @@ class ControlNetConditioningEmbedding(nn.Module):
         Initializes the model with convolutional layers for processing conditioning inputs.
 
         Args:
-            conditioning_embedding_channels (int): Number of output channels for the conditioning embedding.
-            conditioning_channels (int): Number of input channels for the conditioning data. Default is 3.
-            block_out_channels (Tuple[int, ...]): Tuple specifying the output channels for each block. Default is (16, 32, 96, 256).
+            conditioning_embedding_channels (int):
+                Number of output channels for the conditioning embedding.
+            conditioning_channels (int):
+                Number of input channels for the conditioning data. Default is 3.
+            block_out_channels (Tuple[int, ...]):
+                Tuple specifying the output channels for each block. Default is (16, 32, 96, 256).
         """
         super().__init__()
 

@@ -137,6 +137,7 @@ flux_key_mapping = {
 
 
 def flux_transformer_converter(ckpt_path=None, transformer_config=None):
+    # pylint: disable=C0116
     diffuser_state_dict = {}
     if os.path.isdir(ckpt_path):
         files = os.listdir(ckpt_path)

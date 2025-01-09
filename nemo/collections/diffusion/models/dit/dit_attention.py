@@ -22,7 +22,7 @@ class JointSelfAttentionSubmodules:
     added_q_layernorm: Union[ModuleSpec, type] = None
     added_k_layernorm: Union[ModuleSpec, type] = None
 
-
+# pylint: disable=C0116
 class JointSelfAttention(Attention):
     """Joint Self-attention layer class
 
@@ -453,3 +453,4 @@ class FluxSingleAttention(SelfAttention):
 
         output, _ = self.linear_proj(core_attn_out)
         return output
+# pylint: disable=C0116

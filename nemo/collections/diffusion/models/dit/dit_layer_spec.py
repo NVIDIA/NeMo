@@ -48,7 +48,7 @@ from nemo.collections.diffusion.models.dit.dit_attention import (
     JointSelfAttentionSubmodules,
 )
 
-
+# pylint: disable=C0116
 @dataclass
 class DiTWithAdaLNSubmodules(TransformerLayerSubmodules):
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
@@ -195,7 +195,8 @@ class STDiTLayerWithAdaLN(TransformerLayer):
         )
 
         # Override Spatial Self Attention and Cross Attention to disable CP.
-        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to incorrect tensor shapes.
+        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to
+        # incorrect tensor shapes.
         sa_cp_override_config = copy.deepcopy(config)
         sa_cp_override_config.context_parallel_size = 1
         sa_cp_override_config.tp_comm_overlap = False
@@ -235,7 +236,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
         # timestep embedding
         timestep_emb = attention_mask
 
-        # ******************************************** spatial self attention ******************************************************
+        # ******************************************** spatial self attention *****************************************
 
         shift_sa, scale_sa, gate_sa = self.adaLN(timestep_emb)
 
@@ -250,7 +251,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
             # packed_seq_params=packed_seq_params['self_attention'],
         )
 
-        # ******************************************** full self attention *************************************************
+        # ******************************************** full self attention ********************************************
 
         shift_full, scale_full, gate_full = self.adaLN(timestep_emb)
 
@@ -269,7 +270,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
             # packed_seq_params=packed_seq_params['self_attention'],
         )
 
-        # ******************************************** cross attention *****************************************************
+        # ******************************************** cross attention ************************************************
 
         shift_ca, scale_ca, gate_ca = self.adaLN(timestep_emb)
 
@@ -289,7 +290,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
             # packed_seq_params=packed_seq_params['cross_attention'],
         )
 
-        # ******************************************** temporal self attention *********************************************
+        # ******************************************** temporal self attention ****************************************
 
         shift_ta, scale_ta, gate_ta = self.adaLN(timestep_emb)
 
@@ -307,7 +308,7 @@ class STDiTLayerWithAdaLN(TransformerLayer):
             # packed_seq_params=packed_seq_params['self_attention'],
         )
 
-        # ******************************************** mlp *****************************************************************
+        # ******************************************** mlp ************************************************************
 
         shift_mlp, scale_mlp, gate_mlp = self.adaLN(timestep_emb)
 
@@ -363,7 +364,8 @@ class DiTLayerWithAdaLN(TransformerLayer):
         )
 
         # Override Cross Attention to disable CP.
-        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to incorrect tensor shapes.
+        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to
+        # incorrect tensor shapes.
         if submodules.cross_attention != IdentityOp:
             cp_override_config = copy.deepcopy(config)
             cp_override_config.context_parallel_size = 1
@@ -397,7 +399,7 @@ class DiTLayerWithAdaLN(TransformerLayer):
         # timestep embedding
         timestep_emb = attention_mask
 
-        # ******************************************** full self attention ******************************************************
+        # ******************************************** full self attention ********************************************
         if self.cross_attention:
             shift_full, scale_full, gate_full, shift_ca, scale_ca, gate_ca, shift_mlp, scale_mlp, gate_mlp = (
                 self.adaLN(timestep_emb)
@@ -417,7 +419,7 @@ class DiTLayerWithAdaLN(TransformerLayer):
         )
 
         if self.cross_attention:
-            # ******************************************** cross attention ******************************************************
+            # ******************************************** cross attention ********************************************
             # adaLN with scale + shift
             hidden_states, pre_cross_attn_layernorm_output_ada = self.adaLN.scaled_modulated_layernorm(
                 residual=hidden_states,
@@ -550,10 +552,12 @@ class MMDiTLayer(TransformerLayer):
             self.adaln_context = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
         else:
             raise ValueError(
-                f"Unknown context_norm_type: {context_norm_type}, currently only support `ada_norm_continous`, `ada_norm_zero`"
+                f"Unknown context_norm_type: {context_norm_type}, "
+                f"currently only support `ada_norm_continous`, `ada_norm_zero`"
             )
         # Override Cross Attention to disable CP.
-        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to incorrect tensor shapes.
+        # Disable TP Comm overlap as well. Not disabling will attempt re-use of buffer size same as Q and lead to
+        # incorrect tensor shapes.
         cp_override_config = copy.deepcopy(config)
         cp_override_config.context_parallel_size = 1
         cp_override_config.tp_comm_overlap = False
@@ -873,3 +877,4 @@ def get_flux_double_transformer_engine_spec() -> ModuleSpec:
             ),
         ),
     )
+# pylint: disable=C0116

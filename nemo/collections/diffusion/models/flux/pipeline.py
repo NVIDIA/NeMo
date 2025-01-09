@@ -38,12 +38,22 @@ class FluxInferencePipeline(nn.Module):
     A pipeline for performing image generation with flux.
 
     Args:
-        params (FluxModelParams, optional): Configuration parameters for the model pipeline, including device settings and model configurations.
-        flux (Flux, optional): A pre-initialized Flux model used for the transformation process. If None, a new Flux model is created using the configuration in `params`.
-        vae (AutoEncoder, optional): A pre-initialized VAE (Variational Autoencoder) model. If None, a new VAE model is created using the configuration in `params.vae_config`.
-        t5 (FrozenT5Embedder, optional): A pre-initialized FrozenT5Embedder model. If None, a new T5 model is created using the configuration in `params.t5_params`.
-        clip (FrozenCLIPEmbedder, optional): A pre-initialized FrozenCLIPEmbedder model. If None, a new CLIP model is created using the configuration in `params.clip_params`.
-        scheduler_steps (int, optional): The number of scheduler steps to use for inference. Default is 1000.
+        params (FluxModelParams, optional):
+            Configuration parameters for the model pipeline, including device settings and model configurations.
+        flux (Flux, optional):
+            A pre-initialized Flux model used for the transformation process.
+            If None, a new Flux model is created using the configuration in `params`.
+        vae (AutoEncoder, optional):
+            A pre-initialized VAE (Variational Autoencoder) model.
+            If None, a new VAE model is created using the configuration in `params.vae_config`.
+        t5 (FrozenT5Embedder, optional):
+            A pre-initialized FrozenT5Embedder model.
+            If None, a new T5 model is created using the configuration in `params.t5_params`.
+        clip (FrozenCLIPEmbedder, optional):
+            A pre-initialized FrozenCLIPEmbedder model.
+            If None, a new CLIP model is created using the configuration in `params.clip_params`.
+        scheduler_steps (int, optional):
+            The number of scheduler steps to use for inference. Default is 1000.
 
     Attributes:
         device (torch.device): The device (CPU or GPU) where the models will be placed.
@@ -56,18 +66,31 @@ class FluxInferencePipeline(nn.Module):
         params (FluxModelParams): Configuration parameters used for model setup.
 
     Methods:
-        load_from_pretrained(ckpt_path, do_convert_from_hf=True, save_converted_model_to=None): Loads model weights from a checkpoint.
-        encoder_prompt(prompt, num_images_per_prompt, prompt_embeds, pooled_prompt_embeds, max_sequence_length, device, dtype): Encodes text prompts and retrieves embeddings.
-        _prepare_latent_image_ids(batch_size, height, width, device, dtype): Prepares latent image ids for the generation process.
-        _pack_latents(latents, batch_size, num_channels_latents, height, width): Packs latents into the desired format for input to the model.
-        _unpack_latents(latents, height, width, vae_scale_factor): Unpacks latents from the model into image format.
-        _calculate_shift(image_seq_len, base_seq_len, max_seq_len, base_shift, max_shift): Calculates the shift parameter used for controlling sequence lengths in the model.
-        prepare_latents(batch_size, num_channels_latents, height, width, dtype, device, generator, latents): Prepares the latent tensors and latent image ids for generation.
-        _generate_rand_latents(shape, generator, device, dtype): Generates random latents using a specified generator.
-        numpy_to_pil(images): Converts a numpy array or a batch of images to PIL images.
-        torch_to_numpy(images): Converts a tensor of images to a numpy array.
-        denormalize(image): Denormalizes the image to the range [0, 1].
-        __call__(prompt, height, width, num_inference_steps, timesteps, guidance_scale, num_images_per_prompt, generator, latents, prompt_embeds, pooled_prompt_embeds, output_type, max_sequence_length, device, dtype, save_to_disk, offload): Runs the entire image generation process based on the input prompt, including encoding, latent preparation, inference, and output generation.
+        load_from_pretrained:
+            Loads model weights from a checkpoint.
+        encoder_prompt:
+            Encodes text prompts and retrieves embeddings.
+        _prepare_latent_image_ids:
+            Prepares latent image ids for the generation process.
+        _pack_latents:
+            Packs latents into the desired format for input to the model.
+        _unpack_latents:
+            Unpacks latents from the model into image format.
+        _calculate_shift:
+            Calculates the shift parameter used for controlling sequence lengths in the model.
+        prepare_latents:
+            Prepares the latent tensors and latent image ids for generation.
+        _generate_rand_latents:
+            Generates random latents using a specified generator.
+        numpy_to_pil:
+            Converts a numpy array or a batch of images to PIL images.
+        torch_to_numpy:
+            Converts a tensor of images to a numpy array.
+        denormalize:
+            Denormalizes the image to the range [0, 1].
+        __call__:
+            Runs the entire image generation process based on the input prompt, including encoding,
+            latent preparation, inference, and output generation.
 
     Example:
         pipeline = FluxInferencePipeline(params)
@@ -93,11 +116,20 @@ class FluxInferencePipeline(nn.Module):
         Initializes the FluxInferencePipeline with the provided models and configurations.
 
         Args:
-            params (FluxModelParams, optional): Configuration parameters for the model pipeline, including device settings and model configurations.
-            flux (Flux, optional): A pre-initialized Flux model used for the transformation process. If None, a new Flux model is created using the configuration in `params`.
-            vae (AutoEncoder, optional): A pre-initialized VAE (Variational Autoencoder) model. If None, a new VAE model is created using the configuration in `params.vae_config`.
-            t5 (FrozenT5Embedder, optional): A pre-initialized FrozenT5Embedder model. If None, a new T5 model is created using the configuration in `params.t5_params`.
-            clip (FrozenCLIPEmbedder, optional): A pre-initialized FrozenCLIPEmbedder model. If None, a new CLIP model is created using the configuration in `params.clip_params`.
+            params (FluxModelParams, optional):
+                Configuration parameters for the model pipeline, including device settings and model configurations.
+            flux (Flux, optional):
+                A pre-initialized Flux model used for the transformation process.
+                If None, a new Flux model is created using the configuration in `params`.
+            vae (AutoEncoder, optional):
+                A pre-initialized VAE (Variational Autoencoder) model.
+                If None, a new VAE model is created using the configuration in `params.vae_config`.
+            t5 (FrozenT5Embedder, optional):
+                A pre-initialized FrozenT5Embedder model.
+                If None, a new T5 model is created using the configuration in `params.t5_params`.
+            clip (FrozenCLIPEmbedder, optional):
+                A pre-initialized FrozenCLIPEmbedder model.
+                If None, a new CLIP model is created using the configuration in `params.clip_params`.
             scheduler_steps (int, optional): The number of scheduler steps to use for inference. Default is 1000.
         """
         super().__init__()
@@ -130,12 +162,16 @@ class FluxInferencePipeline(nn.Module):
 
     def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model_to=None):
         """
-        Loads the model's weights from a checkpoint. If HF ckpt is provided, it will be converted to NeMo format and save it to local folder.
+        Loads the model's weights from a checkpoint. If HF ckpt is provided, it will be converted to NeMo
+        format and save it to local folder.
 
         Args:
-            ckpt_path (str): Path to the checkpoint file.
-            do_convert_from_hf (bool, optional): Whether to convert the checkpoint from Hugging Face format before loading. Default is True.
-            save_converted_model_to (str, optional): Path to save the converted checkpoint if `do_convert_from_hf` is True. Default is None.
+            ckpt_path (str):
+                Path to the checkpoint file.
+            do_convert_from_hf (bool, optional):
+                Whether to convert the checkpoint from Hugging Face format before loading. Default is True.
+            save_converted_model_to (str, optional):
+                Path to save the converted checkpoint if `do_convert_from_hf` is True. Default is None.
 
         Logs:
             The function logs information about missing or unexpected keys during checkpoint loading.
@@ -153,7 +189,8 @@ class FluxInferencePipeline(nn.Module):
         # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
-                f"The following keys are missing during checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
+                f"The following keys are missing during checkpoint loading, "
+                f"please check the ckpt provided or the image quality may be compromised.\n {missing}"
             )
             logging.info(f"Found unexepected keys: \n {unexpected}")
 
@@ -171,13 +208,20 @@ class FluxInferencePipeline(nn.Module):
         Encodes a text prompt (or a batch of prompts) into embeddings using both T5 and CLIP models.
 
         Args:
-            prompt (Union[str, List[str]]): The text prompt(s) to be encoded. Can be a string or a list of strings.
-            num_images_per_prompt (int, optional): The number of images to generate per prompt. Default is 1.
-            prompt_embeds (torch.FloatTensor, optional): Precomputed prompt embeddings, if available. Default is None.
-            pooled_prompt_embeds (torch.FloatTensor, optional): Precomputed pooled prompt embeddings, if available. Default is None.
-            max_sequence_length (int, optional): The maximum sequence length for the text model. Default is 512.
-            device (torch.device, optional): The device (CPU or CUDA) on which the models are placed. Default is 'cuda'.
-            dtype (torch.dtype, optional): The data type for tensor operations. Default is `torch.float`.
+            prompt (Union[str, List[str]]):
+                The text prompt(s) to be encoded. Can be a string or a list of strings.
+            num_images_per_prompt (int, optional):
+                The number of images to generate per prompt. Default is 1.
+            prompt_embeds (torch.FloatTensor, optional):
+                Precomputed prompt embeddings, if available. Default is None.
+            pooled_prompt_embeds (torch.FloatTensor, optional):
+                Precomputed pooled prompt embeddings, if available. Default is None.
+            max_sequence_length (int, optional):
+                The maximum sequence length for the text model. Default is 512.
+            device (torch.device, optional):
+                The device (CPU or CUDA) on which the models are placed. Default is 'cuda'.
+            dtype (torch.dtype, optional):
+                The data type for tensor operations. Default is `torch.float`.
 
         Returns:
             Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
@@ -277,15 +321,16 @@ class FluxInferencePipeline(nn.Module):
             latents (torch.Tensor): The latents output from the model, typically in a compact, compressed format.
             height (int): The original height of the image before scaling, used to adjust the latent dimensions.
             width (int): The original width of the image before scaling, used to adjust the latent dimensions.
-            vae_scale_factor (int): A scale factor used to adjust the resolution of the image when unpacking. This factor is
-                typically the inverse of the VAE downsampling factor.
+            vae_scale_factor (int): A scale factor used to adjust the resolution of the image when unpacking.
+                This factor istypically the inverse of the VAE downsampling factor.
 
         Returns:
             torch.Tensor: The unpacked latents reshaped to match the expected dimensions for image reconstruction.
                 The output tensor will have shape `(batch_size, channels, height * 2, width * 2)`.
 
         Notes:
-            - This function is intended to convert latents back into a format that can be decoded into images by the VAE.
+            - This function is intended to convert latents back into a format
+            that can be decoded into images by the VAE.
         """
         batch_size, num_patches, channels = latents.shape
 
@@ -344,9 +389,11 @@ class FluxInferencePipeline(nn.Module):
 
         Returns:
             tuple: A tuple containing:
-                - latents (torch.Tensor): The prepared latents, with shape `(batch_size, num_channels_latents, height, width)`.
-                - latent_image_ids (torch.Tensor): A tensor containing latent image IDs for each batch sample, used for indexing
-                  in the model.
+                - latents (torch.Tensor):
+                    The prepared latents, with shape `(batch_size, num_channels_latents, height, width)`.
+                - latent_image_ids (torch.Tensor):
+                    A tensor containing latent image IDs for each batch sample, used for indexing
+                    in the model.
 
         Raises:
             ValueError: If a list of generators is provided but its length does not match the batch size.
@@ -450,37 +497,58 @@ class FluxInferencePipeline(nn.Module):
         (e.g., PIL image). The images are optionally saved to disk with a unique filename based on the prompt.
 
         Args:
-            prompt (Union[str, List[str]]): A text prompt or a list of text prompts to guide image generation. Each prompt
+            prompt (Union[str, List[str]]):
+                A text prompt or a list of text prompts to guide image generation. Each prompt
                 generates one or more images based on the `num_images_per_prompt`.
-            height (Optional[int]): The height of the output image. Default is 512.
-            width (Optional[int]): The width of the output image. Default is 512.
-            num_inference_steps (int): The number of steps for the diffusion process. Default is 28.
-            timesteps (Optional[List[int]]): A list of specific timesteps for the diffusion process. If not provided,
+            height (Optional[int]):
+                The height of the output image. Default is 512.
+            width (Optional[int]):
+                The width of the output image. Default is 512.
+            num_inference_steps (int):
+                The number of steps for the diffusion process. Default is 28.
+            timesteps (Optional[List[int]]):
+                A list of specific timesteps for the diffusion process. If not provided,
                 they are automatically calculated.
-            guidance_scale (float): The scale of the guidance signal, typically used to control the strength of prompt conditioning.
-            num_images_per_prompt (Optional[int]): The number of images to generate per prompt. Default is 1.
-            generator (Optional[Union[torch.Generator, List[torch.Generator]]]): A random number generator or a list of generators
+            guidance_scale (float):
+                The scale of the guidance signal, typically used to control the strength of prompt conditioning.
+            num_images_per_prompt (Optional[int]):
+                The number of images to generate per prompt. Default is 1.
+            generator (Optional[Union[torch.Generator, List[torch.Generator]]]):
+                A random number generator or a list of generators
                 for generating latents. If a list is provided, it should match the batch size.
-            latents (Optional[torch.FloatTensor]): Pre-existing latents to use instead of generating new ones.
-            prompt_embeds (Optional[torch.FloatTensor]): Optionally pre-computed prompt embeddings to skip the prompt encoding step.
-            pooled_prompt_embeds (Optional[torch.FloatTensor]): Optionally pre-computed pooled prompt embeddings.
-            output_type (Optional[str]): The format of the output. Can be "latent" or "pil" (PIL image). Default is "pil".
-            max_sequence_length (int): The maximum sequence length for tokenizing the prompt. Default is 512.
-            device (torch.device): The device on which the computation should take place (e.g., 'cuda'). Default is 'cuda'.
-            dtype (torch.dtype): The data type of the latents and model weights. Default is `torch.float32`.
-            save_to_disk (bool): Whether or not to save the generated images to disk. Default is True.
-            offload (bool): Whether or not to offload model components to CPU to free up GPU memory during the process. Default is False.
+            latents (Optional[torch.FloatTensor]):
+                Pre-existing latents to use instead of generating new ones.
+            prompt_embeds (Optional[torch.FloatTensor]):
+                Optionally pre-computed prompt embeddings to skip the prompt encoding step.
+            pooled_prompt_embeds (Optional[torch.FloatTensor]):
+                Optionally pre-computed pooled prompt embeddings.
+            output_type (Optional[str]):
+                The format of the output. Can be "latent" or "pil" (PIL image). Default is "pil".
+            max_sequence_length (int):
+                The maximum sequence length for tokenizing the prompt. Default is 512.
+            device (torch.device):
+                The device on which the computation should take place (e.g., 'cuda'). Default is 'cuda'.
+            dtype (torch.dtype):
+                The data type of the latents and model weights. Default is `torch.float32`.
+            save_to_disk (bool):
+                Whether or not to save the generated images to disk. Default is True.
+            offload (bool):
+                Whether or not to offload model components to CPU to free up GPU memory during the process.
+                Default is False.
 
         Returns:
-            Union[List[Image.Image], torch.Tensor]: The generated images or latents, depending on the `output_type` argument.
+            Union[List[Image.Image], torch.Tensor]:
+                The generated images or latents, depending on the `output_type` argument.
                 If `output_type` is "pil", a list of PIL images is returned. If "latent", the latents are returned.
 
         Raises:
             ValueError: If neither a `prompt` nor `prompt_embeds` is provided.
 
         Notes:
-            - The model expects a device of 'cuda'. The method will raise an assertion error if a different device is provided.
-            - The method handles both prompt-based and pre-embedded prompt input, providing flexibility for different usage scenarios.
+            - The model expects a device of 'cuda'.
+              The method will raise an assertion error if a different device is provided.
+            - The method handles both prompt-based and pre-embedded prompt input,
+              providing flexibility for different usage scenarios.
             - If `save_to_disk` is enabled, images will be saved with a filename derived from the prompt text.
         """
         assert device == 'cuda', 'Transformer blocks in Mcore must run on cuda devices'
@@ -629,7 +697,8 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
-                f"The following keys are missing during flux checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
+                f"The following keys are missing during flux checkpoint loading, "
+                f"please check the ckpt provided or the image quality may be compromised.\n {missing}"
             )
             logging.info(f"Found unexepected keys: \n {unexpected}")
 
@@ -638,7 +707,8 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
-                f"The following keys are missing during controlnet checkpoint loading, please check the ckpt provided or the image quality may be compromised.\n {missing}"
+                f"The following keys are missing during controlnet checkpoint loading, "
+                f"please check the ckpt provided or the image quality may be compromised.\n {missing}"
             )
             logging.info(f"Found unexepected keys: \n {unexpected}")
 
@@ -721,50 +791,75 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         controlnet_conditioning_scale: Union[float, List[float]] = 1.0,
     ):
         """
-        Generates images based on a given text prompt and optionally incorporates control images and ControlNet for guidance.
+        Generates images based on a given text prompt and optionally incorporates control images and ControlNet for
+        guidance.
 
-        This method generates images by embedding the prompt, preparing the latent vectors, iterating through timesteps in the
-        diffusion process, and then decoding the latent representation back into an image. The method supports control images
-        through ControlNet, where the `control_image` is used to condition the image generation. It also allows you to specify
-        custom guidance scales and other parameters. Generated images can be saved to disk if requested.
+        This method generates images by embedding the prompt, preparing the latent vectors, iterating through timesteps
+        in the diffusion process, and then decoding the latent representation back into an image. The method supports
+        control images through ControlNet, where the `control_image` is used to condition the image generation.
+        It also allows you to specify custom guidance scales and other parameters. Generated images can be saved to disk if requested.
 
         Args:
-            prompt (Union[str, List[str]]): A text prompt or a list of text prompts to guide image generation. Each prompt
-                generates one or more images based on the `num_images_per_prompt`.
-            height (Optional[int]): The height of the output image. Default is 512.
-            width (Optional[int]): The width of the output image. Default is 512.
-            num_inference_steps (int): The number of steps for the diffusion process. Default is 28.
-            timesteps (Optional[List[int]]): A list of specific timesteps for the diffusion process. If not provided,
-                they are automatically calculated.
-            guidance_scale (float): The scale of the guidance signal, typically used to control the strength of prompt conditioning.
-            num_images_per_prompt (Optional[int]): The number of images to generate per prompt. Default is 1.
-            generator (Optional[Union[torch.Generator, List[torch.Generator]]]): A random number generator or a list of generators
-                for generating latents. If a list is provided, it should match the batch size.
-            latents (Optional[torch.FloatTensor]): Pre-existing latents to use instead of generating new ones.
-            prompt_embeds (Optional[torch.FloatTensor]): Optionally pre-computed prompt embeddings to skip the prompt encoding step.
-            pooled_prompt_embeds (Optional[torch.FloatTensor]): Optionally pre-computed pooled prompt embeddings.
-            output_type (Optional[str]): The format of the output. Can be "latent" or "pil" (PIL image). Default is "pil".
-            max_sequence_length (int): The maximum sequence length for tokenizing the prompt. Default is 512.
-            device (torch.device): The device on which the computation should take place (e.g., 'cuda'). Default is 'cuda'.
-            dtype (torch.dtype): The data type of the latents and model weights. Default is `torch.float32`.
-            save_to_disk (bool): Whether or not to save the generated images to disk. Default is True.
-            offload (bool): Whether or not to offload model components to CPU to free up GPU memory during the process. Default is False.
-            control_guidance_start (float): The start point for control guidance to apply during the diffusion process.
-            control_guidance_end (float): The end point for control guidance to apply during the diffusion process.
-            control_image (Union[Image.Image, torch.FloatTensor]): The image used for conditioning the generation process via ControlNet.
-            controlnet_conditioning_scale (Union[float, List[float]]): Scaling factors to control the impact of the control image in
-                the generation process. Can be a single value or a list for multiple images.
+            prompt (Union[str, List[str]]):
+                A text prompt or a list of text prompts to guide image generation. Each prompt generates one or more
+                images based on the `num_images_per_prompt`.
+            height (Optional[int]):
+                The height of the output image. Default is 512.
+            width (Optional[int]):
+                The width of the output image. Default is 512.
+            num_inference_steps (int):
+                The number of steps for the diffusion process. Default is 28.
+            timesteps (Optional[List[int]]):
+                A list of specific timesteps for the diffusion process. If not provided, they are automatically
+                calculated.
+            guidance_scale (float):
+                The scale of the guidance signal, typically used to control the strength of prompt conditioning.
+            num_images_per_prompt (Optional[int]):
+                The number of images to generate per prompt. Default is 1.
+            generator (Optional[Union[torch.Generator, List[torch.Generator]]]):
+                A random number generator or a list of generators for generating latents. If a list is provided,
+                it should match the batch size.
+            latents (Optional[torch.FloatTensor]):
+                Pre-existing latents to use instead of generating new ones.
+            prompt_embeds (Optional[torch.FloatTensor]):
+                Optionally pre-computed prompt embeddings to skip the prompt encoding step.
+            pooled_prompt_embeds (Optional[torch.FloatTensor]):
+                Optionally pre-computed pooled prompt embeddings.
+            output_type (Optional[str]):
+                The format of the output. Can be "latent" or "pil" (PIL image). Default is "pil".
+            max_sequence_length (int):
+                The maximum sequence length for tokenizing the prompt. Default is 512.
+            device (torch.device):
+                The device on which the computation should take place (e.g., 'cuda'). Default is 'cuda'.
+            dtype (torch.dtype):
+                The data type of the latents and model weights. Default is `torch.float32`.
+            save_to_disk (bool):
+                Whether or not to save the generated images to disk. Default is True.
+            offload (bool):
+                Whether or not to offload model components to CPU to free up GPU memory during the process. Default is False.
+            control_guidance_start (float):
+                The start point for control guidance to apply during the diffusion process.
+            control_guidance_end (float):
+                The end point for control guidance to apply during the diffusion process.
+            control_image (Union[Image.Image, torch.FloatTensor]):
+                The image used for conditioning the generation process via ControlNet.
+            controlnet_conditioning_scale (Union[float, List[float]]):
+                Scaling factors to control the impact of the control image in the generation process.
+                Can be a single value or a list for multiple images.
 
         Returns:
-            Union[List[Image.Image], torch.Tensor]: The generated images or latents, depending on the `output_type` argument.
+            Union[List[Image.Image], torch.Tensor]:
+                The generated images or latents, depending on the `output_type` argument.
                 If `output_type` is "pil", a list of PIL images is returned. If "latent", the latents are returned.
 
         Raises:
             ValueError: If neither a `prompt` nor `prompt_embeds` is provided.
 
         Notes:
-            - The model expects a device of 'cuda'. The method will raise an assertion error if a different device is provided.
-            - The method supports conditional image generation using ControlNet, where a `control_image` can guide the generation process.
+            - The model expects a device of 'cuda'.
+              The method will raise an assertion error if a different device is provided.
+            - The method supports conditional image generation using ControlNet, where a `control_image` can guide the
+              generation process.
             - If `save_to_disk` is enabled, images will be saved with a filename derived from the prompt text.
         """
         assert device == 'cuda', 'Transformer blocks in Mcore must run on cuda devices'
