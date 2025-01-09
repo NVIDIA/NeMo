@@ -94,9 +94,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.deferred_ckpts_to_remove: List[List[str]] = []
         self.ckpts_to_link: Dict[str, str] = {}
 
-        # used to drop optimizer states
-        self.base_checkpoint_io = None
-
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(
             monitor=monitor,
@@ -344,17 +341,16 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 )
 
                 ## get base checkpoint io in case of wrapping
-                if self.base_checkpoint_io is None:
-                    self.base_checkpoint_io = trainer.strategy.checkpoint_io
-                    while isinstance(self.base_checkpoint_io, _WrappingCheckpointIO):
-                        self.base_checkpoint_io = self.base_checkpoint_io.checkpoint_io
-                    assert hasattr(
-                        self.base_checkpoint_io, "drop_optimizer_states"
-                    ), f"{self.base_checkpoint_io} does not support dropping optimizer states. \
-                        Please disable dropping optimizer states by setting save_last_n_optim_states=-1."
+                base_checkpoint_io = trainer.strategy.checkpoint_io
+                while isinstance(base_checkpoint_io, _WrappingCheckpointIO):
+                    base_checkpoint_io = base_checkpoint_io.checkpoint_io
+                assert hasattr(
+                    base_checkpoint_io, "drop_optimizer_states"
+                ), f"{base_checkpoint_io} does not support dropping optimizer states. \
+                    Please disable dropping optimizer states by setting save_last_n_optim_states=-1."
 
                 logging.info(f'dropping optimizer states at {checkpoint_path}')
-                self.base_checkpoint_io.drop_optimizer_states(checkpoint_path)
+                base_checkpoint_io.drop_optimizer_states(checkpoint_path)
 
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
