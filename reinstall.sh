@@ -46,7 +46,7 @@ fi
 
 ${PIP} install --extra-index-url https://pypi.nvidia.com \
   "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'" \
-  "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@$ {NEMO_RUN_TAG}" \
+  "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG}" \
   "transformer-engine @ git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG}" \
   "git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}" \
   "git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}" \
