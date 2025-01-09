@@ -49,8 +49,8 @@ try:
     )
 except Exception as e:
     LOGGER.warning(
-        "Cannot import MegatronLLMDeployable or NemoQueryLLMPyTorch,"
-        f" in-framework inference will not be available. {type(e).__name__}: {e}"
+        "Cannot import MegatronLLMDeploy* classes, or NemoQueryLLMPyTorch, or CommonInferenceParams, "
+        f"in-framework inference will not be available. Reason: {type(e).__name__}: {e}"
     )
     in_framework_supported = False
 

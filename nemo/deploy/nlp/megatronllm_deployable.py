@@ -95,7 +95,7 @@ def GetNumpyDtype(pyvalue):
 
 
 class ServerSync(IntEnum):
-    """Enum for synchronization messages using torch.distributed"""
+    """Enum for synchronization messages using torch.distributed."""
 
     WAIT = auto()
     SIGNAL = auto()
@@ -105,6 +105,11 @@ class ServerSync(IntEnum):
 
 
 class MegatronLLMDeploy:
+    """
+    A factory class for creating deployable instances of Megatron LLM models.
+    This class provides a method to get the appropriate deployable instance
+    based on the version of the NeMo checkpoint model used.
+    """
 
     @staticmethod
     def get_deployable(
@@ -115,7 +120,20 @@ class MegatronLLMDeploy:
         pipeline_model_parallel_size: int = 1,
         context_parallel_size: int = 1,
     ):
+        """
+        Returns the appropriate deployable instance for the given NeMo checkpoint.
 
+        Args:
+            nemo_checkpoint_filepath (str): Path to the .nemo checkpoint file.
+            num_devices (int): Number of devices to use for deployment.
+            num_nodes (int): Number of nodes to use for deployment.
+            tensor_model_parallel_size (int): Size of the tensor model parallelism.
+            pipeline_model_parallel_size (int): Size of the pipeline model parallelism.
+            context_parallel_size (int): Size of the context parallelism.
+
+        Returns:
+            ITritonDeployable: An instance of a deployable class compatible with Triton inference server.
+        """
         if nemo_checkpoint_version(nemo_checkpoint_filepath) == NEMO2:
             return MegatronLLMDeployableNemo2(
                 nemo_checkpoint_filepath=nemo_checkpoint_filepath,
@@ -290,11 +308,14 @@ class MegatronLLMDeployable(ITritonDeployable):
             raise IMPORT_ERROR
         if nemo_checkpoint_filepath is None and existing_model is None:
             raise ValueError(
-                "MegatronLLMDeployable requires either a .nemo checkpoint filepath or an existing MegatronGPTModel, but both provided were None"
+                "MegatronLLMDeployable requires either a .nemo checkpoint filepath "
+                "or an existing MegatronGPTModel, but both provided were None."
             )
         if num_devices > 1:
             LOGGER.warning(
-                "Creating a MegatronLLMDeployable with num_devices>1 will assume running with a PyTorch Lightning DDP-variant strategy, which will run the main script once per device. Make sure any user code is compatible with multiple executions!"
+                "Creating a MegatronLLMDeployable with num_devices > 1 will assume running with "
+                "a PyTorch Lightning DDP-variant strategy, which will run the main script once per device. "
+                "Make sure any user code is compatible with multiple executions!"
             )
 
         # if both existing_model and nemo_checkpoint_filepath are provided, existing_model will take precedence
@@ -319,14 +340,16 @@ class MegatronLLMDeployable(ITritonDeployable):
             # transformer_engine should always be true according to EricH, but GPT-2B model will fail if it is enabled
             if not custom_config.transformer_engine:
                 LOGGER.warning(
-                    "MegatronLLMDeployable expects model config transformer_engine=True, but this model has it =False. "
-                    "Overriding it to =True, but this may break certain checkpoints converted on older Nemo versions. "
+                    "MegatronLLMDeployable expects model config transformer_engine=True, but this model uses False. "
+                    "Overriding it to True, but this may break certain checkpoints converted on older Nemo versions. "
                     "If your model breaks, please try re-converting the checkpoint on the current Nemo version."
                 )
             custom_config.transformer_engine = True
-            # using multi-gpu for tensor parallelism directly for now, could do pipeline parallel instead or a combination
+            # using multi-gpu for tensor parallelism directly for now,
+            # could do pipeline parallel instead or a combination
             custom_config.tensor_model_parallel_size = num_devices
-            # had to override these to make Nemotron3-22B work, see sample_sequence_batch() in text_generation_utils.py
+            # had to override these to make Nemotron3-22B work,
+            # see sample_sequence_batch() in text_generation_utils.py
             custom_config.activations_checkpoint_granularity = None
             custom_config.activations_checkpoint_method = None
             # Models trained with TE < 1.10 and loaded with TE >= 1.10 require
@@ -425,7 +448,8 @@ class MegatronLLMDeployable(ITritonDeployable):
             distributed_rank = torch.distributed.get_rank()
             if distributed_rank != 0:
                 raise ValueError(
-                    f"Triton inference function should not be called on a thread with torch.distributed rank != 0, but this thread is rank {distributed_rank}"
+                    "Triton inference function should not be called on a thread with "
+                    f"torch.distributed rank != 0, but this thread is rank {distributed_rank}."
                 )
             signal_value = ServerSync.SIGNAL.to_long_tensor()
             torch.distributed.broadcast(signal_value, 0)
