@@ -221,7 +221,6 @@ def main(cfg) -> None:
         restore_path=cfg.gpt_model_file,
         trainer=trainer,
         return_config=True,
-        strict=StrictHandling.LOG_ALL,
     )
 
     with open_dict(cfg):
@@ -254,6 +253,7 @@ def main(cfg) -> None:
             override_config_path=pretrained_cfg,
             map_location=torch.device("cpu") if cfg.trainer.accelerator == 'cpu' else None,
             save_restore_connector=save_restore_connector,
+            strict=StrictHandling.LOG_ALL,
         )
     else:
         raise ValueError("You must specify the base model file with gpt_model_file=/path/to/model.nemo")
