@@ -350,6 +350,13 @@ def main():
         help="",
     )
 
+    parser.add_argument(
+        "--spk_supervision",
+        type=str,
+        default="diar",
+        help="",
+    )
+
 
     args = parser.parse_args()
     if (args.audio_file is None and args.manifest_file is None) or (
@@ -458,9 +465,13 @@ def main():
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
                 sample['audio_filepath'], stream_id=-1
             )
+            if args.spk_supervision == 'rttm':
+                cut = create_cut(sample['audio_filepath'], sample['rttm_filepath'])
+                spk_targets = speaker_to_target(cut, boundary_segments=True)
+            elif args.spk_supervision == 'diar':
+                spk_segs, spk_targets = asr_model.diarization_model.diarize(sample['audio_filepath'], batch_size=1, include_tensor_outputs=True)
+                spk_targets = (spk_targets[0][0] > 0.5).float()
 
-            cut = create_cut(sample['audio_filepath'], sample['rttm_filepath'])
-            spk_targets = speaker_to_target(cut, boundary_segments=True)
             spk_targets_list.append(spk_targets)
             if "text" in sample:
                 all_refs_text.append(sample["text"])
