@@ -107,7 +107,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """Runs forward with the model"""
         return self.model(**batch)
 
-    def training_step(self, batch):
+    def training_step(self, batch, batch_idx=None):
         """Run one training step"""
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
