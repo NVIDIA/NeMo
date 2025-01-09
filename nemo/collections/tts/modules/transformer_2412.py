@@ -217,12 +217,12 @@ class Attention(torch.nn.Module):
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
+        B, T, _ = query.shape[1]
         attn_score = torch.matmul(q, k.transpose(2, 3)) * self.scale
         if mask is not None:
             # assumes there's at least one mask
             attn_score.masked_fill_(mask, float('-inf'))
         if self.is_causal:
-            T = query.shape[1]
             attn_score.masked_fill_(self.causal_mask[..., :T, :T], float('-inf'))
 
         # attn_prior or square mask or vanilla attention
