@@ -5,6 +5,10 @@ on:
     paths:
       - "**"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+  
 # Check https://hub.docker.com/r/pytorch/pytorch/tags for latest tags
 jobs:
   test-imports:
