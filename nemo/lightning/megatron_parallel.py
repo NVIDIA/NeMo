@@ -46,11 +46,15 @@ from lightning.pytorch.utilities import move_data_to_device
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
-from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
 from typing_extensions import override
+
+try:
+    from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
+except ImportError:
+    HAVE_CUSTOM_FSDP = False
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
@@ -588,7 +592,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
 
             with init_ddp_context():
-                if self.ddp_config.use_custom_fsdp:
+                if HAVE_CUSTOM_FSDP and self.ddp_config.use_custom_fsdp:
                     FSDP = FullyShardedDataParallel
                     dist_module = FSDP(
                         module.config,
