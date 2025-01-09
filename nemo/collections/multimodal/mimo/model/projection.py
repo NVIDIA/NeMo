@@ -15,10 +15,26 @@
 from dataclasses import dataclass, field
 
 import torch
+from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import init_method_normal
+
+
+class ImageOutputProjectionModule(MegatronModule):
+    def __init__(self, encoder_spec, decoder_spec):
+        super().__init__()
+
+        # inp linear layer
+
+        # transformer encoder layer with no bidirectional mask
+
+        # transformer decoder layer with self and cross attention
+
+        # learnable query embeddings input to transformer decoder
+
+        # oup linear layer
 
 
 class ImageOutputProjectionPoolingHead(TransformerLayer):
