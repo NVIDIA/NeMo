@@ -24,10 +24,10 @@ from utils import (
     slurm_executor,
 )
 
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 
 NUM_NODES = 1
 NUM_GPUS_PER_NODE = 8

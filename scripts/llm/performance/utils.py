@@ -149,7 +149,7 @@ def import_ckpt_experiment(num_nodes: int, executor: run.SlurmExecutor, model: r
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]):
     """
-    This method is used for fine-tuning. It checks if packed train data for a partiular 
+    This method is used for fine-tuning. It checks if packed train data for a partiular
     sequence length exists locally. This is needed to set data flag (force_redownload=True)
     which avoids experiment crash in case files are missing.
     """
