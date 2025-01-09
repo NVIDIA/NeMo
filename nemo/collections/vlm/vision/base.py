@@ -26,7 +26,6 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from transformers import CLIPVisionConfig, CLIPVisionModel
 
-from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.lightning import io
 
 
@@ -86,9 +85,9 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
     patch_dim: int = 14
     img_h: int = 336
     img_w: int = 336
-    vision_model_type: str = "clip"  # ["clip", "siglip"]
+    vision_model_type: str = "clip"  # ["clip", "siglip", "internvit"]
     num_image_embeddings_per_tile: Optional[int] = None
-    transformer_layer_spec: ModuleSpec = transformer_engine_layer_spec
+    transformer_layer_spec: ModuleSpec = None
 
     num_layers: int = 1  # Placeholder, NOT used!
     num_attention_heads: int = 8  # Placeholder, NOT used!
@@ -109,7 +108,6 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
-
             transformer_layer_spec = get_layer_spec_te(is_vit=True)
         return CLIPViTModel(
             self,
@@ -125,7 +123,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
         )
 
 
-class CLIPViTModel(MCoreCLIPViTModel, io.IOMixin, io.ConnectorMixin):
+class CLIPViTModel(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
     def forward(
