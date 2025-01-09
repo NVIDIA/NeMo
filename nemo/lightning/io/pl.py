@@ -24,10 +24,7 @@ from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from megatron.core import dist_checkpointing
-from megatron.core.dist_checkpointing.dict_utils import (
-    dict_list_map_outplace,
-    extract_matching_values,
-)
+from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace, extract_matching_values
 from megatron.core.dist_checkpointing.mapping import ShardedBase
 from megatron.core.dist_checkpointing.serialization import (
     get_default_load_sharded_strategy,
