@@ -43,7 +43,9 @@ class NeMoFWLMEval(LM):
         self.add_bos = add_bos
         super().__init__()
 
-    def _generate_tokens_logits(self, payload, single_prediction_token, return_text: bool = False, return_logits: bool = False):
+    def _generate_tokens_logits(
+        self, payload, single_prediction_token, return_text: bool = False, return_logits: bool = False
+    ):
         """
         A private method that sends post request to the model on PyTriton server and returns either generated text or
         logits.
@@ -51,13 +53,13 @@ class NeMoFWLMEval(LM):
         nq = NemoQueryLLM(url=self.api_url, model_name=payload['model'])
 
         output_context_logits = False
-        output_generation_logits= False
+        output_generation_logits = False
         if single_prediction_token:
             # In case of single token prediction return the generation logits
-            output_generation_logits=True
+            output_generation_logits = True
         else:
             # In case of multiple token prediction return the context logits
-            output_context_logits=True
+            output_context_logits = True
         response = nq.query_llm(
             prompts=payload['prompt'] if isinstance(payload['prompt'], list) else [payload['prompt']],
             max_output_len=payload['max_tokens'],
@@ -73,10 +75,9 @@ class NeMoFWLMEval(LM):
             return response["choices"][0]["text"]  # shape[batch_size, 1]
         elif return_logits:
             if output_context_logits:
-                return response["choices"][0]["context_logits"] 
+                return response["choices"][0]["context_logits"]
             else:
                 return response["choices"][0]["generation_logits"]
-
 
     def tokenizer_type(self, tokenizer):
         """
@@ -110,7 +111,9 @@ class NeMoFWLMEval(LM):
         # task.
         mmlu_regex_pattern = r"^mmlu_"
         lambada_regex_pattern = r"^lambada_"
-        if re.match(mmlu_regex_pattern, requests[0].task_name) or re.match(lambada_regex_pattern, requests[0].task_name):
+        if re.match(mmlu_regex_pattern, requests[0].task_name) or re.match(
+            lambada_regex_pattern, requests[0].task_name
+        ):
             single_prediction_token = True
 
         results = []

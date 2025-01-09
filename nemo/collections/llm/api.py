@@ -366,7 +366,7 @@ def deploy(
         openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
         be True while running evaluation. Default: True.
         output_context_logits (bool): If True builds trtllm engine with gather_context_logits set to True. Default: True.
-        context_logits are used to compute the logProb of the output token in case of multi token prediction benchmarks. 
+        context_logits are used to compute the logProb of the output token in case of multi token prediction benchmarks.
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token in case of single token prediction
         benchmarks (like MMLU, lambada). Default: True.
