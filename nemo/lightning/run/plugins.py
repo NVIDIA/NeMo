@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import nemo_run as run
+import torch
 import yaml
 from lightning.pytorch import Callback
 from lightning.pytorch.loggers import WandbLogger
@@ -27,10 +28,7 @@ from nemo_run.core.serialization.yaml import YamlSerializer
 from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
-
 from nemo.utils.import_utils import safe_import
-
-import torch
 
 res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
 
