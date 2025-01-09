@@ -49,6 +49,7 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.dist_checkpointing.validation import StrictHandling
 
     HAVE_MEGATRON_CORE = True
 
@@ -220,6 +221,7 @@ def main(cfg) -> None:
         restore_path=cfg.gpt_model_file,
         trainer=trainer,
         return_config=True,
+        strict=StrictHandling.LOG_ALL,
     )
 
     with open_dict(cfg):
