@@ -18,7 +18,7 @@ from collections import OrderedDict
 
 import torch
 from lightning.pytorch import Trainer
-from omegaconf import open_dict
+
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
