@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from typing import Callable
 
@@ -515,7 +529,8 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 dtype=self.autocast_dtype,
                 save_to_disk=False,
             )
-        elif not (self.image_precached or self.text_precached):
+            log_images[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}.png")
+        else:
             img = batch['images'].cuda(non_blocking=True)
             hint = batch['hint'].cuda(non_blocking=True)
             text = batch['txt']
@@ -530,8 +545,8 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 dtype=self.autocast_dtype,
                 save_to_disk=False,
             )
-        log_images[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_{text}.png")
-        hint = pipe.torch_to_numpy(hint)
-        hint = pipe.numpy_to_pil(hint)
-        hint[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_control.png")
+            log_images[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_{text}.png")
+            hint = pipe.torch_to_numpy(hint)
+            hint = pipe.numpy_to_pil(hint)
+            hint[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_control.png")
         return torch.tensor([0.0], device=torch.cuda.current_device())

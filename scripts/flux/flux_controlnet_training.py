@@ -210,13 +210,4 @@ def unit_test() -> run.Partial:
 
 
 if __name__ == "__main__":
-    OOM_DEBUG = False
-    if OOM_DEBUG:
-        torch.cuda.memory._record_memory_history(
-            True,
-            # Keep 100,000 alloc/free events from before the snapshot
-            trace_alloc_max_entries=100000,
-            # Record stack information for the trace events
-            trace_alloc_record_context=True,
-        )
     run.cli.main(llm.train, default_factory=unit_test)

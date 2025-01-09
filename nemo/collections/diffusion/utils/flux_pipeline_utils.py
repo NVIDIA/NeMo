@@ -13,15 +13,12 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Callable
 
 import torch
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import openai_gelu
 
 from nemo.collections.diffusion.models.flux.model import ClipConfig, FluxConfig, FluxModelParams, T5Config
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
-from nemo.lightning import io
 
 configs = {
     "dev": FluxModelParams(

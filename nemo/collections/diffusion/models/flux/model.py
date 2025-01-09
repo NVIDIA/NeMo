@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
 
 import numpy as np
 import pytorch_lightning as L
@@ -44,7 +44,6 @@ from nemo.collections.diffusion.utils.flux_ckpt_converter import _import_qkv, _i
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderConfig
 from nemo.collections.llm import fn
 from nemo.lightning import io
-from nemo.lightning import megatron_parallel as mp
 from nemo.lightning import teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
