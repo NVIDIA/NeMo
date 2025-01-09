@@ -18,6 +18,7 @@ import torch
 import torch.nn as nn
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
 
+
 # pylint: disable=C0116
 class AbstractEmbModel(nn.Module):
     def __init__(self, enable_lora_finetune=False, target_block=[], target_module=[]):
@@ -197,4 +198,6 @@ class FrozenT5Embedder(AbstractEmbModel):
         outputs = self.transformer(input_ids=tokens, output_hidden_states=None)
 
         return outputs.last_hidden_state
+
+
 # pylint: disable=C0116

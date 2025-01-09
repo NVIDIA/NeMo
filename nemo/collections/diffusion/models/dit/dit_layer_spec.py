@@ -48,6 +48,7 @@ from nemo.collections.diffusion.models.dit.dit_attention import (
     JointSelfAttentionSubmodules,
 )
 
+
 # pylint: disable=C0116
 @dataclass
 class DiTWithAdaLNSubmodules(TransformerLayerSubmodules):
@@ -877,4 +878,6 @@ def get_flux_double_transformer_engine_spec() -> ModuleSpec:
             ),
         ),
     )
+
+
 # pylint: disable=C0116

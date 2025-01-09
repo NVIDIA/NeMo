@@ -24,6 +24,7 @@ except Exception:
     print('Fused optimized group norm has not been installed.')
     OPT_GROUP_NORM = False
 
+
 # pylint: disable=C0116
 def Normalize(in_channels, num_groups=32, act=""):
     return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
@@ -178,4 +179,6 @@ def make_attn(in_channels, attn_type="vanilla"):
         return nn.Identity(in_channels)
     else:
         return LinAttnBlock(in_channels)
+
+
 # pylint: disable=C0116

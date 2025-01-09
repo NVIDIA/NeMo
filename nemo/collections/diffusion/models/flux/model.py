@@ -50,6 +50,7 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 
+
 # pylint: disable=C0116
 def flux_data_step(dataloader_iter):
     # latents = torch.randn(4096, b, 64)
@@ -125,7 +126,10 @@ class FluxModelParams:
     t5_params: T5Config = T5Config()
     scheduler_steps: int = 1000
     device: str = 'cuda'
+
+
 # pylint: disable=C0116
+
 
 class Flux(VisionModule):
     """

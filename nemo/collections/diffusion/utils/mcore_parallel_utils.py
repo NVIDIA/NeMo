@@ -21,6 +21,7 @@ import os
 import megatron.core.parallel_state as ps
 import torch
 
+
 # pylint: disable=C0116
 class Utils:
     world_size = torch.cuda.device_count()
@@ -78,4 +79,6 @@ class Utils:
             pipeline_model_parallel_split_rank,
             **kwargs,
         )
+
+
 # pylint: disable=C0116

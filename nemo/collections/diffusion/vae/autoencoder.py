@@ -20,6 +20,7 @@ from torch import Tensor, nn
 
 from nemo.collections.diffusion.vae.blocks import AttnBlock, Downsample, Normalize, ResnetBlock, Upsample, make_attn
 
+
 # pylint: disable=C0116
 @dataclass
 class AutoEncoderConfig:
@@ -332,4 +333,6 @@ class AutoEncoder(nn.Module):
         missing, unexpected = self.load_state_dict(state_dict)
         if len(missing) > 0:
             logger.warning(f"Following keys are missing from checkpoint loaded: {missing}")
+
+
 # pylint: disable=C0116
