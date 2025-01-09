@@ -56,11 +56,11 @@ def finetune_recipe(
     global_batch_size: int = 32,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Gemma2 2B model.
+    Create a fine-tuning recipe for E5-large (340 million) model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
-    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
+    Only SFT is currently supported for E5 model.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
@@ -80,14 +80,14 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory gemma2_2b
+            $ nemo llm finetune --factory e5_340m
 
         Python API usage:
             >>> recipe = finetune_recipe(name="e5_340m_finetune", num_nodes=1)
             >>> print(recipe)
 
     Note:
-        This recipe uses the SQuAD dataset for fine-tuning. For more information
+        This recipe uses the Specter dataset for fine-tuning. For more information
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
