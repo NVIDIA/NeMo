@@ -16,7 +16,18 @@
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 TOKENIZER_SPM_FILE = '/home/TestData/nlp/tokenizer_with_special_tokens/tokenizer.model'
-SPECIAL_TOKENS = ['<s>', '</s>', '[INST]', '[/INST]', '[TOOL_CALLS]', '[AVAILABLE_TOOLS]', '[/AVAILABLE_TOOLS]', '[TOOL_RESULTS]', '[/TOOL_RESULTS]']
+SPECIAL_TOKENS = [
+    '<s>',
+    '</s>',
+    '[INST]',
+    '[/INST]',
+    '[TOOL_CALLS]',
+    '[AVAILABLE_TOOLS]',
+    '[/AVAILABLE_TOOLS]',
+    '[TOOL_RESULTS]',
+    '[/TOOL_RESULTS]',
+]
+
 
 def _build_tokenizer(spm_file, special_tokens):
     tokenizer_cfg = {
@@ -39,12 +50,14 @@ def _build_tokenizer(spm_file, special_tokens):
         legacy=True,
     )
 
+
 def test_spm_with_special_tokens() -> None:
     tokenizer = _build_tokenizer(TOKENIZER_SPM_FILE, SPECIAL_TOKENS)
     assert tokenizer.text_to_ids('[INST]') == [3]
     for i, special_token in enumerate(SPECIAL_TOKENS):
         assert special_token in tokenizer.special_token_to_id, f'Expected {special_token} to be a special token'
         assert tokenizer.special_token_to_id[special_token] == i + 1
+
 
 def test_trim_spm_separator_after_special_token():
     tokenizer = _build_tokenizer(TOKENIZER_SPM_FILE, SPECIAL_TOKENS)
