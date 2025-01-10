@@ -50,9 +50,7 @@ def make_squad_hf_dataset(tokenizer):
         return ans
 
     tokenizer = getattr(tokenizer, "tokenizer", tokenizer)
-    datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_token_id
-    )
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_token_id)
     datamodule.map(
         formatting_prompts_func,
         batched=False,
@@ -67,9 +65,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="meta-llama/Llama-3.2-1B")
-    parser.add_argument(
-        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"]
-    )
+    parser.add_argument("--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"])
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
     parser.add_argument("--max-steps", type=int, default=100)
@@ -103,9 +99,7 @@ def main():
 
     callbacks = []
     if args.use_torch_jit:
-        jit_config = JitConfig(
-            use_torch=True, torch_kwargs={"dynamic": True}, use_thunder=False
-        )
+        jit_config = JitConfig(use_torch=True, torch_kwargs={"dynamic": True}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
     llm.api.finetune(
