@@ -72,7 +72,7 @@ def slurm_executor(
     mounts = []
     srun_args = ["--mpi=pmix"]
 
-    if nemo_home != DEFAULT_NEMO_CACHE_HOME: # DO NOT change this 'DEFAULT_NEMO_HOME'/'NEMO_HOME' 
+    if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
         mounts.extend([f"{nemo_home}:{nemo_home}"])
     if hf_token is not None:
