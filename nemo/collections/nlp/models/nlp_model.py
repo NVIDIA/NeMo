@@ -367,9 +367,7 @@ class NLPModel(ModelPT, Exportable):
             # override the hparams with values that were passed in
             cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].get('cfg', checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
             # TODO: can we do this without overriding?
-            config_kwargs = kwargs.copy()
-            if 'trainer' in config_kwargs:
-                config_kwargs.pop('trainer')
+            config_kwargs = {k: v for k, v in kwargs.copy().items() if k in cfg}
             cfg.update(config_kwargs)
 
             if cfg.get('megatron_amp_O2', False) and checkpoint_dir is None:
