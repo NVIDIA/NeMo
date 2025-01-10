@@ -44,6 +44,17 @@ pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com \
   -r tools/ctc_segmentation/requirements.txt
 
 bash reinstall.sh "dev"
+
+# Megatron Core installation
+MCORE_TAG=$(grep 'export MCORE_TAG=' reinstall.sh | awk -F'=' '{print $2}')
+git clone https://github.com/NVIDIA/Megatron-LM.git && \
+pushd Megatron-LM && \
+git checkout ${MCORE_TAG} && \
+  pushd megatron/core/datasets && \
+  make && \
+  popd && \
+popd
+export PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
 EOF
 
 # Copy over NeMo code
