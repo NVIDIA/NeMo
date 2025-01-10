@@ -21,18 +21,17 @@ import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.llm.gpt.data.core import create_sft_dataset
+from nemo.collections.llm.bert.data.core import create_sft_dataset
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
-    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 
 class FineTuningDataModule(pl.LightningDataModule):
-    """Base class for fine-tuning an LLM.
+    """Base class for fine-tuning an Bert.
 
     This class provides a foundation for building custom data modules for fine-tuning Nemo NLP models. It inherits from
     `pl.LightningDataModule` from the PyTorch Lightning library and handles data loading, preprocessing, and batch
@@ -55,7 +54,6 @@ class FineTuningDataModule(pl.LightningDataModule):
             Defaults to True.
         persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs.
             Defaults to False.
-        packed_sequence_specs (PackedSequenceSpecs, optional): See PackedSequenceSpecs for details
         dataset_kwargs (Optional[Dict[str, Any]], optional): Keyword arguments to pass into the GPTSFTDataset class
     """
 
@@ -72,7 +70,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
-        packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
         dataset_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
@@ -89,59 +86,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.rampup_batch_size = rampup_batch_size
         self.data_sampler = None
         self.max_train_samples = None
-        self.packed_sequence_specs = packed_sequence_specs
-        self.packed_sequence_size = -1 if not packed_sequence_specs else packed_sequence_specs.packed_sequence_size
-        self.validate_batch_size_for_packed_sequence()
         self.dataset_kwargs = dataset_kwargs or {}
-        self._pad_cu_seqlens = False if not packed_sequence_specs else packed_sequence_specs.pad_cu_seqlens
-        self.init_global_step = 0
-
-    def validate_batch_size_for_packed_sequence(self):
-        """
-        Validate that micro batch size must be 1 when using packed sequence.
-        """
-        if self.packed_sequence_size > 0 and self.micro_batch_size > 1:
-            raise ValueError(
-                "Micro batch size should be 1 when training with packed sequence, but your micro batch size "
-                f"is {self.micro_batch_size}. \nThe following config is equivalent to your current setting for "
-                f"a packed dataset. Please update your config to the following: \n"
-                f"Set micro batch size to 1 (currently {self.micro_batch_size})\n"
-                f"Set global batch size to {self.global_batch_size // self.micro_batch_size} "
-                f"(currently {self.global_batch_size}) \n"
-                f"Set packed sequence length to {self.packed_sequence_size*self.micro_batch_size} "
-                f"(currently {self.packed_sequence_size}) \n"
-                f"For details please visit "
-                f"https://docs.nvidia.com/nemo-framework/user-guide/latest/sft_peft/packed_sequence.html"
-            )
-
-    def prepare_data(self) -> None:
-        """
-        Prepare packed sequence data
-        """
-        if self.packed_sequence_size > 0:
-            from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
-
-            if not self.train_path_packed.is_file():
-                prepare_packed_sequence_data(
-                    input_path=self.train_path,
-                    output_path=self.train_path_packed,
-                    packed_sequence_size=self.packed_sequence_size,
-                    tokenizer=self.tokenizer,
-                    max_seq_length=self.seq_length,
-                    seed=self.seed,
-                    output_metadata_path=self.pack_metadata,
-                )
-
-            if not self.validation_path_packed.is_file():
-                prepare_packed_sequence_data(
-                    input_path=self.validation_path,
-                    output_path=self.validation_path_packed,
-                    packed_sequence_size=self.packed_sequence_size,
-                    tokenizer=self.tokenizer,
-                    max_seq_length=self.seq_length,
-                    seed=self.seed,
-                    output_metadata_path=self.pack_metadata,
-                )
 
     def setup(self, stage: str):
         """Called by pytorch lightning in datamodule setup"""
@@ -166,7 +111,9 @@ class FineTuningDataModule(pl.LightningDataModule):
             A dictionary containing datamodule state.
 
         """
-        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
+        consumed_samples = self.data_sampler.compute_consumed_samples(
+            self.trainer.global_step - self.data_sampler.init_global_step
+        )
         return {"consumed_samples": consumed_samples}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
@@ -196,8 +143,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         # pylint: disable=C0115,C0116
         return self._create_dataloader(
             self._create_dataset(
-                self.train_path if self.packed_sequence_size <= 0 else self.train_path_packed,
-                pack_metadata_path=None if self.packed_sequence_size <= 0 else self.pack_metadata,
+                self.train_path,
                 max_num_samples=self.max_train_samples,
                 **self.dataset_kwargs,
             ),
@@ -208,46 +154,36 @@ class FineTuningDataModule(pl.LightningDataModule):
         # pylint: disable=C0115,C0116
         return self._create_dataloader(
             self._create_dataset(
-                self.validation_path if self.packed_sequence_size <= 0 else self.validation_path_packed,
-                pack_metadata_path=None if self.packed_sequence_size <= 0 else self.pack_metadata,
-                is_test=True,
+                self.train_path,
+                max_num_samples=self.max_train_samples,
                 **self.dataset_kwargs,
             ),
-            mode="validation",
+            mode="train",
         )
 
     def test_dataloader(self) -> DataLoader:
         # pylint: disable=C0115,C0116
         return self._create_dataloader(
             self._create_dataset(
-                self.test_path,
-                tokens_to_generate=32,
-                is_test=True,
+                self.train_path,
+                max_num_samples=self.max_train_samples,
                 **self.dataset_kwargs,
             ),
-            mode="test",
+            mode="train",
         )
 
     @lru_cache
-    def _create_dataset(self, path, pack_metadata_path=None, is_test=False, **kwargs):
-        # pylint: disable=C0115,C0116
-        is_not_packing = self.packed_sequence_size <= 0
+    def _create_dataset(self, path, **kwargs):
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,
-            seq_length=(self.seq_length if is_not_packing else self.packed_sequence_size),
+            seq_length=self.seq_length,
             memmap_workers=self.memmap_workers,
             seed=self.seed,
-            is_test=is_test,
-            pack_metadata_file_path=None if is_not_packing else pack_metadata_path,
-            pad_cu_seqlens=False if is_not_packing else self.pad_cu_seqlens,
             **kwargs,
         )
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
-        # pylint: disable=C0115,C0116
-        self.init_global_step = self.trainer.global_step
-        self.data_sampler.init_global_step = self.init_global_step
         return WrappedDataLoader(
             mode=mode,
             dataset=dataset,
@@ -264,49 +200,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         return self.dataset_root / "training.jsonl"
 
     @property
-    def default_pack_path(self) -> Path:
-        '''The default directory to write packing files.'''
-        tokenizer_model_name = self._extract_tokenizer_model_name()
-        default_pack_path = self.dataset_root / "packed" / tokenizer_model_name
-        if not default_pack_path.exists():
-            default_pack_path.mkdir(parents=True, exist_ok=True)
-            logging.info(f"Using default path for packing files: {str(default_pack_path)}")
-
-        return default_pack_path
-
-    @property
-    def pack_metadata(self) -> Path:
-        """Path to metadata dataset file for packed sequence."""
-        if self.packed_sequence_size > 0:
-            if self.packed_sequence_specs.packed_metadata_path is not None:
-                return self.packed_sequence_specs.packed_metadata_path
-            return self.default_pack_path / f"{self.packed_sequence_size}_metadata.jsonl"
-        else:
-            raise ValueError("pack_metadata invalid since packed sequence size is not specified.")
-
-    @property
-    def train_path_packed(self) -> Path:
-        """Path to training dataset file for packed sequence. The file path contains a reference to the
-        tokenizer/model name since packed sequence dataset consists of tokenized indices."""
-        if self.packed_sequence_size > 0:
-            if self.packed_sequence_specs.packed_train_data_path is not None:
-                return self.packed_sequence_specs.packed_train_data_path
-            return self.default_pack_path / f"training_{self.packed_sequence_size}.npy"
-        else:
-            raise ValueError("`train_path_packed` invalid since packed sequence size is not specified.")
-
-    @property
-    def validation_path_packed(self) -> Path:
-        """Path to validation dataset file for packed sequence. The file path contains a reference to the
-        tokenizer/model name since packed sequence dataset consists of tokenized indices."""
-        if self.packed_sequence_size > 0:
-            if self.packed_sequence_specs.packed_val_data_path is not None:
-                return self.packed_sequence_specs.packed_val_data_path
-            return self.default_pack_path / f"validation_{self.packed_sequence_size}.npy"
-        else:
-            raise ValueError("`validation_path_packed` invalid since packed sequence size is not specified.")
-
-    @property
     def validation_path(self) -> Path:
         """Path to validation dataset file"""
         return self.dataset_root / "validation.jsonl"
@@ -316,21 +209,9 @@ class FineTuningDataModule(pl.LightningDataModule):
         """Path to test dataset file"""
         return self.dataset_root / "test.jsonl"
 
-    @property
-    def pad_cu_seqlens(self) -> bool:
-        """Whether to pad cu_seqlens to a constant shape"""
-        if self.packed_sequence_size > 0:
-            if self.packed_sequence_specs.pad_cu_seqlens is not None:
-                return self.packed_sequence_specs.pad_cu_seqlens
-            else:
-                return self._pad_cu_seqlens
-        return False
-
     def _extract_tokenizer_model_name(self) -> str:
         """Automatically get the model name from model path."""
-        if self.packed_sequence_specs.tokenizer_model_name is not None:
-            tokenizer_model_name = self.packed_sequence_specs.tokenizer_model_name
-        elif isinstance(self.tokenizer, AutoTokenizer):
+        if isinstance(self.tokenizer, AutoTokenizer):
             name = self.tokenizer.tokenizer.name_or_path
             if name.endswith("context/nemo_tokenizer"):
                 # NEMO_HOME/hf_org/hf_model/context/nemo_tokenizer => hf_org--hf_model
