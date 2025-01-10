@@ -151,9 +151,9 @@ class KenLMWrapper:
 class NGram(NamedTuple):
     """Structure (tuple) to represent N-Gram element (symbols, weight, backoff)"""
 
+    symbols: tuple[int, ...]
     weight: float
     backoff: float
-    symbols: tuple[int, ...]
 
 
 class Arc(NamedTuple):
@@ -550,7 +550,7 @@ class FastNGramLM(nn.Module):
             (ord(symbol) - token_offset if symbol not in special_symbols_map else special_symbols_map[symbol])
             for symbol in symbols_re
         )
-        return NGram(weight=weight, backoff=backoff, symbols=symbols)
+        return NGram(symbols=symbols, weight=weight, backoff=backoff)
 
     @classmethod
     def _build_suffix_tree_iterative(
