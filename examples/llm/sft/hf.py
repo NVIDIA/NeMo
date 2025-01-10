@@ -70,7 +70,7 @@ def main():
     parser.add_argument(
         "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"]
     )
-    parser.add_argument("--devices", default=1)
+    parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
     parser.add_argument("--model-accelerator", default=None, choices=["te"])
     parser.add_argument("--max-steps", type=int, default=100)
@@ -96,17 +96,11 @@ def main():
         from nemo.lightning.pytorch.strategies import FSDP2Strategy
 
         args.strategy = FSDP2Strategy(
-            data_parallel_size=int(args.devices), tensor_parallel_size=1
+            data_parallel_size=args.devices, tensor_parallel_size=1
         )
 
     use_dist_samp = False
 
-    if args.strategy == "fsdp2":
-        from nemo.lightning.pytorch.strategies import FSDP2Strategy
-
-        args.strategy = FSDP2Strategy(
-            data_parallel_size=int(args.devices), tensor_parallel_size=1
-        )
     model_accelerator = None
     if args.model_accelerator == "te":
         from functools import partial
