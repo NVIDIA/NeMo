@@ -64,7 +64,7 @@ class DiarizationConfig:
     
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
-    eval_mode: bool = True
+    eval_mode: bool = False
     no_der: bool = False
     out_rttm_dir: Optional[str] = None
     opt_style: Optional[str] = None
@@ -116,7 +116,7 @@ class DiarizationConfig:
     generate_scripts: bool = True
     
     word_window: int = 50
-    fix_speaker_assignments: bool = True
+    fix_speaker_assignments: bool = False
     fix_prev_words_count: int = 5
     update_prev_words_sentence: int = 5
     left_frame_shift: int = -1
@@ -130,6 +130,9 @@ class DiarizationConfig:
     print_path: str = "./"
     ignored_initial_frame_steps: int = 5
     verbose: bool = False
+
+    feat_len_sec: float = 0.01
+    finetune_realtime_ratio: float = 0.01
 
 
 def format_time(seconds):
@@ -174,7 +177,7 @@ def perform_streaming(
                     previous_hypotheses,
                     mem_last_time,
                     fifo_last_time,
-                    diar_pred_out_stream) = multispk_asr_streamer.perform_streaming_stt_spk(
+                    diar_pred_out_stream) = multispk_asr_streamer.perform_queryless_streaming_stt_spk(
                         step_num=step_num,
                         chunk_audio=chunk_audio,
                         chunk_lengths=chunk_lengths,
@@ -194,6 +197,7 @@ def perform_streaming(
 
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
+        
         loop_end_time = time.time()
         feat_frame_count += (chunk_audio.shape[-1] - cfg.discarded_frames)
         if cfg.real_time_mode:
@@ -203,7 +207,9 @@ def perform_streaming(
                          f"Time difference for real-time mode: {time_diff:.4f} seconds")
             time.sleep(max(0, (chunk_audio.shape[-1] - cfg.discarded_frames)*cfg.feat_len_sec - 
                            (loop_end_time - loop_start_time) - time_diff * cfg.finetune_realtime_ratio))
+            
     final_streaming_tran = extract_transcriptions(transcribed_texts)
+    
     return final_streaming_tran, final_offline_tran
 
 
