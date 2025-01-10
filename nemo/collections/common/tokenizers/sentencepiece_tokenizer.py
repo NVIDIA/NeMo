@@ -51,6 +51,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         legacy: bool = False,
         ignore_extra_whitespaces: bool = True,
         chat_template: Optional[Dict] = None,
+        trim_spm_separator_after_special_token = True,
+        spm_separator = '▁',
     ):
         self.chat_template = chat_template
         if not model_path or not os.path.exists(model_path):
@@ -66,6 +68,9 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         self.extra_space_token = '☯'
         self.special_token_to_id = {}
         self.id_to_special_token = {}
+        self.trim_spm_separator_after_special_token = trim_spm_separator_after_special_token
+        self.spm_separator_id = self.tokenizer.piece_to_id(spm_separator)
+
         if special_tokens:
             if not self.legacy:
                 raise ValueError(
@@ -143,7 +148,17 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                 next_token = min(indices, key=indices.get)
                 next_idx = idx + indices[next_token]
 
-                ids.extend(self.tokenizer.encode_as_ids(text[idx:next_idx]))
+
+                te = self.tokenizer.encode(text[idx:next_idx], out_type=str)
+                text_tokens = self.tokenizer.encode(text[idx:next_idx])
+                # Chat-templates insert a space between a special token and first word (e.g.
+                # "[INST] who") which is tokenized as <inst-id> <space-id> <who-id> instead of
+                # <inst-id> <who-id>.
+                if self.trim_spm_separator_after_special_token and len(ids) > 0 \
+                    and ids[-1] in self.id_to_special_token \
+                    and len(text_tokens) > 0 and text_tokens[0] == self.spm_separator_id:
+                        text_tokens.pop(0)
+                ids.extend(text_tokens)
                 ids.append(self.special_token_to_id[next_token])
                 idx = next_idx + len(next_token)
 
@@ -239,6 +254,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     self.vocab_size += 1
                 elif self.tokenizer.piece_to_id(token) != self.tokenizer.unk_id():
                     self.special_token_to_id[token] = self.tokenizer.piece_to_id(token)
+                    self.id_to_special_token[self.special_token_to_id[token]] = token
 
         elif isinstance(special_tokens, dict):
             for token_name, token in special_tokens.items():
