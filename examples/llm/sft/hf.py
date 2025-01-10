@@ -66,31 +66,47 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
-    parser.add_argument('--devices', default=1)
-    parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--model-accelerator', default=None, choices=['te'])
-    parser.add_argument('--max-steps', type=int, default=100)
-    parser.add_argument("--fp8-autocast", default=False, action='store_true')
-    parser.add_argument('--wandb-project', type=str, default=None)
-    parser.add_argument('--model-save-path', type=str, default=None)
-    parser.add_argument('--use-torch-jit', action='store_true')
+    parser.add_argument("--model", default="meta-llama/Llama-3.2-1B")
+    parser.add_argument(
+        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"]
+    )
+    parser.add_argument("--devices", default=1)
+    parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
+    parser.add_argument("--model-accelerator", default=None, choices=["te"])
+    parser.add_argument("--max-steps", type=int, default=100)
+    parser.add_argument("--fp8-autocast", default=False, action="store_true")
+    parser.add_argument("--wandb-project", type=str, default=None)
+    parser.add_argument("--model-save-path", type=str, default=None)
+    parser.add_argument("--use-torch-jit", action="store_true")
     args = parser.parse_args()
 
     wandb = None
     if args.wandb_project is not None:
-        model = '_'.join(args.model.split('/')[-2:])
+        model = "_".join(args.model.split("/")[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
-            name=f'{model}_dev{args.devices}_strat_{args.strategy}',
+            name=f"{model}_dev{args.devices}_strat_{args.strategy}",
         )
     grad_clip = 0.5
-    if args.strategy == 'fsdp':
+    if args.strategy == "fsdp":
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
+
+    if args.strategy == "fsdp2":
+        from nemo.lightning.pytorch.strategies import FSDP2Strategy
+
+        args.strategy = FSDP2Strategy(
+            data_parallel_size=int(args.devices), tensor_parallel_size=1
+        )
+
     use_dist_samp = False
 
+    if args.strategy == "fsdp2":
+        from nemo.lightning.pytorch.strategies import FSDP2Strategy
+
+        args.strategy = FSDP2Strategy(
+            data_parallel_size=int(args.devices), tensor_parallel_size=1
+        )
     model_accelerator = None
     if args.model_accelerator == "te":
         from functools import partial
@@ -100,12 +116,16 @@ def main():
 
     from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
-    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
+    model = llm.HFAutoModelForCausalLM(
+        model_name=args.model, model_accelerator=model_accelerator
+    )
     tokenizer = model.tokenizer
 
     callbacks = []
     if args.use_torch_jit:
-        jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
+        jit_config = JitConfig(
+            use_torch=True, torch_kwargs={"dynamic": False}, use_thunder=False
+        )
         callbacks = [JitTransform(jit_config)]
 
     llm.api.finetune(
@@ -140,5 +160,5 @@ def main():
         model.save_pretrained(args.model_save_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
