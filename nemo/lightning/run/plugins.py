@@ -164,7 +164,7 @@ class NsysPlugin(run.Plugin):
                 start_step=self.start_step,
                 end_step=self.end_step,
                 ranks=self.ranks or [0],
-                gen_shape = self.gen_shape,
+                gen_shape=self.gen_shape,
             )
             callbacks: list[run.Config[Callback]] = [nsys_callback]  # type: ignore
             _merge_callbacks(task, callbacks=callbacks)
