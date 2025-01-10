@@ -76,6 +76,25 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     num_patches = num_patches_per_dim_h * num_patches_per_dim_w
     return num_patches + (class_token_len if add_class_token else 0)
 
+def restore_model_weights(model, checkpoint_path, model_type):
+    """
+    Restores model weights from a checkpoint.
+
+    Args:
+        model: The model to restore weights for.
+        checkpoint_path: Path to the checkpoint.
+        model_type: Type of the model (e.g., 'vision' or 'language').
+    """
+    if checkpoint_path is not None:
+        sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
+        loaded_state_dict = dist_checkpointing.load(
+            sharded_state_dict=sharded_state_dict,
+            checkpoint_dir=ckpt_to_weights_subdir(checkpoint_path, is_saving=False),
+            validate_access_integrity=False,
+        )
+        loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+        model.load_state_dict(loaded_state_dict)
+        logging.info(f"Restored {model_type} model weights from {checkpoint_path}")
 
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
@@ -152,7 +171,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     seq_length: int = 1024
 
     language_model_from_pretrained: Optional[str] = None
-    vision_model_from_pretrained: Optional[str] = None  # TODO
+    vision_model_from_pretrained: Optional[str] = None
     vision_projection_from_pretrained: Optional[str] = None  # TODO
 
     freeze_language_model: bool = False
@@ -244,16 +263,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
             self._language_max_sequence_length = self.language_model.max_sequence_length
             self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
-            if config.language_model_from_pretrained is not None:
-                sharded_state_dict = dict(state_dict=self.language_model.sharded_state_dict(prefix="module."))
-                loaded_state_dict = dist_checkpointing.load(
-                    sharded_state_dict=sharded_state_dict,
-                    checkpoint_dir=ckpt_to_weights_subdir(config.language_model_from_pretrained, is_saving=False),
-                    validate_access_integrity=False,
-                )
-                loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
-                self.language_model.load_state_dict(loaded_state_dict)
-                logging.info(f"Restored language model weights from {config.language_model_from_pretrained}")
+            restore_model_weights(self.language_model, config.language_model_from_pretrained, "language")
+
         else:
             if config.language_model_from_pretrained is not None:
                 dist_checkpointing.load(
@@ -266,18 +277,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self.vision_model = vision_transformer_config.configure_model()
             self.vision_projection = vision_projection_config.configure_model()
             self._drop_vision_class_token = drop_vision_class_token
-
-            config.vision_model_from_pretrained = "/root/.cache/nemo/models/OpenGVLab/InternViT-6B-448px-V1-5"
-            if config.vision_model_from_pretrained is not None:
-                sharded_state_dict = dict(state_dict=self.vision_model.sharded_state_dict(prefix="module."))
-                loaded_state_dict = dist_checkpointing.load(
-                    sharded_state_dict=sharded_state_dict,
-                    checkpoint_dir=ckpt_to_weights_subdir(config.vision_model_from_pretrained, is_saving=False),
-                    validate_access_integrity=False,
-                )
-                loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
-                self.vision_model.load_state_dict(loaded_state_dict)
-                logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
+            restore_model_weights(self.vision_model, config.vision_model_from_pretrained, "vision")
 
         self.freeze(
             freeze_language_model=config.freeze_language_model,
