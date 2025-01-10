@@ -32,7 +32,7 @@ def torchrun(devices: Optional[int] = None) -> run.Config[run.LocalExecutor]:
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
     }
 
-    if devices is None:
+    if devices is None and torch.cuda.is_available():
         assert torch.cuda.is_available()
         devices = torch.cuda.device_count()
 
