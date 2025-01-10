@@ -311,7 +311,7 @@ class TestEncDecRNNTModel:
         assert len(outputs) == 1
         assert len(outputs[0]) == 2
         assert isinstance(outputs[0][0], MonoCut)
-        assert isinstance(outputs[0][1], str)
+        assert isinstance(outputs[0][1], rnnt_utils.Hypothesis)
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,

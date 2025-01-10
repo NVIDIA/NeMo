@@ -929,10 +929,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             decoder_input_ids=decoder_input_ids,
         )
 
-    @deprecated(
-        explanation='The return type of args will be updated in the upcoming release to ensure a consistent \
-        output format across all decoder types, such that a Hypothesis object is always returned.'
-    )
+
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
         Internal function to process the model's outputs to return the results to the user. This function is called by
@@ -944,7 +941,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         Returns:
             The output can be a list of
-            objects, list of list of objects, tuple of objects, tuple of list of objects, or a dict of list of objects.
+            objects, list of list of objects.
             Its type is defined in `TranscriptionReturnType`.
         """
         log_probs = outputs.pop('log_probs')
@@ -955,7 +952,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         del log_probs, encoded_len
 
-        best_hypotheses, all_hypotheses = self.decoding.decode_predictions_tensor(
+        hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             decoder_input_ids=decoder_input_ids,
@@ -963,9 +960,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
 
         del enc_states, enc_mask, decoder_input_ids
-        if all_hypotheses is None:
-            return best_hypotheses
-        return best_hypotheses, all_hypotheses
+
+        return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
@@ -1092,7 +1088,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             encoder_input_mask=enc_mask,
             decoder_input_ids=batch.prompt,
             return_hypotheses=False,
-        )[0]
+        )
         if batch.cuts:
             return list(zip(batch.cuts, text))
         else:

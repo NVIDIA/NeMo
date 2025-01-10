@@ -356,7 +356,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
                     input_len=input_len.to(device),
                 )
 
-                preds_str, _ = self.decoding.ctc_decoder_predictions_tensor(
+                preds_str = self.decoding.ctc_decoder_predictions_tensor(
                     log_probs, decoder_lengths=encoded_len, return_hypotheses=False
                 )
                 all_preds.extend(preds_str)

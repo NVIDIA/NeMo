@@ -353,14 +353,15 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
                 f"but was provided {self.cfg.strategy}"
             )
-
+# TODO: [Sofia Kostandian] update docstring and add information about nbestyp->all_hyp
     def ctc_decoder_predictions_tensor(
         self,
         decoder_outputs: torch.Tensor,
         decoder_lengths: torch.Tensor = None,
         fold_consecutive: bool = True,
         return_hypotheses: bool = False,
-    ) -> Tuple[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
+    ) -> Union[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
+       # TODO: [Sofia Kostandian] change output types and docstring 
         """
         Decodes a sequence of labels to words
 
@@ -410,9 +411,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         if isinstance(hypotheses_list[0], NBestHypotheses):
             if self.cfg.strategy == 'wfst':
                 all_hypotheses = [hyp.n_best_hypotheses for hyp in hypotheses_list]
-                hypotheses = [hyp[0] for hyp in all_hypotheses]
             else:
-                hypotheses = []
                 all_hypotheses = []
 
                 for nbest_hyp in hypotheses_list:  # type: NBestHypotheses
@@ -427,16 +426,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
                         for hyp_idx in range(len(decoded_hyps)):
                             decoded_hyps[hyp_idx] = self.compute_ctc_timestamps(decoded_hyps[hyp_idx], timestamp_type)
 
-                    hypotheses.append(decoded_hyps[0])  # best hypothesis
                     all_hypotheses.append(decoded_hyps)
 
             if return_hypotheses:
-                return hypotheses, all_hypotheses
+                return all_hypotheses  # type: list[list[Hypothesis]]
 
-            best_hyp_text = [h.text for h in hypotheses]
             # alaptev: The line below might contain a bug. Do we really want all_hyp_text to be flat?
-            all_hyp_text = [h.text for hh in all_hypotheses for h in hh]
-            return best_hyp_text, all_hyp_text
+            all_hyp = [[Hypothesis(h.score,h.y_sequence,h.text) for h in hh] for hh in all_hypotheses]
+            return all_hyp
 
         else:
             if self.cfg.strategy == 'wfst':
@@ -460,10 +457,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
                         hypotheses[hyp_idx] = self.compute_ctc_timestamps(hypotheses[hyp_idx], timestamp_type)
 
             if return_hypotheses:
-                return hypotheses, None
-
-            best_hyp_text = [h.text for h in hypotheses]
-            return best_hyp_text, None
+                return hypotheses
+            
+            return [Hypothesis(h.score, h.y_sequence, h.text) for h in hypotheses]
 
     def decode_hypothesis(
         self, hypotheses_list: List[Hypothesis], fold_consecutive: bool

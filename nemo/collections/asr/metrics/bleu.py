@@ -161,7 +161,7 @@ class BLEU(SacreBLEUScore):
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
-            hypotheses, _ = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
+            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
 
         if self.log_prediction:
             logging.info(f"\n")

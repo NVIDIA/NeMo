@@ -206,7 +206,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                             lg = logits[idx][: logits_len[idx]]
                             hypotheses.append(lg.cpu().numpy())
                     else:
-                        current_hypotheses, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
+                        current_hypotheses= self.decoding.ctc_decoder_predictions_tensor(
                             logits,
                             decoder_lengths=logits_len,
                             return_hypotheses=return_hypotheses,
@@ -219,10 +219,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                                 if current_hypotheses[idx].alignments is None:
                                     current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
 
-                        if all_hyp is None:
-                            hypotheses += current_hypotheses
-                        else:
-                            hypotheses += all_hyp
+                        hypotheses += current_hypotheses
 
                     del greedy_predictions
                     del logits

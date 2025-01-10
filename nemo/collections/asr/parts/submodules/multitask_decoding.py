@@ -217,6 +217,8 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
         return_hypotheses: bool = False,
         partial_hypotheses: Optional[List[Hypothesis]] = None,
     ) -> Tuple[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
+        # TODO: [Sofia Kostandian] change output types and docstring 
+
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
 
@@ -265,11 +267,10 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
                 all_hypotheses.append(decoded_hyps)
 
             if return_hypotheses:
-                return hypotheses, all_hypotheses
+                return all_hypotheses  
 
-            best_hyp_text = [h.text for h in hypotheses]
-            all_hyp_text = [h.text for hh in all_hypotheses for h in hh]
-            return best_hyp_text, all_hyp_text
+            all_hyp = [[Hypothesis(h.score,h.y_sequence,h.text) for h in hh] for hh in all_hypotheses]
+            return all_hyp
 
         else:
             hypotheses = self.decode_hypothesis(prediction_list)
@@ -280,10 +281,9 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
                     self.preserve_word_confidence or self.preserve_token_confidence
                 ):
                     hypotheses = self.compute_confidence(hypotheses)
-                return hypotheses, None
+                return hypotheses
 
-            best_hyp_text = [h.text for h in hypotheses]
-            return best_hyp_text, None
+            return [h.text for h in hypotheses]
 
     def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[Union[Hypothesis, NBestHypotheses]]:
         """

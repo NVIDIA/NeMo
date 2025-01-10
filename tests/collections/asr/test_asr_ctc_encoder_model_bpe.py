@@ -23,6 +23,7 @@ from lhotse import CutSet, MonoCut
 from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig
 
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.data import audio_to_text
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models import configs
@@ -131,7 +132,7 @@ class TestEncDecCTCModel:
         assert len(outputs) == 1
         assert len(outputs[0]) == 2
         assert isinstance(outputs[0][0], MonoCut)
-        assert isinstance(outputs[0][1], str)
+        assert isinstance(outputs[0][1], Hypothesis)
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit

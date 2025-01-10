@@ -115,9 +115,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
 
         Returns:
-            Returns a tuple of 2 items -
-            * A list of greedy transcript texts / Hypothesis
-            * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
+            Returns a list of greedy transcript texts / Hypothesis
         """
         if self.use_rnnt_decoder:
             return super().transcribe(
@@ -177,7 +175,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
                     )
 
                     logits = self.ctc_decoder(encoder_output=encoded)
-                    best_hyp, all_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
+                    best_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
                         logits,
                         encoded_len,
                         return_hypotheses=return_hypotheses,
@@ -191,10 +189,6 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
                     del logits
 
                     hypotheses += best_hyp
-                    if all_hyp is not None:
-                        all_hypotheses += all_hyp
-                    else:
-                        all_hypotheses += best_hyp
 
                     del encoded
                     del test_batch
@@ -210,7 +204,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
                 self.joint.unfreeze()
                 if hasattr(self, 'ctc_decoder'):
                     self.ctc_decoder.unfreeze()
-        return hypotheses, all_hypotheses
+        return hypotheses
 
     def change_vocabulary(
         self,
@@ -473,7 +467,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
         del signal
 
-        best_hyp_text, all_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
+        best_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
             encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
         )
 
