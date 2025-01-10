@@ -709,12 +709,24 @@ def make_structured_with_schema_warnings(config: DictConfig | dict) -> DictConfi
     if not isinstance(config, DictConfig):
         config = DictConfig(config)
 
+    # Remove unsupported keys and warn about them.
+    supported_keys = set(OmegaConf.to_container(default).keys())
+    received_keys = set(OmegaConf.to_container(config).keys())
+    unsupported_keys = received_keys - supported_keys
+    unsupported_keys.discard("use_lhotse")
+    if unsupported_keys:
+        logging.warning(
+            f"The following configuration keys are ignored by Lhotse dataloader: {','.join(unsupported_keys)}",
+        )
+    config = OmegaConf.masked_copy(config, list(supported_keys))
+
+    config = OmegaConf.merge(default, config)
+
     if config.get("tarred_random_access", False):
         logging.warning(
             "Option 'tarred_random_access' is deprecated and replaced with 'skip_missing_manifest_entries'.",
         )
         config.skip_missing_manifest_entries = True
-
     if config.skip_missing_manifest_entries:
         logging.warning(
             "Note: skip_missing_manifest_entries is set to True. "
@@ -722,17 +734,7 @@ def make_structured_with_schema_warnings(config: DictConfig | dict) -> DictConfi
             "It's your responsibility to ensure data integrity with this setting."
         )
 
-    # Remove unsupported keys and warn about them.
-    supported_keys = set(OmegaConf.to_container(default).keys())
-    received_keys = set(OmegaConf.to_container(config).keys())
-    unsupported_keys = received_keys - supported_keys
-    if unsupported_keys:
-        logging.warning(
-            f"The following configuration keys are ignored by Lhotse dataloader: {','.join(unsupported_keys)}",
-        )
-    config = OmegaConf.masked_copy(config, list(supported_keys))
-
-    return OmegaConf.merge(default, config)
+    return config
 
 
 def tokenize(example, tokenizer):
