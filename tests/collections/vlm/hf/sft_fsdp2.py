@@ -19,7 +19,7 @@ from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 
-DATA_PATH = "/workspace/data/rdr-items"
+DATA_PATH = "/home/TestData/vlm/rdr-items"
 
 
 def mk_hf_vlm_dataset(processor, mbs, gbs):
@@ -78,7 +78,6 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='Qwen/Qwen2-VL-2B-Instruct')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=2)
     parser.add_argument('--mbs', default=1)
     parser.add_argument('--gbs', default=1)
@@ -94,7 +93,7 @@ if __name__ == '__main__':
         model = '_'.join(args.model.split('/')[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
-            name=f'{model}_dev{args.devices}_strat_{args.strategy}',
+            name=f'{model}_dev{args.devices}_strat_fsdp2',
         )
     grad_clip = None
     use_dist_samp = False
@@ -116,13 +115,7 @@ if __name__ == '__main__':
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
             enable_checkpointing=args.disable_ckpt,
-            precision='bf16',
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
-        # peft=llm.peft.LoRA(
-        #     target_modules=['*_proj'],
-        #     dim=16,
-        #     lora_dtype=torch.bfloat16 if args.use_4bit else None,
-        # ),
     )
