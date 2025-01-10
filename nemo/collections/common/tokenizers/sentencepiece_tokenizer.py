@@ -148,7 +148,6 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                 next_token = min(indices, key=indices.get)
                 next_idx = idx + indices[next_token]
 
-                te = self.tokenizer.encode(text[idx:next_idx], out_type=str)
                 text_tokens = self.tokenizer.encode(text[idx:next_idx])
                 # Chat-templates insert a space between a special token and first word (e.g.
                 # "[INST] who") which is tokenized as <inst-id> <space-id> <who-id> instead of
