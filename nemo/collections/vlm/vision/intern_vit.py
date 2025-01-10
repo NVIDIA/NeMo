@@ -330,7 +330,6 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
         return output_path
 
     def convert_state(self, source, target):
-        ss = source
         mapping = {
             # Embeddings
             "embeddings.class_embedding": "class_token",
@@ -342,7 +341,6 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
             "encoder.layers.*.ls2": "decoder.layers.*.ls2",
 
             # Attention QKV
-            "encoder.layers.*.attn.qkv.weight": "decoder.layers.*.self_attention.linear_qkv.weight",
             "encoder.layers.*.attn.q_norm.weight": "decoder.layers.*.self_attention.q_layernorm.weight",
             "encoder.layers.*.attn.k_norm.weight": "decoder.layers.*.self_attention.k_layernorm.weight",
             "encoder.layers.*.attn.proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
@@ -363,7 +361,7 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
             source,
             target,
             mapping=mapping,
-            transforms=[],
+            transforms=[_import_position_embedding, _import_qkv],
         )
 
     @property
@@ -391,3 +389,47 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
 )
 def _import_position_embedding(ctx: io.TransformCTX, pos_emb):
     return pos_emb.squeeze(0)
+
+
+@io.state_transform(
+    source_key="encoder.layers.*.attn.qkv.weight",
+    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
+)
+def _import_qkv(ctx: io.TransformCTX, qkv):
+
+    def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+        old_tensor_shape = q.size()
+        new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
+        new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
+
+        q = q.view(*new_q_tensor_shape)
+        k = k.view(*new_kv_tensor_shape)
+        v = v.view(*new_kv_tensor_shape)
+
+        qkv_weights_l = []
+        for i in range(num_query_groups):
+            qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
+            qkv_weights_l.append(k[i: i + 1, :, :])
+            qkv_weights_l.append(v[i: i + 1, :, :])
+        qkv_weights = torch.cat(qkv_weights_l)
+        assert qkv_weights.ndim == 3, qkv_weights.shape
+        assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+        assert qkv_weights.shape[1] == head_size, qkv_weights.shape
+        assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
+
+        qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+
+        return qkv_weights
+
+    megatron_config = ctx.target.config
+    q, k, v = qkv.chunk(3)
+    return import_qkv(
+        q,
+        k,
+        v,
+        head_num=megatron_config.num_attention_heads,
+        num_query_groups=megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        hidden_size=megatron_config.hidden_size,
+        head_size=megatron_config.kv_channels,
+    )
