@@ -17,23 +17,24 @@ from typing import Optional
 import nemo_run as run
 from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor
 
-from nemo.collections.llm.recipes.llama3_70b import pretrain_recipe
+from nemo.collections.llm.recipes.mixtral_8x22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
-NUM_NODES = 8
+NUM_NODES = 128
 NUM_GPUS_PER_NODE = 8
 MICRO_BATCH_SIZE = 1
-GLOBAL_BATCH_SIZE = 128
+GLOBAL_BATCH_SIZE = 256
 TP_SIZE = 4
 PP_SIZE = 4
-CP_SIZE = 2
-VP_SIZE = 5
+CP_SIZE = 8
+VP_SIZE = 14
+EP_SIZE = 8
 MAX_STEPS = 100
 
 
-def llama3_70b_performance_recipe(
+def mixtral_8x22b_performance_recipe(
     compute_dtype: str,
     num_nodes: int,
     num_gpus_per_node: int,
@@ -43,10 +44,11 @@ def llama3_70b_performance_recipe(
     pp_size: int,
     cp_size: int,
     vp_size: Optional[int],
+    ep_size: int,
     max_steps: int,
 ):
     """
-    llama3 70b pre-train recipe aimed at achieving best possible performance.
+    mixtral 8x22b pre-train recipe aimed at achieving best possible performance.
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
@@ -56,7 +58,7 @@ def llama3_70b_performance_recipe(
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
     recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
-    recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-70B")
+    recipe.data.tokenizer = hf_tokenizer("mistralai/Mixtral-8x22B-v0.1")
 
     recipe.trainer.max_steps = max_steps
     recipe.trainer.num_nodes = num_nodes
@@ -67,6 +69,7 @@ def llama3_70b_performance_recipe(
     recipe.trainer.strategy.pipeline_model_parallel_size = pp_size
     recipe.trainer.strategy.context_parallel_size = cp_size
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = vp_size
+    recipe.trainer.strategy.expert_model_parallel_size = ep_size
     if tp_size > 1:
         recipe.trainer.strategy.sequence_parallel = True
     else:
@@ -77,9 +80,6 @@ def llama3_70b_performance_recipe(
     # compute dtype configs
     if compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.proj_fprop.fp8_buf = True
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.fc2_fprop.fp8_buf = True
-
     recipe.trainer.plugins.grad_reduce_in_fp32 = False  # bf16 grad dtype
 
     # callback configs
@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
     exp_name = "_".join(
         [
-            f"llama3_70b",
+            f"mixtral_8x22b",
             args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",
@@ -130,10 +130,11 @@ if __name__ == "__main__":
         args.container_image,
         custom_mounts=[],
         custom_env_vars={},
-        retries=0,
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home,
     )
 
-    recipe = llama3_70b_performance_recipe(
+    recipe = mixtral_8x22b_performance_recipe(
         args.compute_dtype,
         NUM_NODES,
         NUM_GPUS_PER_NODE,
@@ -143,6 +144,7 @@ if __name__ == "__main__":
         PP_SIZE,
         CP_SIZE,
         VP_SIZE,
+        EP_SIZE,
         MAX_STEPS,
     )
 

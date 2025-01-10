@@ -130,7 +130,8 @@ if __name__ == "__main__":
         args.container_image,
         custom_mounts=[],
         custom_env_vars={},
-        retries=0,
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home,
     )
 
     recipe = gpt3_175b_performance_recipe(

@@ -22,19 +22,19 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
-NUM_NODES = 128
+NUM_NODES = 8
 NUM_GPUS_PER_NODE = 8
 MICRO_BATCH_SIZE = 1
 GLOBAL_BATCH_SIZE = 256
-TP_SIZE = 4
+TP_SIZE = 1
 PP_SIZE = 4
-CP_SIZE = 8
-VP_SIZE = 14
+CP_SIZE = 1
+VP_SIZE = 8
 EP_SIZE = 8
 MAX_STEPS = 100
 
 
-def mixtral_8x22b_performance_recipe(
+def mixtral_8x7b_performance_recipe(
     compute_dtype: str,
     num_nodes: int,
     num_gpus_per_node: int,
@@ -58,7 +58,7 @@ def mixtral_8x22b_performance_recipe(
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
     recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
-    recipe.data.tokenizer = hf_tokenizer("mistralai/Mixtral-8x22B-v0.1")
+    recipe.data.tokenizer = hf_tokenizer("mistralai/Mixtral-8x7B-v0.1")
 
     recipe.trainer.max_steps = max_steps
     recipe.trainer.num_nodes = num_nodes
@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
     exp_name = "_".join(
         [
-            f"mixtral_8x22b",
+            f"mixtral_8x7b",
             args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",
@@ -130,10 +130,11 @@ if __name__ == "__main__":
         args.container_image,
         custom_mounts=[],
         custom_env_vars={},
-        retries=0,
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home,
     )
 
-    recipe = mixtral_8x22b_performance_recipe(
+    recipe = mixtral_8x7b_performance_recipe(
         args.compute_dtype,
         NUM_NODES,
         NUM_GPUS_PER_NODE,

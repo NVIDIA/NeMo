@@ -65,7 +65,7 @@ def slurm_executor(
         "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
         "NVTE_ASYNC_AMAX_REDUCTION": "1",
         "NVTE_FUSED_ATTN": "1",
-        "NVTE_FLASH_ATTN": "0",
+        "NVTE_FLASH_ATTN": "1",
         "NEMO_LOG_MEMORY_USAGE": "1",
         "NEMORUN_HOME": log_dir,
     }
