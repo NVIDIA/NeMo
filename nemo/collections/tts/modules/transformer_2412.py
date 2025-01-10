@@ -217,7 +217,7 @@ class Attention(torch.nn.Module):
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        B, T, _ = query.shape[1]
+        B, T, _ = query.shape
         attn_score = torch.matmul(q, k.transpose(2, 3)) * self.scale
         if mask is not None:
             # assumes there's at least one mask
