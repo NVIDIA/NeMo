@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import shutil
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TiktokenTokenizer, AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
+NEMOTRON5_TOKENIZER_FILE_NAME = "tiktoken.128k.vocab.json"
 
 @dataclass
 class NemotronConfig(GPTConfig):
@@ -200,7 +202,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
         if self.use_hf_tokenzer:
             return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
         else:
-            return TiktokenTokenizer(str(self/"tiktoken.128k.vocab.json"))
+            return TiktokenTokenizer(str(self/NEMOTRON5_TOKENIZER_FILE_NAME))
 
     @property
     def config(self) -> NemotronConfig:
@@ -251,16 +253,27 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return NemotronForCausalLM.from_config(self.config, torch_dtype=dtype)
+            from transformers import AutoModelForCausalLM
+
+            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
+        from nemo.collections.common.tokenizers import TiktokenTokenizer
+
         source, _ = self.nemo_load(str(self))
         target = self.init(torch_dtype_from_mcore_config(source.config))
         target = self.convert_state(source, target)
 
         target = target.cpu()
         target.save_pretrained(output_path)
-        self.tokenizer.save_pretrained(output_path)
+
+        if isinstance(self.tokenizer, TiktokenTokenizer):
+            shutil.copyfile(
+                str(self / "context" / NEMOTRON5_TOKENIZER_FILE_NAME),
+                output_path / NEMOTRON5_TOKENIZER_FILE_NAME
+            )
+        else:
+            self.tokenizer.save_pretrained(output_path)
 
         return output_path
 
@@ -270,20 +283,24 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
             "decoder.layers.*.mlp.linear_fc1.weight": "model.layers.*.mlp.up_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
-            "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "model.layers.*.input_layernorm.bias",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
-            "decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "model.layers.*.post_attention_layernorm.bias",
             "decoder.final_layernorm.weight": "model.norm.weight",
-            "decoder.final_layernorm.bias": "model.norm.bias",
         }
+
+        if self.config.layernorm_type != "rmsnorm":
+            mapping.update({
+                "decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "model.layers.*.input_layernorm.bias",
+                "decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "model.layers.*.post_attention_layernorm.bias",
+                "decoder.final_layernorm.bias": "model.norm.bias",
+            })
 
         return io.apply_transforms(
             source, target, mapping=mapping, transforms=[_export_qkv, _export_embedding, _export_head]
         )
 
-    @property
+    @cached_property
     def tokenizer(self):
-        return io.load_context(str(self)).model.tokenizer.tokenizer
+        return io.load_context(str(self)).model.tokenizer
 
     @property
     def config(self) -> "HFNemotronConfig":
@@ -309,6 +326,7 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
             rope_theta=source.rotary_base,
             partial_rotary_factor=source.rotary_percent,
             vocab_size=self.tokenizer.vocab_size,
+            layernorm_type="rmsnorm" if source.normalization == "RMSNorm" else "layernorm1p"
         )
 
 
