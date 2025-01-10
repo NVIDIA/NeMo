@@ -55,7 +55,7 @@ class ConvolutionLayer(torch.nn.Module):
         # If not causal and padding is None, set an appropriate value for padding
         self.causal_padding = None
         if is_causal:
-            self.causal_padding = ((self.kernel_size - 1) * self.dilation, 0)
+            self.causal_padding = ((kernel_size - 1) * dilation, 0)
             if padding is not None:
                 logging.warning(
                     f'{self} was initialized with is_causal set to True, and padding set to {padding}. '
