@@ -710,7 +710,6 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             )
             greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
 
-            
             all_hyp_or_transcribed_texts = best_hyp
 
         result = [

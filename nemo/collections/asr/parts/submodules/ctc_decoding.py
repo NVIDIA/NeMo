@@ -353,7 +353,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
                 f"but was provided {self.cfg.strategy}"
             )
-# TODO: [Sofia Kostandian] update docstring and add information about nbestyp->all_hyp
+
+    # TODO: [Sofia Kostandian] update docstring and add information about nbestyp->all_hyp
     def ctc_decoder_predictions_tensor(
         self,
         decoder_outputs: torch.Tensor,
@@ -361,7 +362,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         fold_consecutive: bool = True,
         return_hypotheses: bool = False,
     ) -> Union[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
-       # TODO: [Sofia Kostandian] change output types and docstring 
+        # TODO: [Sofia Kostandian] change output types and docstring
         """
         Decodes a sequence of labels to words
 
@@ -432,7 +433,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 return all_hypotheses  # type: list[list[Hypothesis]]
 
             # alaptev: The line below might contain a bug. Do we really want all_hyp_text to be flat?
-            all_hyp = [[Hypothesis(h.score,h.y_sequence,h.text) for h in hh] for hh in all_hypotheses]
+            all_hyp = [[Hypothesis(h.score, h.y_sequence, h.text) for h in hh] for hh in all_hypotheses]
             return all_hyp
 
         else:
@@ -458,7 +459,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
             if return_hypotheses:
                 return hypotheses
-            
+
             return [Hypothesis(h.score, h.y_sequence, h.text) for h in hypotheses]
 
     def decode_hypothesis(

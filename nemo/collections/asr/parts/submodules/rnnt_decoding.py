@@ -495,7 +495,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         return_hypotheses: bool = False,
         partial_hypotheses: Optional[List[Hypothesis]] = None,
     ) -> Tuple[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
-        # TODO: [Sofia Kostandian] change output types and docstring 
+        # TODO: [Sofia Kostandian] change output types and docstring
 
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
@@ -551,7 +551,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 return all_hypotheses  # type: list[list[Hypothesis]]
 
             # alaptev: The line below might contain a bug. Do we really want all_hyp_text to be flat?
-            all_hyp = [[Hypothesis(h.score,h.y_sequence,h.text) for h in hh] for hh in all_hypotheses]
+            all_hyp = [[Hypothesis(h.score, h.y_sequence, h.text) for h in hh] for hh in all_hypotheses]
             return all_hyp
 
         else:
@@ -572,7 +572,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 return hypotheses
 
             return [Hypothesis(h.score, h.y_sequence, h.text) for h in hypotheses]
-
 
     def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[Union[Hypothesis, NBestHypotheses]]:
         """

@@ -294,7 +294,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     )
 
                     hypotheses += best_hyp
-       
+
                     del encoded
                     del test_batch
         finally:

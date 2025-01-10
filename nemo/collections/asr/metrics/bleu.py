@@ -168,7 +168,7 @@ class BLEU(SacreBLEUScore):
             logging.info(f"reference:{references[0]}")
             logging.info(f"predicted:{hypotheses[0]}")
 
-        super().update(hypotheses, [references])  # Note: [references] since BLEU allows multiple references.
+        super().update([h.text for h in hypotheses], [references])  # Note: [references] since BLEU allows multiple references.
 
     def compute(self, return_all_metrics=True, prefix="", suffix=""):
         """

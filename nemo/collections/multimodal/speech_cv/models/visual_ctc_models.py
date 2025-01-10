@@ -206,7 +206,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                             lg = logits[idx][: logits_len[idx]]
                             hypotheses.append(lg.cpu().numpy())
                     else:
-                        current_hypotheses= self.decoding.ctc_decoder_predictions_tensor(
+                        current_hypotheses = self.decoding.ctc_decoder_predictions_tensor(
                             logits,
                             decoder_lengths=logits_len,
                             return_hypotheses=return_hypotheses,
