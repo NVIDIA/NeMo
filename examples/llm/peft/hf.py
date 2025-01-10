@@ -50,9 +50,7 @@ def make_squad_hf_dataset(tokenizer):
         return ans
 
     tokenizer = getattr(tokenizer, "tokenizer", tokenizer)
-    datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_token_id
-    )
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_token_id)
     datamodule.map(
         formatting_prompts_func,
         batched=False,
@@ -91,6 +89,14 @@ def main():
         # https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
 
+<<<<<<< HEAD
+=======
+    if args.strategy == "fsdp2":
+        from nemo.lightning.pytorch.strategies import FSDP2Strategy
+
+        args.strategy = FSDP2Strategy(data_parallel_size=int(args.devices), tensor_parallel_size=1)
+
+>>>>>>> f2a50d268cc588e98bcfef649b8b8d49c1d59354
     use_dist_samp = False
 
     import tempfile
@@ -103,9 +109,7 @@ def main():
 
     callbacks = []
     if args.use_torch_jit:
-        jit_config = JitConfig(
-            use_torch=True, torch_kwargs={"dynamic": True}, use_thunder=False
-        )
+        jit_config = JitConfig(use_torch=True, torch_kwargs={"dynamic": True}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
     llm.api.finetune(
