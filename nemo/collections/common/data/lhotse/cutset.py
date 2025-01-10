@@ -36,6 +36,7 @@ from nemo.collections.common.data.lhotse.text_adapters import (
     NeMoMultimodalConversationJsonlAdapter,
     NeMoSFTJsonlAdapter,
 )
+from nemo.collections.common.data.lhotse.sampling import SkipmeFilter
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
@@ -365,7 +366,7 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
             logging.info(f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.shar_path}'")
             cuts = CutSet.from_shar(
                 **_resolve_shar_inputs(config.shar_path, metadata_only), shuffle_shards=True, seed=shard_seed
-            )
+            ).filter(SkipmeFilter())
             if not metadata_only and not force_finite:
                 cuts = cuts.repeat()
         elif isinstance(config.shar_path, Sequence):
@@ -425,7 +426,7 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
     else:
         # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
         path = config.cuts_path
-        cuts = CutSet.from_file(path).map(partial(resolve_relative_paths, manifest_path=path))
+        cuts = CutSet.from_file(path).map(partial(resolve_relative_paths, manifest_path=path)).filter(SkipmeFilter())
     return cuts, is_tarred
 
 
@@ -513,11 +514,11 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                     tarred_random_access=config.tarred_random_access,
                     **common_kwargs,
                 )
-            )
+            ).filter(SkipmeFilter())
             if not config.tarred_random_access and not force_finite:
                 cuts = cuts.repeat()
         else:
-            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
+            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs)).filter(SkipmeFilter())
     else:
         # Format option 1:
         #   Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
@@ -579,10 +580,14 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
             #   to the one desired in spite of the limit.
             if config.max_open_streams is not None:
                 for subiter in nemo_iter.to_shards():
-                    cutsets.append(CutSet(subiter))
+                    cutsets.append(
+                        CutSet(subiter).filter(SkipmeFilter())
+                    )
                     weights.append(weight)
             else:
-                cutsets.append(CutSet(nemo_iter))
+                cutsets.append(
+                    CutSet(nemo_iter).filter(SkipmeFilter())
+                    )
                 weights.append(weight)
         # Finally, we multiplex the dataset streams to mix the data.
         cuts = mux(

@@ -176,8 +176,6 @@ class LhotseDataLoadingConfig:
     # Enables iteration of NeMo non-tarred manifests that don't have a "sampling_rate" key without performing any I/O.
     # Note that this will not allow actual dataloading; it's only for manifest iteration as Lhotse objects.
     metadata_only: bool = False
-    # If set to True entries with "_skipme: 1" will be skipped during data loading.
-    drop_skipme: bool = True
     # Forces the resulting CutSet to be finite, so that the iteration will end after a full single epoch.
     # Do not turn this on unless you're sure that you know what you're doing.
     # In most cases (such as regular multi-GPU training) it will result in a deadlock due to
@@ -444,14 +442,6 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, use_iterable_dataset = read_cutset_from_config(config)
     use_iterable_dataset = determine_use_iterable_dataset(use_iterable_dataset, config)
-
-    if config.drop_skipme:
-        cuts = cuts.filter(lambda cut: not cut.custom.pop("_skipme", False) if hasattr(cut, "custom") else True)
-    else:
-        logging.warning(
-            """You have chosen to ignore the '_skipme' keys in your manifest. 
-                This may lead to unintended behavior, potentially including some unwanted samples."""
-        )
 
     # Apply channel selector
     if config.channel_selector is not None:

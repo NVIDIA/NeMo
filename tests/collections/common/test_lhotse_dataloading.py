@@ -37,15 +37,17 @@ from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentenceP
 
 @pytest.fixture(scope="session")
 def cutset_path(tmp_path_factory) -> Path:
-    """10 utterances of length 1s as a Lhotse CutSet."""
+    """12 utterances of length 1s as a Lhotse CutSet."""
     from lhotse import CutSet
     from lhotse.testing.dummies import DummyManifest
 
-    cuts = DummyManifest(CutSet, begin_id=0, end_id=10, with_data=True)
+    cuts = DummyManifest(CutSet, begin_id=0, end_id=12, with_data=True)
     for c in cuts:
         c.features = None
         c.custom = None
         c.supervisions[0].custom = None
+
+    cuts[-1].custom, cuts[-2].custom = {'_skipme': "low_cr"}, {'_skipme': "low_cr"}
 
     tmp_path = tmp_path_factory.mktemp("data")
     p = tmp_path / "cuts.jsonl.gz"
@@ -56,31 +58,31 @@ def cutset_path(tmp_path_factory) -> Path:
 
 @pytest.fixture(scope="session")
 def cutset_shar_path(cutset_path: Path) -> Path:
-    """10 utterances of length 1s as a Lhotse Shar (tarred) CutSet."""
+    """12 utterances of length 1s as a Lhotse Shar (tarred) CutSet."""
     from lhotse import CutSet
 
     cuts = CutSet.from_file(cutset_path)
     p = cutset_path.parent / "shar"
     p.mkdir(exist_ok=True)
-    cuts.to_shar(p, fields={"recording": "wav"}, shard_size=5)
+    cuts.to_shar(p, fields={"recording": "wav"}, shard_size=6)
     return p
 
 
 @pytest.fixture(scope="session")
 def cutset_shar_path_other(cutset_path: Path) -> Path:
-    """10 utterances of length 1s as a Lhotse Shar (tarred) CutSet, but with different IDs."""
+    """12 utterances of length 1s as a Lhotse Shar (tarred) CutSet, but with different IDs."""
     from lhotse import CutSet
 
     cuts = CutSet.from_file(cutset_path).modify_ids(lambda id: f"other-{id}")
     p = cutset_path.parent / "shar-other"
     p.mkdir(exist_ok=True)
-    cuts.to_shar(p, fields={"recording": "wav"}, shard_size=5)
+    cuts.to_shar(p, fields={"recording": "wav"}, shard_size=6)
     return p
 
 
 @pytest.fixture(scope="session")
 def nemo_manifest_path(cutset_path: Path):
-    """10 utterances of length 1s as a NeMo manifest."""
+    """12 utterances of length 1s as a NeMo manifest."""
     from lhotse import CutSet
     from lhotse.serialization import save_to_jsonl
 
@@ -95,12 +97,12 @@ def nemo_manifest_path(cutset_path: Path):
                 "my-custom-field": "irrelevant",
                 "lang": "en",
                 "custom-lang": "pl",
+                "_skipme": c.custom.get("_skipme", False) if hasattr(c, 'custom') and c.custom is not None else False
             }
         )
     p = cutset_path.parent / "nemo_manifest.json"
     save_to_jsonl(nemo, p)
     return p
-
 
 @pytest.fixture(scope="session")
 def mc_cutset_path(tmp_path_factory) -> Path:
@@ -157,7 +159,7 @@ def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> Tuple[str, str]:
     root.mkdir(exist_ok=True)
 
     with (
-        TarWriter(f"{root}/audios_%01d.tar", shard_size=5) as tar_writer,
+        TarWriter(f"{root}/audios_%01d.tar", shard_size=6) as tar_writer,
         SequentialJsonlWriter(root / "tarred_audio_filepaths.jsonl") as mft_writer,
     ):
         for idx, d in enumerate(load_jsonl(nemo_manifest_path)):
@@ -165,7 +167,7 @@ def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> Tuple[str, str]:
             name = Path(p).name
             with open(p, "rb") as f:
                 tar_writer.write(name, BytesIO(f.read()))
-            mft_writer.write({**d, "audio_filepath": name, "shard_id": int(idx > 4)})
+            mft_writer.write({**d, "audio_filepath": name, "shard_id": int(idx > 5)})
     return mft_writer.path, f"{root}/audios__OP_0..1_CL_.tar"
 
 
@@ -179,7 +181,7 @@ def nemo_tarred_manifest_path_multi(nemo_tarred_manifest_path: tuple[str, str]) 
 
     json_dir = json_p.parent / "shard_manifests"
     json_dir.mkdir(exist_ok=True)
-    with JsonlShardWriter(f"{json_dir}/manifest_%d.jsonl", shard_size=5) as mft_writer:
+    with JsonlShardWriter(f"{json_dir}/manifest_%d.jsonl", shard_size=6) as mft_writer:
         for item in load_jsonl(json_p):
             mft_writer.write(item)
     return f"{json_dir}/manifest__OP_0..1_CL_.jsonl", tar_p
@@ -202,6 +204,8 @@ def nemo_tarred_manifest_subset_path(nemo_tarred_manifest_path: Tuple[str, str])
     with JsonlShardWriter(f"{json_dir}/manifest_%d.jsonl", shard_size=3) as mft_writer:
         for item in subset_items:
             mft_writer.write(item)
+    
+    subset_items = [item for item in subset_items if not item.get('_skipme')]
     return f"{json_dir}/manifest__OP_0..1_CL_.jsonl", tar_p, subset_items
 
 
@@ -471,7 +475,7 @@ def test_dataloader_from_lhotse_shar_cuts_add_new_field(tmp_path_factory, cutset
     # It must have a "cut_id" field used for runtime check that the user provided correct paths.
     # "wer" will be attached to each cut under `cut.wer` / cut.custom["wer"].
     wer_dir = tmp_path_factory.mktemp("wer_dir")
-    with JsonlShardWriter(f"{wer_dir}/wer.%06d.jsonl.gz", shard_size=5) as writer:
+    with JsonlShardWriter(f"{wer_dir}/wer.%06d.jsonl.gz", shard_size=6) as writer:
         for i in range(10):
             writer.write({"cut_id": "dummy-mono-cut-%04d" % i, "wer": 0.5})
 
@@ -957,6 +961,25 @@ def test_dataloader_from_nemo_manifest_with_lang_field(nemo_manifest_path: Path,
     b = next(iter(dl))
     assert b == [lang_value] * 2
 
+
+def test_dataloader_from_nemo_manifest_with_skipme(nemo_manifest_path: Path):
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": nemo_manifest_path,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 1,
+            # lhotse specific
+            "use_bucketing": False,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    batches = [batch for batch in dl]
+
+    assert len(batches) == 10
 
 def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
     import numpy as np
