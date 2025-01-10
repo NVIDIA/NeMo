@@ -12,35 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
 import lightning.pytorch as L
 import torch
 import torch.distributed
-import torch.nn.functional as F
 from megatron.core import InferenceParams, dist_checkpointing
 from megatron.core import parallel_state as ps
 from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
-from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
-from megatron.core.transformer.custom_layers.transformer_engine import (
-    TEColumnParallelLinear,
-    TERowParallelLinear,
-)
-from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from megatron.core.transformer.spec_utils import ModuleSpec
+
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
@@ -142,69 +133,6 @@ def neva_forward_step(model, batch) -> torch.Tensor:
 
     return model(**forward_args)
 
-
-def set_input_tensor(self, tensor):
-    pass
-
-
-@dataclass
-class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
-    """
-    For MLP, fc1 in shape of input_size, ffn_hidden_size, fc2 in shape of ffn_hidden_size, hidden_size
-    """
-
-    projector_type: str = "mlp2x_gelu"
-    layer_spec: Optional[MLPSubmodules] = None
-    input_size: Optional[int] = 1024
-    hidden_size: int = 1024
-    ffn_hidden_size: int = 1024
-    activation_func: Callable = F.gelu
-    bias: bool = True
-    bias_activation_fusion: bool = True
-    num_layers: int = 1  # placeholder, NOT used!
-    num_attention_heads: int = 8  # placeholder, NOT used!
-
-    def configure_model(self) -> "MCoreMultimodalProjector":
-        if self.projector_type.startswith("mcore") and self.layer_spec is None:
-            if self.projector_type == "mcore_mlp":
-                self.projector_type = "mlp"  # strip "mcore_" for mcore init
-                self.layer_spec = ModuleSpec(
-                    module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=TEColumnParallelLinear,
-                        linear_fc2=TERowParallelLinear,
-                    ),
-                )
-                self.layer_spec = self.layer_spec.submodules
-            elif self.projector_type == "mcore_affine":
-                self.projector_type = "affine"  # strip "mcore_" for mcore init
-                self.layer_spec = MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=None)
-            else:
-                raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
-
-            return MCoreMultimodalProjector(
-                self,
-                self.layer_spec,
-                projector_type=self.projector_type,
-                input_size=self.input_size,
-            )
-
-        # e.g. "mlp2x_gelu"
-        mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', self.projector_type)
-        if mlp_gelu_match:
-            mlp_depth = int(mlp_gelu_match.group(1))
-            modules = [torch.nn.Linear(self.input_size, self.hidden_size, bias=True)]
-            for _ in range(1, mlp_depth):
-                modules.append(torch.nn.GELU())
-                modules.append(torch.nn.Linear(self.hidden_size, self.hidden_size, bias=True))
-            model = torch.nn.Sequential(*modules)
-            from types import MethodType
-
-            model.set_input_tensor = MethodType(set_input_tensor, model)
-        else:
-            raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
-
-        return model
 
 
 @dataclass
@@ -350,7 +278,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
                 self.vision_model.load_state_dict(loaded_state_dict)
                 logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
-                import pdb; pdb.set_trace()
 
         self.freeze(
             freeze_language_model=config.freeze_language_model,

@@ -41,11 +41,11 @@ from nemo.collections.vlm.neva.data import (
     VideoToken,
 )
 from nemo.collections.vlm.neva.model.base import (
-    MultimodalProjectorConfig,
     NevaConfig,
     NevaModel,
 )
 from nemo.collections.vlm.vision import (
+    MultimodalProjectorConfig,
     CLIPViTConfig,
     HFCLIPVisionConfig,
     BaseCLIPViTModel,

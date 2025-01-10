@@ -14,12 +14,24 @@
 
 
 import os
+import re
+
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 import torch.distributed
+import torch.nn.functional as F
+
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
-from megatron.core.transformer.custom_layers.transformer_engine import TENorm
+from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TEColumnParallelLinear,
+    TERowParallelLinear,
+)
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TENorm,
+)
+from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from transformers import CLIPVisionConfig, CLIPVisionModel
@@ -37,6 +49,66 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     num_patches_per_dim_w = img_w // patch_dim
     num_patches = num_patches_per_dim_h * num_patches_per_dim_w
     return num_patches + (class_token_len if add_class_token else 0)
+
+
+@dataclass
+class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
+    """
+    For MLP, fc1 in shape of input_size, ffn_hidden_size, fc2 in shape of ffn_hidden_size, hidden_size
+    """
+
+    projector_type: str = "mlp2x_gelu"
+    layer_spec: Optional[MLPSubmodules] = None
+    input_size: Optional[int] = 1024
+    hidden_size: int = 1024
+    ffn_hidden_size: int = 1024
+    activation_func: Callable = F.gelu
+    bias: bool = True
+    bias_activation_fusion: bool = True
+    num_layers: int = 1  # placeholder, NOT used!
+    num_attention_heads: int = 8  # placeholder, NOT used!
+
+    def configure_model(self) -> "MCoreMultimodalProjector":
+        if self.projector_type.startswith("mcore") and self.layer_spec is None:
+            if self.projector_type == "mcore_mlp":
+                self.projector_type = "mlp"  # strip "mcore_" for mcore init
+                self.layer_spec = ModuleSpec(
+                    module=MLP,
+                    submodules=MLPSubmodules(
+                        linear_fc1=TEColumnParallelLinear,
+                        linear_fc2=TERowParallelLinear,
+                    ),
+                )
+                self.layer_spec = self.layer_spec.submodules
+            elif self.projector_type == "mcore_affine":
+                self.projector_type = "affine"  # strip "mcore_" for mcore init
+                self.layer_spec = MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=None)
+            else:
+                raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
+
+            return MCoreMultimodalProjector(
+                self,
+                self.layer_spec,
+                projector_type=self.projector_type,
+                input_size=self.input_size,
+            )
+
+        # e.g. "mlp2x_gelu"
+        mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', self.projector_type)
+        if mlp_gelu_match:
+            mlp_depth = int(mlp_gelu_match.group(1))
+            modules = [torch.nn.Linear(self.input_size, self.hidden_size, bias=True)]
+            for _ in range(1, mlp_depth):
+                modules.append(torch.nn.GELU())
+                modules.append(torch.nn.Linear(self.hidden_size, self.hidden_size, bias=True))
+            model = torch.nn.Sequential(*modules)
+            from types import MethodType
+
+            model.set_input_tensor = MethodType(set_input_tensor, model)
+        else:
+            raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
+
+        return model
 
 
 @dataclass
