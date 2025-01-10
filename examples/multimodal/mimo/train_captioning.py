@@ -41,12 +41,12 @@ def main(args):
     image_processor = processor.image_processor
 
     multimodal_sample_config = MultiModalSampleConfig()
-
+    is_generation = stage == "decoder_alignment"
     task_encoder = MimoCaptioningTaskEncoder(
         tokenizer=tokenizer.tokenizer,
         image_processor=processor.image_processor,
         multimodal_sample_config=multimodal_sample_config,
-        is_generation=True,
+        is_generation=is_generation,
     )
 
     data = EnergonMultiModalDataModule(
@@ -68,6 +68,7 @@ def main(args):
         image_special_tokens=image_special_tokens,
         freeze_language_model=False,
         language_model_path=args.language_model_path,
+        vision_model_path=args.vision_model_path,
     )
 
     model = MimoModel(config=mimo_config, tokenizer=tokenizer)
@@ -169,6 +170,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--data_path", type=str, required=True)
     parser.add_argument("--language_model_path", type=str, required=False, default=None)
+    parser.add_argument("--vision_model_path", type=str, required=False, default=None)
     parser.add_argument("--max_steps", type=int, required=False, default=2500)
 
     args = parser.parse_args()

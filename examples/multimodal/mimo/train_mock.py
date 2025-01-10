@@ -55,6 +55,7 @@ def main(args):
         image_special_tokens=image_special_tokens,
         freeze_language_model=False,
         language_model_path=args.language_model_path,
+        vision_model_path=args.vision_model_path,
     )
 
     model = MimoModel(config=mimo_config, tokenizer=tokenizer)
@@ -72,7 +73,7 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=1000,
+        every_n_train_steps=100,
         dirpath=args.log_dir,
     )
 
@@ -154,5 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--mbs", type=int, required=False, default=1, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-4, help="Learning rate")
     parser.add_argument("--language_model_path", type=str, required=False, default=None)
+    parser.add_argument("--vision_model_path", type=str, required=False, default=None)
+
     args = parser.parse_args()
     main(args)

@@ -315,6 +315,21 @@ class MimoConfig(TransformerConfig, io.IOMixin):
             model.language_model.load_state_dict(loaded_state_dict)
             logging.info(f"Loaded language model from {self.language_model_path}")
             print(f"Loaded language model from {self.language_model_path}")
+
+        if self.vision_model_path:
+            sharded_state_dict = dict(state_dict=model.vision_model.sharded_state_dict(prefix="module."))
+            strict = StrictHandling.LOG_UNEXPECTED
+
+            loaded_state_dict = dist_checkpointing.load(
+                sharded_state_dict=sharded_state_dict,
+                checkpoint_dir=ckpt_to_weights_subdir(self.vision_model_path, is_saving=False),
+                strict=strict,
+            )
+            loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+
+            model.vision_model.load_state_dict(loaded_state_dict)
+            logging.info(f"Loaded visionc model from {self.vision_model_path}")
+            print(f"Loaded vision model from {self.vision_model_path}")
         # initializing the special token embedings to be the average of the original embeddings
         # TODO:Yash have to handle TP below. Have to properly gather across TP ranks
         # average_embedding = model.language_model.embedding.word_embeddings.weight.data[:original_vocab_size].mean(
