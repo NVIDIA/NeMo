@@ -48,7 +48,7 @@ from nemo.collections.vlm.neva.model.base import (
 from nemo.collections.vlm.vision import (
     CLIPViTConfig,
     HFCLIPVisionConfig,
-    CLIPViTModel,
+    BaseCLIPViTModel,
     CLIPViTL_14_336_Config,
     SigLIPViT400M_14_384_Config,
 )

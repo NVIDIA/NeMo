@@ -19,9 +19,7 @@ from typing import Optional, Union
 
 import torch.distributed
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
-from megatron.core.transformer.custom_layers.transformer_engine import (
-    TENorm,
-)
+from megatron.core.transformer.custom_layers.transformer_engine import TENorm
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from transformers import CLIPVisionConfig, CLIPVisionModel
@@ -106,12 +104,13 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
             class_token_len=self.class_token_len,
         )
 
-    def configure_model(self) -> "CLIPViTModel":
+    def configure_model(self) -> "BaseCLIPViTModel":
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
+
             transformer_layer_spec = get_layer_spec_te(is_vit=True)
-        return CLIPViTModel(
+        return BaseCLIPViTModel(
             self,
             transformer_layer_spec,
             ln_pre_impl=self.ln_pre_impl,
@@ -125,11 +124,11 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
         )
 
 
-class CLIPViTModel(MCoreCLIPViTModel):
+class BaseCLIPViTModel(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
     def forward(
-            self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
+        self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
     ) -> torch.Tensor:
         if num_unused_layers > 0:
             unused_layers = self.decoder.layers[-num_unused_layers:]

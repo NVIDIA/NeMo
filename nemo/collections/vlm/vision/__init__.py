@@ -15,7 +15,7 @@
 from nemo.collections.vlm.vision.base import (
     HFCLIPVisionConfig,
     CLIPViTConfig,
-    CLIPViTModel,
+    BaseCLIPViTModel,
 )
 
 from nemo.collections.vlm.vision.vit_config import (
@@ -26,7 +26,7 @@ from nemo.collections.vlm.vision.vit_config import (
 __all__ = [
     "HFCLIPVisionConfig",
     "CLIPViTConfig",
-    "CLIPViTModel",
+    "BaseCLIPViTModel",
     "CLIPViTL_14_336_Config",
     "SigLIPViT400M_14_384_Config",
 ]
