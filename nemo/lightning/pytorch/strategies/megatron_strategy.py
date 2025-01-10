@@ -99,6 +99,7 @@ class ParallelismConfig:
     pipeline_dtype: torch.dtype
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
+    use_te_rng_tracker: bool = False
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -115,7 +116,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             across GPU ranks. Defaults to 1.
         virtual_pipeline_model_parallel_size (Optional[int]): Interleaved pipeline parallelism used to
             improve performance by reducing the pipeline bubble. Defaults to None.
-        microbatch_group_size_per_vp_stage（Optional[int]）: the number of micro-batches that are executed
+        microbatch_group_size_per_vp_stage (Optional[int]): the number of micro-batches that are executed
             at a time for a given virtual stage (both forward and backward). Defaults to None and convert
             to pipeline_parallel_size. which specifies a depth-first schedule.
         context_parallel_size (int): Splits network input along sequence dimension across GPU ranks.
@@ -199,6 +200,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
+        use_te_rng_tracker: bool = False,
         save_ckpt_format: str = "torch_dist",
         ckpt_async_save: bool = True,
         ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
@@ -244,6 +246,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
         self.ckpt_load_strictness = ckpt_load_strictness
+        self.use_te_rng_tracker = use_te_rng_tracker
         self._pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
         self._init_model_parallel = init_model_parallel
@@ -900,6 +903,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
             encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
             pipeline_dtype=self.pipeline_dtype,
+            use_te_rng_tracker=self.use_te_rng_tracker,
         )
 
     @contextmanager
