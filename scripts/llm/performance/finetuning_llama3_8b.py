@@ -97,6 +97,8 @@ def llama3_8b_performance_recipe(
     if dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1:
         if comm_overlap_callback_idx >= 0:
             recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = True
+    if comm_overlap_callback_idx:
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
@@ -131,7 +133,6 @@ if __name__ == "__main__":
         args.container_image,
         custom_mounts=[],
         custom_env_vars={
-            "NVTE_FUSED_ATTN": "0",
             "NVTE_FLASH_ATTN": "1",
         },
         hf_token=args.hf_token,
@@ -165,7 +166,7 @@ if __name__ == "__main__":
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
     with run.Experiment(exp_name) as exp:
-        exp.add(*import_ckpt_experiment(NUM_NODES, executor, model(), source=f"hf://{HF_MODEL_URI}"))
+        exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
         exp.add(
             recipe,
             executor=executor,

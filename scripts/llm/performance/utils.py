@@ -51,11 +51,11 @@ def slurm_executor(
     """
     err_msgs = []
     if log_dir != NEMORUN_HOME:
-        err_msgs.append(f"Run `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
+        err_msgs.append(f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
     if nemo_home != DEFAULT_NEMO_HOME:
         err_msgs.append(f"Run `export NEMO_HOME={nemo_home}` in your shell environment and rerun this script.")
     if len(err_msgs) > 0:
-        logging.error(err_msgs)
+        logging.error("\n".join(err_msgs))
         sys.exit(1)
 
     env_vars = {
@@ -72,7 +72,7 @@ def slurm_executor(
     mounts = []
     srun_args = ["--mpi=pmix"]
 
-    if nemo_home != DEFAULT_NEMO_HOME:
+    if nemo_home != DEFAULT_NEMO_CACHE_HOME: # DO NOT change this 'DEFAULT_NEMO_HOME'/'NEMO_HOME' 
         env_vars.update({"NEMO_HOME": nemo_home})
         mounts.extend([f"{nemo_home}:{nemo_home}"])
     if hf_token is not None:
@@ -113,7 +113,7 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
                 huggingface.co/docs/transformers/v4.47.1/en/model_doc/auto#transformers.AutoTokenizer
     """
     log_msg = [
-        "AutoTokenizer first searches for tokenizer files locally in env var 'NEMO_HOME'.",
+        f"AutoTokenizer first searches for tokenizer files locally in env var {DEFAULT_NEMO_HOME}.",
         "If files are missing locally, AutoTokenizer will try downloading from HuggingFace.",
         "Make sure 'TRANSFORMERS_OFFLINE=0' and 'HF_TOKEN:<token_value>'.",
         "You can set them as scripts.llm.performance.utils.slurm_executor(custom_env_vars=",
@@ -128,7 +128,7 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
     )
 
 
-def import_ckpt_experiment(num_nodes: int, executor: run.SlurmExecutor, model: run.Config[GPTModel], source: str):
+def import_ckpt_experiment(executor: run.SlurmExecutor, model: run.Config[GPTModel], source: str):
     """
     Downloads/Acceses checkpoint to be used for fine-tuning. `import_ckpt` first tries find the nemo checkpoint in
     <NEMO_HOME>/models/. For eg: for llama3 8b, the path will look like- <NEMO_HOME>/models/meta-llama/Meta-Llama-3-8B
@@ -142,12 +142,13 @@ def import_ckpt_experiment(num_nodes: int, executor: run.SlurmExecutor, model: r
     from nemo.collections.llm import import_ckpt
 
     import_executor = deepcopy(executor)
-    import_executor.ntasks_per_node = num_nodes
+    import_executor.ntasks_per_node = 1
+    import_executor.nodes = 1
 
     return run.Partial(import_ckpt, model=model, source=source, overwrite=False), import_executor, "import_ckpt_exp"
 
 
-def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]):
+def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
     """
     This method is used for fine-tuning. It checks if packed train data for a partiular
     sequence length exists locally. This is needed to set data flag (force_redownload=True)
@@ -155,14 +156,14 @@ def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadD
     """
     datasets_dir = os.getenv("NEMO_DATASETS_CACHE", os.path.join(DEFAULT_NEMO_HOME, "datasets"))
     model_dir = hf_model_uri.replace("/", "--")
-    metadata_filename = f"train_{data_config.seq_length}_metadata.jsonl"
+    metadata_filename = f"{data_config.seq_length}_metadata.jsonl"
 
     train_pack_metadata_filepath = os.path.join(datasets_dir, "squad", "packed", model_dir, metadata_filename)
 
     return os.path.exists(train_pack_metadata_filepath) and os.path.isfile(train_pack_metadata_filepath)
 
 
-def get_comm_overlap_callback_idx(callbacks: List[Callback]):
+def get_comm_overlap_callback_idx(callbacks: List[Callback]) -> int | None:
     """
     nemo.lightning.Trainer has a list of callbacks defined. This method identifies index of MegatronCommOverlapCallback
     from the list defined in recipes in nemo.collections.llm.recipes. The index is needed to override ddp communication
@@ -170,9 +171,9 @@ def get_comm_overlap_callback_idx(callbacks: List[Callback]):
     """
     if callbacks:  # default is None in lightning
         for idx, callback in enumerate(callbacks):
-            if isinstance(callback, MegatronCommOverlapCallback):
+            if callback.__fn_or_cls__ == MegatronCommOverlapCallback:
                 return idx
-    return -1
+    return None
 
 
 def parse_cli_args():
