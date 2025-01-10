@@ -93,6 +93,7 @@ class NVEmbedLlamaModel(LlamaModel):
             assert attention_mask.shape[1] == 1 and attention_mask.shape[2] == 1, "Attention mask shape incorrect"
             extended_mask = attention_mask
             # Squeeze attention mask to [b, sq] for averaging pooling later
+
             attention_mask = extended_mask.squeeze() < 0.5
         else:
             raise ValueError("Attention_mask shape incorrect")
