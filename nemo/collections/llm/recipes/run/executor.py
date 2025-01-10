@@ -33,8 +33,9 @@ def torchrun(devices: Optional[int] = None) -> run.Config[run.LocalExecutor]:
     }
 
     if devices is None and torch.cuda.is_available():
-        assert torch.cuda.is_available()
         devices = torch.cuda.device_count()
+    else:
+        devices = 1
 
     executor = run.Config(
         run.LocalExecutor,
