@@ -97,12 +97,13 @@ def nemo_manifest_path(cutset_path: Path):
                 "my-custom-field": "irrelevant",
                 "lang": "en",
                 "custom-lang": "pl",
-                "_skipme": c.custom.get("_skipme", False) if hasattr(c, 'custom') and c.custom is not None else False
+                "_skipme": c.custom.get("_skipme", False) if hasattr(c, 'custom') and c.custom is not None else False,
             }
         )
     p = cutset_path.parent / "nemo_manifest.json"
     save_to_jsonl(nemo, p)
     return p
+
 
 @pytest.fixture(scope="session")
 def mc_cutset_path(tmp_path_factory) -> Path:
@@ -204,7 +205,7 @@ def nemo_tarred_manifest_subset_path(nemo_tarred_manifest_path: Tuple[str, str])
     with JsonlShardWriter(f"{json_dir}/manifest_%d.jsonl", shard_size=3) as mft_writer:
         for item in subset_items:
             mft_writer.write(item)
-    
+
     subset_items = [item for item in subset_items if not item.get('_skipme')]
     return f"{json_dir}/manifest__OP_0..1_CL_.jsonl", tar_p, subset_items
 
@@ -980,6 +981,7 @@ def test_dataloader_from_nemo_manifest_with_skipme(nemo_manifest_path: Path):
     batches = [batch for batch in dl]
 
     assert len(batches) == 10
+
 
 def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
     import numpy as np

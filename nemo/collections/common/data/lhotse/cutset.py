@@ -30,13 +30,13 @@ from nemo.collections.common.data.lhotse.nemo_adapters import (
     LazyNeMoTarredIterator,
     expand_sharded_filepaths,
 )
+from nemo.collections.common.data.lhotse.sampling import SkipmeFilter
 from nemo.collections.common.data.lhotse.text_adapters import (
     LhotseTextAdapter,
     LhotseTextPairAdapter,
     NeMoMultimodalConversationJsonlAdapter,
     NeMoSFTJsonlAdapter,
 )
-from nemo.collections.common.data.lhotse.sampling import SkipmeFilter
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
@@ -518,7 +518,9 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
             if not config.tarred_random_access and not force_finite:
                 cuts = cuts.repeat()
         else:
-            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs)).filter(SkipmeFilter())
+            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs)).filter(
+                SkipmeFilter()
+            )
     else:
         # Format option 1:
         #   Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
@@ -580,14 +582,10 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
             #   to the one desired in spite of the limit.
             if config.max_open_streams is not None:
                 for subiter in nemo_iter.to_shards():
-                    cutsets.append(
-                        CutSet(subiter).filter(SkipmeFilter())
-                    )
+                    cutsets.append(CutSet(subiter).filter(SkipmeFilter()))
                     weights.append(weight)
             else:
-                cutsets.append(
-                    CutSet(nemo_iter).filter(SkipmeFilter())
-                    )
+                cutsets.append(CutSet(nemo_iter).filter(SkipmeFilter()))
                 weights.append(weight)
         # Finally, we multiplex the dataset streams to mix the data.
         cuts = mux(
