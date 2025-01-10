@@ -131,7 +131,7 @@ class ImageInputProjectionConfig(TransformerConfig, io.IOMixin):
 
 @dataclass
 class ImageOutputProjectionConfig(TransformerConfig, io.IOMixin):
-    num_layers: int = 2
+    num_layers: int = 4
     num_attention_heads: int = 16
     num_query_token: int = 77
     add_bias_linear: bool = True
@@ -316,12 +316,13 @@ class MimoConfig(TransformerConfig, io.IOMixin):
             logging.info(f"Loaded language model from {self.language_model_path}")
             print(f"Loaded language model from {self.language_model_path}")
         # initializing the special token embedings to be the average of the original embeddings
-        average_embedding = model.language_model.embedding.word_embeddings.weight.data[:original_vocab_size].mean(
-            dim=0, keepdim=True
-        )
-        model.language_model.embedding.word_embeddings.weight.data[
-            original_vocab_size : original_vocab_size + len(self.image_special_token_indices)
-        ] = average_embedding.repeat(len(self.image_special_token_indices), 1)
+        # TODO:Yash have to handle TP below. Have to properly gather across TP ranks
+        # average_embedding = model.language_model.embedding.word_embeddings.weight.data[:original_vocab_size].mean(
+        #     dim=0, keepdim=True
+        # )
+        # model.language_model.embedding.word_embeddings.weight.data[
+        #     original_vocab_size : original_vocab_size + len(self.image_special_token_indices)
+        # ] = average_embedding.repeat(len(self.image_special_token_indices), 1)
         model.freeze(
             freeze_language_model=self.freeze_language_model,
             freeze_vision_model=self.freeze_image_encoder,
