@@ -69,8 +69,7 @@ if __name__ == '__main__':
     # Models can be one of the supported ones by AutoModelForSpeechSeq2Seq such as
     # openai/whisper-large-v3 and facebook/s2t-small-librispeech-asr
     parser.add_argument('--model', default='openai/whisper-large-v3')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
-    parser.add_argument('--devices', default=1)
+    parser.add_argument('--devices', default=2)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--model-save-path', type=str, default=None)
@@ -83,7 +82,7 @@ if __name__ == '__main__':
 
     config = OmegaConf.create(
         {
-            "cuts_path": "/opt/checkpoints/lhotse/libri/libri-train-5.jsonl.gz",
+            "cuts_path": "/workspace/data/libri/libri/libri-train-5.jsonl.gz",
             "sample_rate": 16000,
             "shuffle": True,
             "num_workers": 2,
@@ -110,7 +109,7 @@ if __name__ == '__main__':
             devices=args.devices,
             max_steps=args.max_steps,
             accelerator=args.accelerator,
-            strategy=args.strategy,
+            strategy=nl.FSDP2Strategy(data_parallel_size=2, tensor_parallel_size=1),
             precision="bf16-mixed",
             log_every_n_steps=1,
             limit_val_batches=0.0,
