@@ -70,7 +70,7 @@ def main():
     parser.add_argument(
         "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"]
     )
-    parser.add_argument("--devices", typpe=int, default=1)
+    parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
     parser.add_argument("--max-steps", type=int, default=100)
     parser.add_argument("--wandb-project", type=str, default=None)
@@ -90,13 +90,6 @@ def main():
         # See:
         # https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
-
-    if args.strategy == "fsdp2":
-        from nemo.lightning.pytorch.strategies import FSDP2Strategy
-
-        args.strategy = FSDP2Strategy(
-            data_parallel_size=int(args.devices), tensor_parallel_size=1
-        )
 
     use_dist_samp = False
 
