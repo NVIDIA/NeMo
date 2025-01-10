@@ -32,10 +32,13 @@ def torchrun(devices: Optional[int] = None) -> run.Config[run.LocalExecutor]:
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
     }
 
-    if devices is None and torch.cuda.is_available():
-        devices = torch.cuda.device_count()
-    else:
-        devices = 1
+    if devices is None:
+        if torch.cuda.is_available():
+            devices = torch.cuda.device_count()
+        else:
+            raise RuntimeError(
+                "Cannot infer the 'ntasks_per_node' parameter as CUDA is not available: please specify explicitely."
+            )
 
     executor = run.Config(
         run.LocalExecutor,
