@@ -70,7 +70,7 @@ def _audio_collate_fn(audio_signals, audio_lengths):
     """
 
     max_audio_len = 0
-    has_audio = len(audio_lengths) > 0 and audio_lengths[0] is not None
+    has_audio = audio_lengths[0] is not None
     if has_audio:
         max_audio_len = max(audio_lengths).item()
 
@@ -97,7 +97,7 @@ def _collate_item(item: Union[torch.Tensor, np.ndarray, List], max_length: int, 
     item = maybe_cast_to_list(item)
     # max_length = max([len(x) for x in item]) if item else 0
     # here [0] should be tokenizer.pad_id
-    item = [x[:max_length] + [pad_id] * (max_length - len(x)) for x in item]
+    item = [x + [pad_id] * (max_length - len(x)) for x in item]
     return item
 
 
@@ -123,8 +123,7 @@ def _speechllm_audio_text_collate_fn(
 
     loss_mask = [build_loss_mask(item)[1:] for item in batch]
 
-    # add 1 for actual max length in batch
-    max_length = max([len(x) for x in input_ids]) + tokens_to_generate + 1
+    max_length = max([len(x) for x in input_ids]) + tokens_to_generate
     # increase max length to nearest multiple of 4 or 8
     if pad_to_max_length:
         max_length = max_seq_length
@@ -195,9 +194,10 @@ def _speechllm_multi_audio_text_collate_fn(
     return batch
 
 
-class AudioTextDataset(TextProcessing, Dataset):
+class AudioTextDataset(Dataset):
     """
-    Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
+    Dataset that loads tensors via a json file containing paths to audio files, transcripts,
+    and durations (in seconds).
     Each new line is a different sample. Example below:
 
     .. code-block:: json
@@ -215,25 +215,33 @@ class AudioTextDataset(TextProcessing, Dataset):
         min_duration: If audio is less than this length, do not include in dataset
         max_utts: Limit number of utterances
         trim: whether or not to trim silence. Defaults to False
-        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from
+            multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`.
+            Defaults to `None`. Uses zero-based indexing.
 
             :note: below args are NLP-specific
 
-        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
+        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit
+            this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they
+            do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
         tokens_to_generate (int): (inference only) Number of tokens to generate during inference
         seed: Random seed for data shuffling.
-        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data.
+            If None, all samples will be loaded.
         seed: int = 1234,
         context_key: Key to use for the context in your JSONL file
         answer_key: Key to use for the label in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
-        answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
-        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
+        answer_only_loss: If True, will compute the loss only on the answer part of the input.
+            If False, will compute the loss on the entire input.
+        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation
+            if the combined length exceeds the max sequence length.
+        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of
+            the current batch.
         prompt_template: Prompt template to inject via an fstring. Formatted like:
 
             .. code-block:: text
@@ -252,7 +260,7 @@ class AudioTextDataset(TextProcessing, Dataset):
     def __init__(
         self,
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        text_processor: TextProcessing,
         sample_rate: int,
         int_values: bool = False,
         augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
@@ -263,55 +271,16 @@ class AudioTextDataset(TextProcessing, Dataset):
         channel_selector: Optional[ChannelSelectorType] = None,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
-        add_bos: bool = False,
-        add_eos: bool = True,
-        add_sep: bool = False,
-        sep_id: Optional[int] = None,
         max_num_samples: Optional[int] = None,
-        seed: int = 1234,
-        separate_prompt_and_response_with_newline: bool = False,
-        answer_only_loss: bool = True,
-        truncation_field: str = "answer",
-        pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
-        prompt_template: str = None,
-        virtual_tokens: int = 0,
-        tokens_to_generate: int = 0,
         index_by_file_id: bool = False,
         context_key: str = 'context',
         answer_key: str = 'answer',
-        end_string: Optional[str] = None,
         context_file: Optional[Union[List[str], str]] = None,
-        sample_alpha: Optional[float] = None,
-        audio_locator: Optional[str] = None,
-        add_boa_eoa: Optional[bool] = False,
-        boa_string: Optional[str] = "<BOA>",
-        eoa_string: Optional[str] = "<EOA>",
     ):
-        super().__init__(
-            tokenizer=tokenizer,
-            max_seq_length=max_seq_length,
-            min_seq_length=min_seq_length,
-            add_bos=add_bos,
-            add_eos=add_eos,
-            add_sep=add_sep,
-            sep_id=sep_id,
-            seed=seed,
-            separate_prompt_and_response_with_newline=separate_prompt_and_response_with_newline,
-            answer_only_loss=answer_only_loss,
-            truncation_field=truncation_field,
-            pad_to_max_length=pad_to_max_length,
-            prompt_template=prompt_template,
-            virtual_tokens=virtual_tokens,
-            tokens_to_generate=tokens_to_generate,
-            context_key=context_key,
-            answer_key=answer_key,
-            end_string=end_string,
-            sample_alpha=sample_alpha,
-            audio_locator=audio_locator,
-            add_boa_eoa=add_boa_eoa,
-            boa_string=boa_string,
-            eoa_string=eoa_string,
-        )
+        super().__init__()
+        self.text_processor = text_processor
+        self.max_seq_length = max_seq_length
+        self.min_seq_length = min_seq_length
 
         if isinstance(manifest_filepath, str):
             manifest_filepath = manifest_filepath.split(",")
@@ -364,7 +333,7 @@ class AudioTextDataset(TextProcessing, Dataset):
             # accomodates normalize_batch
             output["audio_length"] = torch.tensor(80)
 
-        text_data = self._process_example(context=sample.context, output=sample.answer)
+        text_data = self.text_processor(context=sample.context, output=sample.answer)
 
         output.update(text_data)
         output['metadata'] = {
@@ -475,7 +444,7 @@ class MultiAudioTextDataset(AudioTextDataset):
             # accomodates normalize_batch
             output["audio_length"] = [torch.tensor(8)]
 
-        text_data = self._process_example(context=sample.context, output=sample.answer)
+        text_data = self.text_processor(context=sample.context, output=sample.answer)
 
         if isinstance(output["audio_signal"], list) and len(output["audio_signal"]) + 1 != len(
             text_data['context_start_idx']
@@ -535,7 +504,7 @@ class TarredAudioLoopOffsets:
         return self.current_bytes, self.current_fn, self.offset_id
 
 
-class TarredAudioTextDataset(TextProcessing, IterableDataset):
+class TarredAudioTextDataset(IterableDataset):
     """
     A similar Dataset to the AudioTextDataset, but which loads tarred audio files.
 
@@ -626,8 +595,10 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
 
             :note: Below args are NLP-specific
 
-        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
+        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated
+            to fit this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they
+            do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
@@ -637,9 +608,12 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         context_key: Key to use for the context in your JSONL file
         answer_key: Key to use for the label in your JSONL file
         separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
-        answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation if the combined length exceeds the max sequence length.
-        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
+        answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute
+            the loss on the entire input.
+        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation
+            if the combined length exceeds the max sequence length.
+        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the
+            max length of the current batch.
         prompt_template: Prompt template to inject via an fstring. Formatted like:
 
             .. code-block:: text
@@ -650,7 +624,8 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
 
             :note: Below args are for miscellaneous purposes
 
-        context_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
+        context_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load
+            random questions from, if question is not in manifest.
         sample_alpha: Optional[float] = None, for SPE subword sampling
 
     """
@@ -659,7 +634,7 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         self,
         audio_tar_filepaths: Union[str, List[str]],
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        text_processor: TextProcessing,
         sample_rate: int,
         int_values: bool = False,
         augmentor: Optional['nemo.collections.asr.parts.perturb.AudioAugmentor'] = None,
@@ -673,45 +648,14 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         world_size: int = 0,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
-        add_bos: bool = False,
-        add_eos: bool = True,
-        add_sep: bool = False,
-        sep_id: int = None,
-        seed: int = 1234,
-        separate_prompt_and_response_with_newline: bool = False,
-        answer_only_loss: bool = True,
-        truncation_field: str = "answer",  # choices=["answer", "context"]
-        pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
-        prompt_template: str = None,
-        virtual_tokens: int = 0,
-        tokens_to_generate: int = 0,
         context_key: str = 'context',
         answer_key: str = 'answer',
-        end_string: Optional[str] = None,
         context_file: Optional[Union[List[str], str]] = None,
-        sample_alpha: Optional[float] = None,
     ):
-        super().__init__(
-            tokenizer=tokenizer,
-            max_seq_length=max_seq_length,
-            min_seq_length=min_seq_length,
-            add_bos=add_bos,
-            add_eos=add_eos,
-            add_sep=add_sep,
-            sep_id=sep_id,
-            seed=seed,
-            separate_prompt_and_response_with_newline=separate_prompt_and_response_with_newline,
-            answer_only_loss=answer_only_loss,
-            truncation_field=truncation_field,
-            pad_to_max_length=pad_to_max_length,
-            prompt_template=prompt_template,
-            virtual_tokens=virtual_tokens,
-            tokens_to_generate=tokens_to_generate,
-            context_key=context_key,
-            answer_key=answer_key,
-            end_string=end_string,
-            sample_alpha=sample_alpha,
-        )
+        super().__init__()
+        self.text_processor = text_processor
+        self.max_seq_length = max_seq_length
+        self.min_seq_length = min_seq_length
         self.is_megatron_iterable = True
         self.shard_manifests = shard_manifests
 
@@ -831,7 +775,7 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
             output["audio_length"] = torch.tensor(80)
 
         # Text features
-        text_data = self._process_example(context=manifest_entry.context, output=manifest_entry.answer)
+        text_data = self.text_processor(context=manifest_entry.context, output=manifest_entry.answer)
 
         output.update(text_data)
 

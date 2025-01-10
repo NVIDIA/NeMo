@@ -436,6 +436,7 @@ def get_iterator_k_split(
                 f"Only support splitting torch.Tensor and List[torch.Tensor]. Discarding the following keys from the batch: {discard_items}",
                 mode=logging_mode.ONCE,
             )
+        batch_origin = batch
 
         batch = {k: v for k, v in batch.items() if isinstance(v, (torch.Tensor, list))}
         tensor_items = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
@@ -443,8 +444,18 @@ def get_iterator_k_split(
 
         # Split tensor items
         items = list(tensor_items.items())
+
+        if len(items) == 0:
+            raise RuntimeError(
+                f"No torch.Tensor or list in the batch: {[(k,type(v)) for k,v in batch_origin.items()]}"
+            )
+
         if enforce_divisible_batch:
-            assert items[0][1].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
+            if items[0][1].shape[0] % num_microbatches != 0:
+                raise ValueError(
+                    f"Issue with batch size configuration: batch size {items[0][1].shape[0]} is not divisible by {num_microbatches}!"
+                )
+
         split_batch = [torch.tensor_split(item[1], num_microbatches, dim=0) for item in items]
         # handle the case where the batch size from dynamic bucketting is not divisible
         if items[0][1].shape[0] % num_microbatches != 0:

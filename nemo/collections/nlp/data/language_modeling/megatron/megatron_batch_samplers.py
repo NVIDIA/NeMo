@@ -17,6 +17,7 @@ from typing import Tuple
 
 import torch
 
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = [
@@ -86,6 +87,13 @@ class BaseMegatronBatchSampler:
                     data_parallel_rank, data_parallel_size
                 )
             )
+        if total_samples <= consumed_samples:
+            new_consumed_samples = consumed_samples % total_samples
+            logging.warning(
+                f"total_samples ({total_samples}) <= consumed_samples ({consumed_samples}), resetting with `consumed_samples % total_samples` ({new_consumed_samples})."
+            )
+            consumed_samples = new_consumed_samples
+
         # Keep a copy of input params for later use.
         self.total_samples: int = total_samples
         self.consumed_samples: int = consumed_samples
@@ -127,14 +135,17 @@ class BaseMegatronBatchSampler:
 
         """
         num_available_samples: int = self.total_samples - self.consumed_samples
+        if num_available_samples < 0:
+            raise RuntimeError(
+                f"no sample to consume: {num_available_samples}, total_samples={self.total_samples}, consumed_samples={self.consumed_samples}"
+            )
         if self.drop_last:
             return num_available_samples // self.global_batch_size
         else:
             return (num_available_samples + self.global_batch_size - 1) // self.global_batch_size
 
     @abc.abstractmethod
-    def __iter__(self):
-        ...
+    def __iter__(self): ...
 
 
 class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
@@ -151,7 +162,12 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
             if len(batch) == self._global_batch_size:
                 # start_idx, end_idx = self.get_start_end_idx()
                 indices = [
-                    batch[i] for i in range(self.data_parallel_rank, self._global_batch_size, self.data_parallel_size,)
+                    batch[i]
+                    for i in range(
+                        self.data_parallel_rank,
+                        self._global_batch_size,
+                        self.data_parallel_size,
+                    )
                 ]
                 assert len(indices) == self._global_batch_size_on_this_data_parallel_rank
                 yield indices
