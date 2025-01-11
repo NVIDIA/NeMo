@@ -233,6 +233,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         packed_seq_params=None,
         rotary_pos_cos=None,
         rotary_pos_sin=None,
+        attention_bias_type='no_bias',
         attention_bias=None,
     ):
         # hidden_states: [sq, b, h]
@@ -296,6 +297,8 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
                 value,
                 attention_mask,
                 attn_mask_type=attn_mask_type,
+                attention_bias_type=attention_bias_type,
+                attention_bias=attention_bias,
                 packed_seq_params=packed_seq_params,
             )
         else:
@@ -305,6 +308,8 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
                 value,
                 attention_mask,
                 attn_mask_type=attn_mask_type,
+                attention_bias_type=attention_bias_type,
+                attention_bias=attention_bias,
                 packed_seq_params=packed_seq_params,
             )
 
@@ -510,6 +515,8 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
         context=None,
         context_mask=None,
         rotary_pos_emb=None,
+        attention_bias_type='no_bias',
+        attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
     ):
@@ -527,6 +534,8 @@ class MCoreTransformerLayerMixin(TransformerLayer, MCoreAdapterModuleMixin):
             attention_mask=attention_mask,
             inference_params=inference_params,
             rotary_pos_emb=rotary_pos_emb,
+            attention_bias_type=attention_bias_type,
+            attention_bias=attention_bias,
             packed_seq_params=packed_seq_params,
         )
 
