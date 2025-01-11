@@ -49,6 +49,7 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from megatron.core import parallel_state
+    from megatron.core.dist_checkpointing.validation import StrictHandling
 
     HAVE_MEGATRON_CORE = True
 
@@ -252,6 +253,7 @@ def main(cfg) -> None:
             override_config_path=pretrained_cfg,
             map_location=torch.device("cpu") if cfg.trainer.accelerator == 'cpu' else None,
             save_restore_connector=save_restore_connector,
+            strict=StrictHandling.LOG_ALL,
         )
     else:
         raise ValueError("You must specify the base model file with gpt_model_file=/path/to/model.nemo")
