@@ -187,7 +187,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from megatron.core import parallel_state
-        from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+        from megatron.core.transformer.module import Float16Module as McoreFloat16Module
 
         from nemo.collections.nlp.modules.common.megatron.module import Float16Module
         from nemo.utils.model_utils import unwrap_model
@@ -223,9 +223,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.convert_module_fn = convert_module_fn
 
         # [ModelOpt]: Detect Pipeline-parallel Distillation mode.
-        self._unwrapped_model = [unwrap_model(self[0].module, (Float16Module, MCoreFloat16Module))]
+        self._unwrapped_model = unwrap_model(self.module, (DDP, Float16Module, McoreFloat16Module))
         if (
-            hasattr(self._unwrapped_model[0], "teacher_model")
+            hasattr(self._unwrapped_model, "teacher_model")
             and parallel_state.get_pipeline_model_parallel_world_size() > 1
         ):
             self._kd_teacher_in_pp = True
@@ -324,10 +324,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         self.callbacks.event("on_megatron_microbatches_start", step=step)
         if self._kd_teacher_in_pp:
-            with self._unwrapped_model[0].only_teacher_forward():
-                with self._unwrapped_model[0].swap_teacher_config(self[0].module):
+            with self._unwrapped_model.only_teacher_forward():
+                with self._unwrapped_model.swap_teacher_config(self.module):
                     teacher_step()
-            with self._unwrapped_model[0].only_student_forward():
+            with self._unwrapped_model.only_student_forward():
                 microbatch_outputs = step()
         else:
             microbatch_outputs = step()
@@ -339,7 +339,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
 
             if isinstance(_loss_reduction, _ModuleStepFunction):
-                _loss_reduction = _loss_reduction(self[0])
+                _loss_reduction = _loss_reduction(self.module)
 
             reduced = _loss_reduction.reduce(microbatch_outputs)
             self.callbacks.event(
