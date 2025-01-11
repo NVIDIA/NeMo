@@ -15,12 +15,39 @@
 <details open>
   <summary><b>NeMo 2.0</b></summary>
       We've released NeMo 2.0, an update on the NeMo Framework which prioritizes modularity and ease-of-use. Please refer to the <a href=https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/index.html>NeMo Framework User Guide</a> to get started.
+</details>
+<details open>
+  <summary><b>New Cosmos World Foundation Models Support</b></summary>
+    <details> 
+      <summary> <a href="https://developer.nvidia.com/blog/advancing-physical-ai-with-nvidia-cosmos-world-foundation-model-platform">Advancing Physical AI with NVIDIA Cosmos World Foundation Model Platform </a> (2025-01-09) 
+      </summary> 
+        The end-to-end NVIDIA Cosmos platform accelerates world model development for physical AI systems. Built on CUDA, Cosmos combines state-of-the-art world foundation models, video tokenizers, and AI-accelerated data processing pipelines. Developers can accelerate world model development by fine-tuning Cosmos world foundation models or building new ones from the ground up. These models create realistic synthetic videos of environments and interactions, providing a scalable foundation for training complex systems, from simulating humanoid robots performing advanced actions to developing end-to-end autonomous driving models. 
+        <br><br>
     </details>
-  </details>
-
+    <details>
+      <summary>
+        <a href="https://developer.nvidia.com/blog/accelerate-custom-video-foundation-model-pipelines-with-new-nvidia-nemo-framework-capabilities/">
+          Accelerate Custom Video Foundation Model Pipelines with New NVIDIA NeMo Framework Capabilities
+        </a> (2025-01-07)
+      </summary>
+        The NeMo Framework now supports training and customizing the <a href="https://github.com/NVIDIA/Cosmos">NVIDIA Cosmos</a> collection of world foundation models. Cosmos leverages advanced text-to-world generation techniques to create fluid, coherent video content from natural language prompts.
+        <br><br>
+        You can also now accelerate your video processing step using the <a href="https://developer.nvidia.com/nemo-curator-video-processing-early-access">NeMo Curator</a> library, which provides optimized video processing and captioning features that can deliver up to 89x faster video processing when compared to an unoptimized CPU pipeline.
+      <br><br>
+    </details>
+</details>
 <details open>
   <summary><b>Large Language Models and Multimodal Models</b></summary>
-      <details>
+    <details>
+      <summary>
+        <a href="https://developer.nvidia.com/blog/state-of-the-art-multimodal-generative-ai-model-development-with-nvidia-nemo/">
+          State-of-the-Art Multimodal Generative AI Model Development with NVIDIA NeMo
+        </a> (2024-11-06)
+      </summary>
+        NVIDIA recently announced significant enhancements to the NeMo platform, focusing on multimodal generative AI models. The update includes NeMo Curator and the Cosmos tokenizer, which streamline the data curation process and enhance the quality of visual data. These tools are designed to handle large-scale data efficiently, making it easier to develop high-quality AI models for various applications, including robotics and autonomous driving. The Cosmos tokenizers, in particular, efficiently map visual data into compact, semantic tokens, which is crucial for training large-scale generative models. The tokenizer is available now on the <a href=http://github.com/NVIDIA/cosmos-tokenizer/NVIDIA/cosmos-tokenizer>NVIDIA/cosmos-tokenizer</a> GitHub repo and on <a href=https://huggingface.co/nvidia/Cosmos-Tokenizer-CV8x8x8>Hugging Face</a>.
+      <br><br>
+    </details>
+    <details>
       <summary>
         <a href="https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/llama/index.html#new-llama-3-1-support for more information/">
         New Llama 3.1 Support
@@ -81,7 +108,6 @@
         <br><br>
       </details>
 </details>
-
 <details open>
   <summary><b>Speech Recognition</b></summary>
   <details>
@@ -155,6 +181,30 @@ Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendl
 > [!IMPORTANT]  
 > NeMo 2.0 is currently supported by the LLM (large language model) and VLM (vision language model) collections.
 
+### Cosmos Diffusion and Autoregressive Models
+
+NVIDIA has made notable advancements in visual foundation models with the introduction of the Cosmos diffusion and autoregressive (AR) models. These models are designed to create high-quality visual content efficiently and effectively.
+
+- **Cosmos Diffusion Models**: Use continuous latent embeddings to generate videos by sampling from continuous distributions. This approach is particularly effective for tasks like image synthesis and video generation, providing high-quality outputs.
+
+- **Cosmos Autoregressive (AR) Models**: Employ discrete latent codes to generate visual data, optimizing cross-entropy loss. They are well-suited for sequential data generation tasks, such as video prediction and text-to-image generation.
+
+Both types of models leverage the Cosmos Tokenizer, which achieves impressive compression rates and maintains high image quality while running significantly faster than previous state-of-the-art methods. Efficient tokenization enhances the generative process, enabling the development of cutting-edge multimodal generative AI models. These advancements significantly improve the scalability, robustness, and efficiency of generative AI applications across diverse visual domains.
+
+The Cosmos Tokenizer is available now on the <a href=http://github.com/NVIDIA/cosmos-tokenizer/NVIDIA/cosmos-tokenizer>NVIDIA/cosmos-tokenizer</a> GitHub repo and on <a href=https://huggingface.co/nvidia/Cosmos-Tokenizer-CV8x8x8>Hugging Face</a>.
+
+### Get Started with Cosmos
+
+Cosmos world foundation models are open and available on [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/cosmos/collections/cosmos) and [Hugging Face](https://huggingface.co/collections/nvidia/cosmos-6751e884dc10e013a0a0d8e6). Developers can also run Cosmos world foundation models on the [NVIDIA® API Catalog](https://build.nvidia.com/explore/simulation). Also available on the [API catalog](https://build.nvidia.com/nim?filters=usecase%3Ausecase_sdg) are Cosmos tools to enhance text prompts for accuracy, an in-built watermarking system that enables easy future identification of AI-generated sequences, and a specialized model to decode video sequences for augmented reality applications. To learn more, watch the [demo](https://www.youtube.com/watch?v=9Uch931cDx8).
+
+In addition to Cosmos world foundation models, the platform also includes:
+
+* [NeMo Curator](https://developer.nvidia.com/nemo-curator/) for efficient video data curation
+* [Cosmos Tokenizer](https://developer.nvidia.com/blog/state-of-the-art-multimodal-generative-ai-model-development-with-nvidia-nemo/) for efficient, compact, and high-fidelity video tokenization
+* [NeMo Framework](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html) for model training and optimization
+
+[NeMo Curator](https://developer.nvidia.com/nemo-curator#section-demo) for accelerated data processing pipelines is available as a managed service and SDK. Developers can now apply for [early access](https://developer.nvidia.com/nemo-curator-video-processing-early-access). Cosmos tokenizers are open neural networks available on [GitHub](https://github.com/NVIDIA/Cosmos-Tokenizer) and [Hugging Face](https://huggingface.co/collections/nvidia/cosmos-tokenizer-672b93023add81b66a8ff8e6). To get started with NVIDIA® Cosmos, see [NVIDIA® Cosmos Developers](https://developer.nvidia.com/cosmos) for more information.
+
 ### Get Started with NeMo 2.0
 
 - Refer to the [Quickstart](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html) for examples of using NeMo-Run to launch NeMo 2.0 experiments locally and on a slurm cluster.
@@ -162,6 +212,8 @@ Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendl
 - [NeMo 2.0 Recipes](https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes) contains additional examples of launching large-scale runs using NeMo 2.0 and NeMo-Run.
 - For an in-depth exploration of the main features of NeMo 2.0, see the [Feature Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/features/index.html#feature-guide).
 - To transition from NeMo 1.0 to 2.0, see the [Migration Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/index.html#migration-guide) for step-by-step instructions.
+
+
 
 ## LLMs and MMs Training, Alignment, and Customization
 
