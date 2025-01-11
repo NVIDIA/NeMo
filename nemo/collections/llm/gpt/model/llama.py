@@ -381,8 +381,18 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
     @property
     def config(self) -> "HFLlamaConfig":
         source: LlamaConfig = io.load_context(str(self), subpath="model.config")
-
         from transformers import LlamaConfig as HFLlamaConfig
+
+        rope_scaling = None
+        # Llama32* configs subclass from the Llama31Config
+        if isinstance(source, (Llama31Config,)):
+            rope_scaling = {
+                'factor': source.scale_factor,
+                'low_freq_factor': source.low_freq_factor,
+                'high_freq_factor': source.high_freq_factor,
+                'original_max_position_embeddings': source.old_context_len,
+                'rope_type': 'llama3',
+            }
 
         return HFLlamaConfig(
             num_hidden_layers=source.num_layers,
@@ -396,6 +406,11 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
             tie_word_embeddings=source.share_embeddings_and_output_weights,
+            # llama 3.1, 3.2 have rope scaling
+            rope_scaling=rope_scaling,
+            # Tokenizer args
+            bos_token_id=self.tokenizer.bos_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
         )
 
 
