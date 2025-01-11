@@ -70,4 +70,35 @@ def test_text_to_tokens_with_trim_spm_separator_after_special_token():
     tokenizer = _build_tokenizer(TOKENIZER_SPM_FILE, SPECIAL_TOKENS)
     text = "<s>[INST] Who are you?[/INST] This is a response</s>[INST] I'll ask again who are you?[/INST] I'm not a who</s>"
     tokenized = tokenizer.text_to_tokens(text)
-    assert tokenized == ['<s>', '[INST]', '▁Who', '▁are', '▁you', '?', '[/INST]', '▁This', '▁is', '▁a', '▁response', '</s>', '[INST]', '▁I', "'", 'll', '▁ask', '▁again', '▁who', '▁are', '▁you', '?', '[/INST]', '▁I', "'", 'm', '▁not', '▁a', '▁who', '</s>']
+    assert tokenized == [
+        '<s>',
+        '[INST]',
+        '▁Who',
+        '▁are',
+        '▁you',
+        '?',
+        '[/INST]',
+        '▁This',
+        '▁is',
+        '▁a',
+        '▁response',
+        '</s>',
+        '[INST]',
+        '▁I',
+        "'",
+        'll',
+        '▁ask',
+        '▁again',
+        '▁who',
+        '▁are',
+        '▁you',
+        '?',
+        '[/INST]',
+        '▁I',
+        "'",
+        'm',
+        '▁not',
+        '▁a',
+        '▁who',
+        '</s>',
+    ]
