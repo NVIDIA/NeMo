@@ -20,9 +20,9 @@ from utils import get_comm_overlap_callback_idx, parse_cli_args, slurm_executor
 
 from nemo.collections.llm.recipes.nemotron3_8b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 NUM_NODES = 1
 NUM_GPUS_PER_NODE = 8
@@ -59,7 +59,7 @@ def nemotron3_8b_performance_recipe(
     recipe.data.global_batch_size = gbs
     recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = run.Config(
-        get_nmt_tokenizer, library="null_lib", model_name = "NullTokenizer",vocab_size = 256000
+        get_nmt_tokenizer, library="null_lib", model_name="NullTokenizer", vocab_size=256000
     )
 
     recipe.trainer.max_steps = max_steps
