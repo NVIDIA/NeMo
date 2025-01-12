@@ -102,11 +102,12 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir):
         
         detailed_cer = word_error_rate_detail(hypotheses=[pred_text], references=[gt_text], use_cer=True)
         detailed_wer = word_error_rate_detail(hypotheses=[pred_text], references=[gt_text], use_cer=False)
-
+        
         print("{} GT Text:".format(ridx), gt_text)
         print("{} Pr Text:".format(ridx), pred_text)
         # Format cer and wer to 2 decimal places
         print("CER:", "{:.4f} | WER: {:.4f}".format(detailed_cer[0], detailed_wer[0]))
+        
         pred_texts.append(pred_text)
         gt_texts.append(gt_text)
 
@@ -132,19 +133,33 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir):
                 gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
                 
         
+
         filewise_metrics.append({
             'gt_text': gt_text,
             'pred_text': pred_text,
             'detailed_cer': detailed_cer,
             'detailed_wer': detailed_wer,
+            'cer': detailed_cer[0],
+            'wer': detailed_wer[0],
             'pred_gt_ssim': pred_gt_ssim,
             'pred_context_ssim': pred_context_ssim,
             'gt_context_ssim': gt_context_ssim,
             'pred_gt_ssim_alternate': pred_gt_ssim_alternate,
             'pred_context_ssim_alternate': pred_context_ssim_alternate,
-            'gt_context_ssim_alternate': gt_context_ssim_alternate
+            'gt_context_ssim_alternate': gt_context_ssim_alternate,
+            'gt_audio_filepath': gt_audio_filepath,
+            'pred_audio_filepath': pred_audio_filepath,
+            'context_audio_filepath': context_audio_filepath
         })
     
+    filewise_metrics_keys_to_save = ['cer', 'wer', 'pred_context_ssim', 'pred_text', 'gt_text', 'gt_audio_filepath', 'pred_audio_filepath', 'context_audio_filepath']
+    filtered_filewise_metrics = []
+    for m in filewise_metrics:
+        filtered_filewise_metrics.append({k: m[k] for k in filewise_metrics_keys_to_save})
+    
+    # Sort filewise metrics by cer in reverse
+    filewise_metrics.sort(key=lambda x: x['cer'], reverse=True)
+
     avg_metrics = {}
     avg_metrics['cer_filewise_avg'] = sum([m['detailed_cer'][0] for m in filewise_metrics]) / len(filewise_metrics)
     avg_metrics['wer_filewise_avg'] = sum([m['detailed_wer'][0] for m in filewise_metrics]) / len(filewise_metrics)
@@ -159,7 +174,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir):
 
     pprint.pprint(avg_metrics)
 
-    return avg_metrics
+    return avg_metrics, filewise_metrics
 
 def main():
     # audio_dir="/datap/misc/Datasets/riva" \
