@@ -23,6 +23,9 @@ from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
+from megatron.core import dist_checkpointing
+from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace, extract_matching_values
+from megatron.core.dist_checkpointing.mapping import ShardedBase
 from megatron.core.dist_checkpointing.serialization import (
     get_default_load_sharded_strategy,
     get_default_save_sharded_strategy,
@@ -33,6 +36,7 @@ from megatron.core.dist_checkpointing.strategies.fully_parallel import (
     FullyParallelSaveStrategyWrapper,
 )
 from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShardedStrategy
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.parallel_state import get_data_parallel_group
 from torch import nn
 from typing_extensions import Self, override
@@ -116,6 +120,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         parallel_save: bool = True,
         parallel_save_within_dp: bool = False,
         parallel_load: bool = False,
+        use_optim_separation_hint: bool = True,
     ):
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
@@ -125,6 +130,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self.parallel_save = parallel_save
         self.parallel_save_within_dp = parallel_save_within_dp
         self.parallel_load = parallel_load
+        self.use_optim_separation_hint = use_optim_separation_hint
 
         self._save_sharded_strategy = None
         self.validated_consistency = False
@@ -144,8 +150,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
                 If ``storage_options`` arg is passed in
 
         """
-        from megatron.core import dist_checkpointing
-
         if storage_options is not None and len(storage_options) > 0:
             logging.warning(
                 f"{self.__class__.__name__} does not support"
@@ -190,8 +194,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             FileNotFoundError: If ``path`` is not found by the ``fsspec`` filesystem
 
         """
-        from megatron.core import dist_checkpointing
-        from megatron.core.dist_checkpointing.validation import StrictHandling
 
         if map_location is not None:
             raise ValueError("`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`.")
@@ -276,6 +278,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             raise ValueError('Async dist-ckpt save supported only for torch_dist format')
 
         torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
+        if self.use_optim_separation_hint:
+            torch_dist_kwargs['separation_hint'] = "optimizer"
         if self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
             save_strategy = TorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
         else:
@@ -302,11 +306,10 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             self._save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
         return self._save_sharded_strategy
 
-    def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
-        from megatron.core import dist_checkpointing
-        from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
-        from megatron.core.dist_checkpointing.mapping import ShardedBase
+    def drop_optimizer_states(self, path):
+        dist_checkpointing.remove_sharded_tensors(path, key_prefix="optimizer")
 
+    def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
         ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
         loaded_keys = []
         missing_keys = []
@@ -432,7 +435,6 @@ def _fix_tensors_device(ckpt: Dict) -> Dict:
     """Ensure checkpoint tensors are on the correct device."""
     assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
     cur_dev = torch.device("cuda", index=torch.cuda.current_device())
-    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
 
     def _fix_device(t):
         if isinstance(t, torch.Tensor) and t.is_cuda and t.device != cur_dev:
@@ -456,8 +458,6 @@ def is_distributed_ckpt(path) -> bool:
         bool: True if the path is a distributed checkpoint directory, False otherwise.
 
     """
-    from megatron.core import dist_checkpointing
-
     checkpoint_dir = ckpt_to_dir(path)
     fs = get_filesystem(checkpoint_dir)
     if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
