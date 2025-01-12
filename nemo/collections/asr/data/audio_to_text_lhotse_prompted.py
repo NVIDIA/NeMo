@@ -71,12 +71,8 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         super().__init__()
         self.tokenizer = tokenizer
         self.load_audio = AudioSamples(fault_tolerant=True)
+        self.padding_value = self.tokenizer.pad_id
         self.prompt = prompt
-        pad_id = self.tokenizer.pad_id
-        if pad_id == -1:
-            pad_id = self.tokenizer.token_to_id("<pad>")
-        assert pad_id > -1, "Invalid tokenizer: both tokenizer.pad_id and tokenizer.token_to_id('<pad>') returned -1."
-        self.padding_value = pad_id
 
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)

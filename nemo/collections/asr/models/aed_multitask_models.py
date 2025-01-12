@@ -211,12 +211,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
 
         # Define autoregressive CE loss
-        pad_id = self.tokenizer.pad_id
-        if pad_id == -1:
-            pad_id = self.tokenizer.token_to_id("<pad>")
-        assert pad_id > -1, "Invalid tokenizer: both tokenizer.pad_id and tokenizer.token_to_id('<pad>') returned -1."
         with open_dict(self.cfg.loss):
-            self.cfg.loss.pad_id = pad_id
+            self.cfg.loss.pad_id = self.tokenizer.pad_id
 
         self.loss = EncDecMultiTaskModel.from_config_dict(self.cfg.loss)
 
@@ -391,12 +387,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             self.cfg.decoding = decoding_cfg
 
         # Setup loss
-        pad_id = self.tokenizer.pad_id
-        if pad_id == -1:
-            pad_id = self.tokenizer.token_to_id("<pad>")
-        assert pad_id > -1, "Invalid tokenizer: both tokenizer.pad_id and tokenizer.token_to_id('<pad>') returned -1."
         with open_dict(self.cfg.loss):
-            self.cfg.loss.pad_id = pad_id
+            self.cfg.loss.pad_id = self.tokenizer.pad_id
 
         del self.loss
         self.loss = EncDecMultiTaskModel.from_config_dict(self.cfg.loss)
