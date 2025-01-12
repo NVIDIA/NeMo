@@ -409,7 +409,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             input_signal=audio_signal, length=audio_signal_length
         )
         del audio_signal, audio_signal_length
-        torch.cuda.empty_cache()
+        if not self.training:
+            torch.cuda.empty_cache()
         return processed_signal, processed_signal_length
 
     def forward(
@@ -476,7 +477,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             )
             
         del processed_signal, processed_signal_length, MEM, FIFO_QUEUE
-        torch.cuda.empty_cache()
+        if not self.training:
+            torch.cuda.empty_cache()
         return total_pred
     
     def forward_streaming_step(

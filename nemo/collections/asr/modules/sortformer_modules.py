@@ -214,8 +214,10 @@ class SortformerModules(NeuralModule, Exportable):
                     fifo = fifo[:, -self.fifo_len:]
                     assert pop_out_embs.shape[1] > 0
                 else:
-                    # only support mem_refresh_rate=0 or 1 now, will implement updating with different rates later
-                    raise NotImplementedError("Only support mem_refresh_rate=0 or 1")
+                    # pop out self.mem_refresh_rate oldest chunks from the fifo queue and update memory buffer
+                    pop_out_embs = fifo[:, :chunk_len*self.mem_refresh_rate] 
+                    pop_out_preds = fifo_preds[:, :pop_out_embs.shape[1]]
+                    fifo = fifo[:, pop_out_embs.shape[1]:]
                 
         if pop_out_embs.shape[1] > 0: # only update memory buffer when pop_out_embs is not empty
             mem = torch.cat([mem, pop_out_embs], dim=1)
