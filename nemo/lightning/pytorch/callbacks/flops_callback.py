@@ -151,7 +151,7 @@ class FLOPsMeasurementCallback(Callback):
             logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
             raise KeyError(f"Failed to extract valid model name from or missing FLOPs calculations for {self.model}")
 
-        total_flops = model_flops_map[self.model]()
+        total_flops = model_flops_map[self.model](self)
         num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
         flops_per_gpu = total_flops / num_devices
 

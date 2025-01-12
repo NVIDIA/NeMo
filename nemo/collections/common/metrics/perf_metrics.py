@@ -143,7 +143,7 @@ class FLOPsMeasurementCallback(Callback):
             logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
             raise KeyError(f"Failed to extract valid model name from or missing FLOPs calculations for {self.model}")
 
-        total_flops = model_flops_map[self.model]()
+        total_flops = model_flops_map[self.model](self)
         flops_per_gpu = total_flops / (self.num_nodes * self.num_gpus_per_node)
 
         return total_flops, flops_per_gpu
