@@ -110,7 +110,7 @@ def _mask_targets(
         header_len (int): the system prompt length
         s_ids (List[Tensor]): array of tokenized ids of each turns
         tokenizer (TokenizerSpec): tokenizer object
-        mask_role (str): the speaker id to be masked from loss computation
+        mask_role (str): the speaker id to be masked from loss computation. If there is more than 1 masked role, `mask_role` is a comma-separated string of the roles
         gtype (str): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
         name_end_token_ids (int): end of name token ids
         special_tokens (dict): special tokens used for the chat prompt. It has the keys: system_turn_start, turn_start, label_start, end_of_turn
