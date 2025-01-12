@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,31 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os.path import basename
 from typing import Optional
 
 import nemo_run as run
-from nemo_run.config import NEMORUN_HOME
-from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor
+from utils import get_comm_overlap_callback_idx, parse_cli_args, slurm_executor
 
-from nemo.collections.llm.recipes.mixtral_8x7b import pretrain_recipe
+from nemo.collections.llm.recipes.nemotron4_340b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-from nemo.utils import logging
 
-NUM_NODES = 8
+NUM_NODES = 16
 NUM_GPUS_PER_NODE = 8
 MICRO_BATCH_SIZE = 1
-GLOBAL_BATCH_SIZE = 256
-TP_SIZE = 1
-PP_SIZE = 4
-CP_SIZE = 1
-VP_SIZE = 8
-EP_SIZE = 8
+GLOBAL_BATCH_SIZE = 32
+TP_SIZE = 8
+PP_SIZE = 8
+CP_SIZE = 2
+VP_SIZE = 12
 MAX_STEPS = 100
 
 
-def mixtral_8x7b_performance_recipe(
+def nemotron4_340b_performance_recipe(
     compute_dtype: str,
     num_nodes: int,
     num_gpus_per_node: int,
@@ -46,11 +45,10 @@ def mixtral_8x7b_performance_recipe(
     pp_size: int,
     cp_size: int,
     vp_size: Optional[int],
-    ep_size: int,
     max_steps: int,
 ):
     """
-    mixtral 8x7b pre-train recipe aimed at achieving best possible performance.
+    nemotron4 340b pre-train recipe aimed at achieving best possible performance.
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
@@ -60,7 +58,9 @@ def mixtral_8x7b_performance_recipe(
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
     recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
-    recipe.data.tokenizer = hf_tokenizer("mistralai/Mixtral-8x7B-v0.1")
+    recipe.data.tokenizer = run.Config(
+        get_nmt_tokenizer, library="null_lib", model_name="NullTokenizer", vocab_size=256000
+    )
 
     recipe.trainer.max_steps = max_steps
     recipe.trainer.num_nodes = num_nodes
@@ -71,11 +71,7 @@ def mixtral_8x7b_performance_recipe(
     recipe.trainer.strategy.pipeline_model_parallel_size = pp_size
     recipe.trainer.strategy.context_parallel_size = cp_size
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = vp_size
-    recipe.trainer.strategy.expert_model_parallel_size = ep_size
-    if tp_size > 1:
-        recipe.trainer.strategy.sequence_parallel = True
-    else:
-        recipe.trainer.strategy.sequence_parallel = False
+    recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
 
@@ -111,15 +107,10 @@ def mixtral_8x7b_performance_recipe(
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
-    if args.log_dir != NEMORUN_HOME:
-        import sys
-
-        logging.error(f"Run `export NEMORUN_HOME={args.log_dir}` in your shell environment and rerun this script.")
-        sys.exit(1)
 
     exp_name = "_".join(
         [
-            f"mixtral_8x7b",
+            basename(__file__),
             args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",
@@ -137,10 +128,11 @@ if __name__ == "__main__":
         args.container_image,
         custom_mounts=[],
         custom_env_vars={},
-        retries=0,
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home,
     )
 
-    recipe = mixtral_8x7b_performance_recipe(
+    recipe = nemotron4_340b_performance_recipe(
         args.compute_dtype,
         NUM_NODES,
         NUM_GPUS_PER_NODE,
@@ -150,7 +142,6 @@ if __name__ == "__main__":
         PP_SIZE,
         CP_SIZE,
         VP_SIZE,
-        EP_SIZE,
         MAX_STEPS,
     )
 

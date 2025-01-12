@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,14 +15,12 @@
 from typing import Optional
 
 import nemo_run as run
-from nemo_run.config import NEMORUN_HOME
 from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor
 
 from nemo.collections.llm.recipes.llama31_405b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-from nemo.utils import logging
 
 NUM_NODES = 72
 NUM_GPUS_PER_NODE = 8
@@ -111,11 +109,6 @@ def llama3_405b_performance_recipe(
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
-    if args.log_dir != NEMORUN_HOME:
-        import sys
-
-        logging.error(f"Run `export NEMORUN_HOME={args.log_dir}` in your shell environment and rerun this script.")
-        sys.exit(1)
 
     exp_name = "_".join(
         [
@@ -137,7 +130,8 @@ if __name__ == "__main__":
         args.container_image,
         custom_mounts=[],
         custom_env_vars={},
-        retries=0,
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home,
     )
 
     recipe = llama3_405b_performance_recipe(
