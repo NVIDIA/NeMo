@@ -98,7 +98,7 @@ def llama3_8b_performance_recipe(
         if comm_overlap_callback_idx >= 0:
             recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = True
     if comm_overlap_callback_idx is not None:
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_bootstrap_backend = "mpi"
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None

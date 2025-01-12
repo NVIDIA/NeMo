@@ -98,7 +98,7 @@ def llama31_405b_performance_recipe(
         if comm_overlap_callback_idx >= 0:
             recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = True
     if comm_overlap_callback_idx is not None:
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_bootstrap_backend = "mpi"
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
@@ -161,7 +161,7 @@ if __name__ == "__main__":
         # following line ensures file is at- `<log_dir>/lightning_logs/tb_logs/default/<tfevents_file>`
         recipe.log.log_dir = "/nemo_run/lightning_logs"
 
-    plugins = [PerfEnvPlugin(enable_vboost=True)]
+    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152)]
     if args.enable_profiling:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
