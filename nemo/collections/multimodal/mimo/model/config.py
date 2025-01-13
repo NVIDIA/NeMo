@@ -267,7 +267,7 @@ class MimoConfig(TransformerConfig, io.IOMixin):
     )
 
     freeze_language_model: bool = False
-    freeze_image_encoder: bool = False
+    freeze_image_encoder: bool = True
     freeze_image_input_projection: bool = False
     freeze_image_output_projection: bool = False
 
