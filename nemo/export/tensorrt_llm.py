@@ -1108,7 +1108,7 @@ class TensorRTLLM(ITritonDeployable):
     def get_supported_models_list(self):
         """Supported model list"""
         # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
-        return ["gpt", "gptnext", "llama", "falcon", "starcoder", "mixtral", "gemma"]
+        return ["gpt", "gptnext", "llama", "falcon", "starcoder", "mixtral", "gemma", "qwen"]
 
     @property
     def get_hidden_size(self):
