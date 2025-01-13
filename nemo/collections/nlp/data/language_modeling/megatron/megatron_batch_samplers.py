@@ -17,7 +17,6 @@ from typing import Tuple
 
 import torch
 
-from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = [
@@ -87,13 +86,6 @@ class BaseMegatronBatchSampler:
                     data_parallel_rank, data_parallel_size
                 )
             )
-        if total_samples <= consumed_samples:
-            new_consumed_samples = consumed_samples % total_samples
-            logging.warning(
-                f"total_samples ({total_samples}) <= consumed_samples ({consumed_samples}), resetting with `consumed_samples % total_samples` ({new_consumed_samples})."
-            )
-            consumed_samples = new_consumed_samples
-
         # Keep a copy of input params for later use.
         self.total_samples: int = total_samples
         self.consumed_samples: int = consumed_samples
@@ -134,11 +126,7 @@ class BaseMegatronBatchSampler:
             When `rampup_batch_size` is enabled, the return value can be not exactly precise.
 
         """
-        num_available_samples: int = self.total_samples - self.consumed_samples
-        if num_available_samples < 0:
-            raise RuntimeError(
-                f"no sample to consume: {num_available_samples}, total_samples={self.total_samples}, consumed_samples={self.consumed_samples}"
-            )
+        num_available_samples: int = self.total_samples - self.consumed_samples % self.total_samples
         if self.drop_last:
             return num_available_samples // self.global_batch_size
         else:

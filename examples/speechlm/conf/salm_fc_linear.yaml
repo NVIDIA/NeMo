@@ -173,14 +173,15 @@ strategy:
   ckpt_async_save: true
 
 callbacks:
-  _target_: nemo.lightning.pytorch.callbacks.ModelCheckpoint
-  filename: '${name}--{${callbacks.monitor}:.3f}-{step}-{epoch}'
-  monitor: "val_loss"
-  mode: "min"
-  save_last: true
-  save_top_k: 1
-  save_weights_only: false
-  always_save_context: true
+  checkpoint:
+    _target_: nemo.lightning.pytorch.callbacks.ModelCheckpoint
+    filename: '${name}--{${callbacks.monitor}:.3f}-{step}-{epoch}'
+    monitor: "val_loss"
+    mode: "min"
+    save_last: true
+    save_top_k: 1
+    save_weights_only: false
+    always_save_context: true
 
 plugins:
   _target_: nemo.lightning.MegatronMixedPrecision

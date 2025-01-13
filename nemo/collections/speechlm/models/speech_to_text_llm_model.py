@@ -187,7 +187,9 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             param.requires_grad = False
         module.eval()
 
-    def configure_model(self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None) -> "SpeechToTextLLM":
+    def configure_model(
+        self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
+    ) -> "MCoreSpeechToTextLLM":
         language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: L.LightningModule
 
         if speech_model is None:
