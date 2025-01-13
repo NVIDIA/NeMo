@@ -1185,7 +1185,7 @@ class TensorRTLLM(ITritonDeployable):
                 generation_logits_available = inputs["output_generation_logits"][0][0]
                 infer_input["output_generation_logits"] = inputs.pop("output_generation_logits")[0][0]
             if "output_context_logits" in inputs:
-                context_logits_available = inputs["output_context_logits"]
+                context_logits_available = inputs["output_context_logits"][0][0]
                 infer_input["output_context_logits"] = inputs.pop("output_context_logits")[0][0]
 
             if generation_logits_available:
