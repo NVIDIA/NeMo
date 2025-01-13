@@ -109,6 +109,9 @@ def main():
     parser.add_argument(
         "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp"]
     )
+    parser.add_argument(
+        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"]
+    )
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
     parser.add_argument("--max-steps", type=int, default=100)
