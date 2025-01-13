@@ -112,7 +112,7 @@ if __name__ == "__main__":
 
     exp_name = "_".join(
         [
-            basename(__file__),
+            args.finetuning.lower(), "llama3_8b",
             args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",

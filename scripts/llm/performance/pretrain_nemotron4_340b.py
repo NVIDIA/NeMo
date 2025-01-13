@@ -132,7 +132,9 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=[],
-        custom_env_vars={},
+        custom_env_vars={
+            "NVTE_FUSED_ATTN": "0",
+        },
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
     )
