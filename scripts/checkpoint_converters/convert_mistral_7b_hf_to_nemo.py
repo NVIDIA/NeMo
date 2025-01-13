@@ -24,10 +24,10 @@ Conversion script to convert HuggingFace Mistral-7B checkpoints into nemo checkp
 import hashlib
 import json
 import os
+import re
 from argparse import ArgumentParser
 from collections import OrderedDict
 from pathlib import Path
-import re
 
 import torch
 import torch.nn
@@ -478,7 +478,11 @@ def save_to_nemo(args, checkpoint):
     model.cfg.use_cpu_initialization = False
     model.cfg.perform_initialization = True
     # If user has passed --add-additional-tokens or model is mistralai/Mistral-7B-Instruct-v0.3
-    if args.add_additional_tokens or md5_checksum(getattr(tokenizer, 'vocab_file', None)) == '2bbc01eba250283314fdbd53d05de94b':
+    if (
+        args.add_additional_tokens
+        or md5_checksum(getattr(tokenizer, 'vocab_file', None)) == '2bbc01eba250283314fdbd53d05de94b'
+    ):
+
         def make_token_name(token):
             prefix = ''
             if len(token) > 1 and token[1] == '/':
@@ -498,7 +502,8 @@ def save_to_nemo(args, checkpoint):
                 skip_tokens.add('<unk>')
                 for token_id, token in tokenizer.added_tokens_decoder.items():
                     token_name = make_token_name(token.content)
-                    if token.content in skip_tokens: continue
+                    if token.content in skip_tokens:
+                        continue
                     assert not token_name in model.cfg.tokenizer.special_tokens
                     model.cfg.tokenizer.special_tokens[token_name] = token.content
 
