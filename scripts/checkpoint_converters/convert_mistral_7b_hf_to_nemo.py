@@ -21,6 +21,7 @@ Conversion script to convert HuggingFace Mistral-7B checkpoints into nemo checkp
 """
 
 
+import hashlib
 import json
 import os
 from argparse import ArgumentParser
@@ -31,7 +32,7 @@ import torch
 import torch.nn
 from lightning.pytorch.core.saving import _load_state as ptl_load_state
 from lightning.pytorch.trainer.trainer import Trainer
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -430,6 +431,16 @@ def merge(a: dict, b: dict, path=[]):
     return a
 
 
+def md5_checksum(filepath):
+    if filepath is None:
+        return None
+    hash_md5 = hashlib.md5()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+
 def save_to_nemo(args, checkpoint):
     """saves checkpoint to nemo format"""
 
@@ -464,15 +475,28 @@ def save_to_nemo(args, checkpoint):
     # disable cpu init
     model.cfg.use_cpu_initialization = False
     model.cfg.perform_initialization = True
+    # mistralai/Mistral-7B-Instruct-v0.3
+    if md5_checksum(getattr(tokenizer, 'vocab_file', None)) == '2bbc01eba250283314fdbd53d05de94b':
+        with open_dict(model.cfg.tokenizer):
+            model.cfg.tokenizer.sentencepiece_legacy = True
+            model.cfg.tokenizer.special_tokens = {}
+            model.cfg.tokenizer.special_tokens['bos_token'] = "<s>"
+            model.cfg.tokenizer.special_tokens['eos_token'] = "</s>"
+            model.cfg.tokenizer.special_tokens['pad_token'] = "<pad>"
+            model.cfg.tokenizer.special_tokens['inst_bos'] = "[INST]"
+            model.cfg.tokenizer.special_tokens['inst_eos'] = "[/INST]"
+            model.cfg.tokenizer.special_tokens['tool_calls'] = "[TOOL_CALLS]"
+            model.cfg.tokenizer.special_tokens['avtools_bos'] = "[AVAILABLE_TOOLS]"
+            model.cfg.tokenizer.special_tokens['avtools_eos'] = "[/AVAILABLE_TOOLS]"
+            model.cfg.tokenizer.special_tokens['tool_res_bos'] = "[TOOL_RESULTS]"
+            model.cfg.tokenizer.special_tokens['tool_res_eos'] = "[/TOOL_RESULTS]"
+
     if getattr(tokenizer, 'chat_template', None) is not None:
-        import hashlib
 
         template_hash = hashlib.md5(tokenizer.chat_template.encode('utf-8')).hexdigest()
         if template_hash != "0b629f783db54e02509999196956ff40":
             logging.warning("Got unkown chat template")
         else:
-            from omegaconf import OmegaConf, open_dict
-
             with open_dict(model.cfg):
                 model.cfg.tokenizer.chat_template = OmegaConf.create(
                     {
