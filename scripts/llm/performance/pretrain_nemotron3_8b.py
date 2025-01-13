@@ -59,7 +59,7 @@ def nemotron3_8b_performance_recipe(
     recipe.data.global_batch_size = gbs
     recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = run.Config(
-        get_nmt_tokenizer, library="null_lib", model_name="NullTokenizer", vocab_size=256000
+        get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
     )
 
     recipe.trainer.max_steps = max_steps
