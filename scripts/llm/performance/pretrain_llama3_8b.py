@@ -91,7 +91,8 @@ def llama3_8b_performance_recipe(
     dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
     if comm_overlap_callback_idx is not None:
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
-            dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1)
+            dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
+        )
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None

@@ -95,7 +95,8 @@ def llama31_405b_performance_recipe(
     if comm_overlap_callback_idx is not None:
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_bootstrap_backend = "mpi"
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
-            dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1)
+            dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
+        )
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
