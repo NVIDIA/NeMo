@@ -170,18 +170,11 @@ class SuffixTreeStorage:
     num_arcs_max: InitVar[int]
 
     vocab_size: int
+    max_order: int
 
-    ilabels: np.ndarray = field(init=False)
-    from_states: np.ndarray = field(init=False)
-    to_states: np.ndarray = field(init=False)
-    arcs_weights: np.ndarray = field(init=False)
+    arcs: np.ndarray = field(init=False)
+    states: np.ndarray = field(init=False)
 
-    backoff_weights: np.ndarray = field(init=False)
-    backoff_to_states: np.ndarray = field(init=False)
-
-    state_start_arcs: np.ndarray = field(init=False)
-    state_end_arcs: np.ndarray = field(init=False)
-    state_order: np.ndarray = field(init=False)
     _arc_cache: dict[tuple[int, ...], int] = field(default_factory=dict)
 
     unk_prob: float = float("-inf")
@@ -194,85 +187,66 @@ class SuffixTreeStorage:
             int_np_dtype = np.int32
         else:
             int_np_dtype = np.int64
+        self.arcs = np.zeros(
+            [num_arcs_max],
+            dtype=[("from", int_np_dtype), ("to", int_np_dtype), ("ilabel", int_np_dtype), ("weight", np.float32)],
+        )
+        self.states = np.zeros(
+            [num_states_max],
+            dtype=[
+                ("arcs_start", int_np_dtype),
+                ("arcs_end", int_np_dtype),
+                ("order", int_np_dtype),
+                ("backoff_to", int_np_dtype),
+                ("backoff_w", np.float32),
+            ],
+        )
 
-        self.arcs_weights = np.zeros([num_arcs_max], dtype=np.float32)
-        self.from_states = np.zeros([num_arcs_max], dtype=int_np_dtype)
-        self.to_states = np.zeros([num_arcs_max], dtype=int_np_dtype)
-        self.ilabels = np.zeros([num_arcs_max], dtype=int_np_dtype)
-
-        self.backoff_weights = np.zeros([num_states_max], dtype=np.float32)
-        self.backoff_to_states = np.zeros([num_states_max], dtype=int_np_dtype)
-
-        self.state_start_arcs = np.zeros([num_states_max], dtype=int_np_dtype)
-        self.state_end_arcs = np.zeros([num_states_max], dtype=int_np_dtype)
-        self.state_order = np.zeros([num_states_max], dtype=int_np_dtype)
-        # self._arc_cache = np.full([num_arcs_max * 10], fill_value=-1, dtype=int_np_dtype)
-
-    def add_unigrams(self, ngrams: list[NGram], bos_id: int, unk_id: int):
+    def _add_unigrams(self, ngrams: np.ndarray, bos_id: int, unk_id: int):
         start_state = 0
         bos_state = 1
         assert bos_id < 0 and unk_id < 0
         bos_unigram = None
+
+        ngrams.sort(order="symbols")
         for ngram in ngrams:
-            assert len(ngram.symbols) == 1  # unigrams
-            symbol = ngram.symbols[-1]
+            assert len(ngram["symbols"]) == 1  # unigrams
+            symbol = ngram["symbols"][-1]
             if symbol == unk_id:
-                self.unk_prob = ngram.weight
+                self.unk_prob = ngram["weight"]
             elif symbol == bos_id:
                 bos_unigram = ngram
         assert bos_unigram is not None
 
         self.num_states = 2  # SOS + BOS
         self.num_arcs = 0
-        self.state_start_arcs[start_state] = 0
-        self.state_end_arcs[start_state] = self.vocab_size
-        self.state_order[start_state] = 1  # TODO: 1 or 0?
+        # TODO: order 1 or 0?
+        # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
+        self.states[start_state] = (0, self.vocab_size, 1, start_state, 0.0)
         added_symbols = set()
         for ngram in ngrams:
-            ilabel = ngram.symbols[-1]
+            ilabel = ngram["symbols"][-1]
             if ilabel < 0:
                 # special symbol
                 continue
             assert ilabel < self.vocab_size
             arc_id = ilabel
             added_symbols.add(ilabel)
-            # arc
             next_state = self.num_states
             self.num_states += 1
-            self.ilabels[arc_id] = ilabel
-            self.from_states[arc_id] = start_state
-            self.to_states[arc_id] = next_state
-            self.arcs_weights[arc_id] = ngram.weight
+            self.arcs[arc_id] = (start_state, next_state, ilabel, ngram["weight"])
             self.num_arcs += 1
             # state order
-            self.state_order[next_state] = self.state_order[start_state] + 1
-
-            # backoff
-            self.backoff_to_states[next_state] = start_state
-            self.backoff_weights[next_state] = ngram.backoff
+            self.states[next_state] = (0, 0, self.states[start_state]["order"] + 1, start_state, ngram["backoff"])
 
         for ilabel in range(self.vocab_size):
             if ilabel not in added_symbols:
-                self.arcs_weights[ilabel] = self.unk_prob
-                self.from_states[ilabel] = start_state
-                self.to_states[ilabel] = start_state
-                self.ilabels[ilabel] = ilabel
+                self.arcs[ilabel] = (start_state, start_state, ilabel, self.unk_prob)
                 self.num_arcs += 1
-                # no backoff needed
 
         # add BOS unigram
-        arc_id = self.vocab_size
-        self.state_start_arcs[bos_state] = arc_id
-        self.state_end_arcs[bos_state] = arc_id + 1
-        self.state_order[bos_state] = self.state_order[start_state] + 1
-
-        self.ilabels[arc_id] = bos_id
-        self.from_states[arc_id] = start_state
-        self.to_states[arc_id] = bos_state
-        self.arcs_weights[arc_id] = bos_unigram.weight
-        self.num_arcs += 1
-
-        assert self.num_arcs == self.vocab_size + 1
+        # NB: we do not add BOS unigram to the arcs, but only to the states
+        self.states[bos_state] = (0, 0, self.states[start_state]["order"] + 1, start_state, bos_unigram["backoff"])
 
     def find_state(self, symbols: tuple[int, ...], bos_id: int) -> int:
         if len(symbols) > 1:
@@ -282,72 +256,100 @@ class SuffixTreeStorage:
         if label == bos_id:
             return 1
         elif label >= 0:
-            state = self.to_states[label]
-            assert self.ilabels[label] == label
-            return state
+            return self.arcs[label]["to"]
         raise ValueError(f"Invalid symbol {label}")
 
-    def add_ngrams_next_order(self, ngrams: list[NGram], bos_id: int):
-        ngrams.sort(key=lambda ngram: ngram.symbols)
+    def _add_ngrams_next_order(self, ngrams: np.ndarray, bos_id: int):
+        ngrams.sort(order="symbols")
+        new_arc_cache = dict()
         for ngram in tqdm(ngrams):
-            ilabel = ngram.symbols[-1]
+            symbols = ngram["symbols"].item()
+            ilabel = symbols[-1]
             if ilabel < 0:
                 if ilabel != -2:
                     logging.info(f"Ignoring ngram {ngram.symbols}")
                 continue
             assert 0 <= ilabel < self.vocab_size
-            from_state = self.find_state(ngram.symbols[:-1], bos_id=bos_id)
-            backoff_state = self.find_state(ngram.symbols[1:], bos_id=bos_id)
+            from_state = self.find_state(symbols[:-1], bos_id=bos_id)
+            backoff_state = self.find_state(symbols[1:], bos_id=bos_id)
 
             arc_id = self.num_arcs
             next_state = self.num_states
             self.num_arcs += 1
             self.num_states += 1
-            self.ilabels[arc_id] = ilabel
-            self.from_states[arc_id] = from_state
-            self.to_states[arc_id] = next_state
-            self.arcs_weights[arc_id] = ngram.weight
+            self.arcs[arc_id] = (from_state, next_state, ilabel, ngram["weight"])
+            # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
+            self.states[next_state] = (0, 0, self.states[from_state]["order"] + 1, backoff_state, ngram["backoff"])
 
-            self.backoff_weights[next_state] = ngram.backoff
-            self.backoff_to_states[next_state] = backoff_state
-
-            self.state_order[next_state] = self.state_order[from_state] + 1
-
-            if self.state_start_arcs[from_state] == 0:
-                self.state_start_arcs[from_state] = arc_id
-                self.state_end_arcs[from_state] = arc_id + 1
+            if self.states[from_state]["arcs_start"] == 0:
+                self.states[from_state]["arcs_start"] = arc_id
+                self.states[from_state]["arcs_end"] = arc_id + 1
             else:
-                assert self.state_end_arcs[from_state] == arc_id
-                self.state_end_arcs[from_state] = arc_id + 1
-
+                assert self.states[from_state]["arcs_end"] == arc_id
+                self.states[from_state]["arcs_end"] = arc_id + 1
             # cache state
-            self._arc_cache[ngram.symbols] = next_state
+            new_arc_cache[symbols] = next_state
+        self._arc_cache = new_arc_cache
 
-    def add_ngrams_max_order(self, ngrams: list[NGram], bos_id: int):
-        ngrams.sort(key=lambda ngram: ngram.symbols)
-        for ngram in tqdm(ngrams):
-            ilabel = ngram.symbols[-1]
-            if ilabel < 0:
-                if ilabel != -2:
-                    logging.info(f"Ignoring ngram {ngram.symbols}")
-                continue
-            assert 0 <= ilabel < self.vocab_size
-            from_state = self.find_state(ngram.symbols[:-1], bos_id=bos_id)
-            backoff_state = self.find_state(ngram.symbols[1:], bos_id=bos_id)
+    def _start_adding_ngrams_for_order(self, order: int, max_ngrams: int):
+        self._start_arcs = self.num_arcs
+        self._cur_order = order
+        if order < self.max_order:
+            dtype = [
+                ("symbols", [(f"{i}", np.int32) for i in range(order)]),
+                ("weight", np.float32),
+                ("backoff", np.float32),
+            ]
+            self._ngrams = np.zeros([max_ngrams], dtype=dtype)
+            self._ngrams_cnt = 0
+        # for max order - no need in accumulator
 
-            arc_id = self.num_arcs
-            self.num_arcs += 1
-            self.ilabels[arc_id] = ilabel
-            self.from_states[arc_id] = from_state
-            self.to_states[arc_id] = backoff_state
-            self.arcs_weights[arc_id] = ngram.weight
+    def _add_ngram(self, ngram: NGram, bos_id: int):
+        assert len(ngram.symbols) == self._cur_order
+        if self._cur_order == self.max_order:
+            self._add_ngram_max_order(ngram=ngram, bos_id=bos_id)
+            return
+        self._ngrams[self._ngrams_cnt] = (ngram.symbols, ngram.weight, ngram.backoff)
+        self._ngrams_cnt += 1
 
-            if self.state_start_arcs[from_state] == 0:
-                self.state_start_arcs[from_state] = arc_id
-                self.state_end_arcs[from_state] = arc_id + 1
-            else:
-                assert self.state_end_arcs[from_state] == arc_id
-                self.state_end_arcs[from_state] = arc_id + 1
+    def _end_adding_ngrams_for_order(self, order: int, bos_id: int, unk_id: int):
+        if order == 1:
+            assert self._ngrams.shape[0] == self._ngrams_cnt
+            self._add_unigrams(ngrams=self._ngrams, bos_id=bos_id, unk_id=unk_id)
+            self._ngrams = None
+            self._ngrams_cnt = 0
+        elif order < self.max_order:
+            assert self._ngrams.shape[0] == self._ngrams_cnt
+            self._add_ngrams_next_order(ngrams=self._ngrams, bos_id=bos_id)
+            self._ngrams = None
+            self._ngrams_cnt = 0
+        else:
+            self._end_adding_ngrams_max_order()
+
+    def _add_ngram_max_order(self, ngram: NGram, bos_id: int):
+        ilabel = ngram.symbols[-1]
+        if ilabel < 0:
+            if ilabel != -2:
+                logging.info(f"Ignoring ngram {ngram.symbols}")
+            return
+        from_state = self.find_state(ngram.symbols[:-1], bos_id=bos_id)
+        backoff_state = self.find_state(ngram.symbols[1:], bos_id=bos_id)
+
+        arc_id = self.num_arcs
+        self.num_arcs += 1
+        self.arcs[arc_id] = (from_state, backoff_state, ilabel, ngram.weight)
+
+    def _end_adding_ngrams_max_order(self):
+        self.arcs[self._start_arcs : self.num_arcs].sort(order=["from", "ilabel"])
+        for arc_i in range(self._start_arcs, self.num_arcs):
+            from_state = self.arcs[arc_i]["from"]
+            if self.states[from_state]["arcs_start"] == 0:
+                self.states[from_state]["arcs_start"] = arc_i
+            self.states[from_state]["arcs_end"] = arc_i + 1
+
+    def sanity_check(self):
+        assert (self.arcs["ilabel"][: self.num_arcs] < self.vocab_size).all()
+        assert (self.arcs["ilabel"][: self.num_arcs] >= 0).all()
 
 
 class FastNGramLM(nn.Module):
@@ -439,52 +441,45 @@ class FastNGramLM(nn.Module):
             max_order = max(order2cnt.keys())
             total_ngrams = sum(order2cnt.values())
             max_states = 2 + vocab_size + sum(order2cnt[o] for o in range(2, max_order))  # without last!
-            cur_order = 1
-            ngrams = []
             suffix_tree_np = SuffixTreeStorage(
                 num_states_max=max_states,
                 num_states=0,
                 num_arcs=0,
                 num_arcs_max=total_ngrams + vocab_size * 2 + 1,
                 vocab_size=vocab_size,
+                max_order=max_order,
             )
-            for ngram in tqdm(cls._read_ngrams(f=f, token_offset=token_offset), total=total_ngrams, mininterval=1.0):
-                if len(ngram.symbols) != cur_order:
-                    raise ValueError(f"N-Gram order mismatch {ngram.symbols} not of order {cur_order}")
-                ngrams.append(ngram)
-                if len(ngrams) == order2cnt[cur_order]:
-                    if cur_order == 1:
-                        suffix_tree_np.add_unigrams(ngrams=ngrams, bos_id=cls.BOS_ID, unk_id=cls.UNK_ID)
-                    elif cur_order == max_order:
-                        suffix_tree_np.add_ngrams_max_order(ngrams=ngrams, bos_id=cls.BOS_ID)
-                    else:
-                        suffix_tree_np.add_ngrams_next_order(ngrams=ngrams, bos_id=cls.BOS_ID)
-                    logging.info(f"Processed {len(ngrams)} n-grams of order {cur_order}")
-                    ngrams = []
+            ngram_cur_order_i = 0
+            cur_order = 1
+            for ngram in tqdm(cls._read_ngrams(f=f, token_offset=token_offset), total=total_ngrams):
+                if ngram_cur_order_i == 0:
+                    suffix_tree_np._start_adding_ngrams_for_order(order=cur_order, max_ngrams=order2cnt[cur_order])
+                ngram_cur_order_i += 1
+                suffix_tree_np._add_ngram(ngram=ngram, bos_id=cls.BOS_ID)
+
+                if ngram_cur_order_i == order2cnt[cur_order]:
+                    suffix_tree_np._end_adding_ngrams_for_order(order=cur_order, bos_id=cls.BOS_ID, unk_id=cls.UNK_ID)
+                    logging.info(f"Processed {order2cnt[cur_order]} n-grams of order {cur_order}")
                     cur_order += 1
+                    ngram_cur_order_i = 0
+
                 # cls._build_suffix_tree_iterative(
                 #     adjacency=adjacency, ngram=ngram, max_order=max_order, states_cache=states_cache
                 # )
+            assert ngram_cur_order_i == 0
+            suffix_tree_np.sanity_check()
+        return FastNGramLM.from_suffix_tree(suffix_tree_np=suffix_tree_np, use_triton=use_triton)
+
+    @classmethod
+    def from_suffix_tree(cls, suffix_tree_np: SuffixTreeStorage, use_triton: bool | None = None) -> "FastNGramLM":
         model = FastNGramLM(
             num_states=suffix_tree_np.num_states,
             num_arcs=suffix_tree_np.num_arcs,
-            max_order=max_order,
-            vocab_size=vocab_size,
+            max_order=suffix_tree_np.max_order,
+            vocab_size=suffix_tree_np.vocab_size,
             use_triton=use_triton,
         )
         model._init_from_suffix_tree_np(suffix_tree_np=suffix_tree_np)
-        # num_states = len(adjacency)
-        # num_arcs = sum(
-        #     len(state_arcs) if state != cls.START_STATE else vocab_size for state, state_arcs in enumerate(adjacency)
-        # )
-        # model = FastNGramLM(
-        #     num_states=num_states,
-        #     num_arcs=num_arcs,
-        #     max_order=max_order,
-        #     vocab_size=vocab_size,
-        #     use_triton=use_triton,
-        # )
-        # model._init_from_suffix_tree(adjacency=adjacency)
         return model
 
     @classmethod
@@ -605,6 +600,7 @@ class FastNGramLM(nn.Module):
             num_arcs=num_arcs_extended,
             num_arcs_max=num_arcs_extended,
             vocab_size=self.vocab_size,
+            max_order=self.max_order,
         )
         suffix_tree_np.unk_prob = adjacency[0][self.UNK_ID].weight
 
@@ -651,18 +647,18 @@ class FastNGramLM(nn.Module):
 
     def _init_from_suffix_tree_np(self, suffix_tree_np: SuffixTreeStorage):
         # parameters: weights
-        self.arcs_weights.data.copy_(torch.from_numpy(suffix_tree_np.arcs_weights[: self.num_arcs_extended]))
-        self.backoff_weights.data.copy_(torch.from_numpy(suffix_tree_np.backoff_weights[: self.num_states]))
+        self.arcs_weights.data.copy_(torch.from_numpy(suffix_tree_np.arcs["weight"][: self.num_arcs_extended]))
+        self.backoff_weights.data.copy_(torch.from_numpy(suffix_tree_np.states["backoff_w"][: self.num_states]))
 
         # buffers: LM (suffix tree) structure
-        self.from_states.data.copy_(torch.from_numpy(suffix_tree_np.from_states[: self.num_arcs_extended]))
-        self.to_states.data.copy_(torch.from_numpy(suffix_tree_np.to_states[: self.num_arcs_extended]))
-        self.ilabels.data.copy_(torch.from_numpy(suffix_tree_np.ilabels[: self.num_arcs_extended]))
-        self.backoff_to_states.data.copy_(torch.from_numpy(suffix_tree_np.backoff_to_states[: self.num_states]))
+        self.from_states.data.copy_(torch.from_numpy(suffix_tree_np.arcs["from"][: self.num_arcs_extended]))
+        self.to_states.data.copy_(torch.from_numpy(suffix_tree_np.arcs["to"][: self.num_arcs_extended]))
+        self.ilabels.data.copy_(torch.from_numpy(suffix_tree_np.arcs["ilabel"][: self.num_arcs_extended]))
+        self.backoff_to_states.data.copy_(torch.from_numpy(suffix_tree_np.states["backoff_to"][: self.num_states]))
 
-        self.state_start_arcs.data.copy_(torch.from_numpy(suffix_tree_np.state_start_arcs[: self.num_states]))
-        self.state_end_arcs.data.copy_(torch.from_numpy(suffix_tree_np.state_end_arcs[: self.num_states]))
-        self.state_order.data.copy_(torch.from_numpy(suffix_tree_np.state_order[: self.num_states]))
+        self.state_start_arcs.data.copy_(torch.from_numpy(suffix_tree_np.states["arcs_start"][: self.num_states]))
+        self.state_end_arcs.data.copy_(torch.from_numpy(suffix_tree_np.states["arcs_end"][: self.num_states]))
+        self.state_order.data.copy_(torch.from_numpy(suffix_tree_np.states["order"][: self.num_states]))
 
         # sanity check
         assert self.state_order.min().item() == 1
@@ -765,16 +761,20 @@ class FastNGramLM(nn.Module):
         batch_size = states.shape[0]
         device = states.device
         current_states = states.clone()
+        states_dtype = current_states.dtype
 
         out_scores = torch.zeros(batch_size, self.vocab_size, device=device)
-        out_states = torch.full([batch_size, self.vocab_size], fill_value=-1, dtype=torch.long, device=device)
+        out_states = torch.full([batch_size, self.vocab_size], fill_value=-1, dtype=states_dtype, device=device)
         state_found = torch.full([batch_size, self.vocab_size], fill_value=False, dtype=torch.bool, device=device)
 
         all_labels = torch.arange(self.vocab_size, device=device)
         batch_indices = torch.arange(batch_size, device=device)
 
         lm_not_done = torch.full([batch_size], fill_value=True, dtype=torch.bool, device=device)
+        num_iterations = 0
         while lm_not_done.any():
+            assert num_iterations <= self.max_order, "Infinite loop in LM advance"
+            num_iterations += 1
             start = self.state_start_arcs[current_states]
             indices = start[:, None] + all_labels[None, :]
             end = self.state_end_arcs[current_states]
@@ -784,11 +784,13 @@ class FastNGramLM(nn.Module):
             indices_flat = indices.view(-1)
             scores_add = torch.zeros([batch_size, self.vocab_size + 1], device=device, dtype=out_scores.dtype)
             out_states_add = torch.full(
-                [batch_size, self.vocab_size + 1], fill_value=-1, device=device, dtype=torch.long
+                [batch_size, self.vocab_size + 1], fill_value=-1, device=device, dtype=states_dtype
             )
             ilabels = self.ilabels[indices_flat] * mask_flat + ~mask_flat * self.vocab_size
             scores_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.arcs_weights[indices_flat]
-            out_states_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.to_states[indices_flat]
+            out_states_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.to_states[
+                indices_flat
+            ].to(states_dtype)
             out_scores = torch.where(state_found, out_scores, out_scores + scores_add[:, : self.vocab_size])
             out_states = torch.where(state_found, out_states, out_states_add[:, : self.vocab_size])
             state_found = out_states != -1
