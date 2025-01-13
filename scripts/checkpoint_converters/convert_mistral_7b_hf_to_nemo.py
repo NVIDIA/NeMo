@@ -27,6 +27,7 @@ import os
 from argparse import ArgumentParser
 from collections import OrderedDict
 from pathlib import Path
+import re
 
 import torch
 import torch.nn
@@ -59,6 +60,7 @@ def get_args():
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--precision", type=str, default="bf16", help="Model precision")
     parser.add_argument('--low-ram', '--low-mem', action='store_true', dest='low_ram')
+    parser.add_argument('--add-additional-tokens', action='store_true')
     parser.add_argument('--tmp-dir', default='/tmp/mistral_ckpt_parts/')
     args = parser.parse_args()
     return args
@@ -475,21 +477,30 @@ def save_to_nemo(args, checkpoint):
     # disable cpu init
     model.cfg.use_cpu_initialization = False
     model.cfg.perform_initialization = True
-    # mistralai/Mistral-7B-Instruct-v0.3
-    if md5_checksum(getattr(tokenizer, 'vocab_file', None)) == '2bbc01eba250283314fdbd53d05de94b':
-        with open_dict(model.cfg.tokenizer):
-            model.cfg.tokenizer.sentencepiece_legacy = True
-            model.cfg.tokenizer.special_tokens = {}
-            model.cfg.tokenizer.special_tokens['bos_token'] = "<s>"
-            model.cfg.tokenizer.special_tokens['eos_token'] = "</s>"
-            model.cfg.tokenizer.special_tokens['pad_token'] = "<pad>"
-            model.cfg.tokenizer.special_tokens['inst_bos'] = "[INST]"
-            model.cfg.tokenizer.special_tokens['inst_eos'] = "[/INST]"
-            model.cfg.tokenizer.special_tokens['tool_calls'] = "[TOOL_CALLS]"
-            model.cfg.tokenizer.special_tokens['avtools_bos'] = "[AVAILABLE_TOOLS]"
-            model.cfg.tokenizer.special_tokens['avtools_eos'] = "[/AVAILABLE_TOOLS]"
-            model.cfg.tokenizer.special_tokens['tool_res_bos'] = "[TOOL_RESULTS]"
-            model.cfg.tokenizer.special_tokens['tool_res_eos'] = "[/TOOL_RESULTS]"
+    # If user has passed --add-additional-tokens or model is mistralai/Mistral-7B-Instruct-v0.3
+    if args.add_additional_tokens or md5_checksum(getattr(tokenizer, 'vocab_file', None)) == '2bbc01eba250283314fdbd53d05de94b':
+        def make_token_name(token):
+            prefix = ''
+            if len(token) > 1 and token[1] == '/':
+                prefix = 'eos_'
+            else:
+                prefix = 'bos_'
+            return prefix + re.sub(r'\W', '_', token)
+
+        if len(tokenizer.added_tokens_decoder) > 0:
+            with open_dict(model.cfg.tokenizer):
+                model.cfg.tokenizer.sentencepiece_legacy = True
+                model.cfg.tokenizer.special_tokens = {}
+                model.cfg.tokenizer.special_tokens['bos_token'] = tokenizer.bos_token or "<s>"
+                model.cfg.tokenizer.special_tokens['eos_token'] = tokenizer.eos_token or "</s>"
+                model.cfg.tokenizer.special_tokens['pad_token'] = tokenizer.pad_token or "<pad>"
+                skip_tokens = set(model.cfg.tokenizer.special_tokens.values())
+                skip_tokens.add('<unk>')
+                for token_id, token in tokenizer.added_tokens_decoder.items():
+                    token_name = make_token_name(token.content)
+                    if token.content in skip_tokens: continue
+                    assert not token_name in model.cfg.tokenizer.special_tokens
+                    model.cfg.tokenizer.special_tokens[token_name] = token.content
 
     if getattr(tokenizer, 'chat_template', None) is not None:
 
