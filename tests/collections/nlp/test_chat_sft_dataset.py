@@ -156,7 +156,7 @@ class TestGPTSFTChatDataset:
         mask_list = ["User", "Function"]
         try:
             # create custom data for Agent SFT case
-            data_points = create_custom_data_points(mask_list, turn_num, each_turn, records, temp_file)
+            data_points = create_custom_data_points(mask_list, turn_num, records, temp_file)
             print(data_points)
             d = GPTSFTChatDataset(
                 temp_file,
