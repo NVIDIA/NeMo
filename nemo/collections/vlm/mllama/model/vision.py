@@ -702,12 +702,11 @@ class VisionEncoder(MegatronModule):
 
         x = x.view(bsz * num_concurrent_media, -1, dim)
 
-        attn_mask = None
         attn_bias = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
         x = x.transpose(0, 1).contiguous()
         x, int_x = self.transformer(
             hidden_states=x,
-            attention_mask=attn_mask,
+            attention_mask=None,
             attention_bias=attn_bias,
             return_intermediate=self.return_intermediate,
         )
