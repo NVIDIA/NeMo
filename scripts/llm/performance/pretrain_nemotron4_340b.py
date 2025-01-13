@@ -160,7 +160,7 @@ if __name__ == "__main__":
         # following line ensures file is at- `<log_dir>/lightning_logs/tb_logs/default/<tfevents_file>`
         recipe.log.log_dir = "/nemo_run/lightning_logs"
 
-    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152)]
+    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if PP_SIZE > 1 else None)]
     if args.enable_profiling:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
