@@ -695,6 +695,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "answer_audio": answer_audios,
             "answer_audio_lens": answer_audio_lens,
             "num_turns": torch.Tensor(num_turns).long(),
+            "s2s_duplex_overlap": torch.ones_like(target_text_lengths),
         }
 
         return return_batch

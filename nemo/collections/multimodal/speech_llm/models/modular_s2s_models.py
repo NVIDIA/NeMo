@@ -1356,6 +1356,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         input_ids = input_ids[:, : encoded.shape[1]]
         if 'target_texts_merge' in audio_batch:
             loss_mask = torch.ones_like(labels)
+            if 's2s_duplex_overlap' in audio_batch:
+                loss_mask[:, :, 1:] = 0
             assert self.cfg.get(
                 'duplex_loss_on_all_steps', False
             ), "only support duplex_loss_on_all_steps in real duplex data read from dataloader"
