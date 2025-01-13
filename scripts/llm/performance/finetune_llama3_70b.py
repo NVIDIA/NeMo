@@ -113,7 +113,6 @@ if __name__ == "__main__":
     exp_name = "_".join(
         [
             basename(__file__),
-            f"llama3_70b",
             args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",
@@ -130,9 +129,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=[],
-        custom_env_vars={
-            "NVTE_FLASH_ATTN": "1",
-        },
+        custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
     )
