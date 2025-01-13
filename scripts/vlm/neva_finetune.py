@@ -63,14 +63,12 @@ def main(args):
             num_workers=8,
         )
     elif args.data_type == "mock":
-        from transformers import AutoProcessor
-        image_processor = AutoProcessor.from_pretrained("OpenGVLab/InternViT-6B-448px-V1-5", trust_remote_code=True)
         data = vlm.NevaMockDataModule(
             seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
             tokenizer=None,
-            image_processor=image_processor,
+            image_processor=None,
             num_workers=4,
         )
     else:
@@ -79,13 +77,10 @@ def main(args):
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
         seq_length=decoder_seq_length,
-        num_layers=2,
     )
-    # vision_transformer_config = vlm.HFCLIPVisionConfig(
-    #     pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    # )
-    from nemo.collections.vlm.vision.intern_vit import InternViT_6B_448px_V1_5_Config
-    vision_transformer_config = InternViT_6B_448px_V1_5_Config()
+    vision_transformer_config = vlm.HFCLIPVisionConfig(
+        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+    )
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
         input_size=vision_transformer_config.hidden_size,
@@ -121,6 +116,7 @@ def main(args):
             overlap_param_gather=True,
             average_in_collective=True,
         ),
+        ckpt_load_strictness="log_all",
     )
 
     # Checkpoint callback setup
@@ -143,7 +139,7 @@ def main(args):
         callbacks=[
             checkpoint_callback,
             TimingCallback(),
-            MegatronCommOverlapCallback(tp_comm_overlap=True),
+            MegatronCommOverlapCallback(tp_comm_overlap=False),
         ],
         val_check_interval=500,
         limit_val_batches=gbs,
