@@ -55,7 +55,7 @@ def get_gpt_layer_modelopt_spec(num_experts: Optional[int] = None) -> ModuleSpec
     if not HAVE_MEGATRON_CORE:
         raise IMPORT_ERROR
 
-    mlp = _get_mlp_module_spec(use_te=False, num_experts=num_experts, moe_grouped_gemm=False, fp8=False)
+    mlp = _get_mlp_module_spec(use_te=False, num_experts=num_experts, moe_grouped_gemm=False)
 
     return ModuleSpec(
         module=TransformerLayer,
