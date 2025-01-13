@@ -21,6 +21,45 @@ from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
+from torch.nn import Module
+
+import torch.nn as nn
+
+
+def is_mlp_layer(module):
+    """
+    Check if a module is an MLP layer.
+    """
+    if isinstance(module, nn.Sequential):
+        for submodule in module:
+            if not isinstance(
+                submodule, (nn.Linear, nn.ReLU, nn.Dropout, nn.BatchNorm1d)
+            ):
+                return False
+        return True
+    elif isinstance(module, nn.Linear):
+        return True
+    return False
+
+
+def mlp_activation_checkpointing_policy(
+    module: Module, recurse: bool, nonwrapped_numel: int
+) -> bool:
+    """
+    Custom activation checkpointing policy for FSDPStrategy.
+    Returns True for MLP layers.
+    Args:
+        module (Module): The module being inspected.
+        recurse (bool): Whether to recurse into submodules.
+        nonwrapped_numel (int): The number of elements in non-wrapped parameters.
+    Returns:
+        bool: True if the module should be wrapped for activation checkpointing.
+    """
+    # Check if the current module is an MLP layer
+    breakpoint()
+    return is_mlp_layer(module)
+
+
 def make_squad_hf_dataset(tokenizer):
     EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
 
@@ -68,7 +107,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="meta-llama/Llama-3.2-1B")
     parser.add_argument(
-        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"]
+        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp"]
     )
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
@@ -76,6 +115,14 @@ def main():
     parser.add_argument("--wandb-project", type=str, default=None)
     parser.add_argument("--use-torch-jit", action="store_true")
     parser.add_argument("--ckpt-folder", type=str, default=None)
+    parser.add_argument(
+        "--ckpting-layers",
+        type=str,
+        nargs="+",  # Accepts one or more strings as a list
+        default=None,
+        help="Checkpointing layers as a list of strings or a single string",
+    )
+
     args = parser.parse_args()
 
     wandb = None
@@ -90,6 +137,14 @@ def main():
         # See:
         # https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
+        from nemo.lightning.pytorch.strategies import FSDPStrategy
+        import torch
+        from torch.nn import Linear
+
+        args.strategy = FSDPStrategy(
+            # activation_checkpointing_policy=mlp_activation_checkpointing_policy
+            activation_checkpointing_policy={Linear}
+        )
 
     use_dist_samp = False
 
@@ -108,8 +163,10 @@ def main():
         )
         callbacks = [JitTransform(jit_config)]
 
+    model = llm.HFAutoModelForCausalLM(args.model)
+
     llm.api.finetune(
-        model=llm.HFAutoModelForCausalLM(args.model),
+        model=model,
         data=make_squad_hf_dataset(tokenizer.tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
@@ -133,6 +190,9 @@ def main():
             dim=8,
         ),
     )
+    import torch
+
+    print(torch.cuda.memory_summary())
 
 
 if __name__ == "__main__":

@@ -61,13 +61,62 @@ def squad(tokenizer) -> pl.LightningDataModule:
     )
 
 
+DATA_PATH = "/workspace/squad/"
+
+
+def make_squad_hf_dataset(data_path, tokenizer):
+    EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
+
+    def formatting_prompts_func(examples):
+        alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+
+    ### Instruction:
+    {}
+
+    ### Input:
+    {}
+
+    ### Response:
+    {}"""
+        instruction = examples["context"]
+        input = examples["question"]
+        output = examples["answers"]["text"]
+        if isinstance(output, list):
+            output = output[0]
+        text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
+        ans = tokenizer(text)
+        ans["labels"] = ans["input_ids"]
+        return ans
+
+    tokenizer = getattr(tokenizer, "tokenizer", tokenizer)
+    datamodule = llm.HFDatasetDataModule(
+        data_path,
+        split="train[:100]",
+        pad_token_id=tokenizer.eos_token_id,
+        seq_length=512,
+        micro_batch_size=2,
+        global_batch_size=128,
+    )
+
+    datamodule.map(
+        formatting_prompts_func,
+        batched=False,
+        batch_size=2,
+        remove_columns=["id", "title", "context", "question", "answers"],
+    )
+
+    return datamodule
+
+
 def main():
     """Example script to run SFT with a HF transformers-instantiated model on squad."""
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="meta-llama/Llama-3.2-1B")
-    parser.add_argument("--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"])
+    parser.add_argument(
+        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"]
+    )
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
     parser.add_argument("--model-accelerator", default=None, choices=["te"])
@@ -93,7 +142,10 @@ def main():
     if args.strategy == "fsdp2":
         from nemo.lightning.pytorch.strategies import FSDP2Strategy
 
-        args.strategy = FSDP2Strategy(data_parallel_size=args.devices, tensor_parallel_size=1)
+        grad_clip = None
+        args.strategy = FSDP2Strategy(
+            data_parallel_size=args.devices, tensor_parallel_size=1
+        )
 
     use_dist_samp = False
 
@@ -106,17 +158,21 @@ def main():
 
     from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
-    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
+    model = llm.HFAutoModelForCausalLM(
+        model_name=args.model, model_accelerator=model_accelerator
+    )
     tokenizer = model.tokenizer
 
     callbacks = []
     if args.use_torch_jit:
-        jit_config = JitConfig(use_torch=True, torch_kwargs={"dynamic": False}, use_thunder=False)
+        jit_config = JitConfig(
+            use_torch=True, torch_kwargs={"dynamic": False}, use_thunder=False
+        )
         callbacks = [JitTransform(jit_config)]
 
     llm.api.finetune(
         model=model,
-        data=squad(tokenizer),
+        data=make_squad_hf_dataset(DATA_PATH, tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
@@ -135,6 +191,10 @@ def main():
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
     )
+
+    import torch
+
+    print(torch.cuda.memory_summary())
 
     if args.model_accelerator:
         if args.model_accelerator == "te":
