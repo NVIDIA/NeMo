@@ -53,6 +53,8 @@ from typing_extensions import override
 
 try:
     from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
+
+    HAVE_CUSTOM_FSDP = True
 except ImportError:
     HAVE_CUSTOM_FSDP = False
 
@@ -671,23 +673,24 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         raise ValueError("Could not find sharded state dict")
 
-    def enable_forward_pre_hook(self):
-        for model in self:
-            model_chunk = model.module
-            assert isinstance(model_chunk, DDP)
-            model_chunk.enable_forward_pre_hook()
-
-    def disable_forward_pre_hook(self):
-        for model in self:
-            model_chunk = model.module
-            assert isinstance(model_chunk, DDP)
-            model_chunk.disable_forward_pre_hook()
-
-    def force_param_sync(self):
-        for model in self:
-            model_chunk = model.module
-            assert isinstance(model_chunk, DDP)
-            model_chunk.start_param_sync(force_sync=True)
+    # def enable_forward_pre_hook(self):
+    #     for model in self:
+    #         model_chunk = model.module
+    #         assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
+    #         model_chunk.enable_forward_pre_hook()
+    #
+    # def disable_forward_pre_hook(self):
+    #     for model in self:
+    #         model_chunk = model.module
+    #         assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
+    #         model_chunk.disable_forward_pre_hook()
+    #
+    # def force_param_sync(self):
+    #     for model in self:
+    #         model_chunk = model.module
+    #         print(model.module)
+    #         assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
+    #         model_chunk.start_param_sync(force_sync=True)
 
     @property
     def pipeline(self) -> Union[ModelT, List[ModelT]]:

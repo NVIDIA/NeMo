@@ -15,11 +15,11 @@
 import os
 
 import nemo_run as run
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import WandbLogger
+from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -156,7 +156,13 @@ def convergence_test() -> run.Partial:
     )
     recipe.model.flux_params.device = 'cuda'
     recipe.trainer.devices = 8
-    recipe.data = flux_datamodule('/dataset/fill50k/fill50k_tarfiles/')
+    recipe.trainer.strategy.tensor_model_parallel_size = 2
+    recipe.data = flux_datamodule('/mingyuanm/dataset/fill50k/fill50k_tarfiles/')
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig,
+        ckpt_path='/ckpts/nemo_dist_ckpt/weights/',
+        load_dist_ckpt=True
+    )
     return recipe
 
 
@@ -201,6 +207,28 @@ def unit_test() -> run.Partial:
     )
     return recipe
 
+
+@run.cli.factory(target=llm.train)
+def full_model_tp2_dp4_load_test() -> run.Partial:
+    '''
+    An example recipe uses tp 2 dp 4 with mock dataset.
+    '''
+    recipe = flux_training()
+    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
+    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    recipe.model.flux_params.vae_config = (
+        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    )
+    recipe.model.flux_params.device = 'cuda'
+    recipe.trainer.strategy.tensor_model_parallel_size = 1
+    recipe.trainer.devices = 8
+    recipe.data.global_batch_size = 8
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig,
+        ckpt_path='/ckpts/nemo_flux_transformer.safetensors',
+        load_dist_ckpt=False
+    )
+    return recipe
 
 if __name__ == "__main__":
     run.cli.main(llm.train, default_factory=unit_test)
