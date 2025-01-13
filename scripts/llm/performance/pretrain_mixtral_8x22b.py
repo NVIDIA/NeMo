@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os.path import basename
 from typing import Optional
 
 import nemo_run as run
@@ -70,10 +71,7 @@ def mixtral_8x22b_performance_recipe(
     recipe.trainer.strategy.context_parallel_size = cp_size
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = vp_size
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
-    if tp_size > 1:
-        recipe.trainer.strategy.sequence_parallel = True
-    else:
-        recipe.trainer.strategy.sequence_parallel = False
+    recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
 
@@ -86,7 +84,7 @@ def mixtral_8x22b_performance_recipe(
     garbage_collection_callback = run.Config(
         GarbageCollectionCallback,
         gc_interval_train=100,
-        gc_interval_val=500,
+        gc_interval_val=100,
     )
     recipe.trainer.callbacks.extend(
         [
@@ -112,7 +110,7 @@ if __name__ == "__main__":
 
     exp_name = "_".join(
         [
-            f"mixtral_8x22b",
+            basename(__file__),
             args.compute_dtype,
             f"{NUM_NODES}nodes",
             f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}_vp{VP_SIZE}",

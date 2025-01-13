@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os.path import basename
 from typing import Optional
 
 import nemo_run as run
@@ -80,10 +81,7 @@ def llama3_8b_performance_recipe(
     recipe.trainer.strategy.pipeline_model_parallel_size = pp_size
     recipe.trainer.strategy.context_parallel_size = cp_size
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = vp_size
-    if tp_size > 1:
-        recipe.trainer.strategy.sequence_parallel = True
-    else:
-        recipe.trainer.strategy.sequence_parallel = False
+    recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
 
@@ -114,7 +112,7 @@ if __name__ == "__main__":
 
     exp_name = "_".join(
         [
-            args.finetuning.lower(),
+            basename(__file__),
             f"llama3_8b",
             args.compute_dtype,
             f"{NUM_NODES}nodes",

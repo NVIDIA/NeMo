@@ -16,7 +16,7 @@ from os.path import basename
 from typing import Optional
 
 import nemo_run as run
-from utils import get_comm_overlap_callback_idx, parse_cli_args, slurm_executor
+from utils import get_comm_overlap_callback_idx, parse_cli_args, slurm_executor, hf_tokenizer
 
 from nemo.collections.llm.recipes.nemotron3_22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
@@ -58,9 +58,13 @@ def nemotron3_22b_performance_recipe(
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
     recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
-    recipe.data.tokenizer = run.Config(
-        get_nmt_tokenizer, library="null_lib", model_name="NullTokenizer", vocab_size=256000
-    )
+    if compute_dtype == "bf16":
+        recipe.data.tokenizer = run.Config(
+            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
+        )
+        recipe.model.tokenizer = recipe.data.tokenizer
+    else:
+        recipe.data.tokenizer = hf_tokenizer("nvidia/megatron-gpt2-345m")
 
     recipe.trainer.max_steps = max_steps
     recipe.trainer.num_nodes = num_nodes
@@ -84,7 +88,7 @@ def nemotron3_22b_performance_recipe(
     garbage_collection_callback = run.Config(
         GarbageCollectionCallback,
         gc_interval_train=100,
-        gc_interval_val=500,
+        gc_interval_val=100,
     )
     recipe.trainer.callbacks.extend(
         [

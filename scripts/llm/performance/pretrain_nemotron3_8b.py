@@ -84,7 +84,7 @@ def nemotron3_8b_performance_recipe(
     garbage_collection_callback = run.Config(
         GarbageCollectionCallback,
         gc_interval_train=100,
-        gc_interval_val=500,
+        gc_interval_val=100,
     )
     recipe.trainer.callbacks.extend(
         [
