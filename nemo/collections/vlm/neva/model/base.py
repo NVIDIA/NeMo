@@ -663,8 +663,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
-            combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(
-                combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+            combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
+                self._process_embedding_token_parallel(
+                    combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+                )
             )
 
         output = self.language_model(
@@ -931,15 +933,13 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
-    def _process_embedding_token_parallel(
-        self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params
-    ):
-        """ Processes the input data for model parallelism support. """
+    def _process_embedding_token_parallel(self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params):
+        """Processes the input data for model parallelism support."""
 
         # No pre or post processing needed with PP middle chunks.
         if not self.pre_process and not self.post_process:
             return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
-        
+
         if self.pre_process:
             if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
                 shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
@@ -964,26 +964,29 @@ class MCoreNevaModel(MCoreLLaVAModel):
         if self.context_parallel_lm > 1:
             batch = dict()
             if self.pre_process:
-                batch.update({
-                    "combined_embeddings": combined_embeddings,
-                })
+                batch.update(
+                    {
+                        "combined_embeddings": combined_embeddings,
+                    }
+                )
             if self.post_process:
-                batch.update({
-                   "new_labels": new_labels,
-                    "new_loss_mask": new_loss_mask, 
-                })
+                batch.update(
+                    {
+                        "new_labels": new_labels,
+                        "new_loss_mask": new_loss_mask,
+                    }
+                )
             # Distribute sequence across CP ranks
             if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
                 from megatron.training.utils import get_batch_on_this_cp_rank
+
                 batch = get_batch_on_this_cp_rank(batch)
             else:
                 batch = _get_data_on_this_cp_rank.apply(batch, packed_seq_params)
 
             if self.pre_process:
                 combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
-                combined_embeddings = combined_embeddings.transpose(
-                    1, 0
-                ).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
+                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
             if self.post_process:
                 new_labels = batch["new_labels"]
                 new_loss_mask = batch["new_loss_mask"]
