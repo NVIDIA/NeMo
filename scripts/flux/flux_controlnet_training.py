@@ -189,7 +189,7 @@ def convergence_tp2() -> run.Partial:
     )
     recipe.trainer.devices = 2
     recipe.trainer.max_steps = 50000
-    recipe.trainer.val_check_interval = 30000
+    recipe.trainer.val_check_interval = 1000
     recipe.trainer.strategy.tensor_model_parallel_size = 2
     recipe.data = flux_datamodule('/mingyuanm/dataset/fill50k/fill50k_tarfiles/')
     recipe.data.global_batch_size=2

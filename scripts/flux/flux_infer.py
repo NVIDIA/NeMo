@@ -58,7 +58,6 @@ def parse_args():
         "--version",
         type=str,
         default='dev',
-        choices=['dev', 'schnell'],
         help="Must align with the checkpoint provided.",
     )
     parser.add_argument("--height", type=int, default=1024, help="Image height.")

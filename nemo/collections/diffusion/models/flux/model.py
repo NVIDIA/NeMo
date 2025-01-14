@@ -349,7 +349,7 @@ class Flux(VisionModule):
         sharded_state_dict = {}
         layer_prefix = f'{prefix}double_blocks.'
         for layer in self.double_blocks:
-            offset = layer._get_layer_offset()
+            offset = layer._get_layer_offset(self.config)
 
             global_layer_offset = layer.layer_number
             state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'
@@ -365,7 +365,7 @@ class Flux(VisionModule):
 
         layer_prefix = f'{prefix}single_blocks.'
         for layer in self.single_blocks:
-            offset = layer._get_layer_offset()
+            offset = layer._get_layer_offset(self.config)
 
             global_layer_offset = layer.layer_number
             state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'
