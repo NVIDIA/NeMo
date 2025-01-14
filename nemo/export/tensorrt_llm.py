@@ -43,6 +43,7 @@ from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
     get_model_type,
     get_tokenizer,
+    get_weights_dtype,
     is_nemo_file,
     load_nemo_model,
 )
@@ -170,7 +171,7 @@ class TensorRTLLM(ITritonDeployable):
         paged_kv_cache: bool = True,
         remove_input_padding: bool = True,
         paged_context_fmha: bool = False,
-        dtype: str = "bfloat16",
+        dtype: Optional[str] = "bfloat16",
         load_model: bool = True,
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
@@ -208,7 +209,8 @@ class TensorRTLLM(ITritonDeployable):
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
             paged_context_fmha (bool): whether to use paged context fmha feature of TRT-LLM or not
             remove_input_padding (bool): enables removing input padding or not.
-            dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
+            dtype (Optional[str]): Floating point type for model weights (supports 'bfloat16', 'float16' or 'float32').
+                If None, try to autodetect the type from model config.
             load_model (bool): load TensorRT-LLM model after the export.
             use_lora_plugin (str): use dynamic lora or not.
             lora_target_modules (List[str]): list of the target lora modules.
@@ -316,13 +318,19 @@ class TensorRTLLM(ITritonDeployable):
                     model_type = get_model_type(nemo_checkpoint_path)
 
                 if model_type is None:
-                    raise Exception("model_type needs to be specified, got None.")
+                    raise Exception("Parameter model_type needs to be specified, got None.")
 
                 if model_type not in self.get_supported_models_list:
                     raise Exception(
                         "Model {0} is not currently a supported model type. "
                         "Supported model types are: {1}.".format(model_type, self.get_supported_models_list)
                     )
+
+                if dtype is None:
+                    dtype = get_weights_dtype(nemo_checkpoint_path)
+
+                if dtype is None:
+                    raise Exception("Parameter dtype needs to be specified, got None.")
 
                 model, model_config, self.tokenizer = load_nemo_model(
                     nemo_checkpoint_path, nemo_export_dir, use_mcore_path
