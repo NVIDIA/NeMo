@@ -117,7 +117,7 @@ class MultiModalTaskEncoder(
         """
         self.encoders[sample_type] = encoder
 
-    @stateless(restore_seeds=True)
+    @stateless
     def encode_sample(
         self, sample: Union[VQASample, InterleavedSample, SimilarityInterleavedSample, CaptioningSample]
     ) -> ImageTextSample:
