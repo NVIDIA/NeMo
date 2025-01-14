@@ -15,12 +15,14 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal, Optional
+from typing import TYPE_CHECKING, Callable, Literal, Optional
 import torch
 import torch.nn.functional as F
 from nemo.utils import logging
-from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
+from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step, torch_dtype_from_mcore_config
 from nemo.lightning import get_vocab_size, io, teardown
+from nemo.lightning.pytorch.utils import dtype_from_hf
+from transformers import Nemotron5Config, Nemotron5ForCausalLM, AutoTokenizer
 
 try:
     from megatron.core import parallel_state
@@ -129,7 +131,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     hybrid_override_pattern: str = None
     post_process: bool = True
     pre_process: bool = True
-    seq_length: int = 2048
+    seq_length: int = 8192
     # Mamba with no attention has no need for position embeddings, so none is default
     position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'none'
     rotary_percent: float = 1.0
@@ -295,6 +297,275 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
         return self.model_config
 
 
+@io.model_importer(GPTModel, "hf")
+class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", GPTModel]):
+    def init(self) -> GPTModel:
+        return GPTModel(self.config, tokenizer=self.tokenizer)
+
+    def apply(self, output_path: Path) -> Path:
+
+        source = Nemotron5ForCausalLM.from_pretrained("/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_from_nemo_to_hf")
+        target = self.init()
+        trainer = self.nemo_setup(target)
+        source = source.to(self.config.params_dtype)
+        target = target.to(self.config.params_dtype)
+        self.convert_state(source, target)
+        
+        self.nemo_save(output_path, trainer)
+
+        print(f"Converted Nemotron5 Hybrid model to Nemo, model saved to {output_path}")
+
+        teardown(trainer, target)
+        del trainer, target
+
+        return output_path
+
+    def convert_state(self, source, target):
+
+        mapping = {
+            'backbone.embeddings.weight': 'embedding.word_embeddings.weight',
+            'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log',
+            'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D',
+            'backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
+            'backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
+            'backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
+            'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',
+            'backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
+            'backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
+            'backbone.layers.*.mixer.up_proj.weight': 'decoder.layers.*.mlp.linear_fc1.weight',
+            'backbone.layers.*.mixer.down_proj.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
+            'backbone.layers.*.mixer.o_proj.weight': 'decoder.layers.*.self_attention.linear_proj.weight',
+            'backbone.norm_f.weight': 'decoder.final_norm.weight',
+            'lm_head.weight': 'output_layer.weight',
+        }
+        for i, layer_type in enumerate(source.config.hybrid_override_pattern):
+            if layer_type == "M":
+                mapping[f'backbone.layers.{i}.norm.weight'] = f'decoder.layers.{i}.mixer.in_proj.layer_norm_weight'
+            elif layer_type == "-":
+                mapping[f'backbone.layers.{i}.norm.weight'] = f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'
+            elif layer_type == "*":
+                mapping[f'backbone.layers.{i}.norm.weight'] = f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'
+            else:
+                raise AttributeError(f"layer type {layer_type} not found.")
+
+
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv])
+
+    @property
+    def tokenizer(self) -> "AutoTokenizer":
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        return AutoTokenizer(self.save_hf_tokenizer_assets("/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_from_nemo_to_hf"))
+
+    @property
+    def config(self) -> SSMConfig:
+        from transformers import Nemotron5Config as HFNemotron5Config
+
+        source = HFNemotron5Config.from_pretrained("/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_from_nemo_to_hf")
+        source.torch_dtype = torch.bfloat16
+        def make_vocab_size_divisible_by(vocab_size):
+            base = 128
+            while vocab_size % base != 0:
+                base //= 2
+            return base
+
+        output = SSMConfig(
+            num_layers=source.num_hidden_layers,
+            hybrid_override_pattern=source.hybrid_override_pattern,
+            hidden_size=source.hidden_size,
+            ffn_hidden_size=source.intermediate_size,
+            num_attention_heads=source.num_attention_heads,
+            layernorm_epsilon=source.layer_norm_epsilon,
+            num_query_groups=source.num_key_value_heads,
+            mamba_ssm_ngroups=source.n_groups,
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
+        )
+
+        return output
+
+
+@io.model_exporter(GPTModel, "hf")
+class HFNemotron5Exporter(io.ModelConnector[GPTModel, "Nemotron5ForCausalLM"]):
+    def init(self, dtype=torch.bfloat16) -> "Nemotron5ForCausalLM":
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights(True):
+            return Nemotron5ForCausalLM(self.config)
+
+    def apply(self, output_path: Path) -> Path:
+        
+        source, _ = self.nemo_load(str(self))
+        source = source.to(torch_dtype_from_mcore_config(source.config))
+        target = self.init().to(torch_dtype_from_mcore_config(source.config))
+        target = self.convert_state(source, target)
+
+        target = target.cpu()
+        target.save_pretrained(output_path)
+        try:
+            self.tokenizer.save_pretrained(output_path)
+        except Exception:
+            logging.warning("Failed to save tokenizer")
+
+        return output_path
+
+    def convert_state(self, source, target):
+
+        mapping = {
+            'decoder.layers.*.mixer.A_log': 'backbone.layers.*.mixer.A_log',
+            'decoder.layers.*.mixer.D': 'backbone.layers.*.mixer.D',
+            'decoder.layers.*.mixer.conv1d.weight': 'backbone.layers.*.mixer.conv1d.weight',
+            'decoder.layers.*.mixer.conv1d.bias': 'backbone.layers.*.mixer.conv1d.bias',
+            'decoder.layers.*.mixer.in_proj.weight': 'backbone.layers.*.mixer.in_proj.weight',
+            'decoder.layers.*.mixer.dt_bias': 'backbone.layers.*.mixer.dt_bias',
+            'decoder.layers.*.mixer.out_proj.weight': 'backbone.layers.*.mixer.out_proj.weight',
+            'decoder.layers.*.mixer.norm.weight': 'backbone.layers.*.mixer.norm.weight',
+            'decoder.layers.*.mlp.linear_fc1.weight': 'backbone.layers.*.mixer.up_proj.weight',
+            'decoder.layers.*.mlp.linear_fc2.weight': 'backbone.layers.*.mixer.down_proj.weight',
+            'decoder.layers.*.self_attention.linear_proj.weight': 'backbone.layers.*.mixer.o_proj.weight',
+            'decoder.final_norm.weight': 'backbone.norm_f.weight',
+        }
+
+        for i, layer_type in enumerate(source.config.hybrid_override_pattern):
+            if layer_type == "M":
+                mapping[f'decoder.layers.{i}.mixer.in_proj.layer_norm_weight'] = f'backbone.layers.{i}.norm.weight'
+            elif layer_type == "-":
+                mapping[f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'] = f'backbone.layers.{i}.norm.weight'
+            elif layer_type == "*":
+                mapping[f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'] = f'backbone.layers.{i}.norm.weight'
+            else:
+                raise AttributeError(f"layer type {layer_type} not found.")
+
+        transforms = [_export_qkv, _export_embedding, _export_head]
+
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=transforms,
+        )
+
+    @property
+    def tokenizer(self):
+        from transformers import AutoTokenizer
+
+        return AutoTokenizer.from_pretrained("nvidia/Mistral-NeMo-Minitron-8B-Instruct")
+
+    
+    @property
+    def config(self) -> "Nemotron5Config":
+        source: SSMConfig = io.load_context(str(self), subpath="model.config")
+
+        from transformers import Nemotron5Config as HFNemotron5Config
+
+        return HFNemotron5Config(
+            hybrid_override_pattern=source.hybrid_override_pattern,
+            n_groups=source.mamba_ssm_ngroups,
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            max_position_embeddings=source.seq_length,
+            rms_norm_eps=source.layernorm_epsilon,
+            num_key_value_heads=source.num_query_groups,
+            vocab_size=source.vocab_size,
+        )
+
+@io.state_transform(
+    source_key=(
+        "backbone.layers.*.mixer.q_proj.weight",
+        "backbone.layers.*.mixer.k_proj.weight",
+        "backbone.layers.*.mixer.v_proj.weight",
+    ),
+    target_key="decoder.layers.*.self_attention.linear_qkv.weight",
+)
+def _import_qkv(ctx: io.TransformCTX, q, k, v):
+    megatron_config = ctx.target.config
+
+    head_num = megatron_config.num_attention_heads
+    num_query_groups = megatron_config.num_query_groups
+    heads_per_group = head_num // num_query_groups
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+
+    old_tensor_shape = q.size()
+    new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
+    new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
+
+    q = q.view(*new_q_tensor_shape)
+    k = k.view(*new_kv_tensor_shape)
+    v = v.view(*new_kv_tensor_shape)
+
+    qkv_weights_l = []
+    for i in range(num_query_groups):
+        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i : i + 1, :, :])
+        qkv_weights_l.append(v[i : i + 1, :, :])
+    qkv_weights = torch.cat(qkv_weights_l)
+    assert qkv_weights.ndim == 3, qkv_weights.shape
+    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+    assert qkv_weights.shape[1] == head_size, qkv_weights.shape
+    assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
+
+    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+
+    return qkv_weights
+
+@io.state_transform(
+    source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+        "backbone.layers.*.mixer.q_proj.weight",
+        "backbone.layers.*.mixer.k_proj.weight",
+        "backbone.layers.*.mixer.v_proj.weight",
+    ),
+)
+def _export_qkv(ctx: io.TransformCTX, linear_qkv):
+    megatron_config = ctx.source.config
+
+    head_num = megatron_config.num_attention_heads
+    num_query_groups = megatron_config.num_query_groups
+    heads_per_group = head_num // num_query_groups
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+    return q_proj, k_proj, v_proj
+
+@io.state_transform(
+    source_key="embedding.word_embeddings.weight",
+    target_key="backbone.embeddings.weight",
+)
+def _export_embedding(ctx: io.TransformCTX, embedding):
+    megatron_config = ctx.target.config
+    # prune padding.
+    return embedding[: megatron_config.vocab_size, :]
+
+
+@io.state_transform(
+    source_key="output_layer.weight",
+    target_key="lm_head.weight",
+)
+def _export_head(ctx: io.TransformCTX, embedding):
+    megatron_config = ctx.target.config
+    # prune padding.
+    return embedding[: megatron_config.vocab_size, :]
+
 @dataclass
 class BaseMambaConfig130M(SSMConfig):
     hybrid_override_pattern: str = "M" * 24
@@ -414,6 +685,7 @@ class Nemotron5HybridConfig8B(SSMConfig):
     apply_query_key_layer_scaling: bool = False
     persist_layer_norm: bool = True
     attention_softmax_in_fp32: bool = False
+    vocab_size: int = 131072
 
 __all__ = [
     "SSMConfig",
