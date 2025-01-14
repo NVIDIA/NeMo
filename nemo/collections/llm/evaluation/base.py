@@ -41,6 +41,8 @@ class NeMoFWLMEval(LM):
         self.top_p = top_p
         self.top_k = top_k
         self.add_bos = add_bos
+        self.batch_size = 2
+        self.max_tokens_to_generate = 1
         super().__init__()
 
     def _generate_tokens_logits(
@@ -117,54 +119,108 @@ class NeMoFWLMEval(LM):
             single_prediction_token = True
 
         results = []
-        for request in tqdm(requests):
-            # get the input prompt from the request
-            context = request.arguments[0]
-            # get the output prompt from the request
-            continuation = request.arguments[1]
-            # get encoded tokens of continuation
-            continuation_enc = self.tokenizer.tokenizer.encode(continuation, **special_tokens_kwargs)
-            # for SentencePeice consider the encoded tokens from the 2nd token since first encoded token is space.
-            if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
-                continuation_enc = continuation_enc[1:]
-            num_cont_tokens = len(continuation_enc)
-            # Hard code max_tokens_to_generate to 1 to always generate just 1 token
-            self.max_tokens_to_generate = 1
-            # Delete the last token from continuation before passing it to the ip prompt by replacing with empty string
-            prompt = context + continuation.replace(self.tokenizer.tokenizer.decode(continuation_enc[-1]), "")
-            # Create payload to query the model deployed on PyTriton server
+        for i in range(0, len(requests), self.batch_size):
+            # Group requests into batches
+            batch = requests[i:i + self.batch_size]
+            prompts = []
+            continuations = []
+            continuation_encs = []
+            num_cont_tokens_list = [] 
+            # Prepare inputs for the batch
+            for request in batch:
+                context = request.arguments[0]
+                continuation = request.arguments[1]
+                continuation_enc = self.tokenizer.tokenizer.encode(continuation, **special_tokens_kwargs)
+                if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
+                    continuation_enc = continuation_enc[1:]
+                num_cont_tokens = len(continuation_enc)
+                prompt = context + continuation.replace(self.tokenizer.tokenizer.decode(continuation_enc[-1]), "")
+
+                prompts.append(prompt)
+                continuations.append(continuation)
+                continuation_encs.append(continuation_enc)
+                num_cont_tokens_list.append(num_cont_tokens)
+
+            # Create a single payload for the entire batch
             payload = {
                 "model": self.model_name,
-                "prompt": prompt,
+                "prompt": prompts,
                 "max_tokens": self.max_tokens_to_generate,
                 "temperature": self.temperature,
                 "top_p": self.top_p,
                 "top_k": self.top_k,
             }
-            # Get the logits from the model
-            logits = self._generate_tokens_logits(payload, single_prediction_token, return_logits=True)
-            # In case of multiple token prediction where full context logits are returned, get only logits
-            # corresponding to the continuation tokens from the context logits tensor.context_logits contains logits
-            # for all tokens in the ip prompt along with the logit for the next token prediction after the final token
-            # in the prompt. Shape of context_logits: [1, #tokens_in_prompt+1, vocab_size]
-            if not single_prediction_token:
-                logits = logits[:, -num_cont_tokens:, :]
-            # Convert logits to torch tensor to easily get logprobs wo manual implementation of log_softmax
-            logProbs = F.log_softmax(torch.tensor(logits), dim=-1)
-            # Convert encoded continuation tokens to torch tensor
-            cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
-            # Get the greedy token from the logits (i.e token with the highest prob)
-            greedy_tokens = logProbs.argmax(dim=-1)
-            # Check if all greedy_tokens match the the actual continuation tokens
-            is_greedy = (greedy_tokens == cont_toks).all()
-            # Get the logits corresponding to the actual continuation tokens
-            logProbs_actual = torch.gather(logProbs, 2, cont_toks.unsqueeze(-1)).squeeze(-1)
-            # result is tuple of logProb of generating the continuation token and is_greedy
-            result = (float(logProbs_actual.sum()), bool(is_greedy))
 
-            results.append(result)
+            # Query the model with the batched payload
+            logits_batch = self._generate_tokens_logits(payload, single_prediction_token, return_logits=True)
+
+            # Process each result in the batch
+            for j, logits in enumerate(logits_batch):
+                continuation_enc = continuation_encs[j]
+                num_cont_tokens = num_cont_tokens_list[j]
+
+                if not single_prediction_token:
+                    logits = logits[:, -num_cont_tokens:, :]
+
+                logProbs = F.log_softmax(torch.tensor(logits), dim=-1)
+                cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
+                greedy_tokens = logProbs.argmax(dim=-1)
+                is_greedy = (greedy_tokens == cont_toks).all()
+                logProbs_actual = torch.gather(logProbs, 2, cont_toks.unsqueeze(-1)).squeeze(-1)
+                
+                # Append the result for this input in the batch
+                result = (float(logProbs_actual.sum()), bool(is_greedy))
+                results.append(result)
 
         return results
+
+        #     # get the input prompt from the request
+        #     context = request.arguments[0]
+        #     # get the output prompt from the request
+        #     continuation = request.arguments[1]
+        #     # get encoded tokens of continuation
+        #     continuation_enc = self.tokenizer.tokenizer.encode(continuation, **special_tokens_kwargs)
+        #     # for SentencePeice consider the encoded tokens from the 2nd token since first encoded token is space.
+        #     if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
+        #         continuation_enc = continuation_enc[1:]
+        #     num_cont_tokens = len(continuation_enc)
+        #     # Hard code max_tokens_to_generate to 1 to always generate just 1 token
+        #     self.max_tokens_to_generate = 1
+        #     # Delete the last token from continuation before passing it to the ip prompt by replacing with empty string
+        #     prompt = context + continuation.replace(self.tokenizer.tokenizer.decode(continuation_enc[-1]), "")
+        #     # Create payload to query the model deployed on PyTriton server
+        #     payload = {
+        #         "model": self.model_name,
+        #         "prompt": prompt,
+        #         "max_tokens": self.max_tokens_to_generate,
+        #         "temperature": self.temperature,
+        #         "top_p": self.top_p,
+        #         "top_k": self.top_k,
+        #     }
+        #     # Get the logits from the model
+        #     logits = self._generate_tokens_logits(payload, single_prediction_token, return_logits=True)
+        #     # In case of multiple token prediction where full context logits are returned, get only logits
+        #     # corresponding to the continuation tokens from the context logits tensor.context_logits contains logits
+        #     # for all tokens in the ip prompt along with the logit for the next token prediction after the final token
+        #     # in the prompt. Shape of context_logits: [1, #tokens_in_prompt+1, vocab_size]
+        #     if not single_prediction_token:
+        #         logits = logits[:, -num_cont_tokens:, :]
+        #     # Convert logits to torch tensor to easily get logprobs wo manual implementation of log_softmax
+        #     logProbs = F.log_softmax(torch.tensor(logits), dim=-1)
+        #     # Convert encoded continuation tokens to torch tensor
+        #     cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
+        #     # Get the greedy token from the logits (i.e token with the highest prob)
+        #     greedy_tokens = logProbs.argmax(dim=-1)
+        #     # Check if all greedy_tokens match the the actual continuation tokens
+        #     is_greedy = (greedy_tokens == cont_toks).all()
+        #     # Get the logits corresponding to the actual continuation tokens
+        #     logProbs_actual = torch.gather(logProbs, 2, cont_toks.unsqueeze(-1)).squeeze(-1)
+        #     # result is tuple of logProb of generating the continuation token and is_greedy
+        #     result = (float(logProbs_actual.sum()), bool(is_greedy))
+
+        #     results.append(result)
+
+        # return results
 
     def loglikelihood_rolling(self, requests: list[Instance]):
         """

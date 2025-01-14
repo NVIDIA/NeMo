@@ -166,14 +166,14 @@ class TensorRTLLM(ITritonDeployable):
         use_parallel_embedding: bool = False,
         use_embedding_sharing: bool = False,
         paged_kv_cache: bool = True,
-        remove_input_padding: bool = True,
+        remove_input_padding: bool = False,
         paged_context_fmha: bool = False,
         dtype: Optional[str] = None,
         load_model: bool = True,
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
         max_lora_rank: int = 64,
-        max_num_tokens: Optional[int] = None,
+        max_num_tokens: Optional[int] = 16384,
         opt_num_tokens: Optional[int] = None,
         max_seq_len: Optional[int] = None,
         multiple_profiles: bool = False,
@@ -1206,10 +1206,22 @@ class TensorRTLLM(ITritonDeployable):
                 output_dict["generation_logits"] = np.array(generation_logits[0].cpu().numpy())
             elif context_logits_available:
                 output_texts, context_logits = self.forward(**infer_input)
+                padding_len = max([logit_tensor.shape[0] for logit_tensor in context_logits])
+                import torch.nn.functional as F
+                for i, tensor in enumerate(context_logits):
+                    tensor_len = tensor.shape[0]
+                    if tensor_len < padding_len:
+                        #context_logits[i] = torch.cat([tensor, torch.zeros(padding_len - tensor_len, dtype=torch.long, device=tensor.device)], dim=0)
+                        padding_diff = padding_len - tensor_len
+                        # Pad the tensor with zeros on the right (along the first dimension)
+                        context_logits[i] = F.pad(tensor, (0, 0, 0, padding_diff), mode='constant', value=0)
                 # convert context logits to 3d tensor from list since its avaiable as a list of tensor shaped
-                # [#tokens, vocab_size]
-                context_logits = context_logits[0].unsqueeze(0)
-                output_dict["context_logits"] = np.array(context_logits.cpu().numpy())
+                # [#tokens, vocab_size] logit_tensor.unsqueeze(0).cpu()
+                 ## after below line, shape of context_lohgits is [BS, padding_len, 128k]
+                context_logits = np.array([logit_tensor.unsqueeze(0).cpu().numpy() for logit_tensor in context_logits])
+                #output_dict["context_logits"] = np.array(context_logits.cpu().numpy())
+                #output_dict["context_logits"] = cast_output(context_logits, np.bytes_)
+                output_dict["context_logits"] = context_logits
             else:
                 output_texts = self.forward(**infer_input)
             output_dict["outputs"] = cast_output(output_texts, np.bytes_)
