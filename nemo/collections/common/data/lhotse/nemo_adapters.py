@@ -364,9 +364,9 @@ class LazyNeMoTarredIterator:
         with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
             for tar_info in tar:
                 if tar_info.name not in shard_manifest:
-                    # logging.warning(
-                    #     f"Tar file '{tar_path}' contains an entry '{tar_info.name}' that is not present in the JSON manifest '{manifest_path}', skipping."
-                    # )
+                    logging.warning(
+                        f"Tar file '{tar_path}' contains an entry '{tar_info.name}' that is not present in the JSON manifest '{manifest_path}', skipping."
+                    )
                     continue
                 data = shard_manifest[tar_info.name]
                 raw_audio = tar.extractfile(tar_info).read()
