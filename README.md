@@ -193,18 +193,6 @@ Both types of models leverage the Cosmos Tokenizer, which achieves impressive co
 
 The Cosmos Tokenizer is available now on the <a href=http://github.com/NVIDIA/cosmos-tokenizer/NVIDIA/cosmos-tokenizer>NVIDIA/cosmos-tokenizer</a> GitHub repo and on <a href=https://huggingface.co/nvidia/Cosmos-Tokenizer-CV8x8x8>Hugging Face</a>.
 
-### Get Started with Cosmos
-
-Cosmos world foundation models are open and available on [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/cosmos/collections/cosmos) and [Hugging Face](https://huggingface.co/collections/nvidia/cosmos-6751e884dc10e013a0a0d8e6). Developers can also run Cosmos world foundation models on the [NVIDIA® API Catalog](https://build.nvidia.com/explore/simulation). Also available on the [API catalog](https://build.nvidia.com/nim?filters=usecase%3Ausecase_sdg) are Cosmos tools to enhance text prompts for accuracy, an in-built watermarking system that enables easy future identification of AI-generated sequences, and a specialized model to decode video sequences for augmented reality applications. To learn more, watch the [demo](https://www.youtube.com/watch?v=9Uch931cDx8).
-
-In addition to Cosmos world foundation models, the platform also includes:
-
-* [NeMo Curator](https://developer.nvidia.com/nemo-curator/) for efficient video data curation
-* [Cosmos Tokenizer](https://developer.nvidia.com/blog/state-of-the-art-multimodal-generative-ai-model-development-with-nvidia-nemo/) for efficient, compact, and high-fidelity video tokenization
-* [NeMo Framework](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html) for model training and optimization
-
-[NeMo Curator](https://developer.nvidia.com/nemo-curator#section-demo) for accelerated data processing pipelines is available as a managed service and SDK. Developers can now apply for [early access](https://developer.nvidia.com/nemo-curator-video-processing-early-access). Cosmos tokenizers are open neural networks available on [GitHub](https://github.com/NVIDIA/Cosmos-Tokenizer) and [Hugging Face](https://huggingface.co/collections/nvidia/cosmos-tokenizer-672b93023add81b66a8ff8e6). To get started with NVIDIA® Cosmos, see [NVIDIA® Cosmos Developers](https://developer.nvidia.com/cosmos) for more information.
-
 ### Get Started with NeMo 2.0
 
 - Refer to the [Quickstart](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html) for examples of using NeMo-Run to launch NeMo 2.0 experiments locally and on a slurm cluster.
