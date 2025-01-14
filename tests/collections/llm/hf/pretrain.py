@@ -14,8 +14,11 @@
 
 import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
+
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
+
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -65,9 +68,11 @@ if __name__ == '__main__':
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
+    parser.add_argument('--model-accelerator', default=None, choices=['te'])
     parser.add_argument('--max-steps', type=int, default=100)
+    parser.add_argument("--fp8-autocast", default=False, action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
-    parser.add_argument('--disable-ckpt', action='store_false')
+    parser.add_argument('--model-save-path', type=str, default=None)
     args = parser.parse_args()
 
     wandb = None
@@ -82,10 +87,23 @@ if __name__ == '__main__':
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     use_dist_samp = False
-    tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
+
+    model_accelerator = None
+    if args.model_accelerator == "te":
+        from functools import partial
+        from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+
+        model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
+
+    from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+
+    model = llm.HFAutoModelForCausalLM(
+        model_name=args.model, model_accelerator=model_accelerator, load_pretrained_weights=False
+    )
+    tokenizer = model.tokenizer
 
     llm.api.finetune(
-        model=llm.HFAutoModelForCausalLM(args.model),
+        model=model,
         data=make_squad_hf_dataset(DATA_PATH, tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
@@ -98,14 +116,18 @@ if __name__ == '__main__':
             accumulate_grad_batches=10,
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
+            callbacks=[],
             logger=wandb,
-            enable_checkpointing=args.disable_ckpt,
-            precision='bf16',
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
-        peft=llm.peft.LoRA(
-            target_modules=['*_proj'],
-            dim=32,
-        ),
     )
+
+    if args.model_accelerator:
+        if args.model_accelerator == "te":
+            te_acc = is_te_accelerated(model.model)
+            assert te_acc, "Transformer Engine acceleration was unsuccessful"
+            print("TE Accelerated: ", te_acc)
+
+    if args.model_save_path is not None:
+        model.save_pretrained(args.model_save_path)
