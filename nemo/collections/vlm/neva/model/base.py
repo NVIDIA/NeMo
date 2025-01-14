@@ -76,6 +76,7 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     num_patches = num_patches_per_dim_h * num_patches_per_dim_w
     return num_patches + (class_token_len if add_class_token else 0)
 
+
 def restore_model_weights(model, checkpoint_path, model_type):
     """
     Restores model weights from a checkpoint.
@@ -95,6 +96,7 @@ def restore_model_weights(model, checkpoint_path, model_type):
         loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
         model.load_state_dict(loaded_state_dict)
         logging.info(f"Restored {model_type} model weights from {checkpoint_path}")
+
 
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
@@ -151,7 +153,6 @@ def neva_forward_step(model, batch) -> torch.Tensor:
     }
 
     return model(**forward_args)
-
 
 
 @dataclass
@@ -213,7 +214,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
             add_decoder=ps.is_pipeline_last_stage()
-                        or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
         )
 
@@ -222,14 +223,14 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
-            self,
-            config: NevaConfig,
-            tokenizer: Optional = None,
-            pre_process: bool = True,
-            post_process: bool = True,
-            add_encoder: bool = True,
-            add_decoder: bool = True,
-            drop_vision_class_token: bool = True,
+        self,
+        config: NevaConfig,
+        tokenizer: Optional = None,
+        pre_process: bool = True,
+        post_process: bool = True,
+        add_encoder: bool = True,
+        add_decoder: bool = True,
+        drop_vision_class_token: bool = True,
     ) -> None:
         super(MCoreLLaVAModel, self).__init__(config=config)
 
@@ -295,19 +296,19 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self._img_seq_len -= vision_transformer_config.class_token_len
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            loss_mask: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            images: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            inference_params: Optional[InferenceParams] = None,
-            num_image_tiles: Optional[List[int]] = None,
-            image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
-            runtime_gather_output: Optional[bool] = None,
-            image_token_mask: Optional[torch.Tensor] = None,
-            packed_seq_params: Optional[PackedSeqParams] = None,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        loss_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        images: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        inference_params: Optional[InferenceParams] = None,
+        num_image_tiles: Optional[List[int]] = None,
+        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+        runtime_gather_output: Optional[bool] = None,
+        image_token_mask: Optional[torch.Tensor] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         """Forward function of the LLaVA model.
 
@@ -336,7 +337,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         """
 
         use_inference_kv_cache = (
-                inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = images is not None and images.shape[0] > 0
 
@@ -375,7 +376,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # Store the image tokens sequence length to be used as an offset to the KV cache later.
             if inference_params is not None:
                 inference_params.key_value_memory_dict["image_tokens_count"] = (
-                        image_embeddings.shape[0] * image_embeddings.shape[1]
+                    image_embeddings.shape[0] * image_embeddings.shape[1]
                 )
         else:
             image_embeddings = self.encoder_hidden_state
@@ -395,8 +396,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 # Pad to nearest multiple of TP world size for embedding.
                 tp_world_size = ps.get_tensor_model_parallel_world_size()
                 padded_seq_len = (
-                        int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
-                        - input_ids_text.shape[1]
+                    int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
+                    - input_ids_text.shape[1]
                 )
                 if padded_seq_len != 0:
                     input_ids_text = torch.nn.functional.pad(input_ids_text, (0, padded_seq_len))
@@ -471,16 +472,16 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self.language_model.set_input_tensor(input_tensor[0])
 
     def _preprocess_data(
-            self,
-            image_embeddings,
-            language_embeddings,
-            input_ids,
-            loss_mask,
-            labels,
-            use_inference_kv_cache,
-            image_token_index,
-            num_image_tiles,
-            attention_mask,
+        self,
+        image_embeddings,
+        language_embeddings,
+        input_ids,
+        loss_mask,
+        labels,
+        use_inference_kv_cache,
+        image_token_index,
+        num_image_tiles,
+        attention_mask,
     ):
         """Preprocess input data before input to language model.
 
@@ -534,7 +535,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         has_labels = labels is not None
         if has_labels:
             assert (
-                    labels.shape == loss_mask.shape
+                labels.shape == loss_mask.shape
             ), f"mismatching labels shape {labels.shape} and loss mask shape {loss_mask.shape}"
 
         # Create indices for new text and label positions.
@@ -603,7 +604,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             images_mask[
                 torch.arange(max_seq_len, device=first_padding_idx.device).repeat(batch_size, 1)
                 >= first_padding_idx.unsqueeze(1)
-                ] = False
+            ] = False
 
         # Create the final input embedding (if this is the first language model stage).
         final_embedding = None
@@ -661,7 +662,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if final_embedding is not None and has_labels:
             assert (
-                    final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
+                final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
             ), "unexpected shapes after data preprocessing"
 
         truncate_labels = has_labels and final_labels.shape[1] > self._language_max_sequence_length
@@ -704,11 +705,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
-            self,
-            config: NevaConfig,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: NevaConfig,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__()
         self.config = config
@@ -724,19 +725,19 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            position_ids: torch.Tensor,
-            loss_mask: Optional[torch.Tensor] = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            images: Optional[torch.Tensor] = None,
-            labels: Optional[torch.Tensor] = None,
-            inference_params: Optional[InferenceParams] = None,
-            num_image_tiles: Optional[List[int]] = None,
-            image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
-            runtime_gather_output: Optional[bool] = None,
-            image_token_mask: Optional[torch.Tensor] = None,
-            packed_seq_params: Optional[PackedSeqParams] = None,
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        loss_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        images: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        inference_params: Optional[InferenceParams] = None,
+        num_image_tiles: Optional[List[int]] = None,
+        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+        runtime_gather_output: Optional[bool] = None,
+        image_token_mask: Optional[torch.Tensor] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         output_tensor = self.module(
             images=images,

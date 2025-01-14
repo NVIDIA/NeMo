@@ -23,7 +23,7 @@ from torch import nn
 from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig
 from nemo.collections.llm.utils import Config
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
-from nemo.collections.vlm.vision.base import MultimodalProjectorConfig, HFCLIPVisionConfig
+from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProjectorConfig
 from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:

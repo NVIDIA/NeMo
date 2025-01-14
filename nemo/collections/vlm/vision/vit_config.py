@@ -47,6 +47,7 @@ class CLIPViTL_14_336_Config(CLIPViTConfig):
     normalization: str = 'LayerNorm'
     apply_rope_fusion: bool = False
 
+
 @dataclass
 class SigLIPViT400M_14_384_Config(CLIPViTConfig):
     """Siglip so400m patch14 384 config"""

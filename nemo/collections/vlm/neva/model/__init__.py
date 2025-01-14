@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.neva.model.base import (
-    NevaConfig,
-    NevaModel,
-)
+from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
 from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
 
 __all__ = [

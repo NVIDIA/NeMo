@@ -22,8 +22,8 @@ import torch
 from megatron.core.extensions.transformer_engine import (
     TEColumnParallelLinear,
     TEDotProductAttention,
-    TERowParallelLinear,
     TENorm,
+    TERowParallelLinear,
 )
 from megatron.core.parallel_state import (
     get_tensor_model_parallel_group,
@@ -47,12 +47,12 @@ from nemo.lightning import io, teardown
 class InternViTRMSNorm(torch.nn.Module):
 
     def __init__(
-            self,
-            config,
-            hidden_size: int,
-            eps: float = 1e-6,
-            sequence_parallel: bool = False,
-            compute_var: bool = False,
+        self,
+        config,
+        hidden_size: int,
+        eps: float = 1e-6,
+        sequence_parallel: bool = False,
+        compute_var: bool = False,
     ):
         """Custom RMSNorm for InternViT.
 
@@ -94,9 +94,7 @@ class InternViTRMSNorm(torch.nn.Module):
                 valid_heads = 16
             else:
                 raise ValueError("Cannot infer number of heads.")
-            var = self._gather_var(
-                x.float().pow(2), max_dim, valid_heads, total_heads
-            ) / unpadded_hidden_size
+            var = self._gather_var(x.float().pow(2), max_dim, valid_heads, total_heads) / unpadded_hidden_size
 
         output = self._norm(x.float(), var).type_as(x)
         output = output * self.weight
@@ -193,9 +191,7 @@ class InternViTTransformerLayer(TransformerLayer):
 
 # Override a few things that are special in InternViT and not supported by the SelfAttention class.
 class InternViTSelfAttention(SelfAttention):
-    def __init__(
-            self, config: TransformerConfig, submodules: SelfAttentionSubmodules, *args, **kwargs
-    ):
+    def __init__(self, config: TransformerConfig, submodules: SelfAttentionSubmodules, *args, **kwargs):
         super().__init__(config=config, submodules=submodules, *args, **kwargs)
 
         # Need to override linear_qkv, q_layernorm and k_layernorm.
@@ -215,7 +211,7 @@ class InternViTSelfAttention(SelfAttention):
         )
 
         qk_layernorm_hidden_size = (
-                self.hidden_size_per_attention_head * self.num_attention_heads_per_partition
+            self.hidden_size_per_attention_head * self.num_attention_heads_per_partition
         )  # 512 for internvit
         self.q_layernorm = build_module(
             submodules.q_layernorm,
@@ -336,7 +332,9 @@ class InternViT_300M_448px_Config(InternViTConfig):
     ffn_hidden_size: int = 4096
     normalization: str = 'LayerNorm'
     transformer_layer_spec: ModuleSpec = get_internvit_layer_spec(
-        use_te=True, add_qk_norm=False, norm_type='LayerNorm',
+        use_te=True,
+        add_qk_norm=False,
+        norm_type='LayerNorm',
     )
 
 
@@ -357,6 +355,7 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
 
     def apply(self, output_path: Path) -> Path:
         from transformers import AutoModel
+
         source = AutoModel.from_pretrained(str(self), trust_remote_code=True)
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -379,23 +378,19 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
             "embeddings.class_embedding": "class_token",
             "embeddings.patch_embedding.weight": "conv1.weight",
             "embeddings.patch_embedding.bias": "conv1.bias",
-
             # Transformer Layers
             "encoder.layers.*.ls1": "decoder.layers.*.ls1",
             "encoder.layers.*.ls2": "decoder.layers.*.ls2",
-
             # Attention QKV
             "encoder.layers.*.attn.q_norm.weight": "decoder.layers.*.self_attention.q_layernorm.weight",
             "encoder.layers.*.attn.k_norm.weight": "decoder.layers.*.self_attention.k_layernorm.weight",
             "encoder.layers.*.attn.proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
             "encoder.layers.*.attn.proj.bias": "decoder.layers.*.self_attention.linear_proj.bias",
-
             # MLP
             "encoder.layers.*.mlp.fc1.weight": "decoder.layers.*.mlp.linear_fc1.weight",
             "encoder.layers.*.mlp.fc1.bias": "decoder.layers.*.mlp.linear_fc1.bias",
             "encoder.layers.*.mlp.fc2.weight": "decoder.layers.*.mlp.linear_fc2.weight",
             "encoder.layers.*.mlp.fc2.bias": "decoder.layers.*.mlp.linear_fc2.bias",
-
             # Layer Norm
             "encoder.layers.*.norm1.weight": "decoder.layers.*.input_layernorm.weight",
             "encoder.layers.*.norm1.bias": "decoder.layers.*.input_layernorm.bias",
@@ -432,9 +427,10 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
             num_layers=source.num_hidden_layers,
             normalization=norm_type,
             transformer_layer_spec=get_internvit_layer_spec(
-                use_te=True, add_qk_norm=source.qk_normalization,
+                use_te=True,
+                add_qk_norm=source.qk_normalization,
                 norm_type=norm_type,
-            )
+            ),
         )
         return output
 
@@ -445,6 +441,7 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
 )
 def _import_position_embedding(ctx: io.TransformCTX, pos_emb):
     return pos_emb.squeeze(0)
+
 
 def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
     old_tensor_shape = q.size()
@@ -457,9 +454,9 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i: i + 1, :, :])
-        qkv_weights_l.append(v[i: i + 1, :, :])
+        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i : i + 1, :, :])
+        qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
     assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
@@ -469,6 +466,7 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
     qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
 
     return qkv_weights
+
 
 @io.state_transform(
     source_key="encoder.layers.*.attn.qkv.weight",
@@ -487,6 +485,7 @@ def _import_qkv(ctx: io.TransformCTX, qkv):
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
+
 
 @io.state_transform(
     source_key="encoder.layers.*.attn.qkv.bias",

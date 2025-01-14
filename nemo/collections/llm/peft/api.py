@@ -18,8 +18,8 @@ from typing import Tuple, Union
 
 import lightning.pytorch as pl
 import torch
-from megatron.core import dist_checkpointing
 from lightning.pytorch.trainer.states import TrainerFn
+from megatron.core import dist_checkpointing
 from rich.console import Console
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
