@@ -181,18 +181,6 @@ Overall, these enhancements make NeMo 2.0 a powerful, scalable, and user-friendl
 > [!IMPORTANT]  
 > NeMo 2.0 is currently supported by the LLM (large language model) and VLM (vision language model) collections.
 
-### Cosmos Diffusion and Autoregressive Models
-
-NVIDIA has made notable advancements in visual foundation models with the introduction of the Cosmos diffusion and autoregressive (AR) models. These models are designed to create high-quality visual content efficiently and effectively.
-
-- **Cosmos Diffusion Models**: Use continuous latent embeddings to generate videos by sampling from continuous distributions. This approach is particularly effective for tasks like image synthesis and video generation, providing high-quality outputs.
-
-- **Cosmos Autoregressive (AR) Models**: Employ discrete latent codes to generate visual data, optimizing cross-entropy loss. They are well-suited for sequential data generation tasks, such as video prediction and text-to-image generation.
-
-Both types of models leverage the Cosmos Tokenizer, which achieves impressive compression rates and maintains high image quality while running significantly faster than previous state-of-the-art methods. Efficient tokenization enhances the generative process, enabling the development of cutting-edge multimodal generative AI models. These advancements significantly improve the scalability, robustness, and efficiency of generative AI applications across diverse visual domains.
-
-The Cosmos Tokenizer is available now on the <a href=http://github.com/NVIDIA/cosmos-tokenizer/NVIDIA/cosmos-tokenizer>NVIDIA/cosmos-tokenizer</a> GitHub repo and on <a href=https://huggingface.co/nvidia/Cosmos-Tokenizer-CV8x8x8>Hugging Face</a>.
-
 ### Get Started with NeMo 2.0
 
 - Refer to the [Quickstart](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html) for examples of using NeMo-Run to launch NeMo 2.0 experiments locally and on a slurm cluster.
