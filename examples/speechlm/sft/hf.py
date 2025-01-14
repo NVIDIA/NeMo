@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
     config = OmegaConf.create(
         {
-            "cuts_path": "/workspace/data/libri/libri/libri-train-5.jsonl.gz",
+            "cuts_path": "/home/boxiangw/data/libri/libri/libri-train-5.jsonl.gz",
             "sample_rate": 16000,
             "shuffle": True,
             "num_workers": 2,

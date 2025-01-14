@@ -97,7 +97,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         
         # Apply FSDP2 and TP to the model
         if self.device_mesh is not None:
-            fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh)
+            fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh, model_type="speech_seq2seq")
 
         if train:
             self.model.train()
@@ -109,7 +109,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
             decoder_input_ids=decoder_input_ids,
         )
 
-    def training_step(self, batch):
+    def training_step(self, batch, batch_idx=None):
         outputs = self.forward(input_features=batch["input_features"], decoder_input_ids=batch["decoder_input_ids"])
         loss_mask = batch.get('loss_mask', None)
         if loss_mask is not None:
