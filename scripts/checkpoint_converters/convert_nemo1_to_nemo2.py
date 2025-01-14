@@ -58,6 +58,7 @@ from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
+from nemo.utils.model_utils import load_config
 
 MODEL_CONFIG_MAPPING = {
     "meta-llama/Llama-2-7b-hf": (llm.LlamaModel, llm.Llama2Config7B),
@@ -118,36 +119,18 @@ def get_args():
     return args
 
 
-def load_fp8_config(input_path: str) -> Dict[str, Any]:
+def load_fp8_config(model_path: str) -> Dict[str, Any]:
     """
     Loads fp8 configuration of the NeMo 1.0 model.
 
     Args:
-        input_path (str): Path to NeMo 1.0 checkpoint.
+        model_path (str): Path to NeMo 1.0 checkpoint.
 
     Returns:
         (dict): NeMo 1.0 model fp8 settings.
     """
-
-    def _load_nemo1_config(dir: str) -> Dict[str, Any]:
-        config_file = f'{dir}/model_config.yaml'
-        with open(config_file, 'r') as file:
-            try:
-                return yaml.safe_load(file)
-            except Exception as error:
-                logging.warning(
-                    f"Could not read the model configuration, using the default settings. Error message: {str(error)}"
-                )
-                return {}
-
     fp8_params = ['fp8', 'fp8_amax_history_len', 'fp8_interval', 'fp8_margin', 'fp8_amax_compute_algo']
-    if not Path(input_path).is_dir():
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            NLPSaveRestoreConnector._unpack_nemo_file(input_path, tmp_dir)
-            config = _load_nemo1_config(tmp_dir)
-    else:
-        config = _load_nemo1_config(input_path)
-
+    config = load_config(model_path)
     fp8_config = {key: config[key] for key in fp8_params if key in config}
     return fp8_config
 
