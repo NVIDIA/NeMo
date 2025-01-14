@@ -37,7 +37,7 @@ class ImageToken(MultiModalToken):
 
 @dataclass
 class ImageTextSample:
-    '''Sample type for template formatted raw image text sample'''
+    """Sample type for template formatted raw image text sample"""
 
     __key__: str = ''
     images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
@@ -48,7 +48,7 @@ class ImageTextSample:
 
 @dataclass
 class PackedImageTextSample(ImageTextSample):
-    '''Sample type for packed image text sample'''
+    """Sample type for packed image text sample"""
 
     __restore_key__: Tuple[Union[str, int, tuple], ...] = ()
     position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))

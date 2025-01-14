@@ -12,9 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from importlib.metadata import version
+from packaging.version import Version as PkgVersion
 
-use_tensorrt = True
-try:
-    from nemo.export.tensorrt_lazy_compiler import trt_compile
-except Exception as e:
-    use_tensorrt = False
+
+def get_torch_version_str():
+    import torch
+
+    if hasattr(torch, '__version__'):
+        return str(torch.__version__)
+    else:
+        return version("torch")

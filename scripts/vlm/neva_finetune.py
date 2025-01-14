@@ -21,8 +21,8 @@ Example:
 import argparse
 
 import torch
+from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
@@ -128,7 +128,7 @@ def main(args):
                 image_processor=image_processor,
                 multimodal_sample_config=config,
                 packed_sequence=args.use_packed_sequence,
-                packing_seq_length=decoder_seq_length,
+                packed_sequence_size=decoder_seq_length,
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
             ),
             packing_buffer_size=200 if args.use_packed_sequence else None,
