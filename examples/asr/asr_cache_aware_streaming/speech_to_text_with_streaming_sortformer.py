@@ -116,7 +116,8 @@ class DiarizationConfig:
     generate_scripts: bool = True
     
     word_window: int = 50
-    fix_speaker_assignments: bool = True
+    fix_speaker_assignments: bool = False
+    sentence_break_threshold_in_sec: float = 10000.0
     fix_prev_words_count: int = 5
     update_prev_words_sentence: int = 5
     left_frame_shift: int = -1
@@ -131,6 +132,17 @@ class DiarizationConfig:
     ignored_initial_frame_steps: int = 5
     verbose: bool = False
 
+    feat_len_sec: float = 0.01
+    finetune_realtime_ratio: float = 0.01
+    uppercase_first_letter: bool = True
+    remove_pnc: bool = False
+
+def write_txt(path, the_list): 
+    outF = open(path, "w")
+    for line in the_list:
+        outF.write(line)
+        outF.write("\n")
+    outF.close()
 
 def format_time(seconds):
     minutes = math.floor(seconds / 60)
@@ -157,8 +169,9 @@ def perform_streaming(
     left_offset, right_offset = 0, 0
 
     multispk_asr_streamer = SpeakerTaggedASR(cfg, asr_model, diar_model)
-    session_start_time = time.time()
     feat_frame_count = 0
+    # write_txt(path="/home/taejinp/projects/mimsasr_sortformer_pr01_fifo_memory/start_flag.txt", the_list=["start"])
+    session_start_time = time.time()
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         loop_start_time = time.time()
         with torch.inference_mode():
@@ -275,6 +288,8 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.log = cfg.log
 
     args = cfg
+    
+    import ipdb; ipdb.set_trace()
     if (args.audio_file is None and args.manifest_file is None) or (
         args.audio_file is not None and args.manifest_file is not None
     ):

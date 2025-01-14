@@ -448,7 +448,7 @@ class SpeakerTaggedASR:
         self._frame_hop_length = self.asr_model.encoder.streaming_cfg.valid_out_len
     
     def _init_evaluator(self):  
-        self.online_evaluators, self._word_and_ts_seq = [], []
+        self.online_evaluators, self._word_and_ts_seq, self._sentence_and_ts_seq = [], [], []
         for idx, (uniq_id, data_dict) in enumerate(self.test_manifest_dict.items()):
             self._word_and_ts_seq.append({"words": [],
                                     "buffered_words": [],
@@ -464,7 +464,20 @@ class SpeakerTaggedASR:
                                     "speaker_count_buffer": [],
                                     "sentence_memory": {},
                                     })
-            
+            self._sentence_and_ts_seq.append({"words": [],
+                        "buffered_words": [],
+                        "token_frame_index": [], 
+                        "offset_count": 0,
+                        "status": "success", 
+                        "sentences": None, 
+                        "last_word_index": 0,
+                        "speaker_count": None,
+                        "transcription": None,
+                        "max_spk_probs": [],
+                        "word_window_seq": [],
+                        "speaker_count_buffer": [],
+                        "sentence_memory": {},
+                        }) 
             if data_dict['seglst_filepath'] is not None:
                 ref_seglst = read_seglst(data_dict['seglst_filepath'])
             else:
@@ -514,6 +527,15 @@ class SpeakerTaggedASR:
                 'end_time': word_dict['end_time'], 
                 'text': ''}
         
+    def text_post_processing(self, sentence):
+        sentence['text'] =  sentence['text'].replace("twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty twenty three", "twenty twenty three")
+        if self.cfg.uppercase_first_letter and len(sentence['text']) > 1:
+            sentence['text'] = sentence['text'][:1].upper() + sentence['text'][1:]
+        if self.cfg.remove_pnc:
+            sentence['text'] = sentence['text'].lower().replace('.', '').replace(',', '').replace('!', '').replace('?', '').upper()
+        return sentence
+    
+    
     def get_sentences_values(self, session_trans_dict: dict, sentence_render_length: int):
         """ 
         Get sentences (speaker-turn-level text) for a given session and sentence render length.
@@ -542,25 +564,23 @@ class SpeakerTaggedASR:
         for k in range(stt_word_index + 1, len(session_trans_dict['words'])):
             word_dict = session_trans_dict['words'][k]
             word, end_point = word_dict['word'], word_dict['end_time']
-            if word_dict['speaker'] != prev_speaker:
+            # if word_dict['speaker'] != prev_speaker:
+            if word_dict['speaker'] != prev_speaker or (word_dict['start_time'] - session_trans_dict['words'][k-1]['end_time']) > self.cfg.sentence_break_threshold_in_sec:
                 sentence['text'] = sentence['text'].strip()
-                if len(sentence['text']) > 1:
-                    sentence['text'] = sentence['text'][:1].upper() + sentence['text'][1:]
+                sentence = self.text_post_processing(sentence=sentence)
                 sentences.append(sentence)
                 sentence = self._get_sentence(word_dict=session_trans_dict['words'][k])
             else:
                 sentence['end_time'] = end_point
             sentence['text'] += word.strip() + ' '
-            if len(sentence['text']) > 1:
-                sentence['text'] = sentence['text'][:1].upper() + sentence['text'][1:]
+            sentence = self.text_post_processing(sentence=sentence)
             sentence['words'] = sentence['text']
             sentence['session_id'] = session_trans_dict['uniq_id']
             session_trans_dict['last_word_index'] = k
             prev_speaker = word_dict['speaker']
             session_trans_dict['sentence_memory'][k] = (deepcopy(sentences), deepcopy(sentence), prev_speaker)
         sentence['text'] = sentence['text'].strip()
-        if len(sentence['text']) > 1:
-            sentence['text'] = sentence['text'][:1].upper() + sentence['text'][1:]
+        sentence = self.text_post_processing(sentence=sentence)
         sentences.append(sentence)
         session_trans_dict['sentences'] = sentences
         return session_trans_dict 
@@ -571,7 +591,7 @@ class SpeakerTaggedASR:
         for idx, (uniq_id, data_dict) in enumerate(test_manifest_dict.items()):
             if not len( asr_hypotheses[idx].text) == 0:
                 # Get the word-level dictionaries for each word in the chunk
-                                                                            #  diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
+                #  diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
                                                                             
                 self._word_and_ts_seq[idx] = self.get_frame_and_words_offline(uniq_id=uniq_id,
                                                                             diar_pred_out=diar_pred_out[idx].squeeze(0),
@@ -842,31 +862,31 @@ class SpeakerTaggedASR:
         if len(self._word_and_ts_seq) < n_spk:
             self._word_and_ts_seq = [deepcopy(self._word_and_ts_seq[0]) for _ in range(n_spk)]
 
-        # step 1: save the word and time-stamp sequence for each speaker
-        for idx in range(n_spk): 
-            if not (len( previous_hypotheses[idx].text) == 0 and step_num <= self._initial_steps):
+        # # step 1: save the word and time-stamp sequence for each speaker
+        for speaker_index in range(n_spk): 
+            if not (len( previous_hypotheses[speaker_index].text) == 0 and step_num <= self._initial_steps):
                 # Get the word-level dictionaries for each word in the chunk
                 diar_pred_out_stream_idx = torch.zeros_like(diar_pred_out_stream)
-                diar_pred_out_stream_idx[:, :, idx] = diar_pred_out_stream[:, :, idx]
-                self._word_and_ts_seq[idx] = self.get_frame_and_words_online(uniq_id=uniq_id,
+                diar_pred_out_stream_idx[:, :, speaker_index] = diar_pred_out_stream[:, :, speaker_index]
+                self._word_and_ts_seq[speaker_index] = self.get_frame_and_words_online(uniq_id=uniq_id,
                                                                             step_num=step_num, 
                                                                             diar_pred_out_stream=diar_pred_out_stream_idx[0],
-                                                                            previous_hypothesis=previous_hypotheses[idx], 
-                                                                            word_and_ts_seq=self._word_and_ts_seq[idx],
+                                                                            previous_hypothesis=previous_hypotheses[speaker_index], 
+                                                                            word_and_ts_seq=self._word_and_ts_seq[speaker_index],
                                                                             )
-                if len(self._word_and_ts_seq[idx]["words"]) > 0:
-                    self._word_and_ts_seq[idx] = self.get_sentences_values(session_trans_dict=self._word_and_ts_seq[idx], 
+                if len(self._word_and_ts_seq[speaker_index]["words"]) > 0:
+                    self._word_and_ts_seq[speaker_index] = self.get_sentences_values(session_trans_dict=self._word_and_ts_seq[speaker_index], 
                                                                            sentence_render_length=self._sentence_render_length)
                     if self.cfg.eval_mode:
-                        der, cpwer, is_update = self.online_evaluators[idx].evaluate_inloop(hyp_seglst=self._word_and_ts_seq[idx]["sentences"], 
-                                                                                            end_step_time=self._word_and_ts_seq[idx]["sentences"][-1]["end_time"])
+                        der, cpwer, is_update = self.online_evaluators[speaker_index].evaluate_inloop(hyp_seglst=self._word_and_ts_seq[speaker_index]["sentences"], 
+                                                                                            end_step_time=self._word_and_ts_seq[speaker_index]["sentences"][-1]["end_time"])
                     if self.cfg.generate_scripts:
-                        transcribed_speaker_texts[idx] = \
-                            print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], 
+                        transcribed_speaker_texts[speaker_index] = \
+                            print_sentences(sentences=self._word_and_ts_seq[speaker_index]["sentences"], 
                             color_palette=get_color_palette(), 
                             params=self.cfg)
-                        write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), 
-                                  transcribed_speaker_texts[idx].strip())
+                        write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_spk{speaker_index}.sh"), 
+                                  transcribed_speaker_texts[speaker_index].strip())
         
         return (transcribed_speaker_texts,
                 transcribed_texts,

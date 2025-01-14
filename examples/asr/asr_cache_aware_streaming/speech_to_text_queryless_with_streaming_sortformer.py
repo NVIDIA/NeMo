@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional, Union, List, Tuple, Dict, Any
 
@@ -53,6 +54,8 @@ import itertools
 import time
 from functools import wraps
 import math
+
+
 
 @dataclass
 class DiarizationConfig:
@@ -117,6 +120,7 @@ class DiarizationConfig:
     
     word_window: int = 50
     fix_speaker_assignments: bool = False
+    sentence_break_threshold_in_sec: float = 10000.0
     fix_prev_words_count: int = 5
     update_prev_words_sentence: int = 5
     left_frame_shift: int = -1
@@ -133,7 +137,8 @@ class DiarizationConfig:
 
     feat_len_sec: float = 0.01
     finetune_realtime_ratio: float = 0.01
-
+    uppercase_first_letter: bool = True
+    remove_pnc: bool = False
 
 def format_time(seconds):
     minutes = math.floor(seconds / 60)
@@ -160,8 +165,12 @@ def perform_streaming(
     left_offset, right_offset = 0, 0
 
     multispk_asr_streamer = SpeakerTaggedASR(cfg, asr_model, diar_model)
-    session_start_time = time.time()
     feat_frame_count = 0
+    # print(f"Waiting for start_flag.txt to appear... ")
+    # while True:
+    #     if os.path.exists("/home/taejinp/projects/mimsasr_sortformer_pr01_fifo_memory/start_flag.txt"):
+    #         break
+    session_start_time = time.time()
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         loop_start_time = time.time()
         with torch.inference_mode():
@@ -207,6 +216,7 @@ def perform_streaming(
                          f"Time difference for real-time mode: {time_diff:.4f} seconds")
             time.sleep(max(0, (chunk_audio.shape[-1] - cfg.discarded_frames)*cfg.feat_len_sec - 
                            (loop_end_time - loop_start_time) - time_diff * cfg.finetune_realtime_ratio))
+    final_streaming_tran = extract_transcriptions(transcribed_texts)
             
     final_streaming_tran = extract_transcriptions(transcribed_texts)
     

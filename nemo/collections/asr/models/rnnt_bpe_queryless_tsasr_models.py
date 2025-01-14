@@ -68,7 +68,8 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
 
         self.num_speakers = cfg.model_defaults.get('num_speakers', 4)
         if 'diar_model_path' in self.cfg:
-            self._init_diar_model()
+            if self.training:
+                self._init_diar_model()
 
             self.pre_diar_kernel = cfg.get('pre_diar_kernel', None)
             self.post_diar_kernel = cfg.get('post_diar_kernel', None)
@@ -141,8 +142,10 @@ class EncDecRNNTBPEQLTSASRModel(EncDecRNNTBPEModel):
         Initialize the speaker model.
         """
         logging.info(f"Initializing diarization model from pretrained checkpoint {self.cfg.diar_model_path}")
-
-        model_path = self.cfg.diar_model_path
+        
+        
+        # model_path = self.cfg.diar_model_path
+        model_path = "/disk_a/models/sortformer_diarization/noEK/nov_22_2024_PR_ver/im382no-normNA-mem1_epoch6-18.nov20_2024.nemo"
 
         if model_path.endswith('.nemo'):
             pretrained_diar_model = SortformerEncLabelModel.restore_from(model_path, map_location="cpu")
