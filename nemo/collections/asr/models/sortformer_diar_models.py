@@ -441,7 +441,23 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
             preds = self.forward_infer(emb_seq)
         return preds
-     
+
+    @property
+    def output_names(self):
+        # return ["processed_signal", "processed_signal_length"]
+        return ["preds"]
+    
+    @property
+    def input_names(self):
+        return ["processed_signal", "processed_signal_length"]
+        # return ["audio_signal", "audio_signal_length"]
+ 
+    def forward_for_export(self, processed_signal, processed_signal_length):
+        processed_signal = processed_signal[:, :, :processed_signal_length.max()]
+        emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
+        preds = self.forward_infer(emb_seq)
+        return preds
+ 
     def forward_streaming(
         self,
         processed_signal,

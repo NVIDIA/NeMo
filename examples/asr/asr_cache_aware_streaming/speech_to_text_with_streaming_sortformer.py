@@ -288,8 +288,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.log = cfg.log
 
     args = cfg
-    
-    import ipdb; ipdb.set_trace()
     if (args.audio_file is None and args.manifest_file is None) or (
         args.audio_file is not None and args.manifest_file is not None
     ):
