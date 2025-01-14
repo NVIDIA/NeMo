@@ -349,6 +349,7 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         # [b, t, c]
         lm_embedding = self.language_model.embedding
         input_embeds = lm_embedding.word_embeddings(input_ids)
+
         if isinstance(encoded, torch.Tensor):
             # single audio
             combined_embed, combined_embed_length = self._concat_features(

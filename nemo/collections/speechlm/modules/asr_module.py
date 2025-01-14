@@ -23,6 +23,8 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from omegaconf import DictConfig, OmegaConf
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.modules import ConformerEncoder
+from nemo.collections.speechlm.utils import to_dict_config
 from nemo.core.classes.common import Serialization
 from nemo.core.classes.module import NeuralModule
 from nemo.lightning import io
@@ -118,7 +120,7 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             raise ValueError(f"Model {self._target_} does not have attribute {self.target_module}")
 
         if self.preprocessor_config is not None:
-            preprocessor = Serialization.from_config_dict(self.preprocessor_config)
+            preprocessor = Serialization.from_config_dict(to_dict_config(self.preprocessor_config))
         elif hasattr(asr_model, "preprocessor"):
             preprocessor = asr_model.preprocessor
         else:
@@ -126,7 +128,7 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             logging.warning(f"Model {self._target_} does not have a preprocessor, use with caution.")
 
         if self.spec_augment_config is not None:
-            spec_augment = Serialization.from_config_dict(self.spec_augment_config)
+            spec_augment = Serialization.from_config_dict(to_dict_config(self.spec_augment_config))
         else:
             spec_augment = None
 

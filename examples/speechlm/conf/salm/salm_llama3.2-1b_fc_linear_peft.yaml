@@ -94,7 +94,7 @@ data:
     sample_rate: ${data.common.sample_rate}
     audio_locator: ${data.train_ds.audio_locator}
 
-    log_every_n_steps: 1
+    log_every_n_steps: 10
     metric:
       name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss', 'wer', 'bleu', 'rouge']
       average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
@@ -108,10 +108,8 @@ model:
   
   llm:
     pretrained_model: "meta-llama/Llama-3.2-1B-Instruct"
-    # pretrained_model: "meta-llama/Meta-Llama-3-8B-Instruct"
     _target_: nemo.collections.llm.LlamaModel
     config: 
-      # _target_: nemo.collections.llm.Llama3Config8B
       _target_: nemo.collections.llm.Llama32Config1B
     
   speech_encoder:

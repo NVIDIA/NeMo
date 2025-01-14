@@ -67,3 +67,9 @@ def get_resume_from_config(cfg: DictConfig) -> Optional[AutoResume]:
 def get_logger_from_config(cfg: DictConfig):
     logger = nl.NeMoLogger(**cfg)
     return logger
+
+
+def to_dict_config(cfg):
+    if not isinstance(cfg, DictConfig):
+        cfg = OmegaConf.create(cfg)
+    return cfg

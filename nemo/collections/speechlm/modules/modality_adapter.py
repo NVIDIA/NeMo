@@ -20,6 +20,8 @@ from megatron.core.model_parallel_config import ModelParallelConfig
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.transformer_config import TransformerConfig
 
+from nemo.collections.asr.modules import ConformerEncoder
+from nemo.collections.speechlm.utils import to_dict_config
 from nemo.core.classes.common import Serialization
 from nemo.core.classes.module import NeuralModule
 from nemo.lightning import io
@@ -36,7 +38,12 @@ class MCoreModalityAdapterModule(MegatronModule):
     def forward(self, encoded, encoded_len):
         if len(inspect.signature(self.module.forward).parameters) == 1:
             return self.module(encoded), encoded_len
-        return self.module(encoded, encoded_len)
+
+        encoded_out, encoded_len_out = self.module(encoded, encoded_len)
+
+        if isinstance(self.module, ConformerEncoder):
+            encoded_out = encoded_out.transpose(1, 2)  # (b,d,t) -> (b,t,d)
+        return encoded_out, encoded_len_out
 
 
 @dataclass
@@ -53,5 +60,5 @@ class ModalityAdapterConfig(ModelParallelConfig, io.IOMixin):
             self.config[self.input_key_to] = self.input_dim
         if self.output_dim and self.output_key:
             self.config[self.output_key] = self.output_dim
-        module = Serialization.from_config_dict(self.config)
+        module = Serialization.from_config_dict(to_dict_config(self.config))
         return MCoreModalityAdapterModule(module)
