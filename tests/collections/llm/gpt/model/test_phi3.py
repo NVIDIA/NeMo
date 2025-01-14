@@ -14,16 +14,13 @@
 
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.phi3mini import (
-    Phi3Config,
-    Phi3ConfigMini,
-)
+from nemo.collections.llm.gpt.model.phi3mini import Phi3Config, Phi3ConfigMini
 
 
 def test_Phi3_config():
     config = Phi3Config(
         num_layers=32, hidden_size=3072, num_attention_heads=32, num_query_groups=32, ffn_hidden_size=8192
-        )
+    )
     assert config.normalization == "RMSNorm"
     assert config.activation_func == F.silu
     assert config.gated_linear_unit is True
