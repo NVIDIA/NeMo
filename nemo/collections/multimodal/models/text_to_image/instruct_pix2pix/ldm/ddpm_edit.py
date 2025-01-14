@@ -43,7 +43,7 @@ class LatentDiffusionEdit(LatentDiffusion):
     def init_from_ckpt(
         self, path, ignore_keys=list(), only_model=False, load_vae=True, load_unet=True, load_encoder=True,
     ):
-        pl_sd = torch.load(path, map_location="cpu")
+        pl_sd = torch.load(path, map_location="cpu", weights_only=False)
         if "state_dict" in list(pl_sd.keys()):
             pl_sd = pl_sd["state_dict"]
         sd = {}
