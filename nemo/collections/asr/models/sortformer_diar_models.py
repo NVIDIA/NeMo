@@ -409,8 +409,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             input_signal=audio_signal, length=audio_signal_length
         )
         del audio_signal, audio_signal_length
-        if not self.training:
-            torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
         return processed_signal, processed_signal_length
 
     def forward(
@@ -446,18 +445,18 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
     def output_names(self):
         # return ["processed_signal", "processed_signal_length"]
         return ["preds"]
-    
+
     @property
     def input_names(self):
         return ["processed_signal", "processed_signal_length"]
         # return ["audio_signal", "audio_signal_length"]
- 
+
     def forward_for_export(self, processed_signal, processed_signal_length):
         processed_signal = processed_signal[:, :, :processed_signal_length.max()]
         emb_seq, _ = self.frontend_encoder(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
         preds = self.forward_infer(emb_seq)
         return preds
- 
+
     def forward_streaming(
         self,
         processed_signal,
@@ -478,23 +477,24 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         """
 
         MEM = None # memory to save the embeddings from start
+        MEM_PREDS = None # memory predictions
         FIFO_QUEUE = None # memory to save the embedding from the latest chunks
         total_pred = None
 
         for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal):
-            MEM, FIFO_QUEUE, _, _, total_pred = self.forward_streaming_step(
+            MEM, FIFO_QUEUE, MEM_PREDS, _, total_pred = self.forward_streaming_step(
                 processed_signal=chunk_feat_seq_t,
                 processed_signal_length=feat_lengths,
                 fifo_last_time=FIFO_QUEUE,
                 mem_last_time=MEM,
+                mem_preds_last_time=MEM_PREDS,
                 previous_pred_out=total_pred,
                 left_offset=left_offset,
                 right_offset=right_offset,
             )
             
         del processed_signal, processed_signal_length, MEM, FIFO_QUEUE
-        if not self.training:
-            torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
         return total_pred
     
     def forward_streaming_step(
@@ -503,6 +503,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         processed_signal_length,
         fifo_last_time=None,
         mem_last_time=None,
+        mem_preds_last_time=None,
         previous_pred_out=None,
         left_offset=0,
         right_offset=0,
@@ -519,6 +520,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 Dimension: (batch_size, fifo_len, emb_dim)
             mem_last_time (torch.Tensor): tensor containing memory for the embeddings from start
                 Dimension: (batch_size, mem_len, emb_dim)
+            mem_preds_last_time (torch.Tensor): tensor containing original predictions for memory
+                Dimension: (batch_size, mem_len, num_speakers)
             previous_pred_out (torch.Tensor): tensor containing previous predicted speaker labels
                 Dimension: (batch_size, pred_len, num_speakers)
             left_offset (int): left offset for the current chunk
@@ -555,6 +558,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         mem, fifo, mem_preds, fifo_preds, chunk_preds = self.sortformer_modules.update_memory_FIFO(
             mem=mem_last_time,
+            mem_preds=mem_preds_last_time,
             fifo=fifo_last_time,
             chunk=chunk_pre_encode_embs,
             preds=mem_chunk_preds,

@@ -76,6 +76,7 @@ class DiarizationConfig:
     postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
     no_der: bool = False
     out_rttm_dir: Optional[str] = None
+    save_preds_tensors: bool = False
 
     # General configs
     session_len_sec: float = -1  # End-to-end diarization session length in seconds
@@ -424,7 +425,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     postprocessing_cfg = load_postprocessing_from_yaml(cfg.postprocessing_yaml)
     tensor_path = get_tensor_path(cfg)
 
-    if os.path.exists(tensor_path) and not cfg.streaming_mode:
+    if os.path.exists(tensor_path) and cfg.save_preds_tensors:
         logging.info(
             f"A saved prediction tensor has been found. Loading the saved prediction tensors from {tensor_path}..."
         )
@@ -433,7 +434,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         logging.info(f"No saved prediction tensors found. Running inference on the dataset...")
         diar_model.test_batch()
         diar_model_preds_total_list = diar_model.preds_total_list
-        if not cfg.streaming_mode:
+        if cfg.save_preds_tensors:
             torch.save(diar_model.preds_total_list, tensor_path)
 
     if cfg.launch_pp_optim:
