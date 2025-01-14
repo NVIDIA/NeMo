@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import lightning.pytorch as pl
 import numpy as np
@@ -27,33 +27,24 @@ __all__ = ["FLOPsMeasurementCallback"]
 
 class FLOPsMeasurementCallback(Callback):
     """
-    Calculate FLOPs per second after last train step for a given job run.
+    Calculate and log FLOPs per second after every ``trainer.log_every_n_steps`` steps.
 
     Args:
-        model_config (Dict[str, Any]): params for running the experiment/job.
-        Expects a nested dictionary with parent keys
-            1. run- for assessing model name (Eg. 'gpt3', 'llama2', etc.) from sub-key 'name'.
-                'name' usually has value like- train_gpt3_5b_*, which is matched to model name 'gpt3'.
-            2. exp_manager- for accessing 'explicit_log_dir'. tensorboard log file is stored here,
-                used for accessing step time needed for calculating TFLOPs per sec per GPU
-            3. trainer- for accessing 'num_nodes' and 'devices' needed for calculating
-                TFLOPs per sec per GPU
-            4. model- Hyperparams for the model. Specifically- global batch size, sequence length,
-                hidden size,  ffn hidden size, num_layers, num_attention_heads, num_query_groups,
-                moe_router_topk. (list might increase with new models as required)
-        log_dir (Optional[str]): Directory with tenbsorboard log file. If present, will overrride
-            'explicit_log_dir' in model_config. Defaults to None.
-        model_name (Optional[str]): If present, will override 'name' under 'run' in model_config.
-            Defaults to None.
+        model_config (GPTConfig): Model parameters.
+        data_config (pl.LightningDataModule): Data module being used in the experiment.
+        model_name (str): Name of the model being run. The following models are supported:
+            gpt3, llama2, llama3, nemotron, mixtral, bert.
+    
+
     """
 
     higher_is_better = True
 
     def __init__(
         self,
-        model_config: Dict[str, Any],
+        model_config: "GPTConfig",
         data_config: pl.LightningDataModule,
-        model_name: Optional[str],
+        model_name: str,
     ):
         self.model_cfg = model_config
         self.data_cfg = data_config
@@ -79,6 +70,10 @@ class FLOPsMeasurementCallback(Callback):
         self.avg_train_step_time = 0
 
     def on_train_start(self, trainer, pl_module):
+        """
+        PyTorch Lightning callback hook. Ensures that user is not using PEFT
+        as FLOPS callback does not support it.
+        """
         for callback in trainer.callbacks:
             if isinstance(callback, PEFT):
                 raise NotImplementedError("FLOPs measurement not supported for finetuning jobs")
