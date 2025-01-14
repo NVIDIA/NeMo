@@ -165,7 +165,7 @@ def find_smallest_bucket(
     Returns a tuple of (smallest_bin, bin_idx), or (None, None) if no bucket fits the example.
     """
     # 1D bucketing - binary search.
-    if isinstance(example_lens, float):  # 1-D
+    if isinstance(example_lens, (float, int)):  # 1-D
         idx = bisect_left(buckets, example_lens)
         if idx == len(buckets):
             return None
