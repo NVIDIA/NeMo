@@ -480,7 +480,9 @@ def get_model_type(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     return model_type
 
 
-def load_distributed_model_weights(weights_directory: Union[Path, TarPath], mcore_scales_format: bool) -> Dict[str, Any]:
+def load_distributed_model_weights(
+    weights_directory: Union[Path, TarPath], mcore_scales_format: bool
+) -> Dict[str, Any]:
     """
     Loads model weights in `torch_dist` format directly from weights directory.
     Preprocesses the scaling factors for local export if mcore_scales_format is set to False.
