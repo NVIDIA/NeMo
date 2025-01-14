@@ -32,7 +32,7 @@ def test_Phi3_config():
     assert config.seq_length == 4096
     assert config.attention_dropout == 0.0
     assert config.hidden_dropout == 0.0
-    assert config.share_embeddings_and_output_weights: bool is False
+    assert config.share_embeddings_and_output_weights is False
 
 
 # individual model config tests below...
