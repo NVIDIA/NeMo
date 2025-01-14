@@ -343,15 +343,806 @@ model:
               s2s_duplex: True
 
         - type: group
-          weight: 0.05
+          weight: 10
+          tags:
+            s2s_duplex: True
           input_cfg:
           - type: lhotse_shar
             shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_0
-            tags:
-              s2s_duplex: True
-
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_10
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_100
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_101
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_102
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_103
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_104
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_105
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_106
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_107
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_108
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_109
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_11
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_110
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_111
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_112
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_113
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_114
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_115
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_116
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_117
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_118
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_119
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_12
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_120
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_13
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_131
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_132
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_133
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_134
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_14
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_15
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_151
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_152
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_153
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_161
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_162
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_163
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_164
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_165
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_166
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_169
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_173
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_176
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_18
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_180
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_181
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_182
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_183
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_184
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_185
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_186
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_187
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_188
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_189
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_190
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_2
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_221
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_23
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_234
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_235
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_236
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_237
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_238
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_239
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_24
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_240
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_241
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_242
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_243
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_244
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_245
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_246
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_247
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_248
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_249
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_25
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_250
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_251
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_252
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_253
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_254
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_255
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_256
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_257
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_258
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_259
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_26
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_260
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_261
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_262
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_263
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_264
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_265
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_266
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_267
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_268
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_269
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_27
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_270
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_271
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_272
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_277
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_278
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_28
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_280
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_281
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_282
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_283
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_284
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_285
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_286
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_288
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_289
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_29
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_290
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_291
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_292
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_293
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_294
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_295
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_296
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_297
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_298
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_299
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_3
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_30
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_300
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_301
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_302
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_303
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_304
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_305
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_306
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_307
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_308
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_309
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_31
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_310
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_311
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_312
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_313
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_314
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_315
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_316
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_317
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_318
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_319
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_32
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_320
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_321
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_322
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_323
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_324
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_325
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_326
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_327
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_328
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_329
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_33
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_330
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_331
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_332
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_333
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_334
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_335
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_336
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_337
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_338
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_339
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_34
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_340
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_341
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_342
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_343
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_344
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_345
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_346
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_347
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_348
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_349
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_35
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_350
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_351
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_352
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_353
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_354
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_355
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_356
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_357
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_358
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_359
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_36
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_360
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_361
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_362
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_363
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_364
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_365
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_366
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_367
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_368
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_369
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_37
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_370
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_371
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_372
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_374
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_375
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_376
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_377
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_378
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_379
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_38
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_380
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_381
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_382
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_383
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_384
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_385
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_386
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_387
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_388
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_389
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_39
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_390
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_391
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_392
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_393
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_394
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_395
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_396
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_397
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_398
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_399
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_4
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_40
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_400
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_401
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_402
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_403
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_404
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_405
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_406
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_407
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_408
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_409
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_41
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_410
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_411
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_412
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_413
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_414
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_415
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_416
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_418
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_419
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_42
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_421
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_422
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_424
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_425
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_426
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_427
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_428
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_429
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_43
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_430
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_432
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_433
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_434
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_435
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_436
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_437
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_439
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_44
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_440
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_441
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_442
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_443
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_444
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_445
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_446
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_447
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_448
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_449
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_45
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_450
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_451
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_453
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_456
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_457
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_458
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_459
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_46
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_461
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_463
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_464
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_465
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_468
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_469
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_47
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_470
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_471
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_473
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_474
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_475
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_476
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_478
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_479
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_48
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_481
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_482
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_483
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_484
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_485
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_486
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_487
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_488
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_489
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_49
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_490
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_491
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_492
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_493
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_494
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_495
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_496
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_497
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_498
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_499
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_5
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_50
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_500
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_501
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_502
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_503
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_504
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_505
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_506
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_507
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_508
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_509
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_51
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_510
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_52
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_53
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_54
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_55
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_56
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_57
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_58
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_59
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_6
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_60
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_61
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_62
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_63
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_64
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_65
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_66
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_67
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_68
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_69
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_7
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_70
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_71
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_72
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_73
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_74
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_75
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_76
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_77
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_78
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_79
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_8
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_80
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_81
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_82
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_83
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_84
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_85
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_86
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_87
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_88
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_89
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_9
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_90
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_91
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_92
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_93
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_94
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_95
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_96
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_97
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_98
+          - type: lhotse_shar
+            shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/overlap_Mixtral8x22b_MMLPC_en/manifest_99
         - type: group
-          weight: 10.0
+          weight: 3.0
           input_cfg:
           - type: lhotse_shar
             shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/Mixtral8x22b_MMLPC_en/manifest_0
