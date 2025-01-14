@@ -34,7 +34,7 @@ class FLOPsMeasurementCallback(Callback):
         data_config (pl.LightningDataModule): Data module being used in the experiment.
         model_name (str): Name of the model being run. The following models are supported:
             gpt3, llama2, llama3, nemotron, mixtral, bert.
-    
+
 
     """
 
