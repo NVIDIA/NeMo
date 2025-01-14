@@ -86,9 +86,17 @@ class InternViTRMSNorm(torch.nn.Module):
         if self._compute_var:
             unpadded_hidden_size = self.config.hidden_size  # 3200
             max_dim = x.shape[-1]  # 128
-
             x = x.reshape(x.size(0), x.size(1), -1)
-            var = self._gather_var(x.float().pow(2), max_dim) / unpadded_hidden_size
+            total_heads = x.shape[-1] // max_dim
+            if max_dim == 128:
+                valid_heads = 25
+            elif max_dim == 64:
+                valid_heads = 16
+            else:
+                raise ValueError("Cannot infer number of heads.")
+            var = self._gather_var(
+                x.float().pow(2), max_dim, valid_heads, total_heads
+            ) / unpadded_hidden_size
 
         output = self._norm(x.float(), var).type_as(x)
         output = output * self.weight
@@ -98,19 +106,27 @@ class InternViTRMSNorm(torch.nn.Module):
 
         return output
 
-    def _gather_var(self, input_, max_dim, valid_ranks=6):
+    def _gather_var(self, input_, max_dim, valid_heads, total_heads):
         """Compute statistic across the non-dummy heads."""
         world_size = get_tensor_model_parallel_world_size()
-        # assert world_size == 8, "tested only with TP=8"
+        rank = get_tensor_model_parallel_rank()
+
+        heads_per_rank = total_heads // world_size
+        valid_heads_per_rank = []
+        remaining_heads = valid_heads
+        for _ in range(world_size):
+            if remaining_heads >= heads_per_rank:
+                valid_heads_per_rank.append(heads_per_rank)
+            else:
+                valid_heads_per_rank.append(remaining_heads)
+            remaining_heads -= heads_per_rank
 
         # Size and dimension.
         last_dim = input_.dim() - 1
-        rank = get_tensor_model_parallel_rank()
 
-        if rank < valid_ranks:  # Ranks 0-5 have 24 non-dummy attention heads.
-            var = input_.sum(-1, keepdim=True)
-        elif rank == valid_ranks:  # Rank 6 has 1 non-dummy attention head.
-            var = input_[..., :max_dim].sum(-1, keepdim=True)
+        valid_dim = max_dim * valid_heads_per_rank[rank]
+        if valid_dim > 0:
+            var = input_[..., :valid_dim].sum(-1, keepdim=True)
         else:
             var = input_.sum(-1, keepdim=True) * 0.0  # Zero-out the dummy heads.
 
