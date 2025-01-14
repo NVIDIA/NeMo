@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union, Callable, Annotated, Optional
-
+from typing import TYPE_CHECKING, Union, Callable, Annotated, Optional, Dict, Literal
+import lightning.pytorch as L
 import nemo.collections.llm.gpt.model.base as GPTBase
+from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
 from nemo.collections.llm.gpt.model import GPTConfig
 from nemo.collections.llm.gpt.model.llama import Llama32Config1B, LlamaConfig, HFLlamaImporter, LlamaModel
 from nemo.utils.import_utils import safe_import
@@ -13,6 +14,7 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 import einops
 import torch
 from torch import nn, Tensor
+from megatron.core import parallel_state
 import torch.nn.functional as F
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -39,10 +41,57 @@ def get_nv_embedding_layer_spec(config):
     else:
         return _local_layer_spec(config)
 
+def nv_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
+    """Setup NVEmbedding Llama Model dataloader batch."""
+    batch = next(dataloder_iter)
+
+    _batch: dict
+    if isinstance(batch, tuple) and len(batch) == 3:
+        _batch = batch[0]
+    else:
+        _batch = batch
+
+    required_keys = set()
+    required_keys.add("attention_mask")
+
+    if parallel_state.is_pipeline_first_stage():
+        required_keys.add("input_ids")
+        required_keys.add("position_ids")
+
+    _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    # slice batch along sequence dimension for context parallelism
+    output = GPTBase.get_batch_on_this_context_parallel_rank(_batch)
+
+    return output
+
+def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+    """
+    This subsets the batch keys to the ones actually used by forward pass of the model,
+    and then calls the model's forward pass. if "cu_seqsens" are defined in the batch,
+    then the packed sequence parameters are also passed to the model for forward pass efficiency.
+    """
+    if "position_ids" not in batch:
+        batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1], dtype=torch.long, device=batch["input_ids"].device)
+
+    forward_args = {
+        "input_ids": batch["input_ids"],
+        "attention_mask": batch["attention_mask"],
+        "position_ids": batch["position_ids"],
+    }
+
+    return model.encode(**forward_args)
+
 @dataclass
 class NVEmbedLlama32Config1B(Llama32Config1B):
     """NV Embedding Llama3.2 1B Config"""
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = get_nv_embedding_layer_spec
+    forward_step_fn: Callable = nv_embedding_forward_step
+    data_step_fn: Callable = nv_embedding_data_step
+    num_hard_negatives: int = 4
+    ce_loss_scale: float = 20
+    label_smoothing: float = 0.
+    global_in_batch_negatives: bool = False
+    backprop_type: Literal["local", "global"] = 'local'
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         """Configure the NV Embedding Llama3.2 1B Model"""
@@ -107,6 +156,32 @@ class NVEmbedLlamaModel(LlamaModel):
         embeddings = _average_pool(output, attention_mask)
         embeddings = F.normalize(embeddings, p=2, dim=1)
         return embeddings
+
+    @property
+    def training_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
+        if not self._training_loss_reduction:
+            self._training_loss_reduction = BERTInBatchExclusiveHardNegativesRankingLoss(
+                validation_step=False,
+                num_hard_negatives=self.config.num_hard_negatives,
+                scale=self.config.ce_loss_scale,
+                label_smoothing=self.config.label_smoothing,
+                global_in_batch_negatives=self.config.global_in_batch_negatives,
+                backprop_type=self.config.backprop_type,
+            )
+
+        return self._training_loss_reduction
+
+    @property
+    def validation_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
+        if not self._validation_loss_reduction:
+            self._validation_loss_reduction = BERTInBatchExclusiveHardNegativesRankingLoss(
+                validation_step=True,
+                num_hard_negatives=self.config.num_hard_negatives,
+                scale=self.config.ce_loss_scale,
+                label_smoothing=self.config.label_smoothing,
+            )
+
+        return self._validation_loss_reduction
 
 @io.model_importer(NVEmbedLlamaModel, "hf")
 class HFNVEmbedLlamaImporter(HFLlamaImporter):

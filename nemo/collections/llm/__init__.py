@@ -42,6 +42,7 @@ from nemo.collections.llm.gpt.data import (
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
+    CustomRetrievalDataModule,
 )
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (
@@ -152,6 +153,7 @@ from nemo.collections.llm.t5.model import (
 __all__ = [
     "MockDataModule",
     "T5MockDataModule",
+    "CustomRetrievalDataModule",
     "GPTModel",
     "GPTConfig",
     "gpt_data_step",

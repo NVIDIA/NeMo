@@ -20,6 +20,7 @@ from nemo.collections.llm.gpt.data.hf_dataset import HFDatasetDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.pre_training import PreTrainingDataModule, build_pretraining_datamodule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.llm.gpt.data.retrieval import CustomRetrievalDataModule
 
 __all__ = [
     "AlpacaDataModule",
@@ -31,4 +32,5 @@ __all__ = [
     "PreTrainingDataModule",
     "build_pretraining_datamodule",
     "SquadDataModule",
+    "CustomRetrievalDataModule",
 ]
