@@ -53,8 +53,8 @@ from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerP
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
-get_num_microbatches, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
-    "megatron.core.num_microbatches_calculator", "get_num_microbatches"
+get_current_global_batch_size, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
+    "megatron.core.num_microbatches_calculator", "get_current_global_batch_size"
 )
 
 
@@ -284,7 +284,7 @@ class TimingCallback(Callback):
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._on_batch_end("train_step_timing", pl_module)
         if self.log_tokens_per_sec:
-            tokens_per_gpu = batch["tokens"].shape[0] * batch["tokens"].shape[1] * get_num_microbatches()
+            tokens_per_gpu = get_current_global_batch_size() * batch["tokens"].shape[1] / torch.distributed.get_world_size()
             pl_module.log(
                 "tokens_per_sec_per_gpu",
                 tokens_per_gpu / (torch.as_tensor(self.timer["train_step_timing"])),
