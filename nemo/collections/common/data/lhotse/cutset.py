@@ -614,8 +614,8 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                 cutsets.append(CutSet(nemo_iter))
                 weights.append(weight)
         # Finally, we multiplex the dataset streams to mix the data.
-        if len(cuts) == 1:
-            return cuts[0], is_tarred
+        if len(cutsets) == 1:
+            return cutsets[0], is_tarred
         cuts = mux(
             *cutsets,
             weights=weights,
