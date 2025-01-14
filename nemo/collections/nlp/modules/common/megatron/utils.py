@@ -436,7 +436,6 @@ def get_iterator_k_split(
                 f"Only support splitting torch.Tensor and List[torch.Tensor]. Discarding the following keys from the batch: {discard_items}",
                 mode=logging_mode.ONCE,
             )
-        batch_origin = batch
 
         batch = {k: v for k, v in batch.items() if isinstance(v, (torch.Tensor, list))}
         tensor_items = {k: v for k, v in batch.items() if isinstance(v, torch.Tensor)}
@@ -444,11 +443,6 @@ def get_iterator_k_split(
 
         # Split tensor items
         items = list(tensor_items.items())
-
-        if len(items) == 0:
-            raise RuntimeError(
-                f"No torch.Tensor or list in the batch: {[(k,type(v)) for k,v in batch_origin.items()]}"
-            )
 
         if enforce_divisible_batch:
             if items[0][1].shape[0] % num_microbatches != 0:
