@@ -144,8 +144,6 @@ class OptimizerModule(L.Callback, CallbackMethods, IOMixin, ABC):
             from nemo.utils import logging
 
             opt = self(lightning_module_self, megatron_parallel=megatron_parallel)
-            print("[DEBUG] Adding optimizers:", opt)
-            logging.info("[DEBUG] Adding optimizers:", opt)
             return opt
 
         model.configure_optimizers = types.MethodType(custom_configure_optimizers, model)
