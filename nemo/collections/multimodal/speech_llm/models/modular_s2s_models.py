@@ -458,6 +458,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         cfg: Optional[Union[OmegaConf, str]] = None,
         trainer: Optional[Trainer] = None,
     ):
+        trainer.time_event_callback.logtimeevent.on_model_init_start()
 
         model = super().restore_from_pretrained_models(cfg, trainer)
 
@@ -469,6 +470,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
         mos_model = cls.get_mos_models_and_configs(cfg)
         logging.info(f"Loaded MOS Model: {mos_model}")
+
+        trainer.time_event_callback.logtimeevent.on_model_init_end()
+        trainer.time_event_callback.logtimeevent.on_load_checkpoint_start()
 
         if cfg.model.get('salm_model_path') is not None:
             # this may only work for tp=1
@@ -499,6 +503,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         cls.codec_model = codec_model.cuda()
         cls.asr_model = asr_model.cuda()
         cls.mos_model = mos_model.cuda()
+        trainer.time_event_callback.logtimeevent.on_load_checkpoint_end()
         return model
 
     # change to add one more dimension
