@@ -48,6 +48,7 @@ from omegaconf import OmegaConf
 from transformers import AutoTokenizer as HFAutoTokenizer
 
 from nemo.collections import llm
+from nemo.collections import vlm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -70,6 +71,8 @@ MODEL_CONFIG_MAPPING = {
     "nemotron4-22b": (llm.NemotronModel, llm.Nemotron3Config22B),
     "nemotron4-15b": (llm.NemotronModel, llm.Nemotron4Config15B),
     "nemotron4-340b": (llm.NemotronModel, llm.Nemotron4Config340B),
+    "llava-hf/llava-1.5-7b-hf": (vlm.LlavaModel, vlm.Llava15Config7B),
+    "llava-hf/llava-1.5-13b-hf": (vlm.LlavaModel, vlm.Llava15Config13B),
 }
 
 
@@ -176,6 +179,27 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
         return get_nmt_tokenizer(library=tokenizer_lib, tokenizer_model=tokenizer_model)
 
 
+def transform_sharded_state_keys(model_id: str, sharded_state_dict: dict) -> dict:
+    """
+    Perform key replacements and pop certain items from the sharded_state_dict in-place.
+    """
+    if "llava-1.5" in model_id:
+        for key in list(sharded_state_dict['state_dict'].keys()):
+            if "vision_model" in key or "_extra_state" in key:
+                sharded_state_dict['state_dict'].pop(key)
+            elif "vision_projection" in key:
+                sharded_state_dict['state_dict'][key].key = sharded_state_dict['state_dict'][key].key.replace(
+                    'model.vision_projection.',
+                    'model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.'
+                )
+            else:
+                sharded_state_dict['state_dict'][key].key = sharded_state_dict['state_dict'][key].key.replace(
+                    'model.language_model.', 'model.', 1
+                )
+
+    return sharded_state_dict
+
+
 def main() -> None:
     """
     Main function to convert NeMo 1.0 checkpoint to NeMo 2.0 format.
@@ -189,7 +213,10 @@ def main() -> None:
     trainer = Trainer(
         devices=1,
         accelerator="cpu",
-        strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()),
+        strategy=MegatronStrategy(
+            ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed(),
+            ckpt_load_strictness="log_all",
+        ),
     )
 
     trainer.strategy.connect(model)
@@ -211,6 +238,8 @@ def main() -> None:
             'module', 'model', 1
         )
 
+    sharded_state_dict = transform_sharded_state_keys(args.model_id, sharded_state_dict)
+
     def skip_fp8_load(x):
         if isinstance(x, ShardedObject) and 'core_attention' in x.key and '_extra_state' in x.key:
             x = LocalNonpersistentObject(x.data)  # use the FP8 state from initialization, not from ckpt
@@ -227,7 +256,9 @@ def main() -> None:
 
     logging.info(f"Saving checkpoint to {args.output_path}")
     model_ckpt['state_dict'] = {k.replace('model', 'module', 1): v for k, v in model_ckpt['state_dict'].items()}
-    trainer.model.module.load_state_dict(model_ckpt['state_dict'])
+    missing_keys, unexpected_keys = trainer.model.module.load_state_dict(model_ckpt['state_dict'], strict=False)
+    missing_keys = list(filter(lambda x: "_extra_state" not in x, missing_keys))
+    print(f"Missing Keys: {missing_keys};\n\nUnexpected Keys: {unexpected_keys}")
     trainer.save_checkpoint(ckpt_to_weights_subdir(args.output_path, is_saving=False))
     if getattr(trainer.strategy, "async_save", False):
         trainer.strategy.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
@@ -243,6 +274,8 @@ def main() -> None:
 
     logging.info(f"NeMo 2.0 checkpoint saved at {args.output_path}")
 
+def llava_transforms():
+    pass
 
 if __name__ == '__main__':
     args = get_args()
