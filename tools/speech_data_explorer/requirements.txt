@@ -8,3 +8,4 @@ numpy
 plotly
 SoundFile
 tqdm
+pandas
