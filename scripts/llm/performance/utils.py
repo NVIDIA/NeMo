@@ -52,8 +52,6 @@ def slurm_executor(
     err_msgs = []
     if log_dir != NEMORUN_HOME:
         err_msgs.append(f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
-    if nemo_home != DEFAULT_NEMO_HOME:
-        err_msgs.append(f"Run `export NEMO_HOME={nemo_home}` in your shell environment and rerun this script.")
     if len(err_msgs) > 0:
         logging.error("\n".join(err_msgs))
         sys.exit(1)
@@ -113,11 +111,11 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
                 huggingface.co/docs/transformers/v4.47.1/en/model_doc/auto#transformers.AutoTokenizer
     """
     log_msg = [
-        f"AutoTokenizer first searches for tokenizer files locally in env var {DEFAULT_NEMO_HOME}.",
-        "If files are missing locally, AutoTokenizer will try downloading from HuggingFace.",
-        "Make sure 'TRANSFORMERS_OFFLINE=0' and 'HF_TOKEN:<token_value>'.",
-        "You can set them as scripts.llm.performance.utils.slurm_executor(custom_env_vars=",
-        "{'TRANSFORMERS_OFFLINE: 0', 'HF_TOKEN: <token_value>'}",
+        f"`AutoTokenizer` first searches for tokenizer files locally stored in {DEFAULT_NEMO_HOME}.",
+        "(from env var `NEMO_HOME`- can be changed using '-nh/--nemo_home' CLI arg).",
+        "If files are missing locally, `AutoTokenizer` will try downloading from HuggingFace. In this case-",
+        "make sure env vars 'TRANSFORMERS_OFFLINE':'0' and 'HF_TOKEN':'<token_value>' are set in your sbatch script.",
+        "Both of these will be set automatically if you provide '-hf/--hf_token' CLI arg.",
     ]
     logging.warning(" ".join(log_msg))
 
