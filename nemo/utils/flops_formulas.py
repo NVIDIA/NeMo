@@ -12,8 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP
 
+@dataclass
+class FLOPSConfig:
+    """ Contains the model hparams needed for FLOPS computations """
+    gbs: int
+    enc_seq_len: int
+    hs: int
+    layers: int
+    ffn_hs: int
+    attention_heads: int
+    moe_router_topk: int
+    query_groups: int
 
 def gpt3(mdl):
     """Model FLOPs for GPT3 family"""

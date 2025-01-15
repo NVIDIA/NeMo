@@ -52,18 +52,29 @@ class FLOPsMeasurementCallback(Callback):
         # use config params only when NOT provided explicitly
         self.model = model_name
 
-        self.gbs = self.data_cfg.global_batch_size
-        self.enc_seq_len = self.model_cfg.seq_length
-        self.hs = self.model_cfg.hidden_size
-        self.layers = self.model_cfg.num_layers
-        self.ffn_hs = self.model_cfg.ffn_hidden_size
-        self.attention_heads = self.model_cfg.num_attention_heads
-        self.moe_router_topk = self.model_cfg.moe_router_topk
+        gbs = self.data_cfg.global_batch_size
+        enc_seq_len = self.model_cfg.seq_length
+        hs = self.model_cfg.hidden_size
+        layers = self.model_cfg.num_layers
+        ffn_hs = self.model_cfg.ffn_hidden_size
+        attention_heads = self.model_cfg.num_attention_heads
+        moe_router_topk = self.model_cfg.moe_router_topk
 
         # this handles both- 1. key is present, value is None; 2. key is absent
-        self.query_groups = self.model_cfg.num_query_groups
-        if self.query_groups is None:
-            self.query_groups = self.attention_heads
+        query_groups = self.model_cfg.num_query_groups
+        if query_groups is None:
+            query_groups = attention_heads
+
+        self.flops_config = flops_formulas.FLOPSConfig(
+            gbs=gbs,
+            enc_seq_len=enc_seq_len,
+            hs=hs,
+            layers=layers,
+            ffn_hs=ffn_hs,
+            attention_heads=attention_heads,
+            moe_router_topk=moe_router_topk,
+            query_groups=query_groups,
+        )
 
         self.model = self.model.lower() if self.model is not None else self.model
 
@@ -146,7 +157,7 @@ class FLOPsMeasurementCallback(Callback):
             logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
             raise KeyError(f"Failed to extract valid model name from or missing FLOPs calculations for {self.model}")
 
-        total_flops = model_flops_map[self.model](self)
+        total_flops = model_flops_map[self.model](self.flops_config)
         num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
         flops_per_gpu = total_flops / num_devices
 
