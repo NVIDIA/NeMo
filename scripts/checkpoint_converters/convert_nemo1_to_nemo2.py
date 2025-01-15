@@ -47,8 +47,7 @@ from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, S
 from omegaconf import OmegaConf
 from transformers import AutoTokenizer as HFAutoTokenizer
 
-from nemo.collections import llm
-from nemo.collections import vlm
+from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -190,7 +189,7 @@ def transform_sharded_state_keys(model_id: str, sharded_state_dict: dict) -> dic
             elif "vision_projection" in key:
                 sharded_state_dict['state_dict'][key].key = sharded_state_dict['state_dict'][key].key.replace(
                     'model.vision_projection.',
-                    'model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.'
+                    'model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.',
                 )
             else:
                 sharded_state_dict['state_dict'][key].key = sharded_state_dict['state_dict'][key].key.replace(
@@ -214,7 +213,9 @@ def main() -> None:
         devices=1,
         accelerator="cpu",
         strategy=MegatronStrategy(
-            ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed(),
+            ddp="pytorch",
+            setup_optimizers=False,
+            plugins=bf16_mixed(),
             ckpt_load_strictness="log_all",
         ),
     )
@@ -273,6 +274,7 @@ def main() -> None:
         shutil.rmtree(tokenizer_tmp_dir)
 
     logging.info(f"NeMo 2.0 checkpoint saved at {args.output_path}")
+
 
 if __name__ == '__main__':
     args = get_args()
