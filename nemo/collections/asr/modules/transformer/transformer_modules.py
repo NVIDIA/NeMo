@@ -58,25 +58,7 @@ class FixedPositionalEncoding(nn.Module):
         self.register_buffer('pos_enc', pos_enc)
 
     def forward(self, position_ids):
-        max_pos_id = position_ids.max()
-        # update positional encoding if needed
-        if max_pos_id >= self._max_sequence_length:
-            logging.warning(
-                f'Max position id {max_pos_id} is greater than max sequence length {self._max_sequence_length}. Expanding position embeddings just for this batch. This is not expected to work very well. Consider chunking your input into smaller sequences.'
-            )
-            self._build_pos_enc(
-                hidden_size=self._hidden_size, max_sequence_length=max_pos_id + 1, device=position_ids.device,
-            )
-
         embeddings = torch.embedding(self.pos_enc, position_ids)
-
-        # Revert expansion of position embeddings since this wall checkpoint size mismatches.
-        if max_pos_id >= self._max_sequence_length:
-            self._build_pos_enc(
-                hidden_size=self._hidden_size,
-                max_sequence_length=self._max_sequence_length,
-                device=position_ids.device,
-            )
         return embeddings
 
 
@@ -203,8 +185,9 @@ class MultiHeadAttention(nn.Module):
         attention_probs = self.attn_dropout(attention_probs)
 
         context = torch.matmul(attention_probs, value)
+        context_hidden_size = context.size()[-1] * self.num_attention_heads
         context = context.permute(0, 2, 1, 3).contiguous()
-        new_context_shape = context.size()[:-2] + (self.hidden_size,)
+        new_context_shape = context.size()[:-2] + (context_hidden_size,)
         context = context.view(*new_context_shape)
 
         # output projection

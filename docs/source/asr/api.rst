@@ -1,5 +1,5 @@
-NeMo ASR Collection API
-=======================
+NeMo ASR API
+============
 
 
 Model Classes
@@ -41,7 +41,7 @@ Model Classes
 
 .. _confidence-ensembles-api:
 
-.. autoclass:: nemo.collections.asr.models.confidence_ensembles.ConfidenceEnsembleModel
+.. autoclass:: nemo.collections.asr.models.confidence_ensemble.ConfidenceEnsembleModel
     :show-inheritance:
     :members: transcribe
 
@@ -273,6 +273,21 @@ RNNT Decoding
     :members:
 
 .. autoclass:: nemo.collections.asr.parts.submodules.rnnt_beam_decoding.BeamRNNTInfer
+    :show-inheritance:
+    :members:
+
+TDT Decoding
+~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_greedy_decoding.GreedyTDTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_greedy_decoding.GreedyBatchedTDTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.tdt_beam_decoding.BeamTDTInfer
     :show-inheritance:
     :members:
 

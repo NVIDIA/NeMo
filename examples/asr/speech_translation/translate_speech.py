@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
 import json
 import os
 from dataclasses import dataclass, is_dataclass
 from typing import List, Optional, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
@@ -65,13 +64,19 @@ python translate_speech.py \
 
 @dataclass
 class ModelChangeConfig:
+    """
+    Sub-config for changes specific to the Conformer Encoder
+    """
 
-    # Sub-config for changes specific to the Conformer Encoder
     conformer: ConformerChangeConfig = ConformerChangeConfig()
 
 
 @dataclass
 class TranslationConfig:
+    """
+    Translation Configuration for audio to text translation.
+    """
+
     # Required configs
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
@@ -100,9 +105,15 @@ class TranslationConfig:
     # if True, will also skip writing anything to the output file
     return_translations: bool = False
 
+    presort_manifest: bool = False  # sort manifest by duration before inference
+    pred_name_postfix: str = "translation"  # postfix to add to the audio filename for the output
+
 
 @hydra_runner(config_name="TranslationConfig", schema=TranslationConfig)
 def main(cfg: TranslationConfig) -> Union[TranslationConfig, List[str]]:
+    """
+    Main function to translate audio to text using a pretrained/finetuned model.
+    """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     for key in cfg:
@@ -162,16 +173,6 @@ def main(cfg: TranslationConfig) -> Union[TranslationConfig, List[str]]:
     # prepare audio filepaths and decide wether it's partial audio
     filepaths, partial_audio = prepare_audio_data(cfg)
 
-    # setup AMP (optional)
-    if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
-        logging.info("AMP enabled!\n")
-        autocast = torch.cuda.amp.autocast
-    else:
-
-        @contextlib.contextmanager
-        def autocast():
-            yield
-
     # Compute output filename
     cfg = compute_output_filename(cfg, model_name)
 
@@ -184,10 +185,12 @@ def main(cfg: TranslationConfig) -> Union[TranslationConfig, List[str]]:
         return cfg
 
     # translate audio
-    with autocast():
+    with torch.amp.autocast(asr_model.device.type, enabled=cfg.amp):
         with torch.no_grad():
-            translations = asr_model.translate(
-                paths2audio_files=filepaths, batch_size=cfg.batch_size, return_hypotheses=return_hypotheses,
+            translations = asr_model.transcribe(
+                audio=filepaths,
+                batch_size=cfg.batch_size,
+                return_hypotheses=return_hypotheses,
             )
 
     logging.info(f"Finished translating {len(filepaths)} files !")

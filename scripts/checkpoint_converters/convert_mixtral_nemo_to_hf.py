@@ -26,7 +26,7 @@ from collections import OrderedDict
 import megatron.core.parallel_state as parallel_state
 import torch
 import torch.nn
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -61,7 +61,7 @@ def load_config(hf_model_name, nemo_config):
     hf_config.num_key_value_heads = nemo_config.num_query_groups
     hf_config.num_local_experts = nemo_config.num_moe_experts
     assert hf_config.num_local_experts > 0, "num_experts must be greater than zero."
-    hf_config.num_experts_per_tok = nemo_config.num_experts_per_token
+    hf_config.num_experts_per_tok = nemo_config.moe_router_topk
     assert hf_config.num_experts_per_tok > 0, "num_experts_per_token must be greater than zero."
     if nemo_config.activation == 'fast-swiglu':
         hf_config.activation = 'silu'
@@ -83,6 +83,7 @@ def convert(in_file, precision=None) -> None:
     model_config = MegatronGPTModel.restore_from(in_file, trainer=dummy_trainer, return_config=True)
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
+    model_config.name = "te_gpt"
     cpu_only = True
     if cpu_only:
         map_location = torch.device('cpu')
@@ -122,6 +123,7 @@ def convert(in_file, precision=None) -> None:
         embed_weights_base_name = f'model.language_model.embedding.word_embeddings.weight'
     state_dict[hf_embed_weight_name] = param_to_weights(ckpt[embed_weights_base_name])
 
+    head_num = model.cfg.num_attention_heads
     if nemo_config.num_query_groups is None or nemo_config.num_query_groups == head_num:
         num_query_groups = head_num
     else:
@@ -135,7 +137,7 @@ def convert(in_file, precision=None) -> None:
     num_layers = model.cfg.num_layers
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
 
-    head_size = hidden_size // head_num
+    head_size = model.cfg.get("kv_channels") or (hidden_size // head_num)  # equivalent to hf's head_dim
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
 
@@ -233,7 +235,7 @@ def convert(in_file, precision=None) -> None:
 
 if __name__ == '__main__':
     args = get_args()
-    parallel_state.set_cpu_expert_model_parallel_world_size(1)
+    parallel_state.set_expert_model_parallel_world_size(1)
     hf_state_dict, nemo_config = convert(args.input_name_or_path, args.precision)
 
     config = load_config(args.hf_model_name, nemo_config)

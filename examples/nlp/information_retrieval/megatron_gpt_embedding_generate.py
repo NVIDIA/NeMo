@@ -68,7 +68,9 @@ def use_inference_server(cfg, model, trainer):
                 web_ui = get_demo
             loop = asyncio.new_event_loop()
             thread = threading.Thread(
-                target=web_ui, daemon=True, args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+                target=web_ui,
+                daemon=True,
+                args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
             )
             thread.start()
         server = MegatronServer(model.cuda())
@@ -93,7 +95,6 @@ def main(cfg) -> None:
         model_cfg = MegatronGPTEmbeddingModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
 
     with open_dict(model_cfg):
-        model_cfg.data.return_output_tensors = True
         model_cfg.post_process = False
 
     model = MegatronGPTEmbeddingModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)

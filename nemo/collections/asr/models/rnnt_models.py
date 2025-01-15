@@ -13,18 +13,18 @@
 # limitations under the License.
 
 import copy
-import json
 import os
-import tempfile
 from math import ceil
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
-from tqdm.auto import tqdm
+from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data import audio_to_text_dataset
+from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
@@ -37,14 +37,17 @@ from nemo.collections.asr.parts.mixins import (
     TranscribeConfig,
     TranscriptionReturnType,
 )
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
+from nemo.collections.asr.parts.utils.transcribe_utils import process_timestamp_outputs
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 
 class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTranscriptionMixin):
@@ -99,7 +102,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         self.cfg.decoding = self.set_decoding_type_according_to_loss(self.cfg.decoding)
         # Setup decoding objects
         self.decoding = RNNTDecoding(
-            decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+            decoding_cfg=self.cfg.decoding,
+            decoder=self.decoder,
+            joint=self.joint,
+            vocabulary=self.joint.vocabulary,
         )
         # Setup WER calculation
         self.wer = WER(
@@ -234,7 +240,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
     @torch.no_grad()
     def transcribe(
         self,
-        audio: List[str],
+        audio: Union[str, List[str], np.ndarray, DataLoader],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
@@ -242,13 +248,16 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
+        timestamps: Optional[bool] = None,
         override_config: Optional[TranscribeConfig] = None,
     ) -> TranscriptionReturnType:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
-            audio: (a list) of paths to audio files. \
+            audio: (a single or list) of paths to audio files or a np.ndarray/tensor audio array or path 
+                to a manifest file.
+                Can also be a dataloader object that provides values that can be consumed by the model.
                 Recommended length per file is between 5 and 25 seconds. \
                 But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference. \
@@ -259,9 +268,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                 decoding. This is useful for streaming rnnt decoding. If this is not None, then the length of this
                 list should be equal to the length of the audio list.
             num_workers: (int) number of workers for DataLoader
-            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels 
+                from multi-channel audio. If set to `'average'`, it performs averaging across channels. 
+                Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
             verbose: (bool) whether to display tqdm progress bar
+            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis object 
+                (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class for more details. 
+                Default is None and would retain the previous state set by using self.change_decoding_strategy().
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
                 You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
@@ -271,6 +285,25 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
+        timestamps = timestamps or (override_config.timestamps if override_config is not None else None)
+        if timestamps is not None:
+            if timestamps or (override_config is not None and override_config.timestamps):
+                logging.info(
+                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, \
+                        with output[0][idx].timestep['word'/'segment'/'char']"
+                )
+                return_hypotheses = True
+                with open_dict(self.cfg.decoding):
+                    self.cfg.decoding.compute_timestamps = True
+                    self.cfg.decoding.preserve_alignments = True
+                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+            else:
+                return_hypotheses = False
+                with open_dict(self.cfg.decoding):
+                    self.cfg.decoding.compute_timestamps = False
+                    self.cfg.decoding.preserve_alignments = False
+                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+
         return super().transcribe(
             audio=audio,
             batch_size=batch_size,
@@ -279,6 +312,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             channel_selector=channel_selector,
             augmentor=augmentor,
             verbose=verbose,
+            timestamps=timestamps,
             override_config=override_config,
             # Additional arguments
             partial_hypothesis=partial_hypothesis,
@@ -286,10 +320,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
         """
-        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning a pre-trained model.
-        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
-        use it if you want to use pretrained encoder when fine-tuning on data in another language, or when you'd need
-        model to learn capitalization, punctuation and/or special characters.
+        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning a 
+        pre-trained model. This method changes only decoder and leaves encoder and pre-processing 
+        modules unchanged. For example, you would use it if you want to use pretrained encoder when 
+        fine-tuning on data in another language, or when you'd need model to learn capitalization, 
+        punctuation and/or special characters.
 
         Args:
             new_vocabulary: list with new vocabulary. Must contain at least 2 elements. Typically, \
@@ -336,7 +371,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             decoding_cfg = self.set_decoding_type_according_to_loss(decoding_cfg)
 
             self.decoding = RNNTDecoding(
-                decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+                decoding_cfg=decoding_cfg,
+                decoder=self.decoder,
+                joint=self.joint,
+                vocabulary=self.joint.vocabulary,
             )
 
             self.wer = WER(
@@ -372,13 +410,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
 
             logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig, verbose=True):
         """
         Changes decoding strategy used during RNNT decoding process.
 
         Args:
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+            verbose: (bool) whether to display logging information
         """
         if decoding_cfg is None:
             # Assume same decoding config as before
@@ -392,7 +431,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         decoding_cfg = self.set_decoding_type_according_to_loss(decoding_cfg)
 
         self.decoding = RNNTDecoding(
-            decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+            decoding_cfg=decoding_cfg,
+            decoder=self.decoder,
+            joint=self.joint,
+            vocabulary=self.joint.vocabulary,
         )
 
         self.wer = WER(
@@ -416,7 +458,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
 
-        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
+        if verbose:
+            logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         # Automatically inject args from model config to dataloader config
@@ -426,8 +469,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
                 config,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
+                # During transcription, the model is initially loaded on the CPU.
+                # To ensure the correct global_rank and world_size are set,
+                # these values must be passed from the configuration.
+                global_rank=self.global_rank if not config.get("do_transcribe", False) else config.get("global_rank"),
+                world_size=self.world_size if not config.get("do_transcribe", False) else config.get("world_size"),
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=make_parser(
                         labels=config.get('labels', None),
@@ -436,6 +482,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                         blank_id=config.get('blank_index', -1),
                         do_normalize=config.get('normalize_transcripts', False),
                     ),
+                    return_cuts=config.get("do_transcribe", False),
                 ),
             )
 
@@ -467,9 +514,24 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             # support datasets that are lists of lists
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
+        batch_sampler = None
+        if config.get('use_semi_sorted_batching', False):
+            if not isinstance(dataset, _AudioTextDataset):
+                raise RuntimeError(
+                    "Semi Sorted Batch sampler can be used with AudioToCharDataset or AudioToBPEDataset "
+                    f"but found dataset of type {type(dataset)}"
+                )
+            # set batch_size and batch_sampler to None to disable automatic batching
+            batch_sampler = get_semi_sorted_batch_sampler(self, dataset, config)
+            config['batch_size'] = None
+            config['drop_last'] = False
+            shuffle = False
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
+            sampler=batch_sampler,
+            batch_sampler=None,
             collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
@@ -632,7 +694,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         # Spec augment is not applied during evaluation/testing
@@ -755,7 +818,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
         )
 
-        sample_id = sample_id.cpu().detach().numpy()
+        if isinstance(sample_id, torch.Tensor):
+            sample_id = sample_id.cpu().detach().numpy()
         return list(zip(sample_id, best_hyp_text))
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0):
@@ -872,6 +936,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         output = dict(encoded=encoded, encoded_len=encoded_len)
         return output
 
+    @deprecated(
+        explanation='The return type of args will be updated in the upcoming release to ensure a consistent \
+            output format across all decoder types, such that a "Hypothesis" object is always returned.'
+    )
     def _transcribe_output_processing(
         self, outputs, trcfg: TranscribeConfig
     ) -> Tuple[List['Hypothesis'], List['Hypothesis']]:
@@ -884,9 +952,16 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             return_hypotheses=trcfg.return_hypotheses,
             partial_hypotheses=trcfg.partial_hypothesis,
         )
-
         # cleanup memory
         del encoded, encoded_len
+
+        if trcfg.timestamps:
+            best_hyp = process_timestamp_outputs(
+                best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
+            all_hyp = process_timestamp_outputs(
+                all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
 
         hypotheses = []
         all_hypotheses = []

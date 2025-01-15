@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
 from nemo.collections.tts.models import AudioCodecModel
@@ -27,6 +27,7 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = AudioCodecModel(cfg=cfg.model, trainer=trainer)
+    model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
     trainer.fit(model)
 
 

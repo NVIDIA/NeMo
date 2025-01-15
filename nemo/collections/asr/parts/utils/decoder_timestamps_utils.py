@@ -23,13 +23,13 @@ from omegaconf import OmegaConf
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
+from nemo.collections.asr.parts.preprocessing.segment import get_samples
 from nemo.collections.asr.parts.submodules.ctc_decoding import (
     CTCBPEDecoding,
     CTCBPEDecodingConfig,
     CTCDecoding,
     CTCDecodingConfig,
 )
-from nemo.collections.asr.parts.utils.audio_utils import get_samples
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -197,7 +197,9 @@ class WER_TS(WER):
         return token_list, timestamp_list
 
     def ctc_decoder_predictions_tensor_with_ts(
-        self, predictions: torch.Tensor, predictions_len: torch.Tensor = None,
+        self,
+        predictions: torch.Tensor,
+        predictions_len: torch.Tensor = None,
     ) -> List[str]:
         """
         A shortened version of the original function ctc_decoder_predictions_tensor().
@@ -286,7 +288,9 @@ class FrameBatchASRLogits(FrameBatchASR):
             del predictions
 
     def transcribe_with_ts(
-        self, tokens_per_chunk: int, delay: int,
+        self,
+        tokens_per_chunk: int,
+        delay: int,
     ):
         self.infer_logits()
         self.unmerged = []
@@ -347,6 +351,17 @@ class ASRDecoderTimeStamps:
             self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
             self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 4)
             self.model_stride_in_secs = 0.02
+
+        elif 'fastconformer' in self.ASR_model_name.lower():
+            self.run_ASR = self.run_ASR_BPE_CTC
+            self.encdec_class = EncDecCTCModelBPE
+            self.decoder_delay_in_sec = if_none_get_default(self.params['decoder_delay_in_sec'], 0.08)
+            self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
+            self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 16)
+            self.model_stride_in_secs = 0.08
+            # FastConformer requires buffered inference and the parameters for buffered processing.
+            self.chunk_len_in_sec = 15
+            self.total_buffer_in_secs = 30
 
         elif 'conformer' in self.ASR_model_name.lower():
             self.run_ASR = self.run_ASR_BPE_CTC
@@ -434,7 +449,7 @@ class ASRDecoderTimeStamps:
             log_prediction=asr_model._cfg.get("log_prediction", False),
         )
 
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast(asr_model.device.type):
             transcript_hyps_list = asr_model.transcribe(
                 self.audio_file_list, batch_size=self.asr_batch_size, return_hypotheses=True
             )  # type: List[nemo_asr.parts.Hypothesis]
@@ -562,7 +577,7 @@ class ASRDecoderTimeStamps:
             log_prediction=asr_model._cfg.get("log_prediction", False),
         )
 
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast(asr_model.device.type):
             transcript_hyps_list = asr_model.transcribe(
                 self.audio_file_list, batch_size=self.asr_batch_size, return_hypotheses=True
             )  # type: List[nemo_asr.parts.Hypothesis]
@@ -656,7 +671,7 @@ class ASRDecoderTimeStamps:
         onset_delay, mid_delay, tokens_per_chunk = self.set_buffered_infer_params(asr_model)
         onset_delay_in_sec = round(onset_delay * self.model_stride_in_secs, 2)
 
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast(asr_model.device.type):
             logging.info(f"Running ASR model {self.ASR_model_name}")
 
             for idx, audio_file_path in enumerate(self.audio_file_list):
@@ -720,7 +735,10 @@ class ASRDecoderTimeStamps:
         elif len(spaces_in_sec) > 0:
             # word_timetamps_middle should be an empty list if len(spaces_in_sec) == 1.
             word_timetamps_middle = [
-                [round(spaces_in_sec[k][1], 2), round(spaces_in_sec[k + 1][0], 2),]
+                [
+                    round(spaces_in_sec[k][1], 2),
+                    round(spaces_in_sec[k + 1][0], 2),
+                ]
                 for k in range(len(spaces_in_sec) - 1)
             ]
             word_timestamps = (

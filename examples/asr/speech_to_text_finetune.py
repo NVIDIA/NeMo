@@ -19,7 +19,11 @@ One can mention the pretrained model in two ways:
 1) `init_from_nemo_model` or 
 2) `init_from_pretrained_model` in the configuration.
 
-To update the model architecture in conjunction with other modifications, it is advisable to use the primary 'speech_to_text_rnnt/ctc_*.py' script.
+****************************************************************************************
+This script is mainly intended for changing the dataset, optim, spec_augment, vocabulary/tokenizer of the model.
+To update the model architecture in conjunction with other modifications, 
+it is advisable to use the primary 'speech_to_text_rnnt/ctc_*.py' script.
+****************************************************************************************
 
 Note: To create a single script for all model types, we currently only support two types of 
 initializations:
@@ -50,7 +54,7 @@ For documentation on fine-tuning this model, please visit:
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 """
 import time
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import ASRModel
@@ -58,6 +62,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.trainer_utils import resolve_trainer_cfg
 
 
 def get_base_model(trainer, cfg):
@@ -103,6 +108,7 @@ def get_base_model(trainer, cfg):
             # restore model from cached model dir
             asr_model = ASRModel.from_pretrained(model_name=pretrained_name)
 
+    asr_model.set_trainer(trainer)
     return asr_model
 
 
@@ -135,7 +141,7 @@ def check_vocabulary(asr_model, cfg):
 
 def update_tokenizer(asr_model, tokenizer_dir, tokenizer_type):
     """
-    Updates the tokenizer of the model and also reinitializes the decoder if the vocabulary size 
+    Updates the tokenizer of the model and also reinitializes the decoder if the vocabulary size
     of the new tokenizer differs from that of the loaded model.
     Args:
         asr_model: ASRModel instance
@@ -189,7 +195,7 @@ def setup_dataloaders(asr_model, cfg):
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
-    trainer = pl.Trainer(**cfg.trainer)
+    trainer = pl.Trainer(**resolve_trainer_cfg(cfg.trainer))
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     if hasattr(cfg, 'init_from_ptl_ckpt') and cfg.init_from_ptl_ckpt is not None:

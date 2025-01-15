@@ -14,7 +14,7 @@
 
 import os
 
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
@@ -104,7 +104,7 @@ def main(cfg) -> None:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
     # check whether the DDP is initialized
-    if parallel_state.is_unitialized():
+    if not parallel_state.is_initialized():
 
         def dummy():
             return

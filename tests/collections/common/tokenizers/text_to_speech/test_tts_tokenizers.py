@@ -20,9 +20,12 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
     GermanCharsTokenizer,
     IPATokenizer,
     ItalianCharsTokenizer,
+    JapanesePhonemeTokenizer,
     SpanishCharsTokenizer,
+    VietnameseCharsTokenizer,
 )
 from nemo.collections.tts.g2p.models.i18n_ipa import IpaG2p
+from nemo.collections.tts.g2p.models.ja_jp_ipa import JapaneseG2p
 
 
 class TestTTSTokenizers:
@@ -43,6 +46,10 @@ class TestTTSTokenizers:
         "BONJOUR": ["bɔ̃ʒˈuʁ"],
         "LE": ["lˈə-"],
         "MONDE": ["mˈɔ̃d"],
+    }
+    PHONEME_DICT_JA = {
+        "ハロー": ["haɾoː"],
+        "ワールド": ["wa:ɾdo"],
     }
 
     @staticmethod
@@ -119,6 +126,18 @@ class TestTTSTokenizers:
         expected_output = "¿cuál es su nombre?"
 
         tokenizer = SpanishCharsTokenizer()
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
+        assert chars == expected_output
+        assert len(tokens) == len(input_text)
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_vietnamese_chars_tokenizer(self):
+        input_text = "Xin chào các bạn."
+        expected_output = "xin chào các bạn."
+
+        tokenizer = VietnameseCharsTokenizer()
         chars, tokens = self._parse_text(tokenizer, input_text)
 
         assert chars == expected_output
@@ -251,4 +270,16 @@ class TestTTSTokenizers:
 
         chars, tokens = self._parse_text(tokenizer, "Hello, wound")
         expected_output = "HELLO, ˈwund"
+        assert chars == expected_output
+
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_japanese_phoneme_tokenizer(self):
+        input_text = "ハロー ワールド."
+        expected_output = "haɾoː wa:ɾdo."
+        g2p = JapaneseG2p(phoneme_dict=self.PHONEME_DICT_JA, word_segmenter="janome")
+
+        tokenizer = JapanesePhonemeTokenizer(g2p=g2p)
+        chars, tokens = self._parse_text(tokenizer, input_text)
+
         assert chars == expected_output

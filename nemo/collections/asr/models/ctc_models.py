@@ -12,19 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import json
 import os
-import tempfile
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
-from tqdm.auto import tqdm
+from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data import audio_to_text_dataset
+from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -32,14 +31,17 @@ from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, ASRTranscriptionMixin, InterCTCMixin, TranscribeConfig
 from nemo.collections.asr.parts.mixins.transcription import GenericTranscriptionType, TranscriptionReturnType
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
+from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
+from nemo.collections.asr.parts.utils.transcribe_utils import process_timestamp_outputs
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 __all__ = ['EncDecCTCModel']
 
@@ -117,23 +119,23 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
     def transcribe(
         self,
-        audio: Union[str, List[str], torch.Tensor, np.ndarray],
+        audio: Union[str, List[str], torch.Tensor, np.ndarray, DataLoader],
         batch_size: int = 4,
         return_hypotheses: bool = False,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
         verbose: bool = True,
+        timestamps: Optional[bool] = None,
         override_config: Optional[TranscribeConfig] = None,
     ) -> TranscriptionReturnType:
         """
-        If modify this function, please remember update transcribe_partial_audio() in
-        nemo/collections/asr/parts/utils/trancribe_utils.py
-
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
-            audio: (a single or list) of paths to audio files or a np.ndarray audio array. \
+            audio: (a single or list) of paths to audio files or a np.ndarray/tensor audio array or 
+                path to a manifest file.
+                Can also be a dataloader object that provides values that can be consumed by the model.
                 Recommended length per file is between 5 and 25 seconds. \
                 But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference.
@@ -141,16 +143,42 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             return_hypotheses: (bool) Either return hypotheses or text
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
-            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels 
+                from multi-channel audio. If set to `'average'`, it performs averaging across channels. 
+                Disabled if set to `None`. Defaults to `None`.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
+            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis 
+                object (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class 
+                for more details. Default is None and would retain the previous state set by 
+                using self.change_decoding_strategy().
             verbose: (bool) whether to display tqdm progress bar
             override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
                 **Note**: All other arguments in the function will be ignored if override_config is passed.
                 You should call this argument as `model.transcribe(audio, override_config=TranscribeConfig(...))`.
 
         Returns:
-            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
+            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as 
+            paths2audio_files
         """
+        timestamps = timestamps or (override_config.timestamps if override_config is not None else None)
+        if timestamps is not None:
+            # else retain the decoder state (users can set it using change_decoding_strategy)
+            if timestamps or (override_config is not None and override_config.timestamps):
+                logging.info(
+                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, \
+                        with output[idx].timestep['word'/'segment'/'char']"
+                )
+                return_hypotheses = True
+                with open_dict(self.cfg.decoding):
+                    self.cfg.decoding.compute_timestamps = True
+                    self.cfg.decoding.preserve_alignments = True
+                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+            else:  # This is done to ensure the state is preserved when decoding_strategy is set outside
+                with open_dict(self.cfg.decoding):
+                    self.cfg.decoding.compute_timestamps = self.cfg.decoding.get('compute_timestamps', False)
+                    self.cfg.decoding.preserve_alignments = self.cfg.decoding.get('preserve_alignments', False)
+                self.change_decoding_strategy(self.cfg.decoding, verbose=False)
+
         return super().transcribe(
             audio=audio,
             batch_size=batch_size,
@@ -159,6 +187,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             channel_selector=channel_selector,
             augmentor=augmentor,
             verbose=verbose,
+            timestamps=timestamps,
             override_config=override_config,
         )
 
@@ -233,13 +262,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
             logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
 
-    def change_decoding_strategy(self, decoding_cfg: DictConfig):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig, verbose: bool = True):
         """
         Changes decoding strategy used during CTC decoding process.
 
         Args:
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+            verbose: (bool) whether to display logging information
         """
         if decoding_cfg is None:
             # Assume same decoding config as before
@@ -268,7 +298,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
 
-        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
+        if verbose:
+            logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         # Automatically inject args from model config to dataloader config
@@ -278,8 +309,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
                 config,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
+                # During transcription, the model is initially loaded on the CPU.
+                # To ensure the correct global_rank and world_size are set,
+                # these values must be passed from the configuration.
+                global_rank=self.global_rank if not config.get("do_transcribe", False) else config.get("global_rank"),
+                world_size=self.world_size if not config.get("do_transcribe", False) else config.get("world_size"),
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=make_parser(
                         labels=config.get('labels', None),
@@ -288,6 +322,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
                         blank_id=config.get('blank_index', -1),
                         do_normalize=config.get('normalize_transcripts', False),
                     ),
+                    return_cuts=config.get("do_transcribe", False),
                 ),
             )
 
@@ -319,9 +354,24 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             # support datasets that are lists of lists
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
+        batch_sampler = None
+        if config.get('use_semi_sorted_batching', False):
+            if not isinstance(dataset, _AudioTextDataset):
+                raise RuntimeError(
+                    "Semi Sorted Batch sampler can be used with AudioToCharDataset or AudioToBPEDataset "
+                    f"but found dataset of type {type(dataset)}"
+                )
+            # set batch_size and batch_sampler to None to disable automatic batching
+            batch_sampler = get_semi_sorted_batch_sampler(self, dataset, config)
+            config['batch_size'] = None
+            config['drop_last'] = False
+            shuffle = False
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
+            sampler=batch_sampler,
+            batch_sampler=None,
             collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
@@ -476,7 +526,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         if not has_processed_signal:
             processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
+                input_signal=input_signal,
+                length=input_signal_length,
             )
 
         if self.spec_augmentation is not None and self.training:
@@ -562,10 +613,13 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
         transcribed_texts, _ = self.wer.decoding.ctc_decoder_predictions_tensor(
-            decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
+            decoder_outputs=log_probs,
+            decoder_lengths=encoded_len,
+            return_hypotheses=False,
         )
 
-        sample_id = sample_id.cpu().detach().numpy()
+        if isinstance(sample_id, torch.Tensor):
+            sample_id = sample_id.cpu().detach().numpy()
         return list(zip(sample_id, transcribed_texts))
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0):
@@ -584,11 +638,19 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         loss_value, metrics = self.add_interctc_losses(
-            loss_value, transcript, transcript_len, compute_wer=True, log_wer_num_denom=True, log_prefix="val_",
+            loss_value,
+            transcript,
+            transcript_len,
+            compute_wer=True,
+            log_wer_num_denom=True,
+            log_prefix="val_",
         )
 
         self.wer.update(
-            predictions=log_probs, targets=transcript, targets_lengths=transcript_len, predictions_lengths=encoded_len,
+            predictions=log_probs,
+            targets=transcript,
+            targets_lengths=transcript_len,
+            predictions_lengths=encoded_len,
         )
         wer, wer_num, wer_denom = self.wer.compute()
         self.wer.reset()
@@ -635,32 +697,24 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
     """ Transcription related methods """
 
-    def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
-        super()._transcribe_on_begin(audio, trcfg)
-
-        # Freeze the encoder and decoure_exder modules
-        self.encoder.freeze()
-        self.decoder.freeze()
-
-    def _transcribe_on_end(self, trcfg: TranscribeConfig):
-        super()._transcribe_on_end(trcfg)
-
-        # Unfreeze the encoder and decoder modules
-        self.encoder.unfreeze()
-        self.decoder.unfreeze()
-
     def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
         logits, logits_len, greedy_predictions = self.forward(input_signal=batch[0], input_signal_length=batch[1])
         output = dict(logits=logits, logits_len=logits_len)
         del greedy_predictions
         return output
 
+    @deprecated(
+        explanation='The return type of args will be updated in the upcoming release to ensure a consistent output \
+            format across all decoder types, such that a Hypothesis object is always returned.'
+    )
     def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> GenericTranscriptionType:
         logits = outputs.pop('logits')
         logits_len = outputs.pop('logits_len')
 
         current_hypotheses, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
-            logits, decoder_lengths=logits_len, return_hypotheses=trcfg.return_hypotheses,
+            logits,
+            decoder_lengths=logits_len,
+            return_hypotheses=trcfg.return_hypotheses,
         )
         if trcfg.return_hypotheses:
             if logits.is_cuda:
@@ -674,13 +728,25 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             logits_len = logits_len.cpu()
             # dump log probs per file
             for idx in range(logits_cpu.shape[0]):
-                current_hypotheses[idx].y_sequence = logits_cpu[idx][: logits_len[idx]]
+                # We clone because we don't want references to the
+                # cudaMallocHost()-allocated tensor to be floating
+                # around. Were that to be the case, then the pinned
+                # memory cache would always miss.
+                current_hypotheses[idx].y_sequence = logits_cpu[idx, : logits_len[idx]].clone()
                 if current_hypotheses[idx].alignments is None:
                     current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
             del logits_cpu
 
         # cleanup memory
         del logits, logits_len
+
+        if trcfg.timestamps:
+            current_hypotheses = process_timestamp_outputs(
+                current_hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
+            all_hyp = process_timestamp_outputs(
+                all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
 
         hypotheses = []
         if all_hyp is None:
@@ -744,7 +810,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-En",
-            description="QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other. Please visit https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels for further details.",
+            description="QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice \
+                (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. \
+                    It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of \
+                    3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other. Please visit \
+                        https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels for further details.",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-En.nemo",
         )
         results.append(model)
@@ -842,6 +912,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         results.append(model)
 
         return results
+
+    @property
+    def adapter_module_names(self) -> List[str]:
+        return ['', 'encoder', 'decoder']
 
     @property
     def wer(self):

@@ -19,8 +19,8 @@ from typing import Dict, Optional, Union
 
 import numpy as np
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUE_TASKS_NUM_LABELS, GLUEDataset
@@ -31,6 +31,7 @@ from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['GLUEModel']
 
@@ -78,6 +79,8 @@ class GLUEModel(NLPModel):
         """
         Initializes model to use BERT model for GLUE tasks.
         """
+        # deprecation warning
+        deprecated_warning("GLUEModel")
 
         if cfg.task_name not in cfg.supported_tasks:
             raise ValueError(f'{cfg.task_name} not in supported task. Choose from {cfg.supported_tasks}')

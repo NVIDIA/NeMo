@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import math
 import re
 from typing import List, Mapping, Optional
 
@@ -56,10 +58,14 @@ class GPTSFTDataset(Dataset):
         tokens_to_generate: int = 0,
         memmap_workers: Optional[int] = None,
         hf_dataset: bool = False,
+        global_sample_mapping: bool = False,
         truncation_method: str = 'right',
         special_tokens: Optional[Mapping[str, str]] = None,  # special tokens, a dictory of {token_type: token}
         is_test: bool = False,
         output_original_text: bool = False,
+        ceil_to_power_2: bool = False,
+        get_attention_mask_from_fusion: bool = False,
+        sanity_check_dist_workers: bool = True,
     ):
         """
         file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
@@ -80,10 +86,12 @@ class GPTSFTDataset(Dataset):
         index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
         prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
         hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
+        global_sample_mapping: Whether to shuffle all data together, or shuffle the dataset within each epoch
         truncation_method: Truncation from which position. Options: ['left', 'right']
         special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
         is_test: Whether this dataset is the test split.
         output_original_text (bool): if true, will keep the original text in the output alongside the tokenized ids.
+        sanity_check_dist_workers (bool): if true, will run sanity check across workers when making mapping.
         """
         self.tokenizer = tokenizer
         self.file_path = file_path
@@ -98,7 +106,7 @@ class GPTSFTDataset(Dataset):
         self.seed = seed
         self.label_key = label_key
         self.answer_only_loss = answer_only_loss
-        self.truncation_fields = truncation_field.split(',')
+        self.truncation_fields = truncation_field.split(',') if truncation_field is not None else []
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
@@ -106,9 +114,14 @@ class GPTSFTDataset(Dataset):
         self.tokens_to_generate = tokens_to_generate
         self.memmap_workers = memmap_workers
         self.hf_dataset = hf_dataset
+        self.global_sample_mapping = global_sample_mapping
         self.truncation_method = truncation_method
         self.is_test = is_test
         self.output_original_text = output_original_text
+        self.ceil_to_power_2 = ceil_to_power_2
+        self.get_attention_mask_from_fusion = get_attention_mask_from_fusion
+        self.sanity_check_dist_workers = sanity_check_dist_workers
+
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -160,8 +173,9 @@ class GPTSFTDataset(Dataset):
         ), f'{label_placeholder} must be at the end of prompt_template.'
 
         # Legacy checkpoints has self.truncation_fields = ['context'] and self.prompt_template_keys = ['input', 'output']
-        if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
-            self.truncation_fields[0] = self.prompt_template_keys[0]
+        if len(self.truncation_fields) > 0:
+            if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
+                self.truncation_fields[0] = self.prompt_template_keys[0]
 
         assert set(self.truncation_fields).issubset(
             self.prompt_template_keys
@@ -169,7 +183,11 @@ class GPTSFTDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
-            osm = OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
+            osm = (
+                OnlineSampleMapping(dataset_size=len(self.indexed_dataset), num_samples=self.max_num_samples)
+                if not self.global_sample_mapping
+                else None
+            )
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
@@ -182,6 +200,7 @@ class GPTSFTDataset(Dataset):
                 binary_head=False,
                 index_mapping_dir=self.index_mapping_dir,
                 samples_mapping=osm,
+                sanity_check_dist_workers=self.sanity_check_dist_workers,
             )
         else:
             self.samples_mapping = None
@@ -299,36 +318,62 @@ class GPTSFTDataset(Dataset):
         if total_ids > self.max_seq_length:
             truncation_length_total = total_ids - self.max_seq_length
             num_fields = len(self.truncation_fields)
-            # sorted equal divide length to each field
-            # examples:
-            #   truncation_length_total = 3
-            #   num_fields = 11
-            #   truncation_length_list = [3,4,4]
-            truncation_length_list = [
-                truncation_length_total // num_fields + (1 if i < truncation_length_total % num_fields else 0)
-                for i in range(num_fields)[::-1]
-            ]
+            if num_fields > 0:
+                # sorted equal divide length to each field
+                # examples:
+                #   truncation_length_total = 3
+                #   num_fields = 11
+                #   truncation_length_list = [3,4,4]
+                truncation_length_list = [
+                    truncation_length_total // num_fields + (1 if i < truncation_length_total % num_fields else 0)
+                    for i in range(num_fields)[::-1]
+                ]
 
-            for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
-                if key in self.truncation_fields:
-                    truncation_length = truncation_length_list.pop()
-                    if len(ids) < truncation_length:
-                        logging.warning(f'{key} is not long enough to truncate.')
-                        truncation_length = len(ids)
+                for i, (ids, key) in enumerate(zip(template_ids, template_ids_keys)):
+                    if key in self.truncation_fields:
+                        truncation_length = truncation_length_list.pop()
+                        if len(ids) < truncation_length:
+                            logging.warning(f'{key} is not long enough to truncate.')
+                            truncation_length = len(ids)
 
-                    if self.truncation_method == 'left':
-                        window_offset = truncation_length
-                    elif self.truncation_method == 'right':
-                        window_offset = 0
+                        truncation_length_total -= truncation_length
+                        template_ids[i] = self._truncation(ids, len(ids) - truncation_length)
+
+            if truncation_length_total > 0:
+                template_ids_lengths = [len(ids) for ids in template_ids]
+                if self.truncation_method == 'left':
+                    iters = range(0, len(template_ids_lengths), 1)
+                elif self.truncation_method == 'right':
+                    iters = range(len(template_ids_lengths) - 1, -1, -1)
+                    # We need to truncate more to let context_ids + tokens_to_generate < self.max_seq_length
+                    truncation_length_total += min(len(label_ids), self.tokens_to_generate)
+                else:
+                    raise ValueError(f'{self.truncation_method} is not supported')
+
+                # Iterate all lengths of template_ids.
+                for i in iters:
+                    if template_ids_lengths[i] >= truncation_length_total:
+                        template_ids_lengths[i] -= truncation_length_total
+                        template_ids[i] = self._truncation(template_ids[i], template_ids_lengths[i])
+                        break
                     else:
-                        raise ValueError(f'{self.truncation_method} is not supported')
-
-                    window_length = len(ids) - truncation_length
-                    template_ids[i] = ids[window_offset : window_offset + window_length]
+                        truncation_length_total -= template_ids_lengths[i]
+                        template_ids_lengths[i] = 0
+                        template_ids[i] = self._truncation(template_ids[i], template_ids_lengths[i])
 
         context_ids = [i for ids in template_ids[:-1] for i in ids]
         label_ids = template_ids[-1]
         return context_ids, label_ids
+
+    def _truncation(self, ids, expect_length):
+        if expect_length == 0:
+            return []
+        elif self.truncation_method == 'left':
+            return ids[-expect_length:]
+        elif self.truncation_method == 'right':
+            return ids[:expect_length]
+        else:
+            raise ValueError(f'{self.truncation_method} is not supported')
 
     def _process_example(self, example):
         """
@@ -356,31 +401,19 @@ class GPTSFTDataset(Dataset):
             # these pad/eos tokens are placeholders for virtual tokens
             context_ids = [self.tokenizer.eos_id] * self.virtual_tokens + context_ids
 
-        input_ids = context_ids
-        answer_start_idx = len(input_ids)
-
         # Adds bos token in the start
         if self.add_bos:
             context_ids = [self.tokenizer.bos_id] + context_ids
-            input_ids = [self.tokenizer.bos_id] + input_ids
-            answer_start_idx += 1
 
         # Adds sep token between text/prompt and answer
         if self.add_sep:
             context_ids = context_ids + [self.sep_id]
-            input_ids = input_ids + [self.sep_id]
-            answer_start_idx += 1
 
-        input_ids = input_ids + answer_ids
+        input_ids = context_ids + answer_ids
 
         # Only training need to consider eos token
         if self.add_eos:
             input_ids = input_ids + [self.tokenizer.eos_id]
-
-        if len(input_ids) > self.max_seq_length:
-            logging.warning(f'Input ids length {len(input_ids)} exceed max sequence length {self.max_seq_length}')
-            input_ids = input_ids[: self.max_seq_length]
-            answer_ids = input_ids[answer_start_idx:]
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in self.prompt_template_keys}
@@ -390,7 +423,7 @@ class GPTSFTDataset(Dataset):
 
         processed_example = {
             'input_ids': input_ids,
-            'answer_start_idx': answer_start_idx,
+            'answer_start_idx': len(context_ids),
             'context_ids': context_ids,
             'context_length': len(context_ids),
             'answer_ids': answer_ids,
@@ -406,7 +439,11 @@ class GPTSFTDataset(Dataset):
         return x
 
     def _ceil_to_nearest(self, n, m):
-        return (n + m - 1) // m * m
+        if self.ceil_to_power_2:
+            # Reccurent Gemma (AKA Griffin) requires seq length to be a power of 2 for parallel scan
+            return 2 ** math.ceil(math.log2(n))
+        else:
+            return (n + m - 1) // m * m
 
     def _collate_item(self, item, max_length, pad_id):
         item = self._maybe_cast_to_list(item)
@@ -416,7 +453,7 @@ class GPTSFTDataset(Dataset):
         return item
 
     def _build_loss_mask(self, processed_example):
-        """ Pad input_ids in batch to max batch length while building loss mask """
+        """Pad input_ids in batch to max batch length while building loss mask"""
         input_ids = processed_example['input_ids']
         answer_start_idx = processed_example['answer_start_idx']
         if self.answer_only_loss:
@@ -456,8 +493,9 @@ class GPTSFTDataset(Dataset):
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, self.pad_seq_length_to_mult))
         assert max_length <= self.max_seq_length
 
-        attention_mask = [self._create_attention_mask(max_length) for _ in batch]
-        attention_mask = torch.stack(attention_mask)
+        if not self.get_attention_mask_from_fusion:
+            attention_mask = [self._create_attention_mask(max_length) for _ in batch]
+            attention_mask = torch.stack(attention_mask)
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_ids = torch.LongTensor(
@@ -471,7 +509,6 @@ class GPTSFTDataset(Dataset):
         processed_batch = {
             'tokens': input_ids,
             'labels': labels,
-            'attention_mask': attention_mask,
             'loss_mask': loss_mask,
             'position_ids': position_ids,
             'contexts': contexts,
@@ -481,18 +518,47 @@ class GPTSFTDataset(Dataset):
             'token_count': token_count,
         }
 
+        if not self.get_attention_mask_from_fusion:
+            processed_batch['attention_mask'] = attention_mask
+
         return processed_batch
 
 
 class GPTSFTPackedDataset(GPTSFTDataset):
-    def __init__(self, file_path: str, tokenizer: TokenizerSpec, return_cu_seqlen: bool = True, **kwargs):
+    def __init__(
+        self,
+        file_path: str,
+        tokenizer: TokenizerSpec,
+        return_cu_seqlen: bool = True,
+        pad_cu_seqlens: bool = False,
+        pack_metadata_file_path: Optional[str] = None,
+        **kwargs,
+    ):
+        """
+        file_path: See `file_path` in the parent class.
+        tokenizer: See `tokenizer` in the parent class.
+        return_cu_seqlen: Whether to return `cu_seqlen` to pass to the model. Having `cu_seqlen` in the model input
+                enables THD attention kernel, which is the correct format for training with packed sequence to prevent
+                cross-sequence attention. This flag should be True unless you have a specific use case.
+        """
+        np.random.seed(kwargs.get('seed', 1234))
         super().__init__(file_path, tokenizer, **kwargs)
         assert self.virtual_tokens == 0, "P-Tuning with packed sequence is not supported."
-
-        # Whether to return `cu_seqlen` to pass to model. This should be true for almost all use cases.
         self.return_cu_seqlen = return_cu_seqlen
 
-        np.random.seed(self.seed)
+        self.pad_cu_seqlens = pad_cu_seqlens
+        if self.pad_cu_seqlens:
+            assert (
+                pack_metadata_file_path is not None
+            ), "a metadata json file is required when pad_cu_seqlens is enabled"
+            assert (
+                self.pad_to_max_length is True
+            ), "'pad_to_max_length=True' is required when pad_cu_seqlens is enabled"
+
+        self.pack_metadata = None
+        if pack_metadata_file_path is not None:
+            with open(pack_metadata_file_path) as f:
+                self.pack_metadata = json.load(f)
 
     def __getitem__(self, idx):
         if self.samples_mapping is not None:
@@ -502,6 +568,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         input_ids = self.indexed_dataset[idx]['input_ids']
         seq_boundaries = self.indexed_dataset[idx]['seq_start_id'] + [len(input_ids)]
         loss_mask = self.indexed_dataset[idx]['loss_mask']
+        if idx < 0:
+            loss_mask = [0] * len(loss_mask)
         return {'input_ids': input_ids, 'seq_boundaries': seq_boundaries, 'loss_mask': loss_mask}
 
     def _load_dataset(self):
@@ -528,15 +596,23 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             self.samples_mapping = None
 
     def _build_loss_mask(self, processed_example):
+        seq_boundaries = processed_example['seq_boundaries']
         if self.answer_only_loss:
-            seq_boundaries = processed_example['seq_boundaries']
             return np.concatenate(
                 [
                     processed_example['loss_mask'][seq_boundaries[i] + 1 : seq_boundaries[i + 1]]
                     for i in range(len(seq_boundaries) - 1)
                 ]
             )
-        return [1.0] * (len(processed_example['input_ids']) - len(processed_example['seq_boundaries']) + 1)
+        return np.concatenate(
+            [
+                [
+                    0 if x == self.tokenizer.eos_id else 1.0
+                    for x in processed_example['input_ids'][seq_boundaries[i] : seq_boundaries[i + 1] - 1]
+                ]
+                for i in range(len(seq_boundaries) - 1)
+            ]
+        )
 
     def _maybe_cast_to_list(self, x):
         return [item.tolist() if isinstance(item, np.ndarray) else item for item in x]
@@ -577,16 +653,47 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         position_ids: List[List[int]] = []
         cu_seqlens: List[List[int]] = []
+        cu_seqlens_unpadded: List[List[int]] = []
         for item in batch:
             position_ids.append([])
             cu_seqlens.append([0])
+            cu_seqlens_unpadded.append([0])
             seqlens = np.array(item['seq_boundaries'][1:]) - np.array(item['seq_boundaries'][:-1])
             for l in seqlens:
                 # length minus 1 because input_ids is truncated by 1 for labels
                 position_ids[-1].extend(list(range(l - 1)))
                 cu_seqlens[-1].append(cu_seqlens[-1][-1] + l - 1)
-            # set last seq to the max seq len because rope and attn kernels expect no padding
-            cu_seqlens[-1][-1] = max_length
+
+            # the last seq needs to be the max seq len because rope and attn kernels expect no padding
+            assert cu_seqlens[-1][-1] <= max_length
+
+            # since data is prepadded when cp_size > 1, there may be some extra padding at the end
+            # of the packed sequence. In this case, we need to add the max seq len to the end.
+            if cu_seqlens[-1][-1] != max_length:
+                cu_seqlens[-1].append(max_length)
+
+            for i in range(len(item['seq_boundaries']) - 1):
+                current_seq = item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]
+
+                # since the data could be prepadded with tokenizer's eos_id, we can find out the index of all the eos_id
+                eos_idx = np.where(np.array(current_seq) == self.tokenizer.eos_id)
+
+                # The second eos_id index marks the length of the original unpadded sequence if the sequence is
+                # prepadded for cp_size > 1. Otherwise, there is no extra padding.
+                seqlen_unpadded = eos_idx[0][0] + 1 if eos_idx[0].any() else len(current_seq)
+                cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)
+
+            # if extra paddings are added in the packed sequence, they can't be counted as
+            # actual tokens for training
+            if len(cu_seqlens[-1]) > len(cu_seqlens_unpadded[-1]):
+                cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1])
+
+            if self.pad_cu_seqlens:
+                # pad cu_seqlens to a constant shape with zero length sequences
+                max_samples_per_bin = max(p['max_samples_per_bin'] for p in self.pack_metadata)
+                # plus 2 since cu_seqlens additionally contains 0 and may append max_length
+                pad_num = max_samples_per_bin - len(cu_seqlens[-1]) + 2
+                cu_seqlens[-1].extend([max_length] * pad_num)
 
         assert len(input_ids[0]) == len(
             position_ids[0]
@@ -607,13 +714,26 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         if self.return_cu_seqlen:
             cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(l) for l in cu_seqlens) + 1, pad_id=-1)
-
+            cu_seqlens_unpadded = self._collate_item(
+                cu_seqlens_unpadded, max_length=max(len(l) for l in cu_seqlens_unpadded) + 1, pad_id=-1
+            )
             # Pre-generate `cu_seqlens_argmin` and `max_seqlen` as CPU tensor to avoid device-to-host copies.
             cu_seqlens = torch.IntTensor(cu_seqlens)
             cu_seqlens_argmin = torch.argmin(cu_seqlens, dim=1, keepdim=True)
             seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
             max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
+            cu_seqlens_unpadded = torch.IntTensor(cu_seqlens_unpadded)
+            cu_seqlens_unpadded_argmin = torch.argmin(cu_seqlens_unpadded, dim=1, keepdim=True)
 
+            if self.pad_cu_seqlens:
+                # If padding, use the global max seqlen, so that 'pad_cu_seqlens' is the same
+                # across all batches. This is maintly used compatiblity with megatron's implementation
+                # of cudagraphs, which uses the same cudagraphs over all batches.
+                max_seqlen = [max(p['dataset_max_seqlen'] for p in self.pack_metadata)]
+                max_seqlen = torch.IntTensor(max_seqlen * len(cu_seqlens))
+            else:
+                seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
+                max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
             processed_batch.update(
                 {
                     'attention_mask': torch.LongTensor(
@@ -622,12 +742,16 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                     'cu_seqlens': torch.IntTensor(cu_seqlens),  # cu_seqlens_q must be in dtype torch.int32
                     'cu_seqlens_argmin': cu_seqlens_argmin,  # only required for perf
                     'max_seqlen': max_seqlen,  # only required for perf
+                    'cu_seqlens_unpadded': torch.IntTensor(cu_seqlens_unpadded),
+                    'cu_seqlens_unpadded_argmin': cu_seqlens_unpadded_argmin,
                 }
             )
         else:
             attention_mask = [self._create_attention_mask(max_length) for _ in batch]
             processed_batch.update(
-                {'attention_mask': torch.stack(attention_mask),}
+                {
+                    'attention_mask': torch.stack(attention_mask),
+                }
             )
 
         return processed_batch

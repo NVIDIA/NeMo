@@ -17,6 +17,7 @@ import tempfile
 from typing import List, Optional, Union
 
 import torch
+from megatron.core.transformer.identity_op import IdentityOp
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -29,7 +30,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import PromptEncoderAdapterConfig
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    MLPHeadAdapterConfig,
+    PromptEncoderAdapterConfig,
+)
+
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+
 from nemo.collections.nlp.parts.peft_config import (
     PEFT_CONFIG_MAP,
     CanonicalAdaptersPEFTConfig,
@@ -38,17 +45,27 @@ from nemo.collections.nlp.parts.peft_config import (
     PtuningPEFTConfig,
 )
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
 
 try:
-    from megatron.core import parallel_state
+    from megatron.core import dist_checkpointing, parallel_state
+
+    HAVE_MEGATRON_CORE = True
+
 except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
+def replace_prefix(name, old_prefix, new_prefix):
+    if name.startswith(new_prefix):
+        return name
+    if not name.startswith(old_prefix):
+        return name
+    return name.replace(old_prefix, new_prefix, 1)
+
+
 class NLPAdapterModelMixin:
-    """ NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
+    """NLP Adapter Mixin that can augment any transformer-based model with Adapter module support.
     This mixin class should be used only with a top level ModelPT subclass, that includes either a `model` or an `enc_dec_model` submodule.
     This mixin class adds several utility methods to add, load and save adapters.
 
@@ -70,26 +87,46 @@ class NLPAdapterModelMixin:
         self.ptuning_only_and_non_first_stage = False
         super().__init__(*args, **kwargs)
 
-        self.use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
-        if self.use_mcore_gpt:
-            assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` as True but megatron core is not found."
+        self.use_mcore_gpt = getattr(self, 'mcore_gpt', False)
+        self.use_mcore_t5 = getattr(self, 'mcore_t5', False)
+
+        if self.use_mcore_gpt or self.use_mcore_t5:
+            assert HAVE_MEGATRON_CORE, "You set `mcore_gpt` or `mcore_t5` as True but megatron core is not found."
+
+    def _unwrap_model(self):
+        if not hasattr(self, "model"):
+            return None
+        elif isinstance(self.model, list):
+            return self.model[0]
+        else:
+            return self.model
+
+    def _unwrap_model_list(self):
+        m = getattr(self, "model", [])
+        return m if isinstance(m, list) else [m]
+
+    def _unwrap_layers_model_list(self):
+        l = torch.nn.ModuleList([])
+        for m in self._unwrap_model_list():
+            l.extend(self._get_layers_from_model(m))
+        return l
 
     def first_stage_of_pipeline(self):
-        if hasattr(self, "model") and hasattr(self.model, "pre_process"):
-            return self.model.pre_process
-        elif hasattr(self, "model") and hasattr(self.model, "module") and hasattr(self.model.module, "pre_process"):
-            # (guyueh1): this if condition is used to handle amp O2
-            # when amp_O2 is on, self.model will be wrapped by the Float16Module class
-            return self.model.module.pre_process
-        logging.warning("no attribute named model or no model.pre_process found. Can not detect stage of pipeline...")
-        return False
+        return parallel_state.is_pipeline_first_stage()
 
-    def _get_all_keys(self,):
+    def _get_all_keys(
+        self,
+    ):
         """
         Returns all the keys in the model
         """
-        k = [n for n, p in self.named_parameters()]
-        b = [n for n, p in self.named_buffers() if n.replace("model.module.", "model.", 1) in self.state_dict().keys()]
+        k = [n for m in self._unwrap_model_list() for n, p in m.named_parameters(prefix="model")]
+        b = [
+            n
+            for m in self._unwrap_model_list()
+            for n, p in m.named_buffers(prefix="model")
+            if n.replace("model.module.", "model.", 1) in m.state_dict(prefix="model.").keys()
+        ]
         # we include buffers because ptuning representations are cached in a buffer and saved to state_dict for inference time use.
         return set(k + b)
 
@@ -100,15 +137,18 @@ class NLPAdapterModelMixin:
                     mcore_target,
                     f'model.{mcore_target}',
                     f'model.module.{mcore_target}',
+                    f'enc_dec_model.{mcore_target}',
+                    f'enc_dec_model.module.{mcore_target}',
                 ]:  # simple string match for now
-                    swap_mcore_mixin(module, mcore_mixin)
-                    if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
-                        module.add_adapter(
-                            name=peft_name,
-                            cfg=peft_cfg,
-                            base_model_cfg=self.cfg,
-                            model_parallel_config=self.model_parallel_config,
-                        )
+                    if not isinstance(module, IdentityOp):
+                        swap_mcore_mixin(module, mcore_mixin)
+                        if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+                            module.add_adapter(
+                                name=peft_name,
+                                cfg=peft_cfg,
+                                base_model_cfg=self.cfg,
+                                model_parallel_config=self.model_parallel_config,
+                            )
         elif isinstance(module, AdapterModuleMixin):
             if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
                 module.add_adapter(
@@ -118,39 +158,55 @@ class NLPAdapterModelMixin:
                     model_parallel_config=self.model_parallel_config,
                 )
 
+    def _get_layers_from_model(self, model):
+        if self.use_mcore_gpt:
+            if self.cfg.megatron_amp_O2:
+                layers = model.module.decoder.layers
+            else:
+                layers = model.decoder.layers
+        elif self.use_mcore_t5:
+            if self.cfg.megatron_amp_O2:
+                layers = model.module.encoder.layers + model.module.decoder.layers
+            else:
+                layers = model.encoder.layers + model.decoder.layers
+        else:
+            if self.cfg.megatron_amp_O2:
+                layers = model.module.language_model.encoder.layers
+            else:
+                layers = model.language_model.encoder.layers
+        return layers
+
     def _check_and_add_peft_cfg(self, peft_cfg):
 
         layer_selection = peft_cfg.layer_selection
-
         assert not self.use_mcore_gpt or hasattr(
             peft_cfg, 'name_key_to_mcore_mixins'
         ), f"{peft_cfg.__class__.__name__} is not supported in megatron core mode yet."
-        name_key_to_mcore_mixins = peft_cfg.name_key_to_mcore_mixins if self.use_mcore_gpt else None
+        name_key_to_mcore_mixins = (
+            peft_cfg.name_key_to_mcore_mixins if (self.use_mcore_gpt or self.use_mcore_t5) else None
+        )
 
         for adapter_name, adapter_cfg in peft_cfg.get_config_dict().items():
-            # self.mcore_gpt means is GPT and not T5
-            if hasattr(self, 'mcore_gpt') and not isinstance(adapter_cfg, PromptEncoderAdapterConfig):
+            # mixin for mcore models
+            if (
+                (hasattr(self, 'mcore_gpt') or getattr(self, 'mcore_t5', False))
+                and not isinstance(adapter_cfg, PromptEncoderAdapterConfig)
+                and not isinstance(adapter_cfg, MLPHeadAdapterConfig)
+            ):
                 if layer_selection is not None:
                     logging.info(
                         f"Layer selection {layer_selection} is enabled for the current model ("
                         f"{self.__class__.__name__} + {adapter_name})"
                     )
-                if self.use_mcore_gpt:
-                    if self.cfg.megatron_amp_O2:
-                        layers = self.model.module.decoder.layers
-                    else:
-                        layers = self.model.decoder.layers
-                else:
-                    if self.cfg.megatron_amp_O2:
-                        layers = self.model.module.language_model.encoder.layers
-                    else:
-                        layers = self.model.language_model.encoder.layers
+
+                layers = self._unwrap_layers_model_list()
                 for layer in layers:
                     if layer.layer_number in (layer_selection or list(range(1, self.cfg.num_layers + 1))):
                         for name, module in layer.named_modules():
-                            self._check_and_add_adapter(
-                                name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
-                            )
+                            if not isinstance(module, IdentityOp):
+                                self._check_and_add_adapter(
+                                    name, module, adapter_name, adapter_cfg, name_key_to_mcore_mixins
+                                )
             else:
                 # Non GPT models, as well as GPT+PTuning do not support layer selection
                 if layer_selection is not None:
@@ -171,8 +227,6 @@ class NLPAdapterModelMixin:
             peft_cfgs: One or more PEFTConfig objects that specify the PEFT method configuration
         """
 
-        if self.cfg.get('virtual_pipeline_model_parallel_size', None):
-            raise ValueError('Virtual pipeline model parallel is not supported when using PEFT')
         if self.cfg.optim.name == "distributed_fused_adam":
             raise ValueError('distributed_fused_adam is not supported for PEFT. Please use fused_adam')
 
@@ -191,7 +245,7 @@ class NLPAdapterModelMixin:
             return
 
         self.base_keys = self._get_all_keys()
-        self.freeze()
+        self.freeze(training=True)
         logging.info(f"Before adding PEFT params:\n{self.summarize()}")
 
         for peft_cfg in peft_cfgs:
@@ -208,15 +262,18 @@ class NLPAdapterModelMixin:
             if hasattr(cfg, "tunable_base_param_names") and cfg.tunable_base_param_names:
                 self.set_tunable_base_params(cfg)
 
-    def _get_config_and_state_dict_from_nemo(self, filepath, map_location):
+    def _get_config_and_state_dict_from_nemo(self, filepath, map_location, sharded_state_dict=None):
         cwd = os.getcwd()
+        save_restore_connector = NLPSaveRestoreConnector()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                SaveRestoreConnector._unpack_nemo_file(filepath, tmpdir)
+                if os.path.isfile(filepath):
+                    save_restore_connector._unpack_nemo_file(path2file=filepath, out_folder=tmpdir)
+                else:
+                    tmpdir = filepath
 
                 os.chdir(tmpdir)
-
                 config_yaml = "model_config.yaml"
                 model_weights_ckpt = "model_weights.ckpt"
 
@@ -225,7 +282,22 @@ class NLPAdapterModelMixin:
                 os.chdir(cwd)
                 model_weights = os.path.join(tmpdir, model_weights_ckpt)
                 model_weights = inject_model_parallel_rank(model_weights)
-                state_dict = torch.load(model_weights, map_location=map_location)
+                state_dict = save_restore_connector._load_state_dict_from_disk(
+                    model_weights, map_location=map_location
+                )
+
+                # distributed checkpointing
+                if state_dict is None and sharded_state_dict is not None:
+                    checkpoint = dict(state_dict=sharded_state_dict)
+                    tmp_model_weights_ckpt = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+                    tmp_model_weights_dir = os.path.splitext(tmp_model_weights_ckpt)[0]
+                    assert os.path.isdir(tmp_model_weights_dir), f'Expected {tmp_model_weights_dir} to be a directory.'
+                    checkpoint = dist_checkpointing.load(
+                        sharded_state_dict=checkpoint,
+                        checkpoint_dir=tmp_model_weights_dir,
+                    )
+                    state_dict = checkpoint["state_dict"]
+
                 return conf, state_dict
             finally:
                 os.chdir(cwd)
@@ -241,16 +313,18 @@ class NLPAdapterModelMixin:
         and/or prompt table will use the learning rate set by the user.
         """
         if self.use_peft:
-            self.freeze()  # Freeze the entire model
+            self.freeze(training=True)  # Freeze the entire model
             if not self.ptuning_only_and_non_first_stage:
                 opt_params = []
-                for _, module in self.named_modules():
+                for _, module in [elem for m in self._unwrap_model_list() for elem in m.named_modules(prefix="model")]:
                     if isinstance(module, AdapterModuleMixin) and module.is_adapter_available():
                         module.set_enabled_adapters(enabled=True)
                         module.unfreeze_enabled_adapters()  # selectively unfreeze the adapter modules.
                         opt_params += [p for p in module.parameters() if p.requires_grad]
 
-                for name, param in self.named_parameters():
+                for name, param in [
+                    elem for m in self._unwrap_model_list() for elem in m.named_parameters(prefix="model")
+                ]:
                     if name in self.tunable_base_param_keys:
                         param.requires_grad = True
                         opt_params += [param]
@@ -263,12 +337,15 @@ class NLPAdapterModelMixin:
             super().setup_optimizer_param_groups()
 
     def load_adapters(
-        self, filepath: str, peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None, map_location: str = None,
+        self,
+        filepath: str,
+        peft_cfgs: Optional[Union[PEFTConfig, List[PEFTConfig]]] = None,
+        map_location: str = None,
     ):
         """
         Utility method that restores only the adapter module(s), and not the entire model itself.
         This allows the sharing of adapters which are often just a fraction of the size of the full model,
-        enabling easier deliver.
+        enabling easier delivery.
 
         .. note::
 
@@ -298,14 +375,18 @@ class NLPAdapterModelMixin:
             assert filepath.endswith(
                 '.nemo'
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
-            peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
+            peft_cfg_cls_lst = [PEFT_CONFIG_MAP[s] for s in conf.peft.peft_scheme.split(",")]
+            peft_cfgs = [_peft_cfg(conf) for _peft_cfg in peft_cfg_cls_lst]
+        if getattr(self, 'megatron_amp_O2', False):
+
+            state_dict = {replace_prefix(k, 'model.', 'model.module.'): v for k, v in state_dict.items()}
         self.add_adapter(peft_cfgs)
         if not self.ptuning_only_and_non_first_stage:
             assert set(state_dict.keys()) == self.adapter_keys.union(self.tunable_base_param_keys)
         super().load_state_dict(state_dict, strict=False)
 
     def set_tunable_base_params(self, peft_cfg):
-        for n, p in self.named_parameters():
+        for n, p in self._unwrap_model().named_parameters(prefix="model"):
             for tpn in peft_cfg.tunable_base_param_names:
                 # TODO: simplistic param name matching, should support regex-like syntax @adithyare
                 if f".{tpn}." in n:
@@ -315,16 +396,7 @@ class NLPAdapterModelMixin:
     def tie_weights(self, peft_cfg):
         pos_idx = 0
 
-        if self.use_mcore_gpt:
-            if self.cfg.megatron_amp_O2:
-                layers = self.model.module.decoder.layers
-            else:
-                layers = self.model.decoder.layers
-        else:
-            if self.cfg.megatron_amp_O2:
-                layers = self.model.module.language_model.encoder.layers
-            else:
-                layers = self.model.language_model.encoder.layers
+        layers = self._unwrap_layers_model_list()
 
         if isinstance(peft_cfg, LoraPEFTConfig):
             layer0 = layers[0].self_attention
@@ -353,12 +425,22 @@ class NLPAdapterModelMixin:
         """
         Gets the keys associated with the adapters only.
         """
-        state_dict = super().state_dict()
-        peft_state_dict = {}
-        for k in self.adapter_keys.union(self.tunable_base_param_keys):
-            # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
-            new_k = k.replace("model.module.", "model.", 1)
-            peft_state_dict[new_k] = state_dict[new_k]
+
+        def filter_state_dict(state_dict):
+            peft_state_dict = {}
+            for k in self.adapter_keys.union(self.tunable_base_param_keys):
+                # state_dict keys needs to be in non-O2 format and will be corrected in PEFTSaveRestoreConnector if O2=True
+                new_k = k.replace("model.module.", "model.", 1)
+                peft_state_dict[new_k] = state_dict[new_k] if new_k in state_dict else state_dict[k]
+            return peft_state_dict
+
+        if hasattr(self, 'model') and isinstance(self.model, list):
+            peft_state_dict = {}
+            for i, m in enumerate(self.model):
+                peft_state_dict[f"model_{i}"] = filter_state_dict(m.state_dict(prefix="model."))
+        else:
+            peft_state_dict = filter_state_dict(self._unwrap_model().state_dict(prefix="model."))
+
         return peft_state_dict
 
     def state_dict(self, destination=None, prefix=None, keep_vars=False):
@@ -374,15 +456,22 @@ class NLPAdapterModelMixin:
             return super().state_dict()
 
     def sharded_state_dict(self, prefix: str = ''):
-        use_mcore_gpt = hasattr(self, 'mcore_gpt') and self.mcore_gpt
-        if not use_mcore_gpt or (self.use_peft and self.setup_complete):
+        use_mcore = (getattr(self, 'mcore_gpt', False)) or (getattr(self, 'mcore_t5', False))
+        if not use_mcore or (self.use_peft and self.setup_complete):
             return None
         else:
             return super().sharded_state_dict(prefix=prefix)
 
     def load_state_dict(self, state_dict, strict: bool = True):
-        if len(state_dict) == 0:
-            return  # checkpoint is loaded in on_load_checkpoint()
+        # If state_dict is empty, or if state_dict contains keys for virtual pipeline
+        # parallel chunks (starting from model_0) but those chunks are empty, skip this function.
+        # Checkpoint is loaded in on_load_checkpoint() instead.
+        if len(state_dict) == 0 or (
+            parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None
+            and "model_0" in state_dict
+            and len(state_dict["model_0"]) == 0
+        ):
+            return
         if self.use_peft and self.setup_complete:
             # at this stage only adapter params will appear in the state_dict arg
             # so we only update those while the rest of the model is frozen.
@@ -403,9 +492,13 @@ class NLPAdapterModelMixin:
             if not self.ptuning_only_and_non_first_stage:
                 # same as super().on_load_checkpoint() but strict=False and only check unexpected keys
                 # mcore uses distributed checkpointing
-                if hasattr(self, 'mcore_gpt') and self.mcore_gpt:
+                use_mcore = (getattr(self, 'mcore_gpt', False)) or (getattr(self, 'mcore_t5', False))
+                if use_mcore:
                     for index, module in enumerate(self.get_model_module_list()):
-                        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                        if (
+                            parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None
+                            and f'model_{index}' in checkpoint['state_dict']
+                        ):
                             checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
                         else:
                             checkpoint_state_dict = checkpoint['state_dict']
@@ -428,7 +521,15 @@ class NLPAdapterModelMixin:
                             self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
                         parallel_state.set_virtual_pipeline_model_parallel_rank(0)
         else:
-            super().on_load_checkpoint(checkpoint)
+            cfg_peft = self.cfg.get('peft', None)
+            if cfg_peft and cfg_peft['peft_scheme'] == 'qlora':
+                from nemo.collections.nlp.modules.common.megatron.adapters.qlora import qlora_load_model
+
+                qlora_load_model(
+                    self.model.module if self.megatron_amp_O2 else self.model, self.cfg, checkpoint['state_dict']
+                )
+            else:
+                super().on_load_checkpoint(checkpoint)
 
     @classmethod
     def merge_cfg_with(cls, path: str, cfg: DictConfig) -> DictConfig:
@@ -506,15 +607,36 @@ class NLPAdapterModelMixin:
 
         with open_dict(peft_cfg):
             # update the model config of the trained model with params we want to set at inference time.
-            peft_cfg.precision = cfg.trainer.precision
             for key, val in cfg.model.items():
                 if key != 'data':
                     peft_cfg[key] = val
+            if cfg.get("trainer", None) and cfg.trainer.get("precision"):
+                peft_cfg.precision = cfg.trainer.precision
             peft_cfg.data.test_ds = cfg.model.data.test_ds
 
         with open_dict(cfg):
             cfg.inference.add_BOS = peft_cfg.data.test_ds.add_bos
             cfg.inference.tokens_to_generate = peft_cfg.data.test_ds.get("tokens_to_generate", 1)
 
-        peft_cfg.megatron_amp_O2 = False  # always evaluate with O1
+        if cfg.model.get('megatron_amp_O2', None) is not None:
+            peft_cfg.megatron_amp_O2 = cfg.model.megatron_amp_O2
         return peft_cfg
+
+    def freeze(self, training: bool = False) -> None:
+        """Freeze all params
+
+        Finetuning, e.g. with PEFT, involves training steps with
+        frozen modules. Even if the params are not being updated, the
+        modules may require other training mode behaviors like
+        updating FP8 scaling factors. See
+        https://pytorch.org/docs/stable/notes/autograd.html#locally-disabling-gradient-computation.
+
+        Args:
+            training (bool): Whether to set training mode or
+                evaluation mode.
+
+        """
+
+        for param in self.parameters():
+            param.requires_grad = False
+        self.train(mode=training)

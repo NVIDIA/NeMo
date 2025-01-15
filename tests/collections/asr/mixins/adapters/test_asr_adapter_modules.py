@@ -112,6 +112,22 @@ class TestASRAdapterModules:
         assert dataclass_subset is None
 
     @pytest.mark.unit
+    def test_transformer_mha_adapter_config(self):
+        IGNORED_ARGS = ['_target_']
+
+        result = config_utils.assert_dataclass_signature_match(
+            adapter_modules.TransformerMultiHeadAttentionAdapter,
+            adapter_modules.TransformerMultiHeadAttentionAdapterConfig,
+            ignore_args=IGNORED_ARGS,
+        )
+
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
+
+    @pytest.mark.unit
     @pytest.mark.parametrize('n_head', [1, 2, 10])
     @pytest.mark.parametrize('proj_dim', [None, -1])
     def test_mha_adapter_init(self, n_head, proj_dim):
@@ -150,7 +166,7 @@ class TestASRAdapterModules:
         relpos_enc = adapter_modules.RelPositionalEncodingAdapter(d_model=50)
 
         pad_mask, att_mask = get_mask(lengths)
-        relpos_enc.extend_pe(lengths.max(), device='cpu')
+        relpos_enc.extend_pe(lengths.max(), device='cpu', dtype=torch.float32)
 
         with torch.no_grad():
             assert adapter.linear_out.weight.sum() == 0
@@ -163,6 +179,59 @@ class TestASRAdapterModules:
             assert out.shape == x.shape
 
     @pytest.mark.unit
+    def test_relmha_adapter_with_torch_sdpa(self):
+        torch.random.manual_seed(0)
+        x = torch.randn(2, 32, 50)
+        lengths = torch.randint(1, x.size(1), size=(x.size(0),))
+        lengths[torch.randint(0, x.size(0), size=(1,))[0]] = x.size(1)
+
+        adapter_torch_sdpa = adapter_modules.RelPositionMultiHeadAttentionAdapter(
+            n_head=2, n_feat=50, dropout_rate=0.0, proj_dim=-1, use_pytorch_sdpa=True
+        )
+        adapter = adapter_modules.RelPositionMultiHeadAttentionAdapter(
+            n_head=2, n_feat=50, dropout_rate=0.0, proj_dim=-1, use_pytorch_sdpa=False
+        )
+        # to dont reset linear_out parameters to zero
+        adapter.linear_out = torch.nn.Linear(adapter.linear_out.in_features, adapter.linear_out.out_features)
+        for original_param, sdpa_param in zip(adapter.parameters(), adapter_torch_sdpa.parameters()):
+            sdpa_param.data.copy_(original_param.data)
+        relpos_enc = adapter_modules.RelPositionalEncodingAdapter(d_model=50)
+
+        pad_mask, att_mask = get_mask(lengths)
+        relpos_enc.extend_pe(lengths.max(), device='cpu', dtype=torch.float32)
+
+        with torch.no_grad():
+            _, pos_emb = relpos_enc(x)
+            out = adapter(x, x, x, att_mask, pos_emb)
+            out_sdpa = adapter_torch_sdpa(x, x, x, att_mask, pos_emb)
+            assert torch.allclose(out_sdpa, out, atol=1e-5)
+
+    @pytest.mark.unit
+    def test_mha_adapter_with_torch_sdpa(self):
+        torch.random.manual_seed(0)
+        x = torch.randn(2, 32, 50)
+        lengths = torch.randint(1, x.size(1), size=(x.size(0),))
+        lengths[torch.randint(0, x.size(0), size=(1,))[0]] = x.size(1)
+
+        adapter_torch_sdpa = adapter_modules.MultiHeadAttentionAdapter(
+            n_head=2, n_feat=50, dropout_rate=0.0, proj_dim=-1, use_pytorch_sdpa=True
+        )
+        adapter = adapter_modules.MultiHeadAttentionAdapter(
+            n_head=2, n_feat=50, dropout_rate=0.0, proj_dim=-1, use_pytorch_sdpa=False
+        )
+        # to dont reset linear_out parameters to zero
+        adapter.linear_out = torch.nn.Linear(adapter.linear_out.in_features, adapter.linear_out.out_features)
+
+        for original_param, sdpa_param in zip(adapter.parameters(), adapter_torch_sdpa.parameters()):
+            sdpa_param.data.copy_(original_param.data)
+
+        pad_mask, att_mask = get_mask(lengths)
+        with torch.no_grad():
+            out = adapter(x, x, x, att_mask)
+            out_sdpa = adapter_torch_sdpa(x, x, x, att_mask)
+            assert torch.allclose(out_sdpa, out, atol=1e-5)
+
+    @pytest.mark.unit
     def test_abspos_encoding_init(self):
         torch.random.manual_seed(0)
         x = torch.randn(2, 32, 50)
@@ -171,7 +240,7 @@ class TestASRAdapterModules:
 
         relpos_enc = adapter_modules.PositionalEncodingAdapter(d_model=50)
 
-        relpos_enc.extend_pe(lengths.max(), device='cpu')
+        relpos_enc.extend_pe(lengths.max(), device='cpu', dtype=torch.float32)
 
         with torch.no_grad():
             out, pos_emb = relpos_enc(x)
@@ -187,11 +256,36 @@ class TestASRAdapterModules:
 
         relpos_enc = adapter_modules.RelPositionalEncodingAdapter(d_model=50)
 
-        relpos_enc.extend_pe(lengths.max(), device='cpu')
+        relpos_enc.extend_pe(lengths.max(), device='cpu', dtype=torch.float32)
 
         with torch.no_grad():
             out, pos_emb = relpos_enc(x)
             assert (out - x).sum().abs() <= 1e-8
+            assert out.shape == x.shape
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('n_head', [1, 2, 10])
+    @pytest.mark.parametrize('proj_dim', [None, -1])
+    def test_transformer_mha_adapter_init(self, n_head, proj_dim):
+        torch.random.manual_seed(0)
+        x = torch.randn(2, 32, 50)
+        lengths = torch.randint(1, x.size(1), size=(x.size(0),))
+        lengths[torch.randint(0, x.size(0), size=(1,))[0]] = x.size(1)
+
+        adapter = adapter_modules.TransformerMultiHeadAttentionAdapter(
+            num_attention_heads=n_head, hidden_size=50, attn_layer_dropout=0.0, proj_dim=proj_dim
+        )
+
+        pad_mask, att_mask = get_mask(lengths)
+        att_mask = att_mask.unsqueeze(1)
+
+        with torch.no_grad():
+            assert adapter.out_projection.weight.sum() == 0
+            if hasattr(adapter.out_projection, 'bias') and adapter.out_projection.bias is not None:
+                assert adapter.out_projection.bias.sum() == 0
+
+            out = adapter(x, x, x, att_mask)
+            assert out.sum().abs() <= 1e-8
             assert out.shape == x.shape
 
     @pytest.mark.unit
@@ -225,3 +319,13 @@ class TestASRAdapterModules:
         assert adapter.adapter_strategy is not None
         # assert default strategy is set
         assert isinstance(adapter.adapter_strategy, adapter_mixin_strategies.ReturnResultAdapterStrategy)
+
+    @pytest.mark.unit
+    def test_transformer_mha_adapter_strategy(self):
+        adapter = adapter_modules.TransformerMultiHeadAttentionAdapter(
+            num_attention_heads=1, hidden_size=50, attn_layer_dropout=0.0
+        )
+        assert hasattr(adapter, 'adapter_strategy')
+        assert adapter.adapter_strategy is not None
+        # assert default strategy is set
+        assert isinstance(adapter.adapter_strategy, adapter_modules.MHAResidualAddAdapterStrategy)

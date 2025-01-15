@@ -15,6 +15,7 @@
 from typing import Dict, List, Union
 
 import numpy as np
+import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
@@ -124,7 +125,7 @@ class AggregateTokenizer(TokenizerSpec):
         return tokenizer.decode_pieces(tokens)
 
     def ids_to_text(self, ids):
-        if isinstance(ids, np.ndarray):
+        if isinstance(ids, (np.ndarray, torch.Tensor)):
             ids = ids.tolist()
 
         tokens = []
@@ -224,6 +225,12 @@ class AggregateTokenizer(TokenizerSpec):
             ids.append(self.token_to_id(token, lang_id))
         return ids
 
+    def get_bos(self, lang_id: str) -> int:
+        return self.tokenizers_dict[lang_id].bos + self.token_id_offset[lang_id]
+
+    def get_eos(self, lang_id: str) -> int:
+        return self.tokenizers_dict[lang_id].eos + self.token_id_offset[lang_id]
+
     @property
     def vocab(self):
         return self.vocabulary
@@ -231,3 +238,31 @@ class AggregateTokenizer(TokenizerSpec):
     @property
     def langs(self):
         return list(self.tokenizers_dict.keys())
+
+
+class TokenizerWrapper:
+    """
+    Provide a unified interface for NeMo Tokenizer, AggregateTokenizer, and (char) Parser.
+    """
+
+    def __init__(self, tokenizer):
+        self._tokenizer = tokenizer
+        if isinstance(tokenizer, AggregateTokenizer):
+            self._impl = self._call_agg_tokenizer
+        elif isinstance(tokenizer, TokenizerSpec):
+            self._impl = self._call_tokenizer
+        else:
+            self._impl = self._call_parser
+
+    def __call__(self, text: str, lang: str | None = None):
+        return self._impl(text, lang)
+
+    def _call_agg_tokenizer(self, text: str, lang: str | None = None):
+        assert lang is not None, "Expected 'lang' to be set for AggregateTokenizer."
+        return self._tokenizer.text_to_ids(text, lang)
+
+    def _call_tokenizer(self, text: str, lang: str | None = None):
+        return self._tokenizer.text_to_ids(text)
+
+    def _call_parser(self, text: str, lang: str | None = None):
+        return self._tokenizer(text)

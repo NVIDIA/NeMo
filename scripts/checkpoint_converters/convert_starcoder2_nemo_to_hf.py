@@ -25,7 +25,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn
-from pytorch_lightning.trainer.trainer import Trainer
+from lightning.pytorch.trainer.trainer import Trainer
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -89,6 +89,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
     model_config = MegatronGPTModel.restore_from(in_file, trainer=dummy_trainer, return_config=True)
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
+    model_config.name = "te_gpt"
     if cpu_only:
         map_location = torch.device('cpu')
         model_config.use_cpu_initialization = True
@@ -140,7 +141,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
     num_layers = model.cfg.num_layers
     num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
 
-    head_size = hidden_size // head_num
+    head_size = model.cfg.get("kv_channels") or (hidden_size // head_num)  # equivalent to hf's head_dim
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
 
@@ -266,7 +267,7 @@ if __name__ == '__main__':
     config = load_config(args.hf_model_name, nemo_config)
     model = AutoModelForCausalLM.from_config(config)
     model.load_state_dict(hf_state_dict, strict=True)
-    model.save_pretrained(args.out_file)
+    model.save_pretrained(args.output_path)
     hf_tokenizer = AutoTokenizer.from_pretrained('bigcode/starcoder2-tokenizer')
     hf_tokenizer.save_pretrained(args.output_path)
     logging.info(f'HF checkpoint saved to: {args.output_path}')

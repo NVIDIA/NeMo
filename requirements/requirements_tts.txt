@@ -1,5 +1,7 @@
 attrdict
+cdifflib==1.2.6
 einops
+janome
 jieba
 kornia
 librosa
@@ -10,3 +12,5 @@ nltk
 pandas
 pypinyin
 pypinyin-dict
+seaborn
+

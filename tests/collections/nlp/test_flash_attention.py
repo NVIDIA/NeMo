@@ -16,8 +16,8 @@ import random
 
 import pytest
 import torch
+from lightning.pytorch.trainer.trainer import Trainer
 from megatron.core import ModelParallelConfig
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.attention import CoreAttention
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
@@ -39,14 +39,10 @@ except (ImportError, ModuleNotFoundError):
     HAVE_FA = False
 
 try:
-    import pkg_resources
     import triton
 
-    # pinned triton version for flash-attention triton https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attn_triton.py#L3
-    assert pkg_resources.get_distribution("triton").version == '2.0.0.dev20221202'
-
     HAVE_TRITON = True
-except (ImportError, ModuleNotFoundError, AssertionError):
+except (ImportError, ModuleNotFoundError):
     HAVE_TRITON = False
 
 try:
@@ -83,7 +79,13 @@ class TestFlashAttention:
         MB_SIZE = 4
         GB_SIZE = 8
         SEED = 1234
-        trainer = Trainer(strategy=NLPDDPStrategy(), devices=GPUS, accelerator='gpu', num_nodes=1, logger=None,)
+        trainer = Trainer(
+            strategy=NLPDDPStrategy(),
+            devices=GPUS,
+            accelerator='gpu',
+            num_nodes=1,
+            logger=None,
+        )
 
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,

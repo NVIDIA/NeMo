@@ -12,18 +12,16 @@ To learn more about using NeMo to train Large Language Models at scale, please r
 .. toctree::
    :maxdepth: 1
 
-   mlm_migration   
    gpt/gpt_training
    batching
-   parallelisms  
-   prompt_learning
    retro/retro_model
    hiddens/hiddens_module
    peft/landing_page
-   flash_attention
    positional_embeddings
    mcore_customization
-   packed_sequence
+   model_distillation/drop_layers
+   reset_learning_rate
+   rampup_batch_size
 
 
 References

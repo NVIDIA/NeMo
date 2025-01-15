@@ -14,6 +14,7 @@
 
 """
 Requires to install: `pip install orbax jax flax jaxlib`
+Requires to clone: https://github.com/google-deepmind/gemma.git
 Required to set: `export PYTHONPATH=/path/to/google/gemma_jax:$PYTHONPATH`
    python3 /opt/NeMo/scripts/nlp_language_modeling/convert_gemma_jax_to_nemo.py \
    --input_name_or_path /path/to/gemma/checkpoints/jax/7b \
@@ -27,12 +28,13 @@ from argparse import ArgumentParser
 
 import jax
 import torch
+from gemma.params import load_params, nest_params, param_remapper
 from omegaconf import OmegaConf
-from params import load_params, nest_params, param_remapper
 from transformer import TransformerConfig
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 
@@ -224,6 +226,8 @@ def convert(args):
     nemo_state_dict = adjust_tensor_shapes(model, new_state_dict)
     model.load_state_dict(nemo_state_dict, strict=False)
 
+    dtype = torch_dtype_from_precision(args.precision)
+    model = model.to(dtype=dtype)
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
 

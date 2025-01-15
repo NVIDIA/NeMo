@@ -20,10 +20,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+from transformers import AutoModel
 
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
-from nemo.collections.asr.parts.utils.activations import Snake
-from nemo.collections.tts.parts.utils.helpers import mask_sequence_tensor
+from nemo.collections.common.parts.utils import ClampActivation, HalfSnake, Snake, mask_sequence_tensor
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import (
@@ -36,6 +36,13 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
+
+try:
+    import torchaudio
+
+    HAVE_TORCHAUDIO = True
+except ModuleNotFoundError:
+    HAVE_TORCHAUDIO = False
 
 
 def get_padding(kernel_size: int, dilation: int = 1) -> int:
@@ -57,6 +64,109 @@ def get_up_sample_padding(kernel_size: int, stride: int) -> Tuple[int, int]:
     return padding, output_padding
 
 
+class SSLModel(NeuralModule):
+    def __init__(self, slm_model_name):
+        super().__init__()
+        self.ssl_model = AutoModel.from_pretrained(slm_model_name)
+
+    def forward(self, *args, **kwargs):
+        return self.ssl_model(*args, **kwargs)
+
+
+class SLMDiscriminator(NeuralModule):
+    """SLM Discriminator, as described in both the StyleTTS2 and Low Frame-Rate Speech Codec papers.
+
+    Args:
+        slm_model_name: Hugging Face Speech Language Models name.
+        slm_sr: Speech Language Models input sampling rate.
+        input_sr: Audio input sampling rate.
+        slm_hidden: Speech Language Model hidden dim.
+        slm_layers: Speech Language Model number of layers.
+        initial_channel: discriminative head number of channels.
+        use_spectral_norm: If True uses spectral normalization otherwise uses weight norm.
+
+    """
+
+    def __init__(
+        self,
+        slm_model_name="microsoft/wavlm-base-plus",
+        slm_sr=16000,
+        input_sr=22050,
+        slm_hidden=768,
+        slm_layers=13,
+        initial_channel=64,
+        use_spectral_norm=False,
+    ):
+        super().__init__()
+
+        if not HAVE_TORCHAUDIO:
+            logging.error('Could not import torchaudio. SLMDiscriminator will not work.')
+
+            raise ModuleNotFoundError(
+                f"torchaudio is not installed but is necessary to instantiate a {self.__class__.__name__}"
+            )
+
+        self.slm_model = SSLModel(slm_model_name)
+
+        # Freeze slm model
+        self.slm_model.freeze()
+
+        self.resample = torchaudio.transforms.Resample(input_sr, slm_sr)
+
+        norm_f = torch.nn.utils.weight_norm if use_spectral_norm == False else torch.nn.utils.spectral_norm
+        self.pre = norm_f(nn.Conv1d(slm_hidden * slm_layers, initial_channel, 1, 1, padding=0))
+
+        self.convs = nn.ModuleList(
+            [
+                norm_f(nn.Conv1d(initial_channel, initial_channel * 2, kernel_size=5, padding=2)),
+                norm_f(nn.Conv1d(initial_channel * 2, initial_channel * 4, kernel_size=5, padding=2)),
+                norm_f(nn.Conv1d(initial_channel * 4, initial_channel * 4, 5, 1, padding=2)),
+            ]
+        )
+
+        self.conv_post = norm_f(nn.Conv1d(initial_channel * 4, 1, 3, 1, padding=1))
+
+    def _forward(self, x):
+        x = self.slm_model(input_values=self.resample(x), output_hidden_states=True).hidden_states
+        x = torch.stack(x, dim=1).transpose(-1, -2).flatten(start_dim=1, end_dim=2)
+
+        x = self.pre(x)
+        fmap = []
+        for l in self.convs:
+            x = l(x)
+            x = F.leaky_relu(x, 0.1)
+            fmap.append(x.unsqueeze(-1))
+
+        x = self.conv_post(x)
+        x = torch.flatten(x, 1, -1)
+
+        return x, fmap
+
+    @property
+    def input_types(self):
+        return {
+            "audio_real": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio_gen": NeuralType(('B', 'T_audio'), AudioSignal()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "scores_real": [NeuralType(('B', 'C', 'T_out'), VoidType())],
+            "scores_gen": [NeuralType(('B', 'C', 'T_out'), VoidType())],
+            "fmaps_real": [[NeuralType(('B', 'D', 'T_layer', 'C'), VoidType())]],
+            "fmaps_gen": [[NeuralType(('B', 'D', 'T_layer', 'C'), VoidType())]],
+        }
+
+    @typecheck()
+    def forward(self, audio_real, audio_gen):
+
+        y_d_r, fmap_r = self._forward(audio_real)
+        y_d_g, fmap_g = self._forward(audio_gen)
+
+        return [y_d_r.unsqueeze(1)], [y_d_g.unsqueeze(1)], [fmap_r], [fmap_g]
+
+
 class CodecActivation(nn.Module):
     """
     Choose between activation based on the input parameter.
@@ -75,6 +185,8 @@ class CodecActivation(nn.Module):
             self.activation = torch.nn.LeakyReLU()
         elif activation == "snake":
             self.activation = Snake(channels)
+        elif activation == "half_snake":
+            self.activation = HalfSnake(channels)
         else:
             raise ValueError(f"Unknown activation {activation}")
 
@@ -322,6 +434,185 @@ class MultiPeriodDiscriminator(NeuralModule):
         return scores_real, scores_gen, fmaps_real, fmaps_gen
 
 
+class DiscriminatorSTFT(NeuralModule):
+    """
+    Discriminator network from EnCodec for Complex STFT input, but without dilations.
+
+    Args:
+        filters: number of filters to use in Conv2d layers
+        lrelu_slope: Slope to use for activations. Leaky relu with slope of 0.1 or 0.2 is recommended for the
+           stability of the feature matching loss
+    """
+
+    def __init__(self, filters: int = 32, lrelu_slope: float = 0.1):
+        super().__init__()
+
+        self.activation = nn.LeakyReLU(lrelu_slope)
+        self.conv_layers = nn.ModuleList(
+            [
+                Conv2dNorm(2, filters, kernel_size=(3, 9)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 9), stride=(1, 2)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 9), stride=(1, 2)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 9), stride=(1, 2)),
+                Conv2dNorm(filters, filters, kernel_size=(3, 3)),
+            ]
+        )
+        self.conv_post = Conv2dNorm(filters, 1, kernel_size=(3, 3))
+
+    @property
+    def input_types(self):
+        return {
+            "spec": NeuralType(('B', 'C', 'T_spec', 'D'), VoidType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "scores": NeuralType(('B', 'C', 'T_spec'), VoidType()),
+            "fmap": [NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())],
+        }
+
+    @typecheck()
+    def forward(self, spec):
+        fmap = []
+
+        # [batch, 2, T_spec, fft]
+        out = spec
+        for conv in self.conv_layers:
+            # [batch, filters, T_spec, fft // strides]
+            out = conv(inputs=out)
+            out = self.activation(out)
+            fmap.append(out)
+        # [batch, 1, T_spec, fft // 8]
+        scores = self.conv_post(inputs=out)
+        fmap.append(scores)
+        scores = rearrange(scores, "B 1 T C -> B C T")
+
+        return scores, fmap
+
+
+class MultiBandDiscriminatorSTFT(NeuralModule):
+    """
+    Multi-band STFT discriminator proposed in DAC (https://arxiv.org/abs/2306.06546).
+
+    Computes the complex STFT for a given resolution and splits it into sub-bands,
+    which are given to separate discriminator networks.
+
+    Args:
+        resolution: STFT resolution, provided as a tuple of 3 integers ordered (num_fft, hop_length, window_length)
+        stft_bands: List of tuples, with each tuple having 2 float values (band_start, band_end).
+            The floats are in the range [0, 1] representing the fraction of all stft bands.
+            For example for n_fft=1024, the stft output has 513 dimensions.
+            For band input [(0, 0.25), (0.25, 1.0)] it would use stft dimensions [0 through 127] and [128 through 512].
+    """
+
+    def __init__(self, resolution: Tuple[int], stft_bands: Iterable[Tuple[int]]):
+        super().__init__()
+
+        self.n_fft, self.hop_length, self.win_length = resolution
+        self.register_buffer("window", torch.hann_window(self.win_length, periodic=False))
+        self.discriminators = nn.ModuleList([DiscriminatorSTFT() for _ in stft_bands])
+        n_stft = self.n_fft // 2 + 1
+        self.stft_bands = [(int(band[0] * n_stft), int(band[1] * n_stft)) for band in stft_bands]
+
+    def compute_stft(self, audio):
+        # [B, fft, T_spec]
+        fft = torch.stft(
+            audio,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window=self.window,
+            normalized=True,
+            center=True,
+            return_complex=True,
+        )
+        fft = rearrange(fft, "B fft T -> B T fft")
+        # [batch, 2, T_spec, fft]
+        out = torch.stack([fft.real, fft.imag], dim=1)
+        return out
+
+    @property
+    def input_types(self):
+        return {
+            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "scores_list": [NeuralType(('B', 'C', 'T_spec'), VoidType())],
+            "fmaps_list": [[NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())]],
+        }
+
+    @typecheck()
+    def forward(self, audio):
+        scores_list = []
+        fmap_list = []
+        spec = self.compute_stft(audio)
+        for band, disc in zip(self.stft_bands, self.discriminators):
+            spec_band = spec[:, :, :, band[0] : band[1]]
+            score, fmap = disc(spec=spec_band)
+            scores_list.append(score)
+            fmap_list.append(fmap)
+
+        return scores_list, fmap_list
+
+
+class MultiResolutionDiscriminatorSTFT(NeuralModule):
+    """
+    Multi-resolution discriminator which creates a multi-band discriminator for each input resolution.
+
+    Args:
+        resolutions: List of STFT resolutions, each resolution provided as a tuple of 3 integers ordered
+            (num_fft, hop_length, window_length)
+        stft_bands: List of tuples, with each tuple having 2 float values (band_start, band_end).
+            The floats are in the range [0, 1] representing the fraction of all stft bands.
+            For example for n_fft=1024, the stft output has 513 dimensions.
+            For band input [(0, 0.25), (0.25, 1.0)] it would use stft dimensions [0 through 127] and [128 through 512].
+    """
+
+    def __init__(self, resolutions: Iterable[Tuple[int]], stft_bands: Iterable[Tuple[int]]):
+        super().__init__()
+        self.discriminators = nn.ModuleList(
+            [MultiBandDiscriminatorSTFT(resolution=resolution, stft_bands=stft_bands) for resolution in resolutions]
+        )
+
+    @property
+    def input_types(self):
+        return {
+            "audio_real": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio_gen": NeuralType(('B', 'T_audio'), AudioSignal()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "scores_real": [NeuralType(('B', 'C', 'T_spec'), VoidType())],
+            "scores_gen": [NeuralType(('B', 'C', 'T_spec'), VoidType())],
+            "fmaps_real": [[NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())]],
+            "fmaps_gen": [[NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())]],
+        }
+
+    @typecheck()
+    def forward(self, audio_real, audio_gen):
+        scores_real = []
+        scores_gen = []
+        fmaps_real = []
+        fmaps_gen = []
+
+        for disc in self.discriminators:
+            score_real_i, fmap_real_i = disc(audio=audio_real)
+            scores_real = scores_real + score_real_i
+            fmaps_real = fmaps_real + fmap_real_i
+
+            score_gen_i, fmap_gen_i = disc(audio=audio_gen)
+            scores_gen = scores_gen + score_gen_i
+            fmaps_gen = fmaps_gen + fmap_gen_i
+
+        return scores_real, scores_gen, fmaps_real, fmaps_gen
+
+
 class Discriminator(NeuralModule):
     """
     Wrapper class which takes a list of discriminators and aggregates the results across them.
@@ -399,7 +690,9 @@ class VectorQuantizerBase(NeuralModule, ABC):
             "indices": NeuralType(('D', 'B', 'T'), Index()),
             "input_len": NeuralType(tuple('B'), LengthsType()),
         },
-        output_types={"dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),},
+        output_types={
+            "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
+        },
     )
     @abstractmethod
     def decode(self, indices: torch.Tensor, input_len: torch.Tensor) -> torch.Tensor:
@@ -489,8 +782,7 @@ class FiniteScalarQuantizer(VectorQuantizerBase):
         return inputs + (inputs_rounded - inputs).detach()
 
     def compress(self, inputs: torch.Tensor, input_len: torch.Tensor) -> torch.Tensor:
-        """Apply compression to the input, to limit to values.
-        """
+        """Apply compression to the input, to limit to values."""
         output_scale = (self.num_levels - 1) / 2
         # scale down a bit to avoid rounding issues
         output_scale = output_scale * (1 - self.eps)
@@ -520,20 +812,17 @@ class FiniteScalarQuantizer(VectorQuantizerBase):
         return codes
 
     def codes_to_nonnegative(self, codes: torch.Tensor) -> torch.Tensor:
-        """Convert values centered arouund zero to nonnegative values.
-        """
+        """Convert values centered arouund zero to nonnegative values."""
         scale = offset = self.num_levels // 2
         return scale * codes + offset
 
     def nonnegative_to_codes(self, codes_nonnegative: torch.Tensor) -> torch.Tensor:
-        """Convert nonnegative values to values centered arouund zero.
-        """
+        """Convert nonnegative values to values centered arouund zero."""
         scale = offset = self.num_levels // 2
         return (codes_nonnegative - offset) / scale
 
     def codes_to_indices(self, codes: torch.Tensor) -> torch.Tensor:
-        """Converts a code vector to a single index.
-        """
+        """Converts a code vector to a single index."""
         if codes.size(1) != self.dim:
             raise RuntimeError(
                 f'Input code dimension {codes.size(1)} not matching the expected dimension {self.dim}, input codes shape {codes.shape}'
@@ -575,8 +864,7 @@ class FiniteScalarQuantizer(VectorQuantizerBase):
         output_types={"indices": NeuralType(('D', 'B', 'T'), Index())},
     )
     def encode(self, inputs: torch.Tensor, input_len: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Convert a continuous code vector to a single index.
-        """
+        """Convert a continuous code vector to a single index."""
         _, indices = self(inputs=inputs, input_len=input_len)
         return indices
 
@@ -585,11 +873,12 @@ class FiniteScalarQuantizer(VectorQuantizerBase):
             "indices": NeuralType(('D', 'B', 'T'), Index()),
             "input_len": NeuralType(tuple('B'), LengthsType(), optional=True),
         },
-        output_types={"dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),},
+        output_types={
+            "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
+        },
     )
     def decode(self, indices: torch.Tensor, input_len: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Convert a single index to a continuous code vector.
-        """
+        """Convert a single index to a continuous code vector."""
         if indices.size(0) > 1:
             # codebook dimension used for compatibility with RVQ
             raise ValueError(
@@ -642,8 +931,7 @@ class GroupFiniteScalarQuantizer(VectorQuantizerBase):
 
     @property
     def codebook_dim(self):
-        """Input vector dimension.
-        """
+        """Input vector dimension."""
         return self.codebook_dim_per_group * self.num_groups
 
     @property
@@ -654,12 +942,11 @@ class GroupFiniteScalarQuantizer(VectorQuantizerBase):
     @property
     def codebook_size(self):
         """Returns the size of the implicit codebook."""
-        return self.codebook_size_per_group ** self.num_groups
+        return self.codebook_size_per_group**self.num_groups
 
     @typecheck()
     def forward(self, inputs, input_len):
-        """Quantize each group separately, then concatenate the results.
-        """
+        """Quantize each group separately, then concatenate the results."""
         inputs_grouped = inputs.chunk(self.num_groups, dim=1)
 
         dequantized, indices = [], []
@@ -685,8 +972,7 @@ class GroupFiniteScalarQuantizer(VectorQuantizerBase):
         output_types={"indices": NeuralType(('D', 'B', 'T'), Index())},
     )
     def encode(self, inputs: torch.Tensor, input_len: torch.Tensor) -> torch.Tensor:
-        """Input is split into groups, each group is encoded separately, then the results are concatenated.
-        """
+        """Input is split into groups, each group is encoded separately, then the results are concatenated."""
         inputs_grouped = inputs.chunk(self.num_groups, dim=1)
         indices = []
 
@@ -704,11 +990,12 @@ class GroupFiniteScalarQuantizer(VectorQuantizerBase):
             "indices": NeuralType(('D', 'B', 'T'), Index()),
             "input_len": NeuralType(tuple('B'), LengthsType()),
         },
-        output_types={"dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),},
+        output_types={
+            "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
+        },
     )
     def decode(self, indices: torch.Tensor, input_len: torch.Tensor) -> torch.Tensor:
-        """Input indices are split into groups, each group is decoded separately, then the results are concatenated.
-        """
+        """Input indices are split into groups, each group is decoded separately, then the results are concatenated."""
         indices_grouped = indices.chunk(self.num_groups, dim=0)
         dequantized = []
 
@@ -872,6 +1159,120 @@ class HiFiGANResLayer(NeuralModule):
         return out
 
 
+class HiFiGANEncoder(NeuralModule):
+    """
+    Audio encoder created by inverting the HiFi-GAN decoder.
+
+    Args:
+        encoded_dim: Dimension of encoder output.
+        down_sample_rates: Rate to upsample for each decoder block. The product of the downsample rates will
+            determine the output token rate. For example 2 * 2 * 8 * 8 = 256 samples per token.
+        base_channels: Number of filters in the first convolution. The number of channels will be doubled after each
+            downsample layer.
+        in_kernel_size: Kernel size of the input convolution.
+        out_kernel_size: Kernel size of the output convolution.
+        resblock_kernel_sizes: List of kernel sizes to use in each residual block.
+        resblock_dilation_sizes: List of dilations to use in each residual block.
+        activation: Activation to use in residual and downsample layers, defaults to leaky relu.
+    """
+
+    def __init__(
+        self,
+        encoded_dim: int,
+        down_sample_rates: Iterable[int] = (2, 2, 8, 8),
+        base_channels: int = 32,
+        in_kernel_size: int = 7,
+        out_kernel_size: int = 7,
+        resblock_kernel_sizes: Iterable[int] = (3, 7, 11),
+        resblock_dilation_sizes: Iterable[int] = (1, 3, 5),
+        activation: str = "lrelu",
+    ):
+        assert in_kernel_size > 0
+        assert out_kernel_size > 0
+
+        super().__init__()
+
+        self.down_sample_rates = down_sample_rates
+        self.pre_conv = Conv1dNorm(in_channels=1, out_channels=base_channels, kernel_size=in_kernel_size)
+
+        in_channels = base_channels
+        self.activations = nn.ModuleList([])
+        self.down_sample_conv_layers = nn.ModuleList([])
+        self.res_layers = nn.ModuleList([])
+        for i, down_sample_rate in enumerate(self.down_sample_rates):
+            res_layer = HiFiGANResLayer(
+                channels=in_channels,
+                kernel_sizes=resblock_kernel_sizes,
+                dilations=resblock_dilation_sizes,
+                activation=activation,
+            )
+            self.res_layers.append(res_layer)
+
+            act = CodecActivation(activation, channels=in_channels)
+            self.activations.append(act)
+
+            out_channels = 2 * in_channels
+            kernel_size = 2 * down_sample_rate
+
+            padding = get_down_sample_padding(kernel_size=kernel_size, stride=down_sample_rate)
+            down_sample_conv = Conv1dNorm(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=down_sample_rate,
+                padding=padding,
+            )
+            in_channels = out_channels
+            self.down_sample_conv_layers.append(down_sample_conv)
+
+        self.post_activation = CodecActivation(activation, channels=in_channels)
+        self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size)
+
+    @property
+    def input_types(self):
+        return {
+            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio_len": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "encoded": NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation()),
+            "encoded_len": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def remove_weight_norm(self):
+        self.pre_conv.remove_weight_norm()
+        self.post_conv.remove_weight_norm()
+        for res_layer in self.res_layers:
+            res_layer.remove_weight_norm()
+        for down_sample_conv in self.down_sample_conv_layers:
+            down_sample_conv.remove_weight_norm()
+
+    @typecheck()
+    def forward(self, audio, audio_len):
+        encoded_len = audio_len
+        audio = rearrange(audio, "B T -> B 1 T")
+        # [B, C, T_audio]
+        out = self.pre_conv(inputs=audio, input_len=encoded_len)
+        for act, res_layer, down_sample_conv, down_sample_rate in zip(
+            self.activations, self.res_layers, self.down_sample_conv_layers, self.down_sample_rates
+        ):
+            # [B, C, T]
+            out = res_layer(inputs=out, input_len=encoded_len)
+            out = act(out)
+
+            encoded_len = encoded_len // down_sample_rate
+            # [B, 2 * C, T / down_sample_rate]
+            out = down_sample_conv(inputs=out, input_len=encoded_len)
+
+        out = self.post_activation(out)
+        # [B, encoded_dim, T_encoded]
+        encoded = self.post_conv(inputs=out, input_len=encoded_len)
+        return encoded, encoded_len
+
+
 class HiFiGANDecoder(NeuralModule):
     """
     Codec decoder using the HiFi-GAN generator architecture.
@@ -880,8 +1281,9 @@ class HiFiGANDecoder(NeuralModule):
 
     Args:
         input_dim: Input dimension.
-        up_sample_rates: Rate to upsample for each decoder block. The product of the upsample rates will
-            determine the output frame rate. For example 8 * 8 * 2 * 2 = 256 samples per token.
+        up_sample_rates: Rate to upsample for each decoder block. The product of the upsample rates should be the same
+            as the overall downsample rate for your encoder. For example, a symmetric encoder/decoder can be created
+            with encoder downsample rates [2, 2, 8, 8] and decoder upsample rates [8, 8, 2, 2].
         base_channels: Number of filters in the first convolution. The number of channels will be cut in
             half after each upsample layer.
         in_kernel_size: Kernel size of the input convolution.
@@ -889,6 +1291,8 @@ class HiFiGANDecoder(NeuralModule):
         resblock_kernel_sizes: List of kernel sizes to use in each residual block.
         resblock_dilation_sizes: List of dilations to use in each residual block.
         activation: Activation to use in residual and upsample layers, defaults to leaky relu.
+        output_activation: Activation to apply to output. To produce a valid audio signal, it should output values in
+         the range [-1.0, 1.0]. Supports "tanh" and "clamp".
     """
 
     def __init__(
@@ -901,6 +1305,7 @@ class HiFiGANDecoder(NeuralModule):
         resblock_kernel_sizes: Iterable[int] = (3, 7, 11),
         resblock_dilation_sizes: Iterable[int] = (1, 3, 5),
         activation: str = "lrelu",
+        output_activation: str = "tanh",
     ):
         assert in_kernel_size > 0
         assert out_kernel_size > 0
@@ -937,7 +1342,12 @@ class HiFiGANDecoder(NeuralModule):
 
         self.post_activation = CodecActivation(activation, channels=in_channels)
         self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size)
-        self.out_activation = nn.Tanh()
+        if output_activation == "tanh":
+            self.out_activation = nn.Tanh()
+        elif output_activation == "clamp":
+            self.out_activation = ClampActivation()
+        else:
+            raise ValueError(f"Invalid audio output activation {output_activation}")
 
     @property
     def input_types(self):

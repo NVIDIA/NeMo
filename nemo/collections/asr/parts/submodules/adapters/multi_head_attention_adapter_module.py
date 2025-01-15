@@ -29,7 +29,7 @@ class MHAResidualAddAdapterStrategy(adapter_mixin_strategies.ResidualAddAdapterS
     An implementation of residual addition of an adapter module with its input for the MHA Adapters.
     """
 
-    def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
+    def forward(self, input: dict, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
         """
         A basic strategy, comprising of a residual connection over the input, after forward pass by
         the underlying adapter. Additional work is done to pack and unpack the dictionary of inputs and outputs.
@@ -55,18 +55,29 @@ class MHAResidualAddAdapterStrategy(adapter_mixin_strategies.ResidualAddAdapterS
         """
         out = self.compute_output(input, adapter, module=module)
 
+        value_name = None
+        if 'value' in input:
+            value_name = 'value'
+        elif 'values' in input:
+            value_name = 'values'
+        else:
+            raise ValueError(
+                "Input dictionary must contain 'value' or 'values' key for residual connection. Input "
+                f"dictionary keys: {input.keys()}"
+            )
+
         # If not in training mode, or probability of stochastic depth is 0, skip step.
         p = self.stochastic_depth
         if not module.training or p == 0.0:
             pass
         else:
-            out = self.apply_stochastic_depth(out, input['value'], adapter, module=module)
+            out = self.apply_stochastic_depth(out, input[value_name], adapter, module=module)
 
         # Return the residual connection output = input + adapter(input)
-        result = input['value'] + out
+        result = input[value_name] + out
 
         # If l2_lambda is activated, register the loss value
-        self.compute_auxiliary_losses(result, input['value'], adapter, module=module)
+        self.compute_auxiliary_losses(result, input[value_name], adapter, module=module)
 
         return result
 
@@ -105,16 +116,16 @@ class MHAResidualAddAdapterStrategyConfig(adapter_mixin_strategies.ResidualAddAd
 class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AdapterModuleUtil):
     """Multi-Head Attention layer of Transformer.
 
-     Args:
-         n_head (int): number of heads
-         n_feat (int): size of the features
-         dropout_rate (float): dropout rate
-         proj_dim (int, optional): Optional integer value for projection before computing attention.
-            If None, then there is no projection (equivalent to proj_dim = n_feat).
-            If > 0, then will project the n_feat to proj_dim before calculating attention.
-            If <0, then will equal n_head, so that each head has a projected dimension of 1.
-        adapter_strategy: By default, MHAResidualAddAdapterStrategyConfig. An adapter composition function object.
-     """
+    Args:
+        n_head (int): number of heads
+        n_feat (int): size of the features
+        dropout_rate (float): dropout rate
+        proj_dim (int, optional): Optional integer value for projection before computing attention.
+           If None, then there is no projection (equivalent to proj_dim = n_feat).
+           If > 0, then will project the n_feat to proj_dim before calculating attention.
+           If <0, then will equal n_head, so that each head has a projected dimension of 1.
+       adapter_strategy: By default, MHAResidualAddAdapterStrategyConfig. An adapter composition function object.
+    """
 
     def __init__(
         self,
@@ -123,8 +134,17 @@ class MultiHeadAttentionAdapter(mha.MultiHeadAttention, adapter_modules.AdapterM
         dropout_rate: float,
         proj_dim: Optional[int] = None,
         adapter_strategy: MHAResidualAddAdapterStrategy = None,
+        use_pytorch_sdpa: bool = False,
+        use_pytorch_sdpa_backends: Optional[list] = None,
     ):
-        super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=0)
+        super().__init__(
+            n_head=n_head,
+            n_feat=n_feat,
+            dropout_rate=dropout_rate,
+            max_cache_len=0,
+            use_pytorch_sdpa=use_pytorch_sdpa,
+            use_pytorch_sdpa_backends=use_pytorch_sdpa_backends,
+        )
 
         self.pre_norm = nn.LayerNorm(n_feat)
 
@@ -189,6 +209,8 @@ class MultiHeadAttentionAdapterConfig:
     dropout_rate: float = 0.0
     proj_dim: Optional[int] = None
     adapter_strategy: Optional[Any] = field(default_factory=lambda: MHAResidualAddAdapterStrategyConfig())
+    use_pytorch_sdpa: bool = False
+    use_pytorch_sdpa_backends: Optional[list] = None
     _target_: str = "{0}.{1}".format(MultiHeadAttentionAdapter.__module__, MultiHeadAttentionAdapter.__name__)
 
 
@@ -214,9 +236,18 @@ class RelPositionMultiHeadAttentionAdapter(mha.RelPositionMultiHeadAttention, ad
         dropout_rate: float,
         proj_dim: Optional[int] = None,
         adapter_strategy: MHAResidualAddAdapterStrategyConfig = None,
+        use_pytorch_sdpa: bool = False,
+        use_pytorch_sdpa_backends: Optional[list] = None,
     ):
         super().__init__(
-            n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, pos_bias_u=None, pos_bias_v=None, max_cache_len=0
+            n_head=n_head,
+            n_feat=n_feat,
+            dropout_rate=dropout_rate,
+            pos_bias_u=None,
+            pos_bias_v=None,
+            max_cache_len=0,
+            use_pytorch_sdpa=use_pytorch_sdpa,
+            use_pytorch_sdpa_backends=use_pytorch_sdpa_backends,
         )
 
         self.pre_norm = nn.LayerNorm(n_feat)
@@ -294,13 +325,14 @@ class RelPositionMultiHeadAttentionAdapterConfig:
     dropout_rate: float = 0.0
     proj_dim: Optional[int] = None
     adapter_strategy: Optional[Any] = field(default_factory=lambda: MHAResidualAddAdapterStrategyConfig())
+    use_pytorch_sdpa: bool = False
+    use_pytorch_sdpa_backends: Optional[list] = None
     _target_: str = "{0}.{1}".format(
         RelPositionMultiHeadAttentionAdapter.__module__, RelPositionMultiHeadAttentionAdapter.__name__
     )
 
 
 class PositionalEncodingAdapter(mha.PositionalEncoding, adapter_modules.AdapterModuleUtil):
-
     """
     Absolute positional embedding adapter.
 
@@ -327,7 +359,11 @@ class PositionalEncodingAdapter(mha.PositionalEncoding, adapter_modules.AdapterM
     ):
 
         super().__init__(
-            d_model=d_model, dropout_rate=0.0, max_len=max_len, xscale=xscale, dropout_rate_emb=0.0,
+            d_model=d_model,
+            dropout_rate=0.0,
+            max_len=max_len,
+            xscale=xscale,
+            dropout_rate_emb=0.0,
         )
 
         # Setup adapter strategy

@@ -18,8 +18,11 @@ import tempfile
 
 import pytest
 import torch
+from lhotse import CutSet, MonoCut
+from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig
 
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
@@ -64,12 +67,18 @@ def hybrid_asr_model(test_data_dir):
 
     decoder = {
         '_target_': 'nemo.collections.asr.modules.RNNTDecoder',
-        'prednet': {'pred_hidden': model_defaults['pred_hidden'], 'pred_rnn_layers': 1,},
+        'prednet': {
+            'pred_hidden': model_defaults['pred_hidden'],
+            'pred_rnn_layers': 1,
+        },
     }
 
     joint = {
         '_target_': 'nemo.collections.asr.modules.RNNTJoint',
-        'jointnet': {'joint_hidden': 32, 'activation': 'relu',},
+        'jointnet': {
+            'joint_hidden': 32,
+            'activation': 'relu',
+        },
     }
 
     decoding = {'strategy': 'greedy_batch', 'greedy': {'max_symbols': 30}}
@@ -111,7 +120,8 @@ def hybrid_asr_model(test_data_dir):
 
 class TestEncDecHybridRNNTCTCBPEModel:
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -125,7 +135,8 @@ class TestEncDecHybridRNNTCTCBPEModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_forward(self, hybrid_asr_model):
@@ -158,9 +169,22 @@ class TestEncDecHybridRNNTCTCBPEModel:
         diff = torch.max(torch.abs(logits_instance - logprobs_batch))
         assert diff <= 1e-6
 
+    @pytest.mark.unit
+    def test_predict_step(self, hybrid_asr_model):
+        hybrid_asr_model = hybrid_asr_model.eval()
+        cuts = DummyManifest(CutSet, begin_id=0, end_id=1, with_data=True)
+        dataset = LhotseSpeechToTextBpeDataset(tokenizer=hybrid_asr_model.tokenizer, return_cuts=True)
+        batch = dataset[cuts]
+        outputs = hybrid_asr_model.predict_step(batch, 0)
+        assert len(outputs) == 1
+        assert len(outputs[0]) == 2
+        assert isinstance(outputs[0][0], MonoCut)
+        assert isinstance(outputs[0][1], str)
+
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_save_restore_artifact(self, hybrid_asr_model):
@@ -178,7 +202,8 @@ class TestEncDecHybridRNNTCTCBPEModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_save_restore_artifact_spe(self, hybrid_asr_model, test_data_dir):
@@ -224,7 +249,8 @@ class TestEncDecHybridRNNTCTCBPEModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_vocab_change(self, test_data_dir, hybrid_asr_model):
@@ -255,7 +281,8 @@ class TestEncDecHybridRNNTCTCBPEModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_decoding_change(self, hybrid_asr_model):
@@ -297,7 +324,7 @@ class TestEncDecHybridRNNTCTCBPEModel:
 
         assert hybrid_asr_model.ctc_decoding is not None
         assert isinstance(hybrid_asr_model.ctc_decoding, CTCBPEDecoding)
-        assert hybrid_asr_model.ctc_decoding.cfg.strategy == "greedy"
+        assert hybrid_asr_model.ctc_decoding.cfg.strategy == "greedy_batch"
         assert hybrid_asr_model.ctc_decoding.preserve_alignments is False
         assert hybrid_asr_model.ctc_decoding.compute_timestamps is False
 
@@ -309,7 +336,8 @@ class TestEncDecHybridRNNTCTCBPEModel:
         assert hybrid_asr_model.cur_decoder == "ctc"
 
     @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+        not NUMBA_RNNT_LOSS_AVAILABLE,
+        reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_decoding_type_change(self, hybrid_asr_model):

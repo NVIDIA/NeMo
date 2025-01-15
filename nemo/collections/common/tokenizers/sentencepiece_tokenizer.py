@@ -13,32 +13,48 @@
 # limitations under the License.
 
 import os
+import re
 from typing import Dict, List, Optional, Union
 
 import numpy as np
 import sentencepiece
+import torch
 
 from nemo.collections.common.parts.utils import if_exist
+from nemo.collections.common.tokenizers.chat_template_mixin import ChatTemplateMixin
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
-__all__ = ['SentencePieceTokenizer', 'create_spt_model']
+__all__ = ['SentencePieceTokenizer', 'SentencePieceSpeechLLMTTSTokenizer', 'create_spt_model']
 
 
-class SentencePieceTokenizer(TokenizerSpec):
+class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
     """
     Sentencepiecetokenizer https://github.com/google/sentencepiece.
-    
+
     Args:
         model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
         special_tokens: either list of special tokens or dictionary of token name to token value
         legacy: when set to True, the previous behavior of the SentecePiece wrapper will be restored,
             including the possibility to add special tokens inside wrapper.
+        ignore_extra_whitespaces: whether to ignore extra whitespaces in the input text while encoding.
+            Note:
+            This is done for the current models tokenizers that don't handle extra whitespaces as by default tokenizer learned to ignore it.
+            To check if the tokenizer by default ignores extra whitespaces refer to `self.removed_extra_spaces` attribute of the tokenizer.
+            We added a parameter to process_asr_tokenizer.py for upcoming models to handle it inbuilt.
     """
 
     def __init__(
-        self, model_path: str, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None, legacy: bool = False
+        self,
+        model_path: str,
+        special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
+        legacy: bool = False,
+        ignore_extra_whitespaces: bool = True,
+        chat_template: Optional[Dict] = None,
+        trim_spm_separator_after_special_token=True,
+        spm_separator='▁',
     ):
+        self.chat_template = chat_template
         if not model_path or not os.path.exists(model_path):
             raise ValueError(f"model_path: {model_path} is invalid")
         self.tokenizer = sentencepiece.SentencePieceProcessor()
@@ -47,17 +63,28 @@ class SentencePieceTokenizer(TokenizerSpec):
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
         self.legacy = legacy
+        self.ignore_extra_whitespaces = ignore_extra_whitespaces
+        # using special symbol for extra_space token, so it is not likely to be in the vocabulary
+        self.extra_space_token = '☯'
         self.special_token_to_id = {}
         self.id_to_special_token = {}
+        self.trim_spm_separator_after_special_token = trim_spm_separator_after_special_token
+        self.spm_separator_id = self.tokenizer.piece_to_id(spm_separator)
+        self.spm_separator = spm_separator
+
         if special_tokens:
             if not self.legacy:
                 raise ValueError(
                     "Special tokens must be None when legacy is set to False. Provide special tokens at train time."
                 )
             self.add_special_tokens(special_tokens)
+
+        self.removed_extra_spaces = self.tokenizer.encode_as_pieces('x  y') == self.tokenizer.encode_as_pieces('x y')
         self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
 
     def text_to_tokens(self, text):
+        if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+            text = re.sub(r'(?<= )(?= )|^ | $', f' {self.extra_space_token} ', text)
         if self.legacy:
             tokens = []
             idx = 0
@@ -78,16 +105,42 @@ class SentencePieceTokenizer(TokenizerSpec):
                 next_token = min(indices, key=indices.get)
                 next_idx = idx + indices[next_token]
 
-                tokens.extend(self.tokenizer.encode_as_pieces(text[idx:next_idx]))
+                tok = self.tokenizer.encode_as_pieces(text[idx:next_idx])
+                # Chat-templates insert a space between a special token and first word (e.g.
+                # "[INST] who") which is tokenized as <inst-id> <space-id> <who-id> instead of
+                # <inst-id> <who-id>.
+                if (
+                    self.trim_spm_separator_after_special_token
+                    and len(tokens) > 0
+                    and tokens[-1] in self.special_token_to_id
+                    and len(tok) > 0
+                    and tok[0] == self.spm_separator
+                ):
+                    tok.pop(0)
+                tokens.extend(tok)
                 tokens.append(next_token)
                 idx = next_idx + len(next_token)
 
             tokens.extend(self.tokenizer.encode_as_pieces(text[idx:]))
-            return tokens
 
-        return self.tokenizer.encode_as_pieces(text)
+        else:
+            tokens = self.tokenizer.encode_as_pieces(text)
 
-    def text_to_ids(self, text):
+        if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+            tokens = list(filter(lambda x: x != self.extra_space_token, tokens))
+        return tokens
+
+    def text_to_ids(self, text, sample_alpha=None):
+        if isinstance(text, str):
+            return self._text_to_ids(text, sample_alpha)
+        elif isinstance(text, list):
+            return self.apply_chat_template(text)
+        else:
+            raise ValueError(f"Expected either str or list input, but got {type(text)}")
+
+    def _text_to_ids(self, text, sample_alpha=None):
+        if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+            text = re.sub(r'(?<= )(?= )|^ | $', f' {self.extra_space_token} ', text).rstrip()
         if self.legacy:
             ids = []
             idx = 0
@@ -108,14 +161,49 @@ class SentencePieceTokenizer(TokenizerSpec):
                 next_token = min(indices, key=indices.get)
                 next_idx = idx + indices[next_token]
 
-                ids.extend(self.tokenizer.encode_as_ids(text[idx:next_idx]))
+                text_tokens = self.tokenizer.encode(text[idx:next_idx])
+                # Chat-templates insert a space between a special token and first word (e.g.
+                # "[INST] who") which is tokenized as <inst-id> <space-id> <who-id> instead of
+                # <inst-id> <who-id>.
+                if (
+                    self.trim_spm_separator_after_special_token
+                    and len(ids) > 0
+                    and ids[-1] in self.id_to_special_token
+                    and len(text_tokens) > 0
+                    and text_tokens[0] == self.spm_separator_id
+                ):
+                    text_tokens.pop(0)
+                ids.extend(text_tokens)
                 ids.append(self.special_token_to_id[next_token])
                 idx = next_idx + len(next_token)
 
-            ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
+            if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+                ids.extend(self._text_to_ids_extra_space(text[idx:]))
+            else:
+                ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
             return ids
 
-        return self.tokenizer.encode_as_ids(text)
+        if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
+            return self._text_to_ids_extra_space(text, sample_alpha)
+
+        if sample_alpha is not None:
+            return self.tokenizer.encode_as_ids(text, enable_sampling=True, alpha=sample_alpha, nbest_size=-1)
+        else:
+            return self.tokenizer.encode_as_ids(text)
+
+    def _text_to_ids_extra_space(self, text, sample_alpha=None):
+        ids = []
+        encoding_kwargs = {}
+        if sample_alpha is not None:
+            encoding_kwargs = {'enable_sampling': True, 'alpha': sample_alpha, 'nbest_size': -1}
+        for part in text.split(self.extra_space_token):
+            if not part:
+                continue
+            part += self.extra_space_token
+            part_ids = self.tokenizer.encode_as_ids(part, **encoding_kwargs)
+            ids.extend(part_ids[:-1])
+
+        return ids
 
     def tokens_to_text(self, tokens):
         if isinstance(tokens, np.ndarray):
@@ -124,7 +212,7 @@ class SentencePieceTokenizer(TokenizerSpec):
         return self.tokenizer.decode_pieces(tokens)
 
     def ids_to_text(self, ids):
-        if isinstance(ids, np.ndarray):
+        if isinstance(ids, (np.ndarray, torch.Tensor)):
             ids = ids.tolist()
 
         if self.legacy:
@@ -157,12 +245,13 @@ class SentencePieceTokenizer(TokenizerSpec):
                 tokens.append(self.tokenizer.id_to_piece(id))
         return tokens
 
-    def tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
+    def tokens_to_ids(self, tokens: Union[str, List[str]], tokens_to_skip: List[str] = []) -> Union[int, List[int]]:
         if isinstance(tokens, str):
             tokens = [tokens]
         ids = []
         for token in tokens:
-            ids.append(self.token_to_id(token))
+            if token not in tokens_to_skip:
+                ids.append(self.token_to_id(token))
         return ids
 
     def add_special_tokens(self, special_tokens):
@@ -178,6 +267,10 @@ class SentencePieceTokenizer(TokenizerSpec):
                     self.special_token_to_id[token] = self.vocab_size
                     self.id_to_special_token[self.vocab_size] = token
                     self.vocab_size += 1
+                elif self.tokenizer.piece_to_id(token) != self.tokenizer.unk_id():
+                    self.special_token_to_id[token] = self.tokenizer.piece_to_id(token)
+                    self.id_to_special_token[self.special_token_to_id[token]] = token
+
         elif isinstance(special_tokens, dict):
             for token_name, token in special_tokens.items():
                 setattr(self, token_name, token)
@@ -188,6 +281,11 @@ class SentencePieceTokenizer(TokenizerSpec):
                     self.special_token_to_id[token] = self.vocab_size
                     self.id_to_special_token[self.vocab_size] = token
                     self.vocab_size += 1
+                elif self.tokenizer.piece_to_id(token) != self.tokenizer.unk_id():
+                    self.special_token_to_id[token] = self.tokenizer.piece_to_id(token)
+                    self.id_to_special_token[self.special_token_to_id[token]] = token
+        else:
+            raise ValueError("Expected special_tokens to be a list or a dict " + str(type(special_tokens)))
 
     @property
     def pad_id(self):
@@ -256,6 +354,14 @@ class SentencePieceTokenizer(TokenizerSpec):
         return main_vocab + special_tokens
 
 
+class SentencePieceSpeechLLMTTSTokenizer(SentencePieceTokenizer):
+    def add_phone_tokens_to_special_tokens(self):
+        for i, word in enumerate(self.vocab):
+            if word.startswith("p{"):
+                self.special_token_to_id[word] = i
+                self.id_to_special_token[i] = word
+
+
 def create_spt_model(
     data_file: str,
     vocab_size: int,
@@ -275,6 +381,7 @@ def create_spt_model(
     split_digits: bool = False,
     split_by_whitespace: bool = True,
     split_by_unicode_script: bool = True,
+    remove_extra_whitespaces: bool = False,
 ):
     """
     Creates sentence piece tokenizer model from data file.
@@ -301,7 +408,8 @@ def create_spt_model(
         byte_fallback: If <unk>, fallback to a byte sequence of the character.
         split_digits: If true, digits are split into individual tokens.
         split_by_whitespace: Whether to respect white space while creating subwords. If False, will learn merges across whitespace.
-        split_by_unicode_script: Whether to include multiple Unicode scripts. Ex. is Arabic diacritics which are considered part of the letter (عِدَّةُ)
+        split_by_unicode_script: Whether to include multiple Unicode scripts. Ex. is Arabic diacritics which are considered part of the letter (عِدَّةُ).
+        remove_extra_whitespaces: Whether to remove leading, trailing, and duplicate internal whitespace. If true, will skip double spaces during encoding.
     """
 
     if not data_file or not os.path.exists(data_file):
@@ -371,12 +479,17 @@ def create_spt_model(
     if not split_by_unicode_script:
         cmd += " --split_by_unicode_script=false"
 
+    if not remove_extra_whitespaces:
+        cmd += " --remove_extra_whitespaces=false"
+
     sentencepiece.SentencePieceTrainer.Train(cmd)
 
     # Add BERT control symbols
     tokens = []
 
-    with open(f"{output_dir}/tokenizer.vocab", "r") as f:
+    # Encoding arg is added for compatibility with systems which enforce
+    # ASCII encoding in Python. Sentencepiece always uses Unicode (UTF8).
+    with open(f"{output_dir}/tokenizer.vocab", "r", encoding="utf8") as f:
         # Read tokens from each line and parse for vocab
         for line in f:
             piece = line.split("\t")[0]
@@ -394,7 +507,7 @@ def create_spt_model(
 
     # Save vocabulary to output file
     vocab_file = f'{output_dir}/vocab.txt'
-    with open(vocab_file, "w") as f:
+    with open(vocab_file, "w", encoding="utf8") as f:
         for token in vocab:
             f.write(f"{token}\n")
     return f'{output_dir}/tokenizer.model', vocab_file

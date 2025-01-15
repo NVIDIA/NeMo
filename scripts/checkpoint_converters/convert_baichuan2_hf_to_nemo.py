@@ -25,9 +25,9 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 
 import torch
+from lightning.pytorch.core.saving import _load_state as ptl_load_state
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
-from pytorch_lightning.trainer.trainer import Trainer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -158,7 +158,7 @@ def convert(args):
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=nemo_config.get('native_amp_init_scale', 2 ** 32),
+                init_scale=nemo_config.get('native_amp_init_scale', 2**32),
                 growth_interval=nemo_config.get('native_amp_growth_interval', 1000),
                 hysteresis=nemo_config.get('hysteresis', 2),
             )
@@ -175,7 +175,7 @@ def convert(args):
     nemo_config.precision = precision
     print(f"nemo_config: {nemo_config}")
 
-    trainer = Trainer(plugins=plugins, accelerator='cpu', precision=precision, strategy=NLPDDPStrategy())
+    trainer = Trainer(plugins=plugins, accelerator='cpu', strategy=NLPDDPStrategy())
 
     hidden_size = hf_config["hidden_size"]
     head_num = hf_config["num_attention_heads"]

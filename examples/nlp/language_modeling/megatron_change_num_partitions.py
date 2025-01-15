@@ -21,8 +21,8 @@ from typing import Dict, List
 
 import torch
 import torch.nn as nn
+from lightning.pytorch import Trainer
 from omegaconf import OmegaConf, open_dict
-from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.parts.nlp_overrides import (
     NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
@@ -922,7 +922,7 @@ def main():
         scaler = None
         if precision in [16, '16', '16-mixed']:
             scaler = GradScaler(
-                init_scale=tmp_cfg.get('native_amp_init_scale', 2 ** 32),
+                init_scale=tmp_cfg.get('native_amp_init_scale', 2**32),
                 growth_interval=tmp_cfg.get('native_amp_growth_interval', 1000),
                 hysteresis=tmp_cfg.get('hysteresis', 2),
             )
@@ -938,12 +938,15 @@ def main():
         # Set precision None after precision plugins are created as PTL >= 2.1 does not allow both
         # precision plugins and precision to exist
         precision = None
-    trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision)
+    trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
 
     if tp_size < 0 or pp_size < 0:
         logging.info(f"Loading model config from {args.model_file} to get TP and PP size")
         model_config_internal = cls.restore_from(
-            restore_path=args.model_file, trainer=trainer, map_location=torch.device("cpu"), return_config=True,
+            restore_path=args.model_file,
+            trainer=trainer,
+            map_location=torch.device("cpu"),
+            return_config=True,
         )
 
         tp_size = model_config_internal.get('tensor_model_parallel_size', 1)
@@ -1137,7 +1140,9 @@ def main():
 
                             else:
                                 model = cls.load_from_checkpoint(
-                                    checkpoint_path=checkpoint_path, trainer=trainer, map_location=torch.device("cpu"),
+                                    checkpoint_path=checkpoint_path,
+                                    trainer=trainer,
+                                    map_location=torch.device("cpu"),
                                 )
                                 model.freeze()
 
@@ -1205,9 +1210,7 @@ def main():
         if vp_size > 1:
             set_virtual_parallel_rank_safely(None)
 
-        trainer = Trainer(
-            plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
-        )
+        trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
 
         with open_dict(model.cfg):
             if args.tokenizer_model_path is not None:
@@ -1413,9 +1416,7 @@ def main():
                 app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
             )
 
-            trainer = Trainer(
-                plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu", precision=precision
-            )
+            trainer = Trainer(plugins=plugins, devices=1, strategy=NLPDDPStrategy(), accelerator="cpu")
             if args.tokenizer_model_path is not None:
                 with open_dict(model.cfg):
                     model.cfg.tokenizer.model = args.tokenizer_model_path

@@ -1,27 +1,17 @@
-# Speech Pre-training via Self Supervised Learning
+# Speech Self-Supervised Learning
 
-This directory contains example scripts to train ASR models using various Self Supervised Losses. 
+This directory contains example scripts to self-supervised speech models. 
 
-The model's pretrained here can further be finetuned on specific labeled data in further steps.
+There are two main types of supported self-supervised learning methods:
+- [Wav2vec-BERT](https://arxiv.org/abs/2108.06209): `speech_pre_training.py`
+- [NEST](https://arxiv.org/abs/2408.13106): `masked_token_pred_pretrain.py`
+    - For downstream tasks that use NEST as multi-layer feature extractor, please refer to `./downstream/speech_classification_mfa_train.py`
+    - For extracting multi-layer features from NEST, please refer to `<NEMO ROOT>/scripts/ssl/extract_features.py`
+    - For using NEST as weight initialization for downstream tasks, please refer to the usage of [maybe_init_from_pretrained_checkpoint](https://github.com/NVIDIA/NeMo/blob/main/nemo/core/classes/modelPT.py#L1242).
 
-# Model execution overview
 
-The training scripts in this directory execute in the following order. When preparing your own training-from-scratch / fine-tuning scripts, please follow this order for correct training/inference.
+For their corresponding usage, please refer to the example yaml config:
+- Wav2vec-BERT: `examples/asr/conf/ssl/fastconformer/fast-conformer.yaml`
+- NEST: `examples/asr/conf/ssl/nest/nest_fast-conformer.yaml`
 
-```mermaid
 
-graph TD
-    A[Hydra Overrides + Yaml Config] --> B{Config}
-    B --> |Init| C[Trainer]
-    C --> D[ExpManager]
-    B --> D[ExpManager]
-    C --> E[Model]
-    B --> |Init| E[Model]
-    E --> |Constructor| G(Setup Train + Validation Data loaders)
-    G --> H(Setup Optimization)
-    H --> I[Maybe init from pretrained]
-    I --> J["trainer.fit(model)"]
-
-```
-
-During restoration of the model, you may pass the Trainer to the restore_from / from_pretrained call, or set it after the model has been initialized by using `model.set_trainer(Trainer)`.

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import re
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
 from typing import List, Optional, Tuple, Union
 
@@ -25,13 +25,18 @@ from nemo.collections.asr.parts.submodules.multitask_beam_decoding import (
     AEDBeamInferConfig,
     TransformerAEDBeamInfer,
 )
+from nemo.collections.asr.parts.submodules.multitask_greedy_decoding import (
+    AEDGreedyInferConfig,
+    TransformerAEDGreedyInfer,
+)
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
 
-class AbstractMultiTaskDecoding(ABC):
+class AbstractMultiTaskDecoding(ConfidenceMixin):
     """
     Used for performing AED auto-regressive decoding of the Multi task model given the encoder state.
 
@@ -58,13 +63,57 @@ class AbstractMultiTaskDecoding(ABC):
                 In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
                 with the `return_hypotheses` flag set to True.
 
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence scores.
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during greedy decoding. When set to true, the Hypothesis will contain the non-null value
+                    for `frame_confidence` in it. Here, `frame_confidence` is a List of tensor floats.
+
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding. When set to true, the Hypothesis will contain the non-null value
+                    for `token_confidence` in it. Here, `token_confidence` is a List of tensor floats.
+                    The length of the list corresponds to the number of recognized tokens.
+
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding. When set to true, the Hypothesis will contain the non-null value
+                    for `word_confidence` in it. Here, `word_confidence` is a List of tensor floats.
+                    The length of the list corresponds to the number of recognized words.
+
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word
+                    confidence. Valid options are `mean`, `min`, `max`, `prod`.
+
+                method_cfg: A dict-like object which contains settings to compute per-frame confidence scores.
+                    name: The method name (str).
+                        Supported values:
+                            - 'max_prob' for using the maximum token probability as a confidence.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
+                    entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
+                        Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
+                                the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
+                            - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                                Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                            - 'renyi' for the Rényi entropy.
+                                Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
+                        and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                        Supported values:
+                            - 'lin' for using the linear mapping.
+                            - 'exp' for using exponential mapping with linear shift.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
-                max_symbols: int, describing the maximum number of target tokens to decode per
-                    timestep during greedy decoding. Setting to larger values allows longer sentences
-                    to be decoded, at the cost of increased execution time.
-                preserve_frame_confidence: Same as above, overrides above value.
-                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
+                temperature: None (disabled) or float, specifying this enables temperature sampling instead of greedy decoding.
+                max_generation_delta: int = -1  # -1 means up to the max length of the decoder
+                preserve_alignments: bool = False (unsupported)
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -103,34 +152,52 @@ class AbstractMultiTaskDecoding(ABC):
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.compute_langs = self.cfg.get('compute_langs', False)
         self.compute_hypothesis_token_set = self.cfg.get('compute_hypothesis_token_set', False)
+        self.transformer_decoder = transformer_decoder
+        self.log_softmax_module = log_softmax_module
+        self.tokenizer = tokenizer
 
+        # initialize confidence-related fields
+        self._init_confidence(self.cfg.get('confidence_cfg', None))
+
+        self.change_strategy(self.cfg.strategy)
+
+    def change_strategy(self, strategy: str) -> "AbstractMultiTaskDecoding":
         possible_strategies = ['greedy', 'greedy_batch', 'beam']
-        if self.cfg.strategy not in possible_strategies:
-            raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
+        if strategy not in possible_strategies:
+            raise ValueError(f"Decoding strategy must be one of {possible_strategies}" f"but was provided {strategy}")
 
         # Update preserve alignments
         if self.preserve_alignments is None:
-            if self.cfg.strategy in ['greedy', 'greedy_batch']:
+            if strategy in ['greedy', 'greedy_batch']:
                 self.preserve_alignments = self.cfg.greedy.get('preserve_alignments', False)
 
-            elif self.cfg.strategy in ['beam']:
+            elif strategy in ['beam']:
                 self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
 
-        if self.cfg.strategy == 'greedy' or self.cfg.strategy == 'greedy_batch':
+        if strategy in ['greedy', 'greedy_batch']:
 
-            # self.decoding = None
-            raise NotImplementedError("Greedy decoding is not implemented yet.")
+            self.decoding = TransformerAEDGreedyInfer(
+                transformer_decoder=self.transformer_decoder,
+                log_softmax_module=self.log_softmax_module,
+                tokenizer=self.tokenizer,
+                max_generation_delta=self.cfg.greedy.get('max_generation_delta', -1),
+                preserve_alignments=self.preserve_alignments,
+                preserve_token_confidence=self.preserve_token_confidence or self.preserve_frame_confidence,
+                confidence_method_cfg=self.confidence_method_cfg,
+                temperature=self.cfg.greedy.temperature,
+                n_samples=self.cfg.greedy.n_samples,
+            )
 
-        elif self.cfg.strategy == 'beam':
+        elif strategy == 'beam':
 
             self.decoding = TransformerAEDBeamInfer(
-                transformer_decoder=transformer_decoder,
-                log_softmax_module=log_softmax_module,
-                tokenizer=tokenizer,
+                transformer_decoder=self.transformer_decoder,
+                log_softmax_module=self.log_softmax_module,
+                tokenizer=self.tokenizer,
                 search_type=self.cfg.beam.get('search_type', 'default'),
                 beam_size=self.cfg.beam.beam_size,
                 length_penalty=self.cfg.beam.get('length_penalty', 0.0),
-                max_generation_delta=self.cfg.beam.get('max_generation_delta', 50),
+                max_generation_delta=self.cfg.beam.get('max_generation_delta', -1),
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
             )
@@ -139,7 +206,7 @@ class AbstractMultiTaskDecoding(ABC):
 
             raise ValueError(
                 f"Incorrect decoding strategy provided. Must be one of {possible_strategies}\n"
-                f"but was provided {self.cfg.strategy}"
+                f"but was provided {strategy}"
             )
 
     def decode_predictions_tensor(
@@ -208,6 +275,11 @@ class AbstractMultiTaskDecoding(ABC):
             hypotheses = self.decode_hypothesis(prediction_list)
 
             if return_hypotheses:
+                # greedy decoding, can get high-level confidence scores
+                if self.preserve_frame_confidence and (
+                    self.preserve_word_confidence or self.preserve_token_confidence
+                ):
+                    hypotheses = self.compute_confidence(hypotheses)
                 return hypotheses, None
 
             best_hyp_text = [h.text for h in hypotheses]
@@ -239,6 +311,38 @@ class AbstractMultiTaskDecoding(ABC):
             hypotheses_list[ind].text = hypothesis
 
         return hypotheses_list
+
+    def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
+        """
+        Compute high-level (per-token and/or per-word) confidence scores for a list of hypotheses.
+        Assumes that `token_confidence` is present in the hypotheses.
+
+        Args:
+            hypotheses_list: List of Hypothesis.
+
+        Returns:
+            A list of hypotheses with high-level confidence scores.
+        """
+        if self.preserve_word_confidence:
+            for hyp in hypotheses_list:
+                hyp.word_confidence = self._aggregate_token_confidence(hyp)
+        return hypotheses_list
+
+    def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
+        """
+        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+
+        **Note**: Only supports Sentencepiece based tokenizers!
+
+        Args:
+            hypothesis: Hypothesis
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        return self._aggregate_token_confidence_subwords_sentencepiece(
+            hypothesis.words, hypothesis.token_confidence, hypothesis.y_sequence
+        )
 
     @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
@@ -295,17 +399,6 @@ class AbstractMultiTaskDecoding(ABC):
         """
         raise NotImplementedError()
 
-    def strip_special_tokens(self, text: str):
-        """
-        assuming all special tokens are of format <token>
-        Note that if any label/pred is of format <token>, it will be stripped
-        """
-        assert isinstance(text, str), f"Expected str, got {type(text)}"
-        text = re.sub(r'<[^>]+>', '', text)
-        # strip spaces at the beginning and end;
-        # this is training data artifact, will be fixed in future (@kpuvvada)
-        return text.strip()
-
 
 class MultiTaskDecoding(AbstractMultiTaskDecoding):
     """
@@ -334,13 +427,59 @@ class MultiTaskDecoding(AbstractMultiTaskDecoding):
                 In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
                 with the `return_hypotheses` flag set to True.
 
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence scores.
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during greedy decoding. When set to true, the Hypothesis will contain the non-null value
+                    for `frame_confidence` in it. Here, `frame_confidence` is a List of tensor floats.
+
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding. When set to true, the Hypothesis will contain the non-null value
+                    for `token_confidence` in it. Here, `token_confidence` is a List of tensor floats.
+                    The length of the list corresponds to the number of recognized tokens.
+
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding. When set to true, the Hypothesis will contain the non-null value
+                    for `word_confidence` in it. Here, `word_confidence` is a List of tensor floats.
+                    The length of the list corresponds to the number of recognized words.
+
+                aggregation: Which aggregation type to use for collapsing per-token confidence into per-word
+                    confidence. Valid options are `mean`, `min`, `max`, `prod`.
+
+                method_cfg: A dict-like object which contains settings to compute per-frame confidence scores.
+                    name: The method name (str).
+                        Supported values:
+                            - 'max_prob' for using the maximum token probability as a confidence.
+                            - 'entropy' for using a normalized entropy of a log-likelihood vector.
+                    entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `entropy`.
+                        Supported values:
+                            - 'gibbs' for the (standard) Gibbs entropy. If the alpha (α) is provided,
+                                the formula is the following: H_α = -sum_i((p^α_i)*log(p^α_i)).
+                                Note that for this entropy, the alpha should comply the following inequality:
+                                (log(V)+2-sqrt(log^2(V)+4))/(2*log(V)) <= α <= (1+log(V-1))/log(V-1)
+                                where V is the model vocabulary size.
+                            - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                                Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                            - 'renyi' for the Rényi entropy.
+                                Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                                where α is a parameter. When α == 1, it works like the Gibbs entropy.
+                                More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+                    alpha: Power scale for logsoftmax (α for entropies). Here we restrict it to be > 0.
+                        When the alpha equals one, scaling is not applied to 'max_prob',
+                        and any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                        Supported values:
+                            - 'lin' for using the linear mapping.
+                            - 'exp' for using exponential mapping with linear shift.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
-                max_symbols: int, describing the maximum number of target tokens to decode per
-                    timestep during greedy decoding. Setting to larger values allows longer sentences
-                    to be decoded, at the cost of increased execution time.
-                preserve_frame_confidence: Same as above, overrides above value.
-                confidence_method_cfg: Same as above, overrides confidence_cfg.method_cfg.
+                temperature: None (disabled) or float, specifying this enables temperature sampling instead of greedy decoding.
+
+                max_generation_delta: int = -1  # -1 means up to the max length of the decoder
+
+                preserve_alignments: bool = False (unsupported)
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -472,13 +611,14 @@ class MultiTaskDecodingConfig:
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
 
+    #  confidence config
+    confidence_cfg: ConfidenceConfig = field(default_factory=lambda: ConfidenceConfig())
+
     # compute language IDs
     compute_langs: bool = False
 
     # greedy decoding config
-    # greedy: rnnt_greedy_decoding.GreedyBatchedRNNTInferConfig = field(
-    #     default_factory=rnnt_greedy_decoding.GreedyBatchedRNNTInferConfig
-    # )
+    greedy: AEDGreedyInferConfig = field(default_factory=AEDGreedyInferConfig)
 
     # beam decoding config
     beam: AEDBeamInferConfig = field(default_factory=lambda: AEDBeamInferConfig(beam_size=1))

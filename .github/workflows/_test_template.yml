@@ -1,0 +1,107 @@
+name: ~test template
+
+on:
+  workflow_call:
+    inputs:
+      RUNNER:
+        type: string
+        description: Runner to use for test
+        required: true
+      TIMEOUT:
+        type: number
+        description: Max runtime of test in minutes
+        required: false
+        default: 10
+      SCRIPT:
+        type: string
+        description: Test script to execute
+        required: true
+      AFTER_SCRIPT:
+        type: string
+        description: Script to run after main test
+        required: false
+        default: ":"
+      IS_OPTIONAL:
+        type: boolean
+        description: Failure will cancel all other tests if set to true
+        required: false
+        default: false
+    outputs:
+      conclusion:
+        description: Conclusion of main test step
+        value: ${{ jobs.main.outputs.conclusion }}
+      log:
+        description: Last 2000 characters of the test step's log
+        value: ${{ jobs.main.outputs.log }} 
+      potential_infra_failure:
+        description: Boolean flag when infra-related keyword spotted in logs.
+        value: ${{ jobs.main.outputs.potential_infra_failure }}
+jobs:
+  
+  main:
+    runs-on: ${{ inputs.RUNNER }} 
+    outputs:
+      conclusion: ${{ steps.main.conclusion }}
+      log: ${{ steps.main.outputs.log }}
+      potential_infra_failure: ${{ steps.main.outputs.potential_infra_failure }}
+    steps:
+        - name: Docker system cleanup
+          run: |
+            docker system prune -a --filter "until=48h" --force || true
+
+        - name: Docker pull image
+          run: |
+            docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
+
+        - name: Start container
+          run: |
+            ARG=("")
+            if [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
+              ARG=("--runtime=nvidia --gpus all")
+            fi
+
+            docker run \
+              --rm \
+              -d \
+              --name nemo_container_${{ github.run_id }} ${ARG[@]} \
+              --shm-size=64g \
+              --env TRANSFORMERS_OFFLINE=0 \
+              --env HYDRA_FULL_ERROR=1 \
+              --env HF_HOME=/home/TestData/HF_HOME \
+              --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} \
+              bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
+
+        - id: main
+          name: Run main script
+          timeout-minutes: ${{ inputs.TIMEOUT }}
+          run: |
+            mkdir -p ${{ github.run_id }}
+            cd ${{ github.run_id }}/
+            set +e 
+            (  
+              set -e
+
+              docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.SCRIPT }}'
+            ) 2> >(tee err.log)
+
+            EXIT_CODE=$?
+            
+            echo "log=$(tail -c 2000 err.log |  base64 -w 0)" >> "$GITHUB_OUTPUT"
+            
+            potential_infra_failure=$(cat err.log | grep -Eqiw "device" && echo true || echo false)
+            echo "potential_infra_failure=$potential_infra_failure" >> "$GITHUB_OUTPUT"
+
+            exit $EXIT_CODE
+            
+        - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
+          if: failure() && inputs.IS_OPTIONAL == false && !contains(github.event.pull_request.labels.*.name, 'no-fail-fast')
+        - name: after_script
+          if: always() && inputs.AFTER_SCRIPT != ':'
+          run: |
+            docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.AFTER_SCRIPT }}'
+
+        - name: Container shutdown
+          if: always()
+          run: |
+            docker container stop nemo_container_${{ github.run_id }} || true
+            docker container rm nemo_container_${{ github.run_id }} || true

@@ -30,6 +30,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 
@@ -126,8 +127,8 @@ def adjust_tensor_shapes(model, nemo_state_dict):
     model_config = model.cfg
     num_query_groups = model_config["num_query_groups"]
     head_num = model_config["num_attention_heads"]
-    head_size = model_config["kv_channels"]
     hidden_size = model_config["hidden_size"]
+    head_size = model_config["kv_channels"]
     heads_per_group = head_num // num_query_groups
 
     # Note: For 'key' and 'value' weight and biases, NeMo uses a consolidated tensor 'query_key_value'.
@@ -259,6 +260,8 @@ def convert(args):
     ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
     logging.info(f'=' * 100)
 
+    dtype = torch_dtype_from_precision(args.precision)
+    model = model.to(dtype=dtype)
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
 

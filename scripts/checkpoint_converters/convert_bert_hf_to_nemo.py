@@ -15,11 +15,11 @@
 """
 Example to run this conversion script:
 ```
-    python convert_bert_hf_to_nemo.py \
-     --input_name_or_path "thenlper/gte-large" \
+    python /opt/NeMo/scripts/checkpoint_converters/convert_bert_hf_to_nemo.py \
+     --input_name_or_path /path/to/hf/checkpoints/folder \
      --output_path /path/to/output/nemo/file.nemo \
      --mcore True \
-     --precision 32
+     --precision bf16
 ```
 """
 
@@ -31,11 +31,15 @@ from omegaconf import OmegaConf
 from transformers import AutoModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 
 def adjust_nemo_config(model_config, ref_config, mcore_bert=True):
-    model_config.tokenizer["type"] = "intfloat/e5-large-unsupervised"  # ref_config["_input_name_or_path"]
+    model_config.tokenizer["type"] = ref_config["_name_or_path"]
+    model_config.tokenizer["library"] = "huggingface"
+    model_config.tokenizer["use_fast"] = True
+    model_config["max_position_embeddings"] = ref_config['max_position_embeddings']
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["hidden_size"] = ref_config["hidden_size"]
     model_config["ffn_hidden_size"] = ref_config["intermediate_size"]
@@ -62,7 +66,10 @@ def get_args():
     )
     parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument(
-        "--precision", type=str, default="32", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
+        "--post_process", type=bool, default=False, required=False, help="Whether to have the postprocessing modules"
+    )
+    parser.add_argument(
+        "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
     )
 
     args = parser.parse_args()
@@ -79,6 +86,19 @@ def convert(args):
     nemo_config.trainer["precision"] = args.precision
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model = MegatronBertModel(nemo_config.model, trainer)
+
+    if not args.post_process:
+        (
+            model.model.module.lm_head,
+            model.model.module.encoder.final_layernorm,
+            model.model.module.binary_head,
+            model.model.module.output_layer,
+        ) = (
+            None,
+            None,
+            None,
+            None,
+        )
 
     nemo_state_dict = {}
     hf_config = hf_model.config.to_dict()
@@ -183,6 +203,19 @@ def convert(args):
         nemo_state_dict[LayerNorm2_weight_base_name] = param_to_weights(LayerNorm2_weight)
         nemo_state_dict[LayerNorm2_bias_base_name] = param_to_weights(LayerNorm2_bias)
 
+        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.self_attention.linear_proj._extra_state'
+        ]
+        nemo_state_dict[f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.self_attention.linear_qkv._extra_state'
+        ]
+        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.mlp.linear_fc1._extra_state'
+        ]
+        nemo_state_dict[f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state'] = model.state_dict()[
+            f'model.encoder.layers.{l}.mlp.linear_fc2._extra_state'
+        ]
+
     # Non-layer dependent keys
     word_embeddings_weight = hf_model.state_dict()['embeddings.word_embeddings.weight']
     position_embeddings_weight = hf_model.state_dict()['embeddings.position_embeddings.weight']
@@ -237,11 +270,24 @@ def convert(args):
         else:
             nemo_state_dict['model.language_model.embedding.word_embeddings.weight'] = padded_embedding
 
+    modified_dict = {}
+    for key, value in nemo_state_dict.items():
+        if key.startswith('model.'):
+            new_key = 'model.module.' + key[len('model.') :]
+            modified_dict[new_key] = value
+        else:
+            modified_dict[key] = value
+
+    nemo_state_dict = modified_dict
+
     model.load_state_dict(nemo_state_dict, strict=True)
+    dtype = torch_dtype_from_precision(args.precision)
+    model = model.to(dtype=dtype)
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
 
 
 if __name__ == '__main__':
+    os.environ['NVTE_FLASH_ATTN'] = '0'  # Bert doesn't support FLASH_ATTN
     args = get_args()
     convert(args)

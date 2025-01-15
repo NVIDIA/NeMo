@@ -16,6 +16,7 @@ import json
 import math
 import multiprocessing
 import os
+from collections.abc import Iterable as IterableABC
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import braceexpand
@@ -26,8 +27,8 @@ from torch.utils.data import ChainDataset
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
-from nemo.collections.asr.parts.utils.audio_utils import ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
@@ -41,6 +42,7 @@ from nemo.utils.data_utils import (
     is_datastore_path,
     is_tarred_path,
 )
+from nemo.utils.decorators import deprecated
 from nemo.utils.distributed import webdataset_split_by_workers
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -74,7 +76,9 @@ def _speech_collate_fn(batch, pad_id):
     has_audio = audio_lengths[0] is not None
     if has_audio:
         max_audio_len = max(audio_lengths).item()
-    max_tokens_len = max(tokens_lengths).item()
+    has_tokens = tokens_lengths[0] is not None
+    if has_tokens:
+        max_tokens_len = max(tokens_lengths).item()
 
     audio_signal, tokens = [], []
     for b in batch:
@@ -88,19 +92,24 @@ def _speech_collate_fn(batch, pad_id):
                 pad = (0, max_audio_len - sig_len)
                 sig = torch.nn.functional.pad(sig, pad)
             audio_signal.append(sig)
-        tokens_i_len = tokens_i_len.item()
-        if tokens_i_len < max_tokens_len:
-            pad = (0, max_tokens_len - tokens_i_len)
-            tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
-        tokens.append(tokens_i)
+        if has_tokens:
+            tokens_i_len = tokens_i_len.item()
+            if tokens_i_len < max_tokens_len:
+                pad = (0, max_tokens_len - tokens_i_len)
+                tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
+            tokens.append(tokens_i)
 
     if has_audio:
         audio_signal = torch.stack(audio_signal)
         audio_lengths = torch.stack(audio_lengths)
     else:
         audio_signal, audio_lengths = None, None
-    tokens = torch.stack(tokens)
-    tokens_lengths = torch.stack(tokens_lengths)
+    if has_tokens:
+        tokens = torch.stack(tokens)
+        tokens_lengths = torch.stack(tokens_lengths)
+    else:
+        tokens = None
+        tokens_lengths = None
     if sample_ids is None:
         return audio_signal, audio_lengths, tokens, tokens_lengths
     else:
@@ -138,6 +147,7 @@ class ASRManifestProcessor:
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         index_by_file_id: bool = False,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         self.parser = parser
 
@@ -148,6 +158,7 @@ class ASRManifestProcessor:
             max_duration=max_duration,
             max_number=max_utts,
             index_by_file_id=index_by_file_id,
+            parse_func=manifest_parse_func,
         )
 
         self.eos_id = eos_id
@@ -255,8 +266,7 @@ def cache_datastore_manifests(
     if num_datastore_manifests > 0:
         # Local utility function
         def cache_data(manifest_filepaths, cache_audio, num_workers, max_num_workers):
-            """Cache manifests and audio data from object store.
-            """
+            """Cache manifests and audio data from object store."""
             # Determine the number of workers to use
             if num_workers is None:
                 num_workers = os.cpu_count() - 1
@@ -416,12 +426,12 @@ class _AudioTextDataset(Dataset):
         pad_id: Id of pad symbol. Defaults to 0
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
@@ -446,6 +456,7 @@ class _AudioTextDataset(Dataset):
         pad_id: int = 0,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
@@ -462,6 +473,7 @@ class _AudioTextDataset(Dataset):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
+            manifest_parse_func=manifest_parse_func,
         )
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
@@ -472,6 +484,12 @@ class _AudioTextDataset(Dataset):
         return self.manifest_processor.collection[sample_id]
 
     def __getitem__(self, index):
+        if isinstance(index, IterableABC):
+            return [self._process_sample(_index) for _index in index]
+        else:
+            return self._process_sample(index)
+
+    def _process_sample(self, index):
         sample = self.manifest_processor.collection[index]
         offset = sample.offset
 
@@ -535,12 +553,12 @@ class AudioToCharDataset(_AudioTextDataset):
         eos_id: Id of end of sequence symbol to append if not None
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
@@ -569,6 +587,7 @@ class AudioToCharDataset(_AudioTextDataset):
         parser: Union[str, Callable] = 'en',
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         self.labels = labels
 
@@ -591,6 +610,7 @@ class AudioToCharDataset(_AudioTextDataset):
             pad_id=pad_id,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
+            manifest_parse_func=manifest_parse_func,
         )
 
 
@@ -629,12 +649,12 @@ class AudioToBPEDataset(_AudioTextDataset):
             tokens to beginning and ending of speech respectively.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
@@ -657,6 +677,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -706,9 +727,13 @@ class AudioToBPEDataset(_AudioTextDataset):
             trim=trim,
             return_sample_id=return_sample_id,
             channel_selector=channel_selector,
+            manifest_parse_func=manifest_parse_func,
         )
 
 
+@deprecated(
+    explanation='Webdataset support will be removed in v2.1.0 versions, please use LhotseSpeechToTextBpeDataset class instead'
+)
 class _TarredAudioToTextDataset(IterableDataset):
     """
     A similar Dataset to the AudioToCharDataset/AudioToBPEDataset, but which loads tarred audio files.
@@ -799,6 +824,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     def __init__(
@@ -821,6 +847,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         self.shard_manifests = shard_manifests
 
@@ -846,6 +873,7 @@ class _TarredAudioToTextDataset(IterableDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+            manifest_parse_func=manifest_parse_func,
         )
 
         self.len = self._compute_len()
@@ -903,8 +931,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         return TarredAudioFilter(self.manifest_processor.collection)
 
     def _loop_offsets(self, iterator):
-        """This function is used to iterate through utterances with different offsets for each file.
-        """
+        """This function is used to iterate through utterances with different offsets for each file."""
 
         class TarredAudioLoopOffsets:
             def __init__(self, collection):
@@ -937,8 +964,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         return _speech_collate_fn(batch, self.pad_id)
 
     def _build_sample(self, tup):
-        """Builds the training sample by combining the data from the WebDataset with the manifest info.
-        """
+        """Builds the training sample by combining the data from the WebDataset with the manifest info."""
         audio_bytes, audio_filename, offset_id = tup
 
         # Grab manifest entry from self.manifest_preprocessor.collection
@@ -1091,6 +1117,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     def __init__(
@@ -1117,6 +1144,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         self.labels = labels
 
@@ -1143,6 +1171,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
+            manifest_parse_func=manifest_parse_func,
         )
 
 
@@ -1224,6 +1253,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        manifest_parse_func: Optional function to parse manifest entries. Defaults to None.
     """
 
     def __init__(
@@ -1244,6 +1274,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         global_rank: int = 0,
         world_size: int = 0,
         return_sample_id: bool = False,
+        manifest_parse_func: Optional[Callable] = None,
     ):
         if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             bos_id = tokenizer.bos_id
@@ -1297,6 +1328,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             global_rank=global_rank,
             world_size=world_size,
             return_sample_id=return_sample_id,
+            manifest_parse_func=manifest_parse_func,
         )
 
 
@@ -1309,7 +1341,9 @@ class BucketingDataset(IterableDataset):
     """
 
     def __init__(
-        self, dataset: IterableDataset, bucketing_batch_size: int,
+        self,
+        dataset: IterableDataset,
+        bucketing_batch_size: int,
     ):
         self.wrapped_dataset = dataset
         self.bucketing_batch_size = bucketing_batch_size

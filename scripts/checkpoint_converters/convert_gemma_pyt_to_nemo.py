@@ -14,6 +14,7 @@
 
 """
 Requires to install: `pip install fairscale==0.4.13 immutabledict==4.1.0 tensorstore==0.1.45`
+Requires to clone: https://github.com/google/gemma_pytorch.git
 Required to set: `export PYTHONPATH=/path/to/google/gemma_pytorchh:$PYTHONPATH`
    python3 /opt/NeMo/scripts/nlp_language_modeling/convert_gemma_pyt_to_nemo.py \
    --input_name_or_path /path/to/gemma/checkpoints/pyt/7b.ckpt \
@@ -26,13 +27,14 @@ import os
 from argparse import ArgumentParser
 
 import torch
-from model.config import get_config_for_2b, get_config_for_7b
-from model.model import CausalLM
-from model.tokenizer import Tokenizer
+from gemma.config import get_config_for_2b, get_config_for_7b
+from gemma.model import CausalLM
+from gemma.tokenizer import Tokenizer
 from omegaconf import OmegaConf
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 
 PAD_TOKEN_ID = -1
@@ -131,8 +133,8 @@ def adjust_tensor_shapes(model, nemo_state_dict):
     model_config = model.cfg
     num_query_groups = model_config["num_query_groups"]
     head_num = model_config["num_attention_heads"]
-    head_size = model_config["kv_channels"]
     hidden_size = model_config["hidden_size"]
+    head_size = model_config["kv_channels"]
     heads_per_group = head_num // num_query_groups
 
     # Note: For 'key' and 'value' weight and biases, NeMo uses a consolidated tensor 'query_key_value'.
@@ -151,7 +153,8 @@ def adjust_tensor_shapes(model, nemo_state_dict):
             # [(head_num + 2 * num_query_groups) * head_size, hidden_size]
             # -> [head_num, head_size, hidden_size], 2 * [num_query_groups, head_size, hidden_size]
             q_weight, k_weight, v_weight = qkv_weight.split(
-                [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0,
+                [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size],
+                dim=0,
             )
             q_weight = q_weight.reshape(head_num, head_size, hidden_size)
             k_weight = k_weight.reshape(num_query_groups, head_size, hidden_size)
@@ -303,6 +306,8 @@ def convert(args):
     )
     assert torch.argmax(nemo_outputs[0, -1], dim=-1) == pyt_outputs, "Predicted next token not match."
 
+    dtype = torch_dtype_from_precision(args.precision)
+    model = model.to(dtype=dtype)
     model.save_to(args.output_path)
     logging.info(f'NeMo model saved to: {args.output_path}')
 
