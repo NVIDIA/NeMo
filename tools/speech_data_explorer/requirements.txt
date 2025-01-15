@@ -5,7 +5,7 @@ editdistance
 jiwer
 librosa>=0.9.1
 numpy
+pandas
 plotly
 SoundFile
 tqdm
-pandas
