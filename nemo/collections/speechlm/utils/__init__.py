@@ -13,10 +13,5 @@
 # limitations under the License.
 
 
-from nemo.collections.speechlm.utils.hydra_utils import (
-    get_logger_from_config,
-    get_object_list_from_config,
-    get_resume_from_config,
-    to_dict_config,
-)
+from nemo.collections.speechlm.utils.hydra_utils import get_object_list_from_config, to_dict_config
 from nemo.collections.speechlm.utils.model_transform import SpeechToTextLLMPEFT

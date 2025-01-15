@@ -18,8 +18,14 @@ from nemo.utils import logging
 
 
 class SpeechLMDataSampler(MegatronDataSampler):
-    def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
+    """
+    Overwrite the default MegatronDataSampler to not add batch sampler when iteralbe dataset is used.
+    """
 
+    def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
+        """
+        Overwrites the MegatronDataSampler.transform_dataloader() function
+        """
         sampler = getattr(dataloader, 'sampler', None)
 
         if sampler is not None and "lhotse." in str(type(sampler)):

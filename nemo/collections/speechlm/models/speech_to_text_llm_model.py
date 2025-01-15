@@ -699,7 +699,7 @@ class SpeechToTextLLM(SpeechLanguageModel):
 
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
 
-        # self._reconfigure_and_process_inference_batch(batch, data_cfg)
+        self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
         metadata = batch.get('metadata', [{}] * len(batch['tokens']))
         forward_output = self.forward_step(batch)
@@ -1126,55 +1126,3 @@ class SpeechToTextLLM(SpeechLanguageModel):
         # Same logic as validation epoch end, but this may be need if there is no validation sanity check to trigger on_validation_epoch_end()
         self.on_validation_epoch_end()
         return super().on_train_epoch_start()
-
-    # def get_model_module_list(self):
-    #     def extract_module(model):
-    #         if isinstance(model, (McoreDDP, Float16Module, MCoreFloat16Module)):
-    #             return extract_module(model.module)
-    #         else:
-    #             return model
-
-    #     if isinstance((self.enc_dec_model if hasattr(self, "enc_dec_model") else self.module), list):
-    #         return list(map(extract_module, (self.enc_dec_model if hasattr(self, "enc_dec_model") else self.module)))
-    #     else:
-    #         return [extract_module(self.enc_dec_model if hasattr(self, "enc_dec_model") else self.module)]
-
-    # def _reset_activation_checkpointing_args(self):
-    #     """Disables activation checkpointing completely and saves the values so that
-    #     _restore_activation_checkpointing_args can restore them later. This function must always be
-    #     called before _restore_activation_checkpointing_args.
-    #     """
-    #     # Store values to restore them later.
-    #     self.last_activations_checkpoint_granularity = self.cfg.activations_checkpoint_granularity
-    #     self.last_activations_checkpoint_method = self.cfg.activations_checkpoint_method
-    #     self.last_activations_checkpoint_num_layers = self.cfg.activations_checkpoint_num_layers
-    #     self.last_activations_checkpoint_layers_per_pipeline = self.cfg.activations_checkpoint_layers_per_pipeline
-
-    #     # Reset config values. Needed for calling generate.
-    #     self.cfg.activations_checkpoint_granularity = None
-    #     self.cfg.activations_checkpoint_method = None
-    #     self.cfg.activations_checkpoint_num_layers = None
-    #     self.cfg.activations_checkpoint_layers_per_pipeline = None
-
-    #     # Reset model parameters.
-    #     for module in self.get_model_module_list():
-    #         module.language_model.config.recompute_granularity = None
-    #         module.language_model.config.recompute_method = None
-    #         module.language_model.config.recompute_num_layers = None
-
-    # def _restore_activation_checkpointing_args(self):
-    #     """Restores the activation checkpointing parameters using the values saved by
-    #     _reset_activation_checkpointing_args. This function must never be called before
-    #     _reset_activation_checkpointing_args.
-    #     """
-    #     # Restore config values.
-    #     self.cfg.activations_checkpoint_granularity = self.last_activations_checkpoint_granularity
-    #     self.cfg.activations_checkpoint_method = self.last_activations_checkpoint_method
-    #     self.cfg.activations_checkpoint_num_layers = self.last_activations_checkpoint_num_layers
-    #     self.cfg.activations_checkpoint_layers_per_pipeline = self.last_activations_checkpoint_layers_per_pipeline
-
-    #     # Restore model parameters.
-    #     for module in self.get_model_module_list():
-    #         module.decoder.config.recompute_granularity = self.last_activations_checkpoint_granularity
-    #         module.decoder.config.recompute_method = self.last_activations_checkpoint_method
-    #         module.decoder.config.recompute_num_layers = self.last_activations_checkpoint_num_layers

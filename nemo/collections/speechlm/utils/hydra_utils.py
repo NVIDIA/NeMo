@@ -13,14 +13,11 @@
 # limitations under the License.
 
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
-from megatron.core.optimizer import OptimizerConfig
-from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from nemo import lightning as nl
 from nemo.core.classes.common import Serialization
-from nemo.lightning import AutoResume
 
 
 def get_object_list_from_config(cfg: Union[DictConfig, ListConfig, Dict]) -> List[Any]:
@@ -41,32 +38,6 @@ def get_object_list_from_config(cfg: Union[DictConfig, ListConfig, Dict]) -> Lis
         raise ValueError(f"Unsupported config type: {type(cfg)}, with content: {cfg}")
 
     return [Serialization.from_config_dict(c) for c in candidates]
-
-
-def get_resume_from_config(cfg: DictConfig) -> Optional[AutoResume]:
-    if "restore_config" in cfg:
-        if "_target_" not in cfg.restore_config:
-            with open_dict(cfg):
-                cfg.restore_config._target_ = "nemo.lightning.RestoreConfig"
-        restore_config = get_object_list_from_config(cfg.restore_config)[0]
-    else:
-        restore_config = None
-
-    resume = AutoResume(
-        restore_config=restore_config,
-        resume_from_directory=cfg.get("resume_from_directory", None),
-        resume_from_path=cfg.get("resume_from_path", None),
-        adapter_path=cfg.get("adapter_path", None),
-        resume_if_exists=cfg.get("resume_if_exists", True),
-        resume_past_end=cfg.get("resume_past_end", False),
-        resume_ignore_no_checkpoint=cfg.get("resume_ignore_no_checkpoint", True),
-    )
-    return resume
-
-
-def get_logger_from_config(cfg: DictConfig):
-    logger = nl.NeMoLogger(**cfg)
-    return logger
 
 
 def to_dict_config(cfg):
