@@ -70,11 +70,13 @@ class ImageOutputProjectionModule(MegatronModule):
         )
 
     def forward(self, hidden_state):
-        batch_size = hidden_state.shape[0]
+        # hidden_state = [s, b, h]
+        batch_size = hidden_state.shape[1]
         probe = self.probe.repeat(1, batch_size, 1)
-        hidden_state = hidden_state.transpose(0, 1)
+        hidden_state = hidden_state.contiguous()
         encoder_hidden_states = self.encoder(hidden_state, attention_mask=None)
         decoder_hidden_states = self.decoder(probe, attention_mask=None, context=encoder_hidden_states)
         output_projection, _ = self.output_projection(decoder_hidden_states)
-        output_projection = output_projection.transpose(0, 1)
+        output_projection = output_projection.transpose(0, 1).contiguous()
+        # hidden_state = [b, s, h]
         return output_projection
