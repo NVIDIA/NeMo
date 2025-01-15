@@ -286,32 +286,6 @@ def read_multimodal_conversation_jsonl(config: DictConfig) -> tuple[CutSet, bool
     return cuts, True
 
 
-def read_nemo_sft_jsonl(config: DictConfig) -> CutSet:
-    return CutSet(
-        NeMoSFTJsonlAdapter(
-            paths=config.paths,
-            language=config.language,
-            shuffle_shards=config.shuffle,
-            shard_seed=config.shard_seed,
-        )
-    ).repeat()
-
-
-def read_multimodal_conversation_jsonl(config: DictConfig) -> CutSet:
-    cuts = CutSet(
-        NeMoMultimodalConversationJsonlAdapter(
-            manifest_filepath=config.manifest_filepath,
-            tarred_audio_filepaths=config.get("tarred_audio_filepaths"),
-            audio_locator_tag=config.audio_locator_tag,
-            shuffle_shards=config.shuffle,
-            shard_seed=config.shard_seed,
-        )
-    )
-    if not config.get("force_finite", False):
-        cuts = cuts.repeat()
-    return cuts
-
-
 def attach_tags(cut, tags: dict):
     for key, val in tags.items():
         setattr(cut, key, val)
