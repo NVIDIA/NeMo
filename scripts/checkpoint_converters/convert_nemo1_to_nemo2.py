@@ -274,9 +274,6 @@ def main() -> None:
 
     logging.info(f"NeMo 2.0 checkpoint saved at {args.output_path}")
 
-def llava_transforms():
-    pass
-
 if __name__ == '__main__':
     args = get_args()
     main()
