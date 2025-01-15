@@ -188,7 +188,6 @@ class MimoCaptionSampleEncoder(VQASampleEncoder):
         processed_image = processed_image.squeeze()
 
         image_token_mask = tokens == -200
-
         output_sample.__key__ = input_sample.__key__
         output_sample.__restore_key__ = input_sample.__restore_key__
         output_sample.input_image = processed_image
@@ -244,7 +243,6 @@ class MimoCaptionSampleEncoder(VQASampleEncoder):
         ).squeeze()
 
         image_token_mask = tokens == -200
-
         output_sample.__key__ = input_sample.__key__
         output_sample.__restore_key__ = input_sample.__restore_key__
         output_sample.input_image = None
@@ -298,6 +296,7 @@ class MimoCaptioningTaskEncoder(MultiModalTaskEncoder):
             [],
             [],
         )
+
         for sample in samples:
             keys.append(sample.__key__)
             images.append(sample.input_image)
@@ -323,7 +322,6 @@ class MimoCaptioningTaskEncoder(MultiModalTaskEncoder):
             num_image_tiles = torch.empty(0, dtype=torch.int32)
         batch_num_media_tiles = torch.tensor(batch_list(num_image_tiles), dtype=torch.int32)
         batch_image_token_masks = batch_pad_stack(image_token_masks)
-
         return MimoCaptioningRawBatch(
             __keys__=batch_keys,
             images=batch_images,
@@ -347,6 +345,12 @@ class MimoCaptioningTaskEncoder(MultiModalTaskEncoder):
 
 
 if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path', type=str, required=True, help='path to the dataset directory')
+    args = parser.parse_args()
+
     processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
     tokenizer = processor.tokenizer
     special_tokens = [f"IMG_{i}" for i in range(8)]
@@ -357,7 +361,7 @@ if __name__ == '__main__':
     worker_config = WorkerConfig.default_worker_config(0)
     train_loader = get_loader(
         get_train_dataset(
-            '/home/ykarnati/Downloads/datasets/cc3m',
+            args.data_path,
             batch_size=128,
             shuffle_buffer_size=100,
             max_samples_per_sequence=100,
@@ -367,10 +371,11 @@ if __name__ == '__main__':
                 multimodal_sample_config=MultiModalSampleConfig(),
                 is_generation=True,
             ),
+            worker_config=worker_config,
         ),
         worker_config=worker_config,
     )
-
+    # print no of samples in train_loader
     print(f"data loader length {len(train_loader)}")
     for index, each_batch in enumerate(train_loader):
         print(f"batch index {index} tokens shape {each_batch['tokens'].shape} ")
