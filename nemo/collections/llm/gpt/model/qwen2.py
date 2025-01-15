@@ -152,6 +152,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
 
         output = Qwen2Config(
+            vocab_size=source.vocab_size,
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
