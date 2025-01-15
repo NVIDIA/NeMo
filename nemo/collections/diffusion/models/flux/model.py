@@ -99,7 +99,8 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = flux_data_step
     ckpt_path: Optional[str] = None
     load_dist_ckpt: bool = False
-    convert_from_hf: bool = False
+    do_convert_from_hf: bool = False
+    save_converted_model_to = None
 
     def configure_model(self):
         model = Flux(config=self)
@@ -216,8 +217,9 @@ class Flux(VisionModule):
         if self.config.ckpt_path is not None:
             self.load_from_pretrained(
                 self.config.ckpt_path,
-                do_convert_from_hf=self.config.convert_from_hf,
+                do_convert_from_hf=self.config.do_convert_from_hf,
                 load_dist_ckpt=self.config.load_dist_ckpt,
+                save_converted_model_to=self.config.save_converted_model_to,
             )
 
     def forward(
@@ -326,6 +328,7 @@ class Flux(VisionModule):
             if do_convert_from_hf:
                 ckpt = flux_transformer_converter(ckpt_path, self.transformer.config)
                 if save_converted_model_to is not None:
+                    os.makedirs(save_converted_model_to, exist_ok=True)
                     save_path = os.path.join(save_converted_model_to, 'nemo_flux_transformer.safetensors')
                     save_safetensors(ckpt, save_path)
                     logging.info(f'saving converted transformer checkpoint to {save_path}')
