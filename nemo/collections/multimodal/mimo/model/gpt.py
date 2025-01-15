@@ -68,4 +68,4 @@ class MimoGPTModel(MCoreGPTModel):
             return logits.transpose(0, 1).contiguous(), hidden_states
         loss = self.compute_language_model_loss(labels, logits)
 
-        return loss, hidden_states
+        return loss, hidden_states.contiguous()
