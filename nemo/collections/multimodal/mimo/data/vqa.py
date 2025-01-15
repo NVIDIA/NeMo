@@ -23,6 +23,7 @@ from transformers import AutoProcessor
 from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.multimodal.mimo.data.captioning import MimoCaptioningRawBatch
 from nemo.collections.multimodal.mimo.data.templates import (
     COMPHREHENSION_PROMPTS,
     GENERATION_KEYWORDS,
@@ -30,12 +31,9 @@ from nemo.collections.multimodal.mimo.data.templates import (
     IMAGE_KEYWORDS,
     RESPONSES,
 )
-from nemo.utils import logging
-
-
 from nemo.collections.vlm import LlavaNextTaskEncoder
-from nemo.collections.vlm.llava_next.data.energon import LlavaNextTextSample, LlavaNextTextRawBatch
-from nemo.collections.multimodal.mimo.data.captioning import MimoCaptioningRawBatch
+from nemo.collections.vlm.llava_next.data.energon import LlavaNextTextRawBatch, LlavaNextTextSample
+from nemo.utils import logging
 
 
 class MimoVqaTaskEncoder(LlavaNextTaskEncoder):
@@ -91,6 +89,7 @@ if __name__ == '__main__':
                 image_processor=processor.image_processor,
                 multimodal_sample_config=MultiModalSampleConfig(),
             ),
+            worker_config=worker_config,
         ),
         worker_config=worker_config,
     )
