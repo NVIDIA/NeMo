@@ -27,7 +27,7 @@ def main(args):
     # Global and micro batch sizes
     gbs = args.gbs
     mbs = args.mbs
-    seq_length = 256
+    seq_length = 8192
     stage = args.stage
 
     model_id = "llava-hf/llava-v1.6-vicuna-7b-hf"
@@ -53,7 +53,8 @@ def main(args):
         path=args.data_path,
         tokenizer=tokenizer,
         image_processor=processor.image_processor,
-        num_workers=2,
+        num_workers=32,
+        seq_length=seq_length,
         micro_batch_size=mbs,
         global_batch_size=gbs,
         multimodal_sample_config=multimodal_sample_config,
@@ -66,7 +67,7 @@ def main(args):
         vocab_size=tokenizer.vocab_size,
         image_special_token_indices=image_special_token_indices,
         image_special_tokens=image_special_tokens,
-        freeze_language_model=False,
+        freeze_language_model=args.freeze_language_model,
         language_model_path=args.language_model_path,
         vision_model_path=args.vision_model_path,
     )
@@ -172,6 +173,7 @@ if __name__ == "__main__":
     parser.add_argument("--language_model_path", type=str, required=False, default=None)
     parser.add_argument("--vision_model_path", type=str, required=False, default=None)
     parser.add_argument("--max_steps", type=int, required=False, default=2500)
+    parser.add_argument("--freeze_language_model", type=bool, default=False, required=False)
 
     args = parser.parse_args()
     main(args)
