@@ -151,7 +151,8 @@ class BaseMimoModel(MCoreLLaVAModel):
             self.language_model.embedding.word_embeddings.weight.device,
             self.language_model.embedding.word_embeddings.weight.dtype,
         )
-        self.encoder_hidden_state = torch.tensor([], dtype=dtype, device=device).reshape(0, 0, 0)
+        if not has_images:
+            self.encoder_hidden_state = torch.tensor([], dtype=dtype, device=device).reshape(0, 0, 0)
 
         (output, hidden_states), new_loss_mask = super().forward(
             images=images,
@@ -179,31 +180,43 @@ class BaseMimoModel(MCoreLLaVAModel):
                 # TODO: Yash refactor this, dont have to keep moving image decoder to device
                 image_decoder = self.image_decoder.to(device)
                 image_caption_embeddings = self.get_image_caption_embeddings(input_text)  # (bs, 77, 1024)
-                special_token_mask = torch.zeros_like(labels, dtype=torch.bool)
-                for idx in self.config.image_special_token_indices:
-                    special_token_mask |= labels == idx
 
-                nonzero_indices = torch.nonzero(special_token_mask, as_tuple=False)
-                special_token_positions = nonzero_indices[:, 1]
-                special_token_indices = labels[special_token_mask]
-
-                special_token_positions = special_token_positions.view(
-                    labels.size(0), -1
-                )  # batch_size, no_special_tokens
-                special_token_indices = special_token_indices.view(labels.size(0), -1)
-
-                special_token_mask = special_token_mask.transpose(0, 1).unsqueeze(-1)
-                special_token_mask = special_token_mask.expand_as(hidden_states)
-                selected_hidden_states = hidden_states[special_token_mask].view(
-                    hidden_states.size(1), -1, hidden_states.size(-1)
+                # ###########
+                start_positions = (
+                    (labels == self.config.image_special_token_indices[0]).nonzero(as_tuple=False).tolist()
                 )
-
-                special_token_embeddings = self.language_model.embedding(
-                    input_ids=special_token_indices, position_ids=special_token_positions
+                end_positions = (
+                    (labels == self.config.image_special_token_indices[-1]).nonzero(as_tuple=False).tolist()
                 )
-                special_token_embeddings = special_token_embeddings.transpose(0, 1)
+                # returns list of tuples. (batch_idx, start_idx)
+                assert 0 < len(start_positions) == len(end_positions) and len(end_positions) > 0, (
+                    start_positions,
+                    end_positions,
+                )
+                hidden_special_embeddings = []
+                input_special_embeddings = []
 
-                inp_to_vision_projection = selected_hidden_states + special_token_embeddings
+                for start, end in zip(start_positions, end_positions):
+                    assert end[0] == start[0], (start, end)
+                    assert end[1] - start[1] + 1 == len(
+                        self.config.image_special_token_indices
+                    ), "Incorrect number of special tokens"
+                    # hidden_states is seq_len, batch_dim, hidden_dim
+                    hidden_special_embeddings.append(hidden_states[start[1] : end[1] + 1, start[0], :])
+
+                    # labels is batch_dim, seq_len
+                    input_embedding = self.language_model.embedding(
+                        input_ids=labels[start[0], start[1] : end[1] + 1].unsqueeze(0),
+                        position_ids=torch.arange(start[1], end[1] + 1).unsqueeze(0),
+                    )
+                    input_special_embeddings.append(input_embedding.squeeze(1))
+                # hidden and input special embeddings are no_special_tokens, batch_dim, hidden_dim
+                hidden_special_embeddings = torch.stack(hidden_special_embeddings, dim=1)
+                input_special_embeddings = torch.stack(input_special_embeddings, dim=1)
+
+                #############
+
+                inp_to_vision_projection = hidden_special_embeddings + input_special_embeddings
                 output_projection_embeddings = self.image_output_projection_module(inp_to_vision_projection)
                 output_projection_embeddings = output_projection_embeddings.to(dtype=image_decoder.dtype)
                 # image_caption_embeddings = image_caption_embeddings.to(
