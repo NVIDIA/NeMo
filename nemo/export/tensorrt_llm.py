@@ -20,6 +20,9 @@ import pickle
 import shutil
 import tempfile
 import warnings
+import time
+from concurrent.futures import as_completed, ProcessPoolExecutor
+from multiprocessing import get_context
 from pathlib import Path
 from typing import List, Optional
 
@@ -87,6 +90,38 @@ try:
     from pytriton.model_config import Tensor
 except Exception:
     use_pytriton = False
+
+
+def build_engine(rank, weight_dict, model_config, params):
+    if rank is not None:
+        torch.cuda.set_device(rank)
+
+    build_and_save_engine(
+        max_input_len=params["max_input_len"],
+        max_output_len=params["max_output_len"],
+        max_batch_size=params["max_batch_size"],
+        model_config=model_config,
+        model_weights=weight_dict,
+        model_dir=params["model_dir"],
+        model_type=params["model_type"],
+        lora_ckpt_list=params["lora_ckpt_list"],
+        use_lora_plugin=params["use_lora_plugin"],
+        max_lora_rank=params["max_lora_rank"],
+        lora_target_modules=params["lora_target_modules"],
+        max_prompt_embedding_table_size=params["max_prompt_embedding_table_size"],
+        paged_kv_cache=params["paged_kv_cache"],
+        remove_input_padding=params["remove_input_padding"],
+        paged_context_fmha=params["paged_context_fmha"],
+        max_num_tokens=params["max_num_tokens"],
+        opt_num_tokens=params["opt_num_tokens"],
+        max_seq_len=params["max_seq_len"],
+        multiple_profiles=params["multiple_profiles"],
+        gpt_attention_plugin=params["gpt_attention_plugin"],
+        gemm_plugin=params["gemm_plugin"],
+        gather_context_logits=params["gather_context_logits"],
+        gather_generation_logits=params["gather_generation_logits"],
+    )
+    return "OK"
 
 
 # pylint: disable=line-too-long
@@ -189,6 +224,7 @@ class TensorRTLLM(ITritonDeployable):
         gather_context_logits: Optional[bool] = False,
         gather_generation_logits: Optional[bool] = False,
         build_rank: Optional[int] = 0,
+        parallel_build: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -231,6 +267,8 @@ class TensorRTLLM(ITritonDeployable):
         """
 
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
+        print(f"gpus_per_node={gpus_per_node}")
+        print(f"parallel_build={parallel_build}")
 
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
@@ -453,6 +491,8 @@ class TensorRTLLM(ITritonDeployable):
                     if model_type == "mixtral":
                         model_type = "llama"
 
+                    print("Getting weights_dict and model_configs started...")
+                    time_start = time.perf_counter()
                     weights_dicts, model_configs = model_to_trtllm_ckpt(
                         model=model,
                         nemo_model_config=model_config,
@@ -467,34 +507,52 @@ class TensorRTLLM(ITritonDeployable):
                         fp8_quantized=fp8_quantized,
                         fp8_kvcache=fp8_kvcache,
                     )
+                    print(f"Getting weights_dict and model_configs finished in {time.perf_counter() - time_start:.2f}s")
+                    print(f"len(weights_dicts)={len(weights_dicts)}")
+                    print(f"len(model_configs)={len(model_configs)}")
 
-                    for weight_dict, model_config in zip(weights_dicts, model_configs):
-                        build_and_save_engine(
-                            max_input_len=max_input_len,
-                            max_output_len=max_output_len,
-                            max_batch_size=max_batch_size,
-                            model_config=model_config,
-                            model_weights=weight_dict,
-                            model_dir=self.model_dir,
-                            model_type=model_type,
-                            lora_ckpt_list=self.lora_ckpt_list,
-                            use_lora_plugin=use_lora_plugin,
-                            max_lora_rank=max_lora_rank,
-                            lora_target_modules=lora_target_modules,
-                            max_prompt_embedding_table_size=max_prompt_embedding_table_size,
-                            paged_kv_cache=paged_kv_cache,
-                            remove_input_padding=remove_input_padding,
-                            paged_context_fmha=paged_context_fmha,
-                            max_num_tokens=max_num_tokens,
-                            opt_num_tokens=opt_num_tokens,
-                            max_seq_len=max_seq_len,
-                            multiple_profiles=multiple_profiles,
-                            gpt_attention_plugin=gpt_attention_plugin,
-                            gemm_plugin=gemm_plugin,
-                            gather_context_logits=gather_context_logits,
-                            gather_generation_logits=gather_generation_logits,
-                        )
+                    params = {
+                        "max_input_len": max_input_len,
+                        "max_output_len": max_output_len,
+                        "max_batch_size": max_batch_size,
+                        "model_dir": self.model_dir,
+                        "model_type": model_type,
+                        "lora_ckpt_list": self.lora_ckpt_list,
+                        "use_lora_plugin": use_lora_plugin,
+                        "max_lora_rank": max_lora_rank,
+                        "lora_target_modules": lora_target_modules,
+                        "max_prompt_embedding_table_size": max_prompt_embedding_table_size,
+                        "paged_kv_cache": paged_kv_cache,
+                        "remove_input_padding": remove_input_padding,
+                        "paged_context_fmha": paged_context_fmha,
+                        "max_num_tokens": max_num_tokens,
+                        "opt_num_tokens": opt_num_tokens,
+                        "max_seq_len": max_seq_len,
+                        "multiple_profiles": multiple_profiles,
+                        "gpt_attention_plugin": gpt_attention_plugin,
+                        "gemm_plugin": gemm_plugin,
+                        "gather_context_logits": gather_context_logits,
+                        "gather_generation_logits": gather_generation_logits,
+                    }
+                    print("Building and saving engine started...")
+                    time_start = time.perf_counter()
+                    if parallel_build:
+                        with ProcessPoolExecutor(
+                            mp_context=get_context('spawn'),
+                            max_workers=gpus_per_node,
+                        ) as executor:
+                            futures = [
+                                executor.submit(build_engine, rank, weight_dict, model_config, params)
+                                for rank, weight_dict, model_config in zip(range(len(weights_dicts)), weights_dicts, model_configs)
+                            ]
+                            for future in as_completed(futures):
+                                result = future.result()
+                                print(f"result = {result}")
+                    else:
+                        for weight_dict, model_config in zip(weights_dicts, model_configs):
+                            build_engine(None, weight_dict, model_config, params)
 
+                    print(f"Building and saving engine finished in {time.perf_counter() - time_start:.2f}s")
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
             tokenizer_path_nemo2 = os.path.join(nemo_export_dir, "nemo_context")
             vocab_path = os.path.join(nemo_export_dir, "vocab.json")
