@@ -322,7 +322,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             model.config = update_config_with_dtype_overrides(dtype_config, model.config)
 
         ## add megatron timer to config
-        model.config.timers = self.timers
+        if hasattr(model, "config"):
+            model.config.timers = self.timers
 
         has_optim = getattr(model, "optim", None)
         if has_optim and self._setup_optimizers:
