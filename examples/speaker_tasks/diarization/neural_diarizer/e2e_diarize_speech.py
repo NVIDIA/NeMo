@@ -59,6 +59,7 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     PostProcessingParams,
     load_postprocessing_from_yaml,
     predlist_to_timestamps,
+    ts_vad_post_processing,
 )
 from nemo.core.config import hydra_runner
 
@@ -154,7 +155,7 @@ def get_tensor_path(cfg: DiarizationConfig) -> str:
     if not os.path.exists(bpath):
         os.makedirs(bpath)
     tensor_path = f"{bpath}/__{model_id}__{tensor_filename}.pt"
-    return tensor_path
+    return tensor_path, model_id, tensor_filename
 
 
 def diarization_objective(
@@ -423,8 +424,11 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.visualization = cfg.visualization
 
     postprocessing_cfg = load_postprocessing_from_yaml(cfg.postprocessing_yaml)
-    tensor_path = get_tensor_path(cfg)
-
+    tensor_path, model_id, tensor_filename = get_tensor_path(cfg)
+    cfg.optuna_study_name = f"__{model_id}_{tensor_filename}"
+    cfg.optuna_storage: str = f"sqlite:///{cfg.optuna_temp_dir}/{cfg.optuna_study_name}.db"
+    cfg.optuna_log_file: str = f"{cfg.optuna_temp_dir}/{cfg.optuna_study_name}.log"
+    
     if os.path.exists(tensor_path) and cfg.save_preds_tensors:
         logging.info(
             f"A saved prediction tensor has been found. Loading the saved prediction tensors from {tensor_path}..."
