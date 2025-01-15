@@ -563,7 +563,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             if self.log_memory_usage:
                 max_memory_reserved = torch.cuda.max_memory_reserved()
-                memory_allocated = torch.cuda.memory_allocated()
+                _memory_allocated = (torch.cuda.mem_get_info()[1] - torch.cuda.mem_get_info()[0]) / 1024 / 1024 / 1024
                 self.lightning_module.log(
                     "peak_memory_usage",
                     max_memory_reserved,
@@ -571,8 +571,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     batch_size=1,
                 )
                 self.lightning_module.log(
-                    "memory_allocated",
-                    memory_allocated,
+                    "_memory_allocated",
+                    _memory_allocated,
                     prog_bar=True,
                     batch_size=1,
                 )
