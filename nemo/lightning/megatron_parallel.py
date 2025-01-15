@@ -53,6 +53,8 @@ from typing_extensions import override
 
 try:
     from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
+
+    HAVE_CUSTOM_FSDP = True
 except ImportError:
     HAVE_CUSTOM_FSDP = False
 
