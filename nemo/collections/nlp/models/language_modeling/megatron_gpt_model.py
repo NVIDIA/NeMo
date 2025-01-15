@@ -199,7 +199,13 @@ def mcore_model_customize(cfg, model):
     if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
         extend_instance(model.embedding, EmbeddingScalingMixin)
     if cfg.get("scale_positional_embedding", False):
-        model.rotary_pos_emb.inv_freq = apply_rope_scaling(model.rotary_pos_emb.inv_freq)
+        model.rotary_pos_emb.inv_freq = apply_rope_scaling(
+            model.rotary_pos_emb.inv_freq,
+            scale_factor=cfg.get('scale_factor', 8),
+            low_freq_factor=cfg.get('low_freq_factor', 1),
+            high_freq_factor=cfg.get('high_freq_factor', 4),
+            old_context_len=cfg.get('old_context_len', 8192),
+        )
     if cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
         from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
 
@@ -587,6 +593,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ddp_config = DistributedDataParallelConfig(
                 grad_reduce_in_fp32=(self.cfg.optim.get('grad_sync_dtype', 'fp32') == 'fp32'),
                 overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
+                num_distributed_optimizer_instances=self.cfg.optim.get('num_distributed_optimizer_instances', 1),
                 use_distributed_optimizer=True,
                 check_for_nan_in_grad=self.cfg.optim.get('check_for_nan_in_grad', False),
                 # mcore bucket_size is based on num of parameters, therefore not
@@ -1489,6 +1496,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 and isinstance(model.module, MCoreGPTModel)
             ):
                 attention_mask = None
+
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
@@ -1660,6 +1668,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
                 "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
                 "num_dataset_builder_threads": self.cfg.data.get("num_dataset_builder_threads", 1),
+                "renormalize_blend_weights": self.cfg.data.get("renormalize_blend_weights", False),
                 "add_extra_token_to_sequence": add_extra_token,
             }
 

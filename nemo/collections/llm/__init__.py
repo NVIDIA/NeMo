@@ -18,9 +18,12 @@ from nemo.utils.import_utils import safe_import
 safe_import("transformer_engine")
 
 from nemo.collections.llm import peft
-from nemo.collections.llm.bert.data import BERTMockDataModule, BERTPreTrainingDataModule
+from nemo.collections.llm.bert.data import BERTMockDataModule, BERTPreTrainingDataModule, SpecterDataModule
 from nemo.collections.llm.bert.model import (
     BertConfig,
+    BertEmbeddingLargeConfig,
+    BertEmbeddingMiniConfig,
+    BertEmbeddingModel,
     BertModel,
     HuggingFaceBertBaseConfig,
     HuggingFaceBertConfig,
@@ -32,6 +35,7 @@ from nemo.collections.llm.bert.model import (
 )
 from nemo.collections.llm.gpt.data import (
     AlpacaDataModule,
+    ChatDataModule,
     DollyDataModule,
     FineTuningDataModule,
     HFDatasetDataModule,
@@ -133,7 +137,15 @@ from nemo.collections.llm.t5.data import FineTuningDataModule as T5FineTuningDat
 from nemo.collections.llm.t5.data import MockDataModule as T5MockDataModule
 from nemo.collections.llm.t5.data import PreTrainingDataModule as T5PreTrainingDataModule
 from nemo.collections.llm.t5.data import SquadDataModule as T5SquadDataModule
-from nemo.collections.llm.t5.model import T5Config, T5Model, t5_data_step, t5_forward_step
+from nemo.collections.llm.t5.model import (
+    T5Config,
+    T5Config3B,
+    T5Config11B,
+    T5Config220M,
+    T5Model,
+    t5_data_step,
+    t5_forward_step,
+)
 
 __all__ = [
     "MockDataModule",
@@ -144,8 +156,14 @@ __all__ = [
     "gpt_forward_step",
     "T5Model",
     "T5Config",
+    "T5Config220M",
+    "T5Config3B",
+    "T5Config11B",
     "BertConfig",
+    "BertEmbeddingModel",
     "BertModel",
+    "BertEmbeddingLargeConfig",
+    "BertEmbeddingMiniConfig",
     "t5_data_step",
     "t5_forward_step",
     "MaskedTokenLossReduction",
@@ -220,6 +238,7 @@ __all__ = [
     "Qwen2Config72B",
     "PreTrainingDataModule",
     "FineTuningDataModule",
+    "ChatDataModule",
     "SquadDataModule",
     "T5PreTrainingDataModule",
     "T5FineTuningDataModule",
@@ -234,6 +253,7 @@ __all__ = [
     "MegatronBertLargeConfig",
     "BERTMockDataModule",
     "BERTPreTrainingDataModule",
+    "SpecterDataModule",
     "DollyDataModule",
     "tokenizer",
     "mock",
