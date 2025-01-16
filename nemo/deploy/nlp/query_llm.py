@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import time
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import numpy as np
 
@@ -141,7 +141,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
                     "object": "text_completion",
                     "created": int(time.time()),
                     "model": self.model_name,
-                    "choices": [{"text": str(sentences)}],
+                    "choices": [{"text": sentences}],
                 }
                 if log_probs_output is not None:
                     openai_response["log_probs"] = log_probs_output
@@ -297,11 +297,10 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "object": "text_completion",
                         "created": int(time.time()),
                         "model": self.model_name,
-                        "choices": [{"text": str(sentences)}],
+                        "choices": [{"text": sentences}],
                     }
-                    # Convert gneration logits to a list to make it json serializable and add it to openai_response dict
                     if output_generation_logits:
-                        openai_response["choices"][0]["generation_logits"] = result_dict["generation_logits"].tolist()
+                        openai_response["choices"][0]["generation_logits"] = result_dict["generation_logits"]
                     return openai_response
                 else:
                     return sentences

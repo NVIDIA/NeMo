@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
+import re
 
-import requests
 import torch
 import torch.nn.functional as F
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
-from requests.exceptions import RequestException
+from tqdm import tqdm
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.deploy.nlp import NemoQueryLLM
 from nemo.utils import logging
 
 
@@ -49,21 +49,22 @@ class NeMoFWLMEval(LM):
         A private method that sends post request to the model on PyTriton server and returns either generated text or
         logits.
         """
-        # send a post request to /v1/completions/ endpoint with the payload
-        response = requests.post(f"{self.api_url}/v1/completions/", json=payload)
-        response_data = response.json()
+        nq = NemoQueryLLM(url=self.api_url, model_name=payload['model'])
 
-        if 'error' in response_data:
-            raise Exception(f"API Error: {response_data['error']}")
+        response = nq.query_llm(
+            prompts=payload['prompt'] if isinstance(payload['prompt'], list) else [payload['prompt']],
+            max_output_len=payload['max_tokens'],
+            top_k=payload['top_k'],
+            top_p=payload['top_p'],
+            temperature=payload['temperature'],
+            output_generation_logits=True,
+            openai_format_response=True,
+        )
 
-        # Assuming the response is in OpenAI format
         if return_text:
-            # in case of generate_until tasks return just the text
-            return response_data['choices'][0]['text']
-
+            return response["choices"][0]["text"]  # shape[batch_size, 1]
         if return_logits:
-            # in case of loglikelihood tasks return the logits
-            return response_data['choices'][0]['generation_logits']
+            return response["choices"][0]["generation_logits"]  # shape[batch_size, 1, num_tokens, vocab_size]
 
     def tokenizer_type(self, tokenizer):
         """
@@ -93,7 +94,7 @@ class NeMoFWLMEval(LM):
             special_tokens_kwargs['add_special_tokens'] = self.add_bos
 
         results = []
-        for request in requests:
+        for request in tqdm(requests):
             # get the input prompt from the request
             context = request.arguments[0]
             # get the output prompt from the request
@@ -167,44 +168,63 @@ class NeMoFWLMEval(LM):
         return results
 
 
-def wait_for_rest_service(rest_url, max_retries=600, retry_interval=2):
+def wait_for_server_ready(url, triton_http_port, model_name, max_retries=600, retry_interval=2):
     """
-    Wait for REST service to be ready.
+    Wait for PyTriton server and model to be ready.
 
     Args:
-    rest_url (str): URL of the REST service's health endpoint
-    max_retries (int): Maximum number of retry attempts. Defaul: 60.
-    retry_interval (int): Time to wait between retries in seconds. Default: 2.
+        url (str): The URL of the Triton server (e.g., "grpc://0.0.0.0:8001").
+        triton_http_port (int): http port of the triton server.
+        model_name (str): The name of the deployed model.
+        max_retries (int): Maximum number of retries before giving up.
+        retry_interval (int): Time in seconds to wait between retries.
 
     Returns:
-    bool: True if rest service is ready, False otherwise
+        bool: True if both the server and model are ready within the retries, False otherwise.
     """
 
-    def check_service(url):
-        """
-        Check if the service is ready by making a GET request to its health endpoint.
+    import time
 
-        Args:
-        url (str): URL of the service's health endpoint
+    import requests
+    from pytriton.client import ModelClient
+    from pytriton.client.exceptions import PyTritonClientModelUnavailableError, PyTritonClientTimeoutError
 
-        Returns:
-        bool: True if the service is ready, False otherwise
-        """
-        try:
-            response = requests.get(url, timeout=5)
-            return response.status_code == 200
-        except RequestException:
-            return False
+    # If gRPC URL, extract HTTP URL from gRPC URL for health checks
+    if url.startswith("grpc://"):
+        # Extract the gRPC port using regex
+        pattern = r":(\d+)"  # Matches a colon followed by one or more digits
+        match = re.search(pattern, url)
+        grpc_port = match.group(1)
+        # Replace 'grpc' with 'http' and replace the grpc_port with http port
+        url = url.replace("grpc://", "http://").replace(f":{grpc_port}", f":{triton_http_port}")
+    health_url = f"{url}/v2/health/ready"
 
     for _ in range(max_retries):
-        rest_ready = check_service(rest_url)
+        logging.info("Checking server and model readiness...")
 
-        if rest_ready:
-            logging.info("REST service is ready.")
-            return True
+        try:
+            # Check server readiness using HTTP health endpoint
+            response = requests.get(health_url)
+            if response.status_code != 200:
+                logging.info(f"Server is not ready. HTTP status code: {response.status_code}")
+                time.sleep(retry_interval)
+                continue
+            logging.info("Server is ready.")
 
-        logging.info(f"REST Service not ready yet. Retrying in {retry_interval} seconds...")
+            # Check model readiness using ModelClient
+            with ModelClient(url, model_name=model_name, init_timeout_s=retry_interval) as client:
+                logging.info(f"Model '{model_name}' is ready.")
+                return True
+
+        except PyTritonClientTimeoutError:
+            logging.info(f"Timeout: Server or model '{model_name}' not ready yet.")
+        except PyTritonClientModelUnavailableError:
+            logging.info(f"Model '{model_name}' is unavailable on the server.")
+        except requests.exceptions.RequestException:
+            logging.info(f"Pytriton server not ready yet. Retrying in {retry_interval} seconds...")
+
+        # Wait before retrying
         time.sleep(retry_interval)
 
-    logging.info("Timeout: REST service did not become ready.")
+    logging.error(f"Server or model '{model_name}' not ready after {max_retries} attempts.")
     return False

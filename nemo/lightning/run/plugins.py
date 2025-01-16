@@ -155,6 +155,7 @@ class NsysPlugin(run.Plugin):
     end_step: int
     ranks: Optional[list[int]] = None
     nsys_trace: Optional[list[str]] = None
+    gen_shape: bool = False
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         if isinstance(task, run.Partial):
@@ -163,6 +164,7 @@ class NsysPlugin(run.Plugin):
                 start_step=self.start_step,
                 end_step=self.end_step,
                 ranks=self.ranks or [0],
+                gen_shape=self.gen_shape,
             )
             callbacks: list[run.Config[Callback]] = [nsys_callback]  # type: ignore
             _merge_callbacks(task, callbacks=callbacks)
@@ -314,7 +316,7 @@ class PerfEnvPlugin(run.Plugin):
     enable_layernorm_sm_margin: bool = True
     layernorm_sm_margin: int = 16
     enable_vboost: bool = False
-    nccl_pp_comm_chunksize: int = None
+    nccl_pp_comm_chunksize: Optional[int] = None
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
         "Create the vboost `sudo nvidia-smi boost-slider --vboost 1` command"
@@ -361,7 +363,7 @@ class PerfEnvPlugin(run.Plugin):
 
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):
-            vboost_cmd = self.get_vboost_srun_cmd(executor.nodes, executor.job_dir)
+            vboost_cmd = self.get_vboost_srun_cmd(executor.nodes, executor.tunnel.job_dir)
             executor.setup_lines = (
                 executor.setup_lines + vboost_cmd
                 if (executor.setup_lines and len(executor.setup_lines) > 0)

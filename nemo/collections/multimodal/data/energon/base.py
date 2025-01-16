@@ -31,7 +31,7 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
 
-class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
+class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
     """
     A PyTorch Lightning DataModule for handling multimodal datasets with images and text.
 
@@ -69,9 +69,10 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         multimodal_sample_config: Optional[MultiModalSampleConfig] = MultiModalSampleConfig(),
         task_encoder: Optional[MultiModalTaskEncoder] = None,
         decoder_seq_length: Optional[int] = None,
+        packing_buffer_size: Optional[int] = None,
     ) -> None:
         """
-        Initialize the SimpleMultiModalDataModule.
+        Initialize the EnergonMultiModalDataModule.
 
         Parameters:
         path (str): Path to the dataset.
@@ -81,8 +82,12 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         micro_batch_size (int, optional): The batch size for training and validation. Defaults to 1.
         num_workers (int, optional): Number of workers for data loading. Defaults to 1.
         pin_memory (bool, optional): Whether to pin memory in the DataLoader. Defaults to True.
-        multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples. Defaults to MultiModalSampleConfig().
-        task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples. If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
+        multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
+        Defaults to MultiModalSampleConfig().
+        task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples.
+        If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
+        decoder_seq_length (int, optional): The maximum sequence length for the decoder. Used in encoder-decoder models.
+        packing_buffer_size (int, optional): Size of the packing buffer for batched samples. Defaults to None.
         """
 
         super().__init__()
@@ -112,9 +117,10 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         )
         self.train_dataloader_object = None
         self.val_dataloader_object = None
+        self.packing_buffer_size = packing_buffer_size
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
-        # (pleasefixme) image_processor and task_encoder are problematic with Fiddle so we skip serializing them for now
+
         cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items() if k not in ['image_processor', 'task_encoder']}
 
         for val in cfg_kwargs.values():
@@ -148,6 +154,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
             task_encoder=self.task_encoder,
             worker_config=worker_config,
             max_samples_per_sequence=None,
+            packing_buffer_size=self.packing_buffer_size,
             shuffle_buffer_size=100,
             split_part=split,
         )
@@ -165,7 +172,6 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Returns:
         TRAIN_DATALOADERS: The DataLoader for the training dataset.
         """
-        # import pdb; pdb.set_trace()
         if self.trainer:
             self.init_global_step = self.trainer.global_step
         self.data_sampler.init_global_step = self.init_global_step
@@ -174,7 +180,8 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
             return self.train_dataloader_object
         if not parallel_state.is_initialized():
             logging.info(
-                f"Muiltimodal data loader parallel state is not initialized, using default worker config with no_workers {self.num_workers}"
+                f"Muiltimodal data loader parallel state is not initialized,"
+                f"using default worker config with no_workers {self.num_workers}"
             )
             worker_config = WorkerConfig.default_worker_config(self.num_workers)
         else:
@@ -182,7 +189,8 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
             world_size = parallel_state.get_data_parallel_world_size()
             data_parallel_group = parallel_state.get_data_parallel_group()
             logging.info(
-                f" Multimodal  train dataloader initializing with  rank {rank} world_size {world_size} data_parallel_group {data_parallel_group} ****** "
+                f" Multimodal  train dataloader initializing with"
+                f"rank {rank} world_size {world_size} data_parallel_group {data_parallel_group} ****** "
             )
             worker_config = WorkerConfig(
                 rank=rank,
@@ -212,7 +220,8 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
         if not parallel_state.is_initialized():
             logging.info(
-                f"Muiltimodal val data loader parallel state is not initialized, using default worker config with no_workers {self.num_workers}"
+                f"Muiltimodal val data loader parallel state is not initialized,"
+                "using default worker config with no_workers {self.num_workers}"
             )
             worker_config = WorkerConfig.default_worker_config(self.num_workers)
         else:

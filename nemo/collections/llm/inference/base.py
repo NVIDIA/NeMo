@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import inspect
 import json
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 import lightning.pytorch as pl
 import torch
@@ -61,7 +61,10 @@ class MCoreTokenizerWrappper:
         Returns:
             str: The detokenized string.
         """
-        return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
+        if 'remove_special_tokens' in inspect.signature(self.tokenizer.ids_to_text).parameters:
+            return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
+        else:
+            return self.tokenizer.ids_to_text(tokens)
 
     def tokenize(self, prompt):
         """
@@ -158,7 +161,7 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     trainer.strategy.trainer = trainer
     trainer.strategy.selective_restore()
 
-    peft: Union[io.TrainerContext, PEFT] = io.load_context(ckpt_to_context_subdir(path), "model.model_transform")
+    peft: Optional[PEFT] = model.model_transform
     if isinstance(peft, PEFT):
         model = peft(model)
         adapter_sharded_state_dict = {k: v for k, v in model.sharded_state_dict().items() if ".adapter." in k}

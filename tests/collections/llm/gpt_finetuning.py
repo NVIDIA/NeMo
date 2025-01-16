@@ -22,17 +22,10 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from tests.collections.llm.common import Llama3ConfigCI
+
 
 ## NOTE: This script is present for github-actions testing only.
-
-
-@dataclass
-class Llama3ConfigCI(llm.Llama3Config8B):
-    seq_length: int = 2048
-    num_layers: int = 2
-    hidden_size: int = 768
-    ffn_hidden_size: int = 3072
-    num_attention_heads: int = 8
 
 
 def get_args():
@@ -46,6 +39,9 @@ def get_args():
     parser.add_argument('--tp_size', type=int, default=1, help="tensor parallel size")
     parser.add_argument('--pp_size', type=int, default=1, help="pipeline parallel size")
     parser.add_argument('--packed', action='store_true', help="use packed sequence dataset")
+    parser.add_argument(
+        '--chat_dataset_path', type=str, default="", help="path to chat dataset. Uses dolly if this is empty."
+    )
 
     return parser.parse_args()
 
@@ -105,13 +101,24 @@ if __name__ == '__main__':
     packed_sequence_specs = (
         PackedSequenceSpecs(packed_sequence_size=2048, tokenizer_model_name="dummy_tokenizer") if args.packed else None
     )
-    dolly = llm.DollyDataModule(
-        seq_length=2048,
-        micro_batch_size=args.mbs,
-        global_batch_size=4,
-        num_workers=0,
-        packed_sequence_specs=packed_sequence_specs,
-    )
+    if args.chat_dataset_path:
+        assert not args.packed
+        data = llm.ChatDataModule(
+            dataset_root=args.chat_dataset_path,
+            seq_length=2048,
+            micro_batch_size=args.mbs,
+            global_batch_size=8,
+            num_workers=0,
+            packed_sequence_specs=packed_sequence_specs,
+        )
+    else:
+        data = llm.DollyDataModule(
+            seq_length=2048,
+            micro_batch_size=args.mbs,
+            global_batch_size=8,
+            num_workers=0,
+            packed_sequence_specs=packed_sequence_specs,
+        )
 
     tokenizer = get_nmt_tokenizer(tokenizer_model=os.path.join(args.restore_path, "dummy_tokenizer.model"))
     llama3_8b = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
@@ -123,7 +130,7 @@ if __name__ == '__main__':
 
     llm.finetune(
         model=llama3_8b,
-        data=dolly,
+        data=data,
         trainer=trainer,
         peft=peft,
         log=logger,
