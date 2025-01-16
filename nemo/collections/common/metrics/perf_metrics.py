@@ -30,21 +30,20 @@ __all__ = ["FLOPsMeasurementCallback"]
 
 class FLOPsMeasurementCallback(Callback):
     """
-    Calculate FLOPs per second after last train step for a given job run.
+    Calculate TFLOPs per second per GPU for a given job run.
 
     Args:
-        model_config (Dict[str, Any]): params for running the experiment/job.
-            For NeMo1.0, expects a nested dictionary with parent keys
+        model_config (Dict[str, Any] | run.Config[GPTConfig] | GPTConfig):
+            For NeMo1.0, expects a nested dictionary with parent keys-
                 1. run- for assessing model name (Eg. 'gpt3', 'llama2', etc.) from sub-key 'name'.
                     'name' usually has value like- train_gpt3_5b_*, which is matched to model name 'gpt3'.
                 2. trainer- for accessing 'num_nodes' and 'devices'
                 3. model- Hyperparams for the model. Specifically- global batch size, sequence length,
                     hidden size,  ffn hidden size, num_layers, num_attention_heads, num_query_groups,
                     moe_router_topk. (list might increase with new models as required)
-        trainer (nemo.lightning.Trainer): Required with NeMo 2.0 to access 'num_nodes' and 'devices'
-        data_module (LightningDataModule): Required with NeMo 2.0 to access 'global_batch_size'
-        model_name (Optional[str]): If present, will override 'name' under 'run' in model_config.
-            Defaults to None.
+        trainer (nemo.lightning.Trainer): Required with NeMo 2.0 to access 'num_nodes' and 'devices'.
+        data_module (LightningDataModule): Required with NeMo 2.0 to access 'global_batch_size'.
+        model_name (Optional[str]): If present, will override 'name' under 'run' in model_config. Defaults to None.
     """
 
     _higher_is_better: bool = True
@@ -63,9 +62,28 @@ class FLOPsMeasurementCallback(Callback):
         model_config: Dict[str, Any] | run.Config[GPTConfig] | GPTConfig,
         trainer: Optional[run.Config[Trainer] | Trainer] = None,  # Required with NeMo 2.0
         data_module: Optional[run.Config[LightningDataModule] | LightningDataModule] = None,  # Required with NeMo 2.0
-        model_name: Optional[str] = None,
+        model_name: Optional[str] = None, # Required with NeMo 2.0
     ):
-        if isinstance(model_config, dict):  # For NeMo 1.0
+        _nemo2 = (isinstance(model_config, run.Config) and model_config.__fn_or_cls__ == GPTConfig) or isinstance(model_config, GPTConfig) 
+        if _nemo2:
+            assert model_name is not None, "'model_name' arg not set. Required to select model flops formula."
+            self.model_name = model_name.lower()
+            
+            assert trainer is not None, "'trainer' arg not set. Required to calculate model flops."
+            self.num_nodes = trainer.num_nodes
+            self.num_gpus_per_node = trainer.devices
+
+            assert data_module is not None, "'data' arg not set. Required to calculate model flops."
+            self.gbs = data_module.global_batch_size
+
+            self.enc_seq_len = model_config.seq_length
+            self.hs = model_config.hidden_size
+            self.layers = model_config.num_layers
+            self.ffn_hs = model_config.ffn_hidden_size
+            self.attention_heads = model_config.num_attention_heads
+            self.moe_router_topk = model_config.moe_router_topk
+            self.query_groups = model_config.num_query_groups
+        else:
             self.cfg = model_config
 
             self.run_cfg = self.cfg.get('run', {})
@@ -73,7 +91,7 @@ class FLOPsMeasurementCallback(Callback):
             self.model_cfg = self.cfg.get('model', {})
 
             # use config params only when NOT provided explicitly
-            self.model = self.run_cfg.get('name', "") if model_name is None else model_name
+            self.model_name = self.run_cfg.get('name', "") if model_name is None else model_name
 
             self.num_nodes = self.train_cfg.get('num_nodes', None)
             self.num_gpus_per_node = self.train_cfg.get('devices', None)
@@ -91,26 +109,7 @@ class FLOPsMeasurementCallback(Callback):
             if self.query_groups is None:
                 self.query_groups = self.attention_heads
 
-            self.model = self.model.lower() if self.model is not None else self.model
-        else:  # For NeMo 2.0
-            assert trainer is not None, f"'trainer' arg not set. Required to calculate TFLOPs per sec"
-            self.num_nodes = trainer.num_nodes
-            self.num_gpus_per_node = trainer.devices
-
-            assert data_module is not None, "'data' arg not set. Required to calculate TFLOPs per sec"
-            self.gbs = data_module.global_batch_size
-
-            self.enc_seq_len = model_config.seq_length
-            self.hs = model_config.hidden_size
-            self.layers = model_config.num_layers
-            self.ffn_hs = model_config.ffn_hidden_size
-            self.attention_heads = model_config.num_attention_heads
-            self.moe_router_topk = model_config.moe_router_topk
-
-            # this handles both- 1. key is present, value is None; 2. key is absent
-            self.query_groups = model_config.num_query_groups
-            if self.query_groups is None:
-                self.query_groups = self.attention_heads
+            self.model_name = self.model_name.lower() if self.model_name is not None else self.model_name
 
     def setup(self, trainer, pl_module, stage):
         """
@@ -175,14 +174,14 @@ class FLOPsMeasurementCallback(Callback):
             "bert": self._bert,
         }
 
-        if self.model is not None:
-            model_matches = [model for model in model_flops_map if model in self.model]
-            self.model = model_matches[0] if len(model_matches) > 0 else self.model
-        if self.model not in model_flops_map:
+        if self.model_name is not None:
+            model_matches = [model for model in model_flops_map if model in self.model_name]
+            self.model_name = model_matches[0] if len(model_matches) > 0 else self.model_name
+        if self.model_name not in model_flops_map:
             logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
-            raise KeyError(f"Failed to extract valid model name from or missing FLOPs calculations for {self.model}")
+            raise KeyError(f"Failed to extract valid model name or missing FLOPs calculations for {self.model_name}")
 
-        total_flops = model_flops_map[self.model]()
+        total_flops = model_flops_map[self.model_name]()
         flops_per_gpu = total_flops / (self.num_nodes * self.num_gpus_per_node)
 
         return total_flops, flops_per_gpu
