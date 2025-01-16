@@ -65,7 +65,7 @@ class FLOPsMeasurementCallback(Callback):
         data_module: Optional[run.Config[LightningDataModule] | LightningDataModule] = None, # Required with NeMo 2.0
         model_name: Optional[str] = None,
     ):
-        if isinstance(model_config, dict): # NeMo 1.0
+        if isinstance(model_config, dict): # For NeMo 1.0
             self.cfg = model_config
 
             self.run_cfg = self.cfg.get('run', {})
@@ -92,14 +92,12 @@ class FLOPsMeasurementCallback(Callback):
                 self.query_groups = self.attention_heads
 
             self.model = self.model.lower() if self.model is not None else self.model
-        else:
-            assert trainer is not None, (f"'trainer' arg (nemo.lightning.Trainer) not passed to 
-                                         {self.__class__.__name__}. Required to calculate TFLOPs per sec")
+        else: # For NeMo 2.0
+            assert trainer is not None, (f"'trainer' arg not set. Required to calculate TFLOPs per sec")
             self.num_nodes = trainer.num_nodes
             self.num_gpus_per_node = trainer.devices
             
-            assert data_module is not None, (f"'data' arg (lightning.pytorch.LightningDataModule) not passed to
-                                             {self.__class__.__name__}. Required to calculate TFLOPs per sec")
+            assert data_module is not None, ("'data' arg not set. Required to calculate TFLOPs per sec")
             self.gbs = data_module.global_batch_size
             
             self.enc_seq_len = model_config.seq_length
