@@ -54,6 +54,12 @@ ${PIP} install --extra-index-url https://pypi.nvidia.com \
   "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@${NV_RESILIENCY_EXT_TAG}" \
   "onnxscript @ git+https://github.com/microsoft/onnxscript"
 
+${PIP} install --no-cache-dir venv
+venv /opt/venv
+/opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
+  -r /workspace/requirements/requirements_vllm.txt \
+  -r /workspace/requirements/requirements_infer.txt
+
 echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
   ${PIP} install --editable ".[all]"
