@@ -62,13 +62,15 @@ class FLOPsMeasurementCallback(Callback):
         model_config: Dict[str, Any] | run.Config[GPTConfig] | GPTConfig,
         trainer: Optional[run.Config[Trainer] | Trainer] = None,  # Required with NeMo 2.0
         data_module: Optional[run.Config[LightningDataModule] | LightningDataModule] = None,  # Required with NeMo 2.0
-        model_name: Optional[str] = None, # Required with NeMo 2.0
+        model_name: Optional[str] = None,  # Required with NeMo 2.0
     ):
-        _nemo2 = (isinstance(model_config, run.Config) and model_config.__fn_or_cls__ == GPTConfig) or isinstance(model_config, GPTConfig) 
+        _nemo2 = (isinstance(model_config, run.Config) and model_config.__fn_or_cls__ == GPTConfig) or isinstance(
+            model_config, GPTConfig
+        )
         if _nemo2:
             assert model_name is not None, "'model_name' arg not set. Required to select model flops formula."
             self.model_name = model_name.lower()
-            
+
             assert trainer is not None, "'trainer' arg not set. Required to calculate model flops."
             self.num_nodes = trainer.num_nodes
             self.num_gpus_per_node = trainer.devices
