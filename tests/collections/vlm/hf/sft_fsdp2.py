@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from importlib.metadata import version
+
 import fiddle as fdl
 import torch
-from importlib.metadata import version
 from lightning.pytorch.loggers import WandbLogger
 from packaging.version import Version as PkgVersion
 
