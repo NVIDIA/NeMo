@@ -106,6 +106,7 @@ def initialize_model_parallel_for_nemo(
     apex_transformer_log_level=30,
     use_tp_pp_dp_mapping=False,
     use_te_rng_tracker=False,
+    num_distributed_optimizer_instances=1,
 ):
 
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
@@ -117,6 +118,7 @@ def initialize_model_parallel_for_nemo(
     app_state.world_size = world_size
     app_state.local_rank = local_rank
     app_state.use_tp_pp_dp_mapping = use_tp_pp_dp_mapping
+    app_state.num_distributed_optimizer_instances = num_distributed_optimizer_instances
     app_state.expert_model_parallel_size = expert_model_parallel_size
     app_state.tensor_model_parallel_size = tensor_model_parallel_size
     app_state.pipeline_model_parallel_size = pipeline_model_parallel_size
@@ -181,6 +183,7 @@ def initialize_model_parallel_for_nemo(
                     micro_batch_size=micro_batch_size,
                     data_parallel_size=app_state.data_parallel_size,
                     rampup_batch_size=rampup_batch_size,
+                    decrease_batch_size_if_needed=False,
                 )
             else:
                 if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
@@ -201,6 +204,7 @@ def initialize_model_parallel_for_nemo(
                     micro_batch_size=micro_batch_size,
                     data_parallel_size=app_state.data_parallel_size,
                     rampup_batch_size=rampup_batch_size,
+                    decrease_batch_size_if_needed=False,
                 )
             else:
                 if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
