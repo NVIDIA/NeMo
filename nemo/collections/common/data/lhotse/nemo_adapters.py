@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
+
 import random
 import re
 import tarfile
@@ -32,6 +32,7 @@ from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples, ifnone
 
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+from nemo.utils import logging, logging_mode
 
 
 class LazyNeMoIterator:
@@ -356,7 +357,8 @@ class LazyNeMoTarredIterator:
                 except KeyError as e:
                     logging.warning(
                         f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                        f"The following audio_filepath='{data['audio_filepath']}' was not found in the tar file. Skipping: {e}"
+                        f"The following audio_filepath='{data['audio_filepath']}' was not found in the tar file. Skipping: {e}",
+                        mode=logging_mode.ONCE,
                     )
                     continue
 
@@ -365,7 +367,8 @@ class LazyNeMoTarredIterator:
             for tar_info in tar:
                 if tar_info.name not in shard_manifest:
                     logging.warning(
-                        f"Tar file '{tar_path}' contains an entry '{tar_info.name}' that is not present in the JSON manifest '{manifest_path}', skipping."
+                        f"Tar file '{tar_path}' contains an entry '{tar_info.name}' that is not present in the JSON manifest '{manifest_path}', skipping.",
+                        mode=logging_mode.ONCE,
                     )
                     continue
                 data = shard_manifest[tar_info.name]
@@ -435,7 +438,10 @@ class LazyNeMoTarredIterator:
                     del raw_audio
                     yield from cuts_for_recording
             except tarfile.ReadError:
-                logging.warning(f"Skipping tar file due to read errors (unstable storage or bad file?): {tar_path=}")
+                logging.warning(
+                    f"Skipping tar file due to read errors (unstable storage or bad file?): {tar_path=}",
+                    mode=logging_mode.ONCE,
+                )
 
     def __len__(self) -> int:
         return len(self.source)
