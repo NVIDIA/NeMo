@@ -419,6 +419,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         multimodal_output = {}
         if 'audio_signal' in audio_batch:
+            # in this branch, limit_max_seq_length is handled in prepare_llm_input
             encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
             output = self._gpt_forward(
                 None, None, encoder_input, attention_mask, labels, checkpoint_activations_all_layers
@@ -427,8 +428,16 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         if text_batch:
             input_ids = text_batch["text_input_ids"][:, :-1]
             labels = text_batch["text_input_ids"][:, 1:]
-            attention_mask = self._create_attention_mask(input_ids)
             loss_mask = text_batch["text_masks"][:, 1:]
+            limit_max_seq_length = self.cfg.get("limit_max_seq_length", None)
+            if limit_max_seq_length is not None and limit_max_seq_length < labels.shape[1] and self.training:
+                import random
+
+                start = random.randint(0, labels.shape[1] - limit_max_seq_length - 1)
+                labels = labels[:, start : start + limit_max_seq_length]
+                input_ids = input_ids[:, start : start + limit_max_seq_length]
+                loss_mask = loss_mask[:, start : start + limit_max_seq_length]
+            attention_mask = self._create_attention_mask(input_ids)
             output = self._gpt_forward(
                 input_ids, None, None, attention_mask, labels, checkpoint_activations_all_layers
             )
