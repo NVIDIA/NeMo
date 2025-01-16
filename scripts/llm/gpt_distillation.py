@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import types
 from abc import ABCMeta
 from argparse import ArgumentParser
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
-from typing import Any, Callable, Dict, Optional, Tuple
+from types import MethodType
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
 import modelopt.torch.distill as mtd
 import modelopt.torch.opt as mto
@@ -29,23 +28,25 @@ from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import Tensor
+from torch import Tensor, nn
 from torch.nn.modules.loss import _Loss
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank
-
-# from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
+from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.megatron_parallel import DDP, MaskedTokenLossReduction
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, OptimizerModule
 from nemo.utils import logging
 from nemo.utils.model_utils import unwrap_model
+
+if TYPE_CHECKING:
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 def get_args():
@@ -127,35 +128,6 @@ def gpt_distillation_data_step(dataloader_iter, attn_mask_cpu=False) -> Dict[str
     return output
 
 
-@dataclass
-class DistillationGPTConfig(llm.GPTConfig):
-    kd_teacher_restore_from_path: str = ""  # default set only for dataclass inheritance
-
-    data_step_fn: Callable = gpt_distillation_data_step
-
-    def configure_model(self, *args, **kwargs) -> MCoreGPTModel:
-        if not self.kd_teacher_restore_from_path:
-            raise ValueError("Config attribute `kd_teacher_restore_from_path` must be set.")
-        if self.virtual_pipeline_model_parallel_size is not None:
-            raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
-
-        model = super().configure_model(*args, **kwargs)
-
-        # [ModelOpt] Intialize DistillationModel.
-        distill_cfg = load_distillation_config(self)
-        kd_config = {
-            "teacher_model": (_teacher_provider, [], {"cfg": self}),
-            "criterion": distill_cfg["criterion"],
-            "loss_balancer": distill_cfg["loss_balancer"],
-        }
-        model = mtd.convert(model, mode=[("kd_loss", kd_config)])
-
-        # Additional MCore-specific tweaks needed.
-        adjust_distillation_model_for_mcore(model, model_cfg=self, distill_cfg=distill_cfg)
-
-        return model
-
-
 class _DistillationLossReduction(MaskedTokenLossReduction):
     """Custom masking and reduction callable used only in training mode."""
 
@@ -208,9 +180,48 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
 class DistillationGPTModel(llm.GPTModel):
     """Custom GPT subclass for distillation-related modifications."""
 
+    def __init__(
+        self,
+        kd_teacher_restore_from_path: str,
+        config: llm.GPTConfig,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+    ):
+        super().__init__(config, optim, tokenizer, model_transform)
+        self._kd_teacher_restore_from_path = kd_teacher_restore_from_path
+
+        if not self._kd_teacher_restore_from_path:
+            raise ValueError("Config attribute `kd_teacher_restore_from_path` must be set.")
+        if self.config.virtual_pipeline_model_parallel_size is not None:
+            raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
+
+    def configure_model(self):
+        if hasattr(self, "module"):
+            return
+
+        model = self.config.configure_model(self.tokenizer)
+
+        # [ModelOpt] Intialize DistillationModel.
+        distill_cfg = load_distillation_config(self.config)
+        kd_config = {
+            "teacher_model": (_teacher_provider, [self._kd_teacher_restore_from_path], {"trainer": self.trainer}),
+            "criterion": distill_cfg["criterion"],
+            "loss_balancer": distill_cfg["loss_balancer"],
+        }
+        model = mtd.convert(model, mode=[("kd_loss", kd_config)])
+
+        # Additional MCore-specific tweaks needed.
+        adjust_distillation_model_for_mcore(model, model_cfg=self.config, distill_cfg=distill_cfg)
+
+        self.module = model
+
     def data_step(self, dataloader_iter, cache_num_batches: Optional[int] = None) -> Dict[str, torch.Tensor]:
+        # NOTE: Ignores `self.config.data_step_fn`
         if cache_num_batches:
-            batches = [self.config.data_step_fn(dataloader_iter, attn_mask_cpu=True) for _ in range(cache_num_batches)]
+            batches = [
+                gpt_distillation_data_step(dataloader_iter, attn_mask_cpu=True) for _ in range(cache_num_batches)
+            ]
             return _LoopingCachedDataIterator(batches)
         elif isinstance(dataloader_iter, _LoopingCachedDataIterator):
             batch = next(dataloader_iter)
@@ -218,7 +229,7 @@ class DistillationGPTModel(llm.GPTModel):
                 batch["attention_mask"] = batch["attention_mask"].cuda(non_blocking=True)  # move back to GPU
             return batch
         else:
-            return self.config.data_step_fn(dataloader_iter)
+            return gpt_distillation_data_step(dataloader_iter)
 
     @property
     def training_loss_reduction(self) -> _DistillationLossReduction:
@@ -394,7 +405,7 @@ def all_reduce_autograd(tensor, op=torch.distributed.ReduceOp.SUM, group=torch.d
 ########################################################
 
 
-def load_distillation_config(cfg: DistillationGPTConfig) -> Dict[str, Any]:
+def load_distillation_config(cfg: TransformerConfig) -> Dict[str, Any]:
     """Create a default distillation config for MCore GPT Models.
 
     Args:
@@ -403,7 +414,7 @@ def load_distillation_config(cfg: DistillationGPTConfig) -> Dict[str, Any]:
     logit_pair = ("output_layer", "output_layer")  # logit module names for MCoreGPTModel
     distill_cfg = {
         "criterion": {},
-        "loss_balancer": None,
+        "loss_balancer": _DummyLossBalancer(),  # HACK: to appease ModelOpt until validation relaxed
         "skip_lm_loss": True,
     }
     if cfg.pipeline_model_parallel_size == 1 or parallel_state.is_pipeline_last_stage():
@@ -412,31 +423,30 @@ def load_distillation_config(cfg: DistillationGPTConfig) -> Dict[str, Any]:
     return distill_cfg
 
 
-def _teacher_provider(cfg: DistillationGPTConfig) -> MCoreGPTModel:
-    """Teacher model factory (must be a non-local function to pickle)."""
+class _DummyLossBalancer(mtd.DistillationLossBalancer):
+    def forward(loss_dict):
+        return next(iter(loss_dict.values()))
 
+
+def _teacher_provider(teacher_path: str, trainer: nl.Trainer) -> MCoreGPTModel:
+    """Teacher model factory (must be a non-local function to pickle)."""
     logging.info("Distillation: Loading teacher weights...")
-    strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=cfg.tensor_model_parallel_size,
-        context_parallel_size=cfg.context_parallel_size,
-        pipeline_model_parallel_size=cfg.pipeline_model_parallel_size,
-        ckpt_load_optimizer=False,
-        ckpt_parallel_save_optim=False,
-        setup_optimizers=False,
-        ddp="pytorch",
-    )
-    trainer = nl.Trainer(
-        devices=cfg.tensor_model_parallel_size,
-        num_nodes=cfg.context_parallel_size * cfg.pipeline_model_parallel_size,
-        strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-    )
+
+    ckpt_load_optimizer = trainer.strategy.ckpt_load_optimizer
+    _setup_optimizers = trainer.strategy._setup_optimizers
+    trainer.strategy.ckpt_load_optimizer = False
+    trainer.strategy._setup_optimizers = False
+    orig_model = trainer.model
 
     # TODO(aanoosheh): Replace spec with modelopt one
-    model, _ = io.ModelConnector().nemo_load(cfg.kd_teacher_restore_from_path, trainer, cpu=False)
+    model, _ = io.ModelConnector().nemo_load(teacher_path, trainer, cpu=False)
     model = unwrap_model(model.module, (DDP, Float16Module, MCoreFloat16Module))
 
-    logging.info("Distillation: ... teacher weights loaded.")
+    trainer.strategy.ckpt_load_optimizer = ckpt_load_optimizer
+    trainer.strategy._setup_optimizers = _setup_optimizers
+    trainer.strategy.connect(orig_model)
+
+    logging.info("Distillation: ...teacher weights loaded.")
     return model
 
 
@@ -468,7 +478,7 @@ def adjust_distillation_model_for_mcore(
             return self._sharded_state_dict(*args, **kwargs)
 
     model._sharded_state_dict = model.sharded_state_dict
-    model.sharded_state_dict = types.MethodType(_sharded_state_dict, model)
+    model.sharded_state_dict = MethodType(_sharded_state_dict, model)
 
     # HACK: Skip `lm_loss` bypassing it when training if not needed for backprop.
     def _compute_language_model_loss(self, labels, logits) -> Tensor:
@@ -478,15 +488,13 @@ def adjust_distillation_model_for_mcore(
 
     if distill_cfg["skip_lm_loss"]:
         model._compute_language_model_loss = model.compute_language_model_loss
-        model.compute_language_model_loss = types.MethodType(_compute_language_model_loss, model)
+        model.compute_language_model_loss = MethodType(_compute_language_model_loss, model)
 
     # HACK: Skip `lm_loss` always for teacher.
     def _compute_language_model_loss(self, labels, logits) -> Tensor:
         return torch.zeros_like(labels)
 
-    model.teacher_model.compute_language_model_loss = types.MethodType(
-        _compute_language_model_loss, model.teacher_model
-    )
+    model.teacher_model.compute_language_model_loss = MethodType(_compute_language_model_loss, model.teacher_model)
 
     if model_cfg.pipeline_model_parallel_size > 1:
 
@@ -496,7 +504,7 @@ def adjust_distillation_model_for_mcore(
 
         # HACK: Pipeline-parallel Distillation requires a way to cache input batches for subsequent
         # forward calls, as well as a way to pass through output tensors to teacher model.
-        model.set_input_tensor = types.MethodType(_set_input_tensor, model)
+        model.set_input_tensor = MethodType(_set_input_tensor, model)
 
         @contextmanager
         def _swap_teacher_config(self, model_wrapper):
@@ -513,11 +521,28 @@ def adjust_distillation_model_for_mcore(
 
         # HACK: Pipeline-parallel forward function relies on the config in the model to know what
         # hidden size of tensor to communicate to next stage.
-        model.swap_teacher_config = types.MethodType(_swap_teacher_config, model)
+        model.swap_teacher_config = MethodType(_swap_teacher_config, model)
 
 
 ########################################################
 
+# # #
+from dataclasses import dataclass
+
+from nemo.collections.llm.gpt.model.llama import Llama31Config
+
+
+@dataclass
+class Llama31Config4B(Llama31Config):
+    rotary_base: int = 500000
+    seq_length: int = 131072
+    num_layers: int = 16
+    hidden_size: int = 4096
+    ffn_hidden_size: int = 14336
+    num_attention_heads: int = 32
+
+
+# # #
 
 if __name__ == "__main__":
     logging.info("Distillation enabled.")
@@ -545,16 +570,12 @@ if __name__ == "__main__":
     )
 
     ## load student model
-    model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
-    assert hasattr(model, "tokenizer"), "Please provide a model checkpoint with tokenizer included."
-    model_config, tokenizer = model.config, model.tokenizer
-
-    model_config = DistillationGPTConfig(
-        **asdict(model_config),
-        # transformer_layer_spec=get_gpt_layer_modelopt_spec(),  # TODO(aanoosheh)
-        kd_teacher_restore_from_path=args.teacher_path,
-    )
-    model = DistillationGPTModel(model_config, tokenizer=tokenizer)
+    _model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
+    assert hasattr(_model, "tokenizer"), "Please provide a model checkpoint with tokenizer included."
+    model_config, tokenizer = _model.config, _model.tokenizer
+    # model_config.transformer_layer_spec = get_gpt_layer_modelopt_spec()  # TODO(aanoosheh)
+    model = DistillationGPTModel(args.teacher_path, model_config, tokenizer=tokenizer)
+    _setup_trainer_and_restore_model(args.student_path, trainer, model)
 
     # setup the dataset
     data = llm.PreTrainingDataModule(
@@ -567,11 +588,11 @@ if __name__ == "__main__":
         tokenizer=tokenizer,
     )
 
-    # auto-resume setup
+    # TODO auto-resume setup
     # resume = nl.AutoResume(
     #     resume_if_exists=True,
     #     resume_ignore_no_checkpoint=True,
-    #     resume_from_directory=LOG_DIR,
+    #     resume_from_directory=args.log_dir,
     #     restore_config=nl.RestoreConfig(path=STUDENT_PATH) if STUDENT_PATH else None,
     # )
 
@@ -601,6 +622,11 @@ if __name__ == "__main__":
         log_dir=args.log_dir,
         ckpt=checkpoint_callback,
     )
+
+    import os
+
+    # suppress warning
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     # run
     llm.train(
