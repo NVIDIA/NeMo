@@ -38,11 +38,15 @@ Example:
 
 import inspect
 from pathlib import Path
+import contextlib
+import threading
 
 import fiddle as fdl
 
 from nemo.lightning.io.artifact import Artifact
 from nemo.lightning.io.to_config import to_config
+
+_local = threading.local()
 
 
 class HFAutoArtifact(Artifact):
@@ -80,6 +84,27 @@ class HFAutoArtifact(Artifact):
         return path
 
 
+@contextlib.contextmanager
+def from_pretrained_kwargs(**kwargs):
+    """Context manager for passing additional kwargs to from_pretrained.
+    
+    Args:
+        **kwargs: Keyword arguments to pass to from_pretrained
+        
+    Example:
+        with from_pretrained_kwargs(trust_remote_code=True):
+            io.load_context("path/to/checkpoint")
+    """
+    if not hasattr(_local, "kwargs"):
+        _local.kwargs = {}
+    previous = _local.kwargs.copy()
+    _local.kwargs.update(kwargs)
+    try:
+        yield
+    finally:
+        _local.kwargs = previous
+
+
 def from_pretrained(auto_cls, pretrained_model_name_or_path="dummy"):
     """Factory function for loading HuggingFace pretrained models.
 
@@ -93,7 +118,8 @@ def from_pretrained(auto_cls, pretrained_model_name_or_path="dummy"):
     Returns:
         The loaded HuggingFace model
     """
-    return auto_cls.from_pretrained(pretrained_model_name_or_path)
+    kwargs = getattr(_local, "kwargs", {})
+    return auto_cls.from_pretrained(pretrained_model_name_or_path, **kwargs)
 
 
 @to_config.register(

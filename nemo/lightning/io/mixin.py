@@ -632,7 +632,7 @@ def _io_path_elements_fn(x):
     return x.__io__.__path_elements__()
 
 
-def _artifact_transform_save(instance, cfg: fdl.Config, output_path: Path, relative_dir: Path = "."):
+def _artifact_transform_save(instance, cfg: fdl.Config, output_path: Path, relative_dir: Path = Path(".")):
     artifacts = getattr(cfg.__fn_or_cls__, "__io_artifacts__", [])
 
     for artifact in artifacts:

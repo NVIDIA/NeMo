@@ -22,7 +22,7 @@ from nemo.lightning.io.artifact.base import Artifact
 
 
 class PathArtifact(Artifact[Path]):
-    def dump(self, value: Path, absolute_dir: Path, relative_dir: Path) -> Path:
+    def dump(self, instance, value: Path, absolute_dir: Path, relative_dir: Path) -> Path:
         new_value = copy_file(value, absolute_dir, relative_dir)
         return new_value
 
@@ -31,7 +31,7 @@ class PathArtifact(Artifact[Path]):
 
 
 class FileArtifact(Artifact[str]):
-    def dump(self, value: str, absolute_dir: Path, relative_dir: Path) -> str:
+    def dump(self, instance, value: str, absolute_dir: Path, relative_dir: Path) -> str:
         if not pathize(value).exists():
             # This is Artifact is just a string.
             return fdl.Config(FileArtifact, attr=value, skip=True)
