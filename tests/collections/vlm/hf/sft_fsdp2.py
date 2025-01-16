@@ -14,12 +14,23 @@
 
 import fiddle as fdl
 import torch
+from importlib.metadata import version
 from lightning.pytorch.loggers import WandbLogger
+from packaging.version import Version as PkgVersion
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 
 DATA_PATH = "/home/TestData/vlm/rdr-items"
+
+
+def get_torch_version_str():
+    import torch
+
+    if hasattr(torch, '__version__'):
+        return str(torch.__version__)
+    else:
+        return version("torch")
 
 
 def mk_hf_vlm_dataset(processor, mbs, gbs):
@@ -74,48 +85,49 @@ def mk_hf_vlm_dataset(processor, mbs, gbs):
 
 
 if __name__ == '__main__':
-    import argparse
+    if PkgVersion(get_torch_version_str()) >= PkgVersion("2.4"):
+        import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='Qwen/Qwen2-VL-2B-Instruct')
-    parser.add_argument('--devices', default=2)
-    parser.add_argument('--mbs', default=1)
-    parser.add_argument('--gbs', default=1)
-    parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--max-steps', type=int, default=100)
-    parser.add_argument('--wandb-project', type=str, default=None)
-    parser.add_argument('--disable-ckpt', action='store_false')
-    parser.add_argument('--use-4bit', help="Load model in 4bit", action="store_true")
-    args = parser.parse_args()
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--model', default='Qwen/Qwen2-VL-2B-Instruct')
+        parser.add_argument('--devices', default=2)
+        parser.add_argument('--mbs', default=1)
+        parser.add_argument('--gbs', default=1)
+        parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
+        parser.add_argument('--max-steps', type=int, default=100)
+        parser.add_argument('--wandb-project', type=str, default=None)
+        parser.add_argument('--disable-ckpt', action='store_false')
+        parser.add_argument('--use-4bit', help="Load model in 4bit", action="store_true")
+        args = parser.parse_args()
 
-    wandb = None
-    if args.wandb_project is not None:
-        model = '_'.join(args.model.split('/')[-2:])
-        wandb = WandbLogger(
-            project=args.wandb_project,
-            name=f'{model}_dev{args.devices}_strat_fsdp2',
+        wandb = None
+        if args.wandb_project is not None:
+            model = '_'.join(args.model.split('/')[-2:])
+            wandb = WandbLogger(
+                project=args.wandb_project,
+                name=f'{model}_dev{args.devices}_strat_fsdp2',
+            )
+        grad_clip = None
+        use_dist_samp = False
+        processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
+
+        llm.api.finetune(
+            model=vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit),
+            data=mk_hf_vlm_dataset(processor, args.mbs, args.gbs),
+            trainer=nl.Trainer(
+                devices=args.devices,
+                max_steps=args.max_steps,
+                accelerator=args.accelerator,
+                strategy=nl.FSDP2Strategy(data_parallel_size=2, tensor_parallel_size=1),
+                log_every_n_steps=1,
+                limit_val_batches=0.0,
+                num_sanity_val_steps=0,
+                accumulate_grad_batches=10,
+                gradient_clip_val=grad_clip,
+                use_distributed_sampler=use_dist_samp,
+                logger=wandb,
+                enable_checkpointing=args.disable_ckpt,
+            ),
+            optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
+            log=None,
         )
-    grad_clip = None
-    use_dist_samp = False
-    processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
-
-    llm.api.finetune(
-        model=vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit),
-        data=mk_hf_vlm_dataset(processor, args.mbs, args.gbs),
-        trainer=nl.Trainer(
-            devices=args.devices,
-            max_steps=args.max_steps,
-            accelerator=args.accelerator,
-            strategy=nl.FSDP2Strategy(data_parallel_size=2, tensor_parallel_size=1),
-            log_every_n_steps=1,
-            limit_val_batches=0.0,
-            num_sanity_val_steps=0,
-            accumulate_grad_batches=10,
-            gradient_clip_val=grad_clip,
-            use_distributed_sampler=use_dist_samp,
-            logger=wandb,
-            enable_checkpointing=args.disable_ckpt,
-        ),
-        optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-        log=None,
-    )
