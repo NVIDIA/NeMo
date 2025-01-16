@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from typing import Optional, Union
+
 from lhotse.cut import Cut
 
-from nemo.collections.common.prompts import get_prompt_format_fn
+from nemo.collections.common.data.prompt_fn import get_prompt_format_fn
+from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing
 
 
@@ -41,17 +43,19 @@ class AutoPromptFormatter:
     A class to automatically format the prompt based on the input data.
     """
 
-    def __init__(self, prompt_format: Optional[str] = None):
+    def __init__(self, tokenizer, prompt_format: Optional[str] = None):
         """
         Args:
+            tokenizer: The tokenizer to use.
             prompt_format: The prompt format string.
         """
         self.prompt_format = prompt_format
-        self.prompt_formatter = get_prompt_format_fn(prompt_format)
+        self.prompt = PromptFormatter.resolve(prompt_format)(tokenizer)
+        self.prompt_formatter = get_prompt_format_fn(Cut, self.prompt)
 
-    def __call__(self, inputs, tokenizer):
+    def __call__(self, inputs, *args, **kwargs):
         wrapped_inputs = self.maybe_wrap_inputs(inputs)
-        return self.prompt_formatter(wrapped_inputs, tokenizer)
+        return self.prompt_formatter(wrapped_inputs, *args, **kwargs)
 
     def maybe_wrap_inputs(self, inputs):
         if isinstance(inputs, Cut):
@@ -84,7 +88,7 @@ class TextProcesserWithPromptFormatter(PromptFormatterTextProcessing):
             audio_locator: The audio locator for inserting audio.
         """
         super().__init__(tokenizer, prompt_format, max_seq_length, audio_locator)
-        self.prompt_format_fn = AutoPromptFormatter(prompt_format)
+        self.prompt_format_fn = AutoPromptFormatter(tokenizer=tokenizer, prompt_format=prompt_format)
 
     def __call__(self, *args, **kwds):
         return self.process_sample(*args, **kwds)

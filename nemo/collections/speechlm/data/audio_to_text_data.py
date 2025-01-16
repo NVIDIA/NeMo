@@ -26,16 +26,17 @@ from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADER
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.common.data.dataset import ConcatMapDataset
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
-    get_audio_text_dataset_from_config,
-    get_tarred_audio_text_dataset_from_config,
-)
 from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing, TextProcessing
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.speechlm.data.data_sampler import SpeechLMDataSampler
+from nemo.collections.speechlm.data.dataset.audio_text_dataset import (
+    get_audio_text_dataset_from_config,
+    get_tarred_audio_text_dataset_from_config,
+)
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
@@ -84,6 +85,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         """
         data_cfg = self.data_cfg
         # TODO: unify the text processor creation for both lhotse and non-lhotse datasets
+        # and adapt PromptFormatterTextProcessing for both Cut and dict inputs
         text_processor = TextProcessing(
             self.tokenizer,
             max_seq_length=data_cfg["max_seq_length"],
@@ -189,11 +191,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         if data_cfg.get('is_tarred', False):
             dataset = get_tarred_audio_text_dataset_from_config(
                 config=data_cfg,
-                tokenizer=self.tokenizer,
+                text_processor=self.text_processor,
                 augmentor=augmentor,
-                sep_id=data_cfg.get('sep_id', None),
-                answer_only_loss=data_cfg.get('answer_only_loss', True),
-                virtual_tokens=data_cfg.get("virtual_tokens", 0),
                 global_rank=parallel_state.get_data_parallel_rank(),
                 world_size=parallel_state.get_data_parallel_world_size(),
             )
@@ -201,12 +200,9 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             dataset = get_audio_text_dataset_from_config(
                 manifest_filepath=data_cfg.manifest_filepath,
                 config=data_cfg,
-                tokenizer=self.tokenizer,
+                text_processor=self.text_processor,
                 augmentor=augmentor,
                 is_train=(mode == 'train'),
-                sep_id=data_cfg.get('sep_id', None),
-                answer_only_loss=data_cfg.get('answer_only_loss', True),
-                virtual_tokens=data_cfg.get("virtual_tokens", 0),
             )
         if mode != 'train':
             num_ds = len(dataset) if isinstance(dataset, list) else 1
@@ -224,7 +220,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             logging.info(f"Skipping {mode} dataloader creation as it is not specified in the config: {self.cfg}")
             return None
 
-        if isinstance(dataset, BlendableDataset):
+        if isinstance(dataset, (ConcatMapDataset, BlendableDataset)):
             collate_fn = dataset.datasets[0].collate_fn
         elif hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn

@@ -217,7 +217,7 @@ class TextProcessing:
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
         truncation_field: str = "answer",
-        pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
+        pad_to_max_length: bool = False,
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
@@ -274,6 +274,9 @@ class TextProcessing:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
+
+    def __call__(self, *args, **kwds):
+        return self._process_example(*args, **kwds)
 
     def _process_example(self, context: str, output: str):
         """

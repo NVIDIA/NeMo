@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import copy
 import io
 import os
@@ -19,6 +20,7 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import torch
 import webdataset as wds
+from megatron.core import parallel_state
 from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.data.audio_to_text import (
@@ -27,9 +29,10 @@ from nemo.collections.asr.data.audio_to_text import (
     expand_sharded_filepaths,
     shard_manifests_if_needed,
 )
-from nemo.collections.asr.data.audio_to_text_dataset import ConcatDataset, convert_to_config_list, get_chain_dataset
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
+from nemo.collections.common.data.dataset import ConcatDataset
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     TextProcessing,
@@ -43,16 +46,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.utils import logging, logging_mode
+from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers
-
-try:
-    from megatron.core import parallel_state
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_MEGATRON_CORE = False
 
 __all__ = [
     'AudioTextDataset',
@@ -207,54 +202,30 @@ class AudioTextDataset(Dataset):
 
     Args:
         manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
-        tokenizer: text tokenizer object
+        text_processor: TextProcessing object
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
-        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor object used to augment loaded audio
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): AudioAugmentor to augment loaded audio
         max_duration: If audio exceeds this length, do not include in dataset
         min_duration: If audio is less than this length, do not include in dataset
         max_utts: Limit number of utterances
         trim: whether or not to trim silence. Defaults to False
         channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from
-            multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`.
-            Defaults to `None`. Uses zero-based indexing.
+            multi-channel audio. If set to `'average'`, it performs averaging across channels.
+            Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
 
             :note: below args are NLP-specific
 
-        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit
-            this length or dropped if they cannot be truncated.
+        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated
+            to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they
             do not meet the min length requirements.
-        add_bos (bool): Whether to add a beginning of sentence token to each data example
-        add_eos (bool): Whether to add an end of sentence token to each data example
-        add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
-        tokens_to_generate (int): (inference only) Number of tokens to generate during inference
-        seed: Random seed for data shuffling.
-        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data.
-            If None, all samples will be loaded.
-        seed: int = 1234,
+        tokens_to_generate (int): max num of tokens to generate in a single pass. Defaults to 128.
+        pad_to_max_length (bool): If True, pad all samples to the max_seq_length. If False, pad to the max length
         context_key: Key to use for the context in your JSONL file
         answer_key: Key to use for the label in your JSONL file
-        separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
-        answer_only_loss: If True, will compute the loss only on the answer part of the input.
-            If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation
-            if the combined length exceeds the max sequence length.
-        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of
-            the current batch.
-        prompt_template: Prompt template to inject via an fstring. Formatted like:
-
-            .. code-block:: text
-
-                Q: {input}\\n\\nA: {output}
-
-        end_string: Optional[str] = None, if not None, add this string to the end of the answer.
-
-            :note: below args are for miscellaneous purposes
-
-        context_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random questions from, if question is not in manifest.
-        sample_alpha: Optional[float] = None, for SPE subword sampling
-        audio_locator: Optional[str] = None, a special string to split the context into multiple audio segments.
+        context_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load random
+            questions from, if question is not in manifest.
     """
 
     def __init__(
@@ -271,6 +242,8 @@ class AudioTextDataset(Dataset):
         channel_selector: Optional[ChannelSelectorType] = None,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
+        tokens_to_generate: int = 128,
+        pad_to_max_length: bool = False,
         max_num_samples: Optional[int] = None,
         index_by_file_id: bool = False,
         context_key: str = 'context',
@@ -281,6 +254,8 @@ class AudioTextDataset(Dataset):
         self.text_processor = text_processor
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
+        self.tokens_to_generate = tokens_to_generate
+        self.pad_to_max_length = pad_to_max_length
 
         if isinstance(manifest_filepath, str):
             manifest_filepath = manifest_filepath.split(",")
@@ -305,6 +280,9 @@ class AudioTextDataset(Dataset):
         self.channel_selector = channel_selector
 
     def get_manifest_sample(self, sample_id):
+        """
+        return the manifest item of the given index
+        """
         return self.collection[sample_id]
 
     def __getitem__(self, index):
@@ -352,7 +330,7 @@ class AudioTextDataset(Dataset):
             tokens_to_generate=self.tokens_to_generate,
             pad_to_max_length=self.pad_to_max_length,
             max_seq_length=self.max_seq_length,
-            text_pad_id=self.pad_id,
+            text_pad_id=self.text_processor.pad_id,
         )
 
     def collate_fn(self, batch):
@@ -394,7 +372,7 @@ class MultiAudioTextDataset(AudioTextDataset):
             tokens_to_generate=self.tokens_to_generate,
             pad_to_max_length=self.pad_to_max_length,
             max_seq_length=self.max_seq_length,
-            text_pad_id=self.pad_id,
+            text_pad_id=self.text_processor.pad_id,
         )
 
     def __getitem__(self, index):
@@ -411,7 +389,8 @@ class MultiAudioTextDataset(AudioTextDataset):
                 audio_list = [sample.audio_file]
             if not isinstance(audio_list, list):
                 raise ValueError(
-                    f"The field `audio_file` must be either a str or a list of str, but got type {type(sample.audio_file)} instead"
+                    f"The field `audio_file` must be either a str or a list of str,",
+                    f"but got type {type(sample.audio_file)} instead",
                 )
 
             num_audios = len(audio_list)
@@ -450,7 +429,8 @@ class MultiAudioTextDataset(AudioTextDataset):
             text_data['context_start_idx']
         ):
             raise ValueError(
-                f"The number of text segments ({len(text_data['context_start_idx'])}) must be one more than number of audios ({len(output['audio_signal'])})"
+                f"The number of text segments ({len(text_data['context_start_idx'])})",
+                f"must be one more than number of audios ({len(output['audio_signal'])})",
             )
 
         output.update(text_data)
@@ -537,7 +517,7 @@ class TarredAudioTextDataset(IterableDataset):
         audio_tar_filepaths: Either a list of audio tarball filepaths, or a
             string (can be brace-expandable).
         manifest_filepath (str): Path to the manifest.
-        parser (callable): A callable which is used to pre-process the text output.
+        text_processor: TextProcessing object,
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
         augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
@@ -599,35 +579,11 @@ class TarredAudioTextDataset(IterableDataset):
             to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they
             do not meet the min length requirements.
-        add_bos (bool): Whether to add a beginning of sentence token to each data example
-        add_eos (bool): Whether to add an end of sentence token to each data example
-        add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
-        tokens_to_generate (int): (inference only) Number of tokens to generate during inference
-        seed: Random seed for data shuffling.
-        seed: int = 1234,
+        tokens_to_generate (int): maximum tokens to generate in a single pass. Defaults to 128.
         context_key: Key to use for the context in your JSONL file
         answer_key: Key to use for the label in your JSONL file
-        separate_prompt_and_response_with_newline: Adds a newline between prompt and response.
-        answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute
-            the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: "answer", "context"). Field to be used for truncation
-            if the combined length exceeds the max sequence length.
-        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the
-            max length of the current batch.
-        prompt_template: Prompt template to inject via an fstring. Formatted like:
-
-            .. code-block:: text
-
-                Q: {input}\\n\\nA: {output}
-
-        end_string: Optional[str] = None, if not None, add this string to the end of the answer.
-
-            :note: Below args are for miscellaneous purposes
-
         context_file: Optional[Union[List[str], str]] = None, if provided, will use this file to load
             random questions from, if question is not in manifest.
-        sample_alpha: Optional[float] = None, for SPE subword sampling
-
     """
 
     def __init__(
@@ -648,6 +604,8 @@ class TarredAudioTextDataset(IterableDataset):
         world_size: int = 0,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
+        tokens_to_generate: int = 128,
+        pad_to_max_length: bool = False,
         context_key: str = 'context',
         answer_key: str = 'answer',
         context_file: Optional[Union[List[str], str]] = None,
@@ -658,6 +616,8 @@ class TarredAudioTextDataset(IterableDataset):
         self.min_seq_length = min_seq_length
         self.is_megatron_iterable = True
         self.shard_manifests = shard_manifests
+        self.tokens_to_generate = tokens_to_generate
+        self.pad_to_max_length = pad_to_max_length
 
         # Shard manifests if necessary and possible and then expand the paths
         manifest_filepath = shard_manifests_if_needed(
@@ -731,7 +691,7 @@ class TarredAudioTextDataset(IterableDataset):
             tokens_to_generate=self.tokens_to_generate,
             pad_to_max_length=self.pad_to_max_length,
             max_seq_length=self.max_seq_length,
-            text_pad_id=self.pad_id,
+            text_pad_id=self.text_processor.pad_id,
         )
 
     def collate_fn(self, batch):
@@ -787,6 +747,9 @@ class TarredAudioTextDataset(IterableDataset):
         return output
 
     def get_manifest_sample(self, sample_id):
+        """
+        return manifest item given the index
+        """
         return self.collection[sample_id]
 
     def __iter__(self):
@@ -810,15 +773,15 @@ class TarredAudioTextDataset(IterableDataset):
 
 def get_tarred_audio_text_dataset(
     config,
-    tokenizer,
+    text_processor,
     augmentor,
     global_rank=0,
     world_size=1,
     shuffle_n=0,
-    sep_id=None,
-    answer_only_loss=True,
-    virtual_tokens=0,
 ):
+    """
+    Get tarred audio to text dataset
+    """
     tarred_audio_filepaths = config['tarred_audio_filepaths']
     manifest_filepaths = config['manifest_filepath']
     datasets = []
@@ -833,7 +796,8 @@ def get_tarred_audio_text_dataset(
 
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
         raise ValueError(
-            f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of buckets."
+            f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths",
+            f"(length={len(tarred_audio_filepaths)}) need to have the same number of buckets.",
         )
 
     if 'labels' not in config:
@@ -853,7 +817,7 @@ def get_tarred_audio_text_dataset(
         dataset = TarredAudioTextDataset(
             audio_tar_filepaths=tarred_audio_filepath,
             manifest_filepath=manifest_filepath,
-            tokenizer=tokenizer,
+            text_processor=text_processor,
             sample_rate=config['sample_rate'],
             int_values=config.get('int_values', False),
             augmentor=augmentor,
@@ -867,23 +831,10 @@ def get_tarred_audio_text_dataset(
             world_size=world_size,
             max_seq_length=config.max_seq_length,
             min_seq_length=config.min_seq_length,
-            add_bos=config.get('add_bos', False),
-            add_eos=config.get('add_eos', True),
-            add_sep=config.get('add_sep', False),
-            sep_id=sep_id,
-            separate_prompt_and_response_with_newline=config.get('separate_prompt_and_response_with_newline', True),
-            answer_only_loss=answer_only_loss,
-            truncation_field=config.get('truncation_field', 'context'),
-            pad_to_max_length=False,
-            prompt_template=config.get('prompt_template', None),
-            virtual_tokens=virtual_tokens,
-            tokens_to_generate=config.get(
-                'tokens_to_generate', 0
-            ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
+            tokens_to_generate=config.get('tokens_to_generate', 0),
+            pad_to_max_length=config.get('pad_to_max_length', False),
             context_key=config.get('context_key', 'context'),
             answer_key=config.get('answer_key', 'answer'),
-            end_string=config.get('end_string', None),
-            sample_alpha=config.get('sample_alpha', None),
             context_file=config.get('context_file', None),
         )
 
@@ -899,15 +850,15 @@ def get_tarred_audio_text_dataset(
 
 def get_concat_tarred_audio_text_dataset(
     config,
-    tokenizer,
+    text_processor,
     augmentor,
     global_rank=0,
     world_size=1,
     shuffle_n=0,
-    sep_id=None,
-    answer_only_loss=True,
-    virtual_tokens=0,
 ):
+    """
+    Get concat tarred audio to text dataset
+    """
     tarred_audio_filepaths = config['tarred_audio_filepaths']
     manifest_filepaths = config['manifest_filepath']
     datasets = []
@@ -924,14 +875,11 @@ def get_concat_tarred_audio_text_dataset(
             conf['context_file'] = context_files
         dataset = get_tarred_audio_text_dataset(
             config=conf,
-            tokenizer=tokenizer,
+            text_processor=text_processor,
             shuffle_n=shuffle_n,
             global_rank=global_rank,
             world_size=world_size,
             augmentor=augmentor,
-            sep_id=sep_id,
-            answer_only_loss=answer_only_loss,
-            virtual_tokens=virtual_tokens,
         )
         datasets.append(dataset)
 
@@ -940,7 +888,8 @@ def get_concat_tarred_audio_text_dataset(
         datasets
     ):
         logging.info(
-            f"concat_sampling_probabilities is not provided or is not of the same size as datasets, using uniform sampling."
+            f"concat_sampling_probabilities is not provided or is not of the same size as datasets,"
+            f"using uniform sampling: concat_sampling_probabilities={concat_sampling_probabilities}"
         )
         concat_sampling_probabilities = [1.0 / len(datasets)] * len(datasets)
 
@@ -960,14 +909,14 @@ def get_concat_tarred_audio_text_dataset(
 
 def get_tarred_audio_text_dataset_from_config(
     config: DictConfig,
-    tokenizer,
+    text_processor: TextProcessing,
     augmentor,
     global_rank: int = 0,
     world_size: int = 1,
-    sep_id: Optional[int] = None,
-    answer_only_loss: bool = True,
-    virtual_tokens: int = 0,
 ):
+    """
+    Get tarred dataset from config
+    """
     is_concat = config.get('is_concat', False)
     if is_concat:
         if 'concat_sampling_technique' in config and config['concat_sampling_technique'] is None:
@@ -984,26 +933,20 @@ def get_tarred_audio_text_dataset_from_config(
     if is_concat:
         dataset = get_concat_tarred_audio_text_dataset(
             config=config,
-            tokenizer=tokenizer,
+            text_processor=text_processor,
             augmentor=augmentor,
             shuffle_n=shuffle_n,
             global_rank=global_rank,
             world_size=world_size,
-            sep_id=sep_id,
-            answer_only_loss=answer_only_loss,
-            virtual_tokens=virtual_tokens,
         )
     else:
         dataset = get_tarred_audio_text_dataset(
             config=config,
-            tokenizer=tokenizer,
+            text_processor=text_processor,
             augmentor=augmentor,
             shuffle_n=shuffle_n,
             global_rank=global_rank,
             world_size=world_size,
-            sep_id=sep_id,
-            answer_only_loss=answer_only_loss,
-            virtual_tokens=virtual_tokens,
         )
     return dataset
 
@@ -1011,13 +954,13 @@ def get_tarred_audio_text_dataset_from_config(
 def get_audio_text_dataset_from_config(
     manifest_filepath: str,
     config: DictConfig,
-    tokenizer,
+    text_processor: TextProcessing,
     augmentor,
     is_train,
-    sep_id: Optional[int] = None,
-    answer_only_loss: bool = True,
-    virtual_tokens: int = 0,
 ):
+    """
+    Get non-tarred aduio to text dataset from config
+    """
     if isinstance(config.manifest_filepath, str):
         manifest_filepath = config.manifest_filepath.split(',')
     else:
@@ -1026,6 +969,7 @@ def get_audio_text_dataset_from_config(
     data_cls = MultiAudioTextDataset if config.get('audio_locator', None) else AudioTextDataset
     logging.info(f"Using `{data_cls.__name__}` for dataset")
     datasets = []
+
     if is_train:
         # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
         # that is of the format [weight1,file_name1,weight2,file_name2,...]
@@ -1051,13 +995,14 @@ def get_audio_text_dataset_from_config(
     else:
         num_train_samples_per_dataset = [[None]] * len(manifest_filepath)
 
-    for dataset_idx, (file_path, num_samples) in enumerate(zip(manifest_filepath, num_train_samples_per_dataset)):
+    # for dataset_idx, (file_path, num_samples) in enumerate(zip(manifest_filepath, num_train_samples_per_dataset)):
+    for dataset_idx, file_path in enumerate(manifest_filepath):
         context_file = config.get('context_file', None)
         if isinstance(context_file, ListConfig) and len(context_file) == len(manifest_filepath):
             context_file = context_file[dataset_idx]
         dataset = data_cls(
             manifest_filepath=file_path,
-            tokenizer=tokenizer,
+            text_processor=text_processor,
             sample_rate=config.sample_rate,
             int_values=config.get('int_values', False),
             augmentor=augmentor,
@@ -1068,30 +1013,11 @@ def get_audio_text_dataset_from_config(
             channel_selector=getattr(config, 'channel_selector', None),
             max_seq_length=config.max_seq_length,
             min_seq_length=config.min_seq_length,
-            add_bos=config.get('add_bos', False),
-            add_eos=config.get('add_eos', True),
-            add_sep=config.get('add_sep', False),
-            sep_id=sep_id,
-            max_num_samples=num_samples[0],
-            seed=config.get('seed', 1234),
-            separate_prompt_and_response_with_newline=config.get('separate_prompt_and_response_with_newline', True),
-            answer_only_loss=answer_only_loss,
-            truncation_field=config.get('truncation_field', 'context'),
+            tokens_to_generate=config.get('tokens_to_generate', 0),
             pad_to_max_length=config.get('pad_to_max_length', False),
-            prompt_template=config.get('prompt_template', None),
-            virtual_tokens=virtual_tokens,
-            tokens_to_generate=config.get(
-                'tokens_to_generate', 0
-            ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
             context_key=config.get('context_key', 'context'),
             answer_key=config.get('answer_key', 'answer'),
-            end_string=config.get('end_string', None),
-            sample_alpha=config.get('sample_alpha', None),
             context_file=context_file,
-            audio_locator=config.get('audio_locator', None),
-            add_boa_eoa=config.get('add_boa_eoa', False),
-            boa_string=config.get('boa_string', None),
-            eoa_string=config.get('eoa_string', None),
         )
         datasets.append(dataset)
 
