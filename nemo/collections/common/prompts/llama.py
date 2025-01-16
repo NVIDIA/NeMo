@@ -157,9 +157,7 @@ class Llama3PromptFormatter(PromptFormatter):
 
 
 @registered_prompt_format_fn(Cut, Llama3PromptFormatter)
-def llama3(cut: Cut, tokenizer: TokenizerSpec) -> dict[str, torch.Tensor]:
-    prompt = Llama3PromptFormatter(tokenizer)
-
+def llama3(cut: Cut, prompt: Llama3PromptFormatter) -> dict[str, torch.Tensor]:
     if isinstance(cut, MixedCut):
         cut = cut.first_non_padding_cut
     if cut.has_custom("context"):
