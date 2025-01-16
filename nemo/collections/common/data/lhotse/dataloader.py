@@ -358,9 +358,8 @@ def get_lhotse_dataloader_from_multi_config(
             "force_finite",
         ]
         defaults = OmegaConf.structured(LhotseDataLoadingConfig)
-        defaults = OmegaConf.to_container(defaults)
         top_level_config["seed"] = resolve_seed(top_level_config["seed"])
-        return OmegaConf.create({k: top_level_config.get(k, defaults[k]) for k in defaults.keys()})
+        return OmegaConf.create({k: top_level_config.get(k, defaults[k]) for k in overwriting_opts})
 
     shared_opts = gather_shared_opts()
     fix_random_seed(shared_opts.seed)
@@ -376,8 +375,7 @@ def get_lhotse_dataloader_from_multi_config(
         try:
             expanded_config = make_structured_with_schema_warnings(config)
             for k, v in shared_opts.items():
-                if k not in expanded_config:
-                    expanded_config[k] = v
+                expanded_config[k] = v
             s, t = get_lhotse_sampler_from_config(
                 config=expanded_config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
             )
