@@ -36,10 +36,10 @@ Example:
     ```
 """
 
-import inspect
-from pathlib import Path
 import contextlib
+import inspect
 import threading
+from pathlib import Path
 
 import fiddle as fdl
 
@@ -87,10 +87,10 @@ class HFAutoArtifact(Artifact):
 @contextlib.contextmanager
 def from_pretrained_kwargs(**kwargs):
     """Context manager for passing additional kwargs to from_pretrained.
-    
+
     Args:
         **kwargs: Keyword arguments to pass to from_pretrained
-        
+
     Example:
         with from_pretrained_kwargs(trust_remote_code=True):
             io.load_context("path/to/checkpoint")
