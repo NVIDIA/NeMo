@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from copy import deepcopy
+import time
 from typing import Any, Dict, Literal, Optional
 
 import fiddle as fdl
@@ -136,6 +137,9 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Returns:
         Dataset: The dataset configured for the specified split.
         """
+        # import megatron.energon.wrappers.map_dataset.MapDataset
+        # import megatron.energon.wrappers.batch_dataset.BatchDataset
+        # import megatron.energon.flavors.webdataset.sample_loader.WebdatasetSampleLoaderDataset
         if split not in {'train', 'val'}:
             raise ValueError("Invalid value for split. Allowed values are 'train' or 'val'.")
         _dataset = get_train_dataset(
@@ -147,6 +151,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
             shuffle_buffer_size=100,
             split_part=split,
         )
+        import pdb; pdb.set_trace()
         return _dataset
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -160,6 +165,7 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Returns:
         TRAIN_DATALOADERS: The DataLoader for the training dataset.
         """
+        # import pdb; pdb.set_trace()
         if self.trainer:
             self.init_global_step = self.trainer.global_step
         self.data_sampler.init_global_step = self.init_global_step
@@ -254,12 +260,14 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
         if self.trainer:
             dataloader_obj = self.trainer.train_dataloader
-            state = dataloader_obj.save_state()
+            # state = dataloader_obj.save_state()
+            state = dataloader_obj.save_state_rank()
+            logging.info(f"Multimodal state saved in {time.time() - start} seconds")
             consumed_samples = self.data_sampler.compute_consumed_samples(
                 self.trainer.global_step - self.init_global_step
             )
             logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
-            return {'dataloader_state': state, 'consumed_samples': consumed_samples}
+            return {'consumed_samples': consumed_samples}
 
         logging.warning("trainer object not connected to data module object returning empty state")
         return {}
@@ -274,24 +282,24 @@ class SimpleMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Parameters:
         state_dict (Dict[str, Any]): The state dictionary containing the saved state of the data module.
         """
-        if not 'dataloader_state' in state_dict:
-            logging.warning(
-                f"Data loader state cannot be resumed from state_dict, it does not have the required key dataloader_state. It has {state_dict.keys()}"
-            )
-            return
-
-        state = state_dict['dataloader_state']
-        try:
-            if self.trainer:
-                self.trainer.datamodule.train_dataloader().restore_state(state)
-                logging.info(f" Multimodal dataloader state restored")
-            else:
-                logging.error(f"Cannot restore state from state_dict {state_dict}")
-                raise ValueError(
-                    f"Cannot restore state from state_dict: Is the trainer object is initialized and attached to datamodule???"
-                )
-        except Exception as e:
-            raise RuntimeError(f"Failed to dataloader restore state due to: {e}")
+        # if not 'dataloader_state' in state_dict:
+        #     logging.warning(
+        #         f"Data loader state cannot be resumed from state_dict, it does not have the required key dataloader_state. It has {state_dict.keys()}"
+        #     )
+        #     return
+        #
+        # state = state_dict['dataloader_state']
+        # try:
+        #     if self.trainer:
+        #         self.trainer.datamodule.train_dataloader().restore_state_rank(state)
+        #         logging.info(f" Multimodal dataloader state restored")
+        #     else:
+        #         logging.error(f"Cannot restore state from state_dict {state_dict}")
+        #         raise ValueError(
+        #             f"Cannot restore state from state_dict: Is the trainer object is initialized and attached to datamodule???"
+        #         )
+        # except Exception as e:
+        #     raise RuntimeError(f"Failed to dataloader restore state due to: {e}")
 
         try:
             from megatron.core.num_microbatches_calculator import update_num_microbatches

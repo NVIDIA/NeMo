@@ -60,6 +60,7 @@ class DiffusionDataModule(SimpleMultiModalDataModule):
         virtual_epoch_length: int = 1_000_000_000,  # a hack to avoid energon end of epoch warning
         packing_buffer_size: int | None = None,
         max_samples_per_sequence: int | None = None,
+        tokenizer = None,
     ) -> None:
         """
         Initialize the SimpleMultiModalDataModule.
@@ -76,7 +77,7 @@ class DiffusionDataModule(SimpleMultiModalDataModule):
 
         super().__init__(
             path=path,
-            tokenizer=None,
+            tokenizer=tokenizer,
             image_processor=None,
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,

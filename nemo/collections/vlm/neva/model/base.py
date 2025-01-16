@@ -489,7 +489,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = media is not None and media.shape[0] > 0
-
+        # images : bsz * 3 * 336 * 336
         # If running inference, we can skip media token computation if they were computed already earlier for this sample.
         if use_inference_kv_cache:
             media_embeddings = None
