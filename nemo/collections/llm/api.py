@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import os
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -445,7 +444,8 @@ def evaluate(
         nemo_checkpoint_path (Path): Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt
         which is required to tokenize the evaluation input and output prompts.
         url (str): grpc service url that were used in the deploy method above in the format: grpc://{grpc_service_ip}:{grpc_port}.
-        triton_http_port (int): HTTP port that was used for the PyTriton server in the deploy method. Default: 8000.
+        triton_http_port (int): HTTP port that was used for the PyTriton server in the
+            deploy method. Default: 8000.
         Please pass the triton_http_port if using a custom port in the deploy method.
         model_name (str): Name of the model that is deployed on PyTriton server. It should be the same as
         triton_model_name passed to the deploy method above to be able to launch evaluation. Deafult: "triton_model".
