@@ -203,7 +203,15 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         # Otherwise, apply embedding layer on input_ids and position_ids to get decoder_input.
 
         # Decoder embedding.
-        if labels.dim() == 2:  # pure text example
+        if decoder_input is not None:
+            pass
+        elif self.pre_process:
+            decoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids)
+        else:
+            # intermediate stage of pipeline
+            # decoder will get hidden_states from encoder.input_tensor
+            decoder_input = None
+        if decoder_input.dim() == 3:  # pure text example
             return super().forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
@@ -214,14 +222,6 @@ class S2sMCoreGPTModel(MCoreGPTModel):
                 packed_seq_params=packed_seq_params,
                 extra_block_kwargs=extra_block_kwargs,
             )
-        if decoder_input is not None:
-            pass
-        elif self.pre_process:
-            decoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids)
-        else:
-            # intermediate stage of pipeline
-            # decoder will get hidden_states from encoder.input_tensor
-            decoder_input = None
 
         # Rotary positional embeddings (embedding is None for PP intermediate devices)
         rotary_pos_emb = None
