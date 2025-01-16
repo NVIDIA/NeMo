@@ -203,6 +203,17 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         # Otherwise, apply embedding layer on input_ids and position_ids to get decoder_input.
 
         # Decoder embedding.
+        if labels.dim() == 2:  # pure text example
+            return super().forward(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                attention_mask=attention_mask,
+                decoder_input=decoder_input,
+                labels=labels,
+                inference_params=inference_params,
+                packed_seq_params=packed_seq_params,
+                extra_block_kwargs=extra_block_kwargs,
+            )
         if decoder_input is not None:
             pass
         elif self.pre_process:
