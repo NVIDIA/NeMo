@@ -16,7 +16,6 @@ on:
   pull_request:
     branches:
       - 'main'
-      - ko3n1g/chore/bump-mcore # remove later again!
       - 'r**'
     types: [ labeled ]
 

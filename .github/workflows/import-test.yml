@@ -46,7 +46,7 @@ jobs:
         pip install -r requirements/requirements_test.txt
         
         # Install NeMo Domain
-        pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${{ steps.nemo-wheel.outputs.DIST_FILE }}[test,${{ matrix.collection }}]"
+        pip install --no-cache-dir "${{ steps.nemo-wheel.outputs.DIST_FILE }}[test,${{ matrix.collection }}]"
     
     - name: Run ${{ matrix.collection }} checks
       run: |
