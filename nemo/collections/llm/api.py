@@ -565,7 +565,7 @@ def import_ckpt(
         ValueError: If the model does not implement ConnectorMixin, indicating a lack of
             necessary importer functionality.
     """
-    if not isinstance(output_path, Path):
+    if output_path and not isinstance(output_path, Path):
         output_path = Path(output_path)
 
     output = io.import_ckpt(model=model, source=source, output_path=output_path, overwrite=overwrite)
@@ -643,7 +643,7 @@ def export_ckpt(
     """
     if not isinstance(path, Path):
         path = Path(path)
-    if not isinstance(output_path, Path):
+    if output_path and not isinstance(output_path, Path):
         output_path = Path(output_path)
 
     output = io.export_ckpt(path, target, output_path, overwrite, load_connector)
