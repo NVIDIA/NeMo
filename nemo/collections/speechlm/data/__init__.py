@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.speechlm.data.audio_to_text_data import AudioToTextDataModule
+from nemo.collections.speechlm.data.audio_to_text_module import AudioToTextDataModule

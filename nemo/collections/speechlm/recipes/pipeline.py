@@ -21,7 +21,7 @@ import nemo.lightning as nl
 from nemo import lightning as nl
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm.api import _setup, finetune, train, validate
-from nemo.collections.speechlm.data.audio_to_text_data import AudioToTextDataModule
+from nemo.collections.speechlm.data.audio_to_text_module import AudioToTextDataModule
 from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTextLLM, SpeechToTextLLMConfig
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
