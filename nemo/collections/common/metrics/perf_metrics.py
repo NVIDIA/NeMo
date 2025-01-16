@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import deque
 from typing import Any, Dict, Optional
 
+import nemo_run as run
+from lightning.pytorch import LightningDataModule
 from lightning.pytorch.callbacks import Callback
 
 from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP
-from nemo.utils import logging
-from collections import deque
-import nemo_run as run
-from nemo.utils.exp_manager import TimingCallback
 from nemo.collections.llm.gpt.model import GPTConfig
 from nemo.lightning import Trainer
-from lightning.pytorch import LightningDataModule
+from nemo.utils import logging
+from nemo.utils.exp_manager import TimingCallback
 
 __all__ = ["FLOPsMeasurementCallback"]
 
@@ -51,21 +51,21 @@ class FLOPsMeasurementCallback(Callback):
 
     log_per_step: bool = False
     log_avg_on_train_end: bool = True
-    
+
     # maintain a FIFO queue of fixed length <step_time_buffer_size>; used to calculate average tflops_per_sec_per_gpu
     # over last <step_time_buffer_size> steps of job/experiment.
     # added 1 to 'step_time_buffer' for skipping warmup step 0 in case job/experiment has max_steps <= buffer_size
     step_time_buffer_size: int = 20
-    step_time_buffer = deque(maxlen=step_time_buffer_size+1)
+    step_time_buffer = deque(maxlen=step_time_buffer_size + 1)
 
     def __init__(
         self,
         model_config: Dict[str, Any] | run.Config[GPTConfig] | GPTConfig,
-        trainer: Optional[run.Config[Trainer] | Trainer] = None, # Required with NeMo 2.0
-        data_module: Optional[run.Config[LightningDataModule] | LightningDataModule] = None, # Required with NeMo 2.0
+        trainer: Optional[run.Config[Trainer] | Trainer] = None,  # Required with NeMo 2.0
+        data_module: Optional[run.Config[LightningDataModule] | LightningDataModule] = None,  # Required with NeMo 2.0
         model_name: Optional[str] = None,
     ):
-        if isinstance(model_config, dict): # For NeMo 1.0
+        if isinstance(model_config, dict):  # For NeMo 1.0
             self.cfg = model_config
 
             self.run_cfg = self.cfg.get('run', {})
@@ -92,14 +92,14 @@ class FLOPsMeasurementCallback(Callback):
                 self.query_groups = self.attention_heads
 
             self.model = self.model.lower() if self.model is not None else self.model
-        else: # For NeMo 2.0
-            assert trainer is not None, (f"'trainer' arg not set. Required to calculate TFLOPs per sec")
+        else:  # For NeMo 2.0
+            assert trainer is not None, f"'trainer' arg not set. Required to calculate TFLOPs per sec"
             self.num_nodes = trainer.num_nodes
             self.num_gpus_per_node = trainer.devices
-            
-            assert data_module is not None, ("'data' arg not set. Required to calculate TFLOPs per sec")
+
+            assert data_module is not None, "'data' arg not set. Required to calculate TFLOPs per sec"
             self.gbs = data_module.global_batch_size
-            
+
             self.enc_seq_len = model_config.seq_length
             self.hs = model_config.hidden_size
             self.layers = model_config.num_layers
@@ -123,10 +123,10 @@ class FLOPsMeasurementCallback(Callback):
                 timing_callback_enabled = True
             elif isinstance(callback, run.Config) and callback.__fn_or_cls__ == TimingCallback:
                 timing_callback_enabled = True
-            
-        assert timing_callback_enabled, (
-            f"TimingCallback is disabled. Enable it to calculate TFLOPs per sec or disable {self.__class__.__name__}"
-            )
+
+        assert (
+            timing_callback_enabled
+        ), f"TimingCallback is disabled. Enable it to calculate TFLOPs per sec or disable {self.__class__.__name__}"
 
         try:
             _, flops_per_gpu = self.eval_model_flops()
@@ -140,7 +140,7 @@ class FLOPsMeasurementCallback(Callback):
         PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU after training
         """
         if self.log_avg_on_train_end and len(self.step_time_buffer) > 1:
-            self.step_time_buffer.popleft() # skip warmup step 0 in case list contains value for step 0
+            self.step_time_buffer.popleft()  # skip warmup step 0 in case list contains value for step 0
             avg_tflops_per_sec_per_gpu = self.tflops_per_gpu / sum(self.step_time_buffer) / len(self.step_time_buffer)
 
             logging.info(f"TFLOPs per sec per GPU={avg_tflops_per_sec_per_gpu:.2f}")
@@ -150,7 +150,7 @@ class FLOPsMeasurementCallback(Callback):
         if hasattr(pl_module, metric_log_name) and self.tflops_per_gpu != -1:
             step_time = getattr(pl_module, metric_log_name)
             self.step_time_buffer.append(step_time)
-            
+
             if self.log_per_step:
                 pl_module.log(
                     f"tflops_per_sec_per_gpu",
