@@ -708,6 +708,19 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             return self.__getitem__duplex_(cuts)
         if getattr(cuts[0], "s2s_duplex_overlap", False):
             return self.__getitem__duplex_overlap_(cuts)
+        # full text data goes here
+        from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample
+
+        text_examples = cuts.filter(lambda c: isinstance(c, (SourceTargetTextExample, NeMoSFTExample)))
+        if text_examples:
+            pad_id = self.text_processor.pad_id
+            text_minibatch = dict(
+                text_input_ids=collate_vectors_lhotse([e.input_ids for e in text_examples], padding_value=pad_id),
+                text_answer_ids=collate_vectors_lhotse([e.answer_ids for e in text_examples], padding_value=pad_id),
+                text_context_ids=collate_vectors_lhotse([e.context_ids for e in text_examples], padding_value=pad_id),
+                text_masks=collate_vectors_lhotse([e.mask for e in text_examples], padding_value=0),
+            )
+            return text_minibatch
 
         '''
         # half-duplex single turn s2s data and multi turn s2s data go here
