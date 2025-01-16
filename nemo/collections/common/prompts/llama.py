@@ -156,29 +156,24 @@ class Llama3PromptFormatter(PromptFormatter):
     }
 
 
-@registered_prompt_format_fn
-def llama3(cuts: CutSet, tokenizer: TokenizerSpec):
+@registered_prompt_format_fn(Cut, Llama3PromptFormatter)
+def llama3(cut: Cut, tokenizer: TokenizerSpec) -> dict[str, torch.Tensor]:
     prompt = Llama3PromptFormatter(tokenizer)
-    ans = defaultdict(list)
-    for cut in cuts:
-        if isinstance(cut, MixedCut):
-            cut = cut.first_non_padding_cut
-        if cut.has_custom("context"):
-            context = cut.context
-        elif cut.has_custom("question"):
-            context = cut.question
-        else:
-            context = cut.default_context
 
-        turns = []
-        if cut.has_custom("system_prompt"):
-            turns.append({"role": "system_and_user", "slots": {"system": cut.system_prompt, "message": context}})
-        else:
-            turns.append({"role": "user", "slots": {"message": context}})
-        if (answer := cut.supervisions[0].text) is not None:
-            turns.append({"role": "assistant", "slots": {"message": answer}})
+    if isinstance(cut, MixedCut):
+        cut = cut.first_non_padding_cut
+    if cut.has_custom("context"):
+        context = cut.context
+    elif cut.has_custom("question"):
+        context = cut.question
+    else:
+        context = cut.default_context
 
-        for k, v in prompt.encode_dialog(turns).items():
-            ans[k].append(v)
-
-    return ans
+    turns = []
+    if cut.has_custom("system_prompt"):
+        turns.append({"role": "system_and_user", "slots": {"system": cut.system_prompt, "message": context}})
+    else:
+        turns.append({"role": "user", "slots": {"message": context}})
+    if (answer := cut.supervisions[0].text) is not None:
+        turns.append({"role": "assistant", "slots": {"message": answer}})
+    return prompt.encode_dialog(turns)
