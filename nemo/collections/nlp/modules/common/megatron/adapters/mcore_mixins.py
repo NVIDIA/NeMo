@@ -234,6 +234,7 @@ class MCoreSelfAttentionMixin(SelfAttention, MCoreAdapterModuleMixin):
         rotary_pos_cos=None,
         rotary_pos_sin=None,
         attention_bias=None,
+        sequence_len_offset=None,
     ):
         # hidden_states: [sq, b, h]
 
