@@ -171,6 +171,18 @@ model:
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template} # fstring to use for assistant prompt. Example: "Q: {input}\nA: {output}"
       tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
+      inference_config:
+        top_k: 20
+        top_p: 0.9
+        use_greedy: True
+        temperature: 1.0
+        repetition_penalty: 1.0
+        add_BOS: False
+        all_probs: False
+        compute_logprob: False
+        end_strings: ['[SEP]']
+        min_length: 0
+        max_length: 50
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
@@ -199,6 +211,18 @@ model:
       index_mapping_dir: null # Path to a directory to write index mapping files.
       prompt_template: ${model.data.train_ds.prompt_template}
       tokens_to_generate: 32 # decide how many tokens we want to generate to evaluate performance with string metrics
+      inference_config:
+        top_k: 20
+        top_p: 0.9
+        use_greedy: True
+        temperature: 1.0
+        repetition_penalty: 1.0
+        add_BOS: False
+        all_probs: False
+        compute_logprob: False
+        end_strings: ['[SEP]']
+        min_length: 0
+        max_length: 50
       metric:
         name: "loss" # Name of the evaluation metric to use. Options: ['exact_string_match', 'loss']
         average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
