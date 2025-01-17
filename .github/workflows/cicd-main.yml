@@ -131,7 +131,7 @@ jobs:
   L0_Unit_Tests_GPU_LLM:
      needs: [cicd-test-container-setup]
      uses: ./.github/workflows/_test_template.yml
-     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_GPU_LLM') || needs.cicd-test-container-setup.outputs.all == 'true'
+     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_LLM') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
