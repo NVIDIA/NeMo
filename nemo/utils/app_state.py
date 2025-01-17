@@ -187,6 +187,22 @@ class AppState(metaclass=Singleton):
         self._expert_model_parallel_size = size
 
     @property
+    def expert_tensor_parallel_size(self):
+        """Property returns the number of GPUs in each expert tensor parallel group.
+        Returns:
+            Number of GPUs in each expert tensor parallel group.
+        """
+        return self._expert_tensor_parallel_size
+
+    @expert_tensor_parallel_size.setter
+    def expert_tensor_parallel_size(self, size):
+        """Property sets the number of GPUs in each expert tensor parallel group.
+        Args:
+            size (int):  Number of GPUs in each expert tensor parallel group.
+        """
+        self._expert_tensor_parallel_size = size
+
+    @property
     def pipeline_model_parallel_size(self):
         """Property returns the number of GPUs in each model parallel group.
         Returns:
