@@ -1367,8 +1367,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                             'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
                             'labels': batch['labels'] if 'labels' in batch else None,
                         }
-                    if not is_te_min_version("1.13", check_equality=False):
-                        # cu_seqlens_unpadded != cu_seqlens is not supported in 1.13 or earlier
+                    elif not is_te_min_version("1.13", check_equality=False):
+                        # cu_seqlens_unpadded != cu_seqlens is not supported in 1.13 or earlier when CP=1
                         cu_seqlens_unpadded = cu_seqlens
                     forward_args['packed_seq_params'] = PackedSeqParams(
                         cu_seqlens_q=cu_seqlens_unpadded,
