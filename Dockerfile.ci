@@ -67,7 +67,7 @@ pip install --no-cache-dir --no-build-isolation --extra-index-url https://pypi.n
 ".[all]"
 EOF
 
-ARG MCORE_TAG=4dc8977167d71f86bdec47a60a98e85c4cfa0031
+ARG MCORE_TAG=e5793c07227d346d6c644779005f179be12f6895
 RUN <<"EOF" bash -ex
 # Megatron-LM installation
 git clone https://github.com/NVIDIA/Megatron-LM.git
