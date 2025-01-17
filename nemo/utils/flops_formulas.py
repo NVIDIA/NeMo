@@ -36,7 +36,8 @@ def gpt3(config: FLOPSConfig):
     vocab_size = LLM_VOCAB_SIZE_MAP["gpt3"]
 
     return (
-        24 * config.gbs * config.enc_seq_len * config.hs * config.hs + 4 * config.gbs * config.enc_seq_len * config.enc_seq_len * config.hs
+        24 * config.gbs * config.enc_seq_len * config.hs * config.hs
+        + 4 * config.gbs * config.enc_seq_len * config.enc_seq_len * config.hs
     ) * (3 * config.layers) + (6 * config.gbs * config.enc_seq_len * config.hs * vocab_size)
 
 
