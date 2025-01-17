@@ -505,7 +505,7 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel):
         cfg.num_classes = len(labels)
 
         OmegaConf.set_struct(cfg, True)
- 
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._update_decoder_config(cfg.labels, cfg.decoder)
         super().__init__(cfg, trainer)
@@ -560,7 +560,6 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel):
                 self._cfg.test_ds.labels = new_labels
 
             logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
-
 
 
 class EncDecRegressionModel(_EncDecBaseModel):
