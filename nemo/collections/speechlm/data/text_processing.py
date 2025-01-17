@@ -17,19 +17,20 @@ from typing import Optional, Union
 
 from lhotse.cut import Cut
 
-from nemo.collections.common.data.prompt_fn import get_prompt_format_fn
-from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing
 
 
+__all__ = ['TextProcesserWithPromptFormatter']
+
+
 @dataclass
-class CutSupervision:
+class MockCutSupervision:
     text: str = ""
 
 
 class MockCut(Cut):
     """
-    A mock class to wrap the input data for the prompt formatter.
+    A warpper class to wrap the input data for the prompt formatter.
     """
 
     def __init__(self, sample: Union[str, dict], text_key="output"):
@@ -49,7 +50,7 @@ class MockCut(Cut):
                 else:
                     self.answer = v
 
-        self.supervisions = [CutSupervision(text=sample[text_key])]
+        self.supervisions = [MockCutSupervision(text=sample[text_key])]
 
     def has_custom(self, key):
         return hasattr(self, key)
@@ -57,7 +58,8 @@ class MockCut(Cut):
 
 class TextProcesserWithPromptFormatter(PromptFormatterTextProcessing):
     """
-    Wrapper class that processes text and uses the prompt formatter.
+    Wrapper class that processes text and uses the prompt formatter,
+    such that the same text processor can be used by both lhotse and non-lhotse datasets.
     """
 
     def __init__(
