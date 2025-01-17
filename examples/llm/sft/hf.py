@@ -143,8 +143,12 @@ def main():
         from nemo.lightning.pytorch.strategies import FSDP2Strategy
 
         grad_clip = None
+        from transformers.models.llama.modeling_llama import LlamaMLP
+
         args.strategy = FSDP2Strategy(
-            data_parallel_size=args.devices, tensor_parallel_size=1
+            data_parallel_size=args.devices,
+            tensor_parallel_size=1,
+            activation_checkpointing_policy={LlamaMLP},
         )
 
     use_dist_samp = False
