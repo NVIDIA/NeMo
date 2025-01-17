@@ -248,7 +248,10 @@ model:
         batch_size: 1
         token_equivalent_duration: 0.08
         use_bucketing: false
-        shuffle_buffer_size: 500
+        bucket_buffer_size: 500
+        shuffle_buffer_size: 5000
+        num_workers: 2
+        shuffle: true
       duplex:
         sampler_fusion: randomized_round_robin
         sampler_weights : [0.05,1.0]
@@ -3056,6 +3059,7 @@ model:
             shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/Mixtral8x22b_MMLPC_en/manifest_510
             tags:
               s2s_duplex: True
+        shuffle: True
       load_answer_audio: ${model.extract_codec_on_the_fly}
       codec_model_downsampling_factor: ${model.codec_model_downsampling_factor}
       global_batch_size: ${model.global_batch_size}

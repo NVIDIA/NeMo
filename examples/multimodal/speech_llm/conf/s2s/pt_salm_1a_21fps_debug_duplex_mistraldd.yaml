@@ -2099,7 +2099,7 @@ model:
 
     validation_ds:
       force_map_dataset: True
-      names: ['Mixtral', 'roleplay', 'lindy']
+      names: ['Mixtral', 'roleplay', 'callhome', 'nvolve_chatqa', 'daring_anteater_lmsys_sft']
       input_cfg:
         - type: group
           weight: 1.0
@@ -2120,10 +2120,24 @@ model:
               shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/synthetic_roleplay_v2_test/
               tags:
                 s2s_duplex: True
+                #- type: lhotse_shar
+                #  shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/tts/Lindy_dev/
+                #  tags:
+                #    s2s_duplex: True
             - type: lhotse_shar
-              shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/tts/Lindy_dev/
+              shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/fisher/callhome_eng_LDC97S42/
+              tags:
+                s2s_duplex_overlap: True
+            - type: lhotse_shar
+              shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/nvolve_chatqa_test/
               tags:
                 s2s_duplex: True
+            - type: lhotse_shar
+              shar_path: /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/duplex/340b_8.19_daring_anteater_lmsys_sft_8801rm3.7p_test/
+              tags:
+                s2s_duplex: True
+
+
             # s2s_shars_21fps_with_wavs
             # - type: lhotse_shar
             #   shar_path: /lustre/fs7/portfolios/llmservice/projects/llmservice_nemo_speechlm/data/s2s_synthetic_data/s2s_shars_21fps/alpaca_val/ # speech SQA
