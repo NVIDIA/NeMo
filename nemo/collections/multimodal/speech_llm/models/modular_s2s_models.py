@@ -203,17 +203,6 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         # Otherwise, apply embedding layer on input_ids and position_ids to get decoder_input.
 
         # Decoder embedding.
-        if input_ids is not None and input_ids.dim() == 2:  # pure text example
-            return super().forward(
-                input_ids=input_ids,
-                position_ids=position_ids,
-                attention_mask=attention_mask,
-                decoder_input=decoder_input,
-                labels=labels,
-                inference_params=inference_params,
-                packed_seq_params=packed_seq_params,
-                extra_block_kwargs=extra_block_kwargs,
-            )
         if decoder_input is not None:
             pass
         elif self.pre_process:
@@ -249,34 +238,47 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             output_weight = self.shared_embedding_or_output_weight()
         else:
             output_weight = None
-        all_logits = []
-        cur_dims = 0
-        for i in range(self.n_proj_heads):
-            cur_output_weight = (
-                output_weight[cur_dims : cur_dims + self.proj_head_dims[i]] if output_weight is not None else None
+        if input_ids is not None and input_ids.dim() == 2:  # pure text example
+            logits, _ = self.output_layer(
+                hidden_states, weight=output_weight[: self.vocab_size] if output_weight is not None else None
             )
-            all_logits.append(self.output_layers[i](hidden_states, weight=cur_output_weight)[0])
-            cur_dims += self.proj_head_dims[i]
-        assert self.vocab_size == self.proj_head_dims[0]
-        all_logits[0], _ = self.output_layer(
-            hidden_states, weight=output_weight[: self.vocab_size] if output_weight is not None else None
-        )
 
-        if labels is None:
-            # [s b h] => [b s h]
-            return_logits = [logits.transpose(0, 1).contiguous() for logits in all_logits]
-            return torch.cat(return_logits, dim=-1)  # cat the last dim together to make other mcore code happy
+            if labels is None:
+                # [s b h] => [b s h]
+                return logits.transpose(0, 1).contiguous()
 
-        tokens_loss = torch.stack(
-            [self.compute_language_model_loss(labels[:, :, i], all_logits[i]) for i in range(self.n_proj_heads)],
-            axis=2,
-        )
-        tokens_loss = (
-            tokens_loss
-            * torch.FloatTensor(self.proj_head_loss_weights).to(tokens_loss.device)
-            / sum(self.proj_head_loss_weights)
-        )
-        return tokens_loss
+            loss = self.compute_language_model_loss(labels, logits)
+
+            return loss
+        else:
+            all_logits = []
+            cur_dims = 0
+            for i in range(self.n_proj_heads):
+                cur_output_weight = (
+                    output_weight[cur_dims : cur_dims + self.proj_head_dims[i]] if output_weight is not None else None
+                )
+                all_logits.append(self.output_layers[i](hidden_states, weight=cur_output_weight)[0])
+                cur_dims += self.proj_head_dims[i]
+            assert self.vocab_size == self.proj_head_dims[0]
+            all_logits[0], _ = self.output_layer(
+                hidden_states, weight=output_weight[: self.vocab_size] if output_weight is not None else None
+            )
+
+            if labels is None:
+                # [s b h] => [b s h]
+                return_logits = [logits.transpose(0, 1).contiguous() for logits in all_logits]
+                return torch.cat(return_logits, dim=-1)  # cat the last dim together to make other mcore code happy
+
+            tokens_loss = torch.stack(
+                [self.compute_language_model_loss(labels[:, :, i], all_logits[i]) for i in range(self.n_proj_heads)],
+                axis=2,
+            )
+            tokens_loss = (
+                tokens_loss
+                * torch.FloatTensor(self.proj_head_loss_weights).to(tokens_loss.device)
+                / sum(self.proj_head_loss_weights)
+            )
+            return tokens_loss
 
 
 class S2sMCoreGPTModelDepth(S2sMCoreGPTModel):
