@@ -37,6 +37,7 @@ from nemo.collections.speechlm.data.dataset.audio_text_dataset import (
     get_audio_text_dataset_from_config,
     get_tarred_audio_text_dataset_from_config,
 )
+from nemo.collections.speechlm.data.text_processing import TextProcesserWithPromptFormatter
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
@@ -84,8 +85,16 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         Builds the text processor for SpeechLM
         """
         data_cfg = self.data_cfg
-        # TODO: unify the text processor creation for both lhotse and non-lhotse datasets
-        # and adapt PromptFormatterTextProcessing for both Cut and dict inputs
+
+        if data_cfg.get('prompt_format', None):
+            text_processor = TextProcesserWithPromptFormatter(
+                self.tokenizer,
+                prompt_format=data_cfg['prompt_format'],
+                max_seq_length=data_cfg["max_seq_length"],
+                audio_locator=data_cfg.get('audio_locator', None),
+            )
+            return text_processor
+
         text_processor = TextProcessing(
             self.tokenizer,
             max_seq_length=data_cfg["max_seq_length"],
@@ -168,12 +177,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             logging.info(f"Creating Lhotse dataset for {mode}")
             if mode != 'train':
                 setattr(self, f"_{mode}_names", self._parse_lhotse_data_name(mode))
-            self.text_processor = PromptFormatterTextProcessing(
-                self.tokenizer,
-                prompt_format=data_cfg.get('prompt_format', None),
-                max_seq_length=data_cfg["max_seq_length"],
-                audio_locator=data_cfg.get('audio_locator', None),
-            )
+
             return LhotseAudioQuestionAnswerDataset(
                 text_processor=self.text_processor,
                 default_context="answer the question according to the previous audio",

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -23,7 +23,11 @@ from nemo.collections.common.prompts import PromptFormatter
 from nemo.utils import logging, logging_mode
 
 
-def maybe_cast_to_list(x):
+def maybe_cast_to_list(x: Union[torch.Tensor, np.ndarray, List]):
+    if isinstance(x, list):
+        return [maybe_cast_to_list(item) for item in x]
+    if isinstance(x, torch.Tensor):
+        x = x.cpu().numpy()
     if isinstance(x, np.ndarray):
         return [item.tolist() for item in x]
     return x

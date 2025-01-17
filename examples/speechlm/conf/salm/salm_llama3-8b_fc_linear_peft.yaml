@@ -12,6 +12,7 @@ data:
     end_string: null
     context_key: 'context'
     answer_key: 'answer'
+    prompt_format: null
     prompt_template: "Q: {context}\nA: {answer}" # fstring to use for assistant prompt.
     separate_prompt_and_response_with_newline: False
     truncation_field: 'context'
@@ -66,6 +67,7 @@ data:
     bucketing_strategy: "fully_randomized"
     bucketing_batch_size: null
     audio_locator: ${data.common.audio_locator}
+    prompt_format: ${data.common.prompt_format}
 
   validation_ds:
     manifest_filepath: ??? # Path to a list of JSONL files corresponding to the source data. Data format is identical to train_ds.
@@ -93,6 +95,7 @@ data:
     # ASR configs
     sample_rate: ${data.common.sample_rate}
     audio_locator: ${data.train_ds.audio_locator}
+    prompt_format: ${data.common.prompt_format}
 
     log_every_n_steps: 10
     metric:
