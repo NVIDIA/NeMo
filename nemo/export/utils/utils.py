@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/bin/bash
-# example slurm script for training diffusion
+from pathlib import Path
 
-#SBATCH -p your_partition -A your_account -t 24:00:00 --nodes=16 --exclusive --mem=0 --overcommit --gpus-per-node 8 --ntasks-per-node=8 --dependency=singleton
 
-export WANDB_PROJECT=xxx
-export WANDB_RUN_ID=xxx
-export WANDB_RESUME=allow
-export CUDA_DEVICE_MAX_CONNECTIONS=1
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+def is_nemo2_checkpoint(checkpoint_path: str) -> bool:
+    """
+    Checks if the checkpoint is in NeMo 2.0 format.
+    Args:
+        checkpoint_path (str): Path to a checkpoint.
+    Returns:
+        bool: True if the path points to a NeMo 2.0 checkpoint; otherwise false.
+    """
 
-DIR=`pwd`
-
-srun -l --container-image nvcr.io/nvidia/nemo:dev --container-mounts "/home:/home" --no-container-mount-home --mpi=pmix bash -c "cd ${DIR} ; python -u nemo/collections/diffusion/train.py --yes $*"
+    ckpt_path = Path(checkpoint_path)
+    return (ckpt_path / 'context').is_dir()
