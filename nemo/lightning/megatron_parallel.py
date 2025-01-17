@@ -281,13 +281,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 forward_step=_forward_step,
                 data_step=_data_step,
                 loss_reduction=_loss_reduction,
-                context={},
+                context=_forward_context,
             )
         else:
             forward_step_func = _forward_step
 
         if self._kd_teacher_in_pp:
             assert wrap_forward_step
+            _teacher_forward_context = {}
+
             if isinstance(_data_step, _ModuleStepFunction):
                 _data_step = _data_step(self.module)
             data = _data_step(data, cache_num_batches=num_microbatches)
@@ -299,7 +301,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 forward_step=_forward_step,
                 data_step=_data_step,
                 loss_reduction=_dummy_reduction,
-                context=_forward_context,
+                context=_teacher_forward_context,
             )
             teacher_step = MegatronStep.infer(
                 self,
@@ -311,6 +313,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 seq_length=seq_length,
                 step_i=step_i,
             )
+            _teacher_forward_context["step"] = teacher_step
+            teacher_step = self.callbacks.transform_event("on_megatron_step_start", teacher_step)
 
         step = MegatronStep.infer(
             self,
