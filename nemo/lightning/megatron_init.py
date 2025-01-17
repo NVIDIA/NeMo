@@ -127,7 +127,7 @@ def initialize_model_parallel_for_nemo(
     app_state.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
     app_state.use_fp8 = use_fp8
     app_state.init_mpi_proc_group = init_mpi_proc_group
-    app_state.expert_tensor_parallel_size=expert_tensor_parallel_size
+    app_state.expert_tensor_parallel_size = expert_tensor_parallel_size
     (
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,

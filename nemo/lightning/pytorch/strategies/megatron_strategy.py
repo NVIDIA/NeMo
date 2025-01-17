@@ -100,7 +100,7 @@ class ParallelismConfig:
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
     use_te_rng_tracker: bool = False
-    expert_tensor_parallel_size: Optional[int] = None 
+    expert_tensor_parallel_size: Optional[int] = None
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
