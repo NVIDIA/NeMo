@@ -7,5 +7,5 @@ librosa>=0.9.1
 numpy
 plotly
 SoundFile
-tqdm
 sox
+tqdm
