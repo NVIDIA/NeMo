@@ -36,8 +36,8 @@ def gpt3(config: FLOPSConfig):
     vocab_size = LLM_VOCAB_SIZE_MAP["gpt3"]
 
     return (
-        24 * mdl.gbs * mdl.enc_seq_len * mdl.hs * mdl.hs + 4 * mdl.gbs * mdl.enc_seq_len * mdl.enc_seq_len * mdl.hs
-    ) * (3 * mdl.layers) + (6 * mdl.gbs * mdl.enc_seq_len * mdl.hs * vocab_size)
+        24 * config.gbs * config.enc_seq_len * config.hs * config.hs + 4 * config.gbs * config.enc_seq_len * config.enc_seq_len * config.hs
+    ) * (3 * config.layers) + (6 * config.gbs * config.enc_seq_len * config.hs * vocab_size)
 
 
 def llama2(config: FLOPSConfig):
@@ -45,17 +45,17 @@ def llama2(config: FLOPSConfig):
     vocab_size = LLM_VOCAB_SIZE_MAP["llama2"]
 
     return (
-        mdl.gbs
-        * mdl.enc_seq_len
-        * mdl.layers
-        * mdl.hs
-        * mdl.hs
+        config.gbs
+        * config.enc_seq_len
+        * config.layers
+        * config.hs
+        * config.hs
         * (
             12
-            + (12 * mdl.query_groups / mdl.attention_heads)
-            + (18 * mdl.ffn_hs / mdl.hs)
-            + (12 * mdl.enc_seq_len / mdl.hs)
-            + (6 * vocab_size / (mdl.layers * mdl.hs))
+            + (12 * config.query_groups / config.attention_heads)
+            + (18 * config.ffn_hs / config.hs)
+            + (12 * config.enc_seq_len / config.hs)
+            + (6 * vocab_size / (config.layers * config.hs))
         )
     )
 
@@ -65,17 +65,17 @@ def llama3(config: FLOPSConfig):
     vocab_size = LLM_VOCAB_SIZE_MAP["llama3"]
 
     return (
-        mdl.gbs
-        * mdl.enc_seq_len
-        * mdl.layers
-        * mdl.hs
-        * mdl.hs
+        config.gbs
+        * config.enc_seq_len
+        * config.layers
+        * config.hs
+        * config.hs
         * (
             12
-            + (12 * mdl.query_groups / mdl.attention_heads)
-            + (18 * mdl.ffn_hs / mdl.hs)
-            + (12 * mdl.enc_seq_len / mdl.hs)
-            + (6 * vocab_size / (mdl.layers * mdl.hs))
+            + (12 * config.query_groups / config.attention_heads)
+            + (18 * config.ffn_hs / config.hs)
+            + (12 * config.enc_seq_len / config.hs)
+            + (6 * vocab_size / (config.layers * config.hs))
         )
     )
 
@@ -85,17 +85,17 @@ def nemotron(config: FLOPSConfig):
     vocab_size = LLM_VOCAB_SIZE_MAP["nemotron"]
 
     return (
-        mdl.gbs
-        * mdl.enc_seq_len
-        * mdl.layers
-        * mdl.hs
-        * mdl.hs
+        config.gbs
+        * config.enc_seq_len
+        * config.layers
+        * config.hs
+        * config.hs
         * (
             12
-            + (12 * mdl.query_groups / mdl.attention_heads)
-            + (12 * mdl.ffn_hs / mdl.hs)
-            + (12 * mdl.enc_seq_len / mdl.hs)
-            + (6 * vocab_size / (mdl.layers * config.hs))
+            + (12 * config.query_groups / config.attention_heads)
+            + (12 * config.ffn_hs / config.hs)
+            + (12 * config.enc_seq_len / config.hs)
+            + (6 * vocab_size / (config.layers * config.hs))
         )
     )
 
@@ -126,10 +126,10 @@ def bert(config: FLOPSConfig):
 
     return (
         72
-        * mdl.gbs
-        * mdl.layers
-        * mdl.enc_seq_len
-        * mdl.hs
-        * mdl.hs
-        * (1 + (mdl.enc_seq_len / (6 * mdl.hs)) + (vocab_size / (12 * mdl.hs * mdl.layers)))
+        * config.gbs
+        * config.layers
+        * config.enc_seq_len
+        * config.hs
+        * config.hs
+        * (1 + (config.enc_seq_len / (6 * config.hs)) + (vocab_size / (12 * config.hs * config.layers)))
     )
