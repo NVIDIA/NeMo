@@ -100,6 +100,7 @@ class ParallelismConfig:
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
     use_te_rng_tracker: bool = False
+    expert_tensor_parallel_size: Optional[int] = None 
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -125,6 +126,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             parallelizing layer norms and dropout sequentially. Defaults to False.
         expert_model_parallel_size (int): Distributes MoE Experts across sub data parallel dimension.
             Defaults to 1.
+        expert_tensor_parallel_size (Optional[int]): Sets MoE Experts tensor parallelism size. Defaults to None.
         moe_extended_tp (bool): Alternative parallelization strategy for expert parallelism. Defaults to False.
         data_sampler (Optional['DataSampler']): Custom data sampler for distributed training. Defaults to None.
         parallel_devices (Optional[List[torch.device]]): List of devices to use for parallelism. Defaults to None.
@@ -187,6 +189,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         context_parallel_size: int = 1,
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
+        expert_tensor_parallel_size: Optional[int] = None,
         moe_extended_tp: bool = False,
         encoder_tensor_model_parallel_size: Optional[int] = 0,
         encoder_pipeline_model_parallel_size: Optional[int] = 0,
@@ -237,6 +240,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         )
         self.context_parallel_size = context_parallel_size
         self.expert_model_parallel_size = expert_model_parallel_size
+        self.expert_tensor_parallel_size = expert_tensor_parallel_size
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
@@ -899,6 +903,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             context_parallel_size=self.context_parallel_size,
             sequence_parallel=self.sequence_parallel,
             expert_model_parallel_size=self.expert_model_parallel_size,
+            expert_tensor_parallel_size=self.expert_tensor_parallel_size,
             moe_extended_tp=self.moe_extended_tp,
             encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
             encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
