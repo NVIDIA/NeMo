@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from abc import ABCMeta
 from argparse import ArgumentParser
 from contextlib import contextmanager
@@ -433,7 +434,7 @@ def _teacher_provider(teacher_path: str, trainer: nl.Trainer) -> MCoreGPTModel:
     logging.info("Distillation: Loading teacher weights...")
 
     ckpt_load_optimizer = trainer.strategy.ckpt_load_optimizer
-    _setup_optimizers = trainer.strategy._setup_optimizers
+    setup_optimizers = trainer.strategy._setup_optimizers
     trainer.strategy.ckpt_load_optimizer = False
     trainer.strategy._setup_optimizers = False
     orig_model = trainer.model
@@ -443,7 +444,7 @@ def _teacher_provider(teacher_path: str, trainer: nl.Trainer) -> MCoreGPTModel:
     model = unwrap_model(model.module, (DDP, Float16Module, MCoreFloat16Module))
 
     trainer.strategy.ckpt_load_optimizer = ckpt_load_optimizer
-    trainer.strategy._setup_optimizers = _setup_optimizers
+    trainer.strategy._setup_optimizers = setup_optimizers
     trainer.strategy.connect(orig_model)
 
     logging.info("Distillation: ...teacher weights loaded.")
@@ -575,6 +576,7 @@ if __name__ == "__main__":
     model_config, tokenizer = _model.config, _model.tokenizer
     # model_config.transformer_layer_spec = get_gpt_layer_modelopt_spec()  # TODO(aanoosheh)
     model = DistillationGPTModel(args.teacher_path, model_config, tokenizer=tokenizer)
+    model.trainer = trainer
     _setup_trainer_and_restore_model(args.student_path, trainer, model)
 
     # setup the dataset
@@ -622,8 +624,6 @@ if __name__ == "__main__":
         log_dir=args.log_dir,
         ckpt=checkpoint_callback,
     )
-
-    import os
 
     # suppress warning
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
