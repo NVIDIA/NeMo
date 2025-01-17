@@ -1369,10 +1369,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         }
                     else:
                         from packaging.version import Version as PkgVersion
+
                         if (
-                            self.transformer_config.num_query_groups != self.transformer_config.num_attention_heads and
-                            not is_te_min_version("1.13", check_equality=False) and
-                            PkgVersion(os.getenv("CUDNN_VERSION", "9.5")) < PkgVersion("9.6")
+                            self.transformer_config.num_query_groups != self.transformer_config.num_attention_heads
+                            and not is_te_min_version("1.13", check_equality=False)
+                            and PkgVersion(os.getenv("CUDNN_VERSION", "9.5")) < PkgVersion("9.6")
                         ):
                             # cu_seqlens_unpadded != cu_seqlens when CP=1 is not supported in TE 1.13 or earlier
                             # and im CUDNN 9.5 or earlier when using GQA.
