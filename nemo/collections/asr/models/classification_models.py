@@ -29,6 +29,7 @@ from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
 
 from nemo.collections.asr.data import audio_to_label_dataset, feature_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins import TranscriptionMixin, TranscriptionReturnType
 from nemo.collections.asr.parts.mixins.transcription import InternalTranscribeConfig
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -484,210 +485,30 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         return ClassificationInferConfig()
 
 
-@deprecated(explanation='EncDecClassificationModel will be merged with EncDecSpeakerLabelModel class.')
-class EncDecClassificationModel(_EncDecBaseModel):
-    """Encoder decoder Classification models."""
-
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
-        if cfg.get("is_regression_task", False):
-            raise ValueError(f"EndDecClassificationModel requires the flag is_regression_task to be set as false")
-
-        super().__init__(cfg=cfg, trainer=trainer)
-
-    def _setup_preprocessor(self):
-        return EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
-
-    def _setup_encoder(self):
-        return EncDecClassificationModel.from_config_dict(self._cfg.encoder)
-
-    def _setup_decoder(self):
-        return EncDecClassificationModel.from_config_dict(self._cfg.decoder)
-
-    def _setup_loss(self):
-        return CrossEntropyLoss()
-
-    def _setup_metrics(self):
-        self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
-
-    @classmethod
-    def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
-        """
-        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
-
-        Returns:
-            List of available pre-trained models.
-        """
-        results = []
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="vad_multilingual_marblenet",
-            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_marblenet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_multilingual_marblenet/versions/1.10.0/files/vad_multilingual_marblenet.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="vad_telephony_marblenet",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_telephony_marblenet/versions/1.0.0rc1/files/vad_telephony_marblenet.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="vad_marblenet",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_marblenet/versions/1.0.0rc1/files/vad_marblenet.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="commandrecognition_en_matchboxnet3x1x64_v1",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v1",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x1x64_v1/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x1x64_v1.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="commandrecognition_en_matchboxnet3x2x64_v1",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v1",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x2x64_v1/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x2x64_v1.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="commandrecognition_en_matchboxnet3x1x64_v2",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v2",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x1x64_v2/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x1x64_v2.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="commandrecognition_en_matchboxnet3x2x64_v2",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v2",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x2x64_v2/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x2x64_v2.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="commandrecognition_en_matchboxnet3x1x64_v2_subset_task",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v2_subset_task",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x1x64_v2_subset_task/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x1x64_v2_subset_task.nemo",
-        )
-        results.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="commandrecognition_en_matchboxnet3x2x64_v2_subset_task",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v2_subset_task",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x2x64_v2_subset_task/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x2x64_v2_subset_task.nemo",
-        )
-        results.append(model)
-        return results
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"outputs": NeuralType(('B', 'D'), LogitsType())}
-
-    # PTL-specific methods
-    def training_step(self, batch, batch_nb):
-        audio_signal, audio_signal_len, labels, labels_len = batch
-        logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss(logits=logits, labels=labels)
-
-        self.log('train_loss', loss_value)
-        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
-        self.log('global_step', self.trainer.global_step)
-
-        self._accuracy(logits=logits, labels=labels)
-        topk_scores = self._accuracy.compute()
-        self._accuracy.reset()
-
-        for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            self.log('training_batch_accuracy_top_{}'.format(top_k), score)
-
-        return {
-            'loss': loss_value,
-        }
-
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        audio_signal, audio_signal_len, labels, labels_len = batch
-        logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss(logits=logits, labels=labels)
-        acc = self._accuracy(logits=logits, labels=labels)
-        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        loss = {
-            'val_loss': loss_value,
-            'val_correct_counts': correct_counts,
-            'val_total_counts': total_counts,
-            'val_acc': acc,
-        }
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-            self.validation_step_outputs[dataloader_idx].append(loss)
-        else:
-            self.validation_step_outputs.append(loss)
-        return loss
-
-    def test_step(self, batch, batch_idx, dataloader_idx=0):
-        audio_signal, audio_signal_len, labels, labels_len = batch
-        logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss(logits=logits, labels=labels)
-        acc = self._accuracy(logits=logits, labels=labels)
-        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        loss = {
-            'test_loss': loss_value,
-            'test_correct_counts': correct_counts,
-            'test_total_counts': total_counts,
-            'test_acc': acc,
-        }
-        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
-            self.test_step_outputs[dataloader_idx].append(loss)
-        else:
-            self.test_step_outputs.append(loss)
-        return loss
-
-    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        correct_counts = torch.stack([x['val_correct_counts'] for x in outputs]).sum(axis=0)
-        total_counts = torch.stack([x['val_total_counts'] for x in outputs]).sum(axis=0)
-
-        self._accuracy.correct_counts_k = correct_counts
-        self._accuracy.total_counts_k = total_counts
-        topk_scores = self._accuracy.compute()
-        self._accuracy.reset()
-
-        tensorboard_log = {'val_loss': val_loss_mean}
-        for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
-
-        return {'log': tensorboard_log}
-
-    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-        correct_counts = torch.stack([x['test_correct_counts'].unsqueeze(0) for x in outputs]).sum(axis=0)
-        total_counts = torch.stack([x['test_total_counts'].unsqueeze(0) for x in outputs]).sum(axis=0)
-
-        self._accuracy.correct_counts_k = correct_counts
-        self._accuracy.total_counts_k = total_counts
-        topk_scores = self._accuracy.compute()
-        self._accuracy.reset()
-
-        tensorboard_log = {'test_loss': test_loss_mean}
-        for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['test_epoch_top@{}'.format(top_k)] = score
-
-        return {'log': tensorboard_log}
-
-    @typecheck()
-    def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
-    ):
-        logits = super().forward(
-            input_signal=input_signal,
-            input_signal_length=input_signal_length,
-            processed_signal=processed_signal,
-            processed_signal_length=processed_signal_length,
-        )
+class EncDecClassificationModel(EncDecSpeakerLabelModel):
+    def forward_for_export(self, audio_signal, length):
+        encoded, length = self.encoder(audio_signal=audio_signal, length=length)
+        logits = self.decoder(encoder_output=encoded, length=length)
         return logits
+
+    def _update_decoder_config(self, labels, cfg):
+        """
+        Update the number of classes in the decoder based on labels provided.
+
+        Args:
+            labels: The current labels of the model
+            cfg: The config of the decoder which will be updated.
+        """
+        OmegaConf.set_struct(cfg, False)
+        if 'params' in cfg:
+            cfg.params.num_classes = len(labels)
+        cfg.num_classes = len(labels)
+
+        OmegaConf.set_struct(cfg, True)
+ 
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        self._update_decoder_config(cfg.labels, cfg.decoder)
+        super().__init__(cfg, trainer)
 
     def change_labels(self, new_labels: List[str]):
         """
@@ -740,22 +561,6 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
             logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
 
-    def _update_decoder_config(self, labels, cfg):
-        """
-        Update the number of classes in the decoder based on labels provided.
-
-        Args:
-            labels: The current labels of the model
-            cfg: The config of the decoder which will be updated.
-        """
-        OmegaConf.set_struct(cfg, False)
-
-        if 'params' in cfg:
-            cfg.params.num_classes = len(labels)
-        else:
-            cfg.num_classes = len(labels)
-
-        OmegaConf.set_struct(cfg, True)
 
 
 class EncDecRegressionModel(_EncDecBaseModel):
