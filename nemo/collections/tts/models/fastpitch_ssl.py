@@ -197,9 +197,14 @@ class FastPitchModel_SSL(ModelPT):
             enc_mask = mask_from_lens(encoded_len)
             enc_mask = enc_mask[:, :, None]
 
-            mels_pred, _, _, _, _, _ = self(enc_out=enc_out, enc_mask=enc_mask, durs=durs, pitch=None, pace=1.0,)
+            mels_pred, _, _, _, _, _ = self(
+                enc_out=enc_out,
+                enc_mask=enc_mask,
+                durs=durs,
+                pitch=None,
+                pace=1.0,
+            )
 
-            
             mels_for_embedding, _, _ = asr_features.normalize_batch(mels_pred, mel_len, "per_feature")
             new_content_embedding, new_encoded_len = self.non_trainable_models['ssl_model'].encoder(
                 audio_signal=mels_for_embedding, length=mel_len
@@ -215,12 +220,14 @@ class FastPitchModel_SSL(ModelPT):
                 new_content_embedding_grouped = 1.0 * batch["content_embedding"]
                 new_content_embedding_grouped = new_content_embedding_grouped.detach()
                 ssl_downsampling_factor = self._cfg.get("ssl_downsampling_factor", 4)
-                batch_groupings = (batch["duration"]/ssl_downsampling_factor).long() # BS, L
+                batch_groupings = (batch["duration"] / ssl_downsampling_factor).long()  # BS, L
                 unique_indices = torch.cumsum(batch_groupings, dim=1) - 1
                 for bidx in range(new_content_embedding_grouped.shape[0]):
                     encoded_len = batch["encoded_len"][bidx]
                     item_unique_indices = unique_indices[bidx][:encoded_len]
-                    new_content_embedding_grouped[bidx, :, :encoded_len] = new_content_embedding[bidx, :, item_unique_indices]
+                    new_content_embedding_grouped[bidx, :, :encoded_len] = new_content_embedding[
+                        bidx, :, item_unique_indices
+                    ]
                 new_content_embedding_grouped = new_content_embedding_grouped.detach()
                 self.train(old_mode)
                 return new_content_embedding_grouped
@@ -402,7 +409,7 @@ class FastPitchModel_SSL(ModelPT):
             wav_vocoded = self.vocode_spectrogram(spec_predict[:, :_spec_len])
             self.tb_logger.add_audio("Generated Audio", wav_vocoded[0], self.global_step, 22050)
             self.log_train_images = True
-        
+
         self.validation_step_outputs.clear()  # free memory)
 
     def generate_wav(

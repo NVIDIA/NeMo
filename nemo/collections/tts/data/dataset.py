@@ -1218,7 +1218,7 @@ class FastPitchSSLDataset(Dataset):
         speaker_conditioning_type: Optional[str] = "per_sample",  # per_sample, mean, interpolate,
         content_aug_types: Optional[List[str]] = [],
         alternate_speaker_conditioning: Optional[str] = "random",
-        emb_similarity_threshold: Optional[float] = 1.0, # Set to 1.0 to disable grouping
+        emb_similarity_threshold: Optional[float] = 1.0,  # Set to 1.0 to disable grouping
     ):
         """Dataset used for training FastPitchModel_SSL model.
         Requires supplementary data created using scripts/ssl_tts/make_supdata.py
@@ -1330,7 +1330,7 @@ class FastPitchSSLDataset(Dataset):
                 speaker_stats_raw = json.load(f)
                 for key in speaker_stats_raw:
                     self.speaker_stats[int(key)] = speaker_stats_raw[key]
-        
+
         self.alternate_speaker_conditioning = alternate_speaker_conditioning
         self.emb_similarity_threshold = emb_similarity_threshold
         self.compute_mean_speaker_embeddings()
@@ -1357,9 +1357,9 @@ class FastPitchSSLDataset(Dataset):
 
     def group_content_embeddings(self, content_embedding, aug_embeddings, duration):
         # content_embedding: (256, n_timesteps)
-        grouped_content_embeddings = [ content_embedding[:, 0] ]
-        grouped_durations = [ duration[0] ]
-        grouped_aug_embeddings =  {key:  [ aug_embeddings[key][:, 0] ] for key in aug_embeddings}
+        grouped_content_embeddings = [content_embedding[:, 0]]
+        grouped_durations = [duration[0]]
+        grouped_aug_embeddings = {key: [aug_embeddings[key][:, 0]] for key in aug_embeddings}
         group_size = 1
         for _tidx in range(1, content_embedding.shape[1]):
             prev_embedding = grouped_content_embeddings[-1]
@@ -1372,15 +1372,21 @@ class FastPitchSSLDataset(Dataset):
                     grouped_aug_embeddings[key].append(aug_embeddings[key][:, _tidx])
             else:
                 # group with previous embedding
-                grouped_content_embeddings[-1] = (grouped_content_embeddings[-1] * group_size + curr_embedding) / (group_size + 1)
+                grouped_content_embeddings[-1] = (grouped_content_embeddings[-1] * group_size + curr_embedding) / (
+                    group_size + 1
+                )
                 grouped_durations[-1] += duration[_tidx]
                 for key in aug_embeddings:
-                    grouped_aug_embeddings[key][-1] = (grouped_aug_embeddings[key][-1] * group_size + aug_embeddings[key][:, _tidx]) / (group_size + 1)
+                    grouped_aug_embeddings[key][-1] = (
+                        grouped_aug_embeddings[key][-1] * group_size + aug_embeddings[key][:, _tidx]
+                    ) / (group_size + 1)
                 group_size += 1
 
         grouped_content_embeddings = torch.stack(grouped_content_embeddings, dim=1)
         grouped_durations = torch.stack(grouped_durations, dim=0)
-        grouped_aug_embeddings = {key: torch.stack(grouped_aug_embeddings[key], dim=1) for key in grouped_aug_embeddings}
+        grouped_aug_embeddings = {
+            key: torch.stack(grouped_aug_embeddings[key], dim=1) for key in grouped_aug_embeddings
+        }
 
         return grouped_content_embeddings, grouped_aug_embeddings, grouped_durations
 
@@ -1439,7 +1445,7 @@ class FastPitchSSLDataset(Dataset):
             raise ValueError(
                 f"Speaker embedding file {speaker_emb_fp} does not exist. Make sure to run scripts/ssl_tts/make_supdata.py before training."
             )
-        
+
         aug_embeddings = {}
         if len(self.content_aug_types) > 0:
             for aug_type in self.content_aug_types:
@@ -1524,7 +1530,7 @@ class FastPitchSSLDataset(Dataset):
         for duration in final_batch["duration"]:
             duration_padded = torch.nn.functional.pad(duration, (0, max_encoded_len - duration.size(0)), value=0.0)
             durations_padded.append(duration_padded)
-        
+
         other_content_embedding_keys = [k for k in final_batch if k.startswith("content_embedding_")]
         for key in other_content_embedding_keys:
             other_content_embeddings_padded = []
@@ -1557,7 +1563,9 @@ class FastPitchSSLDataset(Dataset):
         if self.pitch_conditioning:
             pitch_contour = self.get_pitch_contour(rel_audio_path_as_text_id)
 
-        content_embedding, speaker_embedding, encoded_len, duration, aug_embeddings = self.get_ssl_features(rel_audio_path_as_text_id)
+        content_embedding, speaker_embedding, encoded_len, duration, aug_embeddings = self.get_ssl_features(
+            rel_audio_path_as_text_id
+        )
 
         if self.speaker_conditioning_type == "mean":
             assert sample["speaker"] in self.mean_speaker_embeddings, "{} not in speaker emb".format(sample['speaker'])

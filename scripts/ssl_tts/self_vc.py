@@ -116,8 +116,8 @@ def get_speaker_embedding(nemo_sv_model, wav_featurizer, audio_paths, duration=N
 
 def group_content_embeddings(content_embedding, duration, emb_similarity_threshold=0.925):
     # content_embedding: (256, n_timesteps)
-    grouped_content_embeddings = [ content_embedding[:, 0] ]
-    grouped_durations = [ duration[0] ]
+    grouped_content_embeddings = [content_embedding[:, 0]]
+    grouped_durations = [duration[0]]
     group_size = 1
     for _tidx in range(1, content_embedding.shape[1]):
         prev_embedding = grouped_content_embeddings[-1]
@@ -128,17 +128,20 @@ def group_content_embeddings(content_embedding, duration, emb_similarity_thresho
             grouped_durations.append(duration[_tidx])
         else:
             # group with previous embedding
-            grouped_content_embeddings[-1] = (grouped_content_embeddings[-1] * group_size + curr_embedding) / (group_size + 1)
+            grouped_content_embeddings[-1] = (grouped_content_embeddings[-1] * group_size + curr_embedding) / (
+                group_size + 1
+            )
             grouped_durations[-1] += duration[_tidx]
-    
+
     grouped_content_embeddings = torch.stack(grouped_content_embeddings, dim=1)
     grouped_durations = torch.stack(grouped_durations, dim=0)
 
     return grouped_content_embeddings, grouped_durations
 
+
 def get_ssl_features_disentangled(ssl_model, wav_featurizer, audio_path, use_unique_tokens=False, device="cpu"):
     """
-    Extracts content embedding, speaker embedding and duration tokens to be used as inputs for FastPitchModel_SSL 
+    Extracts content embedding, speaker embedding and duration tokens to be used as inputs for FastPitchModel_SSL
     synthesizer. Content embedding and speaker embedding extracted using SSLDisentangler model.
     Args:
         ssl_model: SSLDisentangler model
@@ -155,7 +158,8 @@ def get_ssl_features_disentangled(ssl_model, wav_featurizer, audio_path, use_uni
     audio_signal_length = audio_signal_length.to(device)
 
     processed_signal, processed_signal_length = ssl_model.preprocessor(
-        input_signal=audio_signal, length=audio_signal_length,
+        input_signal=audio_signal,
+        length=audio_signal_length,
     )
 
     batch_content_embedding, batch_encoded_len = ssl_model.encoder(
@@ -167,15 +171,17 @@ def get_ssl_features_disentangled(ssl_model, wav_featurizer, audio_path, use_uni
     content_embedding = batch_content_embedding[0, :, : batch_encoded_len[0]]
     ssl_downsampling_factor = ssl_model._cfg.encoder.subsampling_factor
     duration = torch.ones(content_embedding.shape[1]) * ssl_downsampling_factor
-    
+
     if use_unique_tokens:
         print("Grouping..")
         emb_similarity_threshold = ssl_model._cfg.get("emb_similarity_threshold", 0.925)
-        final_content_embedding, final_duration = group_content_embeddings(content_embedding, duration, emb_similarity_threshold)
+        final_content_embedding, final_duration = group_content_embeddings(
+            content_embedding, duration, emb_similarity_threshold
+        )
         print("Grouped duration", final_duration)
     else:
         final_content_embedding, final_duration = content_embedding, duration
-        
+
     final_content_embedding = final_content_embedding.to(device)
     final_duration = final_duration.to(device)
 
@@ -218,7 +224,7 @@ def main():
             source_name = os.path.basename(args.source_audio_path).split(".")[0]
             target_name = os.path.basename(args.target_audio_path).split(".")[0]
             args.out_path = "swapped_{}_{}.wav".format(source_name, target_name)
-        
+
         _wav_featurizer = WaveformFeaturizer(sample_rate=args.sample_rate, int_values=False, augmentor=None)
         source_audio_wav = _wav_featurizer.process(args.source_audio_path)
         source_audio_length = source_audio_wav.shape[0]
@@ -229,7 +235,7 @@ def main():
             temp_dir = os.path.join(source_audio_basedir, "temp")
             if not os.path.exists(temp_dir):
                 os.makedirs(temp_dir)
-            
+
             # segment_length is nearest multiple of 1024
             segment_length = args.segment_length_seconds * int(args.sample_rate / 1024) * 1024
             si = 0
@@ -267,7 +273,9 @@ def main():
     vocoder = hifigan.HifiGanModel.load_from_checkpoint(args.hifi_ckpt_path, map_location=device).to(device)
     vocoder.eval()
 
-    fastpitch_model = fastpitch_ssl.FastPitchModel_SSL.load_from_checkpoint(args.fastpitch_ckpt_path, strict=False, map_location=device)
+    fastpitch_model = fastpitch_ssl.FastPitchModel_SSL.load_from_checkpoint(
+        args.fastpitch_ckpt_path, strict=False, map_location=device
+    )
     fastpitch_model = fastpitch_model.to(device)
     fastpitch_model.eval()
     fastpitch_model.non_trainable_models = {'vocoder': vocoder}
@@ -280,7 +288,6 @@ def main():
     compute_pitch = args.compute_pitch == 1
     compute_duration = args.compute_duration == 1
 
-
     for pidx, source_target_out in enumerate(source_target_out_pairs):
         print("Processing pair {}/{}".format(pidx + 1, len(source_target_out_pairs)))
         source_audio_path = source_target_out[0]
@@ -290,7 +297,11 @@ def main():
 
         with torch.no_grad():
             content_embedding1, duration1 = get_ssl_features_disentangled(
-                ssl_model, wav_featurizer, source_audio_path, use_unique_tokens, device=device,
+                ssl_model,
+                wav_featurizer,
+                source_audio_path,
+                use_unique_tokens,
+                device=device,
             )
 
             speaker_embedding2 = get_speaker_embedding(

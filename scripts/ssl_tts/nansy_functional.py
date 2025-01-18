@@ -66,27 +66,33 @@ def get_pitch_median(wav, sr: int = None):
 
 
 def change_gender(
-        sound, pitch=None,
-        formant_shift_ratio: float = PRAAT_CHANGEGENDER_FORMANTSHIFTRATIO_DEFAULT,
-        new_pitch_median: float = PRAAT_CHANGEGENDER_PITCHMEDIAN_DEFAULT,
-        pitch_range_ratio: float = PRAAT_CHANGEGENDER_PITCHRANGERATIO_DEFAULT,
-        duration_factor: float = PRAAT_CHANGEGENDER_DURATIONFACTOR_DEFAULT, ) -> parselmouth.Sound:
+    sound,
+    pitch=None,
+    formant_shift_ratio: float = PRAAT_CHANGEGENDER_FORMANTSHIFTRATIO_DEFAULT,
+    new_pitch_median: float = PRAAT_CHANGEGENDER_PITCHMEDIAN_DEFAULT,
+    pitch_range_ratio: float = PRAAT_CHANGEGENDER_PITCHRANGERATIO_DEFAULT,
+    duration_factor: float = PRAAT_CHANGEGENDER_DURATIONFACTOR_DEFAULT,
+) -> parselmouth.Sound:
     try:
         if pitch is None:
             new_sound = parselmouth.praat.call(
-                sound, "Change gender", 75, 600,
+                sound,
+                "Change gender",
+                75,
+                600,
                 formant_shift_ratio,
                 new_pitch_median,
                 pitch_range_ratio,
-                duration_factor
+                duration_factor,
             )
         else:
             new_sound = parselmouth.praat.call(
-                (sound, pitch), "Change gender",
+                (sound, pitch),
+                "Change gender",
                 formant_shift_ratio,
                 new_pitch_median,
                 pitch_range_ratio,
-                duration_factor
+                duration_factor,
             )
     except Exception as e:
         raise e
@@ -95,22 +101,23 @@ def change_gender(
 
 
 def apply_formant_and_pitch_shift(
-        sound: parselmouth.Sound,
-        formant_shift_ratio: float = PRAAT_CHANGEGENDER_FORMANTSHIFTRATIO_DEFAULT,
-        pitch_shift_ratio: float = PRAAT_CHANGEGENDER_PITCHSHIFTRATIO_DEFAULT,
-        pitch_range_ratio: float = PRAAT_CHANGEGENDER_PITCHRANGERATIO_DEFAULT,
-        duration_factor: float = PRAAT_CHANGEGENDER_DURATIONFACTOR_DEFAULT) -> parselmouth.Sound:
+    sound: parselmouth.Sound,
+    formant_shift_ratio: float = PRAAT_CHANGEGENDER_FORMANTSHIFTRATIO_DEFAULT,
+    pitch_shift_ratio: float = PRAAT_CHANGEGENDER_PITCHSHIFTRATIO_DEFAULT,
+    pitch_range_ratio: float = PRAAT_CHANGEGENDER_PITCHRANGERATIO_DEFAULT,
+    duration_factor: float = PRAAT_CHANGEGENDER_DURATIONFACTOR_DEFAULT,
+) -> parselmouth.Sound:
     r"""uses praat 'Change Gender' backend to manipulate pitch and formant
-        'Change Gender' function: praat -> Sound Object -> Convert -> Change Gender
-        see Help of Praat for more details
+    'Change Gender' function: praat -> Sound Object -> Convert -> Change Gender
+    see Help of Praat for more details
 
-        # https://github.com/YannickJadoul/Parselmouth/issues/25#issuecomment-608632887 might help
+    # https://github.com/YannickJadoul/Parselmouth/issues/25#issuecomment-608632887 might help
     """
 
     # pitch = sound.to_pitch()
     pitch = None
     new_pitch_median = PRAAT_CHANGEGENDER_PITCHMEDIAN_DEFAULT
-    if pitch_shift_ratio != 1.:
+    if pitch_shift_ratio != 1.0:
         try:
             pitch, pitch_median = get_pitch_median(sound, None)
             new_pitch_median = pitch_median * pitch_shift_ratio
@@ -131,10 +138,7 @@ def apply_formant_and_pitch_shift(
         except Exception as e:
             raise e
 
-    new_sound = change_gender(
-        sound, pitch,
-        formant_shift_ratio, new_pitch_median,
-        pitch_range_ratio, duration_factor)
+    new_sound = change_gender(sound, pitch, formant_shift_ratio, new_pitch_median, pitch_range_ratio, duration_factor)
 
     return new_sound
 
@@ -165,7 +169,7 @@ def formant_and_pitch_shift(sound: parselmouth.Sound) -> parselmouth.Sound:
         formant_shift_ratio=formant_shifting_ratio,
         pitch_shift_ratio=pitch_shift_ratio,
         pitch_range_ratio=pitch_range_ratio,
-        duration_factor=1.
+        duration_factor=1.0,
     )
     return sound_new
 
@@ -198,60 +202,33 @@ def power_ratio(r: float, a: float, b: float):
 
 # peq
 def parametric_equalizer(wav: torch.Tensor, sr: int) -> torch.Tensor:
-    cutoff_low_freq = 60.
-    cutoff_high_freq = 10000.
+    cutoff_low_freq = 60.0
+    cutoff_high_freq = 10000.0
 
     q_min = 2
     q_max = 5
 
     num_filters = 8 + 2  # 8 for peak, 2 for high/low
-    key_freqs = [
-        power_ratio(float(z) / (num_filters), cutoff_low_freq, cutoff_high_freq)
-        for z in range(num_filters)
-    ]
-    Qs = [
-        power_ratio(random.uniform(0, 1), q_min, q_max)
-        for _ in range(num_filters)
-    ]
+    key_freqs = [power_ratio(float(z) / (num_filters), cutoff_low_freq, cutoff_high_freq) for z in range(num_filters)]
+    Qs = [power_ratio(random.uniform(0, 1), q_min, q_max) for _ in range(num_filters)]
     gains = [random.uniform(-12, 12) for _ in range(num_filters)]
 
     # peak filters
     for i in range(1, 9):
-        wav = apply_iir_filter(
-            wav,
-            ftype='peak',
-            dBgain=gains[i],
-            cutoff_freq=key_freqs[i],
-            sample_rate=sr,
-            Q=Qs[i]
-        )
+        wav = apply_iir_filter(wav, ftype='peak', dBgain=gains[i], cutoff_freq=key_freqs[i], sample_rate=sr, Q=Qs[i])
 
     # high-shelving filter
-    wav = apply_iir_filter(
-        wav,
-        ftype='high',
-        dBgain=gains[-1],
-        cutoff_freq=key_freqs[-1],
-        sample_rate=sr,
-        Q=Qs[-1]
-    )
+    wav = apply_iir_filter(wav, ftype='high', dBgain=gains[-1], cutoff_freq=key_freqs[-1], sample_rate=sr, Q=Qs[-1])
 
     # low-shelving filter
-    wav = apply_iir_filter(
-        wav,
-        ftype='low',
-        dBgain=gains[0],
-        cutoff_freq=key_freqs[0],
-        sample_rate=sr,
-        Q=Qs[0]
-    )
+    wav = apply_iir_filter(wav, ftype='low', dBgain=gains[0], cutoff_freq=key_freqs[0], sample_rate=sr, Q=Qs[0])
 
     return wav
 
 
 # implemented using the cookbook https://webaudio.github.io/Audio-EQ-Cookbook/audio-eq-cookbook.html
 def lowShelf_coeffs(dBgain, cutoff_freq, sample_rate, Q):
-    A = math.pow(10, dBgain / 40.)
+    A = math.pow(10, dBgain / 40.0)
 
     w0 = 2 * math.pi * cutoff_freq / sample_rate
     alpha = math.sin(w0) / 2 / Q
@@ -268,7 +245,7 @@ def lowShelf_coeffs(dBgain, cutoff_freq, sample_rate, Q):
 
 
 def highShelf_coeffs(dBgain, cutoff_freq, sample_rate, Q):
-    A = math.pow(10, dBgain / 40.)
+    A = math.pow(10, dBgain / 40.0)
 
     w0 = 2 * math.pi * cutoff_freq / sample_rate
     alpha = math.sin(w0) / 2 / Q
@@ -285,7 +262,7 @@ def highShelf_coeffs(dBgain, cutoff_freq, sample_rate, Q):
 
 
 def peaking_coeffs(dBgain, cutoff_freq, sample_rate, Q):
-    A = math.pow(10, dBgain / 40.)
+    A = math.pow(10, dBgain / 40.0)
 
     w0 = 2 * math.pi * cutoff_freq / sample_rate
     alpha = math.sin(w0) / 2 / Q
@@ -328,10 +305,7 @@ fs = formant_shift
 
 
 def nansy_g(wav: torch.Tensor, sr: int) -> torch.Tensor:
-    r"""sequentially apply peq and fs
-
-
-    """
+    r"""sequentially apply peq and fs"""
     wav = peq(wav, sr)
     wav_numpy = wav.numpy()
 
@@ -343,10 +317,7 @@ def nansy_g(wav: torch.Tensor, sr: int) -> torch.Tensor:
 
 
 def nansy_f(wav: torch.Tensor, sr: int) -> torch.Tensor:
-    r"""sequentially apply peq, pr and fs
-
-
-    """
+    r"""sequentially apply peq, pr and fs"""
     wav = peq(wav, sr)
     wav_numpy = wav.numpy()
 

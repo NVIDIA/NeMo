@@ -16,6 +16,7 @@
 import argparse
 import json
 import os
+import random
 import time
 from multiprocessing import Pool
 from pathlib import Path
@@ -24,18 +25,18 @@ import hydra.utils
 import librosa
 import numpy as np
 import torch
+import torchaudio
 from omegaconf import open_dict
 from tqdm import tqdm
 
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.models import label_models
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.tts.models import ssl_tts
 from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.models import label_models
-import torchaudio
-import random
+
 
 class AudioDataset(Dataset):
     def __init__(
@@ -81,15 +82,20 @@ class AudioDataset(Dataset):
             audio_samples_sv = np.zeros(1024)
         else:
             features = AudioSegment.segment_from_file(
-                audio_filepath, target_sr=self.sample_rate, n_segments=-1, trim=False,
+                audio_filepath,
+                target_sr=self.sample_rate,
+                n_segments=-1,
+                trim=False,
             )
             audio_samples = features.samples
-            
+
             features_sv = AudioSegment.segment_from_file(
-                audio_filepath, target_sr=self.sv_sample_rate, n_segments=-1, trim=False,
+                audio_filepath,
+                target_sr=self.sv_sample_rate,
+                n_segments=-1,
+                trim=False,
             )
             audio_samples_sv = features_sv.samples
-            
 
         audio, audio_length = torch.tensor(audio_samples), torch.tensor(audio_samples.shape[0]).long()
         audio_sv, audio_length_sv = torch.tensor(audio_samples_sv), torch.tensor(audio_samples_sv.shape[0]).long()
@@ -151,6 +157,7 @@ class AudioDataset(Dataset):
             "speaker": speaker,
         }
 
+
 def segment_wav(wav, segment_length, segment_hop_size, min_segment_length):
     if len(wav) < segment_length:
         pad = torch.zeros(segment_length - len(wav))
@@ -210,11 +217,16 @@ def get_mel_spectrogram(fb, wav, stft_params, device):
 
 
 def load_wav(wav_path, sample_rate=22050, pad_multiple=1024):
-    wav = AudioSegment.segment_from_file(wav_path, target_sr=sample_rate, n_segments=-1, trim=False,).samples
+    wav = AudioSegment.segment_from_file(
+        wav_path,
+        target_sr=sample_rate,
+        n_segments=-1,
+        trim=False,
+    ).samples
 
     if wav.shape[0] % pad_multiple != 0:
         wav = np.concatenate([wav, np.zeros(pad_multiple - wav.shape[0] % pad_multiple)])
-    wav = wav[:-1] # -1 needed to make SSL embedding a power of 2 and 4 times the mel spectrogram length
+    wav = wav[:-1]  # -1 needed to make SSL embedding a power of 2 and 4 times the mel spectrogram length
 
     return wav
 
@@ -231,7 +243,6 @@ def save_pitch_contour(record):
 
     stft_params = record['stft_params']
     wav = load_wav(wav_path, stft_params['sample_rate'], stft_params['pad_multiple'])
-    
 
     f0, _, _ = librosa.pyin(
         wav,
@@ -299,14 +310,14 @@ def compute_pitch_stats(records):
     if os.path.exists(os.path.join(sup_data_dir, "speaker_pitch_stats.json")):
         with open(os.path.join(sup_data_dir, "speaker_pitch_stats.json"), "r") as f:
             speaker_pitch_stats_saved = json.load(f)
-        
+
         for speaker in speaker_pitch_stats:
             if speaker not in speaker_pitch_stats_saved:
                 speaker_pitch_stats_saved[speaker] = speaker_pitch_stats[speaker]
             else:
                 print("Warning!", speaker, "already exists in speaker_pitch_stats.json")
                 print("Not overwriting. Please check if the pitch stats are correct.")
-        
+
         speaker_pitch_stats = speaker_pitch_stats_saved
 
     with open(os.path.join(sup_data_dir, "speaker_pitch_stats.json"), "w") as f:
@@ -316,7 +327,9 @@ def compute_pitch_stats(records):
 def main():
     parser = argparse.ArgumentParser(description='Evaluate the model')
     parser.add_argument(
-        '--ssl_model_ckpt_path', type=str, required=True,
+        '--ssl_model_ckpt_path',
+        type=str,
+        required=True,
     )
     parser.add_argument('--manifest_paths', type=str, required=True)
     parser.add_argument('--sup_data_dir', type=str, default=None)
@@ -355,7 +368,11 @@ def main():
 
     print("loading dataset")
     dataset = AudioDataset(
-        manifest_paths, pad_multiple=args.pad_multiple, sample_rate=args.sample_rate, sup_data_dir=args.sup_data_dir, extract_only_pitch_contours=extract_only_pitch_contours,
+        manifest_paths,
+        pad_multiple=args.pad_multiple,
+        sample_rate=args.sample_rate,
+        sup_data_dir=args.sup_data_dir,
+        extract_only_pitch_contours=extract_only_pitch_contours,
     )
     dataloader = torch.utils.data.DataLoader(
         dataset,
@@ -417,9 +434,12 @@ def main():
         with torch.no_grad():
             if not extract_only_pitch_contours:
                 processed_signal, processed_signal_length = ssl_model.preprocessor(
-                    input_signal=batch['audio'].to(device), length=batch['audio_len'].to(device),
+                    input_signal=batch['audio'].to(device),
+                    length=batch['audio_len'].to(device),
                 )
-                batch_content_embedding, batch_encoded_len = ssl_model.encoder(audio_signal=processed_signal, length=processed_signal_length)
+                batch_content_embedding, batch_encoded_len = ssl_model.encoder(
+                    audio_signal=processed_signal, length=processed_signal_length
+                )
                 if ssl_model._cfg.get('normalize_content_encoding', False):
                     print("normalizing embeddings")
                     batch_content_embedding = ssl_model._normalize_encoding(batch_content_embedding)
@@ -433,20 +453,21 @@ def main():
                     transformed_batch_embeddings = {}
                     for transform_type in transforms:
                         audio_transformed = []
-                        # parallelize this pool.map? 
+                        # parallelize this pool.map?
                         for idx in range(batch['audio'].shape[0]):
                             print("Transforming {} of {}".format(idx, batch['audio'].shape[0]))
                             transform = transforms[transform_type]
                             audio_transformed.append(transform(batch['audio'][idx].cpu(), sample_rate))
-                            # torchaudio.save(os.path.join("./transforms", batch['rel_audio_path_as_text_id'][idx] + '_' + transform_type + '.wav'), 
+                            # torchaudio.save(os.path.join("./transforms", batch['rel_audio_path_as_text_id'][idx] + '_' + transform_type + '.wav'),
                             #             audio_transformed[idx].unsqueeze(0), sample_rate)
                             # print("Saved to", os.path.join("./transforms", batch['rel_audio_path_as_text_id'][idx] + '_' + transform_type + '.wav'))
-                        
+
                         audio_transformed = torch.stack(audio_transformed)
                         audio_transformed = audio_transformed.to(device)
                         assert audio_transformed.shape == batch['audio'].shape
                         _processed_signal, _processed_signal_length = ssl_model.preprocessor(
-                            input_signal=audio_transformed, length=batch['audio_len'].to(device),
+                            input_signal=audio_transformed,
+                            length=batch['audio_len'].to(device),
                         )
                         transformed_batch_embeddings[transform_type], _ = ssl_model.encoder(
                             audio_signal=_processed_signal, length=_processed_signal_length
@@ -473,14 +494,14 @@ def main():
 
                 wav_id = batch['rel_audio_path_as_text_id'][idx]
                 wav_and_id_list.append((wav_path, wav_id, _speaker))
-                
+
                 if extract_only_pitch_contours:
                     continue
 
                 content_embedding = batch_content_embedding[idx].detach()
                 encoded_len = batch_encoded_len[idx].detach()
-                content_embedding = content_embedding[:, :encoded_len.item()]
-                
+                content_embedding = content_embedding[:, : encoded_len.item()]
+
                 duration = torch.ones(content_embedding.shape[1]) * args.ssl_downsampling_factor
 
                 bsi_start = segment_indices[idx][0]
@@ -513,11 +534,12 @@ def main():
                 if augment_embeddings:
                     for transform_type in transforms:
                         _emb = transformed_batch_embeddings[transform_type][idx].detach()
-                        _emb = _emb[:, :encoded_len.item()]
-                        content_emb_fn = f"{args.ssl_content_emb_type}_{transform_type}_content_embedding_{wav_text_id}.pt"
+                        _emb = _emb[:, : encoded_len.item()]
+                        content_emb_fn = (
+                            f"{args.ssl_content_emb_type}_{transform_type}_content_embedding_{wav_text_id}.pt"
+                        )
                         content_emb_fp = os.path.join(dataset.sup_data_dir, content_emb_fn)
                         torch.save(_emb.cpu(), content_emb_fp)
-                    
 
             et = time.time()
             logging.info(

@@ -13,15 +13,20 @@
 # limitations under the License.
 
 import itertools
+import random
 from pathlib import Path
 
 import torch
 import torch.nn.functional as F
+import torchaudio
 from hydra.utils import instantiate
 from lightning.pytorch.loggers.wandb import WandbLogger
 from omegaconf import DictConfig, OmegaConf, open_dict
 
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.models import label_models
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
+from nemo.collections.tts.models import fastpitch_ssl
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
@@ -32,11 +37,6 @@ from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
-import torchaudio
-import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.models import label_models
-from nemo.collections.tts.models import fastpitch_ssl
-import random
 
 HAVE_WANDB = True
 try:
@@ -564,6 +564,7 @@ class HifiGanModel(Vocoder, Exportable):
         """
         return self.generator(x=spec)
 
+
 class HifiGanSelfVCModel(HifiGanModel):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
@@ -592,7 +593,7 @@ class HifiGanSelfVCModel(HifiGanModel):
                 "fastpitch_model": fastpitch_model,
                 "nemo_sv_model": nemo_sv_model,
             }
-    
+
     def get_synthetic_melspec(self, audio, audio_len):
         for key in self.non_trainable_models:
             self.non_trainable_models[key] = self.non_trainable_models[key].to(audio.device)
@@ -605,7 +606,8 @@ class HifiGanSelfVCModel(HifiGanModel):
             )
 
             processed_signal, processed_signal_length = self.non_trainable_models['ssl_model'].preprocessor(
-                input_signal=audio, length=audio_len - 1,
+                input_signal=audio,
+                length=audio_len - 1,
             )
             batch_content_embedding, batch_encoded_len = self.non_trainable_models['ssl_model'].encoder(
                 audio_signal=processed_signal, length=processed_signal_length
@@ -631,7 +633,7 @@ class HifiGanSelfVCModel(HifiGanModel):
 
             synthetic_spec = synthetic_spec.detach()
             return synthetic_spec
-    
+
     def training_step(self, batch, batch_idx):
         audio, audio_len, audio_mel, _ = self._process_batch(batch)
         if self.use_ssl_fastpitch_spec:
