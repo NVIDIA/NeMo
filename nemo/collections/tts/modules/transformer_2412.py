@@ -221,9 +221,9 @@ class Attention(torch.nn.Module):
         attn_score = torch.matmul(q, k.transpose(2, 3)) * self.scale
         if mask is not None:
             # assumes there's at least one mask
-            attn_score.masked_fill_(mask, float('-inf'))
+            attn_score.masked_fill_(mask == 0, float('-inf'))
         if self.is_causal:
-            attn_score.masked_fill_(self.causal_mask[..., :T, :T], float('-inf'))
+            attn_score.masked_fill_(self.causal_mask[..., :T, :T] == 0, float('-inf'))
 
         # attn_prior or square mask or vanilla attention
         if attn_prior is not None:
@@ -236,9 +236,8 @@ class Attention(torch.nn.Module):
         else:
             attn_prob = F.softmax(attn_score, dim=-1)
 
-        # replace inf and nans with 0.0
         if mask is not None:
-            attn_prob = attn_prob.masked_fill(mask, 0.0)
+            attn_prob = attn_prob.masked_fill(mask == 0, 0.0)
         attn_prob = self.dropout(attn_prob)
 
         y = torch.matmul(attn_prob, v)
@@ -304,8 +303,6 @@ class SelfAttention(Attention):
             is_causal=is_causal,
         )
         if is_causal:
-            # ~ 45 seconds mask, 4096 mel frames, 86 frames per second
-            # ~ 762 seconds mask, 65536 mel frames, 86 frames per second
             if max_length_causal_mask is None or max_length_causal_mask < 0:
                 raise ValueError(
                     "Self Attention was called with is_causal True, but received an inappropriate value"
@@ -315,8 +312,7 @@ class SelfAttention(Attention):
                 "causal_mask",
                 torch.tril(torch.ones(max_length_causal_mask, max_length_causal_mask)).view(
                     1, 1, max_length_causal_mask, max_length_causal_mask
-                )
-                == 0,
+                ),
             )
         self.qkv_net = torch.nn.Linear(d_model, 3 * n_heads * self.d_head, bias=False)
 
@@ -490,21 +486,22 @@ class TransformerLayer(torch.nn.Module):
         """
         Args:
             x <torch tensor> (B, T1, C): Input tensor
-            x_mask <bool mask> (B, T1): True where ignoring is required
+            x_mask <bool mask> (B, T1): Multiplicative mask where True means we keep the input, False we zero it out.
+                Mask for self attention input.
             cond <torch tensor> (B, T2, C): Conditioning tensor
-            cond_mask <bool mask> (B, T2): True where ignoring is required
+            cond_mask <bool mask> (B, T2): Multiplicative mask where True means we keep the input, False we zero
+                it out. Mask for cross attention input if it exists.
 
         Returns dict with keys
             output <torch tensor> (B, T1, C): Output tensor
             attn_probabilities <dict>: Attention probabilities
         """
-        x_mask_inv_float = (~x_mask).to(x.dtype).unsqueeze(-1)
+        x = (x + x_) * x_mask.unsqueeze(-1)
         x_, s_attn_prob = self.self_attention(query=self.norm_self(x), query_mask=x_mask)
         if self.use_cache:
             if self.cache['self_attn_output'] is not None:
                 x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
             self.cache['self_attn_output'] = x_
-        x = (x + x_) * x_mask_inv_float
 
         x_attn_prob = None
         if self.has_xattn and cond is not None:
@@ -523,10 +520,11 @@ class TransformerLayer(torch.nn.Module):
                 if self.cache['cross_attn_output'] is not None:
                     x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
                 self.cache['cross_attn_output'] = x_res
-            x = (x + x_res) * x_mask_inv_float
+            x = (x + x_res)
 
         # mlp final projection
-        x = (x + self.pos_ff(self.norm_pos_ff(x))) * x_mask_inv_float
+        x = (x + self.pos_ff(self.norm_pos_ff(x)))
+        x = x * x_mask.unsqueeze(-1)
 
         return {
             'output': x,
@@ -666,10 +664,12 @@ class Transformer(torch.nn.Module):
         """
         Args:
             x <torch tensor> (B, T1, C):
-            x_mask <bool mask> (B, T1): True where ignoring is required
+            x_mask <bool mask> (B, T1): Multiplicative mask where True means we keep the input, False we zero it out.
+                Mostly used in non-causal self-attention to zero out padding values. In causal self-attention, the
+                causal mask will be used in place of this.
             cond <torch tensor> (B, T2, C) or list of such tensors (from different encoders)
-            cond_mask <bool mask> (B, T2): True where ignoring is required or list of such tensors (from different
-                encoders) output <torch tensor> (B, T1, C)
+            cond_mask <bool mask> (B, T2): Multiplicative mask where True means we keep the input, False we zero it
+                out or list of such tensors (from different encoders) output <torch tensor> (B, T1, C)
             multi_encoder_mapping <list> <int>: None or Same size as n_layers, value indicates which cond input to use
                 for this layer
 
