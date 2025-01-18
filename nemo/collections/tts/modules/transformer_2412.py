@@ -520,10 +520,10 @@ class TransformerLayer(torch.nn.Module):
                 if self.cache['cross_attn_output'] is not None:
                     x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
                 self.cache['cross_attn_output'] = x_res
-            x = (x + x_res)
+            x = x + x_res
 
         # mlp final projection
-        x = (x + self.pos_ff(self.norm_pos_ff(x)))
+        x = x + self.pos_ff(self.norm_pos_ff(x))
         x = x * x_mask.unsqueeze(-1)
 
         return {
