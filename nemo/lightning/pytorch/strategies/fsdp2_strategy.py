@@ -21,6 +21,7 @@ from typing import Any, Dict, Literal, Optional, Union
 import lightning.pytorch as pl
 import torch
 from torch.nn import Module
+
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
 from lightning.pytorch.strategies.model_parallel import (
@@ -89,6 +90,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
+        self._activation_checkpointing_kwargs = {}
+        if activation_checkpointing_policy is not None:
+            from torch.distributed.fsdp.wrap import ModuleWrapPolicy
+
+            policy = ModuleWrapPolicy(activation_checkpointing_policy)
+            self._activation_checkpointing_kwargs["auto_wrap_policy"] = policy
 
     @override
     def setup_environment(self) -> None:
@@ -316,22 +323,30 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         return checkpoint
 
-    @override
-    def setup_module(self, module: Module) -> Module:
-        from lightning.fabric.utilities.init import _materialize_distributed_module
-        from torch.distributed.fsdp import FullyShardedDataParallel
+    def _setup_activation_checkpointing(
+        self, module: Module, activation_checkpointing_kwargs: dict
+    ) -> None:
+        if not activation_checkpointing_kwargs:
+            return
 
-        if any(isinstance(mod, FullyShardedDataParallel) for mod in module.modules()):
-            raise TypeError(
-                "Found modules that are wrapped with `torch.distributed.fsdp.FullyShardedDataParallel`."
-                f" The `{self.__class__.__name__}` only supports the new FSDP2 APIs in PyTorch >= 2.4."
-            )
+        from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+            CheckpointWrapper,
+        )
 
-        module = self._parallelize_fn(module, self.device_mesh)  # type: ignore[arg-type]
-        if not isinstance(module, Module):
-            raise TypeError(
-                f"The `parallelize_fn` must return a `nn.Module` instance, but got: {type(module).__name__}"
+        if any(isinstance(mod, CheckpointWrapper) for mod in module.modules()):
+            rank_zero_warn(
+                "FSDP checkpointing is configured, but the model already contains checkpointed layers."
+                " Checkpointing will be ignored."
             )
-        _materialize_distributed_module(module, self.root_device)
-        print("#####")
-        return module
+            return
+
+        from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+            apply_activation_checkpointing,
+            checkpoint_wrapper,
+        )
+
+        apply_activation_checkpointing(
+            module,
+            checkpoint_wrapper_fn=checkpoint_wrapper,
+            **activation_checkpointing_kwargs,
+        )
