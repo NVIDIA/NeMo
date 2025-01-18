@@ -1035,7 +1035,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         if pretrained_model_cfg:
             model_cfg = pretrained_model_cfg
-        elif cfg.model.peft.restore_from_path or cfg.model.peft.restore_from_ckpt.checkpoint_dir:
+        elif hasattr(cfg.model, "peft") and (
+            cfg.model.peft.restore_from_path or cfg.model.peft.restore_from_ckpt.checkpoint_dir
+        ):
             if cfg.model.peft.restore_from_path and cfg.model.peft.restore_from_path.endswith(".nemo"):
                 model_cfg = ModularAudioGPTModel.restore_from(
                     restore_path=cfg.model.peft.restore_from_path,
@@ -1051,6 +1053,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 raise RuntimeError(
                     "This script requires a .nemo peft model or path to hparams.yaml (and a ckpt path)."
                 )
+        elif hasattr(cfg.model, "restore_from_hparams_path"):  # not a .nemo model we expect a hparams.yaml file
+            model_cfg = OmegaConf.to_container(OmegaConf.load(cfg.model.restore_from_hparams_path).cfg)
+            model_cfg = OmegaConf.create(model_cfg)
+
         else:
             model_cfg = MegatronGPTSFTModel.restore_from(
                 restore_path=cfg.model.restore_from_path,
@@ -1068,20 +1074,17 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 ), f"PEFT evaluation {p} ({cfg.model.get(p)}) must equal training {p} ({model_cfg.get(p)})"
 
         with open_dict(model_cfg):
-            # to be compatible with old checkpoints
-            if "context_key" not in model_cfg.data.train_ds or "answer_key" not in model_cfg.data.train_ds:
-                model_cfg.data.train_ds.context_key = "question"
-                model_cfg.data.train_ds.answer_key = "answer"
-
             # update the model config of the trained model with params we want to set at inference time.
             model_cfg.precision = cfg.trainer.precision
             for key, val in cfg.model.items():
-                if key != 'data' and key != 'peft':
+                if key != 'data' and key != 'peft' and key != 'perception':
                     model_cfg[key] = val
-            model_cfg.data.test_ds = cfg.model.data.test_ds
+            OmegaConf.resolve(cfg.model.data)
+            # model_cfg.data.test_ds = cfg.model.data.test_ds if hasattr(cfg.model.data, "test_ds") else cfg.model.data.validation_ds
+            model_cfg.data.train_ds = cfg.model.data.train_ds
 
         with open_dict(cfg):
-            if model_cfg.data.test_ds is not None:
+            if hasattr(model_cfg.data, "test_ds") and model_cfg.data.test_ds is not None:
                 cfg.inference.add_BOS = model_cfg.data.test_ds.get("add_BOS", False)
                 cfg.inference.tokens_to_generate = model_cfg.data.test_ds.get("tokens_to_generate", 1)
 
