@@ -52,8 +52,8 @@ model:
   precision: ${trainer.precision}
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
-  micro_batch_size: 32 # limited by GPU memory
-  global_batch_size: 32 # will use more micro batches to reach global batch size
+  micro_batch_size: 64 # limited by GPU memory
+  global_batch_size: 64 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
@@ -219,15 +219,24 @@ model:
     num_workers: 8
     train:
       dataset_path: # List of paths to pkl files or tar files
-        - /datasets/coyo/test.pkl
-    validation: # List of paths to pkl files or tar files
-      dataset_path:
-        - /datasets/coyo/test.pkl
+        - /workspace/data/cc3m_training/00000.tar
     webdataset:
       infinite_sampler: False
-      local_root_path: /datasets/coyo
+      local_root_path: /workspace/data/cc3m_training/
 
     imagenet_val: null # Path to imagenet val set for conducting zero shot evaluation.
+
+
+#  data:
+#    num_workers: 8
+#    train:
+#      dataset_path: # List of paths to pkl files or tar files
+#        - /workspace/data/cc3m_training_single_sample/0.tar
+#    webdataset:
+#      infinite_sampler: False
+#      local_root_path: /workspace/data/cc3m_training_single_sample/ # each tarfile in wdinfo is relative to this
+#
+#    imagenet_val: null # Path to imagenet val set for conducting zero shot evaluation.
 
   # Nsys profiling options
   nsys_profile:

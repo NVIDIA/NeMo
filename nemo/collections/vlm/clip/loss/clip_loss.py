@@ -111,7 +111,7 @@ class ClipMegatronLoss(MegatronLossReduction):
     def __init__(
         self,
         local_loss=False,
-        gather_with_grad=False,
+        gather_with_grad=True,
         cache_labels=False,
     ):
         super().__init__()
@@ -129,7 +129,11 @@ class ClipMegatronLoss(MegatronLossReduction):
     def forward(
         self, batch: Dict[str, torch.Tensor], forward_out: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        #  # import pdb; pdb.set_trace()()
         image_features, text_features, logit_scale = forward_out
+        # print(logit_scale)
+
+         # import pdb; pdb.set_trace()()
         device = image_features.device
         if self.world_size > 1:
             # TODO: I feel like this should move to reduce part of the class?
@@ -164,6 +168,12 @@ class ClipMegatronLoss(MegatronLossReduction):
 
         # TODO (yuya): this is not necessary; not necessary if global!
         reduced_loss = average_losses_across_data_parallel_group([total_loss])
+        # losses = [total_loss]
+        # reduced_loss_try = torch.cat([loss.clone().detach().view(1) for loss in losses])
+
+        #  # import pdb; pdb.set_trace()()
+        # print("reduced: ", reduced_loss)
+        # print("total_loss: ", total_loss)
         return total_loss, {"avg": reduced_loss}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
@@ -173,6 +183,6 @@ class ClipMegatronLoss(MegatronLossReduction):
             if "avg" in losses_reduced_per_micro_batch[0]:
                 loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
                 loss_tensor = torch.concat(loss_tensors_list)
-
+                # print("loss_tensor mean: ", loss_tensor.mean())
                 return loss_tensor.mean()
         return torch.tensor(0.0, device=torch.cuda.current_device())

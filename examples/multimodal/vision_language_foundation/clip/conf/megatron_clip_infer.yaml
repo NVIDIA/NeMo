@@ -6,8 +6,14 @@ trainer:
   num_nodes: 1
   accelerator: gpu
   logger: False # logger provided by exp_manager
-  precision: 32 # 16, 32, or bf16
+  precision: bf16 # 16, 32, or bf16
 
 model:
   restore_from_path: null  # Path to a trained ViT .nemo file
   precision: ${trainer.precision}
+
+  # Megatron O2-style half-precision
+  megatron_amp_O2: True # Enable O2-level automatic mixed precision using main parameters
+  async_grad_allreduce: False
+  grad_allreduce_chunk_size_mb: 125
+  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce

@@ -53,6 +53,7 @@ class MegatronTrainerBuilder:
         """
         Returns a DDP or a FSDP strategy passed to Trainer.strategy.
         """
+        import pdb; pdb.set_trace()
         # check interactive environment
         _IS_INTERACTIVE = hasattr(sys, "ps1") or bool(sys.flags.interactive)
         if _IS_INTERACTIVE and self.cfg.trainer.devices == 1:
@@ -200,6 +201,7 @@ class MegatronTrainerBuilder:
         strategy = self._training_strategy()
         plugins = self._plugins()
         callbacks = self._callbacks(callbacks)
+        import pdb; pdb.set_trace()
         trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
         # Restore the precision value after Trainer is built.
         self.cfg.trainer.precision = precision

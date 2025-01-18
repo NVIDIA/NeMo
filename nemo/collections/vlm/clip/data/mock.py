@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 import lightning.pytorch as pl
 import numpy as np
@@ -106,6 +106,31 @@ class MockDataModule(pl.LightningDataModule):
             collate_fn=dataset.collate_fn,
             **kwargs,
         )
+
+
+    def state_dict(self) -> Dict[str, Any]:
+        """
+        Save the state of the data module.
+
+        This method is called when saving a checkpoint. It generates and saves the state of the data module,
+        including the state of the dataloader and the number of consumed samples.
+
+        Returns:
+        Dict[str, Any]: A dictionary containing the state of the data module.
+        """
+
+        if self.trainer:
+            dataloader_obj = self.trainer.train_dataloader
+            state = dataloader_obj.save_state()
+            consumed_samples = self.data_sampler.compute_consumed_samples(
+                self.trainer.global_step - self.init_global_step
+            )
+            logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
+            return {'dataloader_state': state, 'consumed_samples': consumed_samples}
+
+        logging.warning("trainer object not connected to data module object returning empty state")
+        return {}
+
 
 
 class _MockClipDataset(Dataset):

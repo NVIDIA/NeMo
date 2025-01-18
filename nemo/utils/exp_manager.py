@@ -296,6 +296,54 @@ class TimingCallback(Callback):
         self._on_batch_end("train_backward_timing", pl_module)
 
 
+
+
+
+class DataLoaderProfilingCallback(Callback):
+
+
+    def __init__(self, timer_kwargs={}):
+        self.timer = timers.NamedTimer(**timer_kwargs)
+
+    def _on_batch_start(self, name):
+        # reset only if we do not return mean of a sliding window
+        if self.timer.buffer_size <= 0:
+            self.timer.reset(name)
+
+        if self.timer.is_active(name):
+            logging.warning(
+                f"Timer `{name}` was not correctly stopped, suggesting a "
+                "possible issue. The timer will be reset for now."
+            )
+            self.timer.reset(name)
+
+        self.timer.start(name)
+
+    def _on_batch_end(self, name, pl_module):
+        try:
+            self.timer.stop(name)
+        except RuntimeError as r:
+            logging.warning("Timer was not started. This is possible for the first batch")
+            return
+        # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
+        pl_module.log(
+            name + ' in s',
+            torch.as_tensor(self.timer[name]),
+            on_step=True,
+            on_epoch=False,
+            batch_size=1,
+            prog_bar=(name == "train_step_timing"),
+        )
+
+
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+        self._on_batch_end("data_step_timing", pl_module)
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self._on_batch_start("data_step_timing")
+
+
+
 class DeltaTimingCallback(Callback):
     """
     Logs execution time of train/val/test steps using nemo logger. Calculates

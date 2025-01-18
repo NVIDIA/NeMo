@@ -21,6 +21,7 @@ from torch.utils.data import DataLoader
 
 from nemo.lightning.megatron_parallel import MegatronStep
 
+import nemo.lightning.pytorch.callbacks.progress_printer
 
 class DataSampler:
     def connect(self, trainer: pl.Trainer):

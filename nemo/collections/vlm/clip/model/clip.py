@@ -5,6 +5,7 @@ import torch
 import torch.distributed
 
 from nemo.collections.llm.fn.activation import quick_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import ApproxGELUActivation
 from nemo.collections.vlm.clip.model import ClipConfig, CLIPModel, CLIPTextModelConfig, CLIPViTConfig
 from nemo.lightning import io, teardown
 
@@ -16,27 +17,82 @@ class CLIPViTL_14_224_Config(CLIPViTConfig):
     # TOdo these are probably not super upto date but that's ok
     # Will handle it later
     vision_model_type: str = "clip"
-    patch_dim: int = 14
+    patch_dim: int = 16
     img_h: int = 224
     img_w: int = 224
-    num_layers: int = 24
-    num_attention_heads: int = 16
-    add_bias_linear: bool = True
-    add_qkv_bias: bool = True
-    hidden_size: int = 1024
+    num_layers: int = 12
+    num_attention_heads: int = 12
+    hidden_size: int = 768
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    ffn_hidden_size: int = 4096
+    ffn_hidden_size: int = 3072
     gated_linear_unit: bool = False
     kv_channels: int = 64
-    num_query_groups: int = 16
     layernorm_zero_centered_gamma: bool = False
-    apply_query_key_layer_scaling: bool = True
+    apply_query_key_layer_scaling: bool = False
     bias_activation_fusion: bool = False
-    bias_dropout_fusion: bool = False
-    attention_softmax_in_fp32: bool = True
+    bias_dropout_fusion: bool = True
+    attention_softmax_in_fp32: bool = False
     normalization: str = 'LayerNorm'
     apply_rope_fusion: bool = False
+    masked_softmax_fusion: bool = True
+    persist_layer_norm: bool = True
+
+
+@dataclass
+class CLIPViTB_32_224_Config(CLIPViTConfig):
+    """Clip vit large patch14 config"""
+
+    # TOdo these are probably not super upto date but that's ok
+    # Will handle it later
+    vision_model_type: str = "clip"
+    patch_dim: int = 32
+    img_h: int = 224
+    img_w: int = 224
+    num_layers: int = 12
+    num_attention_heads: int = 12
+    hidden_size: int = 768
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    ffn_hidden_size: int = 3072
+    gated_linear_unit: bool = False
+    kv_channels: int = None
+    class_token_len: int = 7
+    init_method_std: float = 0.02
+    layernorm_zero_centered_gamma: bool = False
+    apply_query_key_layer_scaling: bool = False
+    bias_activation_fusion: bool = False
+    bias_dropout_fusion: bool = True
+    attention_softmax_in_fp32: bool = False
+    normalization: str = 'LayerNorm'
+    apply_rope_fusion: bool = False
+    masked_softmax_fusion: bool = True
+    persist_layer_norm: bool = True
+
+@dataclass
+class CLIPTextModelB_32_224_Config(CLIPTextModelConfig):
+    # model architecture
+    max_seq_length: int = 80
+    max_position_embeddings: int = 80
+    num_layers: int = 12
+    hidden_size: int = 512
+    ffn_hidden_size: int = 2048  # Transformer FFN hidden size. Usually 4 * hidden_size.
+    num_attention_heads: int = 8
+    init_method_std: float = (
+        0.02  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+    )
+    use_scaled_init_method: bool = True  # use scaled residuals initialization
+    hidden_dropout: float = 0.0  # Dropout probability for hidden state transformer.
+    attention_dropout: float = 0.0
+    apply_query_key_layer_scaling: bool = False  # scale Q * K^T by 1 / layer-number.
+    attention_softmax_in_fp32: bool = False
+    normalization: bool = "LayerNorm"
+    do_layer_norm_weight_decay: bool = False  # True means weight decay on all params
+
+    # TODO(askYu): Does these 3 makes sense?
+    persist_layer_norm: bool = True  # Use of persistent fused layer norm kernel.
+    masked_softmax_fusion: bool = True
+    bias_dropout_fusion: bool = True
 
 
 @dataclass
@@ -45,20 +101,22 @@ class CLIPTextModelL_14_224_Config(CLIPTextModelConfig):
     max_seq_length: int = 77
     max_position_embeddings: int = 77
     num_layers: int = 12
-    hidden_size: int = 768
-    ffn_hidden_size: int = 3072  # Transformer FFN hidden size. Usually 4 * hidden_size.
-    num_attention_heads: int = 12
+    hidden_size: int = 512
+    ffn_hidden_size: int = 2048  # Transformer FFN hidden size. Usually 4 * hidden_size.
+    num_attention_heads: int = 8
     init_method_std: float = (
         0.02  # Standard deviation of the zero mean normal distribution used for weight initialization.')
     )
     use_scaled_init_method: bool = True  # use scaled residuals initialization
     hidden_dropout: float = 0.0  # Dropout probability for hidden state transformer.
     attention_dropout: float = 0.0
-    apply_query_key_layer_scaling: bool = True  # scale Q * K^T by 1 / layer-number.
+    apply_query_key_layer_scaling: bool = False  # scale Q * K^T by 1 / layer-number.
     do_layer_norm_weight_decay: bool = False  # True means weight decay on all params
 
     # TODO(askYu): Does these 3 makes sense?
-    persist_layer_norm = True  # Use of persistent fused layer norm kernel.
+    persist_layer_norm: bool = True  # Use of persistent fused layer norm kernel.
+    masked_softmax_fusion: bool = True
+    bias_dropout_fusion: bool = True
 
 
 @dataclass
@@ -66,6 +124,11 @@ class ClipConfigL14(ClipConfig):
     text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelL_14_224_Config())
     vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTL_14_224_Config())
 
+
+@dataclass
+class ClipConfigB32(ClipConfig):
+    text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelB_32_224_Config())
+    vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTB_32_224_Config())
 
 @io.model_importer(CLIPModel, "hf")
 class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
@@ -78,6 +141,7 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
         source = CLIPModel.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
+        import pdb; pdb.set_trace()
         self.convert_state(source, target)
         print(f"Converted Clip model to Nemo, saving to {output_path}")
 
@@ -189,41 +253,35 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
                 base //= 2
             return base
 
-        if text_conifg.hidden_act == "quick_gelu":
-            language_transformer_config = CLIPTextModelConfig(
-                output_dim=text_conifg.projection_dim,
-                num_layers=text_conifg.num_hidden_layers,
-                hidden_size=text_conifg.hidden_size,
-                num_attention_heads=text_conifg.num_attention_heads,
-                init_method_std=text_conifg.initializer_range,
-                layernorm_epsilon=text_conifg.layer_norm_eps,
-                gated_linear_unit=False,
-                make_vocab_size_divisible_by=make_vocab_size_divisible_by(text_conifg.vocab_size),
-                share_embeddings_and_output_weights=False,
-                attention_dropout=text_conifg.attention_dropout,
-                hidden_dropout=text_conifg.dropout,
-                activation_func=quick_gelu,
-                max_seq_length=text_conifg.max_position_embeddings,
-                apply_query_key_layer_scaling=True,
-            )
-        else:
-            language_transformer_config = CLIPTextModelConfig(
-                output_dim=text_conifg.projection_dim,
-                num_layers=text_conifg.num_hidden_layers,
-                hidden_size=text_conifg.hidden_size,
-                ffn_hidden_size=text_conifg.intermediate_size,
-                num_attention_heads=text_conifg.num_attention_heads,
-                init_method_std=text_conifg.initializer_range,
-                layernorm_epsilon=text_conifg.layer_norm_eps,
-                gated_linear_unit=False,
-                make_vocab_size_divisible_by=make_vocab_size_divisible_by(text_conifg.vocab_size),
-                share_embeddings_and_output_weights=False,
-                attention_dropout=text_conifg.attention_dropout,
-                hidden_dropout=text_conifg.dropout,
-                activation_func=quick_gelu,
-                max_seq_length=text_conifg.max_position_embeddings,
-                apply_query_key_layer_scaling=True,
-            )
+
+        language_transformer_config = CLIPTextModelConfig(
+            output_dim=text_conifg.projection_dim,
+            num_layers=text_conifg.num_hidden_layers,
+            hidden_size=text_conifg.hidden_size,
+            ffn_hidden_size=text_conifg.intermediate_size,
+            num_attention_heads=text_conifg.num_attention_heads,
+            init_method_std=text_conifg.initializer_range,
+            layernorm_epsilon=text_conifg.layer_norm_eps,
+            gated_linear_unit=False,
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(text_conifg.vocab_size),
+            share_embeddings_and_output_weights=False,
+            attention_dropout=text_conifg.attention_dropout,
+            hidden_dropout=text_conifg.dropout,
+            activation_func=ApproxGELUActivation,
+            max_seq_length=text_conifg.max_position_embeddings,
+            apply_query_key_layer_scaling=False,
+
+            # These are just to match the nemo1 exactly
+            bf16=True,
+            params_dtype=torch.bfloat16,
+            autocast_dtype=torch.bfloat16,
+            pipeline_dtype=torch.bfloat16,
+            deallocate_pipeline_outputs=True,
+            masked_softmax_fusion=True,
+            persist_layer_norm=True,
+            bias_dropout_fusion=True,
+            distribute_saved_activations=False
+        )
 
         vision_config = source.vision_config
         # from attrdict import AttrDict
@@ -258,8 +316,8 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
             attention_dropout=vision_config.attention_dropout,
             ffn_hidden_size=vision_config.intermediate_size,
             gated_linear_unit=False,  # TODO (ask Yao, This was False in the config) Does he knows if they use GLU?
-            apply_query_key_layer_scaling=True,
-            activation_func=quick_gelu,
+            apply_query_key_layer_scaling=False,
+            activation_func=ApproxGELUActivation,
             output_dim=vision_config.projection_dim,
             init_method_std=vision_config.initializer_range,
             layernorm_epsilon=vision_config.layer_norm_eps,
@@ -270,6 +328,17 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
             # attention_softmax_in_fp32: bool = True
             # normalization: str = 'LayerNorm'
             # apply_rope_fusion: bool = False
+
+            # These are just to match the nemo1 exactly
+            bf16 = True,
+            params_dtype=torch.bfloat16,
+            autocast_dtype=torch.bfloat16,
+            pipeline_dtype=torch.bfloat16,
+            deallocate_pipeline_outputs=True,
+            masked_softmax_fusion=True,
+            persist_layer_norm=True,
+            bias_dropout_fusion=True,
+            distribute_saved_activations=False
         )
 
         output = ClipConfig(

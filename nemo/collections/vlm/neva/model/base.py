@@ -16,7 +16,7 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Union
-
+from megatron.core import InferenceParams
 import lightning.pytorch as L
 import torch
 import torch.distributed

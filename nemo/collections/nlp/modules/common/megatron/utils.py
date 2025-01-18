@@ -19,7 +19,15 @@ from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import torch
 from torch import Tensor
-
+from torch.nn import LayerNorm
+import transformer_engine as te
+from megatron.core.extensions.transformer_engine import (
+    TEColumnParallelLinear,
+    TEDotProductAttention,
+    TELayerNormColumnParallelLinear,
+    TENorm,
+    TERowParallelLinear,
+)
 from nemo.utils import logging, logging_mode
 
 try:
@@ -51,6 +59,7 @@ def ApproxGELUActivation(input: Tensor):
     Applies GELU approximation that is fast but somewhat inaccurate. See: https://github.com/hendrycks/GELUs
     """
     return input * torch.sigmoid(1.702 * input)
+
 
 
 class ApexGuardDefaults(object):
@@ -367,28 +376,71 @@ def get_params_for_weight_decay_optimization(
     weight_decay_params = {'params': [], 'is_expert': False}
     weight_decay_expert_params = {'params': [], 'is_expert': True}
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0, 'is_expert': False}
+
+
+    weight_decay_params_name = {'params': []}
+    weight_decay_expert_params_name = {'params': [], 'is_expert': True}
+    no_weight_decay_params_name = {'params': [], 'weight_decay': 0.0, 'is_expert': False}
+
     # EP params have the 'allreduce' attr set.
     is_expert = lambda param: not getattr(param, 'allreduce', True)
     # Do the actual param classification
     for module in modules:
         for module_ in module.modules():
-            if isinstance(module_, (FusedLayerNorm, FastLayerNorm, MixedFusedRMSNorm)):
+
+            # import pdb; pdb.set_trace()
+            # TEColumnParallelLinear,
+            # TEDotProductAttention,
+            # TELayerNormColumnParallelLinear,
+            # TENorm,
+            # TERowParallelLinear,
+
+
+            # TELayerNormColumnParallelLinear has layer_norm_weight and weight and bias. Only layer_norm_weight and bias should go
+            if isinstance(module_,
+                          (FusedLayerNorm, FastLayerNorm, MixedFusedRMSNorm)):
+
+                # if isinstance(module_,
+                #               (FusedLayerNorm, FastLayerNorm, MixedFusedRMSNorm, te.pytorch.LayerNorm,
+                #                TELayerNormColumnParallelLinear)):
+
+                # if isinstance(module_, TELayerNormColumnParallelLinear):
+                #     for name, param in module_._parameters.items():
+                #         if "layer_norm" in name:
+                #             no_weight_decay_params['params'].extend(
+                #                 list(filter(lambda p: p is not None, module_._parameters.values()))
+                #             )
+                #             no_weight_decay_params_name['params'].extend(
+                #                 list(filter(lambda p: p is not None, module_._parameters.keys()))
+                #             )
+
                 no_weight_decay_params['params'].extend(
                     list(filter(lambda p: p is not None, module_._parameters.values()))
                 )
+                no_weight_decay_params_name['params'].extend(
+                    list(filter(lambda p: p is not None, module_._parameters.keys()))
+                )
             else:
                 for name, param in module_._parameters.items():
+
                     if param is None:
                         continue
+
                     if name.endswith('bias'):
                         no_weight_decay_params['params'].extend([param])
+                        no_weight_decay_params_name['params'].extend([name])
                     else:
+                        if len(param.shape) == 1:
+                            import pdb;
+                            pdb.set_trace()
                         if is_expert(param):
                             weight_decay_expert_params['params'].extend([param])
                         else:
                             weight_decay_params['params'].extend([param])
+                            weight_decay_params_name['params'].extend([name])
 
     param_groups = [weight_decay_params, weight_decay_expert_params, no_weight_decay_params]
+    import pdb; pdb.set_trace()
     return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
 
 

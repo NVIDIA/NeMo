@@ -95,6 +95,7 @@ def image_transform(
     aug_cfg: Optional[Union[Dict[str, Any], AugmentationCfg]] = None,
 ):
     assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
+    # import pdb; pdb.set_trace()
     mean = mean or OPENAI_DATASET_MEAN
     if not isinstance(mean, (list, tuple)):
         mean = (mean,) * 3

@@ -32,6 +32,7 @@ def main(cfg) -> None:
 
     # These configs are required to be off during inference.
     def model_cfg_modifier(model_cfg):
+
         model_cfg.precision = cfg.trainer.precision
         model_cfg.vision.precision = cfg.trainer.precision
         model_cfg.text.precision = cfg.trainer.precision
@@ -41,22 +42,24 @@ def main(cfg) -> None:
         model_cfg.activations_checkpoint_granularity = None
         model_cfg.activations_checkpoint_method = None
 
+
     trainer, model = setup_trainer_and_model_for_inference(
         model_provider=MegatronCLIPModel, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
     )
 
     if model.cfg.get("megatron_amp_O2", False):
-        vision_encoder = model.model.module.vision_encoder.eval()
-        text_encoder = model.model.module.text_encoder.eval()
+        vision_encoder = model.model.module.vision_encoder
+        text_encoder = model.model.module.text_encoder
     else:
-        vision_encoder = model.model.vision_encoder.eval()
-        text_encoder = model.model.text_encoder.eval()
+        vision_encoder = model.model.vision_encoder
+        text_encoder = model.model.text_encoder
 
     val_image_transform, text_transform = get_preprocess_fns(model.cfg, model.tokenizer, is_train=False,)
 
     autocast_dtype = torch_dtype_from_precision(trainer.precision)
 
     image = Image.open(cfg.image_path).convert('RGB')
+
     with torch.no_grad(), torch.cuda.amp.autocast(
         enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
     ):
@@ -64,6 +67,7 @@ def main(cfg) -> None:
         texts = text_transform(cfg.texts).cuda()
         image_features = vision_encoder(image)
         text_features = text_encoder(texts)
+        import pdb; pdb.set_trace()
         image_features /= image_features.norm(dim=-1, keepdim=True)
         text_features /= text_features.norm(dim=-1, keepdim=True)
 
