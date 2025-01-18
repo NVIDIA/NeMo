@@ -574,6 +574,8 @@ class Transformer(torch.nn.Module):
             use_learnable_pos_emb <bool>: Whether to add a learnable positionable embedding inside the class
             conv_non_linearity <Callable>: Convolution non-linearity
         """
+        if has_xattn and (xa_d_memory is None or xa_n_heads is None):
+            raise ValueError("It requires that `xa_d_memory` and `xa_n_heads` are specified when `has_xattn` is True!")
         super().__init__()
         self.dropout = torch.nn.Dropout(p_dropout)
         self.p_dropout_out = p_dropout_out
