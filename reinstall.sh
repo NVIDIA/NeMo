@@ -2,12 +2,14 @@
 set -e
 
 INSTALL_OPTION=${1:-"dev"}
+shift
+
 # Default values
 HEAVY_DEPS=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
-  case "$2" in
+  case "$1" in
   --heavy-deps)
     HEAVY_DEPS=true
     shift
