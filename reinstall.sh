@@ -2,6 +2,26 @@
 set -e
 
 INSTALL_OPTION=${1:-"dev"}
+# Default values
+HEAVY_DEPS=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$2" in
+  --heavy-deps)
+    HEAVY_DEPS=true
+    shift
+    ;;
+  --no-heavy-deps)
+    HEAVY_DEPS=false
+    shift
+    ;;
+  *)
+    echo "Unknown option: $1"
+    exit 1
+    ;;
+  esac
+done
 
 PIP=pip
 
@@ -44,7 +64,13 @@ else
 
 fi
 
-${PIP} install --extra-index-url https://pypi.nvidia.com \
+if [[ "$HEAVY_DEPS" == true ]]; then
+  ${PIP} install --no-cache-dir \
+    "llama-index==0.10.43" \
+    "unstructured==0.14.9"
+fi
+
+${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com \
   "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'" \
   "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG}" \
   "transformer-engine @ git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG}" \

@@ -43,7 +43,7 @@ RUN \
 pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com \
   -r tools/ctc_segmentation/requirements.txt
 
-bash reinstall.sh "dev"
+bash reinstall.sh "dev" --heavy-deps
 
 # Megatron Core installation
 MCORE_TAG=$(grep 'export MCORE_TAG=' reinstall.sh | awk -F'=' '{print $2}')
