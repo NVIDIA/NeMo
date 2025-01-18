@@ -289,10 +289,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         if self._kd_teacher_in_pp:
             assert wrap_forward_step
             _teacher_forward_context = {}
-
             if isinstance(_data_step, _ModuleStepFunction):
                 _data_step = _data_step(self.module)
-            data = _data_step(data, cache_num_batches=num_microbatches)
 
             def _dummy_reduction(output_tensor, *args, **kwargs):
                 return output_tensor.new_tensor(-1), {}
@@ -305,7 +303,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
             teacher_step = MegatronStep.infer(
                 self,
-                data,
+                None,  # updated later below once we actually know `num_microbatches`
                 teacher_forward_step_func,
                 forward_only=True,
                 micro_batch_size=micro_batch_size,
@@ -315,6 +313,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
             _teacher_forward_context["step"] = teacher_step
             teacher_step = self.callbacks.transform_event("on_megatron_step_start", teacher_step)
+
+            data = _data_step(data, cache_num_batches=teacher_step.num_microbatches)
+            teacher_step.data = data
 
         step = MegatronStep.infer(
             self,
@@ -528,7 +529,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 _data_step = data_step
 
             batch = _data_step(dataloader_iter)
-            step = context.get("step")
+            step = context["step"]
 
             if isinstance(loss_reduction, _ModuleStepFunction):
                 forward_callback = loss_reduction(model)
@@ -540,13 +541,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             else:
                 _forward_step = forward_step
 
-            if step is not None:
-                self.callbacks.event(
-                    "on_megatron_microbatch_start",
-                    step=step,
-                    batch=batch,
-                    forward_callback=forward_callback,
-                )
+            self.callbacks.event(
+                "on_megatron_microbatch_start",
+                step=step,
+                batch=batch,
+                forward_callback=forward_callback,
+            )
 
             if self.precision_plugin and parallel_state.is_pipeline_first_stage():
                 batch = self.precision_plugin.convert_input(batch)
@@ -565,14 +565,13 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             if self.precision_plugin and parallel_state.is_pipeline_last_stage():
                 output_tensor = self.precision_plugin.convert_output(output_tensor)
 
-            if step is not None:
-                self.callbacks.event(
-                    "on_megatron_microbatch_end",
-                    step=step,
-                    batch=batch,
-                    output=output_tensor,
-                    forward_callback=forward_callback,
-                )
+            self.callbacks.event(
+                "on_megatron_microbatch_end",
+                step=step,
+                batch=batch,
+                output=output_tensor,
+                forward_callback=forward_callback,
+            )
 
             return output_tensor, forward_callback
 

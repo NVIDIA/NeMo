@@ -425,7 +425,7 @@ def load_distillation_config(cfg: TransformerConfig) -> Dict[str, Any]:
 
 
 class _DummyLossBalancer(mtd.DistillationLossBalancer):
-    def forward(loss_dict):
+    def forward(self, loss_dict):
         return next(iter(loss_dict.values()))
 
 
@@ -435,8 +435,10 @@ def _teacher_provider(teacher_path: str, trainer: nl.Trainer) -> MCoreGPTModel:
 
     ckpt_load_optimizer = trainer.strategy.ckpt_load_optimizer
     setup_optimizers = trainer.strategy._setup_optimizers
+
     trainer.strategy.ckpt_load_optimizer = False
     trainer.strategy._setup_optimizers = False
+    # trainer.strategy.megatron_parallel.ddp_config = None
     orig_model = trainer.model
 
     # TODO(aanoosheh): Replace spec with modelopt one
@@ -445,6 +447,7 @@ def _teacher_provider(teacher_path: str, trainer: nl.Trainer) -> MCoreGPTModel:
 
     trainer.strategy.ckpt_load_optimizer = ckpt_load_optimizer
     trainer.strategy._setup_optimizers = setup_optimizers
+    # trainer.strategy.megatron_parallel.ddp_config = ddp_config
     trainer.strategy.connect(orig_model)
 
     logging.info("Distillation: ...teacher weights loaded.")
@@ -455,6 +458,9 @@ class _LoopingCachedDataIterator:
     def __init__(self, data):
         self.data = data
         self.it = iter(self.data)
+
+    def __iter__(self):
+        return self
 
     def __next__(self):
         try:
@@ -484,7 +490,7 @@ def adjust_distillation_model_for_mcore(
     # HACK: Skip `lm_loss` bypassing it when training if not needed for backprop.
     def _compute_language_model_loss(self, labels, logits) -> Tensor:
         if self.training:
-            return torch.zeros_like(labels)
+            return torch.zeros_like(labels, dtype=logits.dtype)
         return self._compute_language_model_loss(labels, logits)
 
     if distill_cfg["skip_lm_loss"]:
@@ -493,7 +499,7 @@ def adjust_distillation_model_for_mcore(
 
     # HACK: Skip `lm_loss` always for teacher.
     def _compute_language_model_loss(self, labels, logits) -> Tensor:
-        return torch.zeros_like(labels)
+        return torch.zeros_like(labels, dtype=logits.dtype)
 
     model.teacher_model.compute_language_model_loss = MethodType(_compute_language_model_loss, model.teacher_model)
 
@@ -576,8 +582,8 @@ if __name__ == "__main__":
     model_config, tokenizer = _model.config, _model.tokenizer
     # model_config.transformer_layer_spec = get_gpt_layer_modelopt_spec()  # TODO(aanoosheh)
     model = DistillationGPTModel(args.teacher_path, model_config, tokenizer=tokenizer)
-    model.trainer = trainer
-    _setup_trainer_and_restore_model(args.student_path, trainer, model)
+    # model.trainer = trainer
+    # _setup_trainer_and_restore_model(args.student_path, trainer, model)
 
     # setup the dataset
     data = llm.PreTrainingDataModule(
