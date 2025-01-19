@@ -12,14 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
-from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
+from nemo.collections.vlm.vision.base import (
+    BaseCLIPViTModel,
+    CLIPViTConfig,
+    HFCLIPVisionConfig,
+    MultimodalProjectorConfig,
+)
+from nemo.collections.vlm.vision.vit_config import CLIPViTL_14_336_Config, SigLIPViT400M_14_384_Config
 
 __all__ = [
-    "NevaConfig",
-    "NevaModel",
-    "LlavaConfig",
-    "Llava15Config7B",
-    "Llava15Config13B",
-    "LlavaModel",
+    "MultimodalProjectorConfig",
+    "HFCLIPVisionConfig",
+    "CLIPViTConfig",
+    "BaseCLIPViTModel",
+    "CLIPViTL_14_336_Config",
+    "SigLIPViT400M_14_384_Config",
 ]

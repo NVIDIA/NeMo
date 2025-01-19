@@ -162,6 +162,7 @@ def main(args):
             overlap_param_gather=True,
             average_in_collective=True,
         ),
+        ckpt_load_strictness="log_all",
     )
 
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
@@ -186,7 +187,7 @@ def main(args):
         callbacks=[
             checkpoint_callback,
             TimingCallback(),
-            MegatronCommOverlapCallback(tp_comm_overlap=True),
+            MegatronCommOverlapCallback(tp_comm_overlap=False),
         ],
         val_check_interval=500,
         limit_val_batches=gbs,
