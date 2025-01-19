@@ -54,6 +54,12 @@ DEPS=(
 )
 
 if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
+  ${PIP} install --no-cache-dir virtualenv &&
+    virtualenv /opt/venv &&
+    /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
+      -r /workspace/requirements/requirements_vllm.txt \
+      -r /workspace/requirements/requirements_infer.txt
+
   DEPS+=(
     "llama-index==0.10.43"
     "unstructured==0.14.9"
@@ -73,32 +79,28 @@ if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
   git clone https://github.com/NVIDIA/TransformerEngine.git &&
     pushd TransformerEngine &&
     git checkout ${TE_TAG} &&
-    git submodule update --init --recursive &&
+    git submodule update --init --recursive -q &&
     pip install . &&
     popd
 
   cd "$CURR"
+
 fi
 
+echo 'Installing dependencies of nemo'
 ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com ${DEPS[@]}
-
-if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
-  ${PIP} install --no-cache-dir virtualenv
-  virtualenv /opt/venv
-  /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
-    -r /workspace/requirements/requirements_vllm.txt \
-    -r /workspace/requirements/requirements_infer.txt
-fi
 
 echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
   ${PIP} install --editable ".[all]"
+
 else
-  rm -rf dist/
-  ${PIP} install build pytest-runner
-  python -m build --no-isolation --wheel
-  DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
-  ${PIP} install "${DIST_FILE}[all]"
+  rm -rf dist/ &&
+    ${PIP} install build pytest-runner &&
+    python -m build --no-isolation --wheel &&
+    DIST_FILE=$(find ./dist -name "*.whl" | head -n 1) &&
+    ${PIP} install "${DIST_FILE}[all]"
+
 fi
 
 echo 'All done!'
