@@ -73,9 +73,10 @@ if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
   git clone https://github.com/NVIDIA/TransformerEngine.git &&
     pushd TransformerEngine &&
     git checkout ${TE_TAG} &&
+    git submodule update --init --recursive &&
     pip install . &&
     popd
-  
+
   cd "$CURR"
 fi
 
