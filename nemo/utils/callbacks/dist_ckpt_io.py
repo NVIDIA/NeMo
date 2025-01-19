@@ -26,6 +26,7 @@ from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch import Callback
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 
+from nemo.lightning.ckpt_utils import preprocess_common_state_dict_before_consistency_check
 from nemo.utils import logging
 
 try:
@@ -274,6 +275,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
+            preprocess_common_before_consistancy_check=preprocess_common_state_dict_before_consistency_check,
         )
 
     @_debug_time('DistributedCheckpointIO.load_checkpoint')
