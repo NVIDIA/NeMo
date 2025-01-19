@@ -504,7 +504,9 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
     force_finite = config.force_finite
     is_tarred = config.get("tarred_audio_filepaths") is not None
     if isinstance(config.manifest_filepath, (str, Path)):
-        logging.info(f"Initializing Lhotse CutSet from a single NeMo manifest (tarred): '{config.manifest_filepath}'")
+        logging.info(
+            f"Initializing Lhotse CutSet from a single NeMo manifest (is_tarred={is_tarred}): '{config.manifest_filepath}'"
+        )
         if is_tarred and not metadata_only:
             cuts = CutSet(
                 LazyNeMoTarredIterator(
@@ -533,7 +535,7 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
         #   i.e., NeMo concatenated dataset
         #   Assume it's [path1, path2, ...] (while tarred_audio_filepaths in the same format).
         logging.info(
-            f"Initializing Lhotse CutSet from multiple tarred NeMo manifest sources with a weighted multiplexer. "
+            f"Initializing Lhotse CutSet from multiple NeMo manifest (is_tarred={is_tarred}) sources with a weighted multiplexer. "
             f"We found the following sources and weights: "
         )
         cutsets = []
@@ -541,11 +543,12 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
         tar_paths = config.tarred_audio_filepaths if is_tarred else repeat((None,))
         # Create a stream for each dataset.
         for manifest_info, tar_path in zip(config.manifest_filepath, tar_paths):
-            if isinstance(tar_path, (list, tuple, ListConfig)):
+            if is_tarred and isinstance(tar_path, (list, tuple, ListConfig)):
                 # if it's in option 1 or 2
                 (tar_path,) = tar_path
                 manifest_path = manifest_info[0]
             else:
+                # if it's in option 3
                 manifest_path = manifest_info
             # First, convert manifest_path[+tar_path] to an iterator.
             if is_tarred and not metadata_only:
@@ -585,6 +588,8 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                 cutsets.append(CutSet(nemo_iter))
                 weights.append(weight)
         # Finally, we multiplex the dataset streams to mix the data.
+        if len(cutsets) == 1:
+            return cutsets[0], is_tarred
         cuts = mux(
             *cutsets,
             weights=weights,

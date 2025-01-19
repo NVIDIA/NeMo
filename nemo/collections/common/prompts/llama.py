@@ -11,12 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections import defaultdict
+
 import torch
-from lhotse.cut import Cut, MixedCut
+from lhotse.cut import Cut, CutSet, MixedCut
 
 from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts.formatter import BOS_SLOT, EOS_SLOT, Modality, PromptFormatter
+from nemo.collections.common.tokenizers import TokenizerSpec
 
 
 class Llama2PromptFormatter(PromptFormatter):
@@ -151,3 +154,24 @@ class Llama3PromptFormatter(PromptFormatter):
             },
         },
     }
+
+
+@registered_prompt_format_fn(Cut, Llama3PromptFormatter)
+def llama3(cut: Cut, prompt: Llama3PromptFormatter) -> dict[str, torch.Tensor]:
+    if isinstance(cut, MixedCut):
+        cut = cut.first_non_padding_cut
+    if cut.has_custom("context"):
+        context = cut.context
+    elif cut.has_custom("question"):
+        context = cut.question
+    else:
+        context = cut.default_context
+
+    turns = []
+    if cut.has_custom("system_prompt"):
+        turns.append({"role": "system_and_user", "slots": {"system": cut.system_prompt, "message": context}})
+    else:
+        turns.append({"role": "user", "slots": {"message": context}})
+    if (answer := cut.supervisions[0].text) is not None:
+        turns.append({"role": "assistant", "slots": {"message": answer}})
+    return prompt.encode_dialog(turns)
