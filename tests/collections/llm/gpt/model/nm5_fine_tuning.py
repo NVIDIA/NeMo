@@ -104,19 +104,21 @@ if __name__ == "__main__":
 
     model = llm.GPTModel(model_config, optim=optim, tokenizer=tokenizer)
 
-    ckpt_path = "/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_nemo" #model.import_ckpt(
+    # ckpt_path = "/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_nemo" 
+    ckpt_path = "/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nemotron5/nm5_ux_from_nemo1"
+    #model.import_ckpt(
     #     path="pytorch://" + args.model_path,
     #     model_config=model_config,
     # )
 
-    # wandb_logger = WandbLogger(
-    #     name=(f"nm5-ux"),
-    #     project="nemotron5",
-    #     save_dir=args.experiment_dir,
-    # )
-    wandb_logger = TensorBoardLogger(
-        save_dir='dummy',  ## NOTE: this gets overwritten by default
+    wandb_logger = WandbLogger(
+        name=(f"nm5-ux-from-nemo1"),
+        project="nemotron5",
+        save_dir=args.experiment_dir,
     )
+    # wandb_logger = TensorBoardLogger(
+    #     save_dir='dummy',  ## NOTE: this gets overwritten by default
+    # )
     nemo_logger = NeMoLogger(
         log_dir=args.experiment_dir,
         wandb=wandb_logger

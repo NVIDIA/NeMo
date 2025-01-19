@@ -70,8 +70,18 @@ MODEL_CONFIG_MAPPING = {
     "nemotron4-22b": (llm.NemotronModel, llm.Nemotron3Config22B),
     "nemotron4-15b": (llm.NemotronModel, llm.Nemotron4Config15B),
     "nemotron4-340b": (llm.NemotronModel, llm.Nemotron4Config340B),
+    "nemotron5-hybrid8b": (llm.GPTModel, llm.Nemotron5HybridConfig8B),
 }
 
+"""
+python /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
+    --input_path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nemotron5/untar_nm5_hybrid8b/model_weights \
+    --output_path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nemotron5/nm5_ux_from_nemo1 \
+    --model_id=nemotron5-hybrid8b \
+    --tokenizer_model_name=TiktokenTokenizer \
+    --tokenizer_library=tiktoken \
+    --tokenizer_vocab_file=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nemotron5/untar_nm5_hybrid8b/496e4180dc884e618e8964c220011cf0_multiMixV8.gpt4o_nc_sd.500000.128k.vocab.json \
+"""
 
 def get_args():
     """
@@ -111,6 +121,20 @@ def get_args():
         default=None,
         required=False,
         help="Tokenizer library, e.g. `sentencepiece`, `megatron`. Defaults to `sentencepiece`",
+    )
+    parser.add_argument(
+        "--tokenizer_vocab_file",
+        type=str,
+        default=None,
+        required=False,
+        help="Tokenizer vocab file. Defaults to None",
+    )
+    parser.add_argument(
+        "--tokenizer_model_name",
+        type=str,
+        default=None,
+        required=False,
+        help="Tokenizer model name, e.g. TiktokenTokenizer. Defaults to None",
     )
     args = parser.parse_args()
     return args
@@ -159,12 +183,17 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
                 HFAutoTokenizer.from_pretrained(cfg.tokenizer.type).save_pretrained(tokenizer_tmp_dir)
             tokenizer_model = f"{tokenizer_tmp_dir}/{tokenizer_model}" if tokenizer_model else None
     else:
-        if args.tokenizer_path:  # not .nemo file, only weight dir need to specify tokenizer lib and path
+        if args.tokenizer_path or args.tokenizer_vocab_file:  # not .nemo file, only weight dir need to specify tokenizer lib and path
             tokenizer_lib = args.tokenizer_library or "sentencepiece"
             if args.tokenizer_library is None:
                 logging.warning(
                     "You specified tokenizer_path but did not provide tokenizer_library using default sentencepiece"
                 )
+            if args.tokenizer_vocab_file:
+                return get_nmt_tokenizer(library=tokenizer_lib, 
+                                        model_name=args.tokenizer_model_name, 
+                                        vocab_file=args.tokenizer_vocab_file, 
+                                        use_fast=True)
             tokenizer_model = args.tokenizer_path
         else:  # no .nemo config, no tokenizer path specified, grab from HF, reload
             tokenizer_lib = "huggingface"
