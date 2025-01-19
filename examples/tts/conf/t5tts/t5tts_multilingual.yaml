@@ -131,68 +131,49 @@ model:
       num_workers: 0
   
   t5_encoder:
-    is_causal: false
-    pos_emb:
-      name: "learnable_v2" # rope, learnable_v2, alibi
-      base: 10000 # Only used for rope
-    use_flash_self_attention: false
-    use_flash_x_attention: false
-    deterministic: false
-    d_model: 768
     n_layers: 6
-    p_dropout: 0.1
-    n_heads: 12
-    has_xattn: false
-    apply_norm_to_cond: true
+    d_model: 768
+    d_ffn: 3072
+    sa_n_heads: 12
     kernel_size: 3
-    layer_scale_init: 0.1
-    layer_scale_decay: 0.95
-    max_length_causal_mask: 2048 # Determinse max size of positional embeddings
-    context_xattn: null
+    p_dropout: 0.1
+    p_dropout_out: 0.0
+    has_xattn: false
+    is_causal: False
+    apply_norm_out: false
+    max_length_causal_mask: 2048
+    use_learnable_pos_emb: true
   
   context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
-    is_causal: false
-    pos_emb:
-      name: "learnable_v2" # rope, learnable_v2, alibi
-      base: 10000 # Only used for rope
-    use_flash_self_attention: false
-    use_flash_x_attention: false
-    deterministic: false
+    n_layers: 3
     d_model: 768
-    n_layers: 6
-    p_dropout: 0.1
-    n_heads: 12
-    has_xattn: false
-    apply_norm_to_cond: true
+    d_ffn: 3072
+    sa_n_heads: 12
     kernel_size: 3
-    layer_scale_init: 0.1
-    layer_scale_decay: 0.95
-    max_length_causal_mask: 2048 # Determinse max size of positional embeddings
-    context_xattn: null
+    p_dropout: 0.1
+    p_dropout_out: 0.0
+    has_xattn: false
+    is_causal: false
+    apply_norm_out: false
+    max_length_causal_mask: 2048
+    use_learnable_pos_emb: true
 
   t5_decoder:
-    is_causal: true
-    pos_emb:
-      name: "learnable_v2"
-      base: 10000 # Only used for rope
-    use_flash_self_attention: false
-    use_flash_x_attention: false
-    deterministic: false
-    d_model: 768
     n_layers: 12
-    p_dropout: 0.1
-    n_heads: 12
-    has_xattn: true
-    apply_norm_to_cond: true
+    d_model: 768
+    d_ffn: 3072
+    sa_n_heads: 12
     kernel_size: 3
-    layer_scale_init: 0.1
-    layer_scale_decay: 0.95
-    max_length_causal_mask: 2048 # Determinse max size of positional embeddings
-    context_xattn:
-        n_heads: 12
-        d_heads: 768
-        pos_emb:
-          name: ""
+    p_dropout: 0.1
+    p_dropout_out: 0.0
+    has_xattn: true
+    xa_d_memory: 768
+    xa_n_heads: 12
+    is_causal: true
+    apply_norm_to_cond: true
+    apply_norm_out: false
+    max_length_causal_mask: 2048
+    use_learnable_pos_emb: true
 
   optim:
     _target_: torch.optim.Adam

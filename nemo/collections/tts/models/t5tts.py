@@ -139,7 +139,6 @@ class T5TTS_Model(ModelPT):
         
         self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
-        # use_kv_cache_for_inference True works for native attention and tested only with learnable position embeddings for now.
         
         super().__init__(cfg=cfg, trainer=trainer)
         
@@ -151,11 +150,9 @@ class T5TTS_Model(ModelPT):
         if self.model_type != 'decoder_pretrain_synthesizer':
             # Decoder pretrain synthesizer doesn't have transcript encoder/text embeddings
             self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
-            self.t5_encoder = t5tts_transformer.TransformerStack(dict(cfg.t5_encoder))
+            self.t5_encoder = t5tts_transformer.Transformer(**dict(cfg.t5_encoder))
         
-        decoder_config = dict(cfg.t5_decoder)
-        decoder_config['context_xattn'] = {'params': decoder_config['context_xattn']}
-        self.t5_decoder = t5tts_transformer.TransformerStack(decoder_config)
+        self.t5_decoder = t5tts_transformer.Transformer(**dict(cfg.t5_decoder))
 
         self.final_proj = nn.Linear(cfg.t5_decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook)
 
@@ -183,7 +180,7 @@ class T5TTS_Model(ModelPT):
                 multi_encoder_mapping[layer] = 1
             self.multi_encoder_mapping = multi_encoder_mapping
 
-            self.context_encoder = t5tts_transformer.TransformerStack(dict(cfg.context_encoder))
+            self.context_encoder = t5tts_transformer.Transformer(**dict(cfg.context_encoder))
             if cfg.use_perceiver:
                 self.perceiver_resampler = t5tts_perceiver.PerceiverResampler(
                     dim=cfg.context_encoder.d_model,
@@ -471,7 +468,7 @@ class T5TTS_Model(ModelPT):
             text_lens = batch['text_lens']
 
             text_embedded = self.text_embedding(text) # (B, T, E)
-            text_mask = ~get_mask_from_lengths(text_lens) # (B, T)
+            text_mask = get_mask_from_lengths(text_lens) # (B, T)
             text_encoder_out = self.t5_encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output'] # (B, T, E)
             
             _attn_prior = batch.get('align_prior_matrix', None)
@@ -527,14 +524,14 @@ class T5TTS_Model(ModelPT):
                 context_input_embedded = context_audio_embedded
                 context_input_lens = context_audio_codes_lens
             
-            context_mask = ~get_mask_from_lengths(context_input_lens)
+            context_mask = get_mask_from_lengths(context_input_lens)
 
             if self.model_type == 'multi_encoder_context_tts':
                 context_embeddings = self.context_encoder(context_input_embedded, context_mask, cond=None, cond_mask=None)['output']
                 if self.cfg.use_perceiver:
                     # pneekhara: Check if we can pass mask here. Mask of size B, L doesn't work
                     context_embeddings = self.perceiver_resampler(context_embeddings) # B, 32, C
-                    context_mask = torch.zeros(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
+                    context_mask = torch.ones(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
                 
                 cond = [text_encoder_out, context_embeddings]
                 cond_mask = [text_mask, context_mask]
@@ -577,8 +574,8 @@ class T5TTS_Model(ModelPT):
         dummy_additional_dec_mask = None
         if additional_decoder_input is not None:
             dummy_additional_decoder_input = torch.zeros_like(additional_decoder_input)
-            # all zero mask means dont ignore any timesteps (so that it is consistent with usual decoder mask)
-            dummy_additional_dec_mask = torch.zeros_like(additional_dec_mask)
+            # all ones mask means dont ignore any timesteps (so that it is consistent with usual decoder mask)
+            dummy_additional_dec_mask = torch.ones_like(additional_dec_mask)
 
         if isinstance(cond, list):
             # multi encoder conditioning
@@ -587,15 +584,15 @@ class T5TTS_Model(ModelPT):
             dummy_mask = []
             for mask_item in cond_mask:
                 # ignore all timesteps except the first one
-                mask = torch.ones_like(mask_item)
-                mask[:,0] = 0 # Make first timestep all zeros
+                mask = torch.zeros_like(mask_item)
+                mask[:,0] = 1 # Make first timestep all zeros
                 dummy_mask.append(mask)
             
         elif isinstance(cond, torch.Tensor):
             # single encoder conditioning
             dummy_cond = torch.zeros_like(cond)
-            dummy_mask = torch.ones_like(cond_mask)
-            dummy_mask[:,0] = 0 # ignore all timesteps except the first one
+            dummy_mask = torch.zeros_like(cond_mask)
+            dummy_mask[:,0] = 1 # ignore all timesteps except the first one
             attn_prior = None
         else:
             raise ValueError(f"Unsupported type for cond {type(cond)}")
@@ -616,7 +613,7 @@ class T5TTS_Model(ModelPT):
         audio_codes_target = audio_codes[:, :, 1:]
         audio_codes_lens_input = audio_codes_lens_target = audio_codes_lens - 1
 
-        audio_codes_mask = ~get_mask_from_lengths(audio_codes_lens_input)
+        audio_codes_mask = get_mask_from_lengths(audio_codes_lens_input)
         use_cfg = (self.cfg.get('cfg_unconditional_prob', 0.0) > 0.0) and (mode == "train") and (context_tensors['cond'] is not None)
         if use_cfg and torch.rand(1).item() < self.cfg.cfg_unconditional_prob:
             cond, cond_mask, additional_decoder_input, additional_decoder_mask, attn_prior = self.prepare_dummy_cond_for_cfg(
@@ -640,8 +637,7 @@ class T5TTS_Model(ModelPT):
                 # which can cause errors when doing codes_to_audio for audio_codes_input. We are not currently calling codes_to_audio on  
                 # audio_codes_input so should not matter if we dont supply dec_random_input_max.
                 random_audio_tokens = torch.randint(0, max_codebook_val, audio_codes_input.size(), device=audio_codes_input.device)
-                # audio_codes_mask is False for timesteps to be kept (transformer expects it that way) so we need to invert it
-                random_audio_tokens = random_audio_tokens * (~audio_codes_mask.unsqueeze(1))
+                random_audio_tokens = random_audio_tokens * audio_codes_mask.unsqueeze(1)
                 dec_dropout_mask = torch.rand((1,1,audio_codes_input.size(2)), device=audio_codes_input.device) > self.cfg.decoder_input_dropout_prob
                 # timestep_mask is True for timesteps to be kept
                 audio_codes_input = audio_codes_input * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
@@ -743,11 +739,6 @@ class T5TTS_Model(ModelPT):
     
     def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, use_cfg=False, cfg_scale=1.0):
         with torch.no_grad():
-            if self.use_kv_cache_for_inference:
-                assert self.cfg.t5_decoder.use_flash_self_attention is False, "KV cache is not supported with flash self attention"
-                assert self.cfg.t5_decoder.use_flash_x_attention is False, "KV cache is not supported with flash cross attention"
-                assert self.cfg.t5_decoder.pos_emb.name in ["learnable", "learnable_v2"], "KV cache is not tested with Rope, Alibi yet. Disable this assert, if you still want to use it."
-
             self.t5_decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
             
             context_tensors = self.prepare_context_tensors(batch)
@@ -755,7 +746,7 @@ class T5TTS_Model(ModelPT):
             audio_codes_bos = torch.full((text.size(0), self.cfg.num_audio_codebooks, 1), self.audio_bos_id, device=text.device).long()
             audio_codes_lens = torch.full((text.size(0),), 1, device=text.device).long()
             audio_codes_input = audio_codes_bos
-            audio_codes_mask = ~get_mask_from_lengths(audio_codes_lens)
+            audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
 
             all_predictions = []
             end_indices = {}
@@ -830,7 +821,7 @@ class T5TTS_Model(ModelPT):
                 all_predictions.append(audio_codes_next)
                 audio_codes_input = torch.cat([audio_codes_input, audio_codes_next.unsqueeze(-1)], dim=-1) # (B, C, T')
                 audio_codes_lens = audio_codes_lens + 1
-                audio_codes_mask = ~get_mask_from_lengths(audio_codes_lens)
+                audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
                 if len(end_indices) == text.size(0):
                     print("All ends reached")
                     break

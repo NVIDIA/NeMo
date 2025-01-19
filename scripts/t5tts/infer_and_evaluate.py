@@ -67,9 +67,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
 
     model = T5TTS_Model(cfg=model_cfg)
-    if model_cfg.t5_decoder.pos_emb.name in ["learnable", "learnable_v2"]:
-        if (model_cfg.t5_decoder.use_flash_self_attention) is False and (model_cfg.t5_decoder.use_flash_self_attention is False):
-            model.use_kv_cache_for_inference = True
+    model.use_kv_cache_for_inference = True
 
     # Load weights from checkpoint file
     print("Loading weights from checkpoint")
