@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -ex
 
 INSTALL_OPTION=${1:-"dev"}
 HEAVY_DEPS=${HEAVY_DEPS:-false}
@@ -65,8 +65,9 @@ if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
     "unstructured==0.14.9"
     "git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}"
     "git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}"
-    "-r tools/ctc_segmentation/requirements.txt"
   )
+
+  pip install --no-cache-dir -r tools/ctc_segmentation/requirements.txt
 
   CURR=$(pwd)
   cd /opt
