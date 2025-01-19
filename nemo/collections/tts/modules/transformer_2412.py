@@ -496,13 +496,13 @@ class TransformerLayer(torch.nn.Module):
             output <torch tensor> (B, T1, C): Output tensor
             attn_probabilities <dict>: Attention probabilities
         """
-        x = (x + x_) * x_mask.unsqueeze(-1)
         x_, s_attn_prob = self.self_attention(query=self.norm_self(x), query_mask=x_mask)
         if self.use_cache:
             if self.cache['self_attn_output'] is not None:
                 x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
             self.cache['self_attn_output'] = x_
-
+        x = (x + x_) * x_mask.unsqueeze(-1)
+        
         x_attn_prob = None
         if self.has_xattn and cond is not None:
             x_normed = self.norm_xattn_query(x)

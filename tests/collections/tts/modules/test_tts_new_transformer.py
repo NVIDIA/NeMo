@@ -373,7 +373,7 @@ class TestTransformer:
     def test_forward_causal_self_attn_and_has_xattn(self):
         set_seed(0)
         model = Transformer(
-            n_layers=self.n_layers,
+            n_layers=self.n_layers, # @pneekhara: TODO: Should be atleast 2
             d_model=self.d_model,
             d_ffn=self.d_ffn,
             sa_n_heads=self.sa_n_heads,
@@ -401,7 +401,7 @@ class TestTransformer:
         #       [-1.4920, -0.5683, -0.9277,  2.1160]]]
         # )
         cond = [
-            # shape (1, 6, 2)
+            # shape (1, 6, 2) @pneekhara: TODO: Should be of shape (1, 6, 4)
             torch.Tensor(
                 [[[1.0101, -0.4045],
                   [2.1502, 0.3137],
@@ -410,7 +410,7 @@ class TestTransformer:
                   [0.3510, 0.7737],
                   [-0.2495, -1.0554]]]
             ),
-            # shape (1, 5, 3)
+            # shape (1, 5, 3) @pneekhara: TODO: Should be of shape (1, 5, 4)
             torch.Tensor(
                 [[[0.2122, -0.5399, -0.0741],
                   [0.2523, -0.4742, 0.9657],
@@ -421,10 +421,11 @@ class TestTransformer:
         ]
         # fmt:on
 
-        cond_mask = [torch.zeros(1, 6).bool(), torch.zeros(1, 5).bool()]
+        cond_mask = [torch.ones(1, 6).bool(), torch.ones(1, 5).bool()]
 
-        mask_tensor = torch.zeros(1, 10).bool()
+        mask_tensor = torch.ones(1, 10).bool()
+        multi_encoder_mapping=[0,1] # @pneekhara: i_th decoder layer gets cond[multi_encoder_mapping[i]] as the input..
         with torch.no_grad():
-            output_dict = model(x=self.input_tensor, x_mask=mask_tensor, cond=cond, cond_mask=cond_mask)
+            output_dict = model(x=self.input_tensor, x_mask=mask_tensor, cond=cond, cond_mask=cond_mask, multi_encoder_mapping=multi_encoder_mapping)
 
         print(output_dict)
