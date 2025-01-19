@@ -40,21 +40,12 @@ RUN \
   --mount=type=bind,source=setup.py,target=setup.py \
   --mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
   --mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex
-pip install --no-cache-dir --extra-index-url https://pypi.nvidia.com \
-  -r tools/ctc_segmentation/requirements.txt
 
-bash reinstall.sh "dev" --heavy-deps
+  HEAVY_DEPS=TRUE bash reinstall.sh "dev" --heavy-deps
 
-# Megatron Core installation
-MCORE_TAG=$(grep 'export MCORE_TAG=' reinstall.sh | awk -F'=' '{print $2}')
-git clone https://github.com/NVIDIA/Megatron-LM.git && \
-pushd Megatron-LM && \
-git checkout ${MCORE_TAG} && \
-  pushd megatron/core/datasets && \
-  make && \
-  popd && \
-popd
-export PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
+  # Megatron Core installation
+  cp -r /opt/Megatron-LM /workspace
+  export PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
 EOF
 
 # Copy over NeMo code

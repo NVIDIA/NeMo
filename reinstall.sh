@@ -2,28 +2,7 @@
 set -e
 
 INSTALL_OPTION=${1:-"dev"}
-shift
-
-# Default values
-HEAVY_DEPS=false
-
-# Parse arguments
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --heavy-deps)
-    HEAVY_DEPS=true
-    shift
-    ;;
-  --no-heavy-deps)
-    HEAVY_DEPS=false
-    shift
-    ;;
-  *)
-    echo "Unknown option: $1"
-    exit 1
-    ;;
-  esac
-done
+HEAVY_DEPS=${HEAVY_DEPS:-false}
 
 PIP=pip
 
@@ -66,27 +45,49 @@ else
 
 fi
 
-if [[ "$HEAVY_DEPS" == true ]]; then
-  ${PIP} install --no-cache-dir \
-    "llama-index==0.10.43" \
+DEPS=(
+  "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
+  "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG}"
+  "git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG}"
+  "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@${NV_RESILIENCY_EXT_TAG}"
+  "onnxscript @ git+https://github.com/microsoft/onnxscript"
+)
+
+if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
+  DEPS+=(
+    "llama-index==0.10.43"
     "unstructured==0.14.9"
+    "git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}"
+    "git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}"
+    "-r tools/ctc_segmentation/requirements.txt"
+  )
+
+  CURR=$(pwd)
+  cd /opt
+  git clone https://github.com/NVIDIA/Megatron-LM.git &&
+    pushd Megatron-LM &&
+    git checkout ${MCORE_TAG} &&
+    pip install . &&
+    popd
+
+  git clone https://github.com/NVIDIA/TransformerEngine.git &&
+    pushd TransformerEngine &&
+    git checkout ${TE_TAG} &&
+    pip install . &&
+    popd
+  
+  cd "$CURR"
 fi
 
-${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com \
-  "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'" \
-  "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG}" \
-  "transformer-engine @ git+https://github.com/NVIDIA/TransformerEngine.git@${TE_TAG}" \
-  "git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}" \
-  "git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}" \
-  "git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG}" \
-  "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@${NV_RESILIENCY_EXT_TAG}" \
-  "onnxscript @ git+https://github.com/microsoft/onnxscript"
+${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com ${DEPS[@]}
 
-${PIP} install --no-cache-dir virtualenv
-virtualenv /opt/venv
-/opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
-  -r /workspace/requirements/requirements_vllm.txt \
-  -r /workspace/requirements/requirements_infer.txt
+if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
+  ${PIP} install --no-cache-dir virtualenv
+  virtualenv /opt/venv
+  /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
+    -r /workspace/requirements/requirements_vllm.txt \
+    -r /workspace/requirements/requirements_infer.txt
+fi
 
 echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
