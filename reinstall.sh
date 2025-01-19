@@ -74,14 +74,14 @@ if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
   git clone https://github.com/NVIDIA/Megatron-LM.git &&
     pushd Megatron-LM &&
     git checkout ${MCORE_TAG} &&
-    pip install . &&
+    pip install -e . &&
     popd
 
   git clone https://github.com/NVIDIA/TransformerEngine.git &&
     pushd TransformerEngine &&
     git checkout ${TE_TAG} &&
     git submodule update --init --recursive -q &&
-    pip install . &&
+    pip install -e . &&
     popd
 
   cd "$CURR"
