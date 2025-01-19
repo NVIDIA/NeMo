@@ -125,9 +125,10 @@ class TestCTCDecoding:
         length = torch.randint(low=1, high=T, size=[B])
 
         with torch.no_grad():
-            texts, _ = decoding.ctc_decoder_predictions_tensor(
+            hypotheses = decoding.ctc_decoder_predictions_tensor(
                 input_signal, length, fold_consecutive=True, return_hypotheses=False
             )
+            texts = [hyp.text for hyp in hypotheses]
 
             for text in texts:
                 assert isinstance(text, str)
@@ -146,7 +147,7 @@ class TestCTCDecoding:
         length = torch.randint(low=1, high=T, size=[B])
 
         with torch.no_grad():
-            hyps, _ = decoding.ctc_decoder_predictions_tensor(
+            hyps = decoding.ctc_decoder_predictions_tensor(
                 input_signal, length, fold_consecutive=True, return_hypotheses=True
             )
 
@@ -177,9 +178,10 @@ class TestCTCDecoding:
         length = torch.randint(low=1, high=T, size=[B])
 
         with torch.no_grad():
-            texts, _ = decoding.ctc_decoder_predictions_tensor(
+            hypotheses = decoding.ctc_decoder_predictions_tensor(
                 input_signal, length, fold_consecutive=True, return_hypotheses=False
             )
+            texts = [hyp.text for hyp in hypotheses]
 
             for text in texts:
                 assert isinstance(text, str)
@@ -197,7 +199,7 @@ class TestCTCDecoding:
         length = torch.randint(low=1, high=T, size=[B])
 
         with torch.no_grad():
-            hyps, _ = decoding.ctc_decoder_predictions_tensor(
+            hyps = decoding.ctc_decoder_predictions_tensor(
                 input_signal, length, fold_consecutive=True, return_hypotheses=True
             )
 
@@ -283,11 +285,11 @@ class TestCTCDecoding:
             length = torch.randint(low=1, high=T, size=[B], device=length_device)
 
         with torch.inference_mode():
-            hyps, _ = unbatched_decoding.ctc_decoder_predictions_tensor(
+            hyps = unbatched_decoding.ctc_decoder_predictions_tensor(
                 input_signal, length, fold_consecutive=True, return_hypotheses=True
             )
 
-            batched_hyps, _ = batched_decoding.ctc_decoder_predictions_tensor(
+            batched_hyps = batched_decoding.ctc_decoder_predictions_tensor(
                 input_signal, length, fold_consecutive=True, return_hypotheses=True
             )
 
@@ -350,11 +352,11 @@ class TestCTCDecoding:
             length = torch.randint(low=1, high=T, size=[B], device=length_device)
 
         with torch.inference_mode():
-            hyps, _ = unbatched_decoding.ctc_decoder_predictions_tensor(
+            hyps = unbatched_decoding.ctc_decoder_predictions_tensor(
                 input_labels, length, fold_consecutive=True, return_hypotheses=True
             )
 
-            batched_hyps, _ = batched_decoding.ctc_decoder_predictions_tensor(
+            batched_hyps = batched_decoding.ctc_decoder_predictions_tensor(
                 input_labels, length, fold_consecutive=True, return_hypotheses=True
             )
 

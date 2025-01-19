@@ -52,7 +52,10 @@ def speech_classification_model():
 
     decoder = {
         'cls': 'nemo.collections.asr.modules.ConvASRDecoderClassification',
-        'params': {'feat_in': 32, 'num_classes': 30,},
+        'params': {
+            'feat_in': 32,
+            'num_classes': 30,
+        },
     }
 
     modelConfig = DictConfig(
@@ -95,7 +98,10 @@ def frame_classification_model():
 
     decoder = {
         'cls': 'nemo.collections.common.parts.MultiLayerPerceptron',
-        'params': {'hidden_size': 32, 'num_classes': 5,},
+        'params': {
+            'hidden_size': 32,
+            'num_classes': 5,
+        },
     }
 
     modelConfig = DictConfig(
@@ -144,7 +150,7 @@ class TestEncDecClassificationModel:
             for i in range(input_signal.size(0)):
                 logprobs_ins = asr_model.forward(
                     input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
-                )
+                )[0]
                 logprobs_instance.append(logprobs_ins)
             logprobs_instance = torch.cat(logprobs_instance, 0)
 
