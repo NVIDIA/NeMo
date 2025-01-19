@@ -502,7 +502,7 @@ class TransformerLayer(torch.nn.Module):
                 x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
             self.cache['self_attn_output'] = x_
         x = (x + x_) * x_mask.unsqueeze(-1)
-        
+
         x_attn_prob = None
         if self.has_xattn and cond is not None:
             x_normed = self.norm_xattn_query(x)

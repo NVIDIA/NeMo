@@ -373,7 +373,7 @@ class TestTransformer:
     def test_forward_causal_self_attn_and_has_xattn(self):
         set_seed(0)
         model = Transformer(
-            n_layers=self.n_layers, # @pneekhara: TODO: Should be atleast 2
+            n_layers=self.n_layers,  # @pneekhara: TODO: Should be atleast 2
             d_model=self.d_model,
             d_ffn=self.d_ffn,
             sa_n_heads=self.sa_n_heads,
@@ -424,8 +424,17 @@ class TestTransformer:
         cond_mask = [torch.ones(1, 6).bool(), torch.ones(1, 5).bool()]
 
         mask_tensor = torch.ones(1, 10).bool()
-        multi_encoder_mapping=[0,1] # @pneekhara: i_th decoder layer gets cond[multi_encoder_mapping[i]] as the input..
+        multi_encoder_mapping = [
+            0,
+            1,
+        ]  # @pneekhara: i_th decoder layer gets cond[multi_encoder_mapping[i]] as the input..
         with torch.no_grad():
-            output_dict = model(x=self.input_tensor, x_mask=mask_tensor, cond=cond, cond_mask=cond_mask, multi_encoder_mapping=multi_encoder_mapping)
+            output_dict = model(
+                x=self.input_tensor,
+                x_mask=mask_tensor,
+                cond=cond,
+                cond_mask=cond_mask,
+                multi_encoder_mapping=multi_encoder_mapping,
+            )
 
         print(output_dict)
