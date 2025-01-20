@@ -171,6 +171,8 @@ class BaseMimoModel(MCoreLLaVAModel):
         # we dont need hidden states for encoder alignment
 
         if self.config.stage in ["encoder_alignment"]:
+            if not new_loss_mask.is_contiguous():
+                new_loss_mask = new_loss_mask.contiguous()
             return output, new_loss_mask
         elif self.config.stage in ["decoder_alignment"]:
             if labels is None:
