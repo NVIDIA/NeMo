@@ -17,7 +17,7 @@ on:
     branches:
       - 'main'
       - 'r**'
-      - 'weekly-*'
+      - 'weekly-bump'
     types: [ labeled ]
 
   workflow_dispatch:
