@@ -96,7 +96,7 @@ class GemmaModel(GPTModel):
 
     def configure_model(self):
         from nemo.collections.common.parts.utils import extend_instance
-        from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin
+        from nemo.collections.llm.gpt.model.gemma2 import EmbeddingScalingMixin
 
         super().configure_model()
         if parallel_state.is_pipeline_first_stage():
