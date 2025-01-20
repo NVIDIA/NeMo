@@ -465,15 +465,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             raise ValueError("S2S ModularAudioGPTModel requires Megatron-core GPT model.")
         return model
 
-    @classmethod
-    def restore_from_pretrained_models(
-        cls,
-        cfg: Optional[Union[OmegaConf, str]] = None,
-        trainer: Optional[Trainer] = None,
-    ):
-
-        model = super().restore_from_pretrained_models(cfg, trainer)
-
+    def post_restore_from_pretrained_models(cls, model, cfg):
         codec_model, codec_model_cfg = cls.get_codec_models_and_configs(cfg)
         logging.info(f"Loaded Codec Model: {codec_model}")
 
@@ -512,6 +504,16 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         cls.codec_model = codec_model.cuda()
         cls.asr_model = asr_model.cuda()
         cls.mos_model = mos_model.cuda()
+
+    @classmethod
+    def restore_from_pretrained_models(
+        cls,
+        cfg: Optional[Union[OmegaConf, str]] = None,
+        trainer: Optional[Trainer] = None,
+    ):
+        model = super().restore_from_pretrained_models(cfg, trainer)
+        cls.post_restore_from_pretrained_models(model, cfg)
+
         return model
 
     def load_state_dict(self, state_dict, strict: bool = True):
@@ -519,14 +521,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             super().load_state_dict(state_dict, strict=strict)
         except RuntimeError as e:
             logging.info(f"Error loading model: {e} retrying with extend_embedding")
-            if self.cfg.get('megatron_amp_O2', False):
-                base_model = self.model.module
-            else:
-                base_model = self.model
-            self.padded_vocab_size = self.cfg.s2s_vocab_size
-            base_model.extend_embedding(
-                self.padded_vocab_size, include_proj=self.cfg.get('combine_emb_by_proj', False)
-            )
+            with open_dict(self.cfg):
+                self.cfg.model = self.cfg
+            self.post_restore_from_pretrained_models(self, self.cfg)
             super().load_state_dict(state_dict, strict=strict)
 
     # change to add one more dimension

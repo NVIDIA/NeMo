@@ -91,9 +91,9 @@ def main(cfg) -> None:
     # model = imported_cls.load_adapters_for_inference(cfg, model_cfg, model)
     # model = imported_cls.load_audio_encoder_for_inference(cfg, model_cfg, model)
     # New End
-    # .ckpt requires the following
-    model = imported_cls.restore_from_pretrained_models(cfg, trainer=trainer)
-    # model.save_to("/scratch/checkpoint.nemo")
+    if hasattr(cfg.model, "restore_from_hparams_path"):  # not a .nemo model we expect a hparams.yaml file
+        # .ckpt requires the following
+        model = imported_cls.restore_from_pretrained_models(cfg, trainer=trainer)
     if cfg.get("save_as_nemo", None):
         model.setup("predict")  # need to call setup() to load adapters and prepare for saving
         model.save_to(cfg.save_as_nemo)
