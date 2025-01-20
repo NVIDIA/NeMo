@@ -73,7 +73,7 @@ def validate_dataset_asset_accessibility(paths):
             validate_dataset_asset_accessibility(p)
         return
 
-    if not isinstance(paths, str) and not isisntance(paths, Path):
+    if not isinstance(paths, str) and not isntance(paths, Path):
         raise ValueError("Expected path to be of string or Path type.")
 
     path = Path(paths)
