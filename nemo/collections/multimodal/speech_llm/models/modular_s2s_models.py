@@ -512,7 +512,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         trainer: Optional[Trainer] = None,
     ):
         model = super().restore_from_pretrained_models(cfg, trainer)
-        cls.post_restore_from_pretrained_models(model, cfg)
+        cls.post_restore_from_pretrained_models(cls, model, cfg)
 
         return model
 
