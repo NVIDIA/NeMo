@@ -18,15 +18,14 @@ import multiprocessing as mp
 import os
 import pickle
 import time
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, List, Optional, Type
 
 import numpy as np
 import torch
 
-from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional, Type
-
-from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.core import Dataset
+from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.utils import AppState, logging
 
 if TYPE_CHECKING:
