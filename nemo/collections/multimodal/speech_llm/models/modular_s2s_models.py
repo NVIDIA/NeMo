@@ -514,6 +514,21 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         cls.mos_model = mos_model.cuda()
         return model
 
+    def load_state_dict(self, state_dict, strict: bool = True):
+        try:
+            super().load_state_dict(state_dict, strict=strict)
+        except RuntimeError as e:
+            logging.info(f"Error loading model: {e} retrying with extend_embedding")
+            if self.cfg.get('megatron_amp_O2', False):
+                base_model = self.model.module
+            else:
+                base_model = self.model
+            self.padded_vocab_size = self.cfg.s2s_vocab_size
+            base_model.extend_embedding(
+                self.padded_vocab_size, include_proj=self.cfg.get('combine_emb_by_proj', False)
+            )
+            super().load_state_dict(state_dict, strict=strict)
+
     # change to add one more dimension
     def _shift_labels_by_emb_len(self, labels, label_lens, emb_lens, max_len, pad_token=0):
         """Shift labels to the right by the length of the audio embeddings."""
