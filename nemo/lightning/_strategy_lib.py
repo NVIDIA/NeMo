@@ -81,6 +81,7 @@ def init_parallel_ranks(
         local_rank=init_local_rank,
         tensor_model_parallel_size=parallel_config.tensor_model_parallel_size,
         expert_model_parallel_size=parallel_config.expert_model_parallel_size,
+        expert_tensor_parallel_size=parallel_config.expert_tensor_parallel_size,
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         context_parallel_size=parallel_config.context_parallel_size,
@@ -121,6 +122,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
+                expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
             )
 
             # assert that fake tp and pp rank match after model parallel init
