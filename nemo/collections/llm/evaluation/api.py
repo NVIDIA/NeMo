@@ -7,6 +7,7 @@ class ApiEndpoint(BaseModel):
     """
     Represents evaluation Standard API target.api_endpoint object
     """
+
     url: str = Field(description="Url of the model")
     model_id: str = Field(description="Name of the model")
     type: str = Field(description="The type of the target", default="chat")
@@ -28,6 +29,7 @@ class EvaluationTarget(BaseModel):
     """
     Represents evaluation Standard API target object
     """
+
     api_endpoint: ApiEndpoint = Field(description="Api endpoint to be used for evaluation")
 
 
@@ -35,6 +37,7 @@ class ConfigParams(BaseModel):
     """
     Represents evaluation Standard API config.params object
     """
+
     parallelism: int = Field(description="Parallelism to be used", default=1)
     top_p: float = Field(
         description="Limits to the top tokens within a certain probability",
@@ -77,5 +80,6 @@ class EvaluationConfig(BaseModel):
     """
     Represents evaluation Standard API config object
     """
+
     type: str = Field(description="Name/type of the task")
     params: ConfigParams = Field(description="Parameters to be used for evaluation", default=ConfigParams())
