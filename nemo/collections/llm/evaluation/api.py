@@ -4,6 +4,9 @@ from pydantic import BaseModel, Field
 
 
 class ApiEndpoint(BaseModel):
+    """
+    Represents evaluation Standard API target.api_endpoint object
+    """
     url: str = Field(description="Url of the model")
     model_id: str = Field(description="Name of the model")
     type: str = Field(description="The type of the target", default="chat")
@@ -12,7 +15,7 @@ class ApiEndpoint(BaseModel):
     )
     stream: bool = Field(description="Whether responses should be streamed", default=False)
     nemo_checkpoint_path: Optional[str] = Field(
-        description="Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt which is required to tokenize the evaluation input and output prompts.",
+        description="Path for nemo 2.0 checkpoint",
         default=None,
     )
     nemo_triton_http_port: Optional[int] = Field(
@@ -22,17 +25,23 @@ class ApiEndpoint(BaseModel):
 
 
 class EvaluationTarget(BaseModel):
+    """
+    Represents evaluation Standard API target object
+    """
     api_endpoint: ApiEndpoint = Field(description="Api endpoint to be used for evaluation")
 
 
 class ConfigParams(BaseModel):
+    """
+    Represents evaluation Standard API config.params object
+    """
     parallelism: int = Field(description="Parallelism to be used", default=1)
     top_p: float = Field(
-        description="float value between 0 and 1. limits to the top tokens within a certain probability. top_p=0 means the model will only consider the single most likely token for the next prediction. Default: 0.9999999",
+        description="Limits to the top tokens within a certain probability",
         default=0.9999999,
     )
     temperature: float = Field(
-        description="float value between 0 and 1. temp of 0 indicates greedy decoding, where the token with highest prob is chosen. Temperature can't be set to 0.0 currently. Default: 0.0000001",
+        description="Temp of 0 indicates greedy decoding, where the token with highest prob is chosen",
         default=0.0000001,
     )
     tokenizer_path: str = Field(
@@ -49,21 +58,24 @@ class ConfigParams(BaseModel):
     num_fewshot: Optional[int] = Field(
         description="Number of examples in few-shot context. Default: None.", default=None
     )
-    max_tokens_to_generate: Optional[int] = Field(description="max tokens to generate. Default: 256.", default=256)
+    max_tokens_to_generate: Optional[int] = Field(description="max tokens to generate", default=256)
     top_k: Optional[int] = Field(
-        description="limits to a certain number (K) of the top tokens to consider. top_k=1 means the model will only consider the single most likely token for the next prediction. Default: 1",
+        description="Limits to a certain number (K) of the top tokens to consider",
         default=1,
     )
     add_bos: Optional[bool] = Field(
-        description="whether a special token representing the beginning of a sequence should be added when encoding a string. Default: False.",
+        description="whether a special bos token should be added when encoding a string",
         default=False,
     )
     bootstrap_iters: int = Field(
-        description="Number of iterations for bootstrap statistics, used when calculating stderrs. Set to 0 for no stderr calculations to be performed. Default: 100000.",
+        description="Number of iterations for bootstrap statistics",
         default=100000,
     )
 
 
 class EvaluationConfig(BaseModel):
+    """
+    Represents evaluation Standard API config object
+    """
     type: str = Field(description="Name/type of the task")
     params: ConfigParams = Field(description="Parameters to be used for evaluation", default=ConfigParams())
