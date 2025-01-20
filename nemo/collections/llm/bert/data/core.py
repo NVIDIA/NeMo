@@ -25,7 +25,6 @@ import torch
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Type
 
-from nemo.collections.nlp.data.information_retrieval.bert_embedding_dataset import BertEmbeddingDataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.core import Dataset
 from nemo.utils import AppState, logging
