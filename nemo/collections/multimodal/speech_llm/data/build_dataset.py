@@ -25,6 +25,9 @@ from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
     get_tarred_audio_text_dataset_from_config,
 )
 from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
+from nemo.collections.multimodal.speech_llm.data.lhotse_s2s_dataset import (
+    LhotseAudioQuestionAnswerDataset as S2SLhotseAudioQuestionAnswerDataset,
+)
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import TextProcessing
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
@@ -77,7 +80,12 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             end_string=data_cfg.get('end_string', None),
             sample_alpha=data_cfg.get('sample_alpha', None),
         )
-        return LhotseAudioQuestionAnswerDataset(
+        dataloader_cls = (
+            S2SLhotseAudioQuestionAnswerDataset
+            if hasattr(data_cfg, 'speech_bos_id')
+            else LhotseAudioQuestionAnswerDataset
+        )
+        return dataloader_cls(
             tp,
             default_context="answer the question according to the previous audio",
             tokens_to_generate=data_cfg.get('tokens_to_generate', 0),
@@ -87,12 +95,15 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             default_context_key=data_cfg.get('default_context_key', "default_context"),
             vocab_sizes=model_instance.cfg.get('proj_head_dims', [-1]),
             decoder_reduction_factor=model_instance.cfg.get('decoder_reduction_factor', 1),
+            sample_rate=data_cfg.sample_rate,
             speech_pad_id=data_cfg.get('speech_pad_id', 1001),
             speech_unk_id=data_cfg.get('speech_unk_id', 1002),
             speech_bos_id=data_cfg.get('speech_bos_id', 1003),
             speech_eos_id=data_cfg.get('speech_eos_id', 1004),
             filter_by_source_target_text_ratio=data_cfg.get('filter_by_source_target_text_ratio', False),
             source_target_text_ratio_limit=data_cfg.get('source_target_text_ratio_limit', 1.0),
+            load_answer_audio=data_cfg.get('load_answer_audio', False),
+            codec_model_downsampling_factor=data_cfg.get('codec_model_downsampling_factor', 1024),
         )
 
     # Notably, the data weights are controlled by either bucketing_weights
@@ -130,6 +141,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                 global_rank=parallel_state.get_data_parallel_rank(),
                 world_size=parallel_state.get_data_parallel_world_size(),
                 dataset=dataset,
+                tokenizer=dataset.text_processor.tokenizer,
             )
         # for eval, we need to create separate dataset so as to report splitted numbers
         else:
@@ -145,6 +157,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                             global_rank=parallel_state.get_data_parallel_rank(),
                             world_size=parallel_state.get_data_parallel_world_size(),
                             dataset=dataset,
+                            tokenizer=dataset.text_processor.tokenizer,
                         )
                     )
             else:
@@ -165,6 +178,7 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                             global_rank=parallel_state.get_data_parallel_rank(),
                             world_size=parallel_state.get_data_parallel_world_size(),
                             dataset=dataset,
+                            tokenizer=dataset.text_processor.tokenizer,
                         )
                     )
 

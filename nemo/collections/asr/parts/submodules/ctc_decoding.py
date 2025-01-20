@@ -246,16 +246,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         if self.compute_timestamps is not None:
             self.compute_timestamps |= self.preserve_frame_confidence
 
-        if self.cfg.strategy == 'greedy':
-            self.decoding = ctc_greedy_decoding.GreedyCTCInfer(
-                blank_id=self.blank_id,
-                preserve_alignments=self.preserve_alignments,
-                compute_timestamps=self.compute_timestamps,
-                preserve_frame_confidence=self.preserve_frame_confidence,
-                confidence_method_cfg=self.confidence_method_cfg,
-            )
-
-        elif self.cfg.strategy == "greedy_batch":
+        if self.cfg.strategy == 'greedy' or self.cfg.strategy == "greedy_batch":
             self.decoding = ctc_greedy_decoding.GreedyBatchedCTCInfer(
                 blank_id=self.blank_id,
                 preserve_alignments=self.preserve_alignments,

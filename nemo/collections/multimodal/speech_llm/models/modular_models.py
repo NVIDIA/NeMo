@@ -419,6 +419,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         multimodal_output = {}
         if 'audio_signal' in audio_batch:
+            # in this branch, limit_max_seq_length is handled in prepare_llm_input
             encoder_input, attention_mask, labels, loss_mask, _ = self.prepare_llm_input(audio_batch)
             output = self._gpt_forward(
                 None, None, encoder_input, attention_mask, labels, checkpoint_activations_all_layers
@@ -427,8 +428,16 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         if text_batch:
             input_ids = text_batch["text_input_ids"][:, :-1]
             labels = text_batch["text_input_ids"][:, 1:]
-            attention_mask = self._create_attention_mask(input_ids)
             loss_mask = text_batch["text_masks"][:, 1:]
+            limit_max_seq_length = self.cfg.get("limit_max_seq_length", None)
+            if limit_max_seq_length is not None and limit_max_seq_length < labels.shape[1] and self.training:
+                import random
+
+                start = random.randint(0, labels.shape[1] - limit_max_seq_length - 1)
+                labels = labels[:, start : start + limit_max_seq_length]
+                input_ids = input_ids[:, start : start + limit_max_seq_length]
+                loss_mask = loss_mask[:, start : start + limit_max_seq_length]
+            attention_mask = self._create_attention_mask(input_ids)
             output = self._gpt_forward(
                 input_ids, None, None, attention_mask, labels, checkpoint_activations_all_layers
             )
@@ -740,8 +749,15 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         with open_dict(gpt_cfg):
             use_multi_encoder = gpt_cfg.perception.get("encoders", None) is not None
             if not use_multi_encoder:
+                encoder = gpt_cfg.perception.get("encoder", {})
+                preprocessor = gpt_cfg.perception.get("preprocessor", {})
                 gpt_cfg.perception.preprocessor = audio_cfg.preprocessor
                 gpt_cfg.perception.encoder = audio_cfg.encoder
+                for k, v in encoder.items():
+                    gpt_cfg.perception.encoder[k] = v
+                for k, v in preprocessor.items():
+                    gpt_cfg.perception.preprocessor[k] = v
+
             else:
                 for key in gpt_cfg.perception.encoders:
                     model_key = gpt_cfg.perception.encoders[key].get("model_key", "encoder")
@@ -893,47 +909,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             return audio_model, audio_model.cfg
 
     @classmethod
-    def get_codec_models_and_configs(cls, cfg):
-        pretrained_codec_model = cfg.model.get("codec_model_path", None)
-        pretrained_codec_model_class = cfg.model.get(
-            "pretrained_codec_model_target", "nemo.collections.tts.models.audio_codec.AudioCodecModel"
-        )
-
-        model_class = hydra.utils.get_class(pretrained_codec_model_class)
-        if pretrained_codec_model.endswith('.nemo'):
-            logging.info(f'Loading pretrained codec model from local file: {pretrained_codec_model}')
-            codec_model = model_class.restore_from(pretrained_codec_model, map_location='cpu')
-        else:
-            logging.info(f'Loading pretrained codec model from NGC: {pretrained_codec_model}')
-            codec_model = model_class.from_pretrained(pretrained_codec_model, map_location='cpu')
-        return codec_model, codec_model.cfg
-
-    @classmethod
-    def get_asr_models_and_configs(cls, cfg):
-
-        pretrained_asr_model = cfg.model.get("asr_model_path", None)
-        pretrained_asr_model_class = cfg.model.get(
-            "pretrained_asr_model_target", "nemo.collections.asr.models.ASRModel"
-        )
-
-        model_class = hydra.utils.get_class(pretrained_asr_model_class)
-        if pretrained_asr_model.endswith('.nemo'):
-            logging.info(f'Loading pretrained codec model from local file: {pretrained_asr_model}')
-            asr_model = model_class.restore_from(pretrained_asr_model, map_location='cpu')
-        else:
-            logging.info(f'Loading pretrained asr model from NGC: {pretrained_asr_model}')
-            asr_model = model_class.from_pretrained(pretrained_asr_model, map_location='cpu')
-        return asr_model, asr_model.cfg
-
-    @classmethod
-    def get_mos_models_and_configs(cls, cfg):
-        import torchaudio
-        from torchaudio.pipelines import SQUIM_SUBJECTIVE
-
-        squim_mos_model = SQUIM_SUBJECTIVE.get_model()
-        return squim_mos_model
-
-    @classmethod
     def load_pretrained_audio_weights(
         cls, cfg, model, audio_model, speaker_model: Optional[EncDecSpeakerLabelModel] = None
     ):
@@ -986,16 +961,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
 
         base_model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
         audio_model, audio_model_cfg = cls.get_audio_encoder_models_and_configs(cfg)
-
-        codec_model, codec_model_cfg = cls.get_codec_models_and_configs(cfg)
-        logging.info(f"Loaded Codec Model: {codec_model}")
-
-        asr_model, asr_model_cfg = cls.get_asr_models_and_configs(cfg)
-        logging.info(f"Loaded ASR Model: {asr_model}")
-
-        mos_model = cls.get_mos_models_and_configs(cfg)
-        logging.info(f"Loaded MOS Model: {mos_model}")
-
         speaker_model, speaker_cfg = cls.get_speaker_model_and_config(cfg)
         model_cfg = cls._modify_config(
             base_model_cfg, cfg, audio_model_cfg, add_cfg_to_tree=False, speaker_cfg=speaker_cfg
@@ -1032,11 +997,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         if 'inference' in cfg:
             inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
             model.set_inference_config(inference_cfg)
-
-        cls.codec_model = codec_model
-        cls.asr_model = asr_model
-        cls.mos_model = mos_model
-        return model, codec_model, asr_model, mos_model
+        return model
 
     @classmethod
     def load_audio_encoder_for_inference(cls, cfg: DictConfig, model_cfg: DictConfig, model: ModelPT) -> ModelPT:
@@ -1074,7 +1035,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         if pretrained_model_cfg:
             model_cfg = pretrained_model_cfg
-        elif cfg.model.peft.restore_from_path or cfg.model.peft.restore_from_ckpt.checkpoint_dir:
+        elif hasattr(cfg.model, "peft") and (
+            cfg.model.peft.restore_from_path or cfg.model.peft.restore_from_ckpt.checkpoint_dir
+        ):
             if cfg.model.peft.restore_from_path and cfg.model.peft.restore_from_path.endswith(".nemo"):
                 model_cfg = ModularAudioGPTModel.restore_from(
                     restore_path=cfg.model.peft.restore_from_path,
@@ -1090,6 +1053,10 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 raise RuntimeError(
                     "This script requires a .nemo peft model or path to hparams.yaml (and a ckpt path)."
                 )
+        elif hasattr(cfg.model, "restore_from_hparams_path"):  # not a .nemo model we expect a hparams.yaml file
+            model_cfg = OmegaConf.to_container(OmegaConf.load(cfg.model.restore_from_hparams_path).cfg)
+            model_cfg = OmegaConf.create(model_cfg)
+
         else:
             model_cfg = MegatronGPTSFTModel.restore_from(
                 restore_path=cfg.model.restore_from_path,
@@ -1107,20 +1074,17 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 ), f"PEFT evaluation {p} ({cfg.model.get(p)}) must equal training {p} ({model_cfg.get(p)})"
 
         with open_dict(model_cfg):
-            # to be compatible with old checkpoints
-            if "context_key" not in model_cfg.data.train_ds or "answer_key" not in model_cfg.data.train_ds:
-                model_cfg.data.train_ds.context_key = "question"
-                model_cfg.data.train_ds.answer_key = "answer"
-
             # update the model config of the trained model with params we want to set at inference time.
             model_cfg.precision = cfg.trainer.precision
             for key, val in cfg.model.items():
-                if key != 'data' and key != 'peft':
+                if key != 'data' and key != 'peft' and key != 'perception':
                     model_cfg[key] = val
-            model_cfg.data.test_ds = cfg.model.data.test_ds
+            OmegaConf.resolve(cfg.model.data)
+            # model_cfg.data.test_ds = cfg.model.data.test_ds if hasattr(cfg.model.data, "test_ds") else cfg.model.data.validation_ds
+            model_cfg.data.train_ds = cfg.model.data.train_ds
 
         with open_dict(cfg):
-            if model_cfg.data.test_ds is not None:
+            if hasattr(model_cfg.data, "test_ds") and model_cfg.data.test_ds is not None:
                 cfg.inference.add_BOS = model_cfg.data.test_ds.get("add_BOS", False)
                 cfg.inference.tokens_to_generate = model_cfg.data.test_ds.get("tokens_to_generate", 1)
 
