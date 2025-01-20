@@ -26,7 +26,6 @@ model:
   context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts
   context_duration_min: 3.0
   context_duration_max: 8.0
-  use_perceiver: false # For multi_encoder_context_tts, use perceiver after speaker encoder or not
   speaker_emb_dim: 192 # Only used for single_encoder_sv_tts, ignored otherwise
   num_audio_codebooks: 8
   num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
@@ -163,7 +162,7 @@ model:
     p_dropout_out: 0.0
     has_xattn: false
     is_causal: False
-    apply_norm_out: false
+    apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
   
@@ -177,7 +176,7 @@ model:
     p_dropout_out: 0.0
     has_xattn: false
     is_causal: false
-    apply_norm_out: false
+    apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
 
@@ -194,7 +193,7 @@ model:
     xa_n_heads: 12
     is_causal: true
     apply_norm_to_cond: true
-    apply_norm_out: false
+    apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
 

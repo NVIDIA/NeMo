@@ -31,7 +31,7 @@ from nemo.collections.tts.parts.utils.helpers import (
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
-from nemo.collections.tts.modules import t5tts_transformer, t5tts_perceiver
+from nemo.collections.tts.modules import t5tts_transformer
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 import nemo.collections.asr as nemo_asr
@@ -179,19 +179,8 @@ class T5TTS_Model(ModelPT):
             for layer in self.context_decoder_layers:
                 multi_encoder_mapping[layer] = 1
             self.multi_encoder_mapping = multi_encoder_mapping
-
             self.context_encoder = t5tts_transformer.Transformer(**dict(cfg.context_encoder))
-            if cfg.use_perceiver:
-                self.perceiver_resampler = t5tts_perceiver.PerceiverResampler(
-                    dim=cfg.context_encoder.d_model,
-                    depth=2,
-                    dim_context=cfg.context_encoder.d_model,
-                    num_latents=32,
-                    dim_head=64,
-                    heads=8,
-                    ff_mult=4,
-                    use_flash_attn=False,
-                )
+            
         elif self.model_type == 'decoder_context_tts':
             self.transcript_decoder_layers = [idx for idx in range(cfg.t5_decoder.n_layers)] # All layers are used for text
         elif self.model_type == 'decoder_pretrain_synthesizer':
@@ -528,11 +517,6 @@ class T5TTS_Model(ModelPT):
 
             if self.model_type == 'multi_encoder_context_tts':
                 context_embeddings = self.context_encoder(context_input_embedded, context_mask, cond=None, cond_mask=None)['output']
-                if self.cfg.use_perceiver:
-                    # pneekhara: Check if we can pass mask here. Mask of size B, L doesn't work
-                    context_embeddings = self.perceiver_resampler(context_embeddings) # B, 32, C
-                    context_mask = torch.ones(context_embeddings.size(0), context_embeddings.size(1), dtype=torch.bool, device=context_embeddings.device)
-                
                 cond = [text_encoder_out, context_embeddings]
                 cond_mask = [text_mask, context_mask]
                 multi_encoder_mapping = self.multi_encoder_mapping
