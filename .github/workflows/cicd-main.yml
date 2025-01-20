@@ -39,6 +39,7 @@ jobs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
       all: ${{ steps.all.outputs.main }}
       event_name: ${{ steps.github-event.outputs.main }}
+      ngc_pytorch: ${{ steps.ngc-pytorch.outputs.main }}
     steps:
       - name: Parse test_to_run
         id: test_to_run
@@ -53,6 +54,12 @@ jobs:
         id: github-event
         run: |
           echo "main=${{ github.event_name }}" | tee -a "$GITHUB_OUTPUT"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Infer NGC Pytorch version
+        id: ngc-pytorch
+        run: |
+          echo "main=$(cat .pytorch-version)" | tee -a "$GITHUB_OUTPUT"
   
   cicd-test-container-build:
     if: ${{ github.event.label.name == 'Run CICD' || needs.pre-flight.outputs.event_name == 'workflow_dispatch' }}
@@ -64,6 +71,7 @@ jobs:
       image-label: nemo-core
       build-args: |
         IMAGE_LABEL=nemo-core
+        NGC_PYTORCH=${{ needs.pre-flight.outputs.ngc_pytorch }}
       prune-filter-timerange: 24h
       
   cicd-test-container-setup:
