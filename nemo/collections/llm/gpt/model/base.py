@@ -129,7 +129,7 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
 
 def transformer_engine_full_layer_spec(config: "GPTConfig") -> ModuleSpec:
-    assert HAVE_MEGATRON_CORE and HAVE_TE, "Please ensure Megatron Core and Transformer Engine are installed."
+    assert HAVE_TE, "Please ensure Megatron Core and Transformer Engine are installed."
     num_layers = get_num_layers_to_build(config)
     return TransformerBlockSubmodules(
         layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers, layer_norm=FusedLayerNorm
@@ -483,7 +483,7 @@ class AutocastTransformerLayer(TransformerLayer):
         **kwargs,
     ) -> None:
         assert (
-            HAVE_MEGATRON_CORE and HAVE_TE
+            HAVE_TE
         ), "AutocastTransformerLayer requires Megatron Core and Transformer Engine to be installed."
 
         transformer_layer_args = {
@@ -578,7 +578,7 @@ class AutocastTransformerLayer(TransformerLayer):
 class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer):
     def __init__(self, config, layer_number=1, hidden_dropout=None):
         assert (
-            HAVE_MEGATRON_CORE and HAVE_TE
+            HAVE_TE
         ), "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
 
         self.config = config
