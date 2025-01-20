@@ -61,7 +61,7 @@ def main(args):
 
     mimo_config = MimoConfig(
         stage=stage,
-        language_transformer_config=Llama2Config7B(),
+        language_transformer_config=Llama2Config7B(seq_length=seq_length),
         vocab_size=tokenizer.vocab_size,
         image_special_token_indices=image_special_token_indices,
         image_special_tokens=image_special_tokens,
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--name", type=str, required=False, default="mimo_encoder_alignment_vqa")
-    parser.add_argument("--wandb_project", type=str, required=False, default="mimo_encoder_alignment_vqa")
+    parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--restore_path", type=str, required=False, default=None)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
 
