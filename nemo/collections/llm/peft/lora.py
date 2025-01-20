@@ -82,12 +82,15 @@ class LinearAdapter(nn.Linear):
         if orig_linear.bias is not None:
             self.bias.data.copy_(orig_linear.bias.data)
         # initialize the adapte
-        LinearAdapter._init_adapter(self, dim=dim,
-        alpha=alpha,
-        dropout=dropout,
-        dropout_position=dropout_position,
-        lora_A_init_method=lora_A_init_method,
-        lora_dtype=lora_dtype)
+        LinearAdapter._init_adapter(
+            self,
+            dim=dim,
+            alpha=alpha,
+            dropout=dropout,
+            dropout_position=dropout_position,
+            lora_A_init_method=lora_A_init_method,
+            lora_dtype=lora_dtype,
+        )
 
     @staticmethod
     def _init_adapter(
