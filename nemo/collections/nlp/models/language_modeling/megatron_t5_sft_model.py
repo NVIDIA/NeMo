@@ -27,6 +27,12 @@ from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import Sequen
 from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import T5SFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    get_default_length_params,
+    get_default_sampling_params,
+    megatron_t5_generate
+)
+from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
@@ -317,29 +323,43 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
             tensor_shape=tensor_shape,
             decoder_seq_length=decoder_seq_length,
         )
+    def get_inference_config(self, data_cfg):
+        inference_config = {}
+        if data_cfg.get('inference_config', None) is None:
+            inference_config = data_cfg.inference_config
+        else:
+            inference_config.update(get_default_sampling_params())
+            inference_config.update(get_default_length_params())
+        return inference_config
 
-    def inference_step(self, dataloader_iter, mode: str):
-        # Regular finetuning datasets will return a list of dicts for each microbatch.
-        # But T0 datasets will return a single dict for the global batch.
+    def inference_step(self, dataloader_iter, mode="validation"):
         batch, batch_idx, dataloader_idx = next(dataloader_iter)
         batch_has_lang_information = isinstance(batch, list) and len(batch[0]) == 7
         data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
 
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
 
-        # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI,
-        # this will be ignored.
         loss = self.fwd_bwd_step(itertools.chain([batch]), forward_only=True)
 
-        predicted_token_ids, _ = self.decode(
-            tokens_enc=batch['text_enc'],
-            enc_mask=batch['enc_mask'],
-            num_tokens_to_generate=30,
-            bos_id=self.tokenizer.pad_id if data_cfg.get('replace_bos_with_pad', False) else self.tokenizer.bos_id,
-        )
+        if self.mcore_t5:
+            inference_config = self.get_inference_config(data_cfg)
+                
+            dec_inputs = pad_batch([[self.tokenizer.bos_id] for _ in batch["text_dec"]], self.tokenizer.pad_id, self.cfg.seq_length)
+            dec_inputs = tuple(torch.LongTensor(t).cuda(non_blocking=True) for t in dec_inputs)
+            enc_inputs = (batch["text_enc"].cuda(non_blocking=True), batch["enc_mask"].cuda(non_blocking=True))
 
-        # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
-        preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
+            predicted = megatron_t5_generate(self, dec_inputs, self.tokenizer, inference_config, enc_inputs)
+
+            preds_text = MegatronT5SFTModel.ids_to_text(predicted['token_ids'], self.tokenizer)
+        else:
+            predicted_token_ids, _ = self.decode(
+                tokens_enc=batch['text_enc'],
+                enc_mask=batch['enc_mask'],
+                num_tokens_to_generate=30,
+                bos_id=self.tokenizer.pad_id if data_cfg.get('replace_bos_with_pad', False) else self.tokenizer.bos_id,
+            )
+            preds_text = MegatronT5SFTModel.ids_to_text(predicted_token_ids, self.tokenizer)
+
         labels_text = MegatronT5SFTModel.ids_to_text(batch['labels'], self.tokenizer)
         input_text = MegatronT5SFTModel.ids_to_text(batch['text_enc'], self.tokenizer)
 
@@ -390,7 +410,8 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
 
     @classmethod
     def ids_to_text(cls, batch_ids, tokenizer):
-        batch_ids = batch_ids.cpu().numpy().tolist()
+        if not isinstance(batch_ids, list):
+            batch_ids = batch_ids.cpu().numpy().tolist()
         texts = []
         for ids in batch_ids:
             if tokenizer.eos_id in ids:

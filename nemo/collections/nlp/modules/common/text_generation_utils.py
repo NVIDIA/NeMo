@@ -145,6 +145,60 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
     )
     return output
 
+def megatron_t5_generate(model, inputs, tokenizer, inference_params, encoder_inputs, **strategy_args):
+    # reproduce the old compute_prob method
+    # a very special case
+    if inference_params['compute_logprob']:
+        # need to overwrite some configuration, make it immutable
+        inference_params = inference_params.copy()
+        inference_params = inference_params.copy()
+        inference_params['max_length'] = 1
+        inference_params['all_probs'] = True
+        inference_params["add_BOS"] = False
+        inference_params['greedy'] = True
+        response = generate(
+            model,
+            inputs=inputs,
+            tokens_to_generate=inference_params['max_length'],
+            all_probs=inference_params['all_probs'],
+            compute_logprob=inference_params['compute_logprob'],
+            temperature=inference_params['temperature'],
+            add_BOS=inference_params['add_BOS'],
+            top_k=inference_params['top_k'],
+            top_p=inference_params['top_p'],
+            greedy=inference_params['use_greedy'],
+            repetition_penalty=inference_params['repetition_penalty'],
+            end_strings=inference_params['end_strings'],
+            min_tokens_to_generate=inference_params['min_length'],
+            compute_attention_mask=inference_params.get("compute_attention_mask", True),
+            t5_encoder_inputs=encoder_inputs,
+            **strategy_args,
+        )
+        compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
+        return compute_prob_response
+
+    if not isinstance(inputs, (list, tuple)):
+        raise NotImplementedError(f"unknown type {type(inputs)} is not implemented")
+
+    output = generate(
+        model,
+        inputs=inputs,
+        tokens_to_generate=inference_params['max_length'],
+        all_probs=inference_params['all_probs'],
+        compute_logprob=inference_params['compute_logprob'],
+        temperature=inference_params['temperature'],
+        add_BOS=inference_params['add_BOS'],
+        top_k=inference_params['top_k'],
+        top_p=inference_params['top_p'],
+        greedy=inference_params['use_greedy'],
+        repetition_penalty=inference_params['repetition_penalty'],
+        end_strings=inference_params['end_strings'],
+        min_tokens_to_generate=inference_params['min_length'],
+        t5_encoder_inputs=encoder_inputs,
+        **strategy_args,
+    )
+
+    return output
 
 def decode_time_tokens(tokenizer, text: str, duration: float, time_tokens: list[str], time_token_ids: list[int]):
     """Decode the time tokens <t0>....<t99> in the text to the actual time in seconds.
@@ -584,6 +638,7 @@ def synced_generate(
     end_strings=[],
     min_tokens_to_generate=0,
     image_list=None,
+    t5_encoder_inputs=None,
     **strategy_args,
 ):
     context_length = context_length_tensor.min().item()
@@ -625,6 +680,7 @@ def synced_generate(
             temperature=temperature,
             end_strings=end_strings,
             image_list=image_list,
+            t5_encoder_inputs=t5_encoder_inputs,
             extra=extra,
         )
 
@@ -685,6 +741,7 @@ def generate(
     repetition_penalty=1.0,
     end_strings=['<|endoftext|>'],
     image_list=None,
+    t5_encoder_inputs=None,             # Maybe merge the t5_encoder_inputs and image_list, for they are both auxiliary inputs.
     min_tokens_to_generate=0,
     random_seed=None,
     **strategy_args,
@@ -822,6 +879,7 @@ def generate(
         end_strings=end_strings,
         min_tokens_to_generate=min_tokens_to_generate,
         image_list=image_list,
+        t5_encoder_inputs=t5_encoder_inputs,
         **strategy_args,
     )
     special_tokens = set()
@@ -907,6 +965,7 @@ def sample_sequence_batch(
     temperature=None,
     end_strings=['<|endoftext|>'],
     image_list=None,
+    t5_encoder_inputs=None,
     extra={},
 ):
     # Importing here to avoid circular import errors
@@ -962,12 +1021,15 @@ def sample_sequence_batch(
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                     tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, image_list
                 )
+            elif t5_encoder_inputs is not None:
+                batch, tensor_shape = inference_strategy.prepare_batch_at_step(
+                    tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask, t5_encoder_inputs
+                )
             else:
                 batch, tensor_shape = inference_strategy.prepare_batch_at_step(
                     tokens, maxlen, micro_batch_size, counter, context_length, compute_attention_mask
                 )
             output = inference_strategy.forward_step(batch, tensor_shape)
-
             if parallel_state.is_pipeline_last_stage():
 
                 if compute_logprob:

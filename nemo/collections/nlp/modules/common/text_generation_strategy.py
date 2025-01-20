@@ -76,7 +76,7 @@ class TextGenerationStrategy:
                     batch,
                 ]
             ),
-            model=[self.forward_model] if not isinstance(self.forward_model, list) else self.forward_model,
+            model=[self.forward_model],
             num_microbatches=get_num_microbatches(),
             forward_only=True,
             seq_length=tensor_shape[0],
@@ -266,6 +266,57 @@ class TextGenerationStrategy:
 
         return end_tokens, end_strings_to_check
 
+class T5ModelTextGenerationStrategy(TextGenerationStrategy):
+    def __init__(self, model):
+        super().__init__(model)
+        self.forward_model = self.model.enc_dec_model
+
+    def clip_max_len(self, maxlen: int) -> int:
+        """clip the max len based on the LM model max sequence length"""
+
+        if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
+            if maxlen > self.model.cfg.seq_length + 1:
+                maxlen = self.model.cfg.seq_length + 1
+        return maxlen
+
+    def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
+        return
+
+    def prepare_batch_at_step(
+        self,
+        tokens: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_length: int,
+        compute_attention_mask: bool = True,
+        t5_encoder_inputs: torch.Tensor = None,
+    ) -> Tuple[List[torch.Tensor], List[int]]:
+        """
+        generate the batch used in inference for each of the steps
+        """
+        if step == 0:
+            # Allocate memory for the entire context.
+            set_inference_key_value_memory = True
+            tokens2use = tokens[:, :context_length]
+            self.encoder_hidden_states = self.model.encode(*t5_encoder_inputs, reconfigure_microbatch=False)
+        else:
+            # Set this to false so the memory is not reallocated.
+            set_inference_key_value_memory = False
+            tokens2use = tokens[:, context_length - 1].view(micro_batch_size, -1)
+
+        """Prepare batch for each of the inference steps"""
+        attention_mask_repeat = None
+        if compute_attention_mask:
+            attention_mask_repeat = tokens.new_zeros(micro_batch_size, tokens2use.size(-1))
+
+        setkey_value_array = torch.tensor(
+            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+        )
+        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+        batch = [self.encoder_hidden_states, t5_encoder_inputs[1], tokens2use, attention_mask_repeat, setkey_value_array, len_array]
+        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        return batch, tensor_shape
 
 class GPTModelTextGenerationStrategy(TextGenerationStrategy):
     def __init__(self, model):
@@ -1050,6 +1101,7 @@ def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
         MegatronGPTPromptLearningModel,
     )
+    from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import MegatronLMEncoderDecoderModel
     from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
     from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
     from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
@@ -1070,6 +1122,8 @@ def model_inference_strategy_dispatcher(model, **args):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel) and not (isinstance(model, MegatronRetroModel)):
         return GPTModelTextGenerationStrategy(model)
+    elif isinstance(model, MegatronLMEncoderDecoderModel):
+        return T5ModelTextGenerationStrategy(model)
     elif isinstance(model, MegatronRetrievalModel):
         strategy_name = args['strategy']
         del args['strategy']

@@ -33,10 +33,12 @@ from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
     MegatronTokenLevelEncoderDecoderModule,
+    AttnMaskType
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
+    build_attention_mask_3d
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     compute_beam_search_len_penalty,
@@ -46,7 +48,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
-    from megatron.core import parallel_state, tensor_parallel
+    from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.models.T5 import T5Model as MCoreT5Model
     from megatron.core.models.T5.t5_spec import (
@@ -150,6 +152,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
+        self.inference_params = None
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
@@ -683,13 +686,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 # attn mask logic follows megatron.data.t5_dataset.py in Megatron-LM
                 encoder_attn_mask = encoder_attn_mask < 0.5
                 decoder_attn_mask = decoder_attn_mask < 0.5
-                encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
-                decoder_attn_mask_3d = decoder_attn_mask.unsqueeze(1).unsqueeze(1)
-                enc_dec_attn_mask_3d = (
-                    decoder_attn_mask_3d,
-                    encoder_attn_mask_3d,
-                )
-
+                if self.cfg.get('transformer_engine', False):
+                    encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
+                    decoder_attn_mask_3d = decoder_attn_mask.unsqueeze(1).unsqueeze(1)
+                    enc_dec_attn_mask_3d = (
+                        decoder_attn_mask_3d,
+                        encoder_attn_mask_3d,
+                    )
+                else:
+                    encoder_attn_mask_3d = build_attention_mask_3d(encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding).unsqueeze(1)
+                    decoder_attn_mask_3d = build_attention_mask_3d(decoder_attn_mask, decoder_attn_mask, AttnMaskType.causal).unsqueeze(1)
+                    enc_dec_attn_mask_3d = build_attention_mask_3d(decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding).unsqueeze(1)
                 output = model(  # model is MCoreT5Model
                     encoder_input_ids,  # encoder_input_ids
                     decoder_input_ids,  # decoder_input_ids
@@ -788,7 +795,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return forward_args
 
-    def _get_forward_output_only_func(self, arg_names, output_name, **kwargs):
+    def get_forward_output_only_func(self, arg_names=[], output_name="logits", **kwargs):
         """
         args_idx - maps batch into index of args (with None filling gaps)
         arg_names - corresponding names for a friendly error message
@@ -814,8 +821,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     ) = batch
 
                     encoder_attn_mask = encoder_attn_mask < 0.5
-                    encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
-
+                    if self.cfg.get('transformer_engine', False):
+                        encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
+                    else:
+                        encoder_attn_mask_3d = build_attention_mask_3d(encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding).unsqueeze(1)
                     output = model(
                         encoder_input_ids=encoder_input_ids,
                         decoder_input_ids=None,
@@ -834,17 +843,32 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         encoder_attn_mask,
                         decoder_input_ids,
                         decoder_attn_mask,
+                        set_inference_key_value_memory,
+                        inference_max_sequence_len
                     ) = batch
 
                     encoder_attn_mask = encoder_attn_mask < 0.5
                     decoder_attn_mask = decoder_attn_mask < 0.5
-                    encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
-                    decoder_attn_mask_3d = decoder_attn_mask.unsqueeze(1).unsqueeze(1)
-                    enc_dec_attn_mask_3d = (
-                        decoder_attn_mask_3d,
-                        encoder_attn_mask_3d,
-                    )
+                    if self.cfg.get('transformer_engine', False):
+                        encoder_attn_mask_3d = encoder_attn_mask.unsqueeze(1).unsqueeze(1)
+                        decoder_attn_mask_3d = decoder_attn_mask.unsqueeze(1).unsqueeze(1)
+                        enc_dec_attn_mask_3d = (
+                            decoder_attn_mask_3d,
+                            encoder_attn_mask_3d,
+                        )
+                    else:
+                        encoder_attn_mask_3d = build_attention_mask_3d(encoder_attn_mask, encoder_attn_mask, AttnMaskType.padding).unsqueeze(1)
+                        decoder_attn_mask_3d = build_attention_mask_3d(decoder_attn_mask, decoder_attn_mask, AttnMaskType.causal).unsqueeze(1)
+                        enc_dec_attn_mask_3d = build_attention_mask_3d(decoder_attn_mask, encoder_attn_mask, AttnMaskType.padding).unsqueeze(1)
 
+                    extra_arg = {}
+                    if self.mcore_t5:
+                        if set_inference_key_value_memory[0].item():
+                            self.inference_params = InferenceParams(
+                                max_batch_size=decoder_input_ids.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+                            )
+                        extra_arg['inference_params'] = self.inference_params
+                        
                     # re-transpose encoder_hidden_states from [batch, seq_len, hidden] to [seq_len, batch, hidden]
                     encoder_hidden_states = encoder_hidden_states.transpose(1, 0)
 
@@ -857,6 +881,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         lm_labels=None,
                         encoder_hidden_states=encoder_hidden_states,
                         output_encoder_hidden_only=False,
+                        **extra_arg
                     ).contiguous()
 
                 else:
@@ -870,6 +895,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
 
                 output = model(*args).contiguous()
+
+            # Advance inference sequence offset.
+            if self.inference_params:
+                # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
+                if parallel_state.is_pipeline_last_stage():
+                    self.inference_params.sequence_len_offset += output.size(1)
+                else:
+                    self.inference_params.sequence_len_offset += output.size(0)
 
             def id_func(output_tensor):
                 if isinstance(output_tensor, dict):
@@ -1277,9 +1310,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             arg_names.append('enc_input')
 
         if self.mcore_t5:
-            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="hiddens")
+            forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, output_name="hiddens")
         else:
-            forward_step_func = self._get_forward_output_only_func(
+            forward_step_func = self.get_forward_output_only_func(
                 arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
             )
         fwd_bwd_func = get_forward_backward_func()
@@ -1463,7 +1496,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask, batch_data]
                 arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'batch_data']
 
-            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+            forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             fwd_bwd_func = get_forward_backward_func()
 
             output_tensor = fwd_bwd_func(
