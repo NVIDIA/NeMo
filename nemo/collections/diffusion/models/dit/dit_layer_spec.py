@@ -718,8 +718,6 @@ def get_stdit_adaln_block_with_transformer_engine_spec() -> ModuleSpec:
                     linear_kv=TEColumnParallelLinear,
                     core_attention=TEDotProductAttention,
                     linear_proj=TERowParallelLinear,
-                    q_layernorm=TENorm,
-                    k_layernorm=TENorm,
                 ),
             ),
             mlp=ModuleSpec(
@@ -757,8 +755,6 @@ def get_dit_adaln_block_with_transformer_engine_spec(attn_mask_type=AttnMaskType
                     linear_kv=TEColumnParallelLinear,
                     core_attention=TEDotProductAttention,
                     linear_proj=TERowParallelLinear,
-                    q_layernorm=RMSNorm,
-                    k_layernorm=RMSNorm,
                 ),
             ),
             mlp=ModuleSpec(
