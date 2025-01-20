@@ -35,10 +35,8 @@ from torch.nn.modules.loss import _Loss
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.megatron_parallel import DDP, MaskedTokenLossReduction
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
@@ -183,17 +181,17 @@ class DistillationGPTModel(llm.GPTModel):
 
     def __init__(
         self,
-        kd_teacher_restore_from_path: str,
-        config: llm.GPTConfig,
+        student_config: llm.GPTConfig,
+        teacher_config: llm.GPTConfig,
+        teacher_ckpt_path: str,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config, optim, tokenizer, model_transform)
-        self._kd_teacher_restore_from_path = kd_teacher_restore_from_path
+        super().__init__(student_config, optim, tokenizer, model_transform)
+        self._teacher_config = teacher_config
+        self._teacher_ckpt_path = teacher_ckpt_path
 
-        if not self._kd_teacher_restore_from_path:
-            raise ValueError("Config attribute `kd_teacher_restore_from_path` must be set.")
         if self.config.virtual_pipeline_model_parallel_size is not None:
             raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
 
@@ -206,7 +204,11 @@ class DistillationGPTModel(llm.GPTModel):
         # [ModelOpt] Intialize DistillationModel.
         distill_cfg = load_distillation_config(self.config)
         kd_config = {
-            "teacher_model": (_teacher_provider, [self._kd_teacher_restore_from_path], {"trainer": self.trainer}),
+            "teacher_model": (
+                _teacher_provider,
+                [self._teacher_config, self._teacher_ckpt_path],
+                {"tokenizer": self.tokenizer, "trainer": self.trainer},
+            ),
             "criterion": distill_cfg["criterion"],
             "loss_balancer": distill_cfg["loss_balancer"],
         }
@@ -235,12 +237,20 @@ class DistillationGPTModel(llm.GPTModel):
     @property
     def training_loss_reduction(self) -> _DistillationLossReduction:
         if not self._training_loss_reduction:
-            core_module = unwrap_model(self.module, (DDP, Float16Module, MCoreFloat16Module))
             self._training_loss_reduction = _DistillationLossReduction(
-                distillation_loss_fn=core_module.compute_kd_loss
+                distillation_loss_fn=self.core_module.compute_kd_loss
             )
 
         return self._training_loss_reduction
+
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+        # `super()` would go to `nn.Module` and skip the Context Manager in `mtd.DistillationModel.load_state_dict()`
+        return self.core_module.load_state_dict(state_dict, *args, *kwargs)
+
+    @property
+    def core_module(self):
+        return unwrap_model(self.module, (DDP, Float16Module, MCoreFloat16Module))
 
 
 ########################################################
@@ -429,27 +439,25 @@ class _DummyLossBalancer(mtd.DistillationLossBalancer):
         return next(iter(loss_dict.values()))
 
 
-def _teacher_provider(teacher_path: str, trainer: nl.Trainer) -> MCoreGPTModel:
+def _teacher_provider(
+    config: llm.GPTConfig, ckpt_path: str, tokenizer: "TokenizerSpec", trainer: nl.Trainer
+) -> MCoreGPTModel:
     """Teacher model factory (must be a non-local function to pickle)."""
     logging.info("Distillation: Loading teacher weights...")
 
-    ckpt_load_optimizer = trainer.strategy.ckpt_load_optimizer
-    setup_optimizers = trainer.strategy._setup_optimizers
-
-    trainer.strategy.ckpt_load_optimizer = False
-    trainer.strategy._setup_optimizers = False
-    # trainer.strategy.megatron_parallel.ddp_config = None
-    orig_model = trainer.model
-
     # TODO(aanoosheh): Replace spec with modelopt one
-    model, _ = io.ModelConnector().nemo_load(teacher_path, trainer, cpu=False)
-    model = unwrap_model(model.module, (DDP, Float16Module, MCoreFloat16Module))
+    model = config.configure_model(tokenizer)
 
-    trainer.strategy.ckpt_load_optimizer = ckpt_load_optimizer
-    trainer.strategy._setup_optimizers = setup_optimizers
-    # trainer.strategy.megatron_parallel.ddp_config = ddp_config
-    trainer.strategy.connect(orig_model)
+    sharded_state_dict = {"state_dict": model.sharded_state_dict(prefix="module.")}
+    checkpoint = trainer.strategy.checkpoint_io.load_checkpoint(
+        ckpt_path,
+        sharded_state_dict=sharded_state_dict,
+    )
+    state_dict = checkpoint["state_dict"]
+    state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+    model.load_state_dict(state_dict)
 
+    torch.cuda.empty_cache()
     logging.info("Distillation: ...teacher weights loaded.")
     return model
 
@@ -576,14 +584,21 @@ if __name__ == "__main__":
         plugins=nl.MegatronMixedPrecision(precision=args.precision),
     )
 
-    ## load student model
-    _model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
-    assert hasattr(_model, "tokenizer"), "Please provide a model checkpoint with tokenizer included."
-    model_config, tokenizer = _model.config, _model.tokenizer
-    # model_config.transformer_layer_spec = get_gpt_layer_modelopt_spec()  # TODO(aanoosheh)
-    model = DistillationGPTModel(args.teacher_path, model_config, tokenizer=tokenizer)
-    # model.trainer = trainer
-    # _setup_trainer_and_restore_model(args.student_path, trainer, model)
+    ## load the combined teacher-student model
+    _student_model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
+    _teacher_model = nl.io.load_context(path=ckpt_to_context_subdir(args.teacher_path), subpath="model")
+
+    tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
+    assert tokenizer is not None, "Please provide a model checkpoint with tokenizer included."
+
+    # TODO(aanoosheh): Replace spec with modelopt one
+    model = DistillationGPTModel(
+        _student_model.config,
+        _teacher_model.config,
+        teacher_ckpt_path=args.teacher_path,
+        tokenizer=tokenizer,
+    )
+    model.__io__ = _student_model.__io__  # HACK: model saves and restores as original class
 
     # setup the dataset
     data = llm.PreTrainingDataModule(
@@ -595,14 +610,6 @@ if __name__ == "__main__":
         index_mapping_dir=args.index_mapping_dir,
         tokenizer=tokenizer,
     )
-
-    # TODO auto-resume setup
-    # resume = nl.AutoResume(
-    #     resume_if_exists=True,
-    #     resume_ignore_no_checkpoint=True,
-    #     resume_from_directory=args.log_dir,
-    #     restore_config=nl.RestoreConfig(path=STUDENT_PATH) if STUDENT_PATH else None,
-    # )
 
     ## setup the optimizer
     opt_config = OptimizerConfig(
@@ -631,7 +638,15 @@ if __name__ == "__main__":
         ckpt=checkpoint_callback,
     )
 
-    # suppress warning
+    # auto-resume setup
+    resume = nl.AutoResume(
+        resume_if_exists=True,
+        resume_from_directory=args.log_dir,
+        resume_ignore_no_checkpoint=True,
+        restore_config=nl.RestoreConfig(path=args.student_path),
+    )
+
+    # suppress HF warning
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     # run
@@ -642,4 +657,5 @@ if __name__ == "__main__":
         tokenizer='model',
         trainer=trainer,
         log=logger,
+        resume=resume,
     )
