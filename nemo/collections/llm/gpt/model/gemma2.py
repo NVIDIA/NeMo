@@ -12,28 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
 import torch
-import math
-
 from megatron.core import parallel_state, tensor_parallel
-from megatron.core.tensor_parallel import ColumnParallelLinear
-from megatron.core.extensions.transformer_engine import TENorm, TERowParallelLinear, TELayerNormColumnParallelLinear
+from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear, TENorm, TERowParallelLinear
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.transformer import ModuleSpec, TransformerLayer, TransformerLayerSubmodules, MegatronModule, TransformerConfig
+from megatron.core.fusions.fused_softmax import FusedScaleMaskSoftmax
+from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.tensor_parallel import ColumnParallelLinear
+from megatron.core.transformer import (
+    MegatronModule,
+    ModuleSpec,
+    TransformerConfig,
+    TransformerLayer,
+    TransformerLayerSubmodules,
+)
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.fusions.fused_softmax import FusedScaleMaskSoftmax
 from megatron.core.transformer.utils import attention_mask_func
 from megatron.core.utils import divide
-
-from torch import nn
-from torch import Tensor
+from torch import Tensor, nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel

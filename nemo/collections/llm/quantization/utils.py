@@ -13,17 +13,9 @@
 # limitations under the License.
 
 from pathlib import Path
-
 from typing import Optional
 
 import torch
-
-from nemo import lightning as nl
-from nemo.collections import llm
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.utils import logging
-
 from megatron.core.extensions.transformer_engine import TEDotProductAttention, TENorm
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.models.gpt.gpt_layer_specs import _get_mlp_module_spec
@@ -33,6 +25,12 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+
+from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.utils import logging
 
 
 def get_modelopt_decoder_type(model: llm.GPTModel) -> str:

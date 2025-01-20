@@ -13,20 +13,20 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union, Any
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Union
 
 import lightning.pytorch as L
 import torch
 import torch.distributed
+from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.transformer.cuda_graphs import CudaGraphManager
+from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, get_num_layers_to_build
+from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import BaseTransformerLayer
 from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 from torch import nn
@@ -482,9 +482,7 @@ class AutocastTransformerLayer(TransformerLayer):
         device: str = 'cuda',
         **kwargs,
     ) -> None:
-        assert (
-            HAVE_TE
-        ), "AutocastTransformerLayer requires Megatron Core and Transformer Engine to be installed."
+        assert HAVE_TE, "AutocastTransformerLayer requires Megatron Core and Transformer Engine to be installed."
 
         transformer_layer_args = {
             "hidden_size": hidden_size,
@@ -577,9 +575,7 @@ class AutocastTransformerLayer(TransformerLayer):
 
 class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer):
     def __init__(self, config, layer_number=1, hidden_dropout=None):
-        assert (
-            HAVE_TE
-        ), "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
+        assert HAVE_TE, "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
 
         self.config = config
         self.is_first_microbatch = True
