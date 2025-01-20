@@ -64,9 +64,7 @@ def get_args():
     )
     parser.add_argument(
         "--llama31",
-        type=bool,
-        default=True,
-        required=False,
+        action="store_true",
         help="Whether the model is from LLaMa 3.1 family. LLaMa 3.1 enables scaling for RoPE frequencies.",
     )
     parser.add_argument("--precision", type=str, default="16", help="Model precision")
