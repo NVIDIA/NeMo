@@ -48,6 +48,7 @@ class AppState(metaclass=Singleton):
         self._tensor_model_parallel_size = None
         self._tensor_model_parallel_group = None
         self._expert_model_parallel_size = None
+        self._expert_tensor_parallel_size = None
         self._pipeline_model_parallel_size = None
         self._virtual_pipeline_model_parallel_size = None
         self._encoder_tensor_model_parallel_size = None
