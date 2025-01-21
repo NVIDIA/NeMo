@@ -18,15 +18,15 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.tts.modules.transformer_2501 import (
-    Transformer,
-)
+from nemo.collections.tts.modules.transformer_2501 import Transformer
+
 
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
+
 
 @pytest.mark.unit
 class TestTransformer:
