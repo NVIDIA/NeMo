@@ -75,10 +75,10 @@ class TestTransformer:
         )
 
         # Check model init
-        assert torch.isclose(torch.mean(model.layers[0].pos_ff.proj.weight), 0.)
+        assert torch.isclose(torch.mean(model.layers[0].pos_ff.proj.weight), 0.0)
         assert torch.isclose(torch.std(model.layers[0].pos_ff.proj.weight), 0.02)
-        assert torch.isclose(torch.mean(model.layers[0].pos_ff.o_net.weight), 0.)
-        assert torch.isclose(torch.std(model.layers[0].pos_ff.o_net.weight), 0.02/math.sqrt(2.))
+        assert torch.isclose(torch.mean(model.layers[0].pos_ff.o_net.weight), 0.0)
+        assert torch.isclose(torch.std(model.layers[0].pos_ff.o_net.weight), 0.02 / math.sqrt(2.0))
 
         mask_tensor = torch.ones(1, self.max_length_causal_mask).bool()
         with torch.no_grad():
