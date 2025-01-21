@@ -314,7 +314,11 @@ def main():
     tokenizer = None
     prompt = None
     if args.tokenizer is not None:
-        tokenizer = load_tokenizer(args.tokenizer, args.langs, 'canary' in args.prompt_format)
+        tokenizer = load_tokenizer(
+            paths=args.tokenizer,
+            langs=args.langs,
+            is_canary=args.prompt_format is not None and 'canary' in args.prompt_format,
+        )
         if args.prompt_format is not None:
             prompt_defaults = None
             if args.prompt is not None:
