@@ -157,6 +157,8 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
         if isinstance(loss_output, tuple):
             # [ModelOpt]: Losses can return extra flag to indicate additional TP-reduction (often required)
             loss_output, tp_reduce = loss_output
+        else:
+            tp_reduce = False
         losses = loss_output.float()
         loss_mask = mask.view(-1).float()
 
@@ -191,6 +193,7 @@ class DistillationGPTModel(llm.GPTModel):
         super().__init__(student_config, optim, tokenizer, model_transform)
         self._teacher_config = teacher_config
         self._teacher_ckpt_path = teacher_ckpt_path
+        self._train_called = False
 
         if self.config.virtual_pipeline_model_parallel_size is not None:
             raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
@@ -200,6 +203,16 @@ class DistillationGPTModel(llm.GPTModel):
             return
 
         model = self.config.configure_model(self.tokenizer)
+
+        # Ensure same for both models.
+        for attr in [
+            "tensor_model_parallel_size",
+            "pipeline_model_parallel_size",
+            "context_parallel_size",
+            "sequence_parallel",
+            "pipeline_dtype",
+        ]:
+            setattr(self._teacher_config, attr, getattr(self.config, attr))
 
         # [ModelOpt] Intialize DistillationModel.
         distill_cfg = load_distillation_config(self.config)
@@ -251,6 +264,19 @@ class DistillationGPTModel(llm.GPTModel):
     @property
     def core_module(self):
         return unwrap_model(self.module, (DDP, Float16Module, MCoreFloat16Module))
+
+    def train(self, mode: bool = True):
+        self._train_called = True
+        return super().train(mode)
+
+    def __setattr__(self, name, value):
+        # HACK: PTL calls `module.training = True` after sanity check, bypassing `module.train()` which we depend on.
+        if name == "training":
+            if not self._train_called:
+                self.train(value)
+                return
+            self._train_called = False
+        return super().__setattr__(name, value)
 
 
 ########################################################
@@ -449,12 +475,8 @@ def _teacher_provider(
     model = config.configure_model(tokenizer)
 
     sharded_state_dict = {"state_dict": model.sharded_state_dict(prefix="module.")}
-    checkpoint = trainer.strategy.checkpoint_io.load_checkpoint(
-        ckpt_path,
-        sharded_state_dict=sharded_state_dict,
-    )
-    state_dict = checkpoint["state_dict"]
-    state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+    checkpoint = trainer.strategy.checkpoint_io.load_checkpoint(ckpt_path, sharded_state_dict)
+    state_dict = {k.replace("module.", ""): v for k, v in checkpoint["state_dict"].items()}
     model.load_state_dict(state_dict)
 
     torch.cuda.empty_cache()
@@ -641,7 +663,6 @@ if __name__ == "__main__":
     # auto-resume setup
     resume = nl.AutoResume(
         resume_if_exists=True,
-        resume_from_directory=args.log_dir,
         resume_ignore_no_checkpoint=True,
         restore_config=nl.RestoreConfig(path=args.student_path),
     )
