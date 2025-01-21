@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Tuple, Optional
-from omegaconf import DictConfig
-from typing import List
 import os
+from typing import List, Optional, Tuple
+
+from omegaconf import DictConfig
+
 
 def separate_bucket_transcriptions(inference_config: str) -> tuple:
     """
@@ -27,7 +28,7 @@ def separate_bucket_transcriptions(inference_config: str) -> tuple:
     Returns:
         tuple: A tuple containing:
             - manifests (list): A list of manifest file paths.
-            - tarr_audio_files (list or None): A list of tarred audio file paths or None if 
+            - tarr_audio_files (list or None): A list of tarred audio file paths or None if
               the dataset is not tarred.
     """
 
@@ -40,7 +41,7 @@ def separate_bucket_transcriptions(inference_config: str) -> tuple:
             for manifest_filepath, tarred_audio_filepath in zip(manifest_filepaths, tarred_audio_filepaths):
                 manifests.append(manifest_filepath[0])
                 tarr_audio_files.append(tarred_audio_filepath[0])
-            return manifests, tarr_audio_files 
+            return manifests, tarr_audio_files
         else:
             return [manifest_filepaths], [tarred_audio_filepaths]
     else:
@@ -82,10 +83,10 @@ def get_transcribed_names(manifest_filepaths: List[str]) -> List[List[str]]:
 def update_training_sets(
     config: DictConfig,
     updated_manifest_filepaths: List[str],
-    updated_tarred_audio_filepaths: Optional[List[str]] = None
+    updated_tarred_audio_filepaths: Optional[List[str]] = None,
 ) -> Tuple[str, str]:
     """
-    Updates the training dataset configuration by adding pseudo-labeled datasets 
+    Updates the training dataset configuration by adding pseudo-labeled datasets
     to the training paths based on the dataset type.
 
     Args:
@@ -120,9 +121,7 @@ def update_training_sets(
             else:
                 updated_manifest_filepaths += manifest_filepath
         else:
-            updated_manifest_filepaths = [
-                item for sublist in updated_manifest_filepaths for item in sublist
-            ]
+            updated_manifest_filepaths = [item for sublist in updated_manifest_filepaths for item in sublist]
             if isinstance(manifest_filepath, str):
                 updated_manifest_filepaths.append(manifest_filepath)
             else:
@@ -131,5 +130,5 @@ def update_training_sets(
     # Returning strings formatted for Omegaconf
     return (
         str(updated_manifest_filepaths).replace(", ", ","),
-        str(updated_tarred_audio_filepaths).replace(", ", ",") if updated_tarred_audio_filepaths else "[]"
+        str(updated_tarred_audio_filepaths).replace(", ", ",") if updated_tarred_audio_filepaths else "[]",
     )

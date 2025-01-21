@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import os
 import shlex
-import copy
 import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-
 from typing import List
 
 import nemo_run as run
@@ -31,8 +30,8 @@ from nemo_run.core.serialization.zlib_json import ZlibJSONSerializer
 from nemo_run.core.tunnel import LocalTunnel, SSHTunnel
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.utils import logging
 from nemo.collections.common.parts import run_ipl_utils
+from nemo.utils import logging
 
 
 @lru_cache(maxsize=2)
@@ -261,6 +260,7 @@ def create_remote_config(config: dict | DictConfig, config_name: str, config_dir
     else:
         raise ValueError(f"Unsupported executor: {cluster_config.get('executor')}")
 
+
 def create_remote_inference_config(cluster_config, config_directory: str, inference_config, checkpoint_path):
     """
     Utility to create and write remote inference configuration files for a cluster setup.
@@ -284,13 +284,13 @@ def create_remote_inference_config(cluster_config, config_directory: str, infere
         config_directory = [config_directory]
 
     # separating each bucket for creating different inference config
-    manifests, tarr_audio_files  = run_ipl_utils.separate_bucket_transcriptions(inference_config)
+    manifests, tarr_audio_files = run_ipl_utils.separate_bucket_transcriptions(inference_config)
     new_config_paths = []
-    
-    for i  in range(len(manifests)):
+
+    for i in range(len(manifests)):
         output_dir = os.path.dirname(manifests[i])
         modified_cfg = copy.deepcopy(inference_config)
-        #Updating inference config for exact bucket 
+        # Updating inference config for exact bucket
         OmegaConf.update(modified_cfg, "output_path", output_dir)
         OmegaConf.update(modified_cfg, "predict_ds.manifest_filepath", manifests[i])
         if tarr_audio_files:
@@ -303,7 +303,9 @@ def create_remote_inference_config(cluster_config, config_directory: str, infere
                 new_config_paths.append(os.path.abspath(inference_config_filepath))
                 tunnel = LocalTunnel(job_dir=config_directory[0])
                 tunnel.run(f"touch {inference_config_filepath}", hide=False, warn=True)
-                tunnel.run(f"echo '{OmegaConf.to_yaml(modified_cfg)}' > {inference_config_filepath}", hide=False, warn=True)
+                tunnel.run(
+                    f"echo '{OmegaConf.to_yaml(modified_cfg)}' > {inference_config_filepath}", hide=False, warn=True
+                )
                 logging.info(f"Created config file: {dir_path} in local filesystem.")
         elif cluster_config.get('executor') == 'slurm':
             ssh_tunnel_config = cluster_config.get('ssh_tunnel', None)
@@ -312,15 +314,18 @@ def create_remote_inference_config(cluster_config, config_directory: str, infere
             if 'job_dir' not in ssh_tunnel_config:
                 ssh_tunnel_config['job_dir'] = config_directory[0]
             tunnel = get_tunnel(**cluster_config['ssh_tunnel'])
-            
+
             for dir_path in config_directory:
-                #Creating config files also locally to be able to count 
+                # Creating config files also locally to be able to count
                 inference_config_filepath = os.path.join(dir_path, f"modified_config_{i}.yaml")
                 new_config_paths.append(inference_config_filepath)
                 tunnel.run(f"touch {inference_config_filepath}", hide=False, warn=True)
-                tunnel.run(f"echo '{OmegaConf.to_yaml(modified_cfg)}' > {inference_config_filepath}", hide=False, warn=True)
+                tunnel.run(
+                    f"echo '{OmegaConf.to_yaml(modified_cfg)}' > {inference_config_filepath}", hide=False, warn=True
+                )
 
     return new_config_paths, manifests, tarr_audio_files
+
 
 def check_remote_mount_directories(directories: str | list, cluster_config: dict, exit_on_failure: bool = True):
     """
