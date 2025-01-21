@@ -531,9 +531,9 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
     try:
         from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
 
-        use_custom_fsdp = True
+        have_custom_fsdp = True
     except ImportError or ModuleNotFoundError:
-        use_custom_fsdp = False
+        have_custom_fsdp = False
 
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -571,7 +571,7 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
             else:
                 _state_dict[key] = value
 
-        if use_custom_fsdp and hasattr(module, "module") and isinstance(module.module, FullyShardedDataParallel):
+        if have_custom_fsdp and hasattr(module, "module") and isinstance(module.module, FullyShardedDataParallel):
             module.module.load_state_dict(_state_dict, strict=strict)
             continue
 
