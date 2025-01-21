@@ -381,19 +381,3 @@ class SequentialMegatronSampler(MegatronDataSampler):
         """
         return dataloader
 
-    @property
-    def megatron_data_kwargs(self) -> Dict[str, Any]:
-        """
-        Return the keyword arguments required for Megatron data handling.
-
-        This property provides the necessary arguments that Megatron uses to handle data, including sequence length,
-        micro-batch size, and the number of micro-batches.
-
-        Returns:
-        Dict[str, Any]: A dictionary containing the Megatron data handling arguments.
-        """
-        return {
-            "seq_length": self.seq_len,
-            "micro_batch_size": self.micro_batch_size,
-            "num_microbatches": self.num_microbatches,
-        }
