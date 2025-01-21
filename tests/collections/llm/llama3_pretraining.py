@@ -73,6 +73,9 @@ def get_args():
 
 
 def main():
+    ## enable debug logs
+    os.environ["NEMO_TESTING"] = "1"
+
     args = get_args()
 
     exp_name = "L2_llama3_small_pretrain_test"
