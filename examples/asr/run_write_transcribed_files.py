@@ -11,25 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-import json
-import glob
 import argparse
+import glob
+import json
+import os
 from typing import List
-from nemo.utils import logging
+
 import torch.distributed as dist
+
+from nemo.utils import logging
+
 
 def create_transcribed_shard_manifests(prediction_filepaths: List[str]) -> List[str]:
     """
     Creates transcribed shard manifest files by processing predictions and organizing them by shard ID.
-    
-    This function reads a `predictions_all.json` file from each given directory, organizes the data by 
+
+    This function reads a `predictions_all.json` file from each given directory, organizes the data by
     shard IDs, and writes the entries to separate shard manifest files. For each shard, the `pred_text`
     field is updated as the main transcription (`text`), and the original transcription (`text`) is
     stored as `orig_text`.
 
     Args:
-        prediction_filepaths (List[str]): A list of file paths to directories containing 
+        prediction_filepaths (List[str]): A list of file paths to directories containing
             `predictions_all.json` files with prediction data, including shard IDs.
 
     Returns:
@@ -60,25 +63,28 @@ def create_transcribed_shard_manifests(prediction_filepaths: List[str]) -> List[
                         data_entry['text'] = data_entry.pop('pred_text')
                         json.dump(data_entry, f, ensure_ascii=False)
                         f.write("\n")
-        shard_manifest_filepath = os.path.join(prediction_filepath, f"transcribed_manifest__OP_0..{max_shard_id}_CL_.json")
+        shard_manifest_filepath = os.path.join(
+            prediction_filepath, f"transcribed_manifest__OP_0..{max_shard_id}_CL_.json"
+        )
         all_manifest_filepaths.append(shard_manifest_filepath)
     return all_manifest_filepaths
+
 
 def create_transcribed_manifests(prediction_filepaths: List[str]) -> List[str]:
     """
     Creates updated transcribed manifest files by processing predictions.
 
-    This function reads prediction files (`predictions_all.json`) from the provided directories, 
-    updates the transcription data by renaming the `pred_text` field to `text`, and stores the 
-    original `text` field as `orig_text`. The updated data is written to new transcribed manifest 
+    This function reads prediction files (`predictions_all.json`) from the provided directories,
+    updates the transcription data by renaming the `pred_text` field to `text`, and stores the
+    original `text` field as `orig_text`. The updated data is written to new transcribed manifest
     files (`transcribed_manifest.json`) in each directory.
 
     Args:
-        prediction_filepaths (List[str]): A list of file paths to directories containing 
+        prediction_filepaths (List[str]): A list of file paths to directories containing
             prediction files (`predictions_all.json`).
 
     Returns:
-        List[str]: A list of file paths to the newly created transcribed manifest files 
+        List[str]: A list of file paths to the newly created transcribed manifest files
         (`transcribed_manifest.json`).
     """
     all_manifest_filepaths = []
@@ -89,8 +95,8 @@ def create_transcribed_manifests(prediction_filepaths: List[str]) -> List[str]:
         # Open and read the original predictions_all.json file
         with open(transcripted_name, 'w', encoding='utf-8') as f:
             with open(prediction_name, 'r', encoding='utf-8') as pred_f:
-        
-                for line in  pred_f.readlines():
+
+                for line in pred_f.readlines():
                     data_entry = json.loads(line)
                     if 'text' in data_entry:
                         data_entry['orig_text'] = data_entry.pop('text')
@@ -99,8 +105,9 @@ def create_transcribed_manifests(prediction_filepaths: List[str]) -> List[str]:
                     f.write("\n")
             # Append the path of the new manifest file to the list
             all_manifest_filepaths.append(transcripted_name)
-    
+
     return all_manifest_filepaths
+
 
 def write_sampled_shard_transcriptions(manifest_filepaths: List[str]) -> List[List[str]]:
     """
@@ -155,17 +162,16 @@ def write_sampled_shard_transcriptions(manifest_filepaths: List[str]) -> List[Li
                         json.dump(data_entry, f, ensure_ascii=False)
                     f.write("\n")
 
-    shard_manifest_filepath = os.path.join(
-        prediction_filepath, f"transcribed_manifest__OP_0..{max_shard_id}_CL_.json"
-    )
+    shard_manifest_filepath = os.path.join(prediction_filepath, f"transcribed_manifest__OP_0..{max_shard_id}_CL_.json")
     all_manifest_filepaths.append([shard_manifest_filepath])
 
     return all_manifest_filepaths
 
+
 def write_sampled_transcriptions(manifest_filepaths: List[str]) -> List[str]:
     """
     Updates transcriptions by merging predicted data with transcribed manifest data.
-    
+
     This function processes prediction and transcribed manifest files within given directories.
     It matches audio file paths to update transcriptions with predictions, ensuring each audio file
     is properly transcribed. The updated data is written to the transcribed manifest file.
@@ -215,9 +221,10 @@ def write_sampled_transcriptions(manifest_filepaths: List[str]) -> List[str]:
 
 
 def setup():
-    dist.init_process_group("gloo") 
+    dist.init_process_group("gloo")
     rank = dist.get_rank()
     return rank
+
 
 def main():
     rank = setup()
@@ -230,7 +237,7 @@ def main():
         type=str,
         nargs='+',  # Accepts one or more values as a list
         required=True,
-        help="Paths to one or more inference config YAML files."
+        help="Paths to one or more inference config YAML files.",
     )
     args = parser.parse_args()
 
@@ -252,6 +259,7 @@ def main():
         logging.info(f"Resulting files are {result}")
     # Synchronize all processes
     dist.barrier()
+
 
 if __name__ == "__main__":
     main()

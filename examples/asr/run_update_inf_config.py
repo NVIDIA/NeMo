@@ -11,19 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-import glob
 import argparse
-from typing import Union, List
-from omegaconf import OmegaConf, ListConfig 
+import glob
+import os
+from typing import List, Union
+
 import torch.distributed as dist
+from omegaconf import ListConfig, OmegaConf
 
 
 def count_files_for_tarred_pseudo_labeling(manifest_filepath: Union[str, ListConfig]) -> int:
     """
     Counts the total number of entries across multiple manifest files.
     Args:
-        manifest_filepath (Union[str, ListConfig]): The file path to the manifest files. 
+        manifest_filepath (Union[str, ListConfig]): The file path to the manifest files.
     Returns:
         int: The total number of entries across all matching manifest files.
     """
@@ -38,6 +39,7 @@ def count_files_for_tarred_pseudo_labeling(manifest_filepath: Union[str, ListCon
             number_of_files += len(f.readlines())
     return number_of_files
 
+
 def count_files_for_pseudo_labeling(manifest_filepath: Union[str, list, ListConfig]) -> int:
     """
     Counts the number of entries in a single manifest file .
@@ -48,16 +50,13 @@ def count_files_for_pseudo_labeling(manifest_filepath: Union[str, list, ListConf
     """
     # Convert ListConfig to string if needed
     if isinstance(manifest_filepath, list) or isinstance(manifest_filepath, OmegaConf.ListConfig):
-        manifest_filepath = manifest_filepath[0] 
+        manifest_filepath = manifest_filepath[0]
     with open(manifest_filepath, 'r') as f:
         number_of_files = len(f.readlines())
     return number_of_files
 
-def export_limit_predict_batches(
-    inference_configs: List[str],
-    p_cache: float,
-    num_gpus: int
-) -> None:
+
+def export_limit_predict_batches(inference_configs: List[str], p_cache: float, num_gpus: int) -> None:
     """
     Updates inference configuration files to set `limit_predict_batches`.
     This is done to force partial transcription of unlabeled dataset for dynamic update of PLs.
@@ -74,12 +73,12 @@ def export_limit_predict_batches(
         config = OmegaConf.load(config_path)
         tarred_audio_filepaths = config.predict_ds.tarred_audio_filepaths
         manifest_filepaths = config.predict_ds.manifest_filepath
-        
+
         if tarred_audio_filepaths:
             number_of_files = count_files_for_tarred_pseudo_labeling(manifest_filepaths)
         else:
             number_of_files = count_files_for_pseudo_labeling(manifest_filepaths)
-        
+
         if hasattr(config.predict_ds, "batch_size"):
             batch_size = config.predict_ds.batch_size
 
@@ -87,9 +86,9 @@ def export_limit_predict_batches(
             OmegaConf.update(config, "trainer.limit_predict_batches", limit_predict_batches)
             OmegaConf.save(config, config_path)
         elif hasattr(config.predict_ds, "batch_duration"):
-            batch_duration= config.predict_ds.batch_duration
+            batch_duration = config.predict_ds.batch_duration
             average_audio_len = 10
-            limit_predict_batches = int((number_of_files * average_audio_len * p_cache ) / (batch_duration * num_gpus))
+            limit_predict_batches = int((number_of_files * average_audio_len * p_cache) / (batch_duration * num_gpus))
             OmegaConf.update(config, "trainer.limit_predict_batches", limit_predict_batches)
             OmegaConf.save(config, config_path)
         else:
@@ -98,10 +97,12 @@ def export_limit_predict_batches(
             OmegaConf.update(config, "trainer.limit_predict_batches", limit_predict_batches)
             OmegaConf.save(config, config_path)
 
+
 def setup():
-    dist.init_process_group("gloo")  
+    dist.init_process_group("gloo")
     rank = dist.get_rank()
     return rank
+
 
 def main():
     rank = setup()
@@ -111,11 +112,11 @@ def main():
         type=str,
         nargs='+',  # Accepts one or more values as a list
         required=True,
-        help="Paths to one or more inference config YAML files."
+        help="Paths to one or more inference config YAML files.",
     )
     parser.add_argument("--p_cache", type=float, required=True, help="Pseudo-label cache fraction.")
     parser.add_argument("--num_gpus", type=int, required=True, help="Number of GPUs available.")
-    
+
     args = parser.parse_args()
     # Code executed by all processes
     print(f"update Process {rank} running.")
@@ -124,9 +125,7 @@ def main():
     if rank == 0:
         print("update This part is executed by a single process.")
         export_limit_predict_batches(
-            inference_configs=args.inference_configs,
-            p_cache=args.p_cache,
-            num_gpus=args.num_gpus
+            inference_configs=args.inference_configs, p_cache=args.p_cache, num_gpus=args.num_gpus
         )
         # Perform your single-process work here
 
@@ -135,6 +134,7 @@ def main():
 
     # Continue with code for all processes
     print(f"update Process {rank} resuming execution.")
+
 
 if __name__ == "__main__":
 
