@@ -359,7 +359,8 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         model = MCoreNevaModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage(),
+            pre_process=ps.is_pipeline_first_stage()
+            or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
             add_decoder=ps.is_pipeline_last_stage()
@@ -511,7 +512,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             freeze_vision_projection=config.freeze_vision_projection,
         )
 
-        self.model_type = ModelType.encoder_or_decoder
+        self.model_type = ModelType.encoder_and_decoder
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
 
