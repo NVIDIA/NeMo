@@ -15,6 +15,7 @@
 import json
 import os
 import shlex
+import copy
 import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
@@ -31,6 +32,7 @@ from nemo_run.core.tunnel import LocalTunnel, SSHTunnel
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.utils import logging
+from nemo.collections.common.parts import run_ipl_utils
 
 
 @lru_cache(maxsize=2)
@@ -259,6 +261,66 @@ def create_remote_config(config: dict | DictConfig, config_name: str, config_dir
     else:
         raise ValueError(f"Unsupported executor: {cluster_config.get('executor')}")
 
+def create_remote_inference_config(cluster_config, config_directory: str, inference_config, checkpoint_path):
+    """
+    Utility to create and write remote inference configuration files for a cluster setup.
+
+    Args:
+        cluster_config (dict): The cluster configuration dictionary containing details about the cluster setup,
+            including the executor type (`local` or `slurm`) and optional SSH tunnel configurations.
+        config_directory (str or list of str): The directory path(s) where the inference configuration file(s)
+            will be created on the remote machine. If a single path is provided, it will be converted into a list.
+        inference_config: The base inference configuration object, which will be modified for each bucket.
+            Should be compatible with OmegaConf.
+        checkpoint_path (str): The path to the model checkpoint, which will be included in the modified inference configuration.
+
+    Returns:
+        tuple: A tuple containing:
+            - new_config_paths (list): A list of paths to the newly created inference configuration files.
+            - manifests (list): A list of manifest file paths, one for each bucket.
+            - tarr_audio_files (list or None): A list of tarred audio file paths, one for each bucket, or None if not applicable.
+    """
+    if isinstance(config_directory, str):
+        config_directory = [config_directory]
+
+    # separating each bucket for creating different inference config
+    manifests, tarr_audio_files  = run_ipl_utils.separate_bucket_transcriptions(inference_config)
+    new_config_paths = []
+    
+    for i  in range(len(manifests)):
+        output_dir = os.path.dirname(manifests[i])
+        modified_cfg = copy.deepcopy(inference_config)
+        #Updating inference config for exact bucket 
+        OmegaConf.update(modified_cfg, "output_path", output_dir)
+        OmegaConf.update(modified_cfg, "predict_ds.manifest_filepath", manifests[i])
+        if tarr_audio_files:
+            OmegaConf.update(modified_cfg, "predict_ds.tarred_audio_filepaths", tarr_audio_files[i])
+        OmegaConf.update(modified_cfg, "model", checkpoint_path)
+
+        if cluster_config.get('executor') == 'local':
+            for dir_path in config_directory:
+                inference_config_filepath = os.path.join(dir_path, f"modified_config_{i}.yaml")
+                new_config_paths.append(os.path.abspath(inference_config_filepath))
+                tunnel = LocalTunnel(job_dir=config_directory[0])
+                tunnel.run(f"touch {inference_config_filepath}", hide=False, warn=True)
+                tunnel.run(f"echo '{OmegaConf.to_yaml(modified_cfg)}' > {inference_config_filepath}", hide=False, warn=True)
+                logging.info(f"Created config file: {dir_path} in local filesystem.")
+        elif cluster_config.get('executor') == 'slurm':
+            ssh_tunnel_config = cluster_config.get('ssh_tunnel', None)
+            if ssh_tunnel_config is None:
+                raise ValueError("`ssh_tunnel` sub-config is not provided in cluster_config.")
+            if 'job_dir' not in ssh_tunnel_config:
+                ssh_tunnel_config['job_dir'] = config_directory[0]
+            tunnel = get_tunnel(**cluster_config['ssh_tunnel'])
+            
+            for dir_path in config_directory:
+                #Creating config files also locally to be able to count 
+                inference_config_filepath = os.path.join(dir_path, f"modified_config_{i}.yaml")
+                new_config_paths.append(inference_config_filepath)
+                tunnel.run(f"touch {inference_config_filepath}", hide=False, warn=True)
+                tunnel.run(f"echo '{OmegaConf.to_yaml(modified_cfg)}' > {inference_config_filepath}", hide=False, warn=True)
+
+    return new_config_paths, manifests, tarr_audio_files
 
 def check_remote_mount_directories(directories: str | list, cluster_config: dict, exit_on_failure: bool = True):
     """

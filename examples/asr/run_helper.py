@@ -22,6 +22,8 @@ from omegaconf import OmegaConf, open_dict
 from nemo.collections.common.parts import run_utils
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from typing import List, Dict
+from nemo.collections.common.parts import run_ipl_utils
 
 NEMO_ROOT = Path(__file__).absolute().parents[2]
 
@@ -210,57 +212,141 @@ def update_exp_manager_runtime(script_config, cluster_cfg):
             script_config['exp_manager']['max_time_per_run'] = cluster_cfg['max_runtime']
             logging.info(f"Setting exp_manager.max_time_per_run to {cluster_cfg['max_runtime']}")
 
+def get_pl_inference_command(inference_configs):
+    """
+    Generate a command to run PL inference with multiple configuration files.
+    Args:
+        inference_configs (list): List of configuration file paths.
 
-def get_execution_script(cluster_script_path, config_name, merged_cfg, cluster_cfg):
+    Returns:
+        str: Combined command string to execute PL inference.
+    """
+    # Base command template
+    base_cmd = "python /nemo_run/code/examples/asr/transcribe_speech_parallel.py --config-path \"/results/configs\" --config-name {config_name}"
+
+    # Generate the command list
+    cmd_list = [
+        base_cmd.format(config_name=os.path.basename(config))
+        for config in inference_configs
+    ]
+
+    # Combine the commands with " && " separator
+    return " && ".join(cmd_list)
+
+
+def get_pseudo_labeling_command(
+    merged_config: Dict,
+    config_name: str,
+    cluster_script_path: str,
+    config_dir: str,
+    ipl_training: Dict[str, any]
+) -> str:
+    """
+    Generate the pseudo-labeling command for the given configuration and training parameters.
+
+    Args:
+        merged_config (Dict): Merged configuration containing model and dataset settings.
+        config_name (str): Name of the configuration file to be used.
+        cluster_script_path (str): Path to the cluster execution script.
+        config_dir (str): Directory containing the configuration files.
+        ipl_training (Dict[str, any]): Dictionary containing:
+            - first_run (bool): Whether this is the first run of pseudo-labeling.
+            - num_gpus (int): Number of GPUs to use.
+            - inference_config_paths (List[str]): List of inference configuration file paths.
+            - manifests (List[str]): List of manifest file paths.
+            - tarr_paths (List[str]): List of tarred audio file paths.
+            - num_ipl_epochs (int): Number of epochs to train with pseudo-labels.
+            - p_cache (float): What part of pseudo-labels to update.
+
+    Returns:
+        str: The constructed pseudo-labeling command.
+    """
+    prediction_directories_str = " ".join([os.path.dirname(path) for path in ipl_training['manifests']])
+    inference_config_paths_str = " ".join(ipl_training['inference_config_paths'])
+
+    updated_manifest_filepaths, updated_tarred_audio_filepaths = run_ipl_utils.update_training_sets(
+        merged_config, ipl_training["manifests"], ipl_training.get("tarr_paths", None)
+    )
+
+    exec_cmd = get_execution_script(cluster_script_path, config_name, config_dir)
+
+    if ipl_training.get("first_run", False):
+        exec_cmd += f" && {get_pl_inference_command(ipl_training['inference_config_paths'])}"
+        exec_cmd += (
+            f" && python /nemo_run/code/examples/asr/run_write_transcribed_files.py "
+            f"--prediction_filepaths {prediction_directories_str} --full_pass"
+        )
+        if merged_config.model.train_ds.is_tarred:
+            exec_cmd += " --is_tarred"
+        exec_cmd += (
+            f" && python /nemo_run/code/examples/asr/run_update_inf_config.py "
+            f"--inference_configs {inference_config_paths_str} --p_cache {ipl_training['p_cache']} --num_gpus {ipl_training['num_gpus']}"
+        )
+
+    for _ in range(ipl_training["num_ipl_epochs"]):
+        run_script = get_execution_script(
+            cluster_script_path, config_name, config_dir, updated_manifest_filepaths, updated_tarred_audio_filepaths
+        )
+        exec_cmd += f" && {run_script}"
+        exec_cmd += f" && {get_pl_inference_command(ipl_training['inference_config_paths'])}"
+        exec_cmd += (
+            f" && python /nemo_run/code/examples/asr/run_write_transcribed_files.py "
+            f"--prediction_filepaths {prediction_directories_str}"
+        )
+        if merged_config.model.train_ds.is_tarred:
+            exec_cmd += " --is_tarred"
+
+    return exec_cmd
+
+
+def get_execution_script(cluster_script_path, config_name, merged_cfg, updated_manifest_filepaths=None, updated_tarred_filepaths=None):
     """
     Create the command to run the script on the cluster.
 
     Args:
-        cluster_script_path: Path to the script to run on the cluster.
-        config_name: Name of the config file to use for the script.
-        merged_cfg: Merged config dictionary that represents the Model training/inference config.
-        cluster_cfg: Cluster config dictionary that represents the cluster configuration.
+        cluster_script_path (str): Path to the script to run on the cluster.
+        config_name (str): Name of the config file to use for the script.
+        merged_cfg (dict): Merged config dictionary representing the model training/inference configuration.
+        updated_manifest_filepaths (str, optional): Path to the updated manifest file. Defaults to None.
+        updated_tarred_filepaths (str, optional): Path to the updated tarred audio filepaths. Defaults to None.
 
     Returns:
-        str: Command to run the script on the cluster
+        str: Command to run the script on the cluster.
     """
-    # Create the command to run the script
-    cmd = """
-nvidia-smi && \
-export PYTHONPATH=$PYTHONPATH:/nemo_run/code && \
-export HF_TOKEN={HF_TOKEN} && \
-export WANDB_API_KEY={WANDB} && \
-find /results/ -name '*-unfinished' -type f -delete && \ 
-cd {cluster_script_dir} && \
-python -u -B {cluster_script_path} --config-path "/results/configs" --config-name "{config_name}" && \
-cd /results && \
-ls -l;
-"""
-    # Get the wandb key from the environment variables
-    wandb_key = os.environ.get("WANDB", os.environ.get("WANDB_API_KEY", os.environ.get("WANDB_KEY", "")))
-    if wandb_key == "":
-        # Warn the user if WANDB key is not found
-        logging.warning("WANDB key not found in your local environment variables. WANDB logging will not work.")
-
+    # Get the WANDB API key from the environment variables
+    wandb_key = os.environ.get("WANDB_API_KEY") or os.environ.get("WANDB") or os.environ.get("WANDB_KEY", "")
+    if not wandb_key:
+        logging.warning("WANDB key not found in environment variables. WANDB logging will not work.")
+        
         # Check if WANDB logging is enabled in the exp_manager config
-        if 'exp_manager' in merged_cfg and 'create_wandb_logger' in merged_cfg['exp_manager']:
-            if merged_cfg['exp_manager']['create_wandb_logger']:
-                # If WANDB logging is enabled, the user is expected to provide the key.
-                # Raise an error
-                raise ValueError(
-                    "WANDB key not found in your local environment variables. Please set WANDB_API_KEY to use WANDB logging."
-                )
+        if merged_cfg.get('exp_manager', {}).get('create_wandb_logger', False):
+            raise ValueError(
+                "WANDB key is required for logging but was not found in environment variables. "
+                "Please set WANDB_API_KEY to enable WANDB logging."
+            )
 
-    # Prepare the format dictionary
-    format_dict = dict(
-        cluster_script_dir=os.path.dirname(cluster_script_path),
-        cluster_script_path=os.path.basename(cluster_script_path),
-        config_name=config_name,
-        HF_TOKEN=os.getenv('HF_TOKEN', ''),
-        WANDB=wandb_key,
+    # Prepare the base command
+    cmd = (
+        "nvidia-smi && "
+        "export PYTHONPATH=/nemo_run/code && "
+        f"export HF_TOKEN={os.getenv('HF_TOKEN', '')} && "
+        f"export WANDB_API_KEY={wandb_key} && "
+        "find /results/ -name '*-unfinished' -type f -delete && "
+        f"cd {os.path.dirname(cluster_script_path)} && "
+        f"python -u -B {os.path.basename(cluster_script_path)} "
+        f"--config-path \"/results/configs\" --config-name \"{config_name}\""
     )
 
-    cmd = cmd.format(**format_dict)
+    # Add additional parameters if provided
+    if updated_manifest_filepaths:
+        cmd += f" model.train_ds.manifest_filepath={updated_manifest_filepaths}"
+    if updated_tarred_filepaths:
+        cmd += f" model.train_ds.tarred_audio_filepaths={updated_tarred_filepaths}"
+
+    # Add fallback directory listing
+    if not updated_manifest_filepaths and not updated_tarred_filepaths:
+        cmd += " && cd /results && ls -l"
+
     return cmd
 
 
@@ -273,6 +359,13 @@ def main(cluster_cfg):
 
     script_path = Path(script_path).absolute()
     script_config_path = Path(script_config_path).absolute()
+    
+    ipl_training = cluster_cfg.get("ipl_training", None)
+
+    if ipl_training:
+        inference_config = cluster_cfg.ipl_training.inference_config
+        inference_config_path =  Path(inference_config).absolute()
+        inference_config = OmegaConf.load(inference_config_path)
 
     # Gather all mounts from the cluster config; this includes any additional mounts provided by the user
     gather_mounts(cluster_cfg)
@@ -333,6 +426,24 @@ def main(cluster_cfg):
             logging.warning(f"\n\nSetting num_gpus to {num_gpus} as it was set to -1\n\n")
         num_nodes = cluster_cfg.get('num_nodes', merged_config['trainer'].get('num_nodes', 1))
 
+        if not ipl_training:
+            cmd = get_execution_script(cluster_script_path, config_name, merged_config, cluster_cfg)
+        else:
+            checkpoint_dir = os.path.join(os.path.join(merged_config.exp_manager.exp_dir, merged_config.exp_manager.name), "checkpoints")
+            checkpoint_name = os.path.join(checkpoint_dir, merged_config.exp_manager.name + ".nemo")
+            inference_config_paths, manifests, tarr_paths = run_utils.create_remote_inference_config(cluster_cfg, config_dir, inference_config, checkpoint_name)
+            check_config_mount_paths(inference_config, cluster_cfg)
+            # Add needed parameters for pseudo-labeling
+            print(type(ipl_training))
+            OmegaConf.set_struct(ipl_training, False)
+
+            ipl_training['first_run'] = True
+            ipl_training['num_gpus'] = num_nodes*num_gpus
+            ipl_training['inference_config_paths'] = inference_config_paths
+            ipl_training['manifests'] = manifests
+            ipl_training['tarr_paths'] = tarr_paths
+            cmd = get_pseudo_labeling_command(merged_config, config_name, cluster_script_path, config_dir, ipl_training)
+
         # Cast the cluster config to a dictionary for compatibility with NeMo Run
         cluster_cfg = OmegaConf.to_object(cluster_cfg)
 
@@ -343,6 +454,9 @@ def main(cluster_cfg):
             if run_id == 0:
                 task = None
             else:
+                if ipl_training:
+                    ipl_training['first_run'] = False
+                    cmd = get_pseudo_labeling_command(merged_config,config_name, cluster_script_path, config_dir, ipl_training)
                 task = [task]
 
             task = run_utils.add_task(
