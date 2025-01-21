@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import nemo_run as run
-import torch
 import yaml
 from lightning.pytorch import Callback
 from lightning.pytorch.loggers import WandbLogger
@@ -28,6 +27,7 @@ from nemo_run.core.serialization.yaml import YamlSerializer
 from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
+
 from nemo.utils.import_utils import safe_import
 
 res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
@@ -317,8 +317,6 @@ class PerfEnvPlugin(run.Plugin):
     layernorm_sm_margin: int = 16
     enable_vboost: bool = False
     nccl_pp_comm_chunksize: Optional[int] = None
-    override_default_cuda_device_max_connections: bool = False
-    num_cuda_device_max_connections: int = None
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
         "Create the vboost `sudo nvidia-smi boost-slider --vboost 1` command"
@@ -345,17 +343,11 @@ class PerfEnvPlugin(run.Plugin):
         """Enable the performance environment settings"""
 
         if task.trainer.strategy.__fn_or_cls__ == MegatronStrategy:
-            if self.override_default_cuda_device_max_connections:
-                if self.num_cuda_device_max_connections is not None:
-                    executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = str(self.num_cuda_device_max_connections)
-            else:
-                # When TP or CP size is larger than 1, need to use a single cuda device connection to enforce
-                # the kernel queuing order of the host to GPU for their execution. This is needed  for the optimal
-                # overlap between communication and computation kernels.
-                tp_size = task.trainer.strategy.tensor_model_parallel_size
-                cp_size = task.trainer.strategy.context_parallel_size
-                if tp_size > 1 or cp_size > 1:
-                    executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = "1"
+            # Force program order kernel launch for TP, CP overlap
+            tp_size = task.trainer.strategy.tensor_model_parallel_size
+            cp_size = task.trainer.strategy.context_parallel_size
+            if tp_size > 1 or cp_size > 1:
+                executor.env_vars["CUDA_DEVICE_MAX_CONNECTIONS"] = "1"
 
             # Set LayerNorm SM margin to support the overlap with LayerNorm kernel
             if self.enable_layernorm_sm_margin:
