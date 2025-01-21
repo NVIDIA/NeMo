@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Union, Callable, Annotated, Optional, Dict, Literal
 import lightning.pytorch as L
 import nemo.collections.llm.gpt.model.base as GPTBase
-from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
+from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativesCELoss
 from nemo.collections.llm.gpt.model import GPTConfig
-from nemo.collections.llm.gpt.model.llama import Llama32Config1B, LlamaConfig, HFLlamaImporter, LlamaModel
+from nemo.collections.llm.gpt.model.llama import Llama32Config1B, LlamaConfig, HFLlamaImporter, LlamaModel, \
+    HFLlamaExporter
 from nemo.utils.import_utils import safe_import
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.enums import AttnMaskType
@@ -52,9 +54,15 @@ def nv_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
+    required_keys.add("q_attention_mask")
+    required_keys.add("p_attention_mask")
     required_keys.add("attention_mask")
 
     if parallel_state.is_pipeline_first_stage():
+        required_keys.add("q_input_ids")
+        required_keys.add("q_position_ids")
+        required_keys.add("p_input_ids")
+        required_keys.add("p_position_ids")
         required_keys.add("input_ids")
         required_keys.add("position_ids")
 
@@ -70,15 +78,27 @@ def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.T
     and then calls the model's forward pass. if "cu_seqsens" are defined in the batch,
     then the packed sequence parameters are also passed to the model for forward pass efficiency.
     """
-    if "position_ids" not in batch:
-        batch["position_ids"] = torch.arange(0, batch["input_ids"].shape[1], dtype=torch.long, device=batch["input_ids"].device)
+    encode_separately = model.config.encode_separately
+    if encode_separately:
+        q_forward_args = {
+            "input_ids": batch["q_input_ids"],
+            "attention_mask": batch["q_attention_mask"],
+            "position_ids": batch["q_position_ids"],
+        }
+        p_forward_args = {
+            "input_ids": batch["p_input_ids"],
+            "attention_mask": batch["p_attention_mask"],
+            "position_ids": batch["p_position_ids"],
+        }
+        q_emb = model.encode(**q_forward_args)
+        p_emb = model.encode(**p_forward_args)
+        return torch.cat([q_emb, p_emb], dim=0)
 
     forward_args = {
         "input_ids": batch["input_ids"],
         "attention_mask": batch["attention_mask"],
         "position_ids": batch["position_ids"],
     }
-
     return model.encode(**forward_args)
 
 @dataclass
@@ -87,11 +107,15 @@ class NVEmbedLlama32Config1B(Llama32Config1B):
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = get_nv_embedding_layer_spec
     forward_step_fn: Callable = nv_embedding_forward_step
     data_step_fn: Callable = nv_embedding_data_step
+
+    # Training Configs
     num_hard_negatives: int = 4
-    ce_loss_scale: float = 20
+    ce_loss_scale: float = 50
     label_smoothing: float = 0.
-    global_in_batch_negatives: bool = False
-    backprop_type: Literal["local", "global"] = 'local'
+    encode_separately: bool = True
+    negative_sample_strategy: Literal["random", "first"] = 'first'
+    add_bos: bool = True
+    add_eos: bool = False
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         """Configure the NV Embedding Llama3.2 1B Model"""
@@ -107,6 +131,7 @@ def _average_pool(
     last_hidden_states: Tensor,
     attention_mask: Tensor
 ):
+    """Average the hidden states on the non-masking tokens."""
     # [sq, b, h] -> [b, sq, h]
     last_hidden_states = einops.rearrange(last_hidden_states, 's b h -> b s h')
     last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
@@ -123,6 +148,16 @@ class NVEmbedLlamaModel(LlamaModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+
+    def get_dataset_kwargs(self):
+        """Getter for dataset_kwargs from model config"""
+        return {
+            'num_hard_negatives': self.config.num_hard_negatives,
+            'negative_sample_strategy': self.config.negative_sample_strategy,
+            'encode_separately': self.config.encode_separately,
+            'add_bos': self.config.add_bos,
+            'add_eos': self.config.add_eos,
+        }
 
     def encode(
         self,
@@ -160,13 +195,11 @@ class NVEmbedLlamaModel(LlamaModel):
     @property
     def training_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
-            self._training_loss_reduction = BERTInBatchExclusiveHardNegativesRankingLoss(
+            self._training_loss_reduction = HardNegativesCELoss(
                 validation_step=False,
                 num_hard_negatives=self.config.num_hard_negatives,
                 scale=self.config.ce_loss_scale,
                 label_smoothing=self.config.label_smoothing,
-                global_in_batch_negatives=self.config.global_in_batch_negatives,
-                backprop_type=self.config.backprop_type,
             )
 
         return self._training_loss_reduction
@@ -174,7 +207,7 @@ class NVEmbedLlamaModel(LlamaModel):
     @property
     def validation_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = BERTInBatchExclusiveHardNegativesRankingLoss(
+            self._validation_loss_reduction = HardNegativesCELoss(
                 validation_step=True,
                 num_hard_negatives=self.config.num_hard_negatives,
                 scale=self.config.ce_loss_scale,
@@ -221,3 +254,23 @@ class HFNVEmbedLlamaImporter(HFLlamaImporter):
 
         return output
 
+@io.model_exporter(NVEmbedLlamaModel, "hf")
+class HFNVEmbedLlamaExporter(HFLlamaExporter):
+    """HF Exporter for NV Embedding Llama Model.
+        Note that since NV Embedding LLama uses customized LlamaBidirectionalConfig config,
+        user would need to manually change the config after the conversion
+    """
+    def apply(self, output_path: Path) -> Path:
+        source, _ = self.nemo_load(str(self))
+        source_dtype = source.module.embedding.word_embeddings.weight.dtype
+        target = self.init(source_dtype)
+        target = self.convert_state(source, target)
+
+        target = target.cpu()
+        target.save_pretrained(output_path)
+        try:
+            self.tokenizer.tokenizer.save_pretrained(output_path)
+        except Exception:
+            logging.warning("Failed to save tokenizer")
+
+        return output_path
