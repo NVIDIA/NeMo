@@ -180,7 +180,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from megatron.core import parallel_state
-        from megatron.core.tensor_parallel import set_defaults_if_not_set_tensor_model_parallel_attributes
+        from megatron.core.transformer.module import Float16Module as McoreFloat16Module
+
+        from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+        from nemo.utils.model_utils import unwrap_model
 
         _pipeline: List[nn.Module]
         if isinstance(pipeline, nn.ModuleList):
@@ -211,6 +214,20 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
         self.convert_module_fn = convert_module_fn
+
+        # [ModelOpt]: Detect Pipeline-parallel Distillation mode.
+        self._unwrapped_model = [unwrap_model(self.module.module, (DDP, Float16Module, McoreFloat16Module))]
+        # Avoid re-registering module which breaks the inherited `ModuleList` somehow.
+        if (
+            hasattr(self.unwrapped_model, "teacher_model")
+            and parallel_state.get_pipeline_model_parallel_world_size() > 1
+        ):
+            self._kd_teacher_in_pp = True
+            assert (
+                not self.ddp_config.overlap_grad_reduce
+            ), "Pipeline-parallel Distillation currently incomatible with `overlap_grad_reduce` DDP option."
+        else:
+            self._kd_teacher_in_pp = False
 
     def forward(
         self,
@@ -262,6 +279,37 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         else:
             forward_step_func = _forward_step
 
+        if self._kd_teacher_in_pp:
+            assert wrap_forward_step
+            _teacher_forward_context = {}
+            if isinstance(_data_step, _ModuleStepFunction):
+                _data_step = _data_step(self.module)
+
+            def _dummy_reduction(output_tensor, *args, **kwargs):
+                return output_tensor.new_tensor(-1), {}
+
+            teacher_forward_step_func = self.wrapped_forward_step(
+                forward_step=_forward_step,
+                data_step=_data_step,
+                loss_reduction=_dummy_reduction,
+                context=_teacher_forward_context,
+            )
+            teacher_step = MegatronStep.infer(
+                self,
+                None,  # updated later below once we actually know `num_microbatches`
+                teacher_forward_step_func,
+                forward_only=True,
+                micro_batch_size=micro_batch_size,
+                num_microbatches=num_microbatches,
+                seq_length=seq_length,
+                step_i=step_i,
+            )
+            _teacher_forward_context["step"] = teacher_step
+            teacher_step = self.callbacks.transform_event("on_megatron_step_start", teacher_step)
+
+            data = _data_step(data, cache_num_batches=teacher_step.num_microbatches)
+            teacher_step.data = data
+
         step = MegatronStep.infer(
             self,
             data,
@@ -276,7 +324,14 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         step = self.callbacks.transform_event("on_megatron_step_start", step)
 
         self.callbacks.event("on_megatron_microbatches_start", step=step)
-        microbatch_outputs = step()
+        if self._kd_teacher_in_pp:
+            with self.unwrapped_model.only_teacher_forward():
+                with self.unwrapped_model.swap_teacher_config(self.module):
+                    teacher_step()
+            with self.unwrapped_model.only_student_forward():
+                microbatch_outputs = step()
+        else:
+            microbatch_outputs = step()
         self.callbacks.event("on_megatron_microbatches_end", step=step, microbatch_outputs=microbatch_outputs)
 
         if microbatch_outputs:
@@ -285,7 +340,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
 
             if isinstance(_loss_reduction, _ModuleStepFunction):
-                _loss_reduction = _loss_reduction(self[0])
+                _loss_reduction = _loss_reduction(self.module)
 
             reduced = _loss_reduction.reduce(microbatch_outputs)
             self.callbacks.event(
@@ -679,6 +734,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
     @property
     def module(self) -> ModelT:
         return self[0]
+
+    @property
+    def unwrapped_model(self):
+        return self._unwrapped_model[0]
 
     @override
     def __getattr__(self, item: Any) -> Any:
