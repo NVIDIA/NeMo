@@ -630,7 +630,7 @@ class Transformer(torch.nn.Module):
 
     @staticmethod
     def _init_weights_gpt2(module):
-        if isinstance(module, (torch.nn.Linear, torch.nn.Embedding)):
+        if isinstance(module, (torch.nn.Linear, torch.nn.Embedding, torch.nn.Conv1d)):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
         if isinstance(module, torch.nn.Linear) and module.bias is not None:
