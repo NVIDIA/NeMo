@@ -77,14 +77,14 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     return num_patches + (class_token_len if add_class_token else 0)
 
 
-def restore_model_weights(model, checkpoint_path, model_type):
+def restore_model_weights(model, checkpoint_path, strict=True):
     """
     Restores model weights from a checkpoint.
 
     Args:
         model: The model to restore weights for.
         checkpoint_path: Path to the checkpoint.
-        model_type: Type of the model (e.g., 'vision' or 'language').
+        strict: Whether to restore weights even if they are not the same.
     """
     if checkpoint_path is not None:
         sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
@@ -92,10 +92,10 @@ def restore_model_weights(model, checkpoint_path, model_type):
             sharded_state_dict=sharded_state_dict,
             checkpoint_dir=ckpt_to_weights_subdir(checkpoint_path, is_saving=False),
             validate_access_integrity=False,
+            **({"strict": "log_all"} if not strict else {}),
         )
         loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
-        model.load_state_dict(loaded_state_dict)
-        logging.info(f"Restored {model_type} model weights from {checkpoint_path}")
+        model.load_state_dict(loaded_state_dict, strict=strict)
 
 
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -327,7 +327,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
             self._language_max_sequence_length = self.language_model.max_sequence_length
             self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
-            restore_model_weights(self.language_model, config.language_model_from_pretrained, "language")
+            restore_model_weights(self.language_model, config.language_model_from_pretrained)
+            logging.info(f"Restored language model weights from {config.language_model_from_pretrained}")
+
 
         else:
             if config.language_model_from_pretrained is not None:
@@ -341,7 +343,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self.vision_model = vision_transformer_config.configure_model()
             self.vision_projection = vision_projection_config.configure_model()
             self._drop_vision_class_token = drop_vision_class_token
-            restore_model_weights(self.vision_model, config.vision_model_from_pretrained, "vision")
+            restore_model_weights(self.vision_model, config.vision_model_from_pretrained)
+            logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
+
 
         self.freeze(
             freeze_language_model=config.freeze_language_model,
