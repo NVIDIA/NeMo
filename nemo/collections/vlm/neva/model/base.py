@@ -330,7 +330,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             restore_model_weights(self.language_model, config.language_model_from_pretrained)
             logging.info(f"Restored language model weights from {config.language_model_from_pretrained}")
 
-
         else:
             if config.language_model_from_pretrained is not None:
                 dist_checkpointing.load(
@@ -345,7 +344,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self._drop_vision_class_token = drop_vision_class_token
             restore_model_weights(self.vision_model, config.vision_model_from_pretrained)
             logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
-
 
         self.freeze(
             freeze_language_model=config.freeze_language_model,
