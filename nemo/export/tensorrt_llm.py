@@ -318,19 +318,25 @@ class TensorRTLLM(ITritonDeployable):
                     model_type = get_model_type(nemo_checkpoint_path)
 
                 if model_type is None:
-                    raise Exception("Parameter model_type needs to be specified, got None.")
+                    raise Exception(
+                        "Parameter model_type needs to be provided and cannot be inferred from the checkpoint. "
+                        "Please specify it explicitely."
+                    )
 
                 if model_type not in self.get_supported_models_list:
                     raise Exception(
-                        "Model {0} is not currently a supported model type. "
-                        "Supported model types are: {1}.".format(model_type, self.get_supported_models_list)
+                        f"Model {model_type} is not currently a supported model type. "
+                        f"Supported model types are: {self.get_supported_models_list}."
                     )
 
                 if dtype is None:
                     dtype = get_weights_dtype(nemo_checkpoint_path)
 
                 if dtype is None:
-                    raise Exception("Parameter dtype needs to be specified, got None.")
+                    raise Exception(
+                        "Parameter dtype needs to be provided and cannot be inferred from the checkpoint. "
+                        "Please specify it explicitely."
+                    )
 
                 model, model_config, self.tokenizer = load_nemo_model(
                     nemo_checkpoint_path, nemo_export_dir, use_mcore_path

@@ -491,6 +491,7 @@ def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     """
     model_config = load_nemo_config(nemo_ckpt)
     torch_dtype = None
+    dtype = None
 
     is_nemo2 = "_target_" in model_config
     if is_nemo2:
@@ -502,7 +503,10 @@ def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
         dtype = torch_dtype.removeprefix("torch.")
         LOGGER.info(f"Determined weights dtype='{dtype}' for {nemo_ckpt} checkpoint.")
     else:
-        LOGGER.warning(f"Parameter dtype for model weights cannot be determined for {nemo_ckpt} checkpoint.")
+        LOGGER.warning(
+            f"Parameter dtype for model weights cannot be determined for {nemo_ckpt} checkpoint. "
+            "There is no 'precision' field specified in the model_config.yaml file."
+        )
 
     return dtype
 
