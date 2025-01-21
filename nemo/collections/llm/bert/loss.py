@@ -134,8 +134,7 @@ class HardNegativesCELoss(MegatronLossReduction):
         if cp_size != 1:
             raise NotImplementedError(f'CP is not supported for {self.__class__} yet.')
 
-
-        num_tensors_per_example = 2 + self.num_hard_negatives # 1 query, 1 pos, num_hard_negatives negs
+        num_tensors_per_example = 2 + self.num_hard_negatives  # 1 query, 1 pos, num_hard_negatives negs
         current_train_n_passages = 1 + self.num_hard_negatives
         batch_size = forward_out.shape[0] // num_tensors_per_example
         # Get Query, Key (Positives, Negatives)
@@ -153,11 +152,13 @@ class HardNegativesCELoss(MegatronLossReduction):
             )
 
         assert key.shape[0] % query.shape[0] == 0, '{} % {} > 0'.format(key.shape[0], query.shape[0])
-        assert key.shape[0] / query.shape[0] == current_train_n_passages, (
-            '{} / {} != {}'.format(key.shape[0], query.shape[0], current_train_n_passages))
+        assert key.shape[0] / query.shape[0] == current_train_n_passages, '{} / {} != {}'.format(
+            key.shape[0], query.shape[0], current_train_n_passages
+        )
         query_shape = query.shape
-        repeated_query = (query.repeat(1, 1, current_train_n_passages)
-                          .reshape(query_shape[0] * current_train_n_passages, query_shape[1]))
+        repeated_query = query.repeat(1, 1, current_train_n_passages).reshape(
+            query_shape[0] * current_train_n_passages, query_shape[1]
+        )
         scores = torch.sum(repeated_query * key, dim=-1).reshape(query_shape[0], current_train_n_passages)
         labels = torch.zeros(query_shape[0], dtype=torch.long, device=query.device)
 
@@ -190,6 +191,7 @@ class HardNegativesCELoss(MegatronLossReduction):
             return loss_sum
 
         return torch.tensor(0.0, device=torch.cuda.current_device())
+
 
 class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
     """

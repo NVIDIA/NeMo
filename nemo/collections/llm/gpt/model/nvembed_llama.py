@@ -1,47 +1,60 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Union, Callable, Annotated, Optional, Dict, Literal
+from typing import TYPE_CHECKING, Annotated, Callable, Dict, Literal, Optional, Union
+
+import einops
 import lightning.pytorch as L
+import torch
+import torch.nn.functional as F
+from megatron.core import parallel_state
+from megatron.core.transformer.enums import AttnMaskType
+from megatron.core.transformer.spec_utils import ModuleSpec
+from torch import Tensor, nn
+
 import nemo.collections.llm.gpt.model.base as GPTBase
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativesCELoss
 from nemo.collections.llm.gpt.model import GPTConfig
-from nemo.collections.llm.gpt.model.llama import Llama32Config1B, LlamaConfig, HFLlamaImporter, LlamaModel, \
-    HFLlamaExporter
-from nemo.utils.import_utils import safe_import
-from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.enums import AttnMaskType
-from nemo.lightning import OptimizerModule, io
+from nemo.collections.llm.gpt.model.llama import (
+    HFLlamaExporter,
+    HFLlamaImporter,
+    Llama32Config1B,
+    LlamaConfig,
+    LlamaModel,
+)
 from nemo.collections.llm.utils import Config
+from nemo.lightning import OptimizerModule, io
 from nemo.lightning.pytorch.utils import dtype_from_hf
-import einops
-import torch
-from torch import nn, Tensor
-from megatron.core import parallel_state
-import torch.nn.functional as F
+from nemo.utils.import_utils import safe_import
+
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from transformers import LlamaConfig as HFLlamaConfig
+
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 _, HAVE_TE = safe_import("transformer_engine")
+
 
 def _local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     gpt_layer_spec = GPTBase.local_layer_spec(config)
     gpt_layer_spec.submodules.self_attention.params['attn_mask_type'] = AttnMaskType.padding
     return gpt_layer_spec
 
+
 def _transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     gpt_layer_spec = GPTBase.transformer_engine_layer_spec(config)
     gpt_layer_spec.submodules.self_attention.params['attn_mask_type'] = AttnMaskType.padding
     return gpt_layer_spec
 
+
 def get_nv_embedding_layer_spec(config):
     """Customized Layer Spec for NV Embedding Llama Model.
-       Bidirectional attention is enabled instead of causal masking.
+    Bidirectional attention is enabled instead of causal masking.
     """
     if HAVE_TE:
         return _transformer_engine_layer_spec(config)
     else:
         return _local_layer_spec(config)
+
 
 def nv_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     """Setup NVEmbedding Llama Model dataloader batch."""
@@ -72,6 +85,7 @@ def nv_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
 
     return output
 
+
 def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
     """
     This subsets the batch keys to the ones actually used by forward pass of the model,
@@ -101,9 +115,11 @@ def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.T
     }
     return model.encode(**forward_args)
 
+
 @dataclass
 class NVEmbedLlama32Config1B(Llama32Config1B):
     """NV Embedding Llama3.2 1B Config"""
+
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = get_nv_embedding_layer_spec
     forward_step_fn: Callable = nv_embedding_forward_step
     data_step_fn: Callable = nv_embedding_data_step
@@ -111,7 +127,7 @@ class NVEmbedLlama32Config1B(Llama32Config1B):
     # Training Configs
     num_hard_negatives: int = 4
     ce_loss_scale: float = 50
-    label_smoothing: float = 0.
+    label_smoothing: float = 0.0
     encode_separately: bool = True
     negative_sample_strategy: Literal["random", "first"] = 'first'
     add_bos: bool = True
@@ -127,10 +143,7 @@ class NVEmbedLlama32Config1B(Llama32Config1B):
         return model
 
 
-def _average_pool(
-    last_hidden_states: Tensor,
-    attention_mask: Tensor
-):
+def _average_pool(last_hidden_states: Tensor, attention_mask: Tensor):
     """Average the hidden states on the non-masking tokens."""
     # [sq, b, h] -> [b, sq, h]
     last_hidden_states = einops.rearrange(last_hidden_states, 's b h -> b s h')
@@ -140,6 +153,7 @@ def _average_pool(
 
 class NVEmbedLlamaModel(LlamaModel):
     """NV Embedding Llama Model"""
+
     def __init__(
         self,
         config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
@@ -167,7 +181,7 @@ class NVEmbedLlamaModel(LlamaModel):
         decoder_input: Optional[torch.Tensor] = None,
     ):
         """Generate the embedding for the inputs.
-           It runs the forward and apply average pooling on the last hidden states of the model.
+        It runs the forward and apply average pooling on the last hidden states of the model.
         """
         if attention_mask.ndim == 2:
             # extend attention mask to [b, 1, 1, sq]
@@ -216,9 +230,11 @@ class NVEmbedLlamaModel(LlamaModel):
 
         return self._validation_loss_reduction
 
+
 @io.model_importer(NVEmbedLlamaModel, "hf")
 class HFNVEmbedLlamaImporter(HFLlamaImporter):
     """HF Importer for NV Embedding Llama Model"""
+
     def init(self) -> NVEmbedLlamaModel:
         return NVEmbedLlamaModel(self.config, tokenizer=self.tokenizer)
 
@@ -254,12 +270,14 @@ class HFNVEmbedLlamaImporter(HFLlamaImporter):
 
         return output
 
+
 @io.model_exporter(NVEmbedLlamaModel, "hf")
 class HFNVEmbedLlamaExporter(HFLlamaExporter):
     """HF Exporter for NV Embedding Llama Model.
-        Note that since NV Embedding LLama uses customized LlamaBidirectionalConfig config,
-        user would need to manually change the config after the conversion
+    Note that since NV Embedding LLama uses customized LlamaBidirectionalConfig config,
+    user would need to manually change the config after the conversion
     """
+
     def apply(self, output_path: Path) -> Path:
         source, _ = self.nemo_load(str(self))
         source_dtype = source.module.embedding.word_embeddings.weight.dtype

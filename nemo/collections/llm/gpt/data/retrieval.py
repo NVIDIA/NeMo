@@ -1,19 +1,22 @@
 import json
 import os.path
-from typing import TYPE_CHECKING, Optional, Dict, Any, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from datasets import Dataset
+
+from nemo.collections.llm.bert.data.fine_tuning import FineTuningDataModule
 from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.utils import logging
-from nemo.collections.llm.bert.data.fine_tuning import FineTuningDataModule
-from datasets import Dataset
+
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
+
 # Custom Retrieval Data Module loaded with json file
 class CustomRetrievalDataModule(FineTuningDataModule):
-    """
+    """ """
 
-    """
     def __init__(
         self,
         data_root: str,
@@ -88,11 +91,6 @@ class CustomRetrievalDataModule(FineTuningDataModule):
                     # All negative document are written
                     pos_doc = o[self.pos_doc_key][0] if isinstance(o[self.pos_doc_key], list) else o[self.pos_doc_key]
                     neg_doc = o[self.neg_doc_key] if isinstance(o[self.pos_doc_key], list) else [o[self.neg_doc_key]]
-                    f.write(
-                        json.dumps({
-                            "query": o[self.query_key],
-                            "pos_doc": pos_doc,
-                            "neg_doc": neg_doc}) + "\n"
-                    )
+                    f.write(json.dumps({"query": o[self.query_key], "pos_doc": pos_doc, "neg_doc": neg_doc}) + "\n")
 
             logging.info(f"{split_name} split saved to {output_file}")

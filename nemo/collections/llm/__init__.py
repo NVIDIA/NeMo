@@ -36,13 +36,13 @@ from nemo.collections.llm.bert.model import (
 from nemo.collections.llm.gpt.data import (
     AlpacaDataModule,
     ChatDataModule,
+    CustomRetrievalDataModule,
     DollyDataModule,
     FineTuningDataModule,
     HFDatasetDataModule,
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
-    CustomRetrievalDataModule,
 )
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (
@@ -110,8 +110,8 @@ from nemo.collections.llm.gpt.model import (
     Nemotron4Config340B,
     NemotronConfig,
     NemotronModel,
-    NVEmbedLlamaModel,
     NVEmbedLlama32Config1B,
+    NVEmbedLlamaModel,
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
     Phi3Config,

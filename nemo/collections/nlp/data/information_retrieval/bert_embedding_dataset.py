@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from random import choices, sample
-from typing import Mapping, Optional, Literal
+from typing import Literal, Mapping, Optional
 
 import datasets
 import numpy as np
@@ -35,6 +35,7 @@ class BertEmbeddingDataset(Dataset):
     """
     Embedding Dataset Class.
     """
+
     def __init__(
         self,
         file_path: str,
@@ -92,10 +93,12 @@ class BertEmbeddingDataset(Dataset):
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id else self.tokenizer.eos_id
         self.negative_sample_strategy = negative_sample_strategy
         self.encode_separately = encode_separately
-        assert truncation_method == 'left' or truncation_method == 'right',\
-            'truncation_method must be either "left" or "right"'
-        assert negative_sample_strategy == 'random' or negative_sample_strategy == 'first',\
-            'negative_sample_strategy must be either "random" or "first"'
+        assert (
+            truncation_method == 'left' or truncation_method == 'right'
+        ), 'truncation_method must be either "left" or "right"'
+        assert (
+            negative_sample_strategy == 'random' or negative_sample_strategy == 'first'
+        ), 'negative_sample_strategy must be either "random" or "first"'
         if special_tokens is None:
             self.special_tokens = {
                 "system_turn_start": "<extra_id_0>",
@@ -119,11 +122,13 @@ class BertEmbeddingDataset(Dataset):
         # Will be None after this call if `max_num_samples` is None
         self.samples_mapping = None
         self._build_samples_mapping()
-        logging.info(f"Creating EmbeddingDataset with seed={self.seed},\n"
-                     f"add_bos={self.add_bos}, add_eos={self.add_eos},\n"
-                     f"max_seq_length={self.max_seq_length}, min_seq_length={self.min_seq_length},\n"
-                     f"pad_token_id={self.pad_token_id}, negative_sample_strategy={self.negative_sample_strategy},\n"
-                     f"encode_separately={self.encode_separately} num_hard_negatives={self.num_hard_negatives}.")
+        logging.info(
+            f"Creating EmbeddingDataset with seed={self.seed},\n"
+            f"add_bos={self.add_bos}, add_eos={self.add_eos},\n"
+            f"max_seq_length={self.max_seq_length}, min_seq_length={self.min_seq_length},\n"
+            f"pad_token_id={self.pad_token_id}, negative_sample_strategy={self.negative_sample_strategy},\n"
+            f"encode_separately={self.encode_separately} num_hard_negatives={self.num_hard_negatives}."
+        )
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
@@ -201,7 +206,7 @@ class BertEmbeddingDataset(Dataset):
                     nd = sample(example['neg_doc'], k=self.num_hard_negatives)
                 else:
                     # Choose the first self.num_hard_negatives samples
-                    nd = example['neg_doc'][:self.num_hard_negatives]
+                    nd = example['neg_doc'][: self.num_hard_negatives]
             assert len(nd) == self.num_hard_negatives, "Error in sampling required number of hard negatives"
             nd = [self.tokenizer.text_to_ids("passage: " + ex.strip()) for ex in nd]
 
@@ -280,7 +285,7 @@ class BertEmbeddingDataset(Dataset):
         if self.truncation_method == 'left':
             # input ids:      [pad] [pad] token token |
             # attention mask: 0      0    1     1
-            attention_mask[max_length-item_length:] = 1
+            attention_mask[max_length - item_length :] = 1
         else:
             # input ids:      token token [pad] [pad] |
             # attention mask: 1     1     0      0
@@ -324,7 +329,8 @@ class BertEmbeddingDataset(Dataset):
 
         q_attention_mask = torch.stack([self._create_attention_mask2(query_max_length, len) for len in query_lengths])
         p_attention_mask = torch.stack(
-            [self._create_attention_mask2(passage_max_length, len) for len in passage_lengths])
+            [self._create_attention_mask2(passage_max_length, len) for len in passage_lengths]
+        )
         q_position_ids = torch.LongTensor([list(range(query_max_length)) for _ in batch])
         p_position_ids = torch.LongTensor([list(range(passage_max_length)) for _ in batch])
         q_input_ids = torch.LongTensor(self._collate_item(query_input_ids, max_length=query_max_length))
