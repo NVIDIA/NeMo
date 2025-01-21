@@ -88,17 +88,18 @@ if __name__ == '__main__':
 
     print('Initializing flux inference pipeline')
     params = configs[args.version]
-    params.vae_config.ckpt = args.vae_ckpt
-    params.clip_params.version = args.clip_version
-    params.t5_params.version = args.t5_version
+    params.vae_config.ckpt = args.vae_ckpt if os.path.exists(args.vae_ckpt) else None
+    params.clip_params.version = args.clip_version if os.path.exists(args.clip_version) else "openai/clip-vit-large-patch14"
+    params.t5_params.version = args.t5_version if os.path.exists(args.t5_version) else "google/t5-v1_1-xxl"
     pipe = FluxInferencePipeline(params)
 
-    print('Loading transformer weights')
-    pipe.load_from_pretrained(
-        args.flux_ckpt,
-        do_convert_from_hf=args.do_convert_from_hf,
-        save_converted_model_to=args.save_converted_model_to,
-    )
+    if os.path.exists(args.flux_ckpt):
+        print('Loading transformer weights')
+        pipe.load_from_pretrained(
+            args.flux_ckpt,
+            do_convert_from_hf=args.do_convert_from_hf,
+            save_converted_model_to=args.save_converted_model_to,
+        )
     dtype = torch.bfloat16 if args.bf16 else torch.float32
     text = args.prompts.split(',')
     pipe(

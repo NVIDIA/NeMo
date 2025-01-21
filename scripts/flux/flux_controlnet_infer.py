@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import os
 
 import torch
 from PIL import Image
@@ -67,7 +68,7 @@ def parse_args():
         "--version",
         type=str,
         default='dev',
-        choices=['dev', 'schnell'],
+        choices=['dev'],
         help="Must align with the checkpoint provided.",
     )
     parser.add_argument("--height", type=int, default=1024, help="Image height.")
@@ -105,9 +106,9 @@ if __name__ == '__main__':
 
     print('Initializing flux inference pipeline')
     params = configs[args.version]
-    params.vae_config.ckpt = args.vae_ckpt
-    params.clip_params.version = args.clip_version
-    params.t5_params.version = args.t5_version
+    params.vae_config.ckpt = args.vae_ckpt if os.path.exists(args.vae_ckpt) else None
+    params.clip_params.version = args.clip_version if os.path.exists(args.clip_version) else "openai/clip-vit-large-patch14"
+    params.t5_params.version = args.t5_version if os.path.exists(args.t5_version) else "google/t5-v1_1-xxl"
 
     controlnet_config = FluxControlNetConfig(
         num_joint_layers=args.num_joint_layers,
@@ -116,13 +117,14 @@ if __name__ == '__main__':
     )
     pipe = FluxControlNetInferencePipeline(params, controlnet_config)
 
-    print('Loading transformer weights')
-    pipe.load_from_pretrained(
-        args.flux_ckpt,
-        args.controlnet_ckpt,
-        do_convert_from_hf=args.do_convert_from_hf,
-        save_converted_model_to=args.save_converted_model_to,
-    )
+    if os.path.exists(args.flux_ckpt) and os.path.exists(args.controlnet_ckpt):
+        print('Loading transformer weights')
+        pipe.load_from_pretrained(
+            args.flux_ckpt,
+            args.controlnet_ckpt,
+            do_convert_from_hf=args.do_convert_from_hf,
+            save_converted_model_to=args.save_converted_model_to,
+        )
     dtype = torch.bfloat16 if args.bf16 else torch.float32
     text = args.prompts.split(',')
     control_images = args.control_image.split(',')

@@ -241,6 +241,7 @@ def unit_test() -> run.Partial:
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
     )
+    recipe.trainer.max_steps=10
 
     return recipe
 
