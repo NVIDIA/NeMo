@@ -49,7 +49,7 @@ RUN pip install nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_T
 # Install NeMo requirements
 ARG TE_TAG=7d576ed25266a17a7b651f2c12e8498f67e0baea
 ARG MODELOPT_VERSION=0.21.0
-ARG MCORE_TAG=7dd2658cf241098ad9e7b9b1c8526ef520ff6dc6
+ARG MCORE_TAG=df70c003f4f544b63305c607fe2e68cba0ac2002
 ARG APEX_TAG=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
 RUN \
   --mount=type=bind,source=requirements,target=requirements \
@@ -68,7 +68,7 @@ pip install --no-cache-dir --no-build-isolation --extra-index-url https://pypi.n
 ".[all]"
 EOF
 
-ARG MCORE_TAG=7dd2658cf241098ad9e7b9b1c8526ef520ff6dc6
+ARG MCORE_TAG=df70c003f4f544b63305c607fe2e68cba0ac2002
 RUN <<"EOF" bash -ex
 # Megatron-LM installation
 git clone https://github.com/NVIDIA/Megatron-LM.git
