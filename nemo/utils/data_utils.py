@@ -18,7 +18,10 @@ import shutil
 import subprocess
 from typing import Tuple
 
-from nemo import __version__ as NEMO_VERSION
+try:
+    from nemo import __version__ as NEMO_VERSION
+except ImportError:
+    NEMO_VERSION = 'git'
 from nemo import constants
 from nemo.utils import logging
 
