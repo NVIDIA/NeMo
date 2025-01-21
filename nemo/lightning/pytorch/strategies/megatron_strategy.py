@@ -99,7 +99,7 @@ class ParallelismConfig:
     pipeline_dtype: torch.dtype
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
-
+    expert_tensor_parallel_size: int = None
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
@@ -186,6 +186,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
         moe_extended_tp: bool = False,
+        expert_tensor_parallel_size: int = None,
         encoder_tensor_model_parallel_size: Optional[int] = 0,
         encoder_pipeline_model_parallel_size: Optional[int] = 0,
         data_sampler: Optional["DataSampler"] = None,
@@ -234,6 +235,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         )
         self.context_parallel_size = context_parallel_size
         self.expert_model_parallel_size = expert_model_parallel_size
+        self.expert_tensor_parallel_size = expert_tensor_parallel_size
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
@@ -885,6 +887,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             context_parallel_size=self.context_parallel_size,
             sequence_parallel=self.sequence_parallel,
             expert_model_parallel_size=self.expert_model_parallel_size,
+            expert_tensor_parallel_size=self.expert_tensor_parallel_size,
             moe_extended_tp=self.moe_extended_tp,
             encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
             encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,

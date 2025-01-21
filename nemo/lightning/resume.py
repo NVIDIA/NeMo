@@ -102,8 +102,10 @@ class AutoResume:
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
         if isinstance(trainer, fl.Fabric):
             raise NotImplementedError("Fabric is not supported yet.")
-
-        trainer_ckpt_path = self.get_trainer_ckpt_path(model)
+        try:
+            trainer_ckpt_path = self.get_trainer_ckpt_path(model)
+        except:
+            trainer_ckpt_path = None
         if trainer_ckpt_path:
             trainer.ckpt_path = trainer_ckpt_path
             trainer.checkpoint_callback.last_model_path = trainer_ckpt_path

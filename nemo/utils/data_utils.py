@@ -18,7 +18,8 @@ import shutil
 import subprocess
 from typing import Tuple
 
-from nemo import __version__ as NEMO_VERSION
+# from nemo import __version__ as NEMO_VERSION
+NEMO_VERSION = 'v1'
 from nemo import constants
 from nemo.utils import logging
 
