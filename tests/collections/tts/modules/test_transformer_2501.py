@@ -73,7 +73,7 @@ class TestTransformer:
             max_length_causal_mask=self.max_length_causal_mask,
         )
 
-        mask_tensor = torch.zeros(1, self.max_length_causal_mask).bool()
+        mask_tensor = torch.ones(1, self.max_length_causal_mask).bool()
         with torch.no_grad():
             output_dict = model(x=self.input_tensor, x_mask=mask_tensor)
 
