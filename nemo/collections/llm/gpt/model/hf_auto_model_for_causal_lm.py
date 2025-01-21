@@ -20,13 +20,14 @@ from transformers import AutoModelForCausalLM
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
+from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 from nemo.utils import logging
 
 
 def masked_cross_entropy(logits, targets, mask=None):
     if mask is not None:
         loss = F.cross_entropy(logits, targets, reduction='none')
-        return torch.mean(loss[mask == 1])
+        return torch.mean(loss * mask.view(-1))
     else:
         return F.cross_entropy(logits, targets)
 
@@ -42,6 +43,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         model_accelerator=None,
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
+        load_in_4bit=False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -55,6 +57,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.model_accelerator = model_accelerator
         self.trust_remote_code = trust_remote_code
         self.default_dtype = default_dtype
+        self.load_in_4bit = load_in_4bit
 
     @property
     def tokenizer(self):
@@ -75,7 +78,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # create all your layers here
         if self.load_pretrained_weights:
             self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name, torch_dtype='auto', trust_remote_code=self.trust_remote_code
+                self.model_name,
+                torch_dtype='auto',
+                trust_remote_code=self.trust_remote_code,
+                load_in_4bit=self.load_in_4bit,
             )
         else:
             from transformers import AutoConfig
@@ -86,46 +92,59 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
             )
 
+        # Apply FSDP2 and TP to the model
+        if self.device_mesh is not None:
+            fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh)
+
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
 
         self.model.train()
 
-    def forward(self, input_ids, attention_mask=None, labels=None, loss_mask=None):
-        outputs = self.model(
-            input_ids=input_ids.to(self.model.device),
-            attention_mask=attention_mask,
-        )
-        labels = labels.to(self.model.device)
-        if loss_mask is not None:
-            loss_mask = loss_mask.to(self.model.device).view(-1)
-        n_cls = outputs.logits.shape[-1]
-        outputs.loss = self.loss_fn(outputs.logits.view(-1, n_cls), labels.view(-1), loss_mask)
-        return outputs
+    def forward(self, batch):
+        return self.model(**batch)
 
-    def training_step(self, batch):
-        tokens = batch['tokens']
-        labels = batch['labels']
-        loss_mask = batch.get('loss_mask', None)
-        output = self.forward(
-            input_ids=tokens,
-            labels=labels,
-            loss_mask=loss_mask,
-        )
+    def training_step(self, batch, batch_idx=None):
+        labels = batch.pop('labels').to(self.model.device)
+        loss_mask = batch.pop('loss_mask', None)
 
-        loss = output.loss
-        self.log('train_log', loss, on_step=True, on_epoch=True, prog_bar=True)
+        # GPTSFTDataset emits `tokens` instead of `input_ids`
+        if not 'input_ids' in batch and 'tokens' in batch:
+            batch['input_ids'] = batch['tokens']
+        batch = self._remove_extra_batch_keys(batch)
+
+        outputs = self.forward(batch)
+
+        # Prepare for loss calculation
+        logits = outputs.logits.float()
+        n_cls = logits.shape[-1]
+        logits = logits.view(-1, n_cls)
+        labels = labels.view(-1)
+
+        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
+        loss = self.loss_fn(logits, labels, loss_mask)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
+    @torch.no_grad
     def validation_step(self, batch, batch_idx):
-        tokens = batch['tokens']
-        labels = batch['labels']
-        output = self.forward(
-            input_ids=tokens,
-            labels=labels,
-        )
+        labels = batch.pop('labels').to(self.model.device)
+        loss_mask = batch.pop('loss_mask', None)
 
-        loss = output.loss
+        # GPTSFTDataset emits `tokens` instead of `input_ids`
+        if not 'input_ids' in batch and 'tokens' in batch:
+            batch['input_ids'] = batch['tokens']
+        batch = self._remove_extra_batch_keys(batch)
+
+        outputs = self.forward(**batch)
+
+        logits = outputs.logits.float()
+        n_cls = logits.shape[-1]
+        logits = logits.view(-1, n_cls)
+        labels = labels.view(-1)
+
+        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
+        loss = self.loss_fn(logits, labels, loss_mask)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
 
     def save_pretrained(self, path):
@@ -135,3 +154,18 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self._tokenizer.save_pretrained(path)
         else:
             logging.warning("A tokenizer wasn't created before to save.")
+
+    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
+        """Remove extra keys from batch that are not kwargs in model's forward
+
+        Args:
+            batch (dict): dictionary of tensors.
+
+        Returns:
+            dict: dictionary of tensors; keys that are not in model's forward are removed.
+        """
+        import inspect
+
+        fwd_signature = inspect.signature(self.model.forward)
+        allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
+        return {k: batch[k] for k in allowed_keys if k in batch}

@@ -496,12 +496,12 @@ class TransformerLayer(torch.nn.Module):
             output <torch tensor> (B, T1, C): Output tensor
             attn_probabilities <dict>: Attention probabilities
         """
-        x = (x + x_) * x_mask.unsqueeze(-1)
         x_, s_attn_prob = self.self_attention(query=self.norm_self(x), query_mask=x_mask)
         if self.use_cache:
             if self.cache['self_attn_output'] is not None:
                 x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
             self.cache['self_attn_output'] = x_
+        x = (x + x_) * x_mask.unsqueeze(-1)
 
         x_attn_prob = None
         if self.has_xattn and cond is not None:
@@ -520,10 +520,10 @@ class TransformerLayer(torch.nn.Module):
                 if self.cache['cross_attn_output'] is not None:
                     x_res = torch.cat([self.cache['cross_attn_output'], x_res], dim=1)
                 self.cache['cross_attn_output'] = x_res
-            x = (x + x_res)
+            x = x + x_res
 
         # mlp final projection
-        x = (x + self.pos_ff(self.norm_pos_ff(x)))
+        x = x + self.pos_ff(self.norm_pos_ff(x))
         x = x * x_mask.unsqueeze(-1)
 
         return {
@@ -574,6 +574,9 @@ class Transformer(torch.nn.Module):
             use_learnable_pos_emb <bool>: Whether to add a learnable positionable embedding inside the class
             conv_non_linearity <Callable>: Convolution non-linearity
         """
+        if has_xattn and (xa_d_memory is None or xa_n_heads is None):
+            raise ValueError("It requires that `xa_d_memory` and `xa_n_heads` are specified when `has_xattn` is True!")
+
         super().__init__()
         self.dropout = torch.nn.Dropout(p_dropout)
         self.p_dropout_out = p_dropout_out

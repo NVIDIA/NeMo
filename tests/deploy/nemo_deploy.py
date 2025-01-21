@@ -21,14 +21,14 @@ from pathlib import Path
 
 import torch
 
-from nemo.deploy.nlp import MegatronLLMDeployable
+from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 from tests.infer_data_path import get_infer_test_data
 
 run_export_tests = True
 try:
     from nemo.deploy import DeployPyTriton
     from nemo.deploy.nlp import NemoQueryLLM, NemoQueryLLMPyTorch
-    from nemo.export import TensorRTLLM
+    from nemo.export.tensorrt_llm import TensorRTLLM
 except Exception as e:
     run_export_tests = False
 
@@ -136,7 +136,7 @@ def run_in_framework_inference(
     nm = DeployPyTriton(
         model=model,
         triton_model_name=model_name,
-        port=8000,
+        http_port=8000,
     )
     nm.deploy()
     nm.run()
@@ -240,7 +240,6 @@ def run_trt_llm_inference(
         trt_llm_exporter.export(
             nemo_checkpoint_path=checkpoint_path,
             model_type=model_type,
-            n_gpus=n_gpu,
             tensor_parallelism_size=tp_size,
             pipeline_parallelism_size=pp_size,
             max_input_len=max_input_len,
@@ -287,7 +286,7 @@ def run_trt_llm_inference(
             nm = DeployPyTriton(
                 model=trt_llm_exporter,
                 triton_model_name=model_name,
-                port=8000,
+                http_port=8000,
             )
             nm.deploy()
             nm.run()
@@ -460,7 +459,6 @@ def get_args():
         "--min_gpus",
         type=int,
         default=1,
-        required=True,
     )
     parser.add_argument(
         "--max_gpus",
@@ -516,10 +514,12 @@ def get_args():
     parser.add_argument(
         "--tp_size",
         type=int,
+        default=1,
     )
     parser.add_argument(
         "--pp_size",
         type=int,
+        default=1,
     )
     parser.add_argument(
         "--top_k",

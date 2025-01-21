@@ -32,6 +32,7 @@ from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
+from nemo.lightning.pytorch.utils import is_trainer_attached
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
@@ -105,7 +106,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         else:
             model.walk(self.transform)
 
-        if hasattr(model, "trainer") and model.trainer.state.fn != TrainerFn.FITTING:
+        if is_trainer_attached(model) and model.trainer.state.fn != TrainerFn.FITTING:
             self.freeze_model(model)
         return model
 
@@ -128,7 +129,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
             model.module.freeze()
         else:
             model.freeze()
-        if hasattr(model, "trainer") and model.trainer.state.fn == TrainerFn.FITTING:
+        if is_trainer_attached(model) and model.trainer.state.fn == TrainerFn.FITTING:
             model.train(mode=True)
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
@@ -137,23 +138,31 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         super().setup(trainer, pl_module, stage=stage)
 
+        self._is_fsdp_v1 = type(trainer.strategy).__name__ == 'FSDPStrategy'
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
 
-        ckpt_io_kwarg_names = [
-            "save_ckpt_format",
-            "async_save",
-            "torch_dist_multiproc",
-            "assume_constant_structure",
-            "parallel_save",
-            "parallel_save_within_dp",
-            "parallel_load",
-            "load_directly_on_device",
-        ]
-        ckpt_io_kwargs = {
-            arg: getattr(trainer.strategy, arg)
-            for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
-        }
+        is_hf_model = getattr(trainer.model, "is_hf_model", False)
+        if not type(is_hf_model) == type(True):
+            is_hf_model = False
+
+        if is_hf_model:
+            ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
+        else:
+            ckpt_io_kwarg_names = [
+                "save_ckpt_format",
+                "async_save",
+                "torch_dist_multiproc",
+                "assume_constant_structure",
+                "parallel_save",
+                "parallel_save_within_dp",
+                "parallel_load",
+                "load_directly_on_device",
+            ]
+            ckpt_io_kwargs = {
+                arg: getattr(trainer.strategy, arg)
+                for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
+            }
         trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
         self.wrapped_io = (
             trainer.strategy._checkpoint_io._checkpoint_io
@@ -203,7 +212,12 @@ class PEFT(IOMixin, ABC, ModelTransform):
             )
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
             if trainer.state.fn == TrainerFn.FITTING:
-                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=True)
+                # Load optimizer
+                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=False)
+                # Load lr scheduler
+                if (lr_schedulers := adapter_state.get('lr_schedulers', None)) is not None:
+                    for config, lrs_state in zip(trainer.lr_scheduler_configs, lr_schedulers):
+                        config.scheduler.load_state_dict(lrs_state)
 
         for cb in trainer.callbacks[::-1]:
             if isinstance(cb, MegatronOptimizerModule):
@@ -307,12 +321,11 @@ class AdapterWrapper(nn.Module):
             destination = {}
 
         # Get state dict of the main module
-        main_state_dict = self.to_wrap.state_dict(destination, prefix, keep_vars)
+        self.to_wrap.state_dict(destination, prefix, keep_vars)
 
-        # Store adapter state dict under the special "adapters" key in the destination dict
-        adapter_state_dict = self.adapter.state_dict(None, prefix, keep_vars)
-        destination[f'{prefix}adapters'] = adapter_state_dict
-        return main_state_dict
+        # Store adapter state dict under the "adapter" prefix in the destination dict
+        self.adapter.state_dict(destination, f'{prefix}adapter.', keep_vars)
+        return destination
 
     def sharded_state_dict(
         self,
@@ -395,13 +408,38 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         from nemo.utils.get_rank import is_global_rank_zero
 
         if is_global_rank_zero():
-            metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
             base_dir = ckpt_to_weights_subdir(path, is_saving=True)
             base_dir.mkdir(parents=True, exist_ok=True)
-            adapter_meta_path = base_dir / ADAPTER_META_FILENAME
+
+            from nemo.lightning.io.pl import HuggingFaceCheckpointIO
+
+            if isinstance(self.checkpoint_io, HuggingFaceCheckpointIO):
+                metadata = self._create_lora_hf_config()
+                adapter_meta_path = base_dir / "adapter_config.json"
+            else:
+                metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
+                adapter_meta_path = base_dir / ADAPTER_META_FILENAME
+
             with open(adapter_meta_path, "w") as f:
                 json.dump(metadata, f)
         return request
+
+    def _create_lora_hf_config(self):
+        from peft import LoraConfig
+        from nemo.collections.llm.peft import DoRA
+
+        lora_config = LoraConfig(
+            r=self.peft.dim,
+            target_modules=self.peft.target_modules,
+            lora_alpha=self.peft.alpha,
+            lora_dropout=self.peft.dropout,
+            use_dora=isinstance(self.peft, DoRA),
+        )
+        lora_config = lora_config.to_dict()
+        lora_config["peft_type"] = "LORA"
+        lora_config["megatron_core"] = None
+        lora_config["target_modules"] = self.peft.target_modules
+        return lora_config
 
     @override
     def load_checkpoint(
@@ -442,7 +480,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         if getattr(path, "base_model_path", None):
             ## PEFT Resume, FIRST TIME
             self.adapter_ckpt_path = Path(str(path))
-            adapter_ckpt = self.checkpoint_io.load_checkpoint(path)  # Loads only metadata
+            adapter_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict={})  # Loads only metadata
             # path is adapter path to restore the training metadata, but switch to loading base model here.
             path = self.model_ckpt_path = path.base_model_path
         elif adapter_meta_path.exists():
