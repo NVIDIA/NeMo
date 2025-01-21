@@ -171,7 +171,7 @@ class TensorRTLLM(ITritonDeployable):
         paged_kv_cache: bool = True,
         remove_input_padding: bool = True,
         paged_context_fmha: bool = False,
-        dtype: Optional[str] = "bfloat16",
+        dtype: Optional[str] = None,
         load_model: bool = True,
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
