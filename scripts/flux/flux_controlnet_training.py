@@ -113,7 +113,7 @@ def flux_controlnet_training() -> run.Partial:
                     nl.ModelCheckpoint,
                     monitor='global_step',
                     filename='{global_step}',
-                    every_n_train_steps=1000000,
+                    every_n_train_steps=1000,
                     save_top_k=3,
                     mode='max',
                 ),

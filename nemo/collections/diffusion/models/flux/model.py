@@ -54,15 +54,6 @@ from nemo.utils import logging
 
 # pylint: disable=C0116
 def flux_data_step(dataloader_iter):
-    # latents = torch.randn(4096, b, 64)
-    # prompt_embeds = torch.randn(256, b, 4096)
-    # pooled_prompt_embeds = torch.randn(b, 768)
-    # timestep = torch.randn(b)
-    # latent_image_ids = torch.randn(b, 4096, 3)
-    # text_ids = torch.randn(b, 256, 3)
-    # guidance = torch.randn(b)
-    #
-    # return latents, prompt_embeds, pooled_prompt_embeds, timestep, latent_image_ids, text_ids, guidance
     batch = next(dataloader_iter)
     if isinstance(batch, tuple) and len(batch) == 3:
         _batch = batch[0]

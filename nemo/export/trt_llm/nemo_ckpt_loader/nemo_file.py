@@ -26,7 +26,6 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import yaml
 import zarr
-from tensorrt_llm._utils import np_bfloat16, str_dtype_to_torch
 from torch.distributed.checkpoint import FileSystemReader
 from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
 from torch.distributed.checkpoint.state_dict_loader import load_state_dict
@@ -186,6 +185,8 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
     if not torch_tensor:
         for k, v in state_dict.items():
             if v.dtype == torch.bfloat16:
+                from tensorrt_llm._utils import np_bfloat16
+
                 state_dict[k] = v.view(torch.int16).numpy().view(np_bfloat16)
             else:
                 state_dict[k] = v.numpy()
@@ -225,6 +226,8 @@ def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tenso
                 if arr.dtype.name == "bfloat16":
                     sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
                 else:
+                    from tensorrt_llm._utils import str_dtype_to_torch
+
                     sharded_state_dict[key] = torch.from_numpy(arr[:]).view(str_dtype_to_torch(arr.dtype.name))
             else:
                 sharded_state_dict[key] = arr[:]
@@ -477,6 +480,28 @@ def get_model_type(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     return model_type
 
 
+def load_distributed_model_weights(
+    weights_directory: Union[Path, TarPath], mcore_scales_format: bool
+) -> Dict[str, Any]:
+    """
+    Loads model weights in `torch_dist` format directly from weights directory.
+    Preprocesses the scaling factors for local export if mcore_scales_format is set to False.
+
+    Args:
+        weights_directory (Path | TarPath): Path to the weights directory.
+        mcore_scales_format (bool): Flag for local vs megatron.core export.
+
+    Returns:
+        dict: Model state dictionary
+    """
+    model = load_sharded_metadata(weights_directory)
+    if not mcore_scales_format:
+        model.update({k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)})
+        model = preprocess_scaling_factors_for_local_export(model)
+
+    return model
+
+
 def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path], mcore_scales_format: bool = True):
     if not os.path.exists(nemo_ckpt):
         raise TypeError("%s does not exist", nemo_ckpt)
@@ -493,10 +518,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
         if (nemo_dir / "model_weights").exists():
             dist_ckpt_folder = nemo_dir / "model_weights"
 
-            model = load_sharded_metadata(dist_ckpt_folder)
-            if not mcore_scales_format:
-                model.update({k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)})
-                model = preprocess_scaling_factors_for_local_export(model)
+            model = load_distributed_model_weights(dist_ckpt_folder, mcore_scales_format)
 
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
@@ -512,7 +534,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 tokenizer = build_tokenizer(tokenizer_config)
         elif (nemo_dir / "weights").exists():
             dist_ckpt_folder = nemo_dir / "weights"
-            model = load_sharded_metadata(dist_ckpt_folder)
+            model = load_distributed_model_weights(dist_ckpt_folder, mcore_scales_format)
             io_folder = nemo_dir / "context"
 
             if (io_folder / "model.yaml").exists():
@@ -549,6 +571,9 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 nemo_model_config["activation"] = "openai-gelu"
             elif nemo_model_config["activation"] == "squared_relu":
                 nemo_model_config["activation"] = "squared-relu"
+
+            if nemo_model_config.get("add_bias_linear"):
+                nemo_model_config["bias"] = True
 
             nemo_model_config["mcore_gpt"] = True
             nemo_model_config["max_position_embeddings"] = nemo_model_config.get("seq_length", 4096)

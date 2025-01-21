@@ -527,9 +527,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
         for model_module in self:
-            # if not self._cpu:
-            #     model_module.cuda(torch.cuda.current_device())
-            if not self._cpu and not self.ddp_config.use_custom_fsdp:
+            if not self._cpu and (not HAVE_CUSTOM_FSDP or not self.ddp_config.use_custom_fsdp):
                 # If Megatron FSDP is enabled, we don't need to move the model to GPU here to avoid GPU OOM.
                 model_module.cuda(torch.cuda.current_device())
 
@@ -688,7 +686,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
     def force_param_sync(self):
         for model in self:
             model_chunk = model.module
-            print(model.module)
             assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
             model_chunk.start_param_sync(force_sync=True)
 
@@ -1734,7 +1731,10 @@ def masked_token_loss(tensor: Tensor, mask: Tensor):
     """
     losses = tensor.float()
     loss_mask = mask.view(-1).float()
-    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+    num_valid_tokens = loss_mask.sum()
+    if num_valid_tokens < 0.5:  # no valid tokens
+        num_valid_tokens += 1.0
+    loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens  # sequence level nll
 
     return loss
 

@@ -156,13 +156,7 @@ def convergence_test() -> run.Partial:
     )
     recipe.model.flux_params.device = 'cuda'
     recipe.trainer.devices = 8
-    recipe.trainer.strategy.tensor_model_parallel_size = 2
-    recipe.data = flux_datamodule('/mingyuanm/dataset/fill50k/fill50k_tarfiles/')
-    recipe.model.flux_params.flux_config = run.Config(
-        FluxConfig,
-        ckpt_path='/ckpts/nemo_dist_ckpt/weights/',
-        load_dist_ckpt=True
-    )
+    recipe.data = flux_datamodule('/dataset/fill50k/fill50k_tarfiles/')
     return recipe
 
 
