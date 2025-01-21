@@ -128,6 +128,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
             # assert that fake tp and pp rank match after model parallel init
             assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
             assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
+            assert app_state.expert_tensor_parallel_rank == parallel_state.get_expert_tensor_parallel_rank()
 
             app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
             app_state.data_parallel_group = parallel_state.get_data_parallel_group()
