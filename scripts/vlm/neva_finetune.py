@@ -28,6 +28,7 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm import ImageDataConfig
+from nemo.lightning.pytorch.callbacks import NsysCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -47,8 +48,9 @@ def main(args):
         decoder_seq_length = 8192
 
     # Submodules configurations
-    language_transformer_config = llm.Llama2Config7B(
+    language_transformer_config = llm.Llama3Config8B(
         seq_length=decoder_seq_length,
+        num_layers=4,
     )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
@@ -71,6 +73,8 @@ def main(args):
     )
     num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile
 
+    seq_length = num_image_embeddings_per_tile
+
     if args.data_type == "llava":
         # Data configuration
         data_config = ImageDataConfig(
@@ -82,8 +86,8 @@ def main(args):
         data = vlm.NevaLazyDataModule(
             paths=args.data_path,
             data_config=data_config,
-            seq_length=decoder_seq_length,
-            decoder_seq_length=None,
+            seq_length=seq_length,
+            decoder_seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
             tokenizer=None,
@@ -118,7 +122,8 @@ def main(args):
             path=args.data_path,
             tokenizer=tokenizer,
             image_processor=image_processor,
-            seq_length=decoder_seq_length,
+            seq_length=seq_length,
+            decoder_seq_length=decoder_seq_length,
             micro_batch_size=mbs,
             global_batch_size=gbs,
             num_workers=0,
@@ -128,14 +133,15 @@ def main(args):
                 image_processor=image_processor,
                 multimodal_sample_config=config,
                 packed_sequence=args.use_packed_sequence,
-                packed_sequence_size=decoder_seq_length,
+                packed_sequence_size=seq_length,
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
             ),
             packing_buffer_size=200 if args.use_packed_sequence else None,
         )
     elif args.data_type == "mock":
         data = vlm.NevaMockDataModule(
-            seq_length=decoder_seq_length,
+            seq_length=seq_length,
+            decoder_seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
             tokenizer=None,
@@ -153,14 +159,15 @@ def main(args):
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
+        encoder_tensor_model_parallel_size=1,
         context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
-        sequence_parallel=True,
+        sequence_parallel=False,
         ddp=DistributedDataParallelConfig(
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
-            overlap_grad_reduce=True,
-            overlap_param_gather=True,
+            overlap_grad_reduce=False,
+            overlap_param_gather=False,
             average_in_collective=True,
         ),
     )
@@ -187,7 +194,12 @@ def main(args):
         callbacks=[
             checkpoint_callback,
             TimingCallback(),
-            MegatronCommOverlapCallback(tp_comm_overlap=True),
+            MegatronCommOverlapCallback(tp_comm_overlap=False),
+            NsysCallback(
+                start_step=10,
+                end_step=11,
+                gen_shape=True,
+            ),
         ],
         val_check_interval=500,
         limit_val_batches=gbs,
