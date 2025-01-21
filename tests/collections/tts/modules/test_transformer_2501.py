@@ -19,15 +19,15 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.tts.modules.transformer_2501 import (
-    Transformer,
-)
+from nemo.collections.tts.modules.transformer_2501 import Transformer
+
 
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
+
 
 @pytest.mark.unit
 class TestTransformer:
@@ -80,7 +80,7 @@ class TestTransformer:
         assert torch.isclose(torch.mean(model.layers[0].pos_ff.o_net.weight), 0.)
         assert torch.isclose(torch.std(model.layers[0].pos_ff.o_net.weight), 0.02/math.sqrt(2.))
 
-        mask_tensor = torch.zeros(1, self.max_length_causal_mask).bool()
+        mask_tensor = torch.ones(1, self.max_length_causal_mask).bool()
         with torch.no_grad():
             output_dict = model(x=self.input_tensor, x_mask=mask_tensor)
 
