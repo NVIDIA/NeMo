@@ -33,10 +33,11 @@ class NeMoFWLMEval(LM):
     Created based on: https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/docs/model_guide.md
     """
 
-    def __init__(self, model_name, api_url, tokenizer, temperature, top_p, top_k, add_bos):
+    def __init__(self, model_name, api_url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos):
         self.model_name = model_name
         self.api_url = api_url
         self.tokenizer = tokenizer
+        self.max_tokens_to_generate = max_tokens_to_generate
         self.temperature = temperature
         self.top_p = top_p
         self.top_k = top_k
@@ -128,8 +129,6 @@ class NeMoFWLMEval(LM):
             if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
                 continuation_enc = continuation_enc[1:]
             num_cont_tokens = len(continuation_enc)
-            # Hard code max_tokens_to_generate to 1 to always generate just 1 token
-            self.max_tokens_to_generate = 1
             # Delete the last token from continuation before passing it to the ip prompt by replacing with empty string
             prompt = context + continuation.replace(self.tokenizer.tokenizer.decode(continuation_enc[-1]), "")
             # Create payload to query the model deployed on PyTriton server

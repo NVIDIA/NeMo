@@ -466,14 +466,14 @@ def evaluate(
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
     params = eval_cfg.params
     model = evaluation.NeMoFWLMEval(
-        endpoint.model_id,
-        endpoint.url,
-        tokenizer,
-        params.max_tokens_to_generate,
-        params.temperature,
-        params.top_p,
-        params.top_k,
-        params.add_bos,
+        model_name=endpoint.model_id,
+        api_url=endpoint.url,
+        tokenizer=tokenizer,
+        max_tokens_to_generate=params.max_tokens_to_generate,
+        temperature=params.temperature,
+        top_p=params.top_p,
+        top_k=params.top_k,
+        add_bos=params.add_bos,
     )
 
     eval_task = eval_cfg.type
