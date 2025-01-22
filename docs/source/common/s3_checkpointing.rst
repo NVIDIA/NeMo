@@ -69,6 +69,8 @@ It has dependencies on
 
 If any of these are missing, this class can't be used. 
 
+You can install these dependencies with the `s3` extra requirements.
+
 
 
 s3_dirpath_utils
