@@ -34,7 +34,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizer
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
-from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import torch_dtype_from_precision
+from nemo.export.utils import torch_dtype_from_precision
 
 try:
     from nemo.lightning import io

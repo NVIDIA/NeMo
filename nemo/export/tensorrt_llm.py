@@ -36,7 +36,6 @@ from nemo.export.trt_llm.converter.model_converter import determine_quantization
 from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
     dist_model_to_trt_llm_ckpt,
     get_layer_prefix,
-    torch_dtype_from_precision,
 )
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
@@ -60,6 +59,7 @@ from nemo.export.trt_llm.tensorrt_llm_run import (
     unload_engine,
 )
 from nemo.export.trt_llm.utils import is_rank
+from nemo.export.utils import torch_dtype_from_precision
 
 use_deploy = True
 try:
