@@ -2,7 +2,6 @@ from pathlib import Path
 
 import lightning.pytorch as L
 import torch
-from transformers import CLIPVisionModel
 
 from nemo.collections.vlm.vision.base import CLIPViTConfig
 from nemo.collections.vlm.vision.vit_config import CLIPViTL_14_336_Config
