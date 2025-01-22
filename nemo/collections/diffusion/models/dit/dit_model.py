@@ -25,6 +25,7 @@ from megatron.core import parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.transformer.custom_layers.transformer_engine import TENorm
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -36,7 +37,6 @@ from nemo.collections.diffusion.models.dit.dit_embeddings import ParallelTimeste
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     get_dit_adaln_block_with_transformer_engine_spec as DiTLayerWithAdaLNspec,
 )
-from megatron.core.transformer.custom_layers.transformer_engine import TENorm
 
 
 def modulate(x, shift, scale):
@@ -184,7 +184,7 @@ class DiTCrossAttentionModel(VisionModule):
             self.x_embedder = torch.nn.Linear(in_channels * patch_spatial**2, self.config.hidden_size)
 
         if pos_embedder is dit_embeddings.SinCosPosEmb3D:
-            if self. pre_process:
+            if self.pre_process:
                 self.pos_embedder = pos_embedder(
                     config,
                     t=max_frames // patch_temporal,
@@ -195,12 +195,12 @@ class DiTCrossAttentionModel(VisionModule):
             # here I just follow the original logic, that except with SinCosPosEmb3D, the pos_emb would be feeded to transformer blocks,
             # so the other embedders should be replicated across pp ranks.
             self.pos_embedder = pos_embedder(
-                    config,
-                    t=max_frames // patch_temporal,
-                    h=max_img_h // patch_spatial,
-                    w=max_img_w // patch_spatial,
-                    seed=1234,
-                )
+                config,
+                t=max_frames // patch_temporal,
+                h=max_img_h // patch_spatial,
+                w=max_img_w // patch_spatial,
+                seed=1234,
+            )
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 for p in self.pos_embedder.parameters():
                     setattr(p, "pipeline_parallel", True)
@@ -258,14 +258,12 @@ class DiTCrossAttentionModel(VisionModule):
         else:
             # intermediate stage of pipeline
             x_S_B_D = None  ### should it take encoder_hidden_states
-            if (not hasattr(self, "pos_embedder")) or \
-               isinstance(self.pos_embedder, dit_embeddings.SinCosPosEmb3D):
+            if (not hasattr(self, "pos_embedder")) or isinstance(self.pos_embedder, dit_embeddings.SinCosPosEmb3D):
                 pos_emb = None
             else:
                 ## if transformer blocks need pos_emb, then pos_embedder should
                 ## be replicated across pp ranks.
                 pos_emb = rearrange(self.pos_embedder(pos_ids), "B S D -> S B D")
-
 
         timesteps_B_D = self.t_embedder(timesteps.flatten()).to(torch.bfloat16)  # (b d_text_embedding)
 
@@ -345,7 +343,6 @@ class DiTCrossAttentionModel(VisionModule):
                 weight_key = f'{prefix}{module}.{param_name}'
                 self._set_embedder_weights_replica_id(param, sharded_state_dict, weight_key)
         return sharded_state_dict
-
 
     def _set_embedder_weights_replica_id(
         self, tensor: Tensor, sharded_state_dict: ShardedStateDict, embedder_weight_key: str

@@ -28,10 +28,10 @@ from nemo.collections.diffusion.data.diffusion_taskencoder import BasicDiffusion
 from nemo.collections.diffusion.datamodule import DiTDataModule
 from nemo.collections.diffusion.models.model import (
     DiT7BConfig,
-    DiTLlama5BConfig,
-    DiTLlama30BConfig,
     DiTConfig,
     DiTLConfig,
+    DiTLlama5BConfig,
+    DiTLlama30BConfig,
     DiTModel,
     DiTXLConfig,
 )
@@ -39,15 +39,13 @@ from nemo.lightning.pytorch.callbacks import ModelCheckpoint, PreemptionCallback
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
+
 @run.cli.factory
 @run.autoconvert
 def videofolder_datamodule() -> pl.LightningDataModule:
-    data_module = DiTDataModule(
-        seq_length=21760,
-        micro_batch_size=1,
-        global_batch_size=1,
-        num_val_samples=1)
+    data_module = DiTDataModule(seq_length=21760, micro_batch_size=1, global_batch_size=1, num_val_samples=1)
     return data_module
+
 
 @run.cli.factory
 @run.autoconvert
@@ -112,7 +110,7 @@ def pretrain() -> run.Partial:
                     filename='{epoch}-{step}',
                     every_n_train_steps=200,
                     save_top_k=100,
-                    save_weights_only=True
+                    save_weights_only=True,
                 ),
                 run.Config(PreemptionCallback),
             ],
@@ -167,11 +165,12 @@ def pretrain_7b() -> run.Partial:
     recipe.trainer.val_check_interval = 1000
     recipe.log.log_dir = 'nemo_experiments/dit7b'
     recipe.optim.lr_scheduler = run.Config(nl.lr_scheduler.WarmupHoldPolicyScheduler, warmup_steps=100, hold_steps=1e9)
-    recipe.optim.config.weight_decay=0.1
-    recipe.optim.config.adam_beta1=0.9
-    recipe.optim.config.adam_beta2=0.95   
+    recipe.optim.config.weight_decay = 0.1
+    recipe.optim.config.adam_beta1 = 0.9
+    recipe.optim.config.adam_beta2 = 0.95
 
     return recipe
+
 
 @run.cli.factory(target=llm.train)
 def pretrain_ditllama5b() -> run.Partial:
@@ -180,6 +179,7 @@ def pretrain_ditllama5b() -> run.Partial:
     recipe.model.config = run.Config(DiTLlama5BConfig)
     recipe.log.log_dir = 'nemo_experiments/ditllama5b'
     return recipe
+
 
 @run.cli.factory(target=llm.train)
 def pretrain_ditllama30b() -> run.Partial:

@@ -75,7 +75,9 @@ class AdaLN(MegatronModule):
     Adaptive Layer Normalization Module for DiT.
     """
 
-    def __init__(self, config: TransformerConfig, n_adaln_chunks=9, use_adaln_lora=True, adaln_lora_dim=256, norm=nn.LayerNorm):
+    def __init__(
+        self, config: TransformerConfig, n_adaln_chunks=9, use_adaln_lora=True, adaln_lora_dim=256, norm=nn.LayerNorm
+    ):
         super().__init__(config)
         if norm == TENorm:
             self.ln = norm(config, config.hidden_size, config.layernorm_epsilon)

@@ -37,8 +37,8 @@ from nemo.collections.diffusion.sampler.conditioner_configs import (
     PaddingMaskConfig,
     TextConfig,
 )
-from nemo.collections.diffusion.sampler.edm.edm_pipeline import EDMPipeline
 from nemo.collections.diffusion.sampler.cosmos.cosmos_diffusion_pipeline import CosmosDiffusionPipeline
+from nemo.collections.diffusion.sampler.edm.edm_pipeline import EDMPipeline
 from nemo.collections.llm.gpt.model.base import GPTModel
 from nemo.lightning import io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronLossReduction
@@ -57,7 +57,7 @@ def dit_data_step(module, dataloader_iter):
     batch = next(dataloader_iter)[0]
     batch = get_batch_on_this_cp_rank(batch)
     batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
-    batch["is_preprocessed"] = True # assume data is preprocessed
+    batch["is_preprocessed"] = True  # assume data is preprocessed
 
     if ('seq_len_q' in batch) and ('seq_len_kv' in batch):
         cu_seqlens = batch['seq_len_q'].cumsum(dim=0).to(torch.int32)
@@ -86,6 +86,7 @@ def dit_data_step(module, dataloader_iter):
 def get_batch_on_this_cp_rank(data: Dict):
     """Split the data for context parallelism."""
     from megatron.core import mpu
+
     cp_size = mpu.get_context_parallel_world_size()
     cp_rank = mpu.get_context_parallel_rank()
 
@@ -109,9 +110,11 @@ def get_batch_on_this_cp_rank(data: Dict):
                     # FIXME packed sequencing
                     data[key] = value.view(B, C, T, cp_size, H // cp_size, W)[:, :, :, cp_rank, ...].contiguous()
         loss_mask = data["loss_mask"]
-        data["loss_mask"] = loss_mask.view(loss_mask.shape[0], cp_size, loss_mask.shape[1] // cp_size)[:, cp_rank, ...].contiguous()
+        data["loss_mask"] = loss_mask.view(loss_mask.shape[0], cp_size, loss_mask.shape[1] // cp_size)[
+            :, cp_rank, ...
+        ].contiguous()
         data['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
-    
+
     return data
 
 
@@ -191,7 +194,7 @@ class DiTConfig(TransformerConfig, io.IOMixin):
             )
         else:
             model = DiTCrossAttentionModel
-        
+
         return model(
             self,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
@@ -228,6 +231,7 @@ class DiTXLConfig(DiTConfig):
     hidden_size: int = 1152
     num_attention_heads: int = 16
 
+
 @dataclass
 class DiT7BConfig(DiTConfig):
     num_layers: int = 28
@@ -238,8 +242,8 @@ class DiT7BConfig(DiTConfig):
     max_frames: int = 128
     patch_spatial: int = 2
     num_attention_heads: int = 32
-    layernorm_epsilon=1e-6
-    normalization="RMSNorm"
+    layernorm_epsilon = 1e-6
+    normalization = "RMSNorm"
     gated_linear_unit: bool = False
     add_bias_linear: bool = False
     qk_layernorm_per_head: bool = True
@@ -261,6 +265,7 @@ class DiT7BConfig(DiTConfig):
     forward_step_fn = dit_forward_step
     model_name = 'cosmos_7b_text2world'
 
+
 @dataclass
 class DiT14BConfig(DiTConfig):
     num_layers: int = 36
@@ -271,8 +276,8 @@ class DiT14BConfig(DiTConfig):
     max_frames: int = 128
     patch_spatial: int = 2
     num_attention_heads: int = 40
-    layernorm_epsilon=1e-6
-    normalization="RMSNorm"
+    layernorm_epsilon = 1e-6
+    normalization = "RMSNorm"
     gated_linear_unit: bool = False
     add_bias_linear: bool = False
     qk_layernorm_per_head: bool = True
@@ -293,6 +298,7 @@ class DiT14BConfig(DiTConfig):
     data_step_fn = dit_data_step
     forward_step_fn = dit_forward_step
     model_name = 'cosmos_14b_text2world'
+
 
 @dataclass
 class DiTLlama30BConfig(DiTConfig):
@@ -346,21 +352,21 @@ class DiTModel(GPTModel):
         if hasattr(config, 'model_name'):
             if 'cosmos' in getattr(config, 'model_name'):
                 self.conditioner = VideoConditioner(
-                                text=TextConfig(),
-                                fps=FPSConfig(),
-                                num_frames=NumFramesConfig(),
-                                image_size=ImageSizeConfig(),
-                                padding_mask=PaddingMaskConfig(),
-                            )
+                    text=TextConfig(),
+                    fps=FPSConfig(),
+                    num_frames=NumFramesConfig(),
+                    image_size=ImageSizeConfig(),
+                    padding_mask=PaddingMaskConfig(),
+                )
                 self.diffusion_pipeline = CosmosDiffusionPipeline(
-                                            net=self,
-                                            conditioner=self.conditioner,
-                                            loss_add_logvar=self.config.loss_add_logvar,
-                                        )
-            
+                    net=self,
+                    conditioner=self.conditioner,
+                    loss_add_logvar=self.config.loss_add_logvar,
+                )
+
         else:
             self.diffusion_pipeline = EDMPipeline(net=self, sigma_data=self.config.sigma_data)
-    
+
     def compute_logvar(self, c_noise):
         logvar = self.module.module.module.logvar
         return logvar(c_noise)
@@ -374,12 +380,16 @@ class DiTModel(GPTModel):
     def forward_step(self, batch) -> torch.Tensor:
         if hasattr(self.config, 'model_name'):
             if 'cosmos' in getattr(self.config, 'model_name'):
-                data_batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
-                data_batch["is_preprocessed"] = True # assume data is preprocessed
+                data_batch = {
+                    k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()
+                }
+                data_batch["is_preprocessed"] = True  # assume data is preprocessed
                 if parallel_state.is_pipeline_last_stage():
                     output_batch, kendall_loss = self.diffusion_pipeline.training_step(batch, 0)
                     if torch.distributed.get_rank() == 0 and wandb.run:
-                        wandb.log({k: output_batch[k] for k in ['edm_loss'] if k in output_batch}, step=self.global_step)
+                        wandb.log(
+                            {k: output_batch[k] for k in ['edm_loss'] if k in output_batch}, step=self.global_step
+                        )
                     kendall_loss = torch.mean(kendall_loss, dim=1)
                     return kendall_loss
                 else:
@@ -394,7 +404,7 @@ class DiTModel(GPTModel):
             else:
                 output_tensor = self.diffusion_pipeline.training_step(batch, 0)
                 return output_tensor
-            
+
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)

@@ -24,6 +24,7 @@ from megatron.core.transformer.attention import (
 from megatron.core.transformer.custom_layers.transformer_engine import (
     TEColumnParallelLinear,
     TEDotProductAttention,
+    TENorm,
     TERowParallelLinear,
 )
 from megatron.core.transformer.enums import AttnMaskType
@@ -36,7 +37,7 @@ from megatron.core.transformer.transformer_layer import TransformerLayer, Transf
 from megatron.core.utils import make_viewless_tensor
 
 from nemo.collections.diffusion.models.dit.dit_layer_spec import AdaLN
-from megatron.core.transformer.custom_layers.transformer_engine import TENorm
+
 
 class MoviegGenLayer(TransformerLayer):
     """A single transformer layer.

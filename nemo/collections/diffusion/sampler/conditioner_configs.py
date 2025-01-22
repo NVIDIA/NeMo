@@ -14,6 +14,7 @@ class TextConfig:
     dropout_rate: float = 0.2
     input_keys: List[str] = attrs.field(factory=lambda: ["t5_text_embeddings", "t5_text_mask"])
 
+
 @attrs.define(slots=False)
 class FPSConfig:
     """

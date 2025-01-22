@@ -14,7 +14,8 @@
 
 import torch
 from torch import Tensor
-from torch.distributed import ProcessGroup, all_gather, get_world_size, get_process_group_ranks
+from torch.distributed import ProcessGroup, all_gather, get_process_group_ranks, get_world_size
+
 
 def split_inputs_cp(x: Tensor, seq_dim: int, cp_group: ProcessGroup) -> Tensor:
     """
@@ -45,6 +46,7 @@ def split_inputs_cp(x: Tensor, seq_dim: int, cp_group: ProcessGroup) -> Tensor:
     # Note that the new sequence length is the original sequence length / cp_size
     x = x.view(*x.shape[:seq_dim], -1, *x.shape[(seq_dim + 2) :])
     return x
+
 
 def cat_outputs_cp(x: Tensor, seq_dim: int, cp_group: ProcessGroup) -> Tensor:
     """

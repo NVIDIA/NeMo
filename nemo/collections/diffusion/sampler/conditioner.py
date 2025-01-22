@@ -18,17 +18,18 @@ from nemo.collections.diffusion.sampler.batch_ops import batch_mul
 
 # Utils
 
+
 def count_params(model, verbose=False):
     total_params = sum(p.numel() for p in model.parameters())
     if verbose:
         print(f"{model.__class__.__name__} has {total_params * 1.e-6:.2f} M params.")
     return total_params
 
+
 def disabled_train(self: Any, mode: bool = True) -> Any:
     """Overwrite model.train with this function to make sure train/eval mode
     does not change anymore."""
     return self
-
 
 
 # TODO: Implement in MCore later
@@ -73,6 +74,7 @@ class FourierFeatures(nn.Module):
         x = x.to(torch.float32).ger(self.freqs.to(torch.float32)).add(self.phases.to(torch.float32))
         x = x.cos().mul(self.gain * gain).to(in_dtype)
         return x
+
 
 # TODO: Switch to MCore implementation later
 
@@ -591,6 +593,7 @@ class Edify4Conditioner(GeneralConditioner):
     ) -> Edify4Condition:
         output = super()._forward(batch, override_dropout_rate)
         return Edify4Condition(**output)
+
 
 class DataType(Enum):
     IMAGE = "image"
