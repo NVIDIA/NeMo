@@ -14,21 +14,12 @@
 
 # HF
 from nemo.collections.vlm.hf.data.hf_dataset import HFDatasetDataModule
-from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import (
-    HFAutoModelForImageTextToText,
-)
+from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import HFAutoModelForImageTextToText
 
 # LLAVA_NEXT
-from nemo.collections.vlm.llava_next.data import (
-    LlavaNextMockDataModule,
-    LlavaNextTaskEncoder,
-)
+from nemo.collections.vlm.llava_next.data import LlavaNextMockDataModule, LlavaNextTaskEncoder
 from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
-from nemo.collections.vlm.llava_next.model.llava_next import (
-    LlavaNextConfig7B,
-    LlavaNextConfig13B,
-    LlavaNextModel,
-)
+from nemo.collections.vlm.llava_next.model.llava_next import LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel
 
 # MLLAMA
 from nemo.collections.vlm.mllama.data import MLlamaLazyDataModule, MLlamaMockDataModule
@@ -57,12 +48,7 @@ from nemo.collections.vlm.neva.data import (
     VideoToken,
 )
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
-from nemo.collections.vlm.neva.model.llava import (
-    Llava15Config7B,
-    Llava15Config13B,
-    LlavaConfig,
-    LlavaModel,
-)
+from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
 
 # PEFT
 from nemo.collections.vlm.peft import LoRA
@@ -76,14 +62,13 @@ from nemo.collections.vlm.vision import (
     CLIPViTConfig,
     CLIPViTL_14_336_Config,
     HFCLIPVisionConfig,
-    InternViT_300M_448px_Config,
     InternViT_6B_448px_Config,
+    InternViT_300M_448px_Config,
     InternViTModel,
     MultimodalProjectorConfig,
     SigLIPViT400M_14_384_Config,
     SigLIPViTModel,
 )
-
 
 __all__ = [
     "HFDatasetDataModule",
