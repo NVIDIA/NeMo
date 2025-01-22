@@ -202,7 +202,7 @@ class BaseCLIPViTModel(MCoreCLIPViTModel):
             unused_layers = self.decoder.layers[-num_unused_layers:]
             self.decoder.layers = self.decoder.layers[:-num_unused_layers]
             x = super().forward(x, attention_mask)
-            self.decoder.layers.append(unused_layers)
+            self.decoder.layers.extend(unused_layers)
             return x
 
         return super().forward(x, attention_mask)

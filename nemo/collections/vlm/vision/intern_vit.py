@@ -313,7 +313,7 @@ class InternViTConfig(CLIPViTConfig):
 
 
 @dataclass
-class InternViT_6B_448px_V1_5_Config(InternViTConfig):
+class InternViT_6B_448px_Config(InternViTConfig):
     vision_model_type: str = "internvit"
 
 

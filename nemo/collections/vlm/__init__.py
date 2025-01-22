@@ -51,6 +51,9 @@ from nemo.collections.vlm.vision import (
     HFCLIPVisionConfig,
     MultimodalProjectorConfig,
     SigLIPViT400M_14_384_Config,
+    InternViT_6B_448px_Config,
+    InternViT_300M_448px_Config,
+    InternVitModel,
 )
 
 __all__ = [
@@ -94,4 +97,7 @@ __all__ = [
     "LlavaNextModel",
     "LlavaNextMockDataModule",
     "LlavaNextTaskEncoder",
+    "InternVitModel",
+    "InternViT_300M_448px_Config",
+    "InternViT_6B_448px_Config"
 ]

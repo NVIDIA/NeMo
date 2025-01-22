@@ -77,7 +77,7 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     return num_patches + (class_token_len if add_class_token else 0)
 
 
-def restore_model_weights(model, checkpoint_path, strict=True):
+def restore_model_weights(model, checkpoint_path, strict=False):
     """
     Restores model weights from a checkpoint.
 
