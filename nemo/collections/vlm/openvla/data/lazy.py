@@ -34,20 +34,23 @@ from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_an
 from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
 from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, SPECIAL_TOKEN_MAP
+from nemo.collections.vlm.openvla.data.prismatic.models.materialize import (
+    get_llm_backbone_and_tokenizer,
+    get_vision_backbone_and_transform,
+)
+from nemo.collections.vlm.openvla.data.prismatic.util.data_utils import PaddedCollatorForActionPrediction
+from nemo.collections.vlm.openvla.data.prismatic.vla.action_tokenizer import ActionTokenizer
+from nemo.collections.vlm.openvla.data.prismatic.vla.datasets import RLDSBatchTransform, RLDSDataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
-from nemo.collections.vlm.openvla.data.prismatic.vla.datasets import RLDSBatchTransform, RLDSDataset
-from nemo.collections.vlm.openvla.data.prismatic.vla.action_tokenizer import ActionTokenizer
-from nemo.collections.vlm.openvla.data.prismatic.util.data_utils import PaddedCollatorForActionPrediction
-from nemo.collections.vlm.openvla.data.prismatic.models.materialize import get_llm_backbone_and_tokenizer, get_vision_backbone_and_transform
 
 class OpenVLALazyDataModule(pl.LightningDataModule):
     def __init__(
         self,
         paths: str | List[str],
         # additional params for OpenVLA
-        data_mix: str, # Open-X Embodiment Dataset =>> Unique Mixture ID (e.g., `bridge`)
-        shuffle_buffer_size: int, # Size of Shuffle Buffer (100K for Bridge, 1M for OXE)
+        data_mix: str,  # Open-X Embodiment Dataset =>> Unique Mixture ID (e.g., `bridge`)
+        shuffle_buffer_size: int,  # Size of Shuffle Buffer (100K for Bridge, 1M for OXE)
         weights: Optional[List[float]] = None,
         data_config: Optional[DataConfig] = ImageDataConfig,
         seq_length: int = 2048,
@@ -67,12 +70,12 @@ class OpenVLALazyDataModule(pl.LightningDataModule):
         # additional params for OpenVLA
         llm_backbone_id: str = "llama2-7b-pure",
         vision_backbone_id: str = "dinosiglip-vit-so-224px",
-        llm_max_length: int = 2048, 
+        llm_max_length: int = 2048,
         load_for_training: bool = False,
         image_resize_strategy: str = "resize-naive",
         predict_stop_token: bool = True,
         padding_side: str = 'right',
-        image_aug: bool = False,    
+        image_aug: bool = False,
         train: bool = True,
         hf_token: str = None,
     ) -> None:
@@ -140,16 +143,16 @@ class OpenVLALazyDataModule(pl.LightningDataModule):
         self.action_tokenizer = ActionTokenizer(self.tokenizer)
 
         self.batch_transform = RLDSBatchTransform(
-             self.action_tokenizer,  
-             self.tokenizer, 
-             self.image_transform,
-             prompt_builder_fn=self.llm_backbone.prompt_builder_fn,
-             predict_stop_token=self.predict_stop_token,
+            self.action_tokenizer,
+            self.tokenizer,
+            self.image_transform,
+            prompt_builder_fn=self.llm_backbone.prompt_builder_fn,
+            predict_stop_token=self.predict_stop_token,
         )
 
         self.collator = PaddedCollatorForActionPrediction(
-            self.tokenizer.model_max_length, 
-            self.tokenizer.pad_token_id, 
+            self.tokenizer.model_max_length,
+            self.tokenizer.pad_token_id,
             padding_side=self.padding_side,
         )
 
@@ -163,8 +166,6 @@ class OpenVLALazyDataModule(pl.LightningDataModule):
             global_batch_size=global_batch_size,
             dataloader_type="cyclic",
         )
-
-
 
     def setup(self, stage: str = "") -> None:
         # assert len(self.paths) == 1, "not yet support blend dataset in Neva 2.0!"
@@ -262,8 +263,7 @@ class OpenVLALazyDataModule(pl.LightningDataModule):
 #             'tokens': tokens, # <image> speicial token (-200) - can just prepare labels and prepend -200 in the beginning
 #             'labels': labels, # <image> speicial token (-200)
 #             'attention_mask': attention_mask, # NeVa and Llama2 : causaul mask no matter - None
-#             'loss_mask': loss_mask, 
+#             'loss_mask': loss_mask,
 #             'position_ids': position_ids, # NeVa and Llama2: causaul mask no matter - None, only matters if used older GPT model, cannot be None => just generate reasonable
 #             'media': media, # [batch_size, 2 x 3, width, height] => make sure concat the rightway, concat and split on dim1
 #         }
-

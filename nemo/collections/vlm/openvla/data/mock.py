@@ -22,13 +22,15 @@ from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
+from nemo.collections.vlm.openvla.data.prismatic.models.materialize import (
+    get_llm_backbone_and_tokenizer,
+    get_vision_backbone_and_transform,
+)
+from nemo.collections.vlm.openvla.data.prismatic.util.data_utils import PaddedCollatorForActionPrediction
+from nemo.collections.vlm.openvla.data.prismatic.vla.action_tokenizer import ActionTokenizer
+from nemo.collections.vlm.openvla.data.prismatic.vla.datasets import DummyDataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-
-from nemo.collections.vlm.openvla.data.prismatic.vla.datasets import DummyDataset
-from nemo.collections.vlm.openvla.data.prismatic.vla.action_tokenizer import ActionTokenizer
-from nemo.collections.vlm.openvla.data.prismatic.util.data_utils import PaddedCollatorForActionPrediction
-from nemo.collections.vlm.openvla.data.prismatic.models.materialize import get_llm_backbone_and_tokenizer, get_vision_backbone_and_transform
 
 
 class MockDataModule(pl.LightningDataModule):
@@ -50,12 +52,12 @@ class MockDataModule(pl.LightningDataModule):
         # additional params for OpenVLA
         llm_backbone_id: str = "llama2-7b-pure",
         vision_backbone_id: str = "dinosiglip-vit-so-224px",
-        llm_max_length: int = 2048, 
+        llm_max_length: int = 2048,
         load_for_training: bool = False,
         image_resize_strategy: str = "resize-naive",
         predict_stop_token: bool = True,
         padding_side: str = 'right',
-        image_aug: bool = False,    
+        image_aug: bool = False,
         train: bool = True,
         hf_token: str = None,
     ):
@@ -97,8 +99,8 @@ class MockDataModule(pl.LightningDataModule):
         self.action_tokenizer = ActionTokenizer(self.tokenizer)
 
         self.collator = PaddedCollatorForActionPrediction(
-            self.tokenizer.model_max_length, 
-            self.tokenizer.pad_token_id, 
+            self.tokenizer.model_max_length,
+            self.tokenizer.pad_token_id,
             padding_side=self.padding_side,
         )
 
@@ -112,22 +114,22 @@ class MockDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = DummyDataset(
-            action_tokenizer = self.action_tokenizer, 
-            base_tokenizer = self.tokenizer, 
-            image_transform = self.image_transform, 
-            prompt_builder_fn = self.llm_backbone.prompt_builder_fn
+            action_tokenizer=self.action_tokenizer,
+            base_tokenizer=self.tokenizer,
+            image_transform=self.image_transform,
+            prompt_builder_fn=self.llm_backbone.prompt_builder_fn,
         )
         self._validation_ds = DummyDataset(
-            action_tokenizer = self.action_tokenizer, 
-            base_tokenizer = self.tokenizer, 
-            image_transform = self.image_transform, 
-            prompt_builder_fn = self.llm_backbone.prompt_builder_fn
+            action_tokenizer=self.action_tokenizer,
+            base_tokenizer=self.tokenizer,
+            image_transform=self.image_transform,
+            prompt_builder_fn=self.llm_backbone.prompt_builder_fn,
         )
         self._test_ds = DummyDataset(
-            action_tokenizer = self.action_tokenizer, 
-            base_tokenizer = self.tokenizer, 
-            image_transform = self.image_transform, 
-            prompt_builder_fn = self.llm_backbone.prompt_builder_fn
+            action_tokenizer=self.action_tokenizer,
+            base_tokenizer=self.tokenizer,
+            image_transform=self.image_transform,
+            prompt_builder_fn=self.llm_backbone.prompt_builder_fn,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:

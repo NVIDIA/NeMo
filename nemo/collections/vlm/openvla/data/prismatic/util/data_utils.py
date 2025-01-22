@@ -17,6 +17,7 @@ IGNORE_INDEX = -100
 # NeMo special token (image) index
 IMAGE_TOKEN_INDEX = ImageToken.token_index
 
+
 def tree_map(fn: Callable, tree: dict) -> dict:
     """Maps a function over a nested dictionary."""
     return {k: tree_map(fn, v) if isinstance(v, dict) else fn(v) for k, v in tree.items()}
@@ -138,7 +139,6 @@ class PaddedCollatorForActionPrediction:
         # NeVa pad input_ids with 0s and pad labels with IGNORE_INDEXs
         input_ids[input_ids == self.pad_token_id] = 0
 
-
         # DEBUGGING (COMPATIBLE WITH NEVA)
         # compute position_ids
         position_ids = torch.arange(input_ids.shape[1], dtype=torch.long)
@@ -170,25 +170,26 @@ class PaddedCollatorForActionPrediction:
 
         # DEBUGGING
         rank = torch.distributed.get_rank()
-        debug_message = (f"==========================================\n"
-                         f"[{rank}] concatenated_pixel_values.shape: {concatenated_pixel_values.shape}\n"
-                         f"[{rank}] input_ids.shape: {input_ids.shape}\n"
-                         f"[{rank}] labels.shape: {labels.shape}\n"
-                         f"[{rank}] loss_mask.shape: {loss_mask.shape}\n"
-                         f"[{rank}] attention_mask.shape: {attention_mask.shape}\n"
-                         f"[{rank}] position_ids.shape: {position_ids.shape}\n"
-                         f"[{rank}] concatenated_pixel_values.mean(): {concatenated_pixel_values.mean()}\n"
-                         f"[{rank}] concatenated_pixel_values.std(): {concatenated_pixel_values.std()}\n"
-                         f"[{rank}] input_ids: {input_ids}\n"
-                         f"[{rank}] labels: {labels}\n"
-                         f"[{rank}] loss_mask: {loss_mask}\n"
-                         f"[{rank}] attention_mask: {attention_mask}\n"
-                         f"[{rank}] position_ids: {position_ids}\n"
-                         f"==========================================")
+        debug_message = (
+            f"==========================================\n"
+            f"[{rank}] concatenated_pixel_values.shape: {concatenated_pixel_values.shape}\n"
+            f"[{rank}] input_ids.shape: {input_ids.shape}\n"
+            f"[{rank}] labels.shape: {labels.shape}\n"
+            f"[{rank}] loss_mask.shape: {loss_mask.shape}\n"
+            f"[{rank}] attention_mask.shape: {attention_mask.shape}\n"
+            f"[{rank}] position_ids.shape: {position_ids.shape}\n"
+            f"[{rank}] concatenated_pixel_values.mean(): {concatenated_pixel_values.mean()}\n"
+            f"[{rank}] concatenated_pixel_values.std(): {concatenated_pixel_values.std()}\n"
+            f"[{rank}] input_ids: {input_ids}\n"
+            f"[{rank}] labels: {labels}\n"
+            f"[{rank}] loss_mask: {loss_mask}\n"
+            f"[{rank}] attention_mask: {attention_mask}\n"
+            f"[{rank}] position_ids: {position_ids}\n"
+            f"=========================================="
+        )
         # print(debug_message)
         # torch.distributed.barrier()
         # print(stop_here)
-
 
         output = dict(
             media=concatenated_pixel_values,

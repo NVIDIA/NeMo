@@ -9,7 +9,12 @@ from typing import Optional, Tuple
 
 from transformers import PreTrainedTokenizerBase
 
-from nemo.collections.vlm.openvla.data.prismatic.models.backbones.llm import LLaMa2LLMBackbone, LLMBackbone, MistralLLMBackbone, PhiLLMBackbone
+from nemo.collections.vlm.openvla.data.prismatic.models.backbones.llm import (
+    LLaMa2LLMBackbone,
+    LLMBackbone,
+    MistralLLMBackbone,
+    PhiLLMBackbone,
+)
 from nemo.collections.vlm.openvla.data.prismatic.models.backbones.vision import (
     CLIPViTBackbone,
     DinoCLIPViTBackbone,
@@ -20,6 +25,7 @@ from nemo.collections.vlm.openvla.data.prismatic.models.backbones.vision import 
     SigLIPViTBackbone,
     VisionBackbone,
 )
+
 # from nemo.collections.vlm.openvla.data.prismatic.models.vlms import PrismaticVLM
 
 # === Registries =>> Maps ID --> {cls(), kwargs} :: Different Registries for Vision Backbones, LLM Backbones, VLMs ===

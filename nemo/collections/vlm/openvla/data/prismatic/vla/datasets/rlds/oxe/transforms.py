@@ -19,7 +19,10 @@ from typing import Any, Dict
 
 import tensorflow as tf
 
-from nemo.collections.vlm.openvla.data.prismatic.vla.datasets.rlds.oxe.utils.droid_utils import droid_baseact_transform, droid_finetuning_transform
+from nemo.collections.vlm.openvla.data.prismatic.vla.datasets.rlds.oxe.utils.droid_utils import (
+    droid_baseact_transform,
+    droid_finetuning_transform,
+)
 from nemo.collections.vlm.openvla.data.prismatic.vla.datasets.rlds.utils.data_utils import (
     binarize_gripper_actions,
     invert_gripper_actions,

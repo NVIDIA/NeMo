@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from nemo.collections.vlm.openvla.data.prismatic.overwatch import initialize_overwatch
-from nemo.collections.vlm.openvla.data.prismatic.vla.datasets.rlds.oxe.configs import OXE_DATASET_CONFIGS, ActionEncoding
+from nemo.collections.vlm.openvla.data.prismatic.vla.datasets.rlds.oxe.configs import (
+    OXE_DATASET_CONFIGS,
+    ActionEncoding,
+)
 from nemo.collections.vlm.openvla.data.prismatic.vla.datasets.rlds.oxe.transforms import OXE_STANDARDIZATION_TRANSFORMS
 from nemo.collections.vlm.openvla.data.prismatic.vla.datasets.rlds.utils.data_utils import NormalizationType
 

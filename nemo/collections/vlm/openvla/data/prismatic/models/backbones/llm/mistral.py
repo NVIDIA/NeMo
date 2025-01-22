@@ -12,7 +12,11 @@ from transformers import MistralForCausalLM
 from transformers.models.mistral.modeling_mistral import MistralDecoderLayer
 
 from nemo.collections.vlm.openvla.data.prismatic.models.backbones.llm.base_llm import HFCausalLLMBackbone
-from nemo.collections.vlm.openvla.data.prismatic.models.backbones.llm.prompting import MistralInstructPromptBuilder, PromptBuilder, PurePromptBuilder
+from nemo.collections.vlm.openvla.data.prismatic.models.backbones.llm.prompting import (
+    MistralInstructPromptBuilder,
+    PromptBuilder,
+    PurePromptBuilder,
+)
 
 # Registry =>> Support Mistral Models (from HF Transformers)
 # fmt: off
