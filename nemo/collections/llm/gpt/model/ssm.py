@@ -152,6 +152,8 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = gpt_data_step
     vocab_file: str = None
     tokenizer_model_path: str = None
+    deallocate_pipeline_outputs: bool = True
+    bias_dropout_fusion: bool = True
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
 
@@ -195,7 +197,6 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
             source = torch.load(str(self), map_location='cpu')
         if 'model' in source:
             source = source['model']
-
         class ModelState:
             def __init__(self, state_dict):
                 self._state_dict = state_dict
