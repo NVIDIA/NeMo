@@ -14,7 +14,7 @@ jobs:
       argument: MCORE_TAG
       file: reinstall.sh
       base-branch: weekly-bump
-      cicd-label: Run CICD
+      cicd-labels: Run CICD
       pr-reviewers: 'pablo-garay'
     secrets:
       PAT: ${{ secrets.PAT }}
