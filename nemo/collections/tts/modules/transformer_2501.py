@@ -681,6 +681,12 @@ class Transformer(torch.nn.Module):
             output <torch tensor> (B, T1, C): Output tensor
             attn_probabilities <list>: Attention probabilities of each layer
         """
+        if isinstance(cond, list) and len(self.layers) < len(cond):
+            raise ValueError(
+                f"Insufficient Transformer layers for multiple conditionals. Each layer must cross-attend one conditional."
+                f"Found {len(self.layers)} layers for {len(cond)} conditionals."
+            )
+
         if self.use_learnable_pos_emb:
             positions = torch.arange(x.size(1), device=x.device).unsqueeze(0)
             x = x + self.position_embeddings(positions)
