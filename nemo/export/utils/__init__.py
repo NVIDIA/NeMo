@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.export.utils.utils import is_nemo2_checkpoint
+from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
+from nemo.export.utils.utils import is_nemo2_checkpoint, prepare_directory_for_export
 
-__all__ = ["is_nemo2_checkpoint"]
+__all__ = ["convert_lora_nemo_to_canonical", "is_nemo2_checkpoint", "prepare_directory_for_export"]

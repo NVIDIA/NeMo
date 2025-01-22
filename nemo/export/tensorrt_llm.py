@@ -59,6 +59,7 @@ from nemo.export.trt_llm.tensorrt_llm_run import (
     unload_engine,
 )
 from nemo.export.trt_llm.utils import is_rank
+from nemo.export.utils import prepare_directory_for_export
 
 use_deploy = True
 try:
@@ -229,22 +230,7 @@ class TensorRTLLM(ITritonDeployable):
         """
 
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
-
-        if Path(self.model_dir).exists():
-            if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
-                for files in os.listdir(self.model_dir):
-                    path = os.path.join(self.model_dir, files)
-                    try:
-                        shutil.rmtree(path)
-                    except OSError:
-                        os.remove(path)
-
-                if len(os.listdir(self.model_dir)) > 0:
-                    raise Exception("Couldn't delete all files.")
-            elif len(os.listdir(self.model_dir)) > 0:
-                raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
-        else:
-            Path(self.model_dir).mkdir(parents=True, exist_ok=True)
+        prepare_directory_for_export(self.model_dir, delete_existing_files=delete_existing_files)
 
         if max_prompt_embedding_table_size is None:
             max_prompt_embedding_table_size = 0

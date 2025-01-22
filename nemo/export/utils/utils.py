@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import shutil
+
 from pathlib import Path
 
 
@@ -26,3 +29,34 @@ def is_nemo2_checkpoint(checkpoint_path: str) -> bool:
 
     ckpt_path = Path(checkpoint_path)
     return (ckpt_path / 'context').is_dir()
+
+
+def prepare_directory_for_export(model_dir: str, delete_existing_files: bool) -> None:
+    """
+    Prepares model_dir path for the TRT-LLM/vLLM export.
+    Makes sure, that the model_dir directory exists and is empty.
+
+    Args:
+        model_dir (str): Path to the target directory for the export.
+        delete_existing_files (bool): Attempt to delete existing files if they exist.
+    Returns:
+        None
+    """
+
+    if Path(model_dir).exists():
+        if delete_existing_files and len(os.listdir(model_dir)) > 0:
+            for files in os.listdir(model_dir):
+                path = os.path.join(model_dir, files)
+                try:
+                    shutil.rmtree(path)
+                except OSError:
+                    os.remove(path)
+
+            if len(os.listdir(model_dir)) > 0:
+                raise Exception("Couldn't delete all files in the target model directory.")
+        elif len(os.listdir(model_dir)) > 0:
+            raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
+    
+    Path(model_dir).mkdir(parents=True, exist_ok=True)
+    
+    
