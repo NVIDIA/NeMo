@@ -393,7 +393,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             if type(mcore_model) is MCoreGPTModel or type(mcore_model) is MCoreMambaModel:
                 break
             mcore_model = getattr(mcore_model, "module", None)
-        if mcore_model is None or type(mcore_model) is not MCoreGPTModel or type(mcore_model) is not MCoreMambaModel:
+        if mcore_model is None or type(mcore_model) is not MCoreGPTModel and type(mcore_model) is not MCoreMambaModel:
             raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
 
         inference_wrapper_config = InferenceWrapperConfig(
