@@ -114,7 +114,7 @@ class MimoModel(NevaModel, L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
     def validation_loss_reduction(self) -> MimoLossReduction:
         if not self._validation_loss_reduction:
             if self.config.stage in ["encoder_alignment"]:
-                self._validation_loss_reduction = MaskedTokenLossReduction()
+                self._validation_loss_reduction = MaskedTokenLossReduction(lightning_module=self)
             elif self.config.stage in ["decoder_alignment"]:
                 self._validation_loss_reduction = MimoLossReduction(validation_step=True)
             else:
