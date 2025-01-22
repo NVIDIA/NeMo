@@ -24,11 +24,12 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 
+# Suppress lengthy HF warning
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 def get_args():
-    """
-    Parse the command line arguments.
-    """
+    """Parse the command line arguments."""
     parser = ArgumentParser(description="""Run Knowledge Distillation from a teacher model to a student.""")
 
     parser.add_argument("--name", type=str, required=True, help="""Experiment name""")
@@ -42,19 +43,18 @@ def get_args():
     parser.add_argument("--num_nodes", type=int, default=1, help="""Number of nodes to use""")
     parser.add_argument("--log_dir", type=str, required=True, help="""Folder for logging and checkpoint saving""")
     parser.add_argument("--max_steps", type=int, required=True, help="""Number of global batches to process""")
-    parser.add_argument("--gbs", type=int, required=True, help="""Data samples per optimizer step""")
-    parser.add_argument("--mbs", type=int, required=True, help="""Data samples per forward pass""")
-    parser.add_argument("--data_paths", nargs='+', required=True, help="""List of tokenized data paths to load from""")
-    parser.add_argument("--split", type=str, default="99,1,0", help="""""")
-    parser.add_argument("--index_mapping_dir", type=str, default=None, help="""""")
+    parser.add_argument("--gbs", type=int, required=True, help="""Global Batch Size""")
+    parser.add_argument("--mbs", type=int, required=True, help="""Micro-batch Size""")
+    parser.add_argument("--data_paths", nargs="+", required=True, help="""List of tokenized data paths to load from""")
+    parser.add_argument("--split", type=str, default="99,1,0", help="""Train,Val,Test ratios to split data""")
+    parser.add_argument("--index_mapping_dir", type=str, default=None, help="""Folder to write cached data indices""")
     parser.add_argument("--seq_length", type=int, required=True, help="""Number of tokens per input sample""")
-    parser.add_argument("--lr", type=float, default=3e-5, help="""""")
-    parser.add_argument("--min_lr", type=float, default=2e-7, help="""""")
-    parser.add_argument("--warmup_steps", type=int, default=50, help="""""")
-    parser.add_argument("--val_check_interval", type=int, default=100, help="""""")
-    parser.add_argument("--limit_val_batches", type=int, default=32, help="""""")
-    parser.add_argument("--limit_test_batches", type=int, default=32, help="""""")
-    parser.add_argument("--log_interval", type=int, default=10, help="""""")
+    parser.add_argument("--lr", type=float, default=3e-5, help="""Base LR for Cosine-Annealing scheduler""")
+    parser.add_argument("--min_lr", type=float, default=2e-7, help="""Minimum LR for Cosine-Annealing scheduler""")
+    parser.add_argument("--warmup_steps", type=int, default=50, help="""Number of scheduler warmup steps""")
+    parser.add_argument("--val_check_interval", type=int, default=100, help="""Run validation every _ steps""")
+    parser.add_argument("--limit_val_batches", type=int, default=32, help="""Number of batches per validation stage""")
+    parser.add_argument("--log_interval", type=int, default=10, help="""Write to log every _ steps""")
 
     return parser.parse_args()
 
@@ -62,28 +62,10 @@ def get_args():
 ########################################################
 
 
-# # #
-from dataclasses import dataclass
-
-from nemo.collections.llm.gpt.model.llama import Llama31Config
-
-
-@dataclass
-class Llama31Config4B(Llama31Config):
-    rotary_base: int = 500000
-    seq_length: int = 131072
-    num_layers: int = 16
-    hidden_size: int = 4096
-    ffn_hidden_size: int = 14336
-    num_attention_heads: int = 32
-
-
-# # #
-
 if __name__ == "__main__":
     args = get_args()
 
-    ## initialize the strategy and trainer
+    ## Initialize the strategy and trainer
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
@@ -97,29 +79,28 @@ if __name__ == "__main__":
         log_every_n_steps=args.log_interval,
         val_check_interval=args.val_check_interval,
         limit_val_batches=args.limit_val_batches,
-        limit_test_batches=args.limit_test_batches,
         strategy=strategy,
         accelerator="gpu",
         plugins=nl.MegatronMixedPrecision(precision=args.precision),
     )
 
-    ## load the combined teacher-student model
+    ## Load both models and combine into an aggregate module
     _student_model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
     _teacher_model = nl.io.load_context(path=ckpt_to_context_subdir(args.teacher_path), subpath="model")
 
     tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
     assert tokenizer is not None, "Please provide a model checkpoint with tokenizer included."
 
-    # TODO(aanoosheh): Replace spec with modelopt one
     model = distill.DistillationGPTModel(
         _student_model.config,
         _teacher_model.config,
         teacher_ckpt_path=args.teacher_path,
         tokenizer=tokenizer,
     )
+    # TODO(aanoosheh): Replace spec with modelopt one
     model.__io__ = _student_model.__io__  # HACK: model saves and restores as original class
 
-    # setup the dataset
+    # Set up dataset
     data = llm.PreTrainingDataModule(
         paths=args.data_paths,
         seq_length=args.seq_length,
@@ -130,7 +111,7 @@ if __name__ == "__main__":
         tokenizer=tokenizer,
     )
 
-    ## setup the optimizer
+    ## Set up optimizer
     opt_config = OptimizerConfig(
         optimizer="adam",
         lr=args.lr,
@@ -145,7 +126,7 @@ if __name__ == "__main__":
     )
     opt = nl.MegatronOptimizerModule(opt_config, sched)
 
-    # checkpointing and logging
+    # Set up checkpointing and logging
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
         save_top_k=1,
@@ -157,22 +138,19 @@ if __name__ == "__main__":
         ckpt=checkpoint_callback,
     )
 
-    # auto-resume setup
+    # Set up resume and/or restore functionality
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         restore_config=nl.RestoreConfig(path=args.student_path),
     )
 
-    # suppress HF warning
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-    # run
+    # Run
     llm.train(
         model=model,
         data=data,
         optim=opt,
-        tokenizer='model',
+        tokenizer="model",
         trainer=trainer,
         log=logger,
         resume=resume,

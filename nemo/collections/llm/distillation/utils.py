@@ -37,11 +37,7 @@ if TYPE_CHECKING:
 
 
 def load_distillation_config(cfg: "TransformerConfig") -> Dict[str, Any]:
-    """Create a default distillation config for MCore GPT Models.
-
-    Args:
-        student_cfg: Model config for student model.
-    """
+    """Create a default distillation config for MCore GPT Models."""
     logit_pair = ("output_layer", "output_layer")  # logit module names for MCoreGPTModel
     distill_cfg = {
         "criterion": {},
