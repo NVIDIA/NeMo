@@ -27,6 +27,7 @@ from nemo.export.tarutils import TarPath
 LOGGER = logging.getLogger("NeMo")
 EXTRA_STATE = "extra_state"
 
+
 class TarFileSystemReader(FileSystemReader):
     """Reader that accepts both Path and TarPath checkpoint directory.
 
@@ -40,7 +41,6 @@ class TarFileSystemReader(FileSystemReader):
         super().__init__(super_path)
         if isinstance(path, TarPath):
             self.path = path  # overwrites path set in super().__init__ call
-
 
 
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath]) -> Dict[str, Any]:
@@ -63,4 +63,3 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath]) -> Di
         no_dist=True,
     )
     return state_dict
-

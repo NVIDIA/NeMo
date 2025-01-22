@@ -43,6 +43,7 @@ except (ImportError, ModuleNotFoundError):
 LOGGER = logging.getLogger("NeMo")
 EXTRA_STATE = "extra_state"
 
+
 def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Scaling factors are kept in BufferIO objects.

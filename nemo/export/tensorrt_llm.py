@@ -31,7 +31,6 @@ import wrapt
 from tensorrt_llm._utils import numpy_to_torch
 
 from nemo.deploy import ITritonDeployable
-from nemo.export.utils import is_nemo_tarfile
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings, model_to_trtllm_ckpt
 from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
@@ -59,7 +58,7 @@ from nemo.export.trt_llm.tensorrt_llm_run import (
     unload_engine,
 )
 from nemo.export.trt_llm.utils import is_rank
-from nemo.export.utils import prepare_directory_for_export
+from nemo.export.utils import is_nemo_tarfile, prepare_directory_for_export
 
 use_deploy = True
 try:

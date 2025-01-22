@@ -29,10 +29,11 @@ from vllm.model_executor.model_loader.loader import BaseModelLoader, _initialize
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
-from nemo.export.utils import load_sharded_metadata_torch_dist, is_nemo2_checkpoint
+from nemo.export.utils import is_nemo2_checkpoint, load_sharded_metadata_torch_dist
 from nemo.export.vllm.model_config import NemoModelConfig
 
 LOGGER = logging.getLogger("NeMo")
+
 
 class NemoModelLoader(BaseModelLoader):
     """
