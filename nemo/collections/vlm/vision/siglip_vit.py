@@ -24,7 +24,6 @@ from nemo.collections.vlm.vision.base import CLIPViTConfig
 from nemo.lightning import io, teardown
 
 
-
 @dataclass
 class SigLIPViT400M_14_384_Config(CLIPViTConfig):
     """Siglip so400m patch14 384 config"""
@@ -54,7 +53,6 @@ class SigLIPViT400M_14_384_Config(CLIPViTConfig):
     apply_rope_fusion: bool = False
     qk_layernorm: bool = False
     layernorm_epsilon: float = 1e-6
-
 
 
 class SigLIPViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
