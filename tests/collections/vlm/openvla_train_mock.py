@@ -52,7 +52,6 @@ if __name__ == '__main__':
 
     gbs = 64
     mbs = 8
-    seq_length = 576
     decoder_seq_length = 1024
 
     # mock dataset
@@ -66,7 +65,7 @@ if __name__ == '__main__':
         hf_token=args.hf_token,
     )
 
-    # DEBUGGING
+    # NOTE
     # make sure the tokenizer from OpenVLA dataset and LLM tokenizer the same
     # Transformer configurations
     language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length, num_layers=2)

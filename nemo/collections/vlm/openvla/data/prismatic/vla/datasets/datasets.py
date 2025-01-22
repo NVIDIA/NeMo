@@ -63,13 +63,6 @@ class RLDSBatchTransform:
         if not self.predict_stop_token:
             labels[-1] = IGNORE_INDEX
 
-        # # DEBUGGING
-        # rank = torch.distributed.get_rank()
-        # print(f"[{rank}] prompt_builder.get_prompt(): ", prompt_builder.get_prompt())
-        # print(f"[{rank}] image: ", img)
-        # print(f"[{rank}] pixel_values: ", pixel_values)
-        # print(stop_here)
-
         return dict(pixel_values=pixel_values, input_ids=input_ids, labels=labels, dataset_name=dataset_name)
 
 

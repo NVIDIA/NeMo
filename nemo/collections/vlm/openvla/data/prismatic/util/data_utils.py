@@ -109,10 +109,6 @@ class PaddedCollatorForActionPrediction:
         else:
             dataset_names = None
 
-        # # DEBUGGING
-        # # run with one image only
-        # pixel_values = [item['dino'] for item in pixel_values]
-
         # For now, we only support Tokenizers with `padding_side = "right"` during training
         #   => Handle padding via RNN Utils => `pad_sequence`
         assert self.padding_side == "right", f"Invalid Tokenizer `{self.padding_side = }`"
@@ -164,15 +160,12 @@ class PaddedCollatorForActionPrediction:
         # DEBUGGING (COMPATIBLE WITH NEVA)
         # if there are 2 transformered images, concatenate 2 images into one tensor on the channel dimension
         if num_images > 1:
-            # DEBUGGING
             concatenated_pixel_values = torch.cat(tuple([pixel_values[k] for k in pixel_values.keys()]), dim=1)
         else:
             concatenated_pixel_values = pixel_values
 
         # DEBUGGING (COMPATIBLE WITH NEVA)
         # explicitly calculate loss_mask
-        # wrong!, mask only False for action tokens
-        # loss_mask = (labels==IGNORE_INDEX) | (labels==IMAGE_TOKEN_INDEX)
         loss_mask = labels < 0
 
         # DEBUGGING

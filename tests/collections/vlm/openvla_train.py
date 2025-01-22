@@ -52,16 +52,12 @@ if __name__ == '__main__':
 
     gbs = 64
     mbs = 8
-    # DEBUGGING
-    # seq_length not used anywhere
-    # seq_length = 576
     decoder_seq_length = 1024
 
     data = OpenVLALazyDataModule(
         paths="/lustre/fsw/coreai_dlalgo_genai/huvu/data/vla/open_x_embodiment",
         data_mix="jaco_play",
         llm_backbone_id = "llama2-7b-pure",
-        # DEBUGGING
         # vision_backbone_id = "dinosiglip-vit-so-224px", # fused vision encoders
         # vision_backbone_id = "clip-vit-l-336px", # one vision encoder
         vision_backbone_id = "siglip-vit-b16-224px", # one vision encoder
@@ -75,7 +71,7 @@ if __name__ == '__main__':
         hf_token=args.hf_token,
     )
 
-    # DEBUGGING
+    # NOTE
     # make sure the tokenizer from OpenVLA dataset and LLM tokenizer the same
     # Transformer configurations
     language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length, num_layers=2)
