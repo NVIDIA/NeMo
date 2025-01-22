@@ -58,3 +58,16 @@ def prepare_directory_for_export(model_dir: str, delete_existing_files: bool) ->
             raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
 
     Path(model_dir).mkdir(parents=True, exist_ok=True)
+
+
+def is_nemo_tarfile(path: str) -> bool:
+    """
+    Checks if the path exists and points to packed NeMo 1 checkpoint.
+
+    Args:
+        path (str): Path to possible checkpoint.
+    Returns:
+        bool: NeMo 1 checkpoint exists and is in '.nemo' format.
+    """
+    checkpoint_path = Path(path)
+    return checkpoint_path.exists() and checkpoint_path.suffix == '.nemo'

@@ -31,6 +31,7 @@ import wrapt
 from tensorrt_llm._utils import numpy_to_torch
 
 from nemo.deploy import ITritonDeployable
+from nemo.export.utils import is_nemo_tarfile
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings, model_to_trtllm_ckpt
 from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
@@ -43,7 +44,6 @@ from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
     get_model_type,
     get_tokenizer,
-    is_nemo_file,
     load_nemo_model,
 )
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
@@ -1348,7 +1348,7 @@ class TensorRTLLM(ITritonDeployable):
 
             prompt_embeddings_table = torch.from_numpy(prompt_embeddings_table)
         elif p_tuning == "use_checkpoint":
-            if not is_nemo_file(prompt_embeddings_checkpoint_path):
+            if not is_nemo_tarfile(prompt_embeddings_checkpoint_path):
                 raise TypeError(prompt_embeddings_checkpoint_path + " is not a nemo file.")
             prompt_embeddings_table = self._get_prompt_embedding_table_ckpt(prompt_embeddings_checkpoint_path)
 

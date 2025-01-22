@@ -13,6 +13,13 @@
 # limitations under the License.
 
 from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
-from nemo.export.utils.utils import is_nemo2_checkpoint, prepare_directory_for_export
+from nemo.export.utils.model_loader import load_sharded_metadata_torch_dist
+from nemo.export.utils.utils import is_nemo2_checkpoint, is_nemo_tarfile, prepare_directory_for_export
 
-__all__ = ["convert_lora_nemo_to_canonical", "is_nemo2_checkpoint", "prepare_directory_for_export"]
+__all__ = [
+    "convert_lora_nemo_to_canonical",
+    "load_sharded_metadata_torch_dist",
+    "is_nemo2_checkpoint",
+    "is_nemo_tarfile",
+    "prepare_directory_for_export"
+]

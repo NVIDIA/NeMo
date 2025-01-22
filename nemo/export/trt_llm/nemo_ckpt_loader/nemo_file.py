@@ -26,14 +26,12 @@ import tensorstore  # This is important even though not used. Otherwise zarr rai
 import torch
 import yaml
 import zarr
-from torch.distributed.checkpoint import FileSystemReader
-from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
-from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
+from nemo.export.utils import load_sharded_metadata_torch_dist
 
 try:
     from nemo.lightning import io
@@ -43,38 +41,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_NEMO2 = False
 
 LOGGER = logging.getLogger("NeMo")
-
 EXTRA_STATE = "extra_state"
-
-
-def is_nemo_file(path):
-    flag = False
-
-    if path is not None:
-        if len(path) > 5:
-            pc = Path(path)
-            if pc.exists():
-                if pc.is_file():
-                    if path[-5 : len(path)] == ".nemo":
-                        flag = True
-
-    return flag
-
-
-class TarFileSystemReader(FileSystemReader):
-    """Reader that accepts both Path and TarPath checkpoint directory.
-
-    The FileSystemReader works with TarPath, but expects a pure Path.
-    It's enough to skip the Path check in __init__.
-    """
-
-    def __init__(self, path: Union[Path, TarPath]) -> None:
-        """Makes sure that super().__init__ gets a pure path as expected."""
-        super_path = str(path) if isinstance(path, TarPath) else path
-        super().__init__(super_path)
-        if isinstance(path, TarPath):
-            self.path = path  # overwrites path set in super().__init__ call
-
 
 def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -161,35 +128,23 @@ def rename_extra_states(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     return state_dict | mcore_extra_states
 
 
-def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor: bool = True):
-    fs_reader = TarFileSystemReader(checkpoint_dir)
-    metadata = fs_reader.read_metadata()
+def torch_to_numpy_state_dict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Transforms model state dictionary with torch tensors to numpy arrays.
 
-    state_dict = {
-        k: torch.empty(tp.size, dtype=tp.properties.dtype)
-        for k, tp in metadata.state_dict_metadata.items()
-        if isinstance(tp, TensorStorageMetadata)
-    }
+    Args:
+        state_dict (dict): Model state dictionary.
+    Returns:
+        dict: State dictionary using numpy arrays.
+    """
+    for k, v in state_dict.items():
+        if v.dtype == torch.bfloat16:
+            from tensorrt_llm._utils import np_bfloat16
 
-    state_dict.update(
-        {k: [] for k, tp in metadata.state_dict_metadata.items() if isinstance(tp, BytesStorageMetadata)}
-    )
+            state_dict[k] = v.view(torch.int16).numpy().view(np_bfloat16)
+        else:
+            state_dict[k] = v.numpy()
 
-    load_state_dict(
-        state_dict,
-        storage_reader=fs_reader,
-        no_dist=True,
-    )
-    state_dict = rename_extra_states(state_dict)
-
-    if not torch_tensor:
-        for k, v in state_dict.items():
-            if v.dtype == torch.bfloat16:
-                from tensorrt_llm._utils import np_bfloat16
-
-                state_dict[k] = v.view(torch.int16).numpy().view(np_bfloat16)
-            else:
-                state_dict[k] = v.numpy()
     return state_dict
 
 
@@ -241,7 +196,11 @@ def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=Tru
     if config_dict['sharded_backend'] == 'zarr':
         return load_sharded_metadata_zarr(checkpoint_dir, torch_tensor)
     elif config_dict['sharded_backend'] == 'torch_dist':
-        return load_sharded_metadata_torch_dist(checkpoint_dir, torch_tensor)
+        state_dict = load_sharded_metadata_torch_dist(checkpoint_dir)
+        state_dict = rename_extra_states(state_dict)
+        if not torch_tensor:
+            state_dict = torch_to_numpy_state_dict(state_dict)
+        return state_dict
     else:
         raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')
 
