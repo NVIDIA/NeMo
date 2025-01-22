@@ -35,8 +35,10 @@ MetricStringToTorchMetric = {
     'rouge': ROUGEScore,
     'wer': WordErrorRate,
     'bleu': SacreBLEUScore,
+    'bleu2': SacreBLEUScore,
+    'turndiff': SacreBLEUScore,  # tmp
 }
 
-TextMetricsSet = set(['rouge', 'wer', 'bleu'])
+TextMetricsSet = set(['rouge', 'wer', 'bleu', 'bleu2', 'turndiff'])
 
 ClassificationMetricsSet = set(['accuracy', 'average_precision', 'f1', 'exact_string_match'])

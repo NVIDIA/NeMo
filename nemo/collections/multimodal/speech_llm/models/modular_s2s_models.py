@@ -941,6 +941,13 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                         text_preds = deduplicated_outputs['speech_preds_transcribed']
 
                     text_metric_name = metric_name.replace("asr-", "")
+
+                    def get_turn_split(input_preds, num_turn):
+                        return [re.split('   *', pred)[num_turn] for pred in input_preds]
+
+                    def get_num_turn(input_preds):
+                        return [len(re.split('   *', pred)) for pred in input_preds]
+
                     if text_metric_name == 'bleu':  # asr-bleu, bleu
                         metric_result = torch.Tensor([sacrebleu.corpus_bleu(text_preds, [labels]).score]).to(
                             self.device
@@ -955,6 +962,12 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                         metric_result = sum(deduplicated_outputs['mos_scores']) / len(
                             deduplicated_outputs['mos_scores']
                         )
+                    elif metric_name == 'bleu2':
+                        metric_result = torch.Tensor(
+                            [sacrebleu.corpus_bleu(get_turn_split(text_preds, 2), [get_turn_split(labels, 2)]).score]
+                        ).to(self.device)
+                    elif metric_name == 'turndiff':
+                        metric_result = np.mean(np.subtract(get_num_turn(text_preds), get_num_turn(labels)))
                     else:
                         for pred, label in zip(deduplicated_outputs['preds'], labels):
                             _ = metric_fn(pred, label)
