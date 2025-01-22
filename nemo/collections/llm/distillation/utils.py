@@ -52,6 +52,7 @@ def load_distillation_config(cfg: "TransformerConfig") -> Dict[str, Any]:
 
 class _DummyLossBalancer(mtd.DistillationLossBalancer):
     def forward(self, loss_dict):
+        # pylint: disable=C0116
         return next(iter(loss_dict.values()))
 
 
@@ -75,6 +76,8 @@ def teacher_provider(
 
 
 class LoopingCachedDataIterator:
+    """Iterator which takes in a sequence and cycles through it when exhausted."""
+
     def __init__(self, data):
         self.data = data
         self.it = iter(self.data)

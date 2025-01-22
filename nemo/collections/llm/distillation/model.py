@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 
 def gpt_distillation_data_step(dataloader_iter, attn_mask_cpu=False) -> Dict[str, Tensor]:
+    """Same as base GPT's data step but with ability to move attention mask to CPU."""
     batch = next(dataloader_iter)
 
     if isinstance(batch, tuple) and len(batch) == 3:
@@ -103,9 +104,7 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
         return loss_for_ub * self._cp_size, {"avg": reduced_loss}
 
     def _masked_token_loss(self, loss_output: Tensor, mask: Tensor, num_valid_tokens_in_ub: Optional[int] = None):
-        """
-        The function takes as input per-token loss and masks non-required values.
-        """
+        """The function takes as input per-token loss and masks non-required values."""
         if isinstance(loss_output, tuple):
             # [ModelOpt]: Losses can return extra flag to indicate additional TP-reduction (often required)
             loss_output, tp_reduce = loss_output
@@ -213,15 +212,18 @@ class DistillationGPTModel(llm.GPTModel):
         return self._training_loss_reduction
 
     def load_state_dict(self, state_dict, *args, **kwargs):
+        # pylint: disable=C0116
         state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
         # `super()` would go to `nn.Module` and skip the Context Manager in `mtd.DistillationModel.load_state_dict()`
         return self.core_module.load_state_dict(state_dict, *args, *kwargs)
 
     @property
     def core_module(self):
+        # pylint: disable=C0116
         return unwrap_model(self.module, (DDP, Float16Module, MCoreFloat16Module))
 
     def train(self, mode: bool = True):
+        # pylint: disable=C0116
         self._train_called = True
         return super().train(mode)
 

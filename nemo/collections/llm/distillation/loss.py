@@ -163,6 +163,7 @@ class _AllReduce(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, op, group, tensor):
+        # pylint: disable=C0116
         ctx.group, ctx.op = group, op
         tensor = tensor.clone()
         torch.distributed.all_reduce(tensor, op=op, group=group)
@@ -170,6 +171,7 @@ class _AllReduce(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
+        # pylint: disable=C0116
         return (None, None, _AllReduce.apply(ctx.op, ctx.group, grad_output))
 
 
