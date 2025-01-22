@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, Union
 
 import torch
-from torch.distributed.checkpoint import FileSystemReader
+from torch.distributed.checkpoint import FileSystemReader, load
 from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
 from torch.distributed.checkpoint.state_dict_loader import load_state_dict
 
@@ -44,6 +44,14 @@ class TarFileSystemReader(FileSystemReader):
 
 
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath]) -> Dict[str, Any]:
+    """
+    Loads model state dictionary from torch_dist checkpoint.
+
+    Args:
+        checkpoint_dir (Path | TarPath): Path to the model weights directory.
+    Returns:
+        dict: Loaded model state dictionary.
+    """
     fs_reader = TarFileSystemReader(checkpoint_dir)
     metadata = fs_reader.read_metadata()
 
@@ -57,9 +65,5 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath]) -> Di
         {k: [] for k, tp in metadata.state_dict_metadata.items() if isinstance(tp, BytesStorageMetadata)}
     )
 
-    load_state_dict(
-        state_dict,
-        storage_reader=fs_reader,
-        no_dist=True,
-    )
+    load(state_dict, storage_reader=fs_reader)
     return state_dict
