@@ -426,7 +426,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
         """Setups dataloader"""
-        if self.data_sampler:
+
+        # DEBUGGING
+        # dataloader.dataset is IterableDataset, do not set batch_sampler because not support
+        # if self.data_sampler:
+        from torch.utils.data import IterableDataset
+        if self.data_sampler and not(isinstance(dataloader.dataset, IterableDataset)):
             return self.data_sampler.transform_dataloader(dataloader)
 
         return dataloader
