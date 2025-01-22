@@ -56,6 +56,10 @@ if __name__ == '__main__':
 
     # mock dataset
     data = OpenVLAMockDataModule(
+        llm_backbone_id = "llama2-7b-pure",
+        # vision_backbone_id = "dinosiglip-vit-so-224px", # fused vision encoders
+        vision_backbone_id = "clip-vit-l-336px", # one vision encoder
+        # vision_backbone_id = "siglip-vit-b16-224px", # one vision encoder
         seq_length=decoder_seq_length,
         global_batch_size=gbs,
         micro_batch_size=mbs,
@@ -152,6 +156,7 @@ if __name__ == '__main__':
         wandb_logger = None
     nemo_logger = NeMoLogger(
         log_dir=args.experiment_dir,
+        wandb=wandb_logger,
     )
 
     resume = AutoResume(

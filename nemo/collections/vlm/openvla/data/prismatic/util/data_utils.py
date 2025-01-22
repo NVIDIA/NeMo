@@ -185,9 +185,9 @@ class PaddedCollatorForActionPrediction:
                          f"[{rank}] attention_mask: {attention_mask}\n"
                          f"[{rank}] position_ids: {position_ids}\n"
                          f"==========================================")
-        print(debug_message)
-        torch.distributed.barrier()
-        print(stop_here)
+        # print(debug_message)
+        # torch.distributed.barrier()
+        # print(stop_here)
 
 
         output = dict(

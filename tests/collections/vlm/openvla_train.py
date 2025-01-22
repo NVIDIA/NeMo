@@ -36,6 +36,8 @@ from nemo.collections.vlm.openvla.data.lazy import OpenVLALazyDataModule
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a small NEVA model using NeMo 2.0')
+    parser.add_argument('--data-path', type=str, default=None, help="Path to dataset collection")
+    parser.add_argument('--data-mix', type=str, default=None, help="Data mix selected")
     parser.add_argument('--devices', type=int, default=1, help="Number of devices to use for training")
     parser.add_argument('--max-steps', type=int, default=5, help="Number of steps to train for")
     parser.add_argument('--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to")
@@ -55,12 +57,12 @@ if __name__ == '__main__':
     decoder_seq_length = 1024
 
     data = OpenVLALazyDataModule(
-        paths="/lustre/fsw/coreai_dlalgo_genai/huvu/data/vla/open_x_embodiment",
-        data_mix="jaco_play",
+        paths=args.data_path,
+        data_mix=args.data_mix,
         llm_backbone_id = "llama2-7b-pure",
         # vision_backbone_id = "dinosiglip-vit-so-224px", # fused vision encoders
-        # vision_backbone_id = "clip-vit-l-336px", # one vision encoder
-        vision_backbone_id = "siglip-vit-b16-224px", # one vision encoder
+        vision_backbone_id = "clip-vit-l-336px", # one vision encoder
+        # vision_backbone_id = "siglip-vit-b16-224px", # one vision encoder
         shuffle_buffer_size=100000,
         seq_length=decoder_seq_length,
         global_batch_size=gbs,
@@ -158,6 +160,7 @@ if __name__ == '__main__':
         wandb_logger = None
     nemo_logger = NeMoLogger(
         log_dir=args.experiment_dir,
+        wandb=wandb_logger,
     )
 
     resume = AutoResume(
