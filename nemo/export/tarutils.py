@@ -15,12 +15,14 @@
 import fnmatch
 import os
 import tarfile
-from typing import Union
+
+from pathlib import Path
+from typing import IO, Union
 
 import zarr.storage
 
 
-class TarPath:
+class TarPath():
     """
     A class that represents a path inside a TAR archive and behaves like pathlib.Path.
 
@@ -37,6 +39,7 @@ class TarPath:
     """
 
     def __init__(self, tar: Union[str, tarfile.TarFile, 'TarPath'], *parts):
+        self._needs_to_close = False
         self._relpath = ''
         if isinstance(tar, TarPath):
             self._tar = tar._tar
@@ -46,11 +49,16 @@ class TarPath:
             if parts:
                 self._relpath = os.path.join(*parts)
         elif isinstance(tar, str):
+            self._needs_to_close = True
             self._tar = tarfile.open(tar, 'r')
             if parts:
                 self._relpath = os.path.join(*parts)
         else:
             raise ValueError(f"Unexpected argument type for TarPath: {type(tar).__name__}")
+
+    def __del__(self):
+        if self._needs_to_close:
+            self._tar.close()
 
     def __truediv__(self, key) -> 'TarPath':
         return TarPath(self._tar, os.path.join(self._relpath, key))
@@ -119,18 +127,25 @@ class TarPath:
             except KeyError:
                 return False
 
-    def open(self, mode: str):
+    def open(self, mode: str) -> IO[bytes]:
         if mode != 'r' and mode != 'rb':
             raise NotImplementedError()
+
+        file = None
         try:
             # Try the relative path as-is first
-            return self._tar.extractfile(self._relpath)
+            file = self._tar.extractfile(self._relpath)
         except KeyError:
             try:
                 # Try the relative path with "./" prefix
-                return self._tar.extractfile(os.path.join('.', self._relpath))
+                file = self._tar.extractfile(os.path.join('.', self._relpath))
             except KeyError:
                 raise FileNotFoundError()
+
+        if file is None:
+            raise FileNotFoundError()
+
+        return file
 
     def glob(self, pattern):
         for member in self._tar.getmembers():

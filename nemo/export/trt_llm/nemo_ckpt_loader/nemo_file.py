@@ -22,16 +22,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
-import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import yaml
-import zarr
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.export.tarutils import TarPath, ZarrPathStore
+from nemo.export.tarutils import TarPath
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
-from nemo.export.utils import load_sharded_metadata_torch_dist
+from nemo.export.utils import load_sharded_metadata_torch_dist, load_sharded_metadata_zarr, nemo_to_path
 
 try:
     from nemo.lightning import io
@@ -149,61 +147,20 @@ def torch_to_numpy_state_dict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     return state_dict
 
 
-def load_sharded_pickle_extra_state_scale(dir: Union[Path, TarPath]):
-    pt_files = list(dir.glob('shard_*_*.pt'))
-    extra_states = {}
-    for file in pt_files:
-        shard_name = file.name.split('.')[0]
-        with file.open('rb') as opened_file:
-            extra_states[dir.name + '/' + shard_name] = torch.load(opened_file)
-
-    return rename_extra_states(extra_states)
-
-
-def contains_extra_states(subdir: Union[Path, TarPath]):
-    return list(subdir.glob('shard_0_*.pt')) != []
-
-
-def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    sharded_state_dict = {}
-    for subdir in checkpoint_dir.iterdir():
-        if not subdir.is_dir():
-            continue
-
-        if contains_extra_states(subdir):
-            sharded_state_dict.update(load_sharded_pickle_extra_state_scale(subdir))
-        elif (subdir / '.zarray').exists():
-            key = subdir.name
-            zstore = ZarrPathStore(subdir)
-            arr = zarr.open(zstore, 'r')
-
-            if torch_tensor:
-                # sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
-                if arr.dtype.name == "bfloat16":
-                    sharded_state_dict[key] = torch.from_numpy(arr[:].view(np.int16)).view(torch.bfloat16)
-                else:
-                    from tensorrt_llm._utils import str_dtype_to_torch
-
-                    sharded_state_dict[key] = torch.from_numpy(arr[:]).view(str_dtype_to_torch(arr.dtype.name))
-            else:
-                sharded_state_dict[key] = arr[:]
-
-    return sharded_state_dict
-
-
 def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
     with (checkpoint_dir / 'metadata.json').open(mode='r') as f:
         config_dict = json.load(f)
     if config_dict['sharded_backend'] == 'zarr':
-        return load_sharded_metadata_zarr(checkpoint_dir, torch_tensor)
+        state_dict = load_sharded_metadata_zarr(checkpoint_dir, load_extra_states=True, torch_tensor=torch_tensor)
     elif config_dict['sharded_backend'] == 'torch_dist':
-        state_dict = load_sharded_metadata_torch_dist(checkpoint_dir)
-        state_dict = rename_extra_states(state_dict)
+        state_dict = load_sharded_metadata_torch_dist(checkpoint_dir, load_extra_states=True)
         if not torch_tensor:
             state_dict = torch_to_numpy_state_dict(state_dict)
-        return state_dict
     else:
         raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')
+
+    state_dict = rename_extra_states(state_dict)
+    return state_dict
 
 
 def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
@@ -466,10 +423,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
     if not os.path.exists(nemo_ckpt):
         raise TypeError("%s does not exist", nemo_ckpt)
 
-    if os.path.isdir(nemo_ckpt):
-        nemo_dir = Path(nemo_ckpt)
-    else:
-        nemo_dir = TarPath(nemo_ckpt)
+    nemo_dir = nemo_to_path(nemo_ckpt)
 
     tokenizer = None
     try:
