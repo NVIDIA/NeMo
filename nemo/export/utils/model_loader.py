@@ -12,24 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-import tensorstore  # needed to register 'bfloat16' dtype with numpy for zarr compatibility
 import json
-import zarr
+import logging
 import os.path
-
-import torch
-import numpy
-
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Union
 
+import numpy
+import tensorstore  # needed to register 'bfloat16' dtype with numpy for zarr compatibility
+import torch
+import zarr
 from torch.distributed.checkpoint import FileSystemReader, load
 from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
-from io import BytesIO
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
-
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -65,7 +62,9 @@ class TarFileSystemReader(FileSystemReader):
             self.path = path  # overwrites path set in super().__init__ call
 
 
-def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], load_extra_states: bool = False) -> Dict[str, Any]:
+def load_sharded_metadata_torch_dist(
+    checkpoint_dir: Union[Path, TarPath], load_extra_states: bool = False
+) -> Dict[str, Any]:
     """
     Loads model state dictionary from torch_dist checkpoint.
 
@@ -124,12 +123,13 @@ def contains_extra_states(subdir: Union[Path, TarPath]) -> bool:
     return list(subdir.glob('shard_0_*.pt')) != []
 
 
-def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], load_extra_states: bool = False, torch_tensor: bool = True) -> Dict[str, Any]:
-    """
-    """
+def load_sharded_metadata_zarr(
+    checkpoint_dir: Union[Path, TarPath], load_extra_states: bool = False, torch_tensor: bool = True
+) -> Dict[str, Any]:
+    """ """
     if load_extra_states:
         torch.serialization.add_safe_globals([BytesIO])
-    
+
     sharded_state_dict = {}
     for subdir in checkpoint_dir.iterdir():
         if not subdir.is_dir():
@@ -168,7 +168,7 @@ def nemo_weights_directory(nemo_path: Union[Path, TarPath]) -> Union[Path, TarPa
 
     if (nemo_path / "weights").exists():
         return nemo_path / "weights"
-    
+
     return nemo_path
 
 
@@ -188,11 +188,10 @@ def load_model_weights(checkpoint_path: str, load_extra_states: bool = False) ->
 
     with (nemo_weights / 'metadata.json').open(mode='r') as f:
         config_dict = json.load(f)
-    
+
     if config_dict['sharded_backend'] == 'zarr':
         return load_sharded_metadata_zarr(nemo_weights, load_extra_states=load_extra_states, torch_tensor=True)
     elif config_dict['sharded_backend'] == 'torch_dist':
         return load_sharded_metadata_torch_dist(nemo_weights, load_extra_states=load_extra_states)
     else:
         raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')
-    

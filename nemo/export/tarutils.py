@@ -22,7 +22,7 @@ from typing import IO, Union
 import zarr.storage
 
 
-class TarPath():
+class TarPath:
     """
     A class that represents a path inside a TAR archive and behaves like pathlib.Path.
 
