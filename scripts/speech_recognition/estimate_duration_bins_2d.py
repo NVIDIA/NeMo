@@ -37,6 +37,7 @@ from nemo.collections.common.tokenizers import (
     SentencePieceTokenizer,
     TokenizerSpec,
 )
+from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 
 
 def parse_args():
@@ -275,7 +276,7 @@ def apply_tokenizer(cut, tokenizer=None, prompt: PromptFormatter = None):
         cut.supervisions[0].tokens = encoded["input_ids"]
 
     elif tokenizer is not None:
-        cut = tokenize(cut, tokenizer)
+        cut = tokenize(cut, TokenizerWrapper(tokenizer))
 
     return cut
 
