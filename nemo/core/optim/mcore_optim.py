@@ -13,8 +13,7 @@
 # limitations under the License.
 
 import torch
-from torch.cuda.nvtx import range_push as nvtx_range_push
-from torch.cuda.nvtx import range_pop as nvtx_range_pop
+import nemo.utils.nvtx
 
 try:
     from megatron.core.optimizer.optimizer import MegatronOptimizer
