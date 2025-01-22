@@ -24,7 +24,10 @@ from nemo.collections.vlm.vision.intern_vit import (
     InternViTModel,
 )
 from nemo.collections.vlm.vision.clip_vit import CLIPViTL_14_336_Config
-from nemo.collections.vlm.vision.siglip_vit import SigLIPViT400M_14_384_Config
+from nemo.collections.vlm.vision.siglip_vit import (
+    SigLIPViT400M_14_384_Config,
+    SigLIPViTModel,
+)
 
 __all__ = [
     "MultimodalProjectorConfig",
@@ -32,6 +35,7 @@ __all__ = [
     "CLIPViTConfig",
     "BaseCLIPViTModel",
     "CLIPViTL_14_336_Config",
+    "SigLIPViTModel",
     "SigLIPViT400M_14_384_Config",
     "InternViTModel",
     "InternViT_300M_448px_Config",
