@@ -229,7 +229,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
             post_process=post_process or parallel_state.is_pipeline_last_stage(),
-            scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
         )
 
         # If using full TE layer, need to set TP, CP group since the module call
@@ -394,7 +393,6 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
-
         return self.forward_step(batch)
 
     def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:

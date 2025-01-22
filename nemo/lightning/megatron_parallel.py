@@ -515,7 +515,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         return wrapped_forward_step_func
 
-    def init_model_parallel(self):
+    def init_model_parallel(self, init_ddp: bool = True):
         from megatron.core import parallel_state
         from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
@@ -556,7 +556,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         if self.convert_module_fn:
             self.apply_convert_module_fn()
 
-        self.init_ddp()
+        if init_ddp:
+            self.init_ddp()
 
     def apply_convert_module_fn(self):
         for i in range(len(self)):
@@ -1710,9 +1711,8 @@ def masked_token_loss(tensor: Tensor, mask: Tensor):
     The function takes as input per-token loss and masks non-required values.
     """
     losses = tensor.float()
-    loss_mask = mask.view(-1).float()
+    loss_mask = mask.view(-1).float().cuda()
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
-
     return loss
 
 
@@ -1723,11 +1723,7 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
     from megatron.core import parallel_state
 
     losses = tensor.float()
-    loss_mask = mask.view(-1).float()
-    if num_valid_tokens_in_ub is None:
-        num_valid_tokens_in_ub = loss_mask.sum()
-    if num_valid_tokens_in_ub < 0.5:  # no valid tokens
-        num_valid_tokens_in_ub += 1.0
+    loss_mask = mask.view(-1).float().cuda()
     loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
     torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
 

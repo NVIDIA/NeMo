@@ -116,6 +116,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         parallel_save: bool = True,
         parallel_save_within_dp: bool = False,
         parallel_load: bool = False,
+        validate_access_integrity: bool = True,
     ):
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
@@ -125,6 +126,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self.parallel_save = parallel_save
         self.parallel_save_within_dp = parallel_save_within_dp
         self.parallel_load = parallel_load
+        self.validate_access_integrity = validate_access_integrity
 
         self._save_sharded_strategy = None
         self.validated_consistency = False
@@ -236,10 +238,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             strict = StrictHandling.ASSUME_OK_UNEXPECTED
 
         checkpoint = dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict,
-            checkpoint_dir=str(path),
-            sharded_strategy=sharded_strategy,
-            strict=strict,
+            sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path), sharded_strategy=sharded_strategy, validate_access_integrity=self.validate_access_integrity
         )
         checkpoint = _fix_tensors_device(checkpoint)
 

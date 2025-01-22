@@ -92,6 +92,7 @@ class FabricMegatronStrategy(DDPStrategy):
         output_data_idx: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         init_model_parallel: bool = True,
+        init_ddp: bool = True,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -121,6 +122,7 @@ class FabricMegatronStrategy(DDPStrategy):
         self.sequence_parallel = sequence_parallel
         self.pipeline_dtype = pipeline_dtype
         self._init_model_parallel = init_model_parallel
+        self._init_ddp = init_ddp
 
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
@@ -246,7 +248,7 @@ class FabricMegatronStrategy(DDPStrategy):
         )
 
         if self._init_model_parallel:
-            megatron_parallel.init_model_parallel()
+            megatron_parallel.init_model_parallel(init_ddp=self._init_ddp)
 
         if self.data_sampler:
             megatron_parallel.callbacks.add(self.data_sampler)
