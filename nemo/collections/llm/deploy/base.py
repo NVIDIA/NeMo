@@ -63,6 +63,7 @@ def get_trtllm_deployable(
     max_output_len,
     max_batch_size,
     dtype,
+    output_context_logits,
     output_generation_logits,
 ):
     """
@@ -102,12 +103,14 @@ def get_trtllm_deployable(
             trt_llm_exporter.export(
                 nemo_checkpoint_path=nemo_checkpoint,
                 model_type=model_type,
+                gpus_per_node=num_gpus,
                 tensor_parallelism_size=tensor_parallelism_size,
                 pipeline_parallelism_size=pipeline_parallelism_size,
                 max_input_len=max_input_len,
                 max_output_len=max_output_len,
                 max_batch_size=max_batch_size,
                 dtype=dtype,
+                gather_context_logits=output_context_logits,
                 gather_generation_logits=output_generation_logits,
             )
         except Exception as error:

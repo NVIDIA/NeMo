@@ -118,7 +118,6 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         
         batch_indices = torch.arange(batch_size, device=device).unsqueeze(-1).repeat(1, self.beam_size)
         expansion_beam_indices = torch.arange(self.beam_size, device=device).unsqueeze(0).unsqueeze(-1).repeat(batch_size, 1, self.beam_size+self.maes_expansion_beta)
-        zeros_column = torch.zeros((batch_size, self.beam_size, 1), device=device)
         beam_indices = torch.arange(self.beam_size, device=device).unsqueeze(0).repeat(batch_size, 1)
         
         time_indices = torch.zeros_like(batch_indices)
