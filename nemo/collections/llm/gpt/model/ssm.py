@@ -197,6 +197,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
             source = torch.load(str(self), map_location='cpu')
         if 'model' in source:
             source = source['model']
+
         class ModelState:
             def __init__(self, state_dict):
                 self._state_dict = state_dict
