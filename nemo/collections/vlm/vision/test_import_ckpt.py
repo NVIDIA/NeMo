@@ -1,6 +1,6 @@
 from nemo.collections.llm import import_ckpt
 from nemo.collections.vlm.vision.clip_vit import CLIPViTModel
-from nemo.collections.vlm.vision.vit_config import CLIPViTL_14_336_Config
+from nemo.collections.vlm.vision.clip_vit import CLIPViTL_14_336_Config
 
 if __name__ == "__main__":
     # Specify the Hugging Face model ID

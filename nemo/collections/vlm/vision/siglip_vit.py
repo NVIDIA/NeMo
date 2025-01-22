@@ -18,30 +18,32 @@ from pathlib import Path
 import lightning.pytorch as L
 import torch
 
-from nemo.collections.llm.fn.activation import quick_gelu
+from nemo.collections.llm.fn.activation import openai_gelu
+
 from nemo.collections.vlm.vision.base import CLIPViTConfig
 from nemo.lightning import io, teardown
 
 
-@dataclass
-class CLIPViTL_14_336_Config(CLIPViTConfig):
-    """Clip vit large patch14 config"""
 
-    vision_model_type: str = "clip"
+@dataclass
+class SigLIPViT400M_14_384_Config(CLIPViTConfig):
+    """Siglip so400m patch14 384 config"""
+
+    vision_model_type: str = "siglip"
     patch_dim: int = 14
-    img_h: int = 336
-    img_w: int = 336
-    num_layers: int = 24
+    img_h: int = 384
+    img_w: int = 384
+    num_layers: int = 27
     num_attention_heads: int = 16
     add_bias_linear: bool = True
     add_qkv_bias: bool = True
-    hidden_size: int = 1024
+    hidden_size: int = 1152
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    ffn_hidden_size: int = 4096
+    ffn_hidden_size: int = 4304
     gated_linear_unit: bool = False
-    activation_func: callable = quick_gelu
-    kv_channels: int = 64
+    activation_func: callable = openai_gelu
+    kv_channels: int = 72
     num_query_groups: int = 16
     layernorm_zero_centered_gamma: bool = False
     apply_query_key_layer_scaling: bool = False
@@ -50,9 +52,12 @@ class CLIPViTL_14_336_Config(CLIPViTConfig):
     attention_softmax_in_fp32: bool = True
     normalization: str = 'LayerNorm'
     apply_rope_fusion: bool = False
+    qk_layernorm: bool = False
+    layernorm_epsilon: float = 1e-6
 
 
-class CLIPViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
+
+class SigLIPViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -62,10 +67,10 @@ class CLIPViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
             self.module = self.config.configure_model()
 
 
-@io.model_importer(CLIPViTModel, "hf")
-class CLIPViTImporter(io.ModelConnector["CLIPVisionModel", CLIPViTModel]):
-    def init(self) -> CLIPViTModel:
-        return CLIPViTModel(self.config)
+@io.model_importer(SigLIPViTModel, "hf")
+class SigLIPViTImporter(io.ModelConnector["SigLIPVisionModel", SigLIPViTModel]):
+    def init(self) -> SigLIPViTModel:
+        return SigLIPViTModel(self.config)
 
     def apply(self, output_path: Path) -> Path:
         from transformers import AutoModel
@@ -77,7 +82,7 @@ class CLIPViTImporter(io.ModelConnector["CLIPVisionModel", CLIPViTModel]):
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted CLIPViT model saved to {output_path}")
+        print(f"Converted SigLIPViT model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -90,29 +95,29 @@ class CLIPViTImporter(io.ModelConnector["CLIPVisionModel", CLIPViTModel]):
 
         source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
 
-        output = CLIPViTL_14_336_Config(
-            patch_dim=source.vision_config.patch_size,
+        patch_dim = source.vision_config.patch_size
+        output = SigLIPViT400M_14_384_Config(
+            patch_dim=patch_dim,
             hidden_size=source.vision_config.hidden_size,
-            img_h=source.vision_config.image_size,
-            img_w=source.vision_config.image_size,
+            img_h=source.vision_config.image_size // patch_dim * patch_dim,
+            img_w=source.vision_config.image_size // patch_dim * patch_dim,
             ffn_hidden_size=source.vision_config.intermediate_size,
             num_attention_heads=source.vision_config.num_attention_heads,
             num_layers=source.vision_config.num_hidden_layers,
-            kv_channels=int(source.vision_config.hidden_size / source.vision_config.num_attention_heads),
+            kv_channels=source.vision_config.hidden_size // source.vision_config.num_attention_heads,
             num_query_groups=source.vision_config.num_attention_heads,
         )
         return output
 
     def convert_state(self, source, target):
-
         mapping = {}
         mapping.update(
             {
-                # "vision_model.embeddings.class_embedding": "class_token",
                 "vision_model.embeddings.patch_embedding.weight": "conv1.weight",
+                "vision_model.embeddings.patch_embedding.bias": "conv1.bias",
                 "vision_model.embeddings.position_embedding.weight": "position_embeddings.weight",
-                "vision_model.pre_layrnorm.weight": "ln_pre.weight",
-                "vision_model.pre_layrnorm.bias": "ln_pre.bias",
+                "vision_model.post_layernorm.weight": "ln_post.weight",
+                "vision_model.post_layernorm.bias": "ln_post.bias",
                 "vision_model.encoder.layers.*.self_attn.out_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
                 "vision_model.encoder.layers.*.self_attn.out_proj.bias": "decoder.layers.*.self_attention.linear_proj.bias",
                 "vision_model.encoder.layers.*.layer_norm1.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
@@ -131,7 +136,6 @@ class CLIPViTImporter(io.ModelConnector["CLIPVisionModel", CLIPViTModel]):
             target,
             mapping=mapping,
             transforms=[
-                _import_cls_token,
                 _import_vision_qkv_bias,
                 _import_vision_qkv,
             ],
@@ -205,11 +209,3 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
-
-
-@io.state_transform(
-    source_key=("vision_model.embeddings.class_embedding",),
-    target_key="class_token",
-)
-def _import_cls_token(ctx: io.TransformCTX, cls_token):
-    return cls_token.reshape(1, 1, -1)

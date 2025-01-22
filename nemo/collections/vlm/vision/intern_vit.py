@@ -338,7 +338,7 @@ class InternViT_300M_448px_Config(InternViTConfig):
     )
 
 
-class InternVitModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
+class InternViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -348,10 +348,10 @@ class InternVitModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
             self.module = self.config.configure_model()
 
 
-@io.model_importer(InternVitModel, "hf")
-class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]):
-    def init(self) -> InternVitModel:
-        return InternVitModel(self.config)
+@io.model_importer(InternViTModel, "hf")
+class HFInternViTImporter(io.ModelConnector["InternVisionModel", InternViTModel]):
+    def init(self) -> InternViTModel:
+        return InternViTModel(self.config)
 
     def apply(self, output_path: Path) -> Path:
         from transformers import AutoModel
@@ -361,11 +361,11 @@ class HFInternVitImporter(io.ModelConnector["InternVisionModel", InternVitModel]
         trainer = self.nemo_setup(target)
 
         self.convert_state(source, target)
-        print(f"Converted InternVit model to Nemo, saving to {output_path}")
+        print(f"Converted InternViT model to Nemo, saving to {output_path}")
 
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted InternVit model saved to {output_path}")
+        print(f"Converted InternViT model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
