@@ -14,13 +14,12 @@
 
 import os
 
-import nemo_run as run
 import lightning.pytorch as pl
+import nemo_run as run
 import torch
+from lightning.pytorch.loggers import WandbLogger
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from lightning.pytorch.loggers import WandbLogger
-
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -32,7 +31,6 @@ from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlN
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.lightning.pytorch.optim import WarmupHoldPolicyScheduler
-
 from nemo.utils.exp_manager import TimingCallback
 
 
@@ -135,7 +133,7 @@ def flux_controlnet_training() -> run.Partial:
                 WarmupHoldPolicyScheduler,
                 warmup_steps=500,
                 hold_steps=1000000000000,
-            )
+            ),
         ),
         tokenizer=None,
         resume=run.Config(
@@ -183,19 +181,18 @@ def convergence_tp2() -> run.Partial:
     )
     recipe.model.flux_params.device = 'cuda'
     recipe.model.flux_params.flux_config = run.Config(
-        FluxConfig,
-        ckpt_path='/ckpts/nemo_dist_ckpt/weights/',
-        load_dist_ckpt=True
+        FluxConfig, ckpt_path='/ckpts/nemo_dist_ckpt/weights/', load_dist_ckpt=True
     )
     recipe.trainer.devices = 2
     recipe.trainer.max_steps = 50000
     recipe.trainer.val_check_interval = 1000
     recipe.trainer.strategy.tensor_model_parallel_size = 2
     recipe.data = flux_datamodule('/mingyuanm/dataset/fill50k/fill50k_tarfiles/')
-    recipe.data.global_batch_size=2
+    recipe.data.global_batch_size = 2
     recipe.model.flux_controlnet_config.num_single_layers = 0
     recipe.model.flux_controlnet_config.num_joint_layers = 4
     return recipe
+
 
 @run.cli.factory(target=llm.train)
 def full_model_tp2_dp4_mock() -> run.Partial:
@@ -241,7 +238,7 @@ def unit_test() -> run.Partial:
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
     )
-    recipe.trainer.max_steps=10
+    recipe.trainer.max_steps = 10
 
     return recipe
 

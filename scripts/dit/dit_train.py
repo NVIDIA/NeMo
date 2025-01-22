@@ -14,8 +14,8 @@
 
 import os
 
-import nemo_run as run
 import lightning.pytorch as pl
+import nemo_run as run
 import torch
 from lightning.pytorch.loggers import WandbLogger
 from megatron.core.distributed import DistributedDataParallelConfig

@@ -106,7 +106,9 @@ if __name__ == '__main__':
     print('Initializing flux inference pipeline')
     params = configs[args.version]
     params.vae_config.ckpt = args.vae_ckpt if os.path.exists(args.vae_ckpt) else None
-    params.clip_params.version = args.clip_version if os.path.exists(args.clip_version) else "openai/clip-vit-large-patch14"
+    params.clip_params.version = (
+        args.clip_version if os.path.exists(args.clip_version) else "openai/clip-vit-large-patch14"
+    )
     params.t5_params.version = args.t5_version if os.path.exists(args.t5_version) else "google/t5-v1_1-xxl"
 
     controlnet_config = FluxControlNetConfig(

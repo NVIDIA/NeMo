@@ -16,18 +16,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-import numpy as np
 import lightning.pytorch as L
+import numpy as np
 import torch
 from diffusers import FluxTransformer2DModel
+from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.transformer.utils import openai_gelu, sharded_state_dict_default
-from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
-
 from safetensors.torch import load_file as load_safetensors
 from safetensors.torch import save_file as save_safetensors
 from torch import nn
@@ -336,10 +335,7 @@ class Flux(VisionModule):
             logging.info(f"Found unexepected keys: \n {unexpected}")
         logging.info(f"Restored flux model weights from {ckpt_path}")
 
-    def sharded_state_dict(
-            self, prefix='',
-            sharded_offsets: tuple = (),
-            metadata: dict=None) -> ShardedStateDict:
+    def sharded_state_dict(self, prefix='', sharded_offsets: tuple = (), metadata: dict = None) -> ShardedStateDict:
         sharded_state_dict = {}
         layer_prefix = f'{prefix}double_blocks.'
         for layer in self.double_blocks:
@@ -350,9 +346,7 @@ class Flux(VisionModule):
             sharded_prefix = f'{layer_prefix}{global_layer_offset}.'
             sharded_pp_offset = []
 
-            layer_sharded_state_dict = layer.sharded_state_dict(
-                state_dict_prefix, sharded_pp_offset, metadata
-            )
+            layer_sharded_state_dict = layer.sharded_state_dict(state_dict_prefix, sharded_pp_offset, metadata)
             replace_prefix_for_sharding(layer_sharded_state_dict, state_dict_prefix, sharded_prefix)
 
             sharded_state_dict.update(layer_sharded_state_dict)
@@ -366,9 +360,7 @@ class Flux(VisionModule):
             sharded_prefix = f'{layer_prefix}{global_layer_offset}.'
             sharded_pp_offset = []
 
-            layer_sharded_state_dict = layer.sharded_state_dict(
-                state_dict_prefix, sharded_pp_offset, metadata
-            )
+            layer_sharded_state_dict = layer.sharded_state_dict(state_dict_prefix, sharded_pp_offset, metadata)
             replace_prefix_for_sharding(layer_sharded_state_dict, state_dict_prefix, sharded_prefix)
 
             sharded_state_dict.update(layer_sharded_state_dict)
@@ -376,9 +368,7 @@ class Flux(VisionModule):
         for name, module in self.named_children():
             if not (module is self.single_blocks or module is self.double_blocks):
                 sharded_state_dict.update(
-                    sharded_state_dict_default(
-                        module, f'{prefix}{name}.', sharded_offsets, metadata
-                    )
+                    sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
                 )
         return sharded_state_dict
 
