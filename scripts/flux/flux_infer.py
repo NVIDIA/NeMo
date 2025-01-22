@@ -14,6 +14,7 @@
 
 import argparse
 
+import os
 import torch
 
 from nemo.collections.diffusion.models.flux.pipeline import FluxInferencePipeline
@@ -51,7 +52,7 @@ def parse_args():
     parser.add_argument(
         "--save_converted_model_to",
         type=str,
-        default="/ckpts",
+        default=None,
         help="Whether to save the converted NeMo transformer checkpoint for Flux",
     )
     parser.add_argument(
@@ -66,6 +67,12 @@ def parse_args():
     parser.add_argument(
         "--num_images_per_prompt", type=int, default=1, help="Number of images to generate for each prompt."
     )
+    parser.add_argument(
+        "--num_joint_layers", type=int, default=19, help="Number of joint transformer layers in controlnet."
+    )
+    parser.add_argument(
+        "--num_single_layers", type=int, default=38, help="Number of single transformer layers in controlnet."
+    )
     parser.add_argument("--guidance", type=float, default=0.0, help="Guidance scale.")
     parser.add_argument(
         "--offload", action='store_true', default=False, help="Offload modules to cpu after being called."
@@ -76,7 +83,6 @@ def parse_args():
         default="A cat holding a sign that says hello world",
         help="Inference prompts, use \',\' to separate if multiple prompts are provided.",
     )
-    parser.add_argument("--bf16", action='store_true', default=False, help="Use bf16 in inference.")
     args = parser.parse_args()
     return args
 
@@ -91,6 +97,8 @@ if __name__ == '__main__':
     params.vae_config.ckpt = args.vae_ckpt if os.path.exists(args.vae_ckpt) else None
     params.clip_params.version = args.clip_version if os.path.exists(args.clip_version) else "openai/clip-vit-large-patch14"
     params.t5_params.version = args.t5_version if os.path.exists(args.t5_version) else "google/t5-v1_1-xxl"
+    params.flux_config.num_joint_layers = args.num_joint_layers
+    params.flux_config.num_single_layers = args.num_single_layers
     pipe = FluxInferencePipeline(params)
 
     if os.path.exists(args.flux_ckpt):
@@ -100,7 +108,7 @@ if __name__ == '__main__':
             do_convert_from_hf=args.do_convert_from_hf,
             save_converted_model_to=args.save_converted_model_to,
         )
-    dtype = torch.bfloat16 if args.bf16 else torch.float32
+    dtype = torch.float32
     text = args.prompts.split(',')
     pipe(
         text,

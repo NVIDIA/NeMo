@@ -61,7 +61,7 @@ def parse_args():
     parser.add_argument(
         "--save_converted_model_to",
         type=str,
-        default="/ckpts",
+        default=None,
         help="Whether to save the converted NeMo transformer checkpoint for Flux",
     )
     parser.add_argument(
@@ -94,7 +94,6 @@ def parse_args():
         default="A cat holding a sign that says hello world",
         help="Inference prompts, use \',\' to separate if multiple prompts are provided.",
     )
-    parser.add_argument("--bf16", action='store_true', default=False, help="Use bf16 in inference.")
     args = parser.parse_args()
     return args
 
@@ -125,7 +124,7 @@ if __name__ == '__main__':
             do_convert_from_hf=args.do_convert_from_hf,
             save_converted_model_to=args.save_converted_model_to,
         )
-    dtype = torch.bfloat16 if args.bf16 else torch.float32
+    dtype = torch.float32
     text = args.prompts.split(',')
     control_images = args.control_image.split(',')
     control_images = [Image.open(x) for x in control_images]
