@@ -1,0 +1,3 @@
+boto3[crt]
+s3fs==0.4.2
+tenacity
