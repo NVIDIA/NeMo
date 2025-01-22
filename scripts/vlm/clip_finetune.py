@@ -132,7 +132,12 @@ def main(args):
         tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
-        ckpt_async_save=False
+        ckpt_async_save=False,
+        ddp=DistributedDataParallelConfig(
+            overlap_grad_reduce=True,
+            check_for_nan_in_grad=True,
+            overlap_param_gather=True,
+        )
     )
 
 
@@ -142,7 +147,7 @@ def main(args):
         monitor="reduced_train_loss",
         save_top_k=2,
         save_on_train_epoch_end=True, # This prevents it from saving after validation
-        every_n_train_steps=10,
+        every_n_train_steps=1000,
         dirpath=os.path.join(args.log_dir, args.name),
     )
 

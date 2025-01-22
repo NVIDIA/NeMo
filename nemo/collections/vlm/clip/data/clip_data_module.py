@@ -2,6 +2,7 @@ from copy import deepcopy
 from typing import Any, Dict, Literal, Optional
 
 import megatron.energon.flavors.crude
+import numpy as np
 import torch
 from torchvision import transforms
 from torchvision.transforms import v2 as torchvision_transforms
@@ -590,6 +591,7 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
         #     torchvision_transforms.Resize((224, 224))])
 
         img_size = (img_h, img_w)
+        self.img_size = img_size
         # TODO(ask Yu): I don't know how can I pass training flag to Task encoder
         self.img_transform = image_transform(
             img_size,
@@ -602,9 +604,18 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
 
 
     def encode_sample(self, sample: dict) -> dict:
+        # np_gen = np.random.default_rng(seed=np.random.randint(0, 2**32 - 1))
+        # tokens = torch.from_numpy(np_gen.integers(self.tokenizer.vocab_size, size=[self.max_length], dtype=np.int64))
+        # images = torch.from_numpy(np_gen.random(size=[3, self.img_size[0], self.img_size[1]], dtype=np.float32))
+        #
+        # return {
+        #     "images": images,
+        #     "captions": tokens,
+        # }
+        #
         sample_new = {}
         # transforms.ToPILImage()(sample["image"])
-        sample_new["images"] = self.img_transform(self.toPIL(sample["image"]))
+        sample_new["images"] = self.img_transform(sample["image"])
         sample_new["captions"] = self.tokenizer.tokenizer(sample["txt"], return_tensors="pt", truncation=True,
                                                           padding='max_length', max_length=self.max_length).input_ids
         return sample_new
