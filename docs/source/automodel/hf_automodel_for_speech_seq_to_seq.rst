@@ -95,21 +95,21 @@ Function: masked_cross_entropy
 ------------------------------
 .. function:: masked_cross_entropy
 
-    Computes the masked cross-entropy loss.
+   Computes the masked cross-entropy loss.
 
-    Parameters
-    ----------
-    logits : torch.Tensor
-        The predicted logits from the model.
-    targets : torch.Tensor
-        The target labels.
-    mask : Optional[torch.Tensor], optional
-        A mask to apply to the loss computation (default is `None`).
+   Parameters
+   ----------
+   logits : torch.Tensor
+       The predicted logits from the model.
+   targets : torch.Tensor
+       The target labels.
+   mask : Optional[torch.Tensor], optional
+       A mask to apply to the loss computation (default is `None`).
 
-    Returns
-    -------
-    torch.Tensor
-        The computed loss.
+   Returns
+   -------
+   torch.Tensor
+       The computed loss.
 
 Usage Example
 -------------
