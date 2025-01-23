@@ -116,21 +116,21 @@ Usage Example
 .. code-block:: javascript
   :linenos:
 
-import lightning.pytorch as pl
-from your_module_name import HFAutoModelForSpeechSeq2Seq
+  import lightning.pytorch as pl
+  from your_module_name import HFAutoModelForSpeechSeq2Seq
 
-# Initialize the model
-model = HFAutoModelForSpeechSeq2Seq(
+  # Initialize the model
+  model = HFAutoModelForSpeechSeq2Seq(
     model_name='facebook/wav2vec2-base-960h',
     load_pretrained_weights=True,
     trust_remote_code=True
-)
+  )
 
-# Set up the trainer
-trainer = pl.Trainer(max_epochs=10, gpus=1)
+  # Set up the trainer
+  trainer = pl.Trainer(max_epochs=10, gpus=1)
 
-# Train the model
-trainer.fit(model, train_dataloader, val_dataloader)
+  # Train the model
+  trainer.fit(model, train_dataloader, val_dataloader)
 
-# Save the trained model
-model.save_pretrained('path/to/save')
+  # Save the trained model
+  model.save_pretrained('path/to/save')
