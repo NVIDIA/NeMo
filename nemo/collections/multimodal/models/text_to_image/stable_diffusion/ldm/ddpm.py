@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import nullcontext
 import itertools
 import os
 import time
@@ -75,6 +76,10 @@ from nemo.core.classes.common import Serialization
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging, model_utils
 
+from nemo.collections.nlp.modules.common.megatron.build_model import build_model
+from lightning.pytorch.accelerators import CPUAccelerator
+from nemo.utils.import_utils import safe_import, safe_import_from
+
 try:
     from megatron.core import parallel_state
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
@@ -87,10 +92,18 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
+    from megatron.core.distributed import DistributedDataParallel as McoreDDP
+    from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
+    from megatron.core.utils import get_model_config
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+transformer_engine, HAVE_TE = safe_import("transformer_engine")
+te_module, HAVE_TE_MODULE = safe_import_from("transformer_engine.pytorch", "module")
+HAVE_TE = HAVE_TE and HAVE_TE_MODULE
+
 
 
 __conditioning_keys__ = {'concat': 'c_concat', 'crossattn': 'c_crossattn', 'adm': 'y'}
@@ -1697,15 +1710,39 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 )
                 self.cfg.unet_config.unet_precision = 'fp16'
 
-        self.model = self.model_provider_func()
+        # build_model returns a list of modules which are used for interleaved pipeline parallelism
+        if isinstance(self.trainer.accelerator, CPUAccelerator):
+            self.model = build_model(
+                model_provider_func=self.model_provider_func,
+                wrap_with_ddp=False,
+                on_cpu=True,
+                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+            )
+        else:
+            build_model_context = nullcontext
+            if HAVE_TE and self.cfg.get('fp8', False) and self.cfg.get('fp8_params', False):
+                build_model_context = transformer_engine.pytorch.fp8_model_init
+            with build_model_context():
+                self.model = build_model(
+                    model_provider_func=self.model_provider_func,
+                    wrap_with_ddp=False,
+                    virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                    on_cpu=cfg.get('use_cpu_initialization', False),
+                )
+
+        # if we're not using interleaved, then self.model is a module.
+        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None and (not self.use_mcore_dist_optim):
+            self.model = self.model[0]
 
         self.conditioning_keys = []
 
-        if self.model.precision in ['bf16', 'bf16-mixed']:
+        precision = self.model[0].precision if isinstance(self.model, list) else self.model.precision
+
+        if precision in ['bf16', 'bf16-mixed']:
             self.autocast_dtype = torch.bfloat16
-        elif self.model.precision in [32, '32', '32-true']:
+        elif precision in [32, '32', '32-true']:
             self.autocast_dtype = torch.float
-        elif self.model.precision in ['16-mixed', '16', 16]:
+        elif precision in ['16-mixed', '16', 16]:
             self.autocast_dtype = torch.half
         else:
             raise ValueError('precision must be in [32, "32", "32-true", "16-mixed", "16", 16, "bf16-mixed", "bf16"]')
@@ -1743,15 +1780,38 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
 
         # handle asynchronous grad reduction
         no_sync_func = None
-        if not forward_only and self.with_distributed_adam:
-            no_sync_func = partial(
-                self._optimizer.no_sync,
-                greedy_grad_copy=self.megatron_amp_O2,
-            )
+        grad_sync_func = None
+        param_sync_func = None
+        if self.with_distributed_adam:
+            if forward_only:
+                if self.validation_param_sync_overlap:
+                    param_sync_func = self.sync_overlap_parameters
+            elif not self.use_mcore_dist_optim:
+                no_sync_func = partial(
+                    self._optimizer.no_sync,
+                    greedy_grad_copy=self.megatron_amp_O2,
+                )
+                grad_sync_func = self.reduce_overlap_gradients
+                param_sync_func = self.sync_overlap_parameters
+            else:
+                if self.cfg.optim.get("overlap_grad_sync", False):
+                    no_sync_func = [model_chunk.no_sync for model_chunk in self.model]
+                    no_sync_func = no_sync_func[0] if len(self.model) == 1 else no_sync_func
+
+                    if self.cfg.optim.get("align_grad_reduce", True):
+                        grad_sync_func = [model_chunk.start_grad_sync for model_chunk in self.model]
+                        grad_sync_func = grad_sync_func[0] if len(self.model) == 1 else grad_sync_func
+                if self.cfg.optim.get("overlap_param_sync", False) and self.cfg.optim.get("align_param_gather", False):
+                    param_sync_func = [model_chunk.start_param_sync for model_chunk in self.model]
+                    param_sync_func = param_sync_func[0] if len(self.model) == 1 else param_sync_func
 
         # pipeline schedules will get these from self.model.config
-        for module in self.get_module_list():
+        for module in self.get_model_module_list():
             module.config.no_sync_func = no_sync_func
+            module.config.grad_sync_func = grad_sync_func
+            module.config.param_sync_func = param_sync_func
+            if self.use_mcore_dist_optim:
+                module.config.finalize_model_grads_func = finalize_model_grads
 
         # run forward and backwards passes for an entire global batch
         # we do this inside training_step to support pipeline parallelism
@@ -1823,6 +1883,10 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         """
 
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
+        if self.use_mcore_dist_optim:
+            for model_chunk in self.model:
+                model_chunk.zero_grad_buffer()
+
         self._optimizer.zero_grad()
 
         dataloader_iter = iter([batch])
@@ -1933,7 +1997,10 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 self.autocast_dtype in (torch.half, torch.bfloat16),
                 dtype=self.autocast_dtype,
             ):
-                x, c = self.model.get_input(batch, self.cfg.first_stage_key)
+                if isinstance(self.model, list):
+                    x, c = self.model[0].module.get_input(batch, self.cfg.first_stage_key)
+                else:
+                    x, c = self.model.get_input(batch, self.cfg.first_stage_key)
 
             if not isinstance(c, dict):
                 return [x, c]
@@ -1991,8 +2058,13 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             stage (str, optional):
                 Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
-        if self.model.rng:
-            self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
+        if isinstance(self.model, list):
+            for model_module in self.model:
+                if model_module.rng:
+                    model_module.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
+        else:
+            if self.model.rng:
+                self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
 
         # log number of parameters
         if isinstance(self.model, list):
@@ -2177,6 +2249,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 else:
                     checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
 
+
             if hparams_file is not None:
                 extension = hparams_file.split(".")[-1]
                 if extension.lower() == "csv":
@@ -2316,7 +2389,6 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 If none, will infer from the .nemo checkpoint
             map_location: Pytorch flag, where to place the adapter(s) state dict(s).
         """
-
         def _modify_state_dict(state_dict):
             # Modify state key for Dreambooth inference
             new_state_dict = {}
@@ -2352,6 +2424,40 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         state_dict = _modify_state_dict(state_dict)
         assert set(state_dict.keys()) == self.adapter_keys
         super().load_state_dict(state_dict, strict=False)
+
+    def setup_mcore_distributed_parallel(self):
+        """Set up mcore distributed data parallel"""
+        if self.with_distributed_adam and self.use_mcore_dist_optim:
+            config = get_model_config(self.model[0])
+            config.calculate_per_token_loss = False
+            config.enable_cuda_graph = True
+            config.fp8 = False
+            ddp_config = DistributedDataParallelConfig(
+                grad_reduce_in_fp32=(self.cfg.optim.get('grad_sync_dtype', 'fp32') == 'fp32'),
+                overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
+                num_distributed_optimizer_instances=self.cfg.optim.get('num_distributed_optimizer_instances', 1),
+                use_distributed_optimizer=True,
+                check_for_nan_in_grad=self.cfg.optim.get('check_for_nan_in_grad', False),
+                # mcore bucket_size is based on num of parameters, therefore not
+                # using bucket_cap_mb to configure bucket_size here
+                bucket_size=self.cfg.optim.get('ddp_bucket_size', None),
+                average_in_collective=self.cfg.optim.get('average_in_collective', True),
+                overlap_param_gather=self.cfg.optim.get('overlap_param_sync', False),
+                align_param_gather=self.cfg.optim.get('align_param_gather', False),
+                fp8_param_gather=self.cfg.get('fp8_params', False),
+            )
+            self.model = [
+                McoreDDP(
+                    config,
+                    ddp_config,
+                    model_chunk,
+                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                    # model chunks is overlapped with compute anyway.
+                    disable_bucketing=(model_chunk_idx > 0)
+                    or self.cfg.optim.get('overlap_param_gather_with_optimizer_step', False),
+                )
+                for (model_chunk_idx, model_chunk) in enumerate(self.model)
+            ]
 
 
 class DiffusionWrapper(pl.LightningModule, Serialization):
