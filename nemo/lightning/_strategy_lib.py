@@ -114,7 +114,7 @@ def _set_random_seed(seed_):
         tensor_parallel.model_parallel_cuda_manual_seed(seed)
 
 
-def setup_microbatch_calculator(global_batch_size, micro_batch_size):
+def setup_microbatch_calculator(global_batch_size, micro_batch_size, global_rank):
     if global_batch_size is None or micro_batch_size is None:
         return
 
@@ -144,9 +144,6 @@ def setup_microbatch_calculator(global_batch_size, micro_batch_size):
         MCORE_MB_CALCULATOR = False
 
     # TODO: add rampup_batch_size here when we have it implemented
-    import os
-
-    global_rank = int(os.environ['SLURM_PROCID'])
     rampup_batch_size = None
     if MCORE_MB_CALCULATOR:
         from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
@@ -164,7 +161,7 @@ def setup_microbatch_calculator(global_batch_size, micro_batch_size):
                 assert get_current_global_batch_size() == global_batch_size
                 assert get_micro_batch_size() == micro_batch_size
                 assert get_num_microbatches() == global_batch_size // (
-                    micro_batch_size * parallel_state.get_data_parallel_world_size(),
+                    micro_batch_size * parallel_state.get_data_parallel_world_size()
                 )
             else:
                 raise Exception("Microbatch calculator already initialized.")
