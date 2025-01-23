@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import torch
-import nemo.utils.nvtx
+from nemo.utils.nvtx import nvtx_range_push, nvtx_range_pop
 
 
 def _filter_empty_common_step(state_dict):
