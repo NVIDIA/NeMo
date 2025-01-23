@@ -2003,7 +2003,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     except Exception as e:
                         missing_keys, expected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
                         if all(s.endswith('_extra_state') for s in missing_keys):
-                            logging.warning(f'Loding checkpoint with old Transformer Engine version. Missing layers {missing_keys} will be ignored.')
+                            logging.warning(
+                                f'Loding checkpoint with old Transformer Engine version. Missing layers {missing_keys} will be ignored.'
+                            )
                         else:
                             raise e
             else:
