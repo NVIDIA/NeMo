@@ -17,8 +17,8 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import List, Optional
 
-import pytorch_lightning as L
-from pytorch_lightning.utilities.types import OptimizerLRScheduler
+import lightning.pytorch as L
+from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from torch.optim import Optimizer
 
 from nemo.lightning.io.mixin import IOMixin
@@ -184,7 +184,6 @@ class OptimizerModule(L.Callback, CallbackMethods, IOMixin, ABC):
             callbacks.append(self)
         if self.lr_scheduler is not None and self.lr_scheduler not in callbacks:
             callbacks.append(self.lr_scheduler)
-
         self._optimizers = self.optimizers(_model)
 
         _opt = self._optimizers[0] if len(self._optimizers) == 1 else self._optimizers

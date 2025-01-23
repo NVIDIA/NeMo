@@ -17,12 +17,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import CheckpointIO
-from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from lightning_fabric.utilities.types import _PATH
+from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.fabric.utilities.types import _PATH
 from megatron.core.dist_checkpointing.serialization import (
     get_default_load_sharded_strategy,
     get_default_save_sharded_strategy,
@@ -155,9 +155,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
 
         fs = get_filesystem(checkpoint_dir)
-        if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
-            logging.info(f'Distributed checkpoint at path {checkpoint_dir} already exists, skipping saving')
-            return
         fs.makedirs(checkpoint_dir, exist_ok=True)
 
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
@@ -173,7 +170,11 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     @override
     def load_checkpoint(
-        self, path: _PATH, sharded_state_dict=None, map_location: Optional[Callable] = None
+        self,
+        path: _PATH,
+        sharded_state_dict=None,
+        map_location: Optional[Callable] = None,
+        strict: Optional['StrictHandling'] | bool = None,
     ) -> Dict[str, Any]:
         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
 
@@ -190,6 +191,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         """
         from megatron.core import dist_checkpointing
+        from megatron.core.dist_checkpointing.validation import StrictHandling
 
         if map_location is not None:
             raise ValueError("`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`.")
@@ -223,8 +225,21 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if sharded_strategy is not None:
             logging.info(f'Using {sharded_strategy} dist-ckpt load strategy.')
 
+        if isinstance(strict, bool):
+            # For backward-compatibility reasons and a bug in MCore (strict check not applied to factories)
+            # we must apply a simple strict check here.
+            if not strict:
+                sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
+            strict = StrictHandling.ASSUME_OK_UNEXPECTED if strict else StrictHandling.LOG_ALL
+        if strict is None:
+            # Default behavior
+            strict = StrictHandling.ASSUME_OK_UNEXPECTED
+
         checkpoint = dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict, checkpoint_dir=str(path), sharded_strategy=sharded_strategy
+            sharded_state_dict=sharded_state_dict,
+            checkpoint_dir=str(path),
+            sharded_strategy=sharded_strategy,
+            strict=strict,
         )
         checkpoint = _fix_tensors_device(checkpoint)
 
@@ -286,6 +301,131 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if self._save_sharded_strategy is None:
             self._save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
         return self._save_sharded_strategy
+
+    def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
+        from megatron.core import dist_checkpointing
+        from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
+        from megatron.core.dist_checkpointing.mapping import ShardedBase
+
+        ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
+        loaded_keys = []
+        missing_keys = []
+        unexpected_keys = []
+
+        def should_remove_missing_sharded_base(x: Any):
+            if isinstance(x, ShardedBase):
+                if x.key in ckpt_sharded_metadata:
+                    loaded_keys.append(x.key)
+                    return False
+                else:
+                    unexpected_keys.append(x.key)
+                    return True
+            return False
+
+        _, sharded_state_dict = extract_matching_values(sharded_state_dict, should_remove_missing_sharded_base)
+        logging.info(f'The following keys are not in the checkpoint and will not be loaded: {unexpected_keys}')
+
+        # TODO: compute missing_keys by:
+        #  1. all_gather_object of loaded_keys
+        #  2. missing_keys = ckpt_sharded_metadata.keys() - loaded_keys
+        return sharded_state_dict
+
+
+class HuggingFaceCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
+    """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
+    common for most use cases.
+
+    .. warning::  This is an :ref:`experimental <versioning:Experimental API>` feature.
+
+    """
+
+    def __init__(self, hf_model=None, lora=False):
+        self.hf_model = hf_model
+        self.lora = lora
+
+    @override
+    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+        """Save model/training states as a checkpoint file through state-dump and file-write.
+
+        Args:
+            checkpoint: dict containing model and trainer state
+            path: write-target path
+            storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
+
+        Raises
+        ------
+            TypeError:
+                If ``storage_options`` arg is passed in
+
+        """
+
+        if self.lora:
+            from safetensors.torch import save_file
+
+            state_dict = {}
+            for module_name, module_weight in checkpoint["state_dict"].items():
+                new_module_name = module_name.replace("model.model", "base_model.model")
+                new_module_name = new_module_name.replace("lora_a", "lora_A.weight").replace("lora_b", "lora_B.weight")
+                state_dict[new_module_name] = module_weight
+
+            checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
+            fs = get_filesystem(checkpoint_dir)
+            fs.makedirs(checkpoint_dir, exist_ok=True)
+            save_file(state_dict, checkpoint_dir / "adapter_model.safetensors")
+
+    @override
+    def load_checkpoint(
+        self,
+        path: _PATH,
+        sharded_state_dict=None,
+        map_location: Optional[Callable] = None,
+        strict: Optional['StrictHandling'] | bool = None,
+    ) -> Dict[str, Any]:
+        """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
+
+        Args:
+            path: Path to checkpoint
+            map_location: a function, :class:`torch.device`, string or a dict specifying how to remap storage
+                locations.
+
+        Returns: The loaded checkpoint.
+
+        Raises
+        ------
+            FileNotFoundError: If ``path`` is not found by the ``fsspec`` filesystem
+
+        """
+
+        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+        fs = get_filesystem(path)
+        if not fs.exists(path):
+            raise FileNotFoundError(f"Checkpoint file not found: {path}")
+        if not fs.isdir(path):
+            raise ValueError(f"Checkpoints should be a directory. Found: {path}.")
+
+        state_dict = None
+        if (path / "adaptor_config.json").exists():
+            from safetensors import safe_open
+
+            state_dict = {}
+            with safe_open("adapter_model.safetensors", framework="pt", device=0) as f:
+                for k in f.keys():
+                    state_dict[k] = f.get_tensor(k)
+
+        return {'state_dict': state_dict}
+
+    @override
+    def remove_checkpoint(self, path: _PATH) -> None:
+        """Remove checkpoint file from the filesystem.
+
+        Args:
+            path: Path to checkpoint
+
+        """
+        fs = get_filesystem(path)
+        if fs.exists(path):
+            fs.rm(path, recursive=True)
+            log.debug(f"Removed checkpoint: {path}")
 
 
 def _fix_tensors_device(ckpt: Dict) -> Dict:

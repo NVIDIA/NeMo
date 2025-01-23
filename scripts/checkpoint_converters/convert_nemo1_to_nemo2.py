@@ -23,7 +23,8 @@ a. Convert a .nemo checkpoint
         --output_path=your_output_dir \
         --model_id=meta-llama/Meta-Llama-3-8B
 
-b. Convert a model weight directory. The checkpoint should be similar to `model_weights` subdir after extracting the .nemo file.
+b. Convert a model weight directory.
+   The checkpoint should be similar to `model_weights` subdir after extracting the .nemo file.
    Please also provide tokenizer_library and tokenizer_path when loading from weight directory.
     python /opt/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
         --input_path=nemotron3-8b-extracted/model_weights \
@@ -39,6 +40,7 @@ import shutil
 import tempfile
 from argparse import ArgumentParser
 from pathlib import Path
+from typing import Any, Dict
 
 import torch
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
@@ -52,9 +54,10 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_weights_subdir
-from nemo.lightning.io.pl import TrainerContext
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
+from nemo.utils.model_utils import load_config
 
 MODEL_CONFIG_MAPPING = {
     "meta-llama/Llama-2-7b-hf": (llm.LlamaModel, llm.Llama2Config7B),
@@ -66,22 +69,29 @@ MODEL_CONFIG_MAPPING = {
     "mistralai/Mixtral-8x22B-v0.1": (llm.MixtralModel, llm.MixtralConfig8x22B),
     "mistralai/Mistral-7B-v0.1": (llm.MistralModel, llm.MistralConfig7B),
     "nvidia/nemotron-3-8b-base-4k": (llm.NemotronModel, llm.Nemotron3Config8B),
-    "nemotron4-22b": (llm.NemotronModel, llm.Nemotron4Config22B),
+    "nemotron4-22b": (llm.NemotronModel, llm.Nemotron3Config22B),
     "nemotron4-15b": (llm.NemotronModel, llm.Nemotron4Config15B),
     "nemotron4-340b": (llm.NemotronModel, llm.Nemotron4Config340B),
 }
 
 
 def get_args():
+    """
+    Parse the command line arguments.
+    """
     parser = ArgumentParser(
-        description="Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format. This script may download from Hugging Face, make sure you have access to gate repo and have logged into Hugging Face (e.g. huggingface-cli login)"
+        description="""Script to convert NeMo 1.0 checkpoints to NeMo 2.0 format.
+                    This script may download from Hugging Face, make sure you have
+                    access to gate repo and have logged into Hugging Face (e.g. huggingface-cli login)"""
     )
     parser.add_argument(
         "--input_path",
         type=str,
         default=None,
         required=True,
-        help="Path to NeMo 1.0 checkpoints. Could be .nemo file, or `model_weights` directory after untar the .nemo. Please also provide tokenizer_library and tokenizer_path if you pass in `model_weights` directory.",
+        help="""Path to NeMo 1.0 checkpoints. Could be .nemo file, or `model_weights` directory a
+        fter untar the .nemo. Please also provide tokenizer_library and tokenizer_path if you pass
+        in `model_weights` directory.""",
     )
     parser.add_argument(
         "--output_path", type=str, default=None, required=True, help="Path to output NeMo 2.0 directory."
@@ -94,7 +104,8 @@ def get_args():
         type=str,
         default=None,
         required=False,
-        help="Path to tokenizer. If not provided, will 1. try instantiate from nemo1 config 2. pull AutoTokenizer from Hugging Face according to model_id if 1 fails",
+        help="""Path to tokenizer. If not provided, will 1. try instantiate from nemo1 config
+        2. pull AutoTokenizer from Hugging Face according to model_id if 1 fails""",
     )
     parser.add_argument(
         "--tokenizer_library",
@@ -107,17 +118,55 @@ def get_args():
     return args
 
 
-def get_nemo2_model(model_id, tokenizer) -> llm.GPTModel:
+def load_fp8_config(model_path: str) -> Dict[str, Any]:
+    """
+    Loads fp8 configuration of the NeMo 1.0 model.
+
+    Args:
+        model_path (str): Path to NeMo 1.0 checkpoint.
+
+    Returns:
+        (dict): NeMo 1.0 model fp8 settings.
+    """
+    fp8_params = ['fp8', 'fp8_amax_history_len', 'fp8_interval', 'fp8_margin', 'fp8_amax_compute_algo']
+    config = load_config(model_path)
+    fp8_config = {key: config[key] for key in fp8_params if key in config}
+    return fp8_config
+
+
+def get_nemo2_model(model_id, tokenizer, input_path) -> llm.GPTModel:
+    """
+    Get NeMo 2.0 model class from model_id and tokenizer. Use bf16 for NeMo 1.0 ckpts.
+
+    Returns:
+        llm.GPTModel: NeMo 2.0 model instance
+    """
+    if os.path.isdir(model_id):
+        from nemo.lightning import io
+
+        model = io.load_context(Path(model_id), subpath="model")
+        model.config.bf16 = True
+        model.config.params_dtype = torch.bfloat16
+        return model
 
     if model_id not in MODEL_CONFIG_MAPPING:
         valid_ids = "\n- ".join([""] + list(MODEL_CONFIG_MAPPING.keys()))
         raise ValueError(f"Unsupported model_id: {model_id}. Please provide a valid model_id from {valid_ids}")
     model_cls, config_cls = MODEL_CONFIG_MAPPING[model_id]
+
+    fp8_config = load_fp8_config(input_path)
     # nemo1 ckpts are bf16
-    return model_cls(config_cls(bf16=True, params_dtype=torch.bfloat16), tokenizer=tokenizer)
+    return model_cls(config_cls(bf16=True, params_dtype=torch.bfloat16, **fp8_config), tokenizer=tokenizer)
 
 
 def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
+    """
+    Get tokenizer from input .nemo file, or args.tokenizer_path, or Hugging Face.
+    Only SentencePiece and Hugging Face tokenizers are supported.
+
+    Returns:
+        AutoTokenizer: tokenizer instance
+    """
     if not input_path.is_dir():  # if .nemo tar
         with tempfile.TemporaryDirectory() as tmp_dir:  # we want to clean up this tmp dir
             NLPSaveRestoreConnector._unpack_nemo_file(input_path, tmp_dir)
@@ -134,7 +183,7 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
             tokenizer_lib = args.tokenizer_library or "sentencepiece"
             if args.tokenizer_library is None:
                 logging.warning(
-                    "You specified tokenizer_path but did not provide tokenizer_library, will default to sentencepiece"
+                    "You specified tokenizer_path but did not provide tokenizer_library using default sentencepiece"
                 )
             tokenizer_model = args.tokenizer_path
         else:  # no .nemo config, no tokenizer path specified, grab from HF, reload
@@ -148,10 +197,13 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
 
 
 def main() -> None:
+    """
+    Main function to convert NeMo 1.0 checkpoint to NeMo 2.0 format.
+    """
     tokenizer_tmp_dir = Path("/tmp/nemo_tokenizer")
     tokenizer_tmp_dir.mkdir(parents=True, exist_ok=True)
     tokenizer = get_tokenizer(Path(args.input_path), tokenizer_tmp_dir)
-    model = get_nemo2_model(args.model_id, tokenizer=tokenizer)
+    model = get_nemo2_model(args.model_id, tokenizer=tokenizer, input_path=args.input_path)
     model.optim = None
 
     trainer = Trainer(
@@ -196,7 +248,7 @@ def main() -> None:
     logging.info(f"Saving checkpoint to {args.output_path}")
     model_ckpt['state_dict'] = {k.replace('model', 'module', 1): v for k, v in model_ckpt['state_dict'].items()}
     trainer.model.module.load_state_dict(model_ckpt['state_dict'])
-    trainer.save_checkpoint(ckpt_to_weights_subdir(args.output_path))
+    trainer.save_checkpoint(ckpt_to_weights_subdir(args.output_path, is_saving=False))
     if getattr(trainer.strategy, "async_save", False):
         trainer.strategy.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
 

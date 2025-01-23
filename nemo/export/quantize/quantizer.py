@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import tarfile
 from contextlib import nullcontext
 from typing import Callable, Optional
@@ -120,7 +121,7 @@ class Quantizer:
             enable_quant_kv_cache = quantization_config.get("enable_kv_cache", None)
             if enable_quant_kv_cache is None:
                 enable_quant_kv_cache = (
-                    "int8" not in quantization_config.algorithm and quantization_config.decoder_type != "gptnext"
+                    "int8" not in quantization_config.algorithm and quantization_config.decoder_type != "gpt"
                 )
             logging.info(f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization')
             quant_cfg["quant_cfg"]["*output_quantizer"] = {
@@ -164,10 +165,6 @@ class Quantizer:
             if model_cfg.get("sequence_parallel", False):
                 logging.warning("Disabling sequence parallelism for quantization...")
                 model_cfg.sequence_parallel = False
-            # Only custom ModelOpt spec is supported for Quantization: this custom spec is largely based on local Megatron-LM
-            # layer definitions to avoid Transformer Engine implementations that are currently not supported.
-            # This layer spec also requires RoPE fusion to be disabled for tensor view operations in attention
-            # layer implementation from megatron/core/transformer/dot_product_attention.py to be functional.
             model_cfg.name = "modelopt"
             model_cfg.apply_rope_fusion = False
 
@@ -200,7 +197,7 @@ class Quantizer:
 
         model = mtq.quantize(model, self.quant_cfg, forward_loop)
 
-        if self.quantization_config.decoder_type == "gptnext":
+        if self.quantization_config.decoder_type == "gpt":
             # We found squared_relu may have an under-calibration problem.
             # Clamp the scaling_factor with a min threshold to avoid under-calibration.
             maxbound = 0
@@ -248,10 +245,12 @@ class Quantizer:
             )
             dist.barrier()  # Wait until all ranks complete export_model_config step
             logging.info(
-                f"Exporting quantized weights, model artifacts, and tokenizer config to {self.export_config.save_path}..."
+                "Exporting quantized weights, model artifacts,"
+                f" and tokenizer config to {self.export_config.save_path}..."
             )
             if dist.get_rank() == 0:
                 save_artifacts(model, export_dir)
                 if compress:
-                    with tarfile.open(self.export_config.save_path, "w:gz") as tar:
+                    os.makedirs(os.path.dirname(self.export_config.save_path), exist_ok=True)
+                    with tarfile.open(self.export_config.save_path, "w") as tar:
                         tar.add(export_dir, arcname="./")

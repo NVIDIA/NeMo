@@ -17,18 +17,18 @@ import time
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
+import lightning.pytorch as pl
 import numpy as np
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
-from lightning_fabric.utilities.cloud_io import _load as pl_load
+from lightning.fabric.utilities.cloud_io import _load as pl_load
+from lightning.pytorch import Trainer
+from lightning.pytorch.core.saving import _load_state as ptl_load_state
+from lightning.pytorch.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
+from lightning.pytorch.utilities.migration import pl_legacy_patch
+from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from omegaconf import DictConfig, open_dict
-from pytorch_lightning import Trainer
-from pytorch_lightning.core.saving import _load_state as ptl_load_state
-from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
-from pytorch_lightning.utilities.migration import pl_legacy_patch
-from pytorch_lightning.utilities.rank_zero import rank_zero_only
 from torch._inductor import config as inductor_config
 from torchvision.utils import make_grid
 from tqdm import tqdm
@@ -246,7 +246,7 @@ class DDPM(torch.nn.Module):
         load_unet=True,
         load_encoder=True,
     ):
-        pl_sd = torch.load(path, map_location="cpu")
+        pl_sd = torch.load(path, map_location="cpu", weights_only=False)
         if "state_dict" in list(pl_sd.keys()):
             pl_sd = pl_sd["state_dict"]
 
@@ -2340,7 +2340,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         if filepath.endswith('.nemo'):
             conf, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location)
         elif filepath.endswith('.ckpt'):
-            state_dict = torch.load(filepath, map_location)['state_dict']
+            state_dict = torch.load(filepath, map_location, weights_only=False)['state_dict']
         else:
             raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
         if not peft_cfgs:

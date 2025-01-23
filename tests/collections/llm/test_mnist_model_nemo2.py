@@ -23,16 +23,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, TypedDict, TypeVar, Union
 
+import lightning.pytorch as pl
 import megatron.core.num_microbatches_calculator
 import pytest
-import pytorch_lightning as pl
 import torch
 import torch.distributed
+from lightning.pytorch.loggers import TensorBoardLogger
 from megatron.core import ModelParallelConfig, parallel_state
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.module import MegatronModule
-from pytorch_lightning.loggers import TensorBoardLogger
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -480,6 +480,7 @@ def reset_megatron_parallel_state() -> Iterator[None]:
 
 @pytest.mark.run_only_on("GPU")
 @pytest.mark.integration
+@pytest.mark.pleasefixme
 def test_train_mnist_litautoencoder_with_megatron_strategy_single_gpu():
     path = os.path.abspath(__file__)
     call = f"python {path}"

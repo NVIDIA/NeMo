@@ -23,24 +23,24 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import TorchCheckpointIO
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from lightning_fabric.utilities.optimizer import _optimizer_to_device
+from lightning.fabric.plugins import TorchCheckpointIO
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.fabric.utilities.optimizer import _optimizer_to_device
+from lightning.pytorch.callbacks.progress import TQDMProgressBar
+from lightning.pytorch.callbacks.progress.tqdm_progress import _update_n
+from lightning.pytorch.core.optimizer import LightningOptimizer
+from lightning.pytorch.loops.fetchers import _DataFetcher
+from lightning.pytorch.plugins import ClusterEnvironment
+from lightning.pytorch.plugins.io.checkpoint_plugin import CheckpointIO
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
+from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
+from lightning.pytorch.plugins.precision.fsdp import FSDPPrecision
+from lightning.pytorch.strategies import DDPStrategy, FSDPStrategy
+from lightning.pytorch.trainer.states import TrainerFn
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
-from pytorch_lightning.callbacks.progress import TQDMProgressBar
-from pytorch_lightning.callbacks.progress.tqdm_progress import _update_n
-from pytorch_lightning.core.optimizer import LightningOptimizer
-from pytorch_lightning.loops.fetchers import _DataFetcher
-from pytorch_lightning.plugins import ClusterEnvironment
-from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
-from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
-from pytorch_lightning.plugins.precision.fsdp import FSDPPrecision
-from pytorch_lightning.strategies import DDPStrategy, FSDPStrategy
-from pytorch_lightning.trainer.states import TrainerFn
-from pytorch_lightning.trainer.trainer import Trainer
 from torch._C._distributed_c10d import ReduceOp
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
@@ -97,7 +97,7 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import dist_checkpointing, parallel_state
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
-    from megatron.core.dist_checkpointing.mapping import LocalNonpersitentObject
+    from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject
     from megatron.core.dist_checkpointing.optimizer import (
         get_param_id_to_sharded_param_map,
         make_sharded_optimizer_tensor,
@@ -107,6 +107,7 @@ try:
     from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
+
     from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
 
     HAVE_MEGATRON_CORE = True
@@ -163,6 +164,7 @@ def init_model_parallel(
                 use_sharp=sharp,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 order='tp-pp-dp' if app_state.use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+                num_distributed_optimizer_instances=app_state.num_distributed_optimizer_instances,
                 distributed_timeout_minutes=distributed_timeout_minutes,
             )
 
@@ -176,9 +178,14 @@ def init_model_parallel(
             app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
             app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
-            # create MPI process group for UCX-based communication APIs
             if app_state.init_mpi_proc_group:
-                torch.distributed.new_group(backend='mpi')
+                import packaging
+
+                te_version = packaging.version.Version(version('transformer_engine'))
+                if te_version < packaging.version.Version("1.9"):
+                    # Create MPI process group for bootstrapping at old TE versions.
+                    # From TE version v1.9, the process group is initialized in TE.
+                    torch.distributed.new_group(backend='mpi')
 
 
 class NLPDDPStrategy(DDPStrategy):
@@ -377,7 +384,7 @@ class NLPDDPStrategy(DDPStrategy):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         app_state = AppState()
-        """ PTL method which we override to accomodate distributed checkpoints and 
+        """ PTL method which we override to accomodate distributed checkpoints and
             the legacy model parallel checkpoints.
 
             When using megatron core, the distributed checkpointing library expects save functions to be
@@ -385,17 +392,16 @@ class NLPDDPStrategy(DDPStrategy):
         """
         # check if using distributed checkpointing
         if self.use_distributed_checkpointing:
-            assert (
-                len(checkpoint['optimizer_states']) == 1
-            ), "Currently only support checkpointing 1 distributed optimizer per time!"
-            # converts the optimizer states to their sharded equivalents
-            sharded_optim_state = self.optimizer_sharded_state_dict(
-                unsharded_optim_state=checkpoint['optimizer_states'][0]
-            )
-
             # Check whether to save optim states
             include_optimizer = True if not storage_options else storage_options.get('include_optimizer', True)
             if include_optimizer:
+                assert (
+                    len(checkpoint['optimizer_states']) == 1
+                ), "Currently only support checkpointing 1 distributed optimizer per time!"
+                # converts the optimizer states to their sharded equivalents
+                sharded_optim_state = self.optimizer_sharded_state_dict(
+                    unsharded_optim_state=checkpoint['optimizer_states'][0]
+                )
                 checkpoint['optimizer_states'] = [sharded_optim_state]
             else:
                 checkpoint['optimizer_states'] = None
@@ -511,7 +517,7 @@ class NLPDDPStrategy(DDPStrategy):
             )
             if expert_index:
                 # Temporary empty params so that loading doesn't fail
-                model_param_groups.insert(expert_index, {'params': LocalNonpersitentObject([]), 'is_expert': True})
+                model_param_groups.insert(expert_index, {'params': LocalNonpersistentObject([]), 'is_expert': True})
                 if 'optimizer' in sharded_state_dict['optimizer_states'][0]:
                     sharded_state_dict['optimizer_states'][0]['optimizer']['param_groups'] = model_param_groups
                 else:
@@ -1270,6 +1276,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         return_config: bool = False,
         trainer: Trainer = None,
         validate_access_integrity: bool = True,
+        replace_sharded_tensor_key: Optional[str] = None,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -1357,6 +1364,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 checkpoint = {}
                 sharded_state_dict = instance.sharded_state_dict()
                 checkpoint['state_dict'] = sharded_state_dict
+                if replace_sharded_tensor_key:
+                    for v in checkpoint["state_dict"].values():
+                        v.key = v.key.replace("model", replace_sharded_tensor_key)
 
                 checkpoint_io = DistributedCheckpointIO.from_config(conf)
                 checkpoint = checkpoint_io.load_checkpoint(
