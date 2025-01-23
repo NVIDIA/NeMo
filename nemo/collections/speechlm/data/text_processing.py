@@ -25,6 +25,10 @@ __all__ = ['TextProcesserWithPromptFormatter']
 
 @dataclass
 class MockCutSupervision:
+    """
+    A dummy class for MockCut to support behavior of Cut.supervisions[0].text
+    """
+
     text: str = ""
 
 
@@ -53,6 +57,7 @@ class MockCut(Cut):
         self.supervisions = [MockCutSupervision(text=sample[text_key])]
 
     def has_custom(self, key):
+        """Utility function to mimic Cut.has_custom()."""
         return hasattr(self, key)
 
 
@@ -87,10 +92,12 @@ class TextProcesserWithPromptFormatter(PromptFormatterTextProcessing):
         return self.process_sample(*args, **kwargs)
 
     def wrap_inputs(self, **kwargs):
+        """wrap the input data for the prompt formatter."""
         inputs = {k: v for k, v in kwargs.items()}
         return MockCut(inputs)
 
     def process_sample(self, *args, **kwargs):
+        """process the input sample, wether it's a Cut or a dict."""
         if len(args) == 1 and isinstance(args[0], Cut):
             # lhotse dataset and dataloader
             return self._process_example(args[0])

@@ -13,14 +13,11 @@
 # limitations under the License.
 
 
-import lightning.pytorch as pl
-import nemo_run as run
 from omegaconf import DictConfig, OmegaConf
 
-import nemo.lightning as nl
 from nemo import lightning as nl
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.speechlm.api import _setup, finetune, train, validate
+from nemo.collections.speechlm.api import _setup, finetune
 from nemo.collections.speechlm.data.audio_to_text_module import AudioToTextDataModule
 from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTextLLM, SpeechToTextLLMConfig
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
@@ -33,6 +30,7 @@ from nemo.utils.exp_manager import StatelessTimer, TimingCallback
 
 
 def speech_to_text_llm_train(cfg: DictConfig):
+    """Train the model using provided config."""
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
 
@@ -65,7 +63,8 @@ def speech_to_text_llm_train(cfg: DictConfig):
     if cfg.get('max_time_per_run', None):
         if cfg['strategy'].get('ckpt_async_save', True):
             logging.warning(
-                f"`strategy.ckpt_async_save` must be `False` to save ckpt when `max_time_per_run` is set, got {cfg['strategy']['ckpt_async_save']}. `max_time_per_run` will not work in this case!"
+                f"`strategy.ckpt_async_save` must be `False` to save ckpt when `max_time_per_run` is set,",
+                f"got {cfg['strategy']['ckpt_async_save']}. `max_time_per_run` will not work in this case!",
             )
         else:
             # ckpt_async_save must be False to save ckpt when training is interrupted by max_time_per_run
@@ -105,6 +104,7 @@ def speech_to_text_llm_train(cfg: DictConfig):
 
 
 def speech_to_text_llm_validate(cfg: DictConfig):
+    """Validate the model using provided config, groundtruth required."""
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
@@ -165,5 +165,6 @@ def speech_to_text_llm_validate(cfg: DictConfig):
 
 
 def speech_to_text_llm_generate(cfg: DictConfig):
+    """Running inference using provided config without groundtruth."""
     # TODO: implement this based on llm.generate()
     raise NotImplementedError("This function is not implemented yet.")

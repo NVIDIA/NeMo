@@ -46,7 +46,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.utils import logging
+from nemo.utils import logging, logging_mode
 from nemo.utils.distributed import webdataset_split_by_workers
 
 __all__ = [
@@ -443,6 +443,10 @@ class MultiAudioTextDataset(AudioTextDataset):
 
 
 class TarredAudioFilter:
+    """
+    filter function for tarred audio files, skip entry if not in manifest
+    """
+
     def __init__(self, collection, iterator):
         self.iterator = iterator
         self.collection = collection
@@ -456,9 +460,15 @@ class TarredAudioFilter:
             file_id, _ = os.path.splitext(os.path.basename(audio_filename))
             if file_id in self.collection.mapping:
                 return audio_bytes, audio_filename
+            else:
+                logging.warning(f"key not in manifest: {file_id}", mode=logging_mode.ONCE)
 
 
 class TarredAudioLoopOffsets:
+    """
+    Loop over tarred audio files
+    """
+
     def __init__(self, collection, iterator):
         self.iterator = iterator
         self.collection = collection
@@ -497,7 +507,7 @@ class TarredAudioTextDataset(IterableDataset):
     (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
     (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
 
-    Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
+    Note: For brace expansion in (1), there may be cases where `{x..y}` syntax can't be used due to shell.
     This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
     Supported opening braces - { <=> (, [, < and the special tag _OP_.
     Supported closing braces - } <=> ), ], > and the special tag _CL_.
@@ -980,7 +990,8 @@ def get_audio_text_dataset_from_config(
             raise ValueError(
                 (
                     f"concat_sampling_probabilities must be of the same size as manifest_filepath.",
-                    f"Provided size {len(config.concat_sampling_probabilities)}, number of datasets {len(manifest_filepath)}",
+                    f"Provided size {len(config.concat_sampling_probabilities)},",
+                    f"number of datasets {len(manifest_filepath)}",
                 )
             )
         data_prefix = []

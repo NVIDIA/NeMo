@@ -30,7 +30,7 @@ from nemo.collections.common.data.dataset import ConcatMapDataset
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing, TextProcessing
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import TextProcessing
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.speechlm.data.data_sampler import SpeechLMDataSampler
 from nemo.collections.speechlm.data.dataset.audio_text_dataset import (
@@ -64,18 +64,30 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
 
     @property
     def global_batch_size(self):
+        """
+        get the global batch size
+        """
         return self.data_cfg.global_batch_size
 
     @property
     def micro_batch_size(self):
+        """
+        get the micro batch size
+        """
         return self.data_cfg.micro_batch_size
 
     @property
     def seq_length(self):
+        """
+        get the max sequence length
+        """
         return self.data_cfg.max_seq_length
 
     @property
     def data_cfg(self):
+        """
+        get the common data configuration
+        """
         if 'common' not in self.cfg:
             raise ValueError("`common` configuration is missing in the data config")
         return self.cfg.common
@@ -128,6 +140,9 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
         pass
 
     def setup(self, stage=None):
+        """
+        build datasets, text processor and data sampler
+        """
         self.text_processor = self.get_text_processor()
 
         # make assignments here (train/val/test split)

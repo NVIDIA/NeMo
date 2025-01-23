@@ -13,6 +13,12 @@
 # limitations under the License.
 
 """
+This is an example script for training (SFT/PEFT) multi-modal speech-to-text LLM using NeMo.
+All SpeechLMs that has the three componnets (audio encoder, modality adapter and LLM) are supported.
+Some example models are:
+- SALM (https://arxiv.org/abs/2310.09424)
+- VoiceTextBlender (https://arxiv.org/abs/2410.17485)
+
 Example usage:
 
 export WANDB_API_KEY=${WANDB} && \
@@ -21,9 +27,9 @@ export HF_TOKEN=${HFTOKEN} && \
 export HF_HOME="/home/heh/.huggingface/" && \
 export HF_HUB_CACHE="/media/data/cache" && \
 export NEMO_MODELS_CACHE="/media/data/pretrained_models/" && \
-python salm_train.py \
-    --config-path="/home/heh/github/NeMo-main/examples/speechlm/conf/"  \
-    --config-name "salm_fc_linear" \
+python speech_to_text_llm_train.py \
+    --config-path="/home/heh/github/NeMo-main/examples/speechlm/conf/salm"  \
+    --config-name "salm_llama3.2-1b_fc_fc_peft" \
     data.train_ds.manifest_filepath=$TRAIN_MANIFESTS \
     data.validation_ds.manifest_filepath=$VAL_MANIFESTS \
     data.train_ds.num_workers=$NUM_WORKERS \
@@ -43,7 +49,7 @@ from nemo.collections.speechlm.recipes import speech_to_text_llm_train
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path="../conf", config_name="salm_fc_linear")
+@hydra_runner(config_path="./conf/salm", config_name="salm_llama3.2-1b_fc_fc_peft")
 def main(cfg):
     return speech_to_text_llm_train(cfg)
 
