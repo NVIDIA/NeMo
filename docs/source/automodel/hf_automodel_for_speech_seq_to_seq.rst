@@ -113,7 +113,9 @@ Function: masked_cross_entropy
 
 Usage Example
 -------------
-```python
+.. code-block:: javascript
+  :linenos:
+
 import lightning.pytorch as pl
 from your_module_name import HFAutoModelForSpeechSeq2Seq
 
