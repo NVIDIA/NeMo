@@ -96,6 +96,7 @@ def init_parallel_ranks(
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
+
 def _set_random_seed(seed_):
     """Set random seed for reproducability."""
     if seed_ is None or not isinstance(seed_, int) or seed_ <= 0:
@@ -144,10 +145,12 @@ def setup_microbatch_calculator(global_batch_size, micro_batch_size):
 
     # TODO: add rampup_batch_size here when we have it implemented
     import os
+
     global_rank = int(os.environ['SLURM_PROCID'])
     rampup_batch_size = None
     if MCORE_MB_CALCULATOR:
         from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
             init_num_microbatches_calculator(
                 rank=global_rank,
@@ -185,7 +188,6 @@ def setup_microbatch_calculator(global_batch_size, micro_batch_size):
                 )
             else:
                 raise Exception("Microbatch calculator already initialized.")
-
 
 
 def init_model_parallel(parallel_config, use_te_rng_tracker=False, seed=1234) -> None:

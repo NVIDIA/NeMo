@@ -882,13 +882,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Returns dist-sampler's kwargs"""
 
         from megatron.core import parallel_state
+
         if parallel_state.is_initialized():
             # When using model parallel, data parallel groups are non-trivial and they
             # correspond to the logical GPUs. This means that the GPUs that form a
             # single logical GPU all need to get the same batch of data.
             distributed_sampler_kwargs = dict(
                 num_replicas=parallel_state.get_data_parallel_world_size(),
-                rank=parallel_state.get_data_parallel_rank()
+                rank=parallel_state.get_data_parallel_rank(),
             )
             return distributed_sampler_kwargs
 
