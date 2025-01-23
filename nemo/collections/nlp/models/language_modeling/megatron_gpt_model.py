@@ -455,7 +455,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self.validation_drop_last = data_cfg.get('validation_drop_last', True)
         self.sample_weight = data_cfg.get('sample_weight', 'token')
         self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
-        self.load_legacy = self.cfg.get('dist_ckpt_load_legacy', False)
+        self.dist_ckpt_load_legacy = self.cfg.get('dist_ckpt_load_legacy', False)
 
         self.inference_params = None
 
@@ -1999,7 +1999,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         key.replace('model.', ''): checkpoint_state_dict.pop(key)
                         for key in list(checkpoint_state_dict.keys())
                     }
-                    strict = False if self.load_legacy else True
+                    strict = not self.dist_ckpt_load_legacy
                     module.load_state_dict(checkpoint_state_dict, strict=strict)
             else:
                 # when restoring a distributed checkpoint from a ptl checkpoint we need to defer loading the state_dict
