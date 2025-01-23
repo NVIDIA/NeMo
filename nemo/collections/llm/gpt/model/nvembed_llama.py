@@ -12,7 +12,7 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from torch import Tensor, nn
 
 import nemo.collections.llm.gpt.model.base as GPTBase
-from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativesCELoss
+from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativeRankingLoss
 from nemo.collections.llm.gpt.model import GPTConfig
 from nemo.collections.llm.gpt.model.llama import HFLlamaImporter, Llama32Config1B, LlamaConfig, LlamaModel
 from nemo.collections.llm.utils import Config
@@ -61,15 +61,9 @@ def nv_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.add("q_attention_mask")
-    required_keys.add("p_attention_mask")
     required_keys.add("attention_mask")
 
     if parallel_state.is_pipeline_first_stage():
-        required_keys.add("q_input_ids")
-        required_keys.add("q_position_ids")
-        required_keys.add("p_input_ids")
-        required_keys.add("p_position_ids")
         required_keys.add("input_ids")
         required_keys.add("position_ids")
 
@@ -86,23 +80,6 @@ def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.T
     and then calls the model's forward pass. if "cu_seqsens" are defined in the batch,
     then the packed sequence parameters are also passed to the model for forward pass efficiency.
     """
-    encode_separately = model.config.encode_separately
-    if encode_separately:
-        q_forward_args = {
-            "input_ids": batch["q_input_ids"],
-            "attention_mask": batch["q_attention_mask"],
-            "position_ids": batch["q_position_ids"],
-        }
-        p_forward_args = {
-            "input_ids": batch["p_input_ids"],
-            "attention_mask": batch["p_attention_mask"],
-            "position_ids": batch["p_position_ids"],
-        }
-
-        q_emb = model.encode(**q_forward_args)
-        p_emb = model.encode(**p_forward_args)
-        return torch.cat([q_emb, p_emb], dim=0)
-
     forward_args = {
         "input_ids": batch["input_ids"],
         "attention_mask": batch["attention_mask"],
@@ -125,7 +102,7 @@ class NVEmbedLlama32Config1B(Llama32Config1B):
     num_hard_negatives: int = 4
     ce_loss_scale: float = 50
     label_smoothing: float = 0.0
-    encode_separately: bool = False
+    in_batch_negatives: bool = False
     negative_sample_strategy: Literal["random", "first"] = 'first'
     add_bos: bool = True
     add_eos: bool = False
@@ -165,7 +142,6 @@ class NVEmbedLlamaModel(LlamaModel):
         return {
             'num_hard_negatives': self.config.num_hard_negatives,
             'negative_sample_strategy': self.config.negative_sample_strategy,
-            'encode_separately': self.config.encode_separately,
             'add_bos': self.config.add_bos,
             'add_eos': self.config.add_eos,
         }
@@ -206,12 +182,15 @@ class NVEmbedLlamaModel(LlamaModel):
     @property
     def training_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
-            self._training_loss_reduction = HardNegativesCELoss(
+            if self.config.in_batch_negatives:
+                loss_func = BERTInBatchExclusiveHardNegativesRankingLoss
+            else:
+                loss_func = HardNegativeRankingLoss
+            self._training_loss_reduction = loss_func(
                 validation_step=False,
                 num_hard_negatives=self.config.num_hard_negatives,
                 scale=self.config.ce_loss_scale,
                 label_smoothing=self.config.label_smoothing,
-                encode_separately=self.config.encode_separately,
             )
 
         return self._training_loss_reduction
@@ -219,12 +198,15 @@ class NVEmbedLlamaModel(LlamaModel):
     @property
     def validation_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = HardNegativesCELoss(
+            if self.config.in_batch_negatives:
+                loss_func = BERTInBatchExclusiveHardNegativesRankingLoss
+            else:
+                loss_func = HardNegativeRankingLoss
+            self._validation_loss_reduction = loss_func(
                 validation_step=True,
                 num_hard_negatives=self.config.num_hard_negatives,
                 scale=self.config.ce_loss_scale,
                 label_smoothing=self.config.label_smoothing,
-                encode_separately=self.config.encode_separately,
             )
 
         return self._validation_loss_reduction

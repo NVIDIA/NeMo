@@ -54,7 +54,6 @@ class BertEmbeddingDataset(Dataset):
         data_type: str = 'train',  # train, query or doc
         num_hard_negatives: int = 4,
         negative_sample_strategy: Literal["random", "first"] = 'first',
-        encode_separately: bool = False,
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
@@ -76,7 +75,6 @@ class BertEmbeddingDataset(Dataset):
                    Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>',
                    'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
         negative_sample_strategy: Strategy for negative samples. Options: ['random', 'first']
-        encode_separately: Whether to encode query/passage separately
         """
         # TODO: lot of copy-paste from GPTSFDDataset, should refactor both to use a common base class (@adithyare)
         self.tokenizer = tokenizer
@@ -92,7 +90,6 @@ class BertEmbeddingDataset(Dataset):
         self.truncation_method = truncation_method
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id else self.tokenizer.eos_id
         self.negative_sample_strategy = negative_sample_strategy
-        self.encode_separately = encode_separately
         assert (
             truncation_method == 'left' or truncation_method == 'right'
         ), 'truncation_method must be either "left" or "right"'
@@ -127,7 +124,7 @@ class BertEmbeddingDataset(Dataset):
             f"add_bos={self.add_bos}, add_eos={self.add_eos},\n"
             f"max_seq_length={self.max_seq_length}, min_seq_length={self.min_seq_length},\n"
             f"pad_token_id={self.pad_token_id}, negative_sample_strategy={self.negative_sample_strategy},\n"
-            f"encode_separately={self.encode_separately} num_hard_negatives={self.num_hard_negatives}."
+            f"num_hard_negatives={self.num_hard_negatives}."
         )
 
     def _build_samples_mapping(self):
@@ -292,60 +289,7 @@ class BertEmbeddingDataset(Dataset):
             attention_mask[:item_length] = 1
         return attention_mask
 
-    def collate_fn(self, batch):
-        """
-        Collate function that encodes query/passsage separtely or together
-        depending on self.encode_separately
-        """
-        if self.encode_separately:
-            return self._collate_fn_separately(batch)
-        return self._collate_fn_together(batch)
-
-    def _collate_fn_separately(self, batch):
-        """
-        Collate query passage separately
-        """
-        query_input_ids = []
-        passage_input_ids = []
-        query_lengths = []
-        passage_lengths = []
-        query_max_length = -1
-        passage_max_length = -1
-        for item in batch:
-            query_input_ids.append(item['query'])
-            query_lengths.append(len(item['query']))
-            passage_input_ids.append(item['pos_doc'])
-            passage_lengths.append(len(item['pos_doc']))
-            for nd in item['neg_doc']:
-                passage_input_ids.append(nd)
-                passage_lengths.append(len(nd))
-            query_max_length = max(query_max_length, len(item['query']))
-            passage_max_length = max(passage_max_length, len(item['pos_doc']), *(len(nd) for nd in item['neg_doc']))
-
-        query_max_length = min(self.max_seq_length, self._ceil_to_nearest(query_max_length, 16))
-        passage_max_length = min(self.max_seq_length, self._ceil_to_nearest(passage_max_length, 16))
-        assert query_max_length <= self.max_seq_length
-        assert passage_max_length <= self.max_seq_length
-
-        q_attention_mask = torch.stack([self._create_attention_mask2(query_max_length, len) for len in query_lengths])
-        p_attention_mask = torch.stack(
-            [self._create_attention_mask2(passage_max_length, len) for len in passage_lengths]
-        )
-        q_position_ids = torch.LongTensor([list(range(query_max_length)) for _ in batch])
-        p_position_ids = torch.LongTensor([list(range(passage_max_length)) for _ in batch])
-        q_input_ids = torch.LongTensor(self._collate_item(query_input_ids, max_length=query_max_length))
-        p_input_ids = torch.LongTensor(self._collate_item(passage_input_ids, max_length=passage_max_length))
-
-        return {
-            'q_input_ids': q_input_ids,
-            'q_attention_mask': q_attention_mask,
-            'q_position_ids': q_position_ids,
-            'p_input_ids': p_input_ids,
-            'p_attention_mask': p_attention_mask,
-            'p_position_ids': p_position_ids,
-        }
-
-    def _collate_fn_together(self, batch):
+    def _collate_fn(self, batch):
         """
         Collate query passage together
         """

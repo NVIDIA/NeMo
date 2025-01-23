@@ -99,7 +99,7 @@ class BERTLossReduction(MegatronLossReduction):
         return torch.tensor(0.0, device=torch.cuda.current_device())
 
 
-class HardNegativesCELoss(MegatronLossReduction):
+class HardNegativeRankingLoss(MegatronLossReduction):
     """
     This loss uses hard-negative samples.
     The difference of this loss to the default MultipleNegativesRankingLoss
@@ -115,14 +115,12 @@ class HardNegativesCELoss(MegatronLossReduction):
         num_hard_negatives: int = 1,
         scale: float = 50,
         label_smoothing: float = 0.0,
-        encode_separately: bool = True,
     ) -> None:
         super().__init__()
         self.validation_step = validation_step
         self.val_drop_last = val_drop_last
         self.num_hard_negatives = num_hard_negatives
         self.scale = scale
-        self.encode_separately = encode_separately
         self.cross_entropy_loss = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 
     def forward(
@@ -138,15 +136,10 @@ class HardNegativesCELoss(MegatronLossReduction):
         current_train_n_passages = 1 + self.num_hard_negatives
         batch_size = forward_out.shape[0] // num_tensors_per_example
         # Get Query, Key (Positives, Negatives)
-        if self.encode_separately:
-            # forward_out was concat of [query, key]
-            query = forward_out[:batch_size]
-            key = forward_out[batch_size:]
-        else:
-            # forward_out was chunked [(q1, k1), (q2, k2), ...]
-            chunks = forward_out.chunk(batch_size)
-            query = torch.stack([item[0] for item in chunks])
-            key = torch.cat([item[1:] for item in chunks])
+        # forward_out was chunked [(q1, k1), (q2, k2), ...]
+        chunks = forward_out.chunk(batch_size)
+        query = torch.stack([item[0] for item in chunks])
+        key = torch.cat([item[1:] for item in chunks])
 
         assert key.shape[0] % query.shape[0] == 0, '{} % {} > 0'.format(key.shape[0], query.shape[0])
         assert key.shape[0] / query.shape[0] == current_train_n_passages, '{} / {} != {}'.format(
