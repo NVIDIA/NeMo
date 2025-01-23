@@ -433,9 +433,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def setup_distributed(self) -> None:
         """Setups dist env"""
-        setup_parallel_ranks(self)
         super().setup_distributed()
-        init_model_parallel(self.model)
+        _strategy_lib.init_model_parallel(self.parallelism)
+        _strategy_lib.setup_microbatch_calculator(global_batch_size=256, micro_batch_size=1)
 
         if self.data_sampler:
             assert isinstance(self.cluster_environment, ClusterEnvironment), "Cluster environment not initialized"
@@ -510,10 +510,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Only called when we need to wrap the model for pytorch's ddp."""
         from megatron.core import parallel_state
 
-        from nemo.utils import AppState
-
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
+        if parallel_state.is_initialized():
             self._ddp_kwargs["process_group"] = parallel_state.get_data_parallel_group()
 
         # Only wrap the model if we are not using Megatron's DDP
@@ -883,15 +880,15 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     def distributed_sampler_kwargs(self) -> Dict[str, Any]:
         """Returns dist-sampler's kwargs"""
-        from nemo.utils import AppState
 
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
+        from megatron.core import parallel_state
+        if parallel_state.is_initialized():
             # When using model parallel, data parallel groups are non-trivial and they
             # correspond to the logical GPUs. This means that the GPUs that form a
             # single logical GPU all need to get the same batch of data.
             distributed_sampler_kwargs = dict(
-                num_replicas=app_state.data_parallel_size, rank=app_state.data_parallel_rank
+                num_replicas=parallel_state.get_data_parallel_world_size(),
+                rank=parallel_state.get_data_parallel_rank()
             )
             return distributed_sampler_kwargs
 

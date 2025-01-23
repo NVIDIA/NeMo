@@ -59,6 +59,7 @@ def setup_microbatch_calculator(
         Exception: If the microbatch calculator has already been initialized with different settings.
 
     """
+    return
     from nemo.lightning._strategy_lib import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE
     from nemo.utils import AppState
 

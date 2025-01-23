@@ -26,6 +26,7 @@ from nemo.lightning.megatron_init import initialize_model_parallel_for_nemo
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
+from megatron.core import parallel_state
 
 if TYPE_CHECKING:
     from lightning.fabric.utilities.types import Optimizable
@@ -95,49 +96,145 @@ def init_parallel_ranks(
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
+def _set_random_seed(seed_):
+    """Set random seed for reproducability."""
+    if seed_ is None or not isinstance(seed_, int) or seed_ <= 0:
+        raise ValueError('Seed ({}) should be a positive integer.'.format(seed_))
+    import random
+    import numpy as np
+    from megatron.core import parallel_state, tensor_parallel
 
-def init_model_parallel(model: Optional[nn.Module] = None) -> None:
+    # Ensure that different pipeline MP stages get different seeds.
+    seed = seed_ + (100 * parallel_state.get_pipeline_model_parallel_rank())
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.device_count() > 0:
+        tensor_parallel.model_parallel_cuda_manual_seed(seed)
+
+
+def setup_microbatch_calculator(global_batch_size, micro_batch_size):
+    if global_batch_size is None or micro_batch_size is None:
+        return
+
+    try:
+        from megatron.core.num_microbatches_calculator import (
+            ConstantNumMicroBatchesCalculator,
+            get_current_global_batch_size,
+            get_micro_batch_size,
+            get_num_microbatches,
+            init_num_microbatches_calculator,
+        )
+
+        MCORE_MB_CALCULATOR = True
+
+    except (ImportError, ModuleNotFoundError):
+        logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+        from apex.transformer.microbatches import ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
+        from apex.transformer.pipeline_parallel.utils import (
+            get_current_global_batch_size,
+            get_micro_batch_size,
+            get_num_microbatches,
+        )
+        from apex.transformer.pipeline_parallel.utils import (
+            setup_microbatch_calculator as init_num_microbatches_calculator,
+        )
+
+        MCORE_MB_CALCULATOR = False
+
+    # TODO: add rampup_batch_size here when we have it implemented
+    import os
+    global_rank = int(os.environ['SLURM_PROCID'])
+    rampup_batch_size = None
+    if MCORE_MB_CALCULATOR:
+        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
+            init_num_microbatches_calculator(
+                rank=global_rank,
+                global_batch_size=global_batch_size,
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                rampup_batch_size=rampup_batch_size,
+            )
+        else:
+            if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
+                assert get_current_global_batch_size() == global_batch_size
+                assert get_micro_batch_size() == micro_batch_size
+                assert get_num_microbatches() == global_batch_size // (
+                    micro_batch_size * parallel_state.get_data_parallel_world_size(),
+                )
+            else:
+                raise Exception("Microbatch calculator already initialized.")
+    else:
+        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+        if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
+            init_num_microbatches_calculator(
+                rank=global_rank,
+                global_batch_size=global_batch_size,
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                rampup_batch_size=rampup_batch_size,
+            )
+        else:
+            if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
+                assert get_current_global_batch_size() == global_batch_size
+                assert get_micro_batch_size() == micro_batch_size
+                assert get_num_microbatches() == global_batch_size // (
+                    micro_batch_size * parallel_state.get_data_parallel_world_size()
+                )
+            else:
+                raise Exception("Microbatch calculator already initialized.")
+
+
+
+def init_model_parallel(parallel_config, use_te_rng_tracker=False, seed=1234) -> None:
     """Initializes Megatron-LM model parallel if using model parallelism."""
     import torch.distributed
-    from megatron.core import parallel_state
-
-    from nemo.utils import AppState
-
-    app_state = AppState()
 
     # we initialize megatron-lm model parallel and data parallel groups
     # after initializing DDP with PTL.
-    if app_state.model_parallel_size is not None:
-        # destroy groups in case they have already been created
-        # this happens with multiple calls to trainer.test for example
-        parallel_state.destroy_model_parallel()
-        if torch.distributed.is_initialized():
-            parallel_state.initialize_model_parallel(
-                tensor_model_parallel_size=app_state.tensor_model_parallel_size,
-                pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
-                virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
-                pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
-                encoder_pipeline_model_parallel_size=app_state.encoder_pipeline_model_parallel_size,
-                encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
-                context_parallel_size=app_state.context_parallel_size,
-                expert_model_parallel_size=app_state.expert_model_parallel_size,
-                expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
-            )
 
-            # assert that fake tp and pp rank match after model parallel init
-            assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
-            assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
-            assert app_state.expert_tensor_parallel_rank == parallel_state.get_expert_tensor_parallel_rank()
+    parallel_state.destroy_model_parallel()
+    assert torch.distributed.is_initialized()
+    parallel_state.initialize_model_parallel(
+        tensor_model_parallel_size=parallel_config.tensor_model_parallel_size,
+        pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
+        virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
+        context_parallel_size=parallel_config.context_parallel_size,
+        expert_model_parallel_size=parallel_config.expert_model_parallel_size,
+        expert_tensor_parallel_size=parallel_config.tensor_model_parallel_size,
+        encoder_tensor_model_parallel_size=getattr(parallel_config, "encoder_tensor_model_parallel_size", 0),
+        encoder_pipeline_model_parallel_size=getattr(parallel_config, "encoder_pipeline_model_parallel_size", 0),
+        pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
+        # tensor_model_parallel_size=app_state.tensor_model_parallel_size,
+        # pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
+        # virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
+        # pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
+        # encoder_pipeline_model_parallel_size=app_state.encoder_pipeline_model_parallel_size,
+        # encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
+        # context_parallel_size=app_state.context_parallel_size,
+        # expert_model_parallel_size=app_state.expert_model_parallel_size,
+    )
+    from megatron.core import tensor_parallel
 
-            app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
-            app_state.data_parallel_group = parallel_state.get_data_parallel_group()
-            app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
-            app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
-            app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
+    tensor_parallel.random.initialize_rng_tracker(use_te_rng_tracker=use_te_rng_tracker)
+    if seed is not None:
+        # @chcui not setting seed is for model conversion. always set seed for training/inference.
+        _set_random_seed(seed)
+    # assert that fake tp and pp rank match after model parallel init
+    # assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
+    # assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
 
-            # create MPI process group for UCX-based communication APIs
-            if app_state.init_mpi_proc_group:
-                torch.distributed.new_group(backend="mpi")
+    # app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
+    # app_state.data_parallel_group = parallel_state.get_data_parallel_group()
+    # app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
+    # app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
+    # app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
+
+    # create MPI process group for UCX-based communication APIs
+    # if app_state.init_mpi_proc_group:
+    #     torch.distributed.new_group(backend="mpi")
 
 
 def set_model_parallel_attributes(model, parallelism):
