@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,7 +81,6 @@ class ConvolutionLayer(torch.nn.Module):
             dilation=dilation,
             bias=bias,
         )
-        torch.nn.init.normal_(self.conv.weight, mean=0.0, std=0.02)
 
     def forward(self, signal):
         if self.is_causal:  # TODO: maybe replace with identify rather than keep conditional if in forward
@@ -497,13 +496,13 @@ class TransformerLayer(torch.nn.Module):
             output <torch tensor> (B, T1, C): Output tensor
             attn_probabilities <dict>: Attention probabilities
         """
+        x = x * x_mask.unsqueeze(-1)
         x_, s_attn_prob = self.self_attention(query=self.norm_self(x), query_mask=x_mask)
         if self.use_cache:
             if self.cache['self_attn_output'] is not None:
                 x_ = torch.cat([self.cache['self_attn_output'], x_], dim=1)
             self.cache['self_attn_output'] = x_
-        
-        x = (x + x_) * x_mask.unsqueeze(-1)
+        x = x + x_
 
         x_attn_prob = None
         if self.has_xattn and cond is not None:
@@ -631,7 +630,7 @@ class Transformer(torch.nn.Module):
 
     @staticmethod
     def _init_weights_gpt2(module):
-        if isinstance(module, (torch.nn.Linear, torch.nn.Embedding)):
+        if isinstance(module, (torch.nn.Linear, torch.nn.Embedding, torch.nn.Conv1d)):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
         if isinstance(module, torch.nn.Linear) and module.bias is not None:
@@ -682,6 +681,12 @@ class Transformer(torch.nn.Module):
             output <torch tensor> (B, T1, C): Output tensor
             attn_probabilities <list>: Attention probabilities of each layer
         """
+        if isinstance(cond, list) and len(self.layers) < len(cond):
+            raise ValueError(
+                f"Insufficient Transformer layers for multiple conditionals. Each layer must cross-attend one conditional."
+                f"Found {len(self.layers)} layers for {len(cond)} conditionals."
+            )
+
         if self.use_learnable_pos_emb:
             positions = torch.arange(x.size(1), device=x.device).unsqueeze(0)
             x = x + self.position_embeddings(positions)
