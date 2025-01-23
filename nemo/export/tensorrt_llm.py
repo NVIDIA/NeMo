@@ -33,16 +33,13 @@ from tensorrt_llm._utils import numpy_to_torch
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings, model_to_trtllm_ckpt
-from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
-    dist_model_to_trt_llm_ckpt,
-    get_layer_prefix,
-    torch_dtype_from_precision,
-)
+from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt, get_layer_prefix
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
     get_model_type,
     get_tokenizer,
+    get_weights_dtype,
     is_nemo_file,
     load_nemo_model,
 )
@@ -59,6 +56,7 @@ from nemo.export.trt_llm.tensorrt_llm_run import (
     unload_engine,
 )
 from nemo.export.trt_llm.utils import is_rank
+from nemo.export.utils import torch_dtype_from_precision
 
 use_deploy = True
 try:
@@ -170,7 +168,7 @@ class TensorRTLLM(ITritonDeployable):
         paged_kv_cache: bool = True,
         remove_input_padding: bool = True,
         paged_context_fmha: bool = False,
-        dtype: str = "bfloat16",
+        dtype: Optional[str] = None,
         load_model: bool = True,
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
@@ -208,7 +206,8 @@ class TensorRTLLM(ITritonDeployable):
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
             paged_context_fmha (bool): whether to use paged context fmha feature of TRT-LLM or not
             remove_input_padding (bool): enables removing input padding or not.
-            dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
+            dtype (Optional[str]): Floating point type for model weights (supports 'bfloat16', 'float16' or 'float32').
+                If None, try to autodetect the type from model config.
             load_model (bool): load TensorRT-LLM model after the export.
             use_lora_plugin (str): use dynamic lora or not.
             lora_target_modules (List[str]): list of the target lora modules.
@@ -316,12 +315,24 @@ class TensorRTLLM(ITritonDeployable):
                     model_type = get_model_type(nemo_checkpoint_path)
 
                 if model_type is None:
-                    raise Exception("model_type needs to be specified, got None.")
+                    raise ValueError(
+                        "Parameter model_type needs to be provided and cannot be inferred from the checkpoint. "
+                        "Please specify it explicitely."
+                    )
 
                 if model_type not in self.get_supported_models_list:
-                    raise Exception(
-                        "Model {0} is not currently a supported model type. "
-                        "Supported model types are: {1}.".format(model_type, self.get_supported_models_list)
+                    raise ValueError(
+                        f"Model {model_type} is not currently a supported model type. "
+                        f"Supported model types are: {self.get_supported_models_list}."
+                    )
+
+                if dtype is None:
+                    dtype = get_weights_dtype(nemo_checkpoint_path)
+
+                if dtype is None:
+                    raise ValueError(
+                        "Parameter dtype needs to be provided and cannot be inferred from the checkpoint. "
+                        "Please specify it explicitely."
                     )
 
                 model, model_config, self.tokenizer = load_nemo_model(
@@ -959,6 +970,7 @@ class TensorRTLLM(ITritonDeployable):
         prompt_embeddings_checkpoint_path: str = None,
         streaming: bool = False,
         output_log_probs: bool = False,
+        output_context_logits: bool = False,
         output_generation_logits: bool = False,
         **sampling_kwargs,
     ):
@@ -1049,6 +1061,7 @@ class TensorRTLLM(ITritonDeployable):
                     no_repeat_ngram_size=no_repeat_ngram_size,
                     output_log_probs=output_log_probs,
                     multiprocessed_env=multiprocessed_env,
+                    output_context_logits=output_context_logits,
                     output_generation_logits=output_generation_logits,
                     **sampling_kwargs,
                 )
@@ -1133,6 +1146,7 @@ class TensorRTLLM(ITritonDeployable):
             Tensor(name="no_repeat_ngram_size", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="task_id", shape=(-1,), dtype=bytes, optional=True),
             Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
+            Tensor(name="output_context_logits", shape=(-1,), dtype=np.bool_, optional=False),
             Tensor(name="output_generation_logits", shape=(-1,), dtype=np.bool_, optional=False),
         )
         return inputs
@@ -1142,6 +1156,7 @@ class TensorRTLLM(ITritonDeployable):
         outputs = (
             Tensor(name="outputs", shape=(-1,), dtype=bytes),
             Tensor(name="generation_logits", shape=(-1,), dtype=np.single),
+            Tensor(name="context_logits", shape=(-1,), dtype=np.single),
         )
         return outputs
 
@@ -1149,6 +1164,7 @@ class TensorRTLLM(ITritonDeployable):
     def triton_infer_fn(self, **inputs: np.ndarray):
         """Triton infer function for streaming"""
         output_dict = {}
+        context_logits_available = False
         generation_logits_available = False
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
@@ -1179,10 +1195,21 @@ class TensorRTLLM(ITritonDeployable):
             if "output_generation_logits" in inputs:
                 generation_logits_available = inputs["output_generation_logits"][0][0]
                 infer_input["output_generation_logits"] = inputs.pop("output_generation_logits")[0][0]
+            if "output_context_logits" in inputs:
+                context_logits_available = inputs["output_context_logits"][0][0]
+                infer_input["output_context_logits"] = inputs.pop("output_context_logits")[0][0]
 
             if generation_logits_available:
                 output_texts, generation_logits = self.forward(**infer_input)
-                output_dict["generation_logits"] = np.array(generation_logits.cpu().numpy())
+                # generation_logits is a 4d tensor of dim [1,1,#generated_tokens, vocab_size], return just the 3d tensor
+                # in output dict.
+                output_dict["generation_logits"] = np.array(generation_logits[0].cpu().numpy())
+            elif context_logits_available:
+                output_texts, context_logits = self.forward(**infer_input)
+                # convert context logits to 3d tensor from list since its avaiable as a list of tensor shaped
+                # [#tokens, vocab_size]
+                context_logits = context_logits[0].unsqueeze(0)
+                output_dict["context_logits"] = np.array(context_logits.cpu().numpy())
             else:
                 output_texts = self.forward(**infer_input)
             output_dict["outputs"] = cast_output(output_texts, np.bytes_)

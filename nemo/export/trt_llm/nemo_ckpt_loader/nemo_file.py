@@ -34,6 +34,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizer
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
+from nemo.export.utils import torch_dtype_from_precision
 
 try:
     from nemo.lightning import io
@@ -441,7 +442,7 @@ def get_model_type(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     Determine the model type from a NeMo checkpoint for TensorRT-LLM engine build.
 
     Args:
-        nemo_ckpt (str): Path to the NeMo checkpoint file.
+        nemo_ckpt (Union[str, Path]): Path to the NeMo checkpoint file.
     Returns:
         Optional[str]: The model type if it can be determined, otherwise None.
     """
@@ -480,6 +481,58 @@ def get_model_type(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     return model_type
 
 
+def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
+    """Determine the weights data type from a NeMo checkpoint for TensorRT-LLM engine build.
+
+    Args:
+        nemo_ckpt (Union[str, Path]): Path to the NeMo checkpoint file.
+    Returns:
+        Optional[str]: The dtype if it can be determined, otherwise None.
+    """
+    model_config = load_nemo_config(nemo_ckpt)
+    torch_dtype = None
+    dtype = None
+
+    is_nemo2 = "_target_" in model_config
+    if is_nemo2:
+        torch_dtype = model_config["config"]["params_dtype"]["_target_"]
+    elif precision := model_config.get("precision", None):
+        torch_dtype = str(torch_dtype_from_precision(precision))
+
+    if torch_dtype is not None:
+        dtype = torch_dtype.removeprefix("torch.")
+        LOGGER.info(f"Determined weights dtype='{dtype}' for {nemo_ckpt} checkpoint.")
+    else:
+        LOGGER.warning(
+            f"Parameter dtype for model weights cannot be determined for {nemo_ckpt} checkpoint. "
+            "There is no 'precision' field specified in the model_config.yaml file."
+        )
+
+    return dtype
+
+
+def load_distributed_model_weights(
+    weights_directory: Union[Path, TarPath], mcore_scales_format: bool
+) -> Dict[str, Any]:
+    """
+    Loads model weights in `torch_dist` format directly from weights directory.
+    Preprocesses the scaling factors for local export if mcore_scales_format is set to False.
+
+    Args:
+        weights_directory (Path | TarPath): Path to the weights directory.
+        mcore_scales_format (bool): Flag for local vs megatron.core export.
+
+    Returns:
+        dict: Model state dictionary
+    """
+    model = load_sharded_metadata(weights_directory)
+    if not mcore_scales_format:
+        model.update({k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)})
+        model = preprocess_scaling_factors_for_local_export(model)
+
+    return model
+
+
 def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path], mcore_scales_format: bool = True):
     if not os.path.exists(nemo_ckpt):
         raise TypeError("%s does not exist", nemo_ckpt)
@@ -496,10 +549,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
         if (nemo_dir / "model_weights").exists():
             dist_ckpt_folder = nemo_dir / "model_weights"
 
-            model = load_sharded_metadata(dist_ckpt_folder)
-            if not mcore_scales_format:
-                model.update({k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)})
-                model = preprocess_scaling_factors_for_local_export(model)
+            model = load_distributed_model_weights(dist_ckpt_folder, mcore_scales_format)
 
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
@@ -515,7 +565,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
                 tokenizer = build_tokenizer(tokenizer_config)
         elif (nemo_dir / "weights").exists():
             dist_ckpt_folder = nemo_dir / "weights"
-            model = load_sharded_metadata(dist_ckpt_folder)
+            model = load_distributed_model_weights(dist_ckpt_folder, mcore_scales_format)
             io_folder = nemo_dir / "context"
 
             if (io_folder / "model.yaml").exists():
