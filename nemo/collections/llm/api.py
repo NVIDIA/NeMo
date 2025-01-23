@@ -469,7 +469,7 @@ def evaluate(
         model_name=endpoint.model_id,
         api_url=endpoint.url,
         tokenizer=tokenizer,
-        max_tokens_to_generate=params.max_tokens_to_generate,
+        max_tokens_to_generate=params.max_new_tokens,
         temperature=params.temperature,
         top_p=params.top_p,
         top_k=params.top_k,
@@ -480,7 +480,7 @@ def evaluate(
     results = evaluator.simple_evaluate(
         model=model,
         tasks=eval_task,
-        limit=params.limit,
+        limit=params.limit_samples,
         num_fewshot=params.num_fewshot,
         bootstrap_iters=params.bootstrap_iters,
     )
