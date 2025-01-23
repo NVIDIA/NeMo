@@ -107,7 +107,7 @@ jobs:
        TIMEOUT: 20
        # TODO: remove this hack
        SCRIPT: |
-         python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 torchrun --nproc_per_node=2 pytest tests/collections/asr -m "not pleasefixme" --with_downloads
+         python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 torchrun --nproc_per_node=2 -m pytest tests/collections/asr -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_Audio:
      needs: [cicd-test-container-setup]
@@ -117,7 +117,7 @@ jobs:
        RUNNER: self-hosted-azure
        TIMEOUT: 20
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53 torchrun --nproc_per_node=2 pytest tests/collections/audio -m "not pleasefixme" --with_downloads
+         NEMO_NUMBA_MINVER=0.53 torchrun --nproc_per_node=2 -m pytest tests/collections/audio -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_Common:
      needs: [cicd-test-container-setup]
@@ -126,7 +126,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 pytest tests/collections/common -m "not pleasefixme" --with_downloads
+         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 -m pytest tests/collections/common -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_LLM:
      needs: [cicd-test-container-setup]
@@ -135,7 +135,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 pytest tests/collections/llm -m "not pleasefixme" --with_downloads
+         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 -m pytest tests/collections/llm -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_Multimodal:
      needs: [cicd-test-container-setup]
@@ -144,7 +144,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 pytest tests/collections/multimodal -m "not pleasefixme" --with_downloads
+         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 -m pytest tests/collections/multimodal -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_NLP:
      needs: [cicd-test-container-setup]
@@ -153,7 +153,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 pytest tests/collections/nlp -m "not pleasefixme" --with_downloads
+         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 -m pytest tests/collections/nlp -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_TTS:
      needs: [cicd-test-container-setup]
@@ -162,7 +162,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 pytest tests/collections/tts -m "not pleasefixme" --with_downloads
+         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 -m pytest tests/collections/tts -m "not pleasefixme" --with_downloads
 
   OPTIONAL_L0_Unit_Tests_GPU_Core:
      needs: [cicd-test-container-setup]
@@ -172,7 +172,7 @@ jobs:
        RUNNER: self-hosted-azure
        TIMEOUT: 20
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 pytest tests/core -m "not pleasefixme" --with_downloads
+         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 -m pytest tests/core -m "not pleasefixme" --with_downloads
        IS_OPTIONAL: true
 
   L0_Unit_Tests_GPU_Hydra:
@@ -182,7 +182,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 pytest tests/hydra -m "not pleasefixme" --with_downloads
+         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 -m pytest tests/hydra -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_Lightning:
      needs: [cicd-test-container-setup]
@@ -191,7 +191,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 pytest tests/lightning -m "not pleasefixme" --with_downloads
+         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 -m pytest tests/lightning -m "not pleasefixme" --with_downloads
 
   L0_Unit_Tests_GPU_Others:
      needs: [cicd-test-container-setup]
@@ -200,7 +200,7 @@ jobs:
      with:
        RUNNER: self-hosted-azure
        SCRIPT: |
-         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 pytest -m "not pleasefixme" --with_downloads \
+         NEMO_NUMBA_MINVER=0.53  torchrun --nproc_per_node=2 -m pytest -m "not pleasefixme" --with_downloads \
          --ignore=tests/collections/asr \
          --ignore=tests/collections/audio \
          --ignore=tests/collections/common \
