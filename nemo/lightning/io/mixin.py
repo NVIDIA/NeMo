@@ -62,7 +62,7 @@ def _ordered_arguments_with_default(data: config_lib.Config) -> Dict[Union[int, 
         )
 
     result["_target_"] = (
-        f"{inspect.getmodule(config_lib.get_callable(data)).__name__}.{config_lib.get_callable(data).__qualname__}"  # type: ignore
+        f"{inspect.getmodule(config_lib.get_callable(data)).__name__}" f".{config_lib.get_callable(data).__qualname__}"
     )
     if isinstance(data, partial.Partial):
         result["_partial_"] = True
@@ -85,7 +85,8 @@ def _safe_object_representer(dumper, data):
     Represent a given object as YAML using the specified dumper.
 
     This function is a fallback for objects that don't have specific representers.
-    If the object has __qualname__ attr, the __target__ is set to f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}".
+    If the object has __qualname__ attr,
+    the __target__ is set to f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}".
     If the object does not have a __qualname__ attr, the __target__ is set from its __class__ attr.
     The __call__ key is used to indicate whether the target should be called to create an instance.
 
@@ -208,6 +209,7 @@ class IOMixin:
 
     @classmethod
     def io_artifacts(cls) -> List[Artifact]:
+        """Initialize io artifacts"""
         return []
 
     def io_dump(self, output: Path, yaml_attrs: list[str]):
@@ -444,7 +446,7 @@ class ConnectorMixin:
 
         connector = cls._IMPORTERS.get(str(cls) + ext) if importer else cls._EXPORTERS.get(str(cls) + ext)
         if not connector:
-            raise ValueError(f"No connector found for extension '{ext}'")
+            raise ValueError(f"No connector found for extension '{ext}' for {cls}")
 
         if not _path:
             if not connector.default_path:
@@ -685,6 +687,45 @@ def _artifact_transform_load(cfg: fdl.Config, path: Path):
             pass
 
 
+def drop_unexpected_params(config: fdl.Config) -> bool:
+    """
+    Analyzes config to detect unexpected keyword arguments -- for example, deprecated parameters -- and
+    updates the config by dropping them. Returns True if the config gets updated and False otherwise.
+
+    Args:
+        config (fdl.Config): The configuration object to analyze.
+    """
+
+    updated = False
+
+    def analyze(config: fdl.Config, prefix: str):
+
+        if isinstance(config, fdl.Config):
+            signature = inspect.signature(config.__fn_or_cls__)
+
+            accept_kwargs = any(param.kind is inspect.Parameter.VAR_KEYWORD for param in signature.parameters.values())
+
+            if not accept_kwargs:
+                to_drop = [param for param in config.__arguments__ if param not in signature.parameters]
+
+                if to_drop:
+                    nonlocal updated
+                    updated = True
+                    logging.warning(f"Deprecated parameters to drop from {prefix}: {to_drop}")
+                    for param in to_drop:
+                        del config.__arguments__[param]
+            else:
+                logging.debug(f"Skip analyzing {prefix} as it accepts arbitrary keyword arguments.")
+
+            # Proceed recursively for all arguments
+            for key, value in config.__arguments__.items():
+                analyze(value, prefix + "." + key)
+
+    analyze(config, "<root>")
+
+    return updated
+
+
 def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] = None, build: bool = True) -> CkptType:
     """
     Loads a configuration from a pickle file and constructs an object of the specified type.
@@ -692,7 +733,8 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
     Args:
         path (Path): The path to the pickle file or directory containing 'io.pkl'.
         output_type (Type[CkptType]): The type of the object to be constructed from the loaded data.
-        subpath (Optional[str]): Subpath to selectively load only specific objects inside the output_type. Defaults to None.
+        subpath (Optional[str]): Subpath to selectively load only specific objects inside the output_type.
+                                 Defaults to None.
 
     Returns
     -------
@@ -748,6 +790,8 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
 
     config = serialization.Deserialization(json_config).result
     _artifact_transform_load(config, path)
+
+    drop_unexpected_params(config)
 
     if not build:
         return config

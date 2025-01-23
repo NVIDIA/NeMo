@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,22 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
+from typing import List, Optional, Union
 
 import torch
 import torch.nn as nn
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
 
 
+# pylint: disable=C0116
 class AbstractEmbModel(nn.Module):
-    def __init__(self, enable_lora_finetune=False, target_block=[], target_module=[]):
+    def __init__(
+        self,
+        enable_lora_finetune: bool = False,
+        target_block: Optional[List[str]] = None,
+        target_module: Optional[List[str]] = None,
+    ) -> None:
         super().__init__()
         self._is_trainable = None
         self._ucg_rate = None
         self._input_key = None
 
-        self.TARGET_BLOCK = target_block
-        self.TARGET_MODULE = target_module
+        self.TARGET_BLOCK = target_block or []
+        self.TARGET_MODULE = target_module or []
         if enable_lora_finetune:
             self.lora_layers = []
 
@@ -197,3 +203,6 @@ class FrozenT5Embedder(AbstractEmbModel):
         outputs = self.transformer(input_ids=tokens, output_hidden_states=None)
 
         return outputs.last_hidden_state
+
+
+# pylint: disable=C0116

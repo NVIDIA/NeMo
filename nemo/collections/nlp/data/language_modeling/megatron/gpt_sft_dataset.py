@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import math
 import re
 from typing import List, Mapping, Optional
@@ -524,7 +525,15 @@ class GPTSFTDataset(Dataset):
 
 
 class GPTSFTPackedDataset(GPTSFTDataset):
-    def __init__(self, file_path: str, tokenizer: TokenizerSpec, return_cu_seqlen: bool = True, **kwargs):
+    def __init__(
+        self,
+        file_path: str,
+        tokenizer: TokenizerSpec,
+        return_cu_seqlen: bool = True,
+        pad_cu_seqlens: bool = False,
+        pack_metadata_file_path: Optional[str] = None,
+        **kwargs,
+    ):
         """
         file_path: See `file_path` in the parent class.
         tokenizer: See `tokenizer` in the parent class.
@@ -536,6 +545,20 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         super().__init__(file_path, tokenizer, **kwargs)
         assert self.virtual_tokens == 0, "P-Tuning with packed sequence is not supported."
         self.return_cu_seqlen = return_cu_seqlen
+
+        self.pad_cu_seqlens = pad_cu_seqlens
+        if self.pad_cu_seqlens:
+            assert (
+                pack_metadata_file_path is not None
+            ), "a metadata json file is required when pad_cu_seqlens is enabled"
+            assert (
+                self.pad_to_max_length is True
+            ), "'pad_to_max_length=True' is required when pad_cu_seqlens is enabled"
+
+        self.pack_metadata = None
+        if pack_metadata_file_path is not None:
+            with open(pack_metadata_file_path) as f:
+                self.pack_metadata = json.load(f)
 
     def __getitem__(self, idx):
         if self.samples_mapping is not None:
@@ -573,15 +596,23 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             self.samples_mapping = None
 
     def _build_loss_mask(self, processed_example):
+        seq_boundaries = processed_example['seq_boundaries']
         if self.answer_only_loss:
-            seq_boundaries = processed_example['seq_boundaries']
             return np.concatenate(
                 [
                     processed_example['loss_mask'][seq_boundaries[i] + 1 : seq_boundaries[i + 1]]
                     for i in range(len(seq_boundaries) - 1)
                 ]
             )
-        return [1.0] * (len(processed_example['input_ids']) - len(processed_example['seq_boundaries']) + 1)
+        return np.concatenate(
+            [
+                [
+                    0 if x == self.tokenizer.eos_id else 1.0
+                    for x in processed_example['input_ids'][seq_boundaries[i] : seq_boundaries[i + 1] - 1]
+                ]
+                for i in range(len(seq_boundaries) - 1)
+            ]
+        )
 
     def _maybe_cast_to_list(self, x):
         return [item.tolist() if isinstance(item, np.ndarray) else item for item in x]
@@ -622,16 +653,47 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         position_ids: List[List[int]] = []
         cu_seqlens: List[List[int]] = []
+        cu_seqlens_unpadded: List[List[int]] = []
         for item in batch:
             position_ids.append([])
             cu_seqlens.append([0])
+            cu_seqlens_unpadded.append([0])
             seqlens = np.array(item['seq_boundaries'][1:]) - np.array(item['seq_boundaries'][:-1])
             for l in seqlens:
                 # length minus 1 because input_ids is truncated by 1 for labels
                 position_ids[-1].extend(list(range(l - 1)))
                 cu_seqlens[-1].append(cu_seqlens[-1][-1] + l - 1)
-            # set last seq to the max seq len because rope and attn kernels expect no padding
-            cu_seqlens[-1][-1] = max_length
+
+            # the last seq needs to be the max seq len because rope and attn kernels expect no padding
+            assert cu_seqlens[-1][-1] <= max_length
+
+            # since data is prepadded when cp_size > 1, there may be some extra padding at the end
+            # of the packed sequence. In this case, we need to add the max seq len to the end.
+            if cu_seqlens[-1][-1] != max_length:
+                cu_seqlens[-1].append(max_length)
+
+            for i in range(len(item['seq_boundaries']) - 1):
+                current_seq = item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]
+
+                # since the data could be prepadded with tokenizer's eos_id, we can find out the index of all the eos_id
+                eos_idx = np.where(np.array(current_seq) == self.tokenizer.eos_id)
+
+                # The second eos_id index marks the length of the original unpadded sequence if the sequence is
+                # prepadded for cp_size > 1. Otherwise, there is no extra padding.
+                seqlen_unpadded = eos_idx[0][0] + 1 if eos_idx[0].any() else len(current_seq)
+                cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1] + seqlen_unpadded)
+
+            # if extra paddings are added in the packed sequence, they can't be counted as
+            # actual tokens for training
+            if len(cu_seqlens[-1]) > len(cu_seqlens_unpadded[-1]):
+                cu_seqlens_unpadded[-1].append(cu_seqlens_unpadded[-1][-1])
+
+            if self.pad_cu_seqlens:
+                # pad cu_seqlens to a constant shape with zero length sequences
+                max_samples_per_bin = max(p['max_samples_per_bin'] for p in self.pack_metadata)
+                # plus 2 since cu_seqlens additionally contains 0 and may append max_length
+                pad_num = max_samples_per_bin - len(cu_seqlens[-1]) + 2
+                cu_seqlens[-1].extend([max_length] * pad_num)
 
         assert len(input_ids[0]) == len(
             position_ids[0]
@@ -652,13 +714,26 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
         if self.return_cu_seqlen:
             cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(l) for l in cu_seqlens) + 1, pad_id=-1)
-
+            cu_seqlens_unpadded = self._collate_item(
+                cu_seqlens_unpadded, max_length=max(len(l) for l in cu_seqlens_unpadded) + 1, pad_id=-1
+            )
             # Pre-generate `cu_seqlens_argmin` and `max_seqlen` as CPU tensor to avoid device-to-host copies.
             cu_seqlens = torch.IntTensor(cu_seqlens)
             cu_seqlens_argmin = torch.argmin(cu_seqlens, dim=1, keepdim=True)
             seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
             max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
+            cu_seqlens_unpadded = torch.IntTensor(cu_seqlens_unpadded)
+            cu_seqlens_unpadded_argmin = torch.argmin(cu_seqlens_unpadded, dim=1, keepdim=True)
 
+            if self.pad_cu_seqlens:
+                # If padding, use the global max seqlen, so that 'pad_cu_seqlens' is the same
+                # across all batches. This is maintly used compatiblity with megatron's implementation
+                # of cudagraphs, which uses the same cudagraphs over all batches.
+                max_seqlen = [max(p['dataset_max_seqlen'] for p in self.pack_metadata)]
+                max_seqlen = torch.IntTensor(max_seqlen * len(cu_seqlens))
+            else:
+                seqlens = cu_seqlens[:, 1:] - cu_seqlens[:, :-1]
+                max_seqlen, _ = seqlens.max(dim=1, keepdim=True)
             processed_batch.update(
                 {
                     'attention_mask': torch.LongTensor(
@@ -667,6 +742,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                     'cu_seqlens': torch.IntTensor(cu_seqlens),  # cu_seqlens_q must be in dtype torch.int32
                     'cu_seqlens_argmin': cu_seqlens_argmin,  # only required for perf
                     'max_seqlen': max_seqlen,  # only required for perf
+                    'cu_seqlens_unpadded': torch.IntTensor(cu_seqlens_unpadded),
+                    'cu_seqlens_unpadded_argmin': cu_seqlens_unpadded_argmin,
                 }
             )
         else:

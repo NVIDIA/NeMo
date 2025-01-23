@@ -21,14 +21,14 @@ from pathlib import Path
 
 import numpy as np
 import webdataset as wds
-from megatron.energon.flavors import BaseWebdataset
+from megatron.energon.flavors import BaseWebdatasetFactory
 from PIL import Image
 from transformers import AutoProcessor
 
-from nemo.collections.multimodal.data.energon import ImageToken, MultiModalSampleConfig, SimpleMultiModalDataModule
+from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule, ImageToken, MultiModalSampleConfig
 
 
-class TestSimpleMultiModalDataModuleWithDummyData(unittest.TestCase):
+class TestEnergonMultiModalDataModuleWithDummyData(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -47,7 +47,7 @@ class TestSimpleMultiModalDataModuleWithDummyData(unittest.TestCase):
 
         self.create_vqa_test_dataset(self.dataset_path, 10)
 
-        self.data_module = SimpleMultiModalDataModule(
+        self.data_module = EnergonMultiModalDataModule(
             path=str(self.dataset_path),
             tokenizer=self.tokenizer,
             image_processor=self.image_processor,
@@ -159,7 +159,7 @@ class TestSimpleMultiModalDataModuleWithDummyData(unittest.TestCase):
                 )
 
             total_shards = shard_writer.shard
-        BaseWebdataset.prepare_dataset(
+        BaseWebdatasetFactory.prepare_dataset(
             path,
             [f"data-{{0..{total_shards-1}}}.tar"],
             split_parts_ratio=[("train", 1.0), ("val", 1.0)],

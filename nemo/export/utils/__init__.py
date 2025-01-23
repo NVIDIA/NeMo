@@ -11,3 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from nemo.export.utils.utils import is_nemo2_checkpoint, torch_dtype_from_precision
+
+__all__ = [
+    "is_nemo2_checkpoint",
+    "torch_dtype_from_precision",
+]

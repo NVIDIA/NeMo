@@ -35,10 +35,10 @@ class DeployPyTriton(DeployBase):
         trt_llm_exporter.export(
             nemo_checkpoint_path="/path/for/nemo/checkpoint",
             model_type="llama",
-            n_gpus=1,
+            tensor_parallelism_size=1,
         )
 
-        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name="model_name", port=8000)
+        nm = DeployPyTriton(model=trt_llm_exporter, triton_model_name="model_name", http_port=8000)
         nm.deploy()
         nm.run()
         nq = NemoQueryLLM(url="localhost", model_name="model_name")
@@ -66,7 +66,8 @@ class DeployPyTriton(DeployBase):
         checkpoint_path: str = None,
         model=None,
         max_batch_size: int = 128,
-        port: int = 8000,
+        http_port: int = 8000,
+        grpc_port: int = 8001,
         address="0.0.0.0",
         allow_grpc=True,
         allow_http=True,
@@ -92,7 +93,8 @@ class DeployPyTriton(DeployBase):
             checkpoint_path=checkpoint_path,
             model=model,
             max_batch_size=max_batch_size,
-            port=port,
+            http_port=http_port,
+            grpc_port=grpc_port,
             address=address,
             allow_grpc=allow_grpc,
             allow_http=allow_http,
@@ -128,7 +130,9 @@ class DeployPyTriton(DeployBase):
             else:
                 triton_config = TritonConfig(
                     http_address=self.address,
-                    http_port=self.port,
+                    http_port=self.http_port,
+                    grpc_address=self.address,
+                    grpc_port=self.grpc_port,
                     allow_grpc=self.allow_grpc,
                     allow_http=self.allow_http,
                 )

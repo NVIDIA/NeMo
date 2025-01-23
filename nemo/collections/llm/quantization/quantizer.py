@@ -80,11 +80,11 @@ class QuantizationConfig:
 class ExportConfig:
     """Inference configuration for the quantized TensorRT-LLM checkpoint."""
 
-    path: Union[Path, str]
+    path: str  # TODO: In fact `Union[Path, str]` but NeMo-Run CLI fails on type hint: unserializable PosixPath value
     dtype: Union[str, int] = "bf16"
     decoder_type: Optional[str] = None
-    inference_tensor_parallel: int = 1
-    inference_pipeline_parallel: int = 1
+    inference_tp: int = 1
+    inference_pp: int = 1
     generate_sample: bool = False
 
     def __post_init__(self):
@@ -198,7 +198,7 @@ class Quantizer:
         # TODO: Investigate why enabling FP8 kv cache will cause accuracy regressions for Nemotron.
         enable_quant_kv_cache = self.quantization_config.enable_kv_cache
         if enable_quant_kv_cache is None:
-            enable_quant_kv_cache = "int8" not in algorithm and decoder_type != "gptnext"
+            enable_quant_kv_cache = "int8" not in algorithm and decoder_type != "gpt"
         logging.info(f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization')
         quant_cfg["quant_cfg"]["*output_quantizer"] = {
             "num_bits": 8 if algorithm == "int8_sq" else (4, 3),
@@ -212,7 +212,7 @@ class Quantizer:
 
         unwrapped_model = mtq.quantize(unwrapped_model, quant_cfg, forward_loop)
 
-        if decoder_type == "gptnext":
+        if decoder_type == "gpt":
             # We found squared_relu may have an under-calibration problem.
             # Clamp the scaling_factor with a min threshold to avoid under-calibration.
             match algorithm:
@@ -287,8 +287,8 @@ class Quantizer:
     def export(self, model: MegatronParallel, model_dir: str) -> None:
         """Export model to a TensorRT-LLM checkpoint."""
         export_dir = self.export_config.path
-        inference_tp = self.export_config.inference_tensor_parallel
-        inference_pp = self.export_config.inference_pipeline_parallel
+        inference_tp = self.export_config.inference_tp
+        inference_pp = self.export_config.inference_pp
 
         use_nfs_workspace = model.config.pipeline_model_parallel_size > 1
         export_tensorrt_llm_checkpoint(
