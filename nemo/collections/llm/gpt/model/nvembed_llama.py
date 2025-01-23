@@ -15,7 +15,6 @@ import nemo.collections.llm.gpt.model.base as GPTBase
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativesCELoss
 from nemo.collections.llm.gpt.model import GPTConfig
 from nemo.collections.llm.gpt.model.llama import (
-    HFLlamaExporter,
     HFLlamaImporter,
     Llama32Config1B,
     LlamaConfig,
@@ -104,6 +103,7 @@ def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.T
             "attention_mask": batch["p_attention_mask"],
             "position_ids": batch["p_position_ids"],
         }
+
         q_emb = model.encode(**q_forward_args)
         p_emb = model.encode(**p_forward_args)
         return torch.cat([q_emb, p_emb], dim=0)
@@ -113,7 +113,8 @@ def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.T
         "attention_mask": batch["attention_mask"],
         "position_ids": batch["position_ids"],
     }
-    return model.encode(**forward_args)
+    emb = model.encode(**forward_args)
+    return emb
 
 
 @dataclass
@@ -125,10 +126,11 @@ class NVEmbedLlama32Config1B(Llama32Config1B):
     data_step_fn: Callable = nv_embedding_data_step
 
     # Training Configs
+    truncation_method: Literal["left", "right"] = 'right'
     num_hard_negatives: int = 4
     ce_loss_scale: float = 50
     label_smoothing: float = 0.0
-    encode_separately: bool = True
+    encode_separately: bool = False
     negative_sample_strategy: Literal["random", "first"] = 'first'
     add_bos: bool = True
     add_eos: bool = False
@@ -214,6 +216,7 @@ class NVEmbedLlamaModel(LlamaModel):
                 num_hard_negatives=self.config.num_hard_negatives,
                 scale=self.config.ce_loss_scale,
                 label_smoothing=self.config.label_smoothing,
+                encode_separately=self.config.encode_separately,
             )
 
         return self._training_loss_reduction
@@ -226,6 +229,7 @@ class NVEmbedLlamaModel(LlamaModel):
                 num_hard_negatives=self.config.num_hard_negatives,
                 scale=self.config.ce_loss_scale,
                 label_smoothing=self.config.label_smoothing,
+                encode_separately=self.config.encode_separately,
             )
 
         return self._validation_loss_reduction
@@ -272,11 +276,17 @@ class HFNVEmbedLlamaImporter(HFLlamaImporter):
 
 
 @io.model_exporter(NVEmbedLlamaModel, "hf")
-class HFNVEmbedLlamaExporter(HFLlamaExporter):
+class HFNVEmbedLlamaExporter(io.ModelConnector[NVEmbedLlamaModel, "LlamaBidirectionalModel"]):
     """HF Exporter for NV Embedding Llama Model.
-    Note that since NV Embedding LLama uses customized LlamaBidirectionalConfig config,
-    user would need to manually change the config after the conversion
+    Note that NV Embedding LLama uses customized LlamaBidirectionalConfig config.
     """
+    def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
+        from transformers.modeling_utils import no_init_weights
+        from nemo.collections.llm.gpt.model.hf_nvembed_llama import LlamaBidirectionalModel
+
+        LlamaBidirectionalModel.register_for_auto_class("AutoModel")
+        with no_init_weights(True):
+            return LlamaBidirectionalModel._from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
         source, _ = self.nemo_load(str(self))
@@ -287,8 +297,110 @@ class HFNVEmbedLlamaExporter(HFLlamaExporter):
         target = target.cpu()
         target.save_pretrained(output_path)
         try:
-            self.tokenizer.tokenizer.save_pretrained(output_path)
+            tokenizer = self.tokenizer.tokenizer
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+                tokenizer.padding_side = source.config.truncation_method
+
+            tokenizer.save_pretrained(output_path)
         except Exception:
             logging.warning("Failed to save tokenizer")
 
         return output_path
+
+    @property
+    def config(self):
+        """Get HF NV Embedding Llama Config."""
+        source: LlamaConfig = io.load_context(str(self), subpath="model.config")
+
+        from nemo.collections.llm.gpt.model.hf_nvembed_llama import LlamaBidirectionalConfig
+
+        LlamaBidirectionalConfig.register_for_auto_class("AutoConfig")
+        return LlamaBidirectionalConfig(
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            max_position_embeddings=source.seq_length,
+            initializer_range=source.init_method_std,
+            rms_norm_eps=source.layernorm_epsilon,
+            num_key_value_heads=source.num_query_groups,
+            rope_theta=source.rotary_base,
+            vocab_size=self.tokenizer.vocab_size,
+            tie_word_embeddings=source.share_embeddings_and_output_weights,
+        )
+
+    def convert_state(self, source, target):
+        """Convert NeMo State dict to HF."""
+        mapping = {
+            "decoder.layers.*.self_attention.linear_proj.weight": "layers.*.self_attn.o_proj.weight",
+            "decoder.layers.*.mlp.linear_fc2.weight": "layers.*.mlp.down_proj.weight",
+            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "layers.*.input_layernorm.weight",
+            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "layers.*.post_attention_layernorm.weight",
+            "decoder.final_layernorm.weight": "norm.weight",
+        }
+        transforms = [_export_qkv, _export_linear_fc1, _export_embedding]
+
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=transforms,
+        )
+
+    @property
+    def tokenizer(self) -> "TokenizerSpec":
+        """Get NeMo Tokenizer"""
+        return io.load_context(str(self), subpath="model").tokenizer
+
+@io.state_transform(
+    source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+        "layers.*.self_attn.q_proj.weight",
+        "layers.*.self_attn.k_proj.weight",
+        "layers.*.self_attn.v_proj.weight",
+    ),
+)
+def _export_qkv(ctx: io.TransformCTX, linear_qkv):
+    megatron_config = ctx.source.config
+
+    head_num = megatron_config.num_attention_heads
+    num_query_groups = megatron_config.num_query_groups
+    heads_per_group = head_num // num_query_groups
+    hidden_size = megatron_config.hidden_size
+    head_size = megatron_config.kv_channels
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+    return q_proj, k_proj, v_proj
+
+@io.state_transform(
+    source_key="embedding.word_embeddings.weight",
+    target_key="embed_tokens.weight",
+)
+def _export_embedding(ctx: io.TransformCTX, embedding):
+    megatron_config = ctx.target.config
+    # prune padding.
+    return embedding[: megatron_config.vocab_size, :]
+
+@io.state_transform(
+    source_key="decoder.layers.*.mlp.linear_fc1.weight",
+    target_key=("layers.*.mlp.gate_proj.weight", "layers.*.mlp.up_proj.weight"),
+)
+def _export_linear_fc1(linear_fc1):
+    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
+
+    return gate_proj, up_proj

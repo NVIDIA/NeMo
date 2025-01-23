@@ -146,10 +146,7 @@ class HardNegativesCELoss(MegatronLossReduction):
             # forward_out was chunked [(q1, k1), (q2, k2), ...]
             chunks = forward_out.chunk(batch_size)
             query = torch.stack([item[0] for item in chunks])
-            key = torch.cat(
-                [torch.stack([item[i + 1] for item in chunks]) for i in range(current_train_n_passages)],
-                dim=0,
-            )
+            key = torch.cat([item[1:] for item in chunks])
 
         assert key.shape[0] % query.shape[0] == 0, '{} % {} > 0'.format(key.shape[0], query.shape[0])
         assert key.shape[0] / query.shape[0] == current_train_n_passages, '{} / {} != {}'.format(
@@ -161,7 +158,6 @@ class HardNegativesCELoss(MegatronLossReduction):
         )
         scores = torch.sum(repeated_query * key, dim=-1).reshape(query_shape[0], current_train_n_passages)
         labels = torch.zeros(query_shape[0], dtype=torch.long, device=query.device)
-
         scores *= self.scale
         ce_loss = self.cross_entropy_loss(scores, labels)
         reduced_loss = average_losses_across_data_parallel_group([ce_loss])
