@@ -11,15 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections import defaultdict
 
 import torch
-from lhotse.cut import Cut, CutSet, MixedCut
+from lhotse.cut import Cut, MixedCut
 
 from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts.formatter import BOS_SLOT, EOS_SLOT, Modality, PromptFormatter
-from nemo.collections.common.tokenizers import TokenizerSpec
 
 
 class Llama2PromptFormatter(PromptFormatter):

@@ -1003,8 +1003,6 @@ def get_audio_text_dataset_from_config(
         num_train_samples = [len(manifest_filepath) * max(num_samples_per_dataset)]
         _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
         num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
-    else:
-        num_train_samples_per_dataset = [[None]] * len(manifest_filepath)
 
     # for dataset_idx, (file_path, num_samples) in enumerate(zip(manifest_filepath, num_train_samples_per_dataset)):
     for dataset_idx, file_path in enumerate(manifest_filepath):

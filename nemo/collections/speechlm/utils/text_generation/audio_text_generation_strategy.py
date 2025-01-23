@@ -22,15 +22,25 @@ from megatron.core import InferenceParams, parallel_state
 
 from nemo.collections.common.tokenizers.chat_template_mixin import explode_chat_template_input, is_chat_input
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import shift_tokens_by_multi_audios
-from nemo.collections.nlp.modules.common.lm_utils import pad_batch
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
-from nemo.utils import logging
 
 # the text representation of eos_id, it applies for all tokenizers
 END_OF_SEQ = '<|endoftext|>'
 
 
+def pad_batch(batch, pad_id, max_len):
+    """pad batch seq to the same length"""
+    context_lengths = []
+    max_context_length = max([len(tokens) for tokens in batch])
+    for tokens in batch:
+        context_length = len(tokens)
+        if context_length < max_context_length + max_len:
+            tokens.extend([pad_id] * (max_context_length + max_len - context_length))
+        context_lengths.append(context_length)
+    return batch, context_lengths
+
+
 def switch(val1, val2, boolean):
+    """switch between two values based on the boolean tensor"""
     boolean = boolean.type_as(val1)
     boolean = boolean.unsqueeze(0).unsqueeze(-1)
     return (1 - boolean) * val1 + boolean * val2
@@ -341,7 +351,7 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
         """Prepare batch for each of the inference steps"""
         if step == 0:
             tokens2use = tokens[:, :curr_context_length].contiguous()
-            positions2use = self.position_ids[:, :curr_context_length].contiguous()
+            # positions2use = self.position_ids[:, :curr_context_length].contiguous()
             embeddings2use = input_embeddings[:curr_context_length].contiguous()
             # Prepare KV cache for the entire context at first step, and reuse afterwards.
             self.inference_params = InferenceParams(max_batch_size=tokens2use.size(0), max_sequence_length=maxlen)

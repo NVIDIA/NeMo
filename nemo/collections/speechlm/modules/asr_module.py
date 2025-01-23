@@ -20,10 +20,9 @@ import torch.nn as nn
 from megatron.core.model_parallel_config import ModelParallelConfig
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.transformer_config import TransformerConfig
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.modules import ConformerEncoder
 from nemo.collections.speechlm.utils import to_dict_config
 from nemo.core.classes.common import Serialization
 from nemo.core.classes.module import NeuralModule

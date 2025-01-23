@@ -23,20 +23,17 @@ import lightning.pytorch as L
 import torch
 import torch.nn as nn
 from megatron.core import dist_checkpointing, parallel_state, tensor_parallel
-from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.inference_params import InferenceParams
 from megatron.core.num_microbatches_calculator import (
     get_current_global_batch_size,
-    get_micro_batch_size,
     get_num_microbatches,
     reconfigure_num_microbatches_calculator,
 )
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.enums import ModelType
-from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel
