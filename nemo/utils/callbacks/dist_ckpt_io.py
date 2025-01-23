@@ -32,6 +32,7 @@ try:
     from megatron.core import dist_checkpointing
     from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
     from megatron.core.dist_checkpointing.mapping import ShardedBase
+    from megatron.core.dist_checkpointing.core import CheckpointingException
     from megatron.core.dist_checkpointing.serialization import (
         get_default_load_sharded_strategy,
         get_default_save_sharded_strategy,
@@ -57,6 +58,11 @@ except (ImportError, ModuleNotFoundError) as e:
         f" Exact error: {e}"
     )
 
+URL = "https://docs.nvidia.com/nemo-framework/user-guide/latest/knownissues.html" 
+LOAD_ERROR = f"""
+    (1) To resolve this issue, set `model.dist_ckpt_load_legacy` to `True`. This setting enables loading older checkpoints.
+    (2) For more details and troubleshooting guidance, please refer to the framework documentation: {URL}.
+"""
 
 @contextmanager
 def _debug_time(name: str):
@@ -207,6 +213,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         save_ckpt_format: str,
         load_directly_on_device: bool = True,
         load_strictness: Optional['StrictHandling'] = None,
+        load_legacy: bool = False,
         async_save: bool = False,
         torch_dist_multiproc: Optional[int] = None,
         assume_constant_structure: bool = False,
@@ -220,7 +227,8 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         self.save_ckpt_format = save_ckpt_format
         self.load_directly_on_device = load_directly_on_device
-        self.load_strictness = load_strictness
+        self.load_strictness = 'log_all' if load_legacy else load_strictness
+        self.load_legacy = load_legacy
         self.async_save = async_save
         self.torch_dist_multiproc = torch_dist_multiproc
         self.assume_constant_structure = assume_constant_structure
@@ -245,6 +253,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             save_ckpt_format=model_cfg.get('dist_ckpt_format', 'torch_dist'),
             load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
             load_strictness=model_cfg.get('dist_ckpt_load_strictness', None),
+            load_legacy=model_cfg.get('dist_ckpt_load_legacy', False),
             async_save=async_save,
             torch_dist_multiproc=model_cfg.get('dist_ckpt_torch_dist_multiproc', None),
             parallel_save=model_cfg.get('dist_ckpt_parallel_save', False),
@@ -337,13 +346,17 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         logging.debug(f'Dist ckpt load strictness: {strict}')
 
-        return dist_checkpointing.load(
-            sharded_state_dict=sharded_state_dict,
-            checkpoint_dir=path,
-            sharded_strategy=sharded_strategy,
-            validate_access_integrity=validate_access_integrity,
-            strict=strict,
-        )
+        try:
+            return dist_checkpointing.load(
+                sharded_state_dict=sharded_state_dict,
+                checkpoint_dir=path,
+                sharded_strategy=sharded_strategy,
+                validate_access_integrity=validate_access_integrity,
+                strict=strict,
+            )
+        except CheckpointingException as e:
+            error_message = f"{e}\n{LOAD_ERROR}"
+            raise CheckpointingException(error_message)
 
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
         ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
