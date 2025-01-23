@@ -114,6 +114,7 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             asr_model = imported_cls(cfg=cfg)  # type: nemo_asr.models.ASRModel
             asr_model.maybe_init_from_pretrained_checkpoint(self)
 
+        model = asr_model
         if self.target_module is not None:
             model = getattr(asr_model, self.target_module, None)  # type: NeuralModule
         if model is None:
