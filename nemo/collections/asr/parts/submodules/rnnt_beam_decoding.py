@@ -1718,7 +1718,7 @@ class BeamRNNTInfer(Typing):
         """
         Score computation for kenlm ngram language model.
         """
-        if self.use_kenlm:
+        if self.use_kenlm and KENLM_AVAILABLE:
             if self.token_offset:
                 label = chr(label + self.token_offset)
             else:

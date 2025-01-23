@@ -234,7 +234,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
             if self.big_blank_durations is not None and self.big_blank_durations != []:
                 raise ValueError("duration and big_blank_durations can't both be not None")
-            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam', 'maes']:
+            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam', 'maes', "malsd_batch"]:
                 raise ValueError(
                     "currently only greedy, greedy_batch, beam and maes inference is supported for TDT models"
                 )
@@ -485,37 +485,58 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
                     )
         elif self.cfg.strategy == 'malsd_batch':
-            self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                beam_size=self.cfg.beam.beam_size,
-                search_type='malsd_batch',
-                malsd_max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
-                preserve_alignments=self.preserve_alignments,
-                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
-                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
-                pruning_mode=self.cfg.beam.get('pruning_mode', None),
-                score_norm=self.cfg.beam.get('score_norm', True),
-            )
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='malsd_batch',
+                        malsd_max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                    )
+                else:
+                    self.decoding = tdt_beam_decoding.Best1BeamBatchedTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        durations=self.durations,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='malsd_batch',
+                        malsd_max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                    )    
         elif self.cfg.strategy == 'maes_batch':
-            self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                beam_size=self.cfg.beam.beam_size,
-                search_type='maes_batch',
-                maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
-                maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2),
-                maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
-                preserve_alignments=self.preserve_alignments,
-                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
-                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
-                pruning_mode=self.cfg.beam.get('pruning_mode', None),
-                score_norm=self.cfg.beam.get('score_norm', True),
-            )
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        durations=self.durations,
+                        blank_index=self.blank_id,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='maes_batch',
+                        maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                        maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2),
+                        maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                    )
         else:
             raise ValueError(
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
