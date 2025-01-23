@@ -89,7 +89,7 @@ if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
 fi
 
 echo 'Installing dependencies of nemo'
-${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
+${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}" -c "triton==3.1.0"
 
 echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
