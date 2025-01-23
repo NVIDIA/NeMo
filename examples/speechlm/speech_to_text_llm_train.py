@@ -51,6 +51,7 @@ from nemo.core.config import hydra_runner
 
 @hydra_runner(config_path="./conf/salm", config_name="salm_llama3.2-1b_fc_fc_peft")
 def main(cfg):
+    """main function for training."""
     return speech_to_text_llm_train(cfg)
 
 
