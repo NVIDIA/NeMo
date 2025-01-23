@@ -14,12 +14,7 @@ from torch import Tensor, nn
 import nemo.collections.llm.gpt.model.base as GPTBase
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativesCELoss
 from nemo.collections.llm.gpt.model import GPTConfig
-from nemo.collections.llm.gpt.model.llama import (
-    HFLlamaImporter,
-    Llama32Config1B,
-    LlamaConfig,
-    LlamaModel,
-)
+from nemo.collections.llm.gpt.model.llama import HFLlamaImporter, Llama32Config1B, LlamaConfig, LlamaModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io
 from nemo.lightning.pytorch.utils import dtype_from_hf
@@ -280,8 +275,10 @@ class HFNVEmbedLlamaExporter(io.ModelConnector[NVEmbedLlamaModel, "LlamaBidirect
     """HF Exporter for NV Embedding Llama Model.
     Note that NV Embedding LLama uses customized LlamaBidirectionalConfig config.
     """
+
     def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
         from transformers.modeling_utils import no_init_weights
+
         from nemo.collections.llm.gpt.model.hf_nvembed_llama import LlamaBidirectionalModel
 
         LlamaBidirectionalModel.register_for_auto_class("AutoModel")
@@ -353,6 +350,7 @@ class HFNVEmbedLlamaExporter(io.ModelConnector[NVEmbedLlamaModel, "LlamaBidirect
         """Get NeMo Tokenizer"""
         return io.load_context(str(self), subpath="model").tokenizer
 
+
 @io.state_transform(
     source_key="decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
@@ -387,6 +385,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
 
     return q_proj, k_proj, v_proj
 
+
 @io.state_transform(
     source_key="embedding.word_embeddings.weight",
     target_key="embed_tokens.weight",
@@ -395,6 +394,7 @@ def _export_embedding(ctx: io.TransformCTX, embedding):
     megatron_config = ctx.target.config
     # prune padding.
     return embedding[: megatron_config.vocab_size, :]
+
 
 @io.state_transform(
     source_key="decoder.layers.*.mlp.linear_fc1.weight",
