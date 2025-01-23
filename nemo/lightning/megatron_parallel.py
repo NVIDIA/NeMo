@@ -187,9 +187,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from megatron.core import parallel_state
-        from megatron.core.transformer.module import Float16Module as McoreFloat16Module
 
-        from nemo.collections.nlp.modules.common.megatron.module import Float16Module
         from nemo.utils.model_utils import unwrap_model
 
         _pipeline: List[nn.Module]
@@ -223,7 +221,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.convert_module_fn = convert_module_fn
 
         # [ModelOpt]: Detect Pipeline-parallel Distillation mode.
-        self._unwrapped_model = [unwrap_model(self.module.module, (DDP, Float16Module, McoreFloat16Module))]
+        self._unwrapped_model = [unwrap_model(self)]
         # Avoid re-registering module which breaks the inherited `ModuleList` somehow.
         if (
             hasattr(self.unwrapped_model, "teacher_model")

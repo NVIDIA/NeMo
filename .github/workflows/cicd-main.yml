@@ -5073,10 +5073,10 @@ jobs:
           --name nemo2_llama_distill \
           --teacher_path /home/TestData/nemo2_ckpt/llama_68M \
           --student_path /home/TestData/nemo2_ckpt/llama_68M \
-          --tp_size 2 \
+          --tp_size 1 \
           --cp_size 1 \
           --pp_size 2 \
-          --devices 4 \
+          --devices 2 \
           --log_dir /tmp/nemo2_llama_distill \
           --max_steps 5 \
           --gbs 4 \

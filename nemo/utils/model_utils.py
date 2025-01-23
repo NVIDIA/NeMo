@@ -92,7 +92,7 @@ def load_config(model_file: str) -> DictConfig:
     return model_config
 
 
-def unwrap_model(model, module_instances: Union[Type, Tuple[Type]]):
+def unwrap_model(model, module_instances: Optional[Union[Type, Tuple[Type]]] = None):
     """Unwrap model from wrapper classes like Float16Module, for example."""
 
     # TODO: Import this from megatron.core once moved there from megatron.training.
@@ -102,8 +102,12 @@ def unwrap_model(model, module_instances: Union[Type, Tuple[Type]]):
         return_list = False
     unwrapped_model = []
     for model_module in model:
-        while isinstance(model_module, module_instances):
-            model_module = model_module.module
+        if module_instances:
+            while isinstance(model_module, module_instances):
+                model_module = model_module.module
+        else:  # remove any wrappers that have a '.module' attribute
+            while hasattr(model_module, "module"):
+                model_module = model_module.module
         unwrapped_model.append(model_module)
     if not return_list:
         return unwrapped_model[0]
