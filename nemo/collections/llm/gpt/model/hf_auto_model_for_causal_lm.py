@@ -20,6 +20,7 @@ from transformers import AutoModelForCausalLM
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
+from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 from nemo.utils import logging
 
 
@@ -43,6 +44,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
+        attn_implementation="sdpa",
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -57,6 +59,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.trust_remote_code = trust_remote_code
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
+        self.attn_implementation = attn_implementation
 
     @property
     def tokenizer(self):
@@ -81,6 +84,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 torch_dtype='auto',
                 trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
+                attn_implementation=self.attn_implementation,
             )
         else:
             from transformers import AutoConfig
@@ -88,8 +92,15 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
             dtype = getattr(config, 'torch_dtype', self.default_dtype)
             self.model = AutoModelForCausalLM.from_config(
-                config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
+                config,
+                torch_dtype=dtype,
+                trust_remote_code=self.trust_remote_code,
+                attn_implementation=self.attn_implementation,
             )
+
+        # Apply FSDP2 and TP to the model
+        if self.device_mesh is not None:
+            fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh)
 
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
@@ -99,7 +110,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def forward(self, batch):
         return self.model(**batch)
 
-    def training_step(self, batch):
+    def training_step(self, batch, batch_idx=None):
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
