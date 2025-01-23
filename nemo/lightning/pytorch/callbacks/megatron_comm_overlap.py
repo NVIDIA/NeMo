@@ -208,6 +208,29 @@ class MegatronCommOverlapCallback(Callback):
                     setattr(comm_overlap_cfg, field.name, user_value)
 
         return comm_overlap_cfg
+    
+    def _set_num_cuda_device_max_connections(self):
+        from nemo.utils import AppState
+        import os, torch
+
+        app_state = AppState()
+        tp_size = app_state.tensor_model_parallel_size
+        cp_size = app_state.context_parallel_size
+        dp_size = app_state.data_parallel_size
+        pp_size = app_state.pipeline_model_parallel_size
+        major, _ = torch.cuda.get_device_capability()
+        if major > 9:
+            if (tp_size > 1 or cp_size > 1) and (dp_size > 1 or pp_size > 1):
+                # Default is 8, but for this case, we need extra connections
+                # to avoid serialization of streams
+                os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "32"
+            else:
+                os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
+        else:
+            if tp_size > 1 or cp_size > 1:
+                os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "1"
+            else:
+                os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         assert isinstance(trainer.strategy, MegatronStrategy), "MegatronCommOverlapCallback requires MegatronStrategy"
@@ -236,6 +259,9 @@ class MegatronCommOverlapCallback(Callback):
             self._apply_cfgs(comm_overlap_cfg, trainer.strategy.ddp_config)
             if hasattr(trainer.model, '__io__'):
                 self._apply_cfgs(comm_overlap_cfg, trainer.model.__io__.optim.config)
+        
+        # setup cuda device max connections
+        self._set_num_cuda_device_max_connections()
 
     def _init_te_userbuffers(self, model_parallel_cfg: ModelParallelConfig):
         from megatron.core import parallel_state
