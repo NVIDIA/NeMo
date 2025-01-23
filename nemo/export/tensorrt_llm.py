@@ -29,6 +29,7 @@ import tensorrt_llm
 import torch
 import wrapt
 from tensorrt_llm._utils import numpy_to_torch
+import torch.nn.functional as F
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
@@ -1201,26 +1202,24 @@ class TensorRTLLM(ITritonDeployable):
 
             if generation_logits_available:
                 output_texts, generation_logits = self.forward(**infer_input)
-                # generation_logits is a 4d tensor of dim [1,1,#generated_tokens, vocab_size], return just the 3d tensor
-                # in output dict.
-                output_dict["generation_logits"] = np.array(generation_logits[0].cpu().numpy())
+                # generation_logits is a 4d tensor of dim [1,bs,#generated_tokens,vocab_size], return just the 3d tensor
+                output_dict["generation_logits"] = np.array([generation_logit.cpu().numpy() for generation_logit in generation_logits])
             elif context_logits_available:
                 output_texts, context_logits = self.forward(**infer_input)
+                # context_logits is a tensor shaped [bs, #tokens, vocab_size]
+                # In case of batched inputs (i.e multiple prompts sent as a list) context_logits returned can have
+                # different seq_len. Following code pads them as it can otherwise error while converting to numpy array
                 padding_len = max([logit_tensor.shape[0] for logit_tensor in context_logits])
-                import torch.nn.functional as F
                 for i, tensor in enumerate(context_logits):
                     tensor_len = tensor.shape[0]
                     if tensor_len < padding_len:
                         #context_logits[i] = torch.cat([tensor, torch.zeros(padding_len - tensor_len, dtype=torch.long, device=tensor.device)], dim=0)
                         padding_diff = padding_len - tensor_len
-                        # Pad the tensor with zeros on the right (along the first dimension)
+                        # padding_diff num of rows of zeros are added at the bottom
                         context_logits[i] = F.pad(tensor, (0, 0, 0, padding_diff), mode='constant', value=0)
-                # convert context logits to 3d tensor from list since its avaiable as a list of tensor shaped
-                # [#tokens, vocab_size] logit_tensor.unsqueeze(0).cpu()
-                 ## after below line, shape of context_lohgits is [BS, padding_len, 128k]
+                # convert context logits to 3d tensor from list since its avaiable as a list of tensor shaped [#tokens, vocab_size]
+                # after below line, shape of context_lohgits is [BS, padding_len, 128k]
                 context_logits = np.array([logit_tensor.unsqueeze(0).cpu().numpy() for logit_tensor in context_logits])
-                #output_dict["context_logits"] = np.array(context_logits.cpu().numpy())
-                #output_dict["context_logits"] = cast_output(context_logits, np.bytes_)
                 output_dict["context_logits"] = context_logits
             else:
                 output_texts = self.forward(**infer_input)

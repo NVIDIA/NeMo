@@ -446,6 +446,8 @@ def evaluate(
     limit: Optional[Union[int, float]] = None,
     bootstrap_iters: int = 100000,
     # inference params
+    batch_size: Optional[int] = 1,
+    max_tokens_to_generate: Optional[int] = 256,
     temperature: Optional[float] = 0.000000001,
     top_p: Optional[float] = 0.0,
     top_k: Optional[int] = 1,
@@ -503,7 +505,7 @@ def evaluate(
     # Wait for server to be ready before starting evaluation
     evaluation.wait_for_server_ready(url=url, triton_http_port=triton_http_port, model_name=model_name)
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
-    model = evaluation.NeMoFWLMEval(model_name, url, tokenizer, temperature, top_p, top_k, add_bos)
+    model = evaluation.NeMoFWLMEval(model_name, url, tokenizer, batch_size, max_tokens_to_generate, temperature, top_p, top_k, add_bos)
     results = evaluator.simple_evaluate(
         model=model,
         tasks=eval_task,
