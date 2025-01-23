@@ -65,6 +65,7 @@ if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
     "unstructured==0.14.9"
     "git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}"
     "git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}"
+    "triton==3.1.0"
   )
 
   pip install --no-cache-dir -r tools/ctc_segmentation/requirements.txt
@@ -89,7 +90,7 @@ if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
 fi
 
 echo 'Installing dependencies of nemo'
-${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}" -c "triton==3.1.0"
+${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
 echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
