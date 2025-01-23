@@ -103,7 +103,7 @@ class SpeechToTextLLMPEFT(PEFT):
         if hasattr(model, "trainer") and model.trainer.state.fn != TrainerFn.FITTING:
             self.freeze_model(model)
 
-        logging.info(f"\n{model_summary.summarize(model, max_depth=3)}")
+        logging.info(f"\n{model_summary.summarize(model, max_depth=4)}")
         return model
 
     def _transform_module(self, module):

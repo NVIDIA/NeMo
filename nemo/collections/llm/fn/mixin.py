@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
-
-from pytorch_lightning.utilities import model_summary
 from torch import nn
 from typing_extensions import Self
 
@@ -101,7 +98,7 @@ class FNMixin:
 
         return fn.map(self, func, leaf_only=leaf_only, _skip_map=True)
 
-    def walk(self, func: fn.ModuleFunc, module: Optional[nn.Module] = None, leaf_only: bool = False) -> Self:
+    def walk(self, func: fn.ModuleFunc, leaf_only: bool = False) -> Self:
         """
         Traverses each module in the container, applying a function, optionally to leaf modules only.
 
@@ -121,58 +118,34 @@ class FNMixin:
             >>> model.walk(print, leaf_only=True)
             <MyModel object>
         """
-        if module is None:
-            module = self
-            assert isinstance(module, nn.Module), "self is not a nn.Module"
-        elif not isinstance(module, nn.Module):
-            raise TypeError(f"input module is not a nn.Module: {module.__class__.__name__}")
+        assert isinstance(self, nn.Module), "self is not a nn.Module"
 
-        return fn.walk(module, func, leaf_only=leaf_only, _skip_map=True)
+        return fn.walk(self, func, leaf_only=leaf_only, _skip_map=True)
 
-    def freeze(self, module: Optional[nn.Module] = None) -> None:
+    def freeze(self) -> None:
         """
         Freezes the parameters of all modules in the container
         by setting `requires_grad` to False.
         """
-        if module is None:
-            module = self
-            assert isinstance(module, nn.Module), "self is not a nn.Module"
-        elif not isinstance(module, nn.Module):
-            raise TypeError(f"input module is not a nn.Module: {module.__class__.__name__}")
+        assert isinstance(self, nn.Module), "self is not a nn.Module"
 
-        params = list(module.parameters())
+        params = list(self.parameters())
         if not params:
-            logging.info(f"No parameters found in module {module.__class__.__name__}")
+            logging.info(f"No parameters found in module {self.__class__.__name__}")
         else:
             for param in params:
                 param.requires_grad = False
 
-    def unfreeze(self, module: Optional[nn.Module] = None) -> None:
+    def unfreeze(self) -> None:
         """
         Unfreezes the parameters of all modules in the container
         by setting `requires_grad` to True.
         """
-        if module is None:
-            module = self
-            assert isinstance(module, nn.Module), "self is not a nn.Module"
-        elif not isinstance(module, nn.Module):
-            raise TypeError(f"input module is not a nn.Module: {module.__class__.__name__}")
+        assert isinstance(self, nn.Module), "self is not a nn.Module"
 
-        params = list(module.parameters())
+        params = list(self.parameters())
         if not params:
-            logging.info(f"No parameters found in module {module.__class__.__name__}")
+            logging.info(f"No parameters found in module {self.__class__.__name__}")
         else:
             for param in params:
                 param.requires_grad = True
-
-    def summarize(self, max_depth: int = 1) -> model_summary.ModelSummary:
-        """Summarize this LightningModule.
-
-        Args:
-            max_depth: The maximum depth of layer nesting that the summary will include. A value of 0 turns the
-                layer summary off. Default: 1.
-
-        Return:
-            The model summary object
-        """
-        return model_summary.summarize(self, max_depth=max_depth)

@@ -18,14 +18,15 @@ from typing import Dict, List, Optional
 
 import lightning.pytorch as pl
 import torch
+import torch.nn as nn
+from lightning.pytorch.utilities import model_summary
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.utils.get_rank import get_rank, is_global_rank_zero
 
 __all__ = ['SpeechLanguageModel']
 
@@ -59,6 +60,24 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
     @cfg.setter
     def cfg(self, cfg: DictConfig):
         self._cfg = cfg
+
+    def summarize(self, max_depth: int = 1) -> model_summary.ModelSummary:
+        """Summarize this LightningModule.
+        Args:
+            max_depth: The maximum depth of layer nesting that the summary will include. A value of 0 turns the
+                layer summary off. Default: 1.
+        Return:
+            The model summary object
+        """
+        return model_summary.summarize(self, max_depth=max_depth)
+
+    def freeze_module(self, module: nn.Module):
+        for param in module.parameters():
+            param.requires_grad = False
+
+    def unfreeze_module(self, module: nn.Module):
+        for param in module.parameters():
+            param.requires_grad = True
 
     def setup(self, stage: Optional[str] = None):
         """Called at the beginning of fit, validate, test, or predict.

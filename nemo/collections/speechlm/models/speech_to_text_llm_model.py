@@ -51,7 +51,6 @@ from nemo.collections.llm.gpt.model.base import (
     get_batch_on_this_context_parallel_rank,
     get_packed_seq_params,
 )
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.speechlm.models.base import SpeechLanguageModel
@@ -73,6 +72,9 @@ from nemo.utils import AppState, logging, model_utils
 
 
 def set_input_tensor(self, tensor: torch.Tensor):
+    """
+    Placeholder function for pipeline parallel, not implemented yet.
+    """
     pass
 
 
@@ -594,37 +596,37 @@ class SpeechToTextLLM(SpeechLanguageModel):
         module = self.module
         while not hasattr(module, "language_model"):
             module = module.module
-        module.freeze(module.language_model)
+        self.freeze_module(module.language_model)
 
     def freeze_speech(self):
         module = self.module
         while not hasattr(module, "speech_model"):
             module = module.module
-        module.freeze(module.speech_model)
+        self.freeze_module(module.speech_model)
 
     def freeze_modality_adapter(self):
         module = self.module
         while not hasattr(module, "modality_adapter"):
             module = module.module
-        module.freeze(module.modality_adapter)
+        self.freeze_module(module.modality_adapter)
 
     def unfreeze_llm(self):
         module = self.module
         while not hasattr(module, "language_model"):
             module = module.module
-        module.unfreeze(module.language_model)
+        self.unfreeze_module(module.language_model)
 
     def unfreeze_speech(self):
         module = self.module
         while not hasattr(module, "speech_model"):
             module = module.module
-        module.unfreeze(module.speech_model)
+        self.unfreeze_module(module.speech_model)
 
     def unfreeze_modality_adapter(self):
         module = self.module
         while not hasattr(module, "modality_adapter"):
             module = module.module
-        module.unfreeze(module.modality_adapter)
+        self.unfreeze_module(module.modality_adapter)
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
         return self.config.data_step_fn(dataloader_iter)
