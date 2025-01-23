@@ -18,8 +18,9 @@ import lightning.pytorch as pl
 import nemo_run as run
 import torch
 
+from nemo import lightning as nl
 from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel
-
+from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 
 
 Name = "flux-535m"
@@ -50,14 +51,19 @@ def model(flux_params=FluxModelParams) -> run.Config[pl.LightningModule]:
 
 
 @run.cli.factory(target=llm.train, name=NAME)
-def unit_test_recipe():
+def unit_test_recipe(
+    name: str = "default",
+    dir: Optional[str] = None,
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+):
     return run.Partial(
         llm.train,
         model=model(FluxModelParams),
         trainer=run.Config(
             nl.Trainer,
-            devices=1,
-            num_nodes=int(os.environ.get('SLURM_NNODES', 1)),
+            devices=num_gpus_per_node,
+            num_nodes=num_nodes,
             accelerator="gpu",
             strategy=run.Config(
                 nl.MegatronStrategy,
@@ -77,7 +83,7 @@ def unit_test_recipe():
             max_steps=10,
             log_every_n_steps=1,
         ),
-        log=nl.NeMoLogger(wandb=(WandbLogger() if "WANDB_API_KEY" in os.environ else None)),
+        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=run.Config(
             nl.MegatronOptimizerModule,
             config=run.Config(
@@ -88,6 +94,5 @@ def unit_test_recipe():
                 weight_decay=0,
             ),
         ),
-        tokenizer=None,
-        model_transform=None,
+        resume=default_resume(),
     )
