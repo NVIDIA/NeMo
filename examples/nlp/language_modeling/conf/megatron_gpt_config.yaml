@@ -68,7 +68,7 @@ exp_manager:
 model:
   # The following two settings are used for continual training:
   restore_from_path: null # Set this to a .nemo file path to restore only the model weights
-  restore_from_ckpt: /home/models/gpt3_126m # Set this to a training ckpt path to restore both model weights and optimizer states
+  restore_from_ckpt: null # Set this to a training ckpt path to restore both model weights and optimizer states
 
   # use GPTModel from megatron.core
   mcore_gpt: True
@@ -87,7 +87,7 @@ model:
   expert_model_parallel_size: 1 # expert model parallelism
 
   # model architecture
-  encoder_seq_length: 2048
+  encoder_seq_length: 512
   max_position_embeddings: ${.encoder_seq_length}
   num_layers: 12
   hidden_size: 768
