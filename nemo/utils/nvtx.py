@@ -12,17 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import functools
+import os
+
 import torch
+
 
 @functools.lru_cache
 def _nvtx_enabled() -> bool:
     return bool(int(os.getenv("NEMO_NVTX_ENABLED", "0")))
 
+
 def nvtx_range_push(msg: str) -> None:
     if _nvtx_enabled():
         torch.cuda.nvtx.range_push(msg)
+
 
 def nvtx_range_pop() -> None:
     if _nvtx_enabled():
