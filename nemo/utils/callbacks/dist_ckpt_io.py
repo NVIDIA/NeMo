@@ -30,9 +30,9 @@ from nemo.utils import logging
 
 try:
     from megatron.core import dist_checkpointing
+    from megatron.core.dist_checkpointing.core import CheckpointingException
     from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
     from megatron.core.dist_checkpointing.mapping import ShardedBase
-    from megatron.core.dist_checkpointing.core import CheckpointingException
     from megatron.core.dist_checkpointing.serialization import (
         get_default_load_sharded_strategy,
         get_default_save_sharded_strategy,
@@ -58,11 +58,12 @@ except (ImportError, ModuleNotFoundError) as e:
         f" Exact error: {e}"
     )
 
-URL = "https://docs.nvidia.com/nemo-framework/user-guide/latest/knownissues.html" 
+URL = "https://docs.nvidia.com/nemo-framework/user-guide/latest/knownissues.html"
 LOAD_ERROR = f"""
     (1) To resolve this issue, set `model.dist_ckpt_load_legacy` to `True`. This setting enables loading older checkpoints.
     (2) For more details and troubleshooting guidance, please refer to the framework documentation: {URL}.
 """
+
 
 @contextmanager
 def _debug_time(name: str):
