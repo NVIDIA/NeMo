@@ -280,8 +280,8 @@ def save_scaling_factor(scaling_factors: dict, key: str, val: torch.Tensor, conf
     if not is_scaling_factor(key):
         return scaling_factors
 
-    activation_factor = 1 / val[0].view(1)
-    weights_factor = 1 / val[1].view(1)
+    activation_factor = torch_to_numpy(1 / val[0].view(1))
+    weights_factor = torch_to_numpy(1 / val[1].view(1))
 
     (weights_key, activation_key), gate_keys = get_scaling_factor_keys(key)
     scaling_factors[activation_key] = activation_factor
