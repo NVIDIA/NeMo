@@ -93,7 +93,7 @@ Methods
 
 Function: masked_cross_entropy
 ------------------------------
-.. autofunction:: masked_cross_entropy
+.. function:: masked_cross_entropy
 
     Computes the masked cross-entropy loss.
 
