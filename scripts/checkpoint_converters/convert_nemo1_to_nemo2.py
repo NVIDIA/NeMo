@@ -73,16 +73,6 @@ MODEL_CONFIG_MAPPING = {
     "nemotron5-hybrid8b": (llm.GPTModel, llm.Nemotron5HybridConfig8B),
 }
 
-"""
-python /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/scripts/checkpoint_converters/convert_nemo1_to_nemo2.py \
-    --input_path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nemotron5/untar_nm5_hybrid8b/model_weights \
-    --output_path=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nemotron5/nm5_ux_from_nemo1 \
-    --model_id=nemotron5-hybrid8b \
-    --tokenizer_model_name=TiktokenTokenizer \
-    --tokenizer_library=tiktoken \
-    --tokenizer_vocab_file=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nemotron5/untar_nm5_hybrid8b/496e4180dc884e618e8964c220011cf0_multiMixV8.gpt4o_nc_sd.500000.128k.vocab.json \
-"""
-
 def get_args():
     """
     Parse the command line arguments.
@@ -171,6 +161,11 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
     Returns:
         AutoTokenizer: tokenizer instance
     """
+    if args.tokenizer_vocab_file:
+        return get_nmt_tokenizer(library=args.tokenizer_library, 
+                                model_name=args.tokenizer_model_name, 
+                                vocab_file=args.tokenizer_vocab_file, 
+                                use_fast=True)
     if not input_path.is_dir():  # if .nemo tar
         with tempfile.TemporaryDirectory() as tmp_dir:  # we want to clean up this tmp dir
             NLPSaveRestoreConnector._unpack_nemo_file(input_path, tmp_dir)
@@ -189,11 +184,6 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
                 logging.warning(
                     "You specified tokenizer_path but did not provide tokenizer_library using default sentencepiece"
                 )
-            if args.tokenizer_vocab_file:
-                return get_nmt_tokenizer(library=tokenizer_lib, 
-                                        model_name=args.tokenizer_model_name, 
-                                        vocab_file=args.tokenizer_vocab_file, 
-                                        use_fast=True)
             tokenizer_model = args.tokenizer_path
         else:  # no .nemo config, no tokenizer path specified, grab from HF, reload
             tokenizer_lib = "huggingface"
