@@ -133,10 +133,7 @@ class ModifiedALSDBatchedTDTComputer(ConfidenceMethodMixin):
         decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
         # decoder_output: [(B x Beam), 1, Dim]
 
-        # step=0
         while active_mask.any():
-            # step+=1
-            # print(step)
             # step 1: get joint output + fuse with LM (if present)
             logits = (
                 self.joint.joint_after_projection(
@@ -209,6 +206,11 @@ class ModifiedALSDBatchedTDTComputer(ConfidenceMethodMixin):
             )
             labels_top_k = torch.where(
                 force_blank.unsqueeze(-1), self._blank_index, labels_top_k
+            )
+            durations_top_k = torch.where(
+                torch.logical_and(force_blank.unsqueeze(-1), durations_top_k == 0),
+                1,
+                durations_top_k
             )
 
             # step 2.4: final pruning - get top-k from (top-k x top-k) hyps
@@ -343,28 +345,28 @@ class ModifiedALSDBatchedTDTComputer(ConfidenceMethodMixin):
                 )
         elif self.pruning_mode is PruningMode.EARLY:
             if self.blank_lm_score_mode is BlankLMScoreMode.NO_SCORE:
-                total_log_probs = (log_probs[:, :, :, None] + duration_log_probs[:, :, None, :])
-                log_probs_top_k, total_idx_top_k = torch.topk(
-                    total_log_probs.view(batch_size, self.beam_size, -1), self.beam_size, dim=-1, largest=True, sorted=True
+                log_probs_top_k, labels_top_k = torch.topk(
+                    log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                 )
-                
-                labels_top_k = total_idx_top_k // len(self.durations) 
-                durations_top_k = total_idx_top_k % len(self.durations)
                 
                 masked_labels = torch.where(labels_top_k==self._blank_index, 0, labels_top_k)
                 log_probs_top_k = torch.where(
                     labels_top_k==self._blank_index,
                     log_probs_top_k,
                     log_probs_top_k + torch.gather(lm_scores, dim=-1,index=masked_labels))
-            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
-                # choosing topk from acoustic model
-                total_log_probs = (log_probs[:, :, :, None] + duration_log_probs[:, :, None, :])
+                
+                total_log_probs = (log_probs_top_k[:, :, :, None] + duration_log_probs[:, :, None, :])
                 log_probs_top_k, total_idx_top_k = torch.topk(
                     total_log_probs.view(batch_size, self.beam_size, -1), self.beam_size, dim=-1, largest=True, sorted=True
                 )
-                
-                labels_top_k = total_idx_top_k // len(self.durations) 
+                labels_top_k = torch.gather(labels_top_k, dim=-1, index=total_idx_top_k // len(self.durations))
                 durations_top_k = total_idx_top_k % len(self.durations)
+            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
+                # choosing topk from acoustic model
+                total_log_probs = (log_probs[:, :, :, None] + duration_log_probs[:, :, None, :])
+                log_probs_top_k, labels_top_k = torch.topk(
+                    log_probs, self.beam_size, dim=-1, largest=True, sorted=True
+                )
                 
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
@@ -375,6 +377,13 @@ class ModifiedALSDBatchedTDTComputer(ConfidenceMethodMixin):
                     log_probs_top_k * (1 + self.ngram_lm_alpha),
                     log_probs_top_k + non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + torch.gather(lm_scores, dim=-1, index=masked_labels)
                 )
+                
+                total_log_probs = (log_probs_top_k[:, :, :, None] + duration_log_probs[:, :, None, :])
+                log_probs_top_k, total_idx_top_k = torch.topk(
+                    total_log_probs.view(batch_size, self.beam_size, -1), self.beam_size, dim=-1, largest=True, sorted=True
+                )
+                labels_top_k = torch.gather(labels_top_k, dim=-1, index=total_idx_top_k // len(self.durations))
+                durations_top_k = total_idx_top_k % len(self.durations)
             else:
                 raise NotImplementedError(
                         f"The combination of blank scoring mode '{self.blank_lm_score_mode}' "
