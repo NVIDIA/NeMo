@@ -2000,7 +2000,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     }
                     try:
                         module.load_state_dict(checkpoint_state_dict, strict=True)
-                    except Exception as e:
+                    except RuntimeError as e:
                         missing_keys, expected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
                         if all(s.endswith('_extra_state') for s in missing_keys):
                             logging.warning(
