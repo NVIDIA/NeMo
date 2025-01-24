@@ -18,6 +18,11 @@ sample_rate: 22050
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
+  use_kv_cache_for_inference: true
+  inference_temperature: 0.7
+  inference_topk: 80
+  inference_use_cfg: false
+  inference_cfg_scale: 1.0
   model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
   use_text_conditioning_encoder: false
   transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.

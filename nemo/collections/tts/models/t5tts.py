@@ -822,7 +822,18 @@ class T5TTS_Model(ModelPT):
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
             test_dl_batch_size = self._test_dl.batch_size
-            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(batch, max_decoder_steps=self.cfg.get('max_decoder_steps', 500))
+            temperature = self.cfg.get('inference_temperature', 0.7)
+            topk = self.cfg.get('inference_topk', 80)
+            use_cfg = self.cfg.get('inference_use_cfg', False)
+            cfg_scale = self.cfg.get('inference_cfg_scale', 1.0)
+            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(
+                batch,
+                max_decoder_steps=self.cfg.get('max_decoder_steps', 500),
+                temperature=temperature,
+                topk=topk,
+                use_cfg=use_cfg,
+                cfg_scale=cfg_scale
+            )
             for idx in range(predicted_audio.size(0)):
                 predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                 predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
@@ -1018,7 +1029,18 @@ class T5TTS_ModelInference(T5TTS_Model):
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
             test_dl_batch_size = self._test_dl.batch_size
-            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(batch, max_decoder_steps=self.cfg.get('max_decoder_steps', 500))
+            temperature = self.cfg.get('inference_temperature', 0.7)
+            topk = self.cfg.get('inference_topk', 80)
+            use_cfg = self.cfg.get('inference_use_cfg', False)
+            cfg_scale = self.cfg.get('inference_cfg_scale', 1.0)
+            predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens = self.infer_batch(
+                batch,
+                max_decoder_steps=self.cfg.get('max_decoder_steps', 500),
+                temperature=temperature,
+                topk=topk,
+                use_cfg=use_cfg,
+                cfg_scale=cfg_scale
+            )
             predicted_audio_paths = []
             audio_durations = []
             for idx in range(predicted_audio.size(0)):
