@@ -25,7 +25,6 @@ from nemo.collections.llm.recipes.finetune_default import default_finetune_recip
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.nemotron import nemotron_model, nemotron_trainer
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_b200_h6144_tp2_mbs1_seqlen4096
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
@@ -203,7 +202,6 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         run.Config(
             MegatronCommOverlapCallback,
             tp_comm_overlap=True,
-            tp_comm_overlap_cfg=userbuffers_bf16_b200_h6144_tp2_mbs1_seqlen4096,
         )
     )
     return recipe
