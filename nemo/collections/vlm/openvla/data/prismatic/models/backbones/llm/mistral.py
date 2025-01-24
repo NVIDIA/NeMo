@@ -50,8 +50,6 @@ class MistralLLMBackbone(HFCausalLLMBackbone):
 
         # [Special Case] Mistral PAD Token Handling --> for clarity, we add an extra token (and resize)
         self.tokenizer.add_special_tokens({"pad_token": "<PAD>"})
-        self.llm.config.pad_token_id = self.tokenizer.pad_token_id
-        self.llm.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=64)
 
     @property
     def prompt_builder_fn(self) -> Type[PromptBuilder]:
@@ -62,11 +60,3 @@ class MistralLLMBackbone(HFCausalLLMBackbone):
             return MistralInstructPromptBuilder
 
         raise ValueError(f"No PromptBuilder defined for LLM Backbone `{self.identifier}`")
-
-    @property
-    def transformer_layer_cls(self) -> Type[nn.Module]:
-        return MistralDecoderLayer
-
-    @property
-    def half_precision_dtype(self) -> torch.dtype:
-        return torch.bfloat16

@@ -72,8 +72,6 @@ class LLaMa2LLMBackbone(HFCausalLLMBackbone):
 
         # [Special Case] LLaMa-2 PAD Token Handling --> for clarity, we add an extra token (and resize)
         self.tokenizer.add_special_tokens({"pad_token": "<PAD>"})
-        self.llm.config.pad_token_id = self.tokenizer.pad_token_id
-        self.llm.resize_token_embeddings(len(self.tokenizer), pad_to_multiple_of=64)
 
     @property
     def prompt_builder_fn(self) -> Type[PromptBuilder]:
@@ -87,16 +85,3 @@ class LLaMa2LLMBackbone(HFCausalLLMBackbone):
             return VicunaV15ChatPromptBuilder
 
         raise ValueError(f"No PromptBuilder defined for LLM Backbone `{self.identifier}`")
-
-    @property
-    def transformer_layer_cls(self) -> Type[nn.Module]:
-        return LlamaDecoderLayer
-
-    @property
-    def half_precision_dtype(self) -> torch.dtype:
-        """LLaMa-2 was trained in BF16; see https://huggingface.co/docs/transformers/main/model_doc/llama2."""
-        return torch.bfloat16
-
-    @property
-    def last_layer_finetune_modules(self) -> Sequence[nn.Module]:
-        return (self.llm.model.embed_tokens, self.llm.model.layers[-1], self.llm.lm_head)

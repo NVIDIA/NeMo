@@ -255,15 +255,3 @@ class OpenVLALazyDataModule(pl.LightningDataModule):
                 consumed_samples=consumed_samples,
                 consistency_check=False,
             )
-
-
-# NeVa input:
-#         batch = {
-#             'tokens': tokens, # <image> speicial token (-200) - can just prepare labels and prepend -200 in the beginning
-#             'labels': labels, # <image> speicial token (-200)
-#             'attention_mask': attention_mask, # NeVa and Llama2 : causaul mask no matter - None
-#             'loss_mask': loss_mask, 
-#             'position_ids': position_ids, # NeVa and Llama2: causaul mask no matter - None, only matters if used older GPT model, cannot be None => just generate reasonable
-#             'media': media, # [batch_size, 2 x 3, width, height] => make sure concat the rightway, concat and split on dim1
-#         }
-
