@@ -86,20 +86,18 @@ class MegatronDataSampler(DataSampler):
             world_size=data_parallel_size,
         )
 
-    def compute_consumed_samples(self, steps_since_resume=0) -> int:
+    def compute_consumed_samples(self, data_parallel_size, steps_since_resume=0) -> int:
         from nemo.lightning.pytorch.strategies import MegatronStrategy
-        from nemo.utils import AppState
 
         if not hasattr(self, "trainer") or not isinstance(self.trainer.strategy, MegatronStrategy):
             return 0
 
-        app_state = AppState()
         if self.rampup_batch_size is not None:
             consumed_samples = self.prev_consumed_samples + self.if_first_step * self.current_global_batch_size
         else:
             consumed_samples = (
                 self.init_consumed_samples
-                + steps_since_resume * app_state.data_parallel_size * self.micro_batch_size * self.num_microbatches
+                + steps_since_resume * data_parallel_size * self.micro_batch_size * self.num_microbatches
             )
 
         return int(consumed_samples)
@@ -141,7 +139,9 @@ class MegatronDataSampler(DataSampler):
         self.prev_global_batch_size = self.current_global_batch_size
 
         if step.step_i:
-            consumed_samples = self.compute_consumed_samples(step.step_i + 1 - self.init_global_step)
+            from megatron.core import parallel_state
+            data_paralell_size = parallel_state.get_data_parallel_world_size()
+            consumed_samples = self.compute_consumed_samples(data_parallel_size, step.step_i + 1 - self.init_global_step)
             if self.output_log and trainer and getattr(trainer, "training", False):
                 # You may need to turn off logging, for example when doing trainer.predict(model, data)
                 pl_module.log(
