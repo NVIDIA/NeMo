@@ -94,7 +94,7 @@ class MixtralConfig8x7B(MixtralConfig):
     Official announcement: https://mistral.ai/news/mixtral-of-experts/
     """
 
-    num_layers: int = 32
+    num_layers: int = 8
     hidden_size: int = 4096
     ffn_hidden_size: int = 14336
     max_position_embeddings: int = 4096

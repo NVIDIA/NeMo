@@ -32,6 +32,8 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.pytorch.callbacks import ModelCheckpoint
+from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 
 NAME = "mixtral_8x7b"
 
@@ -52,6 +54,7 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
+    ## initialize a small GPT model
     return run.Config(MixtralModel, config=run.Config(MixtralConfig8x7B))
 
 
@@ -97,6 +100,17 @@ def trainer(
             >>> trainer_config = trainer(num_nodes=2, num_gpus_per_node=8)
             >>> print(trainer_config)
     """
+    tensor_parallelism = 1
+    pipeline_parallelism = 1
+    pipeline_parallelism_type = torch.bfloat16,
+    virtual_pipeline_parallelism = 1,
+    context_parallelism = 1
+    sequence_parallelism = False
+    expert_parallelism = 8
+    num_nodes = 1
+    num_gpus_per_node = 8
+    max_steps = 15
+
     strategy = run.Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
@@ -119,25 +133,29 @@ def trainer(
         ),
     )
 
+    callbacks.append(run.Config(ModelCheckpoint, save_last=False))
+    # callbacks.append(run.Config(NsysCallback, start_step=7, end_step=8))
+
     trainer = run.Config(
         nl.Trainer,
         accelerator="gpu",
         accumulate_grad_batches=1,
         callbacks=callbacks,
         devices=num_gpus_per_node,
-        limit_test_batches=50,
-        limit_val_batches=32,
-        log_every_n_steps=10,
+        limit_test_batches=0.0,
+        limit_val_batches=0.0,
+        log_every_n_steps=1,
         max_steps=max_steps,
         num_nodes=num_nodes,
-        plugins=run.Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
+        # plugins=run.Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
+        plugins=run.Config(nl.MegatronMixedPrecision, precision="bf16-mixed", fp8="hybrid"),
         strategy=strategy,
         use_distributed_sampler=False,
-        val_check_interval=2000,
+        val_check_interval=1216,
+        # enable_checkpointing=False,
     )
 
     return trainer
-
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
@@ -174,14 +192,21 @@ def pretrain_recipe(
             >>> recipe = pretrain_recipe(name="mixtral_8x7b_pretrain", num_nodes=8)
             >>> print(recipe)
     """
+
+    name = "default"
+    num_nodes = 1
+    num_gpus_per_node = 8
+    performance_mode = False
+
     recipe = run.Partial(
         fn,
         model=model(),
         trainer=trainer(
             num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=128, micro_batch_size=1),
+        # log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=run.Config(nl.NeMoLogger, log_dir="mixtral_8x7b_output"),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
