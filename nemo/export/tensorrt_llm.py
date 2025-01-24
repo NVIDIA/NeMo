@@ -472,6 +472,10 @@ class TensorRTLLM(ITritonDeployable):
                     )
 
                     for weight_dict, model_config in zip(weights_dicts, model_configs):
+
+                        for k, v in weight_dict.items():
+                            print(f"key: {k: <60} | {str(v.dtype): <16} | {type(v)}")
+                        breakpoint()
                         build_and_save_engine(
                             max_input_len=max_input_len,
                             max_output_len=max_output_len,
