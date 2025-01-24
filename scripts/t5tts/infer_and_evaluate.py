@@ -10,6 +10,9 @@ import json
 import argparse
 import numpy as np
 import scipy.stats as stats
+import copy
+import shutil
+from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 
 dataset_meta_info = {
     'vctk': {
@@ -36,6 +39,61 @@ dataset_meta_info = {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/dev_clean_withContextAudioPaths_evalset.json',
         'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
         'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
+    },
+    'spanish_cml': {
+        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_spanish_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
+        'audio_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
+        'feature_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
+        'tokenizer_names': ['spanish_phoneme'],
+        'whisper_language': 'es'
+    },
+    'german_cml': {
+        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_german_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
+        'audio_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
+        'feature_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
+        'tokenizer_names': ['german_chartokenizer'],
+        'whisper_language': 'de',
+        'load_cached_codes_if_available': False
+    },
+    'french_cml': {
+        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_french_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
+        'audio_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
+        'feature_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
+        'tokenizer_names': ['french_chartokenizer'],
+        'whisper_language': 'fr',
+        'load_cached_codes_if_available': False
+    },
+    'italian_cml': {
+        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_italian_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
+        'audio_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
+        'feature_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
+        'tokenizer_names': ['italian_chartokenizer'],
+        'whisper_language': 'it',
+        'load_cached_codes_if_available': False
+    },
+    'portuguese_cml': {
+        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_portuguese_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
+        'audio_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
+        'feature_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
+        'tokenizer_names': ['portuguese_chartokenizer'],
+        'whisper_language': 'pt',
+        'load_cached_codes_if_available': False
+    },
+    'polish_cml': {
+        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_polish_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
+        'audio_dir': '/Data/CML/cml_tts_dataset_polish_v0.1',
+        'feature_dir': '/Data/CML/cml_tts_dataset_polish_v0.1',
+        'tokenizer_names': ['polish_chartokenizer'],
+        'whisper_language': 'pl',
+        'load_cached_codes_if_available': False
+    },
+    'dutch_cml': {
+        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_dutch_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
+        'audio_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
+        'feature_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
+        'tokenizer_names': ['dutch_chartokenizer'],
+        'whisper_language': 'nl',
+        'load_cached_codes_if_available': False
     }
 }
 
@@ -83,11 +141,18 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
     
     for dataset in datasets:
         metrics_n_repeated = []
+        manifest_records = read_manifest(dataset_meta_info[dataset]['manifest_path'])
         for repeat_idx in range(num_repeats):
             eval_dir = os.path.join(out_dir, "{}_{}".format(checkpoint_name, dataset))
             audio_dir = os.path.join(eval_dir, "audio")
             os.makedirs(audio_dir, exist_ok=True) 
-            dataset_meta = {dataset: dataset_meta_info[dataset]}
+            language = dataset_meta_info[dataset].get('whisper_language', 'en')
+            dataset_meta_for_dl = copy.deepcopy(dataset_meta_info[dataset])
+            for key in ["whisper_language", "load_cached_codes_if_available"]:
+                if key in dataset_meta_for_dl:
+                    del dataset_meta_for_dl[key]
+
+            dataset_meta = {dataset: dataset_meta_for_dl}
             test_dataset = T5TTSDataset(
                 dataset_meta=dataset_meta,
                 sample_rate=model_cfg.sample_rate,
@@ -102,7 +167,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
                 audio_eos_id=model.audio_eos_id,
                 num_audio_codebooks=model_cfg.num_audio_codebooks,
                 prior_scaling_factor=None,
-                load_cached_codes_if_available=True,
+                load_cached_codes_if_available=dataset_meta_info[dataset].get('load_cached_codes_if_available', True),
                 dataset_type='test',
                 tokenizer_config=None,
                 load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
@@ -111,6 +176,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
                 context_duration_min=model.cfg.get('context_duration_min', 5.0),
                 context_duration_max=model.cfg.get('context_duration_max', 5.0),
             )
+            assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
             test_dataset.text_tokenizer, test_dataset.text_conditioning_tokenizer = model._setup_tokenizers(model.cfg, mode='test')
 
             test_data_loader = torch.utils.data.DataLoader(
@@ -141,12 +207,23 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
                     predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
                     audio_path = os.path.join(audio_dir, f"predicted_audio_{item_idx}.wav")
                     sf.write(audio_path, predicted_audio_np, model.cfg.sample_rate)
+                    context_audio_path = manifest_records[item_idx].get('context_audio_filepath', None)
+                    target_audio_path = manifest_records[item_idx].get('audio_filepath', None)
+                    if context_audio_path is not None:
+                        context_audio_path = os.path.join(dataset_meta_info[dataset]['audio_dir'], context_audio_path)
+                    if target_audio_path is not None:
+                        target_audio_path = os.path.join(dataset_meta_info[dataset]['audio_dir'], target_audio_path)
+                    if os.path.exists(context_audio_path):
+                        shutil.copy(context_audio_path, os.path.join(audio_dir, f"context_audio_{item_idx}.wav"))
+                    if os.path.exists(target_audio_path):
+                        shutil.copy(target_audio_path, os.path.join(audio_dir, f"target_audio_{item_idx}.wav"))
                     item_idx += 1
             
             metrics, filewise_metrics = evaluate_generated_audio.evaluate(
                 dataset_meta[dataset]['manifest_path'],
                 dataset_meta[dataset]['audio_dir'],
-                audio_dir
+                audio_dir,
+                language=language,
             )
             metrics_n_repeated.append(metrics)
             with open(os.path.join(eval_dir, f"{dataset}_metrics_{repeat_idx}.json"), "w") as f:

@@ -8,6 +8,8 @@ import torch
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate_detail
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
+import librosa
 
 LOCAL_EVALSETS = {
     'riva_challenging': {
@@ -57,19 +59,40 @@ def process_text(input_text):
     
     return single_space_text
 
+def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, language, device):
+    speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
+    # Set the language task (optional, improves performance for specific languages)
+    forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language) if language else None
+    inputs = whisper_processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
+    inputs = inputs.to(device)
+    # Generate transcription
+    with torch.no_grad():
+        predicted_ids = whisper_model.generate(inputs, forced_decoder_ids=forced_decoder_ids)
 
-def evaluate(manifest_path, audio_dir, generated_audio_dir):
+    # Decode transcription
+    transcription = whisper_processor.batch_decode(predicted_ids, skip_special_tokens=True)
+    result = transcription[0]
+    return result
+
+def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en"):
     audio_file_lists = find_sample_audios(generated_audio_dir)
     records = read_manifest(manifest_path)
     assert len(audio_file_lists) == len(records)
 
     device = "cuda"
-    asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(
-                    model_name="stt_en_conformer_transducer_large"
-                )
-    # asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name="nvidia/parakeet-tdt-1.1b")
-    asr_model = asr_model.to(device)
-    asr_model.eval()
+
+    if language == "en":
+        asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(
+                        model_name="stt_en_conformer_transducer_large"
+                    )
+        # asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name="nvidia/parakeet-tdt-1.1b")
+        asr_model = asr_model.to(device)
+        asr_model.eval()
+    else:
+        whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
+        whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
+        whisper_model = whisper_model.to(device)
+        whisper_model.eval()
 
     speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large') 
     speaker_verification_model = speaker_verification_model.to(device)
@@ -91,8 +114,12 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir):
                 context_audio_filepath = os.path.join(audio_dir, context_audio_filepath)
         
         pred_audio_filepath = audio_file_lists[ridx]
-        with torch.no_grad():
-            pred_text = asr_model.transcribe([pred_audio_filepath])[0][0]
+        if language == "en":
+            with torch.no_grad():
+                pred_text = asr_model.transcribe([pred_audio_filepath])[0][0]
+                pred_text = process_text(pred_text)
+        else:
+            pred_text = transcribe_with_whisper(whisper_model, whisper_processor, pred_audio_filepath, language, device)
             pred_text = process_text(pred_text)
 
         if 'normalized_text' in record:
@@ -182,6 +209,7 @@ def main():
     parser.add_argument('--manifest_path', type=str, default=None)
     parser.add_argument('--audio_dir', type=str, default=None)
     parser.add_argument('--generated_audio_dir', type=str, default=None)
+    parser.add_argument('--whisper_language', type=str, default="en")
     parser.add_argument('--evalset', type=str, default=None)
     args = parser.parse_args()
 
@@ -190,7 +218,7 @@ def main():
         args.manifest_path = LOCAL_EVALSETS[args.evalset]['manifest']
         args.audio_dir = LOCAL_EVALSETS[args.evalset]['audio_dir']
     
-    evaluate(args.manifest_path, args.audio_dir, args.generated_audio_dir)
+    evaluate(args.manifest_path, args.audio_dir, args.generated_audio_dir, args.whisper_language)
 
     
 
