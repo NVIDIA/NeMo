@@ -5062,17 +5062,17 @@ jobs:
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/nemo2_ptq_engine
 
-  L2_NeMo_2_Distill_pp2_Llama2:
+  L2_NeMo_2_Distill_pp2_Llama3:
     needs: [cicd-test-container-setup]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_Distill_pp2_Llama2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_Distill_pp2_Llama3') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
         python scripts/llm/gpt_distillation.py \
           --name nemo2_llama_distill \
-          --teacher_path /home/TestData/nemo2_ckpt/llama_68M \
-          --student_path /home/TestData/nemo2_ckpt/llama_68M \
+          --teacher_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+          --student_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
           --tp_size 1 \
           --cp_size 1 \
           --pp_size 2 \
@@ -5087,7 +5087,8 @@ jobs:
           --warmup_steps 1 \
           --val_check_interval 5 \
           --log_interval 5 \
-          --limit_val_batches 2
+          --limit_val_batches 2 \
+          --cicd_run
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_llama_distill
@@ -5351,7 +5352,7 @@ jobs:
       - L2_Megatron_GPT_Reranker
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
       - L2_NeMo_2_PTQ_Llama2_FP8
-      - L2_NeMo_2_Distill_pp2_Llama2
+      - L2_NeMo_2_Distill_pp2_Llama3
       - L2_NeMo_2_Export_In_Framework
       - L2_NeMo_2_jit_callback
       - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING

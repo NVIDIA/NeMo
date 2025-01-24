@@ -55,6 +55,7 @@ def get_args():
     parser.add_argument("--val_check_interval", type=int, default=100, help="""Run validation every _ steps""")
     parser.add_argument("--limit_val_batches", type=int, default=32, help="""Number of batches per validation stage""")
     parser.add_argument("--log_interval", type=int, default=10, help="""Write to log every _ steps""")
+    parser.add_argument("--cicd_run", action="store_true", help="Used only when called by NeMo CI")
 
     return parser.parse_args()
 
@@ -85,6 +86,9 @@ if __name__ == "__main__":
     )
 
     ## Load both models and combine into an aggregate module
+    if args.cicd_run:
+        from tests.collections.llm.common import Llama3ConfigCI  # pylint: disable=W0611
+
     _student_model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
     _teacher_model = nl.io.load_context(path=ckpt_to_context_subdir(args.teacher_path), subpath="model")
 
