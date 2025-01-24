@@ -47,32 +47,12 @@ class DinoCLIPViTBackbone(VisionBackbone):
         self.dino_timm_path_or_url = DINOCLIP_VISION_BACKBONES[vision_backbone_id]["dino"]
         self.clip_timm_path_or_url = DINOCLIP_VISION_BACKBONES[vision_backbone_id]["clip"]
 
-        # Initialize both Featurizers (ViTs) by downloading from HF / TIMM Hub if necessary
-        self.dino_featurizer: VisionTransformer = timm.create_model(
-            self.dino_timm_path_or_url, pretrained=True, num_classes=0, img_size=self.default_image_size
-        )
-        self.dino_featurizer.eval()
-
-        self.clip_featurizer: VisionTransformer = timm.create_model(
-            self.clip_timm_path_or_url, pretrained=True, num_classes=0, img_size=self.default_image_size
-        )
-        self.clip_featurizer.eval()
-
-        # Monkey-Patch the `forward()` function of the featurizers to ensure FSDP-compatibility
-        #   => Note: By default set `get_intermediate_layers` to return the *SECOND-TO-LAST* layer patches!
-        #   => TODO (siddk) Remove after resolution of https://github.com/pytorch/pytorch/issues/109385
-        self.dino_featurizer.forward = unpack_tuple(
-            partial(self.dino_featurizer.get_intermediate_layers, n={len(self.dino_featurizer.blocks) - 2})
-        )
-        self.clip_featurizer.forward = unpack_tuple(
-            partial(self.clip_featurizer.get_intermediate_layers, n={len(self.clip_featurizer.blocks) - 2})
-        )
-
         # Get Configs for _both_ Featurizers =>> Note :: Override default image size for larger resolution models
-        self.dino_data_cfg = timm.data.resolve_model_data_config(self.dino_featurizer)
+        dino_pretrained_cfg = timm.models.get_pretrained_cfg(self.dino_timm_path_or_url)
+        self.dino_data_cfg = timm.data.resolve_model_data_config(model=None, pretrained_cfg=vars(dino_pretrained_cfg))
         self.dino_data_cfg["input_size"] = (3, self.default_image_size, self.default_image_size)
-
-        self.clip_data_cfg = timm.data.resolve_model_data_config(self.clip_featurizer)
+        clip_pretrained_cfg = timm.models.get_pretrained_cfg(self.clip_timm_path_or_url)
+        self.clip_data_cfg = timm.data.resolve_model_data_config(model=None, pretrained_cfg=vars(clip_pretrained_cfg))
         self.clip_data_cfg["input_size"] = (3, self.default_image_size, self.default_image_size)
 
         # Initialize *both* Transforms
@@ -121,32 +101,6 @@ class DinoCLIPViTBackbone(VisionBackbone):
         else:
             raise ValueError(f"Image Resize Strategy `{self.image_resize_strategy}` is not supported!")
 
-    def get_fsdp_wrapping_policy(self) -> Callable:
-        """Return a simple FSDP policy that wraps each ViT block and then both of the _entire_ featurizers."""
-        vit_wrap_policy = partial(_module_wrap_policy, module_classes={VisionTransformer})
-        transformer_block_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={Block})
-        return partial(_or_policy, policies=[vit_wrap_policy, transformer_block_policy])
-
-    def forward(self, pixel_values: Dict[str, torch.Tensor]) -> torch.Tensor:
-        """Runs the transformed image/pixel tensors through each vision backbone, returning concatenated patches."""
-        dino_patches = self.dino_featurizer(pixel_values["dino"])
-        clip_patches = self.clip_featurizer(pixel_values["clip"])
-
-        return torch.cat([dino_patches, clip_patches], dim=2)
-
     @property
     def default_image_resolution(self) -> Tuple[int, int, int]:
         return self.dino_data_cfg["input_size"]
-
-    @property
-    def embed_dim(self) -> int:
-        return self.dino_featurizer.embed_dim + self.clip_featurizer.embed_dim
-
-    @property
-    def num_patches(self) -> int:
-        assert self.dino_featurizer.patch_embed.num_patches == self.clip_featurizer.patch_embed.num_patches
-        return self.dino_featurizer.patch_embed.num_patches
-
-    @property
-    def half_precision_dtype(self) -> torch.dtype:
-        return torch.bfloat16

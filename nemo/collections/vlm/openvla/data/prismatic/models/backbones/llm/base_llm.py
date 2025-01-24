@@ -40,57 +40,14 @@ class LLMBackbone(nn.Module, ABC):
         self.identifier = llm_backbone_id
 
         # Instance attributes for an LLM Backbone
-        self.llm: PreTrainedModel = None
         self.tokenizer: PreTrainedTokenizerBase = None
 
     def get_tokenizer(self) -> PreTrainedTokenizerBase:
         return self.tokenizer
 
-    @abstractmethod
-    def get_fsdp_wrapping_policy(self) -> Callable: ...
-
-    @abstractmethod
-    def enable_gradient_checkpointing(self) -> None: ...
-
-    @abstractmethod
-    def forward(
-        self,
-        input_ids: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-    ) -> CausalLMOutputWithPast:
-        """Run a forward pass through the LLM given targets (labels), returning the scalar Cross-Entropy Loss"""
-        raise NotImplementedError
-
-    @abstractmethod
-    def embed_input_ids(self, input_ids: torch.LongTensor) -> torch.Tensor: ...
-
     @property
     @abstractmethod
     def prompt_builder_fn(self) -> Type[PromptBuilder]: ...
-
-    @property
-    @abstractmethod
-    def transformer_layer_cls(self) -> Type[nn.Module]: ...
-
-    @property
-    @abstractmethod
-    def half_precision_dtype(self) -> torch.dtype: ...
-
-    @property
-    @abstractmethod
-    def last_layer_finetune_modules(self) -> Sequence[nn.Module]: ...
-
-    @property
-    def embed_dim(self) -> int:
-        return self.llm.config.hidden_size
 
     @property
     def pad_token_id(self) -> int:
@@ -114,38 +71,6 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         self.llm_family = llm_family
         self.llm_max_length = llm_max_length
         self.inference_mode = inference_mode
-
-        # Initialize LLM (downloading from HF Hub if necessary) --> `llm_cls` is the actual {Model}ForCausalLM class!
-        #   => Note: We're eschewing use of the AutoModel API so that we can be more explicit about LLM-specific details
-        if not self.inference_mode:
-            overwatch.info(f"Loading [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
-            self.llm = llm_cls.from_pretrained(
-                hf_hub_path,
-                token=hf_token,
-                use_flash_attention_2=use_flash_attention_2 if not self.inference_mode else False,
-                # The following parameters are set to prevent `UserWarnings` from HF; we want greedy decoding!
-                do_sample=False,
-                temperature=1.0,
-                top_p=1.0,
-            )
-
-        # [Contract] `inference_mode` means we're loading from a pretrained checkpoint; no need to load base weights!
-        else:
-            overwatch.info(f"Building empty [bold]{llm_family}[/] LLM from [underline]`{hf_hub_path}`[/]", ctx_level=1)
-            llm_config = AutoConfig.from_pretrained(hf_hub_path, token=hf_token)
-            self.llm = llm_cls._from_config(llm_config)
-
-        # Lightweight Handling (with extended explanation) for setting some LLM Parameters
-        #   => Set `decoder.use_cache = False` --> incompatible with gradient checkpointing (+ training in general)
-        #
-        #      Reference: https://discuss.huggingface.co/t/what-is-the-purpose-of-use-cache-in-decoder/958
-        self.llm.config.use_cache = False if not self.inference_mode else True
-
-        #   => Turns out that when gradient checkpointing is on and the underlying LLM has no "trainable" parameters
-        #      (requires_grad is False), backprop will fail; setting `enable_input_requires_grad()` registers a new
-        #      forward hook that fixes this =>> also totally safe for the "full finetuning" setting!
-        if not self.inference_mode:
-            self.llm.enable_input_require_grads()
 
         # Load (Fast) Tokenizer
         overwatch.info(f"Loading [bold]{llm_family}[/] (Fast) Tokenizer via the AutoTokenizer API", ctx_level=1)
@@ -178,46 +103,3 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
             f"Default Tokenizer of type `{type(self.tokenizer)}` does not automatically prefix inputs with BOS token!\n"
             "Please read the comment in `base_llm.py` for more information!"
         )
-
-    def get_fsdp_wrapping_policy(self) -> Callable:
-        """Return a `transformer_auto_wrap_policy` where we wrap each instance of `self.transformer_layer_cls`"""
-        transformer_block_policy = partial(
-            transformer_auto_wrap_policy, transformer_layer_cls={self.transformer_layer_cls}
-        )
-
-        return transformer_block_policy
-
-    def enable_gradient_checkpointing(self) -> None:
-        """Dispatch to underlying LLM instance's `gradient_checkpointing_enable`; defined for all `PretrainedModel`."""
-        self.llm.gradient_checkpointing_enable()
-
-    def embed_input_ids(self, input_ids: torch.LongTensor) -> torch.Tensor:
-        return self.llm.get_input_embeddings()(input_ids)
-
-    # [Contract] Should match the `forward` call of the underlying `llm` instance!
-    def forward(
-        self,
-        input_ids: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-    ) -> CausalLMOutputWithPast:
-        output: CausalLMOutputWithPast = self.llm(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            labels=labels,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-        return output
