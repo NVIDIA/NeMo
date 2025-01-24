@@ -208,10 +208,13 @@ class MegatronCommOverlapCallback(Callback):
                     setattr(comm_overlap_cfg, field.name, user_value)
 
         return comm_overlap_cfg
-    
+
     def _set_num_cuda_device_max_connections(self):
+        import os
+
+        import torch
+
         from nemo.utils import AppState
-        import os, torch
 
         app_state = AppState()
         tp_size = app_state.tensor_model_parallel_size
@@ -259,7 +262,7 @@ class MegatronCommOverlapCallback(Callback):
             self._apply_cfgs(comm_overlap_cfg, trainer.strategy.ddp_config)
             if hasattr(trainer.model, '__io__'):
                 self._apply_cfgs(comm_overlap_cfg, trainer.model.__io__.optim.config)
-        
+
         # setup cuda device max connections
         self._set_num_cuda_device_max_connections()
 
