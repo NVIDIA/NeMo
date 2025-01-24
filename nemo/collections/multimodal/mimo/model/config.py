@@ -291,8 +291,10 @@ class MimoConfig(TransformerConfig, io.IOMixin):
     hidden_size: int = 2048
     num_attention_heads: int = 8
     ffn_hidden_size: int = 8
-
+    # TODO:Yash make this enum
     stage: str = "encoder_alignment"  # [encoder_alignment, decoder_alignment, 'interleaved_pretrain']
+    # denoising loss for stable diffusion decoder, only used for decoder_alignment stages
+    generation_loss: bool = False
 
     def configure_model(self, tokenizer) -> "BaseMimoModel":
 

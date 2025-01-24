@@ -10,10 +10,18 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 
 class MimoLossReduction(MaskedTokenLossReduction):
 
-    def __init__(self, validation_step: bool = False, val_drop_last: bool = True, l2_weight: float = 1.0, lightning_module=None) -> None:
+    def __init__(
+        self,
+        validation_step: bool = False,
+        val_drop_last: bool = True,
+        l2_weight: float = 1.0,
+        generation_loss=False,
+        lightning_module=None,
+    ) -> None:
         super().__init__(validation_step, val_drop_last)
         self.l2_weight = l2_weight
         self.lightning_module = lightning_module
+        self.generation_loss = generation_loss
 
     def forward(
         self,
@@ -46,19 +54,27 @@ class MimoLossReduction(MaskedTokenLossReduction):
         token_loss_info.update({"l2_loss": reduced_l2_loss})
 
         # denoise loss
+        if self.generation_loss:
+            assert model_pred is not None
+            assert target is not None
 
-        model_pred = output_dict['denoise_model_pred']
-        target = output_dict['denoise_target']
-        gen_loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
-        reduced_gen_l2_loss = average_losses_across_data_parallel_group([gen_loss])
+            model_pred = output_dict['denoise_model_pred']
+            target = output_dict['denoise_target']
+            gen_loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+            reduced_gen_l2_loss = average_losses_across_data_parallel_group([gen_loss])
 
-        total_loss = total_loss + gen_loss
-        token_loss_info['avg'] = token_loss_info['avg'] + reduced_gen_l2_loss
+            total_loss = total_loss + gen_loss
+            token_loss_info['avg'] = token_loss_info['avg'] + reduced_gen_l2_loss
         logging.info(f"token_loss: {just_token_loss}, l2_loss: {l2_loss}, gen_loss: {gen_loss}")
         if self.lightning_module:
             self.lightning_module.log("token_loss", just_token_loss, prog_bar=True, batch_size=1, sync_dist=False)
-            self.lightning_module.log("embedding_l2_loss", reduced_l2_loss, prog_bar=True, batch_size=1, sync_dist=False)
-            self.lightning_module.log("denoise_loss", reduced_gen_l2_loss, prog_bar=True, batch_size=1, sync_dist=False)
+            self.lightning_module.log(
+                "embedding_l2_loss", reduced_l2_loss, prog_bar=True, batch_size=1, sync_dist=False
+            )
+            if self.generation_loss:
+                self.lightning_module.log(
+                    "denoise_loss", reduced_gen_l2_loss, prog_bar=True, batch_size=1, sync_dist=False
+                )
         return total_loss, token_loss_info
 
     def _calculate_l2_loss(self, embeddings1: torch.Tensor, embeddings2: torch.Tensor) -> torch.Tensor:

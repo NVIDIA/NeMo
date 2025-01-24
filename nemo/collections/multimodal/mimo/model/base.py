@@ -224,29 +224,30 @@ class BaseMimoModel(MCoreLLaVAModel):
                 # image_caption_embeddings = image_caption_embeddings.to(
                 #     output_projection_embeddings.device, dtype=output_projection_embeddings.dtype
                 # )
+                if self.config.generation_loss:
+                    latents = image_decoder.vae.encode(output_images).latent_dist.sample()
+                    latents = latents * image_decoder.vae.config.scaling_factor
 
-                latents = image_decoder.vae.encode(output_images).latent_dist.sample()
-                latents = latents * image_decoder.vae.config.scaling_factor
+                    noise = torch.randn_like(latents)
+                    batch_size = latents.shape[0]
+                    timesteps = torch.randint(
+                        0, image_decoder.scheduler.config.num_train_timesteps, (batch_size,), device=latents.device
+                    )
+                    timesteps = timesteps.long()
 
-                noise = torch.randn_like(latents)
-                batch_size = latents.shape[0]
-                timesteps = torch.randint(
-                    0, image_decoder.scheduler.config.num_train_timesteps, (batch_size,), device=latents.device
-                )
-                timesteps = timesteps.long()
+                    noisy_latents = image_decoder.scheduler.add_noise(latents, noise, timesteps)
 
-                noisy_latents = image_decoder.scheduler.add_noise(latents, noise, timesteps)
+                    target = noise
 
-                target = noise
-                # noisy_latents = noisy_latents.to(output_projection_embeddings.dtype)
-                model_pred = image_decoder.unet(noisy_latents, timesteps, output_projection_embeddings).sample
+                    model_pred = image_decoder.unet(noisy_latents, timesteps, output_projection_embeddings).sample
+                else:
+                    model_pred, target = None, None
 
                 return {
                     'output': output,
                     'new_loss_mask': new_loss_mask,
                     'output_projection_embeddings': output_projection_embeddings,
                     'image_caption_embeddings': image_caption_embeddings,
-                    'hidden_states': hidden_states,
                     'denoise_model_pred': model_pred,
                     'denoise_target': target,
                 }

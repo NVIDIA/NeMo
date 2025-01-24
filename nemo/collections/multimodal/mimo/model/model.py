@@ -104,7 +104,9 @@ class MimoModel(NevaModel, L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
             if self.config.stage in ["encoder_alignment"]:
                 self._training_loss_reduction = MaskedTokenLossReduction()
             elif self.config.stage in ["decoder_alignment"]:
-                self._training_loss_reduction = MimoLossReduction()
+                self._training_loss_reduction = MimoLossReduction(
+                    lightning_module=self, generation_loss=self.config.generation_loss
+                )
             else:
                 NotImplementedError(f"Loss function not implemented for stage {self.config.stage}")
 
@@ -114,9 +116,11 @@ class MimoModel(NevaModel, L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
     def validation_loss_reduction(self) -> MimoLossReduction:
         if not self._validation_loss_reduction:
             if self.config.stage in ["encoder_alignment"]:
-                self._validation_loss_reduction = MaskedTokenLossReduction(lightning_module=self)
+                self._validation_loss_reduction = MaskedTokenLossReduction()
             elif self.config.stage in ["decoder_alignment"]:
-                self._validation_loss_reduction = MimoLossReduction(validation_step=True)
+                self._validation_loss_reduction = MimoLossReduction(
+                    validation_step=True, generation_loss=self.config.generation_loss
+                )
             else:
                 NotImplementedError(f"Loss function not implemented for stage {self.config.stage}")
 
