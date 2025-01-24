@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+
 import pytorch_lightning as pl
 import torch
 from one_logger_utils.nemo import hook_model_cls
@@ -126,7 +128,7 @@ def main(cfg) -> None:
         "app_run_type": "training",
         "app_tag": cfg.exp_manager.name,  # Please change this
         "app_tag_run_name": f"{model_name}-{suffix}",  # Please change this
-        "one_logger_project": "jiashangh-test",  # Please change this
+        "one_logger_project": "nemo-llm",  # Please change this
         "one_logger_run_name": cfg.exp_manager.name,  # Please change this
         "world_size": os.environ.get('WORLD_SIZE', -1),
         "global_batch_size": cfg.get("model").get("global_batch_size", 1),
@@ -145,7 +147,7 @@ def main(cfg) -> None:
     }
 
     precision = cfg.trainer.precision
-    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer(onelogger_config=one_logger_callback_config)
+    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer(one_logger_config=one_logger_callback_config)
     if hasattr(cfg, 'do_profiling') and cfg.do_profiling:
         trainer.callbacks.append(PROFILING())
     cfg.trainer.precision = precision
