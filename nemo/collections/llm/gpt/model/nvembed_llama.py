@@ -137,7 +137,8 @@ class NVEmbedLlamaModel(LlamaModel):
     ):
         super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
-    def get_dataset_kwargs(self):
+    @property
+    def dataset_kwargs(self):
         """Getter for dataset_kwargs from model config"""
         return {
             'num_hard_negatives': self.config.num_hard_negatives,
