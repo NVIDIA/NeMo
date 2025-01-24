@@ -26,7 +26,7 @@ Nemo: CLIP text probability:  [('a dog', 0.0051774755), ('a boy', 0.0024592995),
 HF: CLIP text probability:  [('a dog', 0.004963576), ('a boy', 0.0022506083), ('a girl', 0.9927858)]
 """
 import argparse
-import os
+import os, torch
 
 import requests
 from megatron.core.optimizer import OptimizerConfig
@@ -94,6 +94,8 @@ def main(args) -> None:
         num_workers=4,
         hf_token=args.hf_token,
     )
+
+    from megatron.core.distributed import DistributedDataParallelConfig
 
     # pylint: disable=C0115,C0116
     strategy=nl.MegatronStrategy(
