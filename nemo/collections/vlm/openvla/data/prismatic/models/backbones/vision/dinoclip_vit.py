@@ -15,7 +15,12 @@ from timm.models.vision_transformer import Block, VisionTransformer
 from torch.distributed.fsdp.wrap import _module_wrap_policy, _or_policy, transformer_auto_wrap_policy
 from torchvision.transforms import Compose, Resize
 
-from nemo.collections.vlm.openvla.data.prismatic.models.backbones.vision.base_vision import ImageTransform, LetterboxPad, VisionBackbone, unpack_tuple
+from nemo.collections.vlm.openvla.data.prismatic.models.backbones.vision.base_vision import (
+    ImageTransform,
+    LetterboxPad,
+    VisionBackbone,
+    unpack_tuple,
+)
 
 # Registry =>> Supported DinoCLIP Pairs (as TIMM identifiers)
 DINOCLIP_VISION_BACKBONES = {

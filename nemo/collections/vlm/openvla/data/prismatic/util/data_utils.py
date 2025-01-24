@@ -17,6 +17,7 @@ IGNORE_INDEX = -100
 # NeMo special token (image) index
 IMAGE_TOKEN_INDEX = ImageToken.token_index
 
+
 def tree_map(fn: Callable, tree: dict) -> dict:
     """Maps a function over a nested dictionary."""
     return {k: tree_map(fn, v) if isinstance(v, dict) else fn(v) for k, v in tree.items()}
@@ -52,14 +53,18 @@ class PaddedCollatorForActionPrediction:
 
         # DEBUGGING (COMPATIBLE WITH NEVA)
         # adding special image token (IMAGE_TOKEN_INDEX) to input_ids and labels
-        # we count the number of images for each sample, to add corresponding 
+        # we count the number of images for each sample, to add corresponding
         # number of IMAGE_TOKEN_INDEX tokens to input_ids and IGNORE_INDEX tokens to labels
         # we add the images tokens after the <bos>
         num_images = 1 if isinstance(pixel_values[0], torch.Tensor) else len(pixel_values[0])
         image_tokens = torch.full((input_ids.shape[0], num_images), IMAGE_TOKEN_INDEX, dtype=input_ids.dtype)
         ignored_tokens = torch.full((input_ids.shape[0], num_images), IGNORE_INDEX, dtype=input_ids.dtype)
-        input_ids = torch.cat((input_ids[:, :1] , image_tokens, input_ids[:, 1:]), dim=1) # Concatenate <bos>, image_tokens, and the rest of the sequence along the last dimension
-        labels = torch.cat((labels[:, :1] , ignored_tokens, labels[:, 1:]), dim=1) # Concatenate <bos>, image_tokens, and the rest of the sequence along the last dimension
+        input_ids = torch.cat(
+            (input_ids[:, :1], image_tokens, input_ids[:, 1:]), dim=1
+        )  # Concatenate <bos>, image_tokens, and the rest of the sequence along the last dimension
+        labels = torch.cat(
+            (labels[:, :1], ignored_tokens, labels[:, 1:]), dim=1
+        )  # Concatenate <bos>, image_tokens, and the rest of the sequence along the last dimension
 
         # DEBUGGING (COMPATIBLE WITH NEVA)
         # labels are automatically shifted in HF model, but not in NeVa, so we manually shift it here
@@ -75,7 +80,6 @@ class PaddedCollatorForActionPrediction:
         # DEBUGGING (COMPATIBLE WITH NEVA)
         # NeVa pad input_ids with 0s and pad labels with IGNORE_INDEXs
         input_ids[input_ids == self.pad_token_id] = 0
-
 
         # DEBUGGING (COMPATIBLE WITH NEVA)
         # compute position_ids

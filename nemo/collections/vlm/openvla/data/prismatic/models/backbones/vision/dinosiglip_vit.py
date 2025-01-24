@@ -15,7 +15,12 @@ from timm.models.vision_transformer import Block, VisionTransformer
 from torch.distributed.fsdp.wrap import _module_wrap_policy, _or_policy, transformer_auto_wrap_policy
 from torchvision.transforms import Compose, Resize
 
-from nemo.collections.vlm.openvla.data.prismatic.models.backbones.vision.base_vision import ImageTransform, LetterboxPad, VisionBackbone, unpack_tuple
+from nemo.collections.vlm.openvla.data.prismatic.models.backbones.vision.base_vision import (
+    ImageTransform,
+    LetterboxPad,
+    VisionBackbone,
+    unpack_tuple,
+)
 
 # Registry =>> Supported DinoSigLIP Pairs (as TIMM identifiers)
 DINOSigLIP_VISION_BACKBONES = {
@@ -51,7 +56,9 @@ class DinoSigLIPViTBackbone(VisionBackbone):
         self.dino_data_cfg = timm.data.resolve_model_data_config(model=None, pretrained_cfg=vars(dino_pretrained_cfg))
         self.dino_data_cfg["input_size"] = (3, self.default_image_size, self.default_image_size)
         siglip_pretrained_cfg = timm.models.get_pretrained_cfg(self.siglip_timm_path_or_url)
-        self.siglip_data_cfg = timm.data.resolve_model_data_config(model=None, pretrained_cfg=vars(siglip_pretrained_cfg))
+        self.siglip_data_cfg = timm.data.resolve_model_data_config(
+            model=None, pretrained_cfg=vars(siglip_pretrained_cfg)
+        )
         self.siglip_data_cfg["input_size"] = (3, self.default_image_size, self.default_image_size)
 
         # Initialize *both* Transforms

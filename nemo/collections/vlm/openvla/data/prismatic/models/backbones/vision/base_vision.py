@@ -68,6 +68,7 @@ class VisionBackbone(nn.Module, ABC):
     @abstractmethod
     def default_image_resolution(self) -> Tuple[int, int, int]: ...
 
+
 # === Abstract Base Class for Arbitrary TIMM Vision Transformer Backbones ===
 class TimmViTBackbone(VisionBackbone, ABC):
     def __init__(

@@ -19,26 +19,25 @@ import argparse
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.llm.api import train
-
+from nemo.collections.vlm.openvla.data.lazy import OpenVLALazyDataModule
+from nemo.collections.vlm.openvla.data.mock import MockDataModule as OpenVLAMockDataModule
 from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint, ParameterDebugger
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-
-from nemo.collections.vlm.openvla.data.mock import MockDataModule as OpenVLAMockDataModule
-from nemo.collections.vlm.openvla.data.lazy import OpenVLALazyDataModule
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train a small NEVA model using NeMo 2.0')
     parser.add_argument('--devices', type=int, default=1, help="Number of devices to use for training")
     parser.add_argument('--max-steps', type=int, default=5, help="Number of steps to train for")
-    parser.add_argument('--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to")
+    parser.add_argument(
+        '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
+    )
     parser.add_argument('--hf-token', type=str, default=None, help="Huggingface access API token")
     parser.add_argument('--experiment-name', type=str, help="name of experiment")
     parser.add_argument('--wandb-project', type=str, default=None, help="wandb project name")
@@ -56,9 +55,9 @@ if __name__ == '__main__':
 
     # mock dataset
     data = OpenVLAMockDataModule(
-        llm_backbone_id = "llama2-7b-pure",
+        llm_backbone_id="llama2-7b-pure",
         # vision_backbone_id = "dinosiglip-vit-so-224px", # fused vision encoders
-        vision_backbone_id = "clip-vit-l-336px", # one vision encoder
+        vision_backbone_id="clip-vit-l-336px",  # one vision encoder
         # vision_backbone_id = "siglip-vit-b16-224px", # one vision encoder
         seq_length=decoder_seq_length,
         global_batch_size=gbs,
