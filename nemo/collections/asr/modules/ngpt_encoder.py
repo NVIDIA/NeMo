@@ -205,14 +205,14 @@ def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
     k_rot = torch.reshape(k_rot, k.shape[:-1] + (k.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
     q_rot = torch.reshape(q_rot, q.shape)
     k_rot = torch.reshape(k_rot, k.shape)
-    return q_rot, k_rot
+    return q_rot.to(q.dtype), k_rot.to(k.dtype)
 
 
-def get_sinusoidal_embeddings(n_positions, dim):
+def get_sinusoidal_embeddings(n_positions, dim, device):
     """Generate sinusoidal positional embeddings."""
-    position = torch.arange(n_positions, dtype=torch.float).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, dim, 2).float() * (-math.log(10000.0) / dim))
-    sinusoidal_emb = torch.zeros((n_positions, dim))
+    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
+    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
+    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
     sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
     sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
     return sinusoidal_emb
@@ -280,7 +280,7 @@ class Block(nn.Module):
         k = k.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
         v = v.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
 
-        sinusoidal_pos = get_sinusoidal_embeddings(T, self.config.n_embd // self.config.n_head).to(device=q.device)
+        sinusoidal_pos = get_sinusoidal_embeddings(T, self.config.n_embd // self.config.n_head, device=q.device)
         q, k = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2), k.transpose(1, 2))
         q = q.transpose(2, 1)
         k = k.transpose(2, 1)
@@ -472,7 +472,7 @@ class GPT(nn.Module):
         use_fused = False  # fused_available and device_type == 'cuda'
         extra_args = dict(fused=True) if use_fused else dict()
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
-        print(f"[nGPT] using fused AdamW: {use_fused}")
+        logging.info(f"[nGPT] using fused AdamW: {use_fused}")
         return optimizer
 
     def normalize_matrices(self):
