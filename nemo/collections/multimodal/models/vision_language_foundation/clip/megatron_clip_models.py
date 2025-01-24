@@ -453,7 +453,6 @@ class MCoreCLIPTextModel(MCoreGPTModel):
     def __init__(self, *args, **kwargs):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = kwargs.pop('output_dim')
-        import pdb;pdb.set_trace()
         super().__init__(*args, **kwargs)
         self.final_layernorm = TENorm(
             config=self.config,
@@ -617,7 +616,7 @@ class CLIPModel(MegatronModule):
         # save_batches(images, captions)
         # images, captions = load_random_batch()
         # images, captions = images.to(torch.bfloat16).to("cuda"), captions.to("cuda")
-
+        return
         image_features = self.vision_encoder(images)
         text_features = self.text_encoder(captions)
         import pdb; pdb.set_trace()
@@ -932,6 +931,7 @@ class MegatronCLIPModel(MegatronBaseModel):
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
 
+        return torch.tensor(0.0).cuda()
         # handle asynchronous grad reduction
         no_sync_func = None
         grad_sync_func = None
@@ -1344,21 +1344,21 @@ class MegatronCLIPModel(MegatronBaseModel):
             imagenet_metric = average_losses_across_data_parallel_group(imagenet_metric)
             self.log('imagenet_top1', imagenet_metric[0], prog_bar=True, rank_zero_only=True, batch_size=1)
             self.log('imagenet_top5', imagenet_metric[1], prog_bar=True, rank_zero_only=True, batch_size=1)
-        #
-        # if parallel_state.is_pipeline_last_stage():
-        #     averaged_metrics = torch.tensor(
-        #         [torch.stack(self.validation_step_outputs).mean()], dtype=torch.float32, device='cuda'
-        #     )
-        # else:
-        #     averaged_metrics = torch.tensor([0.0], dtype=torch.float32, device='cuda')
-        #
-        # # we can only log on one rank if it is rank zero so we broadcast from last rank
-        # torch.distributed.broadcast(averaged_metrics, get_last_rank())
-        # averaged_loss = averaged_metrics
-        #
-        # self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
-        # self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
-        # self.validation_step_outputs.clear()  # free memory
+
+        if parallel_state.is_pipeline_last_stage():
+            averaged_metrics = torch.tensor(
+                [torch.stack(self.validation_step_outputs).mean()], dtype=torch.float32, device='cuda'
+            )
+        else:
+            averaged_metrics = torch.tensor([0.0], dtype=torch.float32, device='cuda')
+
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        torch.distributed.broadcast(averaged_metrics, get_last_rank())
+        averaged_loss = averaged_metrics
+
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.validation_step_outputs.clear()  # free memory
 
         return averaged_loss
 

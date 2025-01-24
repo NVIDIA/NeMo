@@ -29,7 +29,7 @@ from nemo.collections.multimodal.data.clip.clip_dataset import build_imagenet_va
 from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
 
 
-pdb.set_trace = lambda: 1
+# pdb.set_trace = lambda: 1
 """
 Example:
   python scripts/vlm/clip_finetune.py \
@@ -58,7 +58,9 @@ def return_false(a,b):
 
 def main(args):
     # pylint: disable=C0115,C0116
-
+    from importlib.metadata import version
+    assert version("megatron.energon") == '3.0.1.dev136+g920bb6b', ("Please use the dev energon."
+                                                                    "pip install 'megatron-energon @ git+https://github.com/NVIDIA/Megatron-Energon.git@920bb6b430f115fc0d9e75900bd39bfb21335ed9'")
     # Global and micro batch sizes
     gbs = args.mbs * args.devices * args.num_nodes
     args.gbs = gbs
@@ -70,13 +72,12 @@ def main(args):
     if True:
 # DiffusionDataModule
         data = EnergonMultiModalDataModule(
-            # "/workspace/data/cc3m_training_single_sample",
             args.data_path,
             seq_length=decoder_seq_length,
             image_processor=None,
             micro_batch_size=args.mbs,
             global_batch_size=args.gbs,
-            num_workers=24,
+            num_workers=args.num_workers,
             task_encoder=task_encoder,
             tokenizer = task_encoder.tokenizer,
         )
@@ -93,7 +94,6 @@ def main(args):
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
 
-    import pdb;pdb.set_trace()
     config = ClipConfigB32()
     # imagenet_validation_dataloader = None
     # imagenet_validation_dataloader = build_imagenet_validation_dataloader_params( args.imagenet_val,
@@ -104,7 +104,7 @@ def main(args):
     #                                                                               tokenizer=task_encoder.tokenizer
     #                                                                              )
 
-    import pdb; pdb.set_trace()
+
     model = CLIPModel(ClipConfigB32(), tokenizer=task_encoder.tokenizer,
                       imagenet_val=args.imagenet_val,
                       mbs=mbs,
@@ -147,11 +147,10 @@ def main(args):
         monitor="reduced_train_loss",
         save_top_k=2,
         save_on_train_epoch_end=True, # This prevents it from saving after validation
-        every_n_train_steps=1000,
+        every_n_train_steps=25000,
         dirpath=os.path.join(args.log_dir, args.name),
     )
 
-    import pdb; pdb.set_trace()
     # Trainer setup
     trainer = nl.Trainer(
         num_nodes=args.num_nodes,
@@ -161,7 +160,8 @@ def main(args):
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=1000,
+        # val_check_interval=1000,
+        check_val_every_n_epoch=5,
         limit_val_batches=1,
         log_every_n_steps=10,
         num_sanity_val_steps=0,
@@ -176,7 +176,7 @@ def main(args):
 
     # Auto resume setup
     resume = nl.AutoResume(
-        resume_if_exists=True,
+        resume_if_exists=False,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=os.path.join(args.log_dir, args.name),
     )
@@ -221,14 +221,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
     )
+
     parser.add_argument(
         "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
     )
     parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
+    parser.add_argument("--mbs", type=int, required=False, default=32, help="Micro batch size")
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
+    parser.add_argument("--num_workers", type=int, required=False, default=8)
 
     parser.add_argument("--max_steps", type=int, required=False, default=375000)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
@@ -239,7 +242,6 @@ if __name__ == "__main__":
     parser.add_argument("--peft", type=str, default='none', help="none | lora")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
-    parser.add_argument("--mbs", type=int, required=False, default=32, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
     parser.add_argument("--imagenet_val", type=str, required=False, default="/workspace/data/imagenet_validation", help="imagenet path for val")
 

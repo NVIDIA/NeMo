@@ -1,21 +1,8 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import os
 import re
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Union
+from functools import partial
+from typing import Callable, Dict, List, Optional, Union, Any, Tuple
 from megatron.core import InferenceParams
 import lightning.pytorch as L
 import torch
@@ -39,6 +26,7 @@ from megatron.core.transformer.custom_layers.transformer_engine import (
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
+from timm.models.vision_transformer import LayerScale
 from torch import nn
 from transformers import CLIPVisionConfig, CLIPVisionModel
 
@@ -46,6 +34,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
@@ -90,7 +79,7 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     return num_patches + (class_token_len if add_class_token else 0)
 
 
-def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+def openvla_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
@@ -136,7 +125,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     return _batch
 
 
-def neva_forward_step(model, batch) -> torch.Tensor:
+def openvla_forward_step(model, batch) -> torch.Tensor:
     forward_args = {
         "images": batch["media"],
         "input_ids": batch["tokens"],
@@ -162,13 +151,15 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
     For MLP, fc1 in shape of input_size, ffn_hidden_size, fc2 in shape of ffn_hidden_size, hidden_size
     """
 
-    projector_type: str = "mlp2x_gelu"
+    num_vision_encoders: int = 2
+    projector_type: Optional[str] = "openvla_mlp"
     layer_spec: Optional[MLPSubmodules] = None
     input_size: Optional[int] = 1024
-    hidden_size: int = 1024
-    ffn_hidden_size: int = 1024
+    output_size: int = 1024
+    ffn_hidden_size: Optional[int] = 0 # 4 * input_size
     activation_func: Callable = F.gelu
     bias: bool = True
+    bf16 : bool = True
     bias_activation_fusion: bool = True
     num_layers: int = 1  # placeholder, NOT used!
     num_attention_heads: int = 8  # placeholder, NOT used!
@@ -198,40 +189,70 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
                 input_size=self.input_size,
             )
 
+        assert self.projector_type == "openvla_mlp", "Only mcore projections or openvla_mlp are supported"
         # e.g. "mlp2x_gelu"
-        mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', self.projector_type)
-        if mlp_gelu_match:
-            mlp_depth = int(mlp_gelu_match.group(1))
-            modules = [torch.nn.Linear(self.input_size, self.hidden_size, bias=True)]
-            for _ in range(1, mlp_depth):
-                modules.append(torch.nn.GELU())
-                modules.append(torch.nn.Linear(self.hidden_size, self.hidden_size, bias=True))
-            model = torch.nn.Sequential(*modules)
-            from types import MethodType
+        assert self.num_vision_encoders <= 2, "Only 1 or 2 vision encoders supported"
+        if self.num_vision_encoders == 1:
+            modules = [torch.nn.Linear(self.input_size, self.output_size, bias=True)]
+            modules.append(torch.nn.GELU())
+            modules.append(torch.nn.Linear(self.output_size, self.output_size, bias=True))
+        elif self.num_vision_encoders == 2:
+            if self.ffn_hidden_size == 0:
+                self.ffn_hidden_size = 4 * self.input_size
 
-            model.set_input_tensor = MethodType(set_input_tensor, model)
+            # self.ffn_hidden_size = 0
+            modules = [torch.nn.Linear(self.input_size, self.ffn_hidden_size, bias=True)]
+            modules.append(torch.nn.GELU())
+            modules.append(torch.nn.Linear(self.ffn_hidden_size, self.output_size, bias=True))
+            modules.append(torch.nn.GELU())
+            modules.append(torch.nn.Linear(self.output_size, self.output_size, bias=True))
         else:
-            raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
+            raise NotImplementedError
 
+        model = torch.nn.Sequential(*modules)
+
+        from types import MethodType
+        model.set_input_tensor = MethodType(set_input_tensor, model)
         return model
 
 
+def unpack_tuple(fn: Callable[[Any], Tuple[Any]]) -> Callable[[Any], Any]:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        result = fn(*args, **kwargs)
+        return result[0] if isinstance(result, tuple) else result
+
+    return wrapper
+
+def _ls_new_forward(self, x: torch.Tensor) -> torch.Tensor:
+    return x.mul_(self.scale_factor) if self.inplace else x * self.scale_factor
+
+
+def ls_apply_patch(ls_module: LayerScale):
+    ls_module.scale_factor = nn.Parameter(ls_module.gamma.clone())
+    ls_module.forward = _ls_new_forward.__get__(ls_module, LayerScale)
+    del ls_module.gamma
+
+
 @dataclass
-class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
+class TimmCLIPVisionConfig(io.IOMixin):
     """
     https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/clip/configuration_clip.py#L261
     """
 
-    hidden_size: int = 1024
-    num_image_embeddings_per_tile: Optional[int] = None
-    pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
+    hidden_size: int = 1024 # It's 1024 and 1152 for us
+    pretrained_model_name_or_path: Union[str, os.PathLike] = "vit_large_patch14_reg4_dinov2.lvd142m"
+    # This is either     "vit_large_patch14_reg4_dinov2.lvd142m",
+    #     "vit_so400m_patch14_siglip_224"
+    num_image_embeddings_per_tile: Optional[int] = None # For us there is just 1 tile and this number is 256
+    patch_size: int = 14
+    image_size: int = 224
+    load_weights: bool = True
+    embed_dim: Optional[int] = None
+    override_act_layer: Optional[LayerType] = None
+    dtype: Optional[torch.dtype] = torch.bfloat16
 
     def __post_init__(self, *args, **kwargs) -> None:
-        CLIPVisionConfig.__init__(self, *args, **kwargs, hidden_size=self.hidden_size)
-        if self.pretrained_model_name_or_path is not None:
-            config = CLIPVisionConfig.from_pretrained(self.pretrained_model_name_or_path)
-            for key, value in config.to_dict().items():
-                setattr(self, key, value)
+        import pdb; pdb.set_trace()
         self.num_image_embeddings_per_tile = get_image_sequence_length(
             img_h=self.image_size,
             img_w=self.image_size,
@@ -242,13 +263,33 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
 
     def configure_model(self) -> "CLIPVisionModel":
         # Monkey patch the method to the vision encoder
-        CLIPVisionModel.set_input_tensor = set_input_tensor
+        # CLIPVisionModel.set_input_tensor = set_input_tensor
 
-        if self.pretrained_model_name_or_path is None:
-            model = CLIPVisionModel(self)
-        else:
-            model = CLIPVisionModel.from_pretrained(self.pretrained_model_name_or_path)
-        return model
+        import timm
+        self.featurizer = timm.create_model(
+            self.pretrained_model_name_or_path,
+            pretrained=False,
+            num_classes=0,
+            img_size=self.image_size,
+            act_layer=self.override_act_layer,
+        )
+
+        self.featurizer.forward = unpack_tuple(
+            partial(self.featurizer.get_intermediate_layers, n={len(self.featurizer.blocks) - 2})
+        )
+
+        # Patch `vision_backbone.featurizer` and `vision_backbone.fused_featurizer` with HF-Compatible LayerScale
+        for module in self.featurizer.modules():
+            if isinstance(module, LayerScale):
+                ls_apply_patch(module)
+
+        from types import MethodType
+        self.featurizer.set_input_tensor = MethodType(set_input_tensor, self.featurizer)
+
+        self.featurizer = self.featurizer.to(self.dtype)
+        self.featurizer.requires_grad_(False)
+        import pdb; pdb.set_trace()
+        return self.featurizer
 
 
 @dataclass
@@ -263,6 +304,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
     vision_model_type: str = "clip"  # ["clip", "siglip"]
     num_image_embeddings_per_tile: Optional[int] = None
     transformer_layer_spec: ModuleSpec = transformer_engine_layer_spec
+    bf16: bool = True
 
     num_layers: int = 1  # Placeholder, NOT used!
     num_attention_heads: int = 8  # Placeholder, NOT used!
@@ -299,72 +341,6 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
         )
 
 
-@dataclass
-class NevaConfig(TransformerConfig, io.IOMixin):
-    language_transformer_config: Optional[TransformerConfig] = None
-    vision_transformer_config: Optional[TransformerConfig] = None
-    vision_projection_config: Optional[TransformerConfig] = None
-
-    drop_vision_class_token: bool = True
-    vision_feature_layer: int = -2
-
-    encoder_pipeline_model_parallel_size: int = 0
-    encoder_tensor_model_parallel_size: int = 1
-    num_layers: int = 1  # Placeholder, NOT used!
-    num_attention_heads: int = 8  # Placeholder, NOT used!
-
-    seq_length: int = 1024
-
-    language_model_from_pretrained: Optional[str] = None
-    vision_model_from_pretrained: Optional[str] = None  # TODO
-    vision_projection_from_pretrained: Optional[str] = None  # TODO
-
-    freeze_language_model: bool = False
-    freeze_vision_model: bool = False
-    freeze_vision_projection: bool = False
-
-    forward_step_fn: Callable = neva_forward_step
-    data_step_fn: Callable = neva_data_step
-
-    def __post_init__(self):
-        if self.language_transformer_config is not None:
-            for attr in MODEL_CONFIG_ATTR:
-                setattr(self, attr, getattr(self.language_transformer_config, attr))
-
-    def configure_model(self, tokenizer) -> "MCoreNevaModel":
-        self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.language_transformer_config.sequence_parallel = self.sequence_parallel
-        self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
-        self.language_transformer_config.context_parallel_size = self.context_parallel_size
-
-        assert "NEVA `encoder_pipeline_model_parallel_size` has bug for now. Fix will come soon."
-        if self.encoder_pipeline_model_parallel_size > 0:
-            assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
-            self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            self.vision_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            self.language_transformer_config.encoder_pipeline_model_parallel_size = (
-                self.encoder_pipeline_model_parallel_size
-            )
-            if self.encoder_tensor_model_parallel_size > 0:
-                self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
-                self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
-
-        model = MCoreNevaModel(
-            config=self,
-            tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage(),
-            post_process=ps.is_pipeline_last_stage(),
-            add_encoder=ps.is_pipeline_first_stage(),
-            add_decoder=ps.is_pipeline_last_stage()
-            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
-            drop_vision_class_token=self.drop_vision_class_token,
-        )
-
-        return model
-
-
 class CLIPViTModel(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
@@ -381,30 +357,109 @@ class CLIPViTModel(MCoreCLIPViTModel):
         return super().forward(x, attention_mask)
 
 
-class MCoreNevaModel(MCoreLLaVAModel):
+@dataclass
+class OpenVLAConfig(TransformerConfig, io.IOMixin):
+    language_transformer_config: Optional[TransformerConfig] = None
+    vision_transformer_config: Optional[TransformerConfig] = None
+    secondary_vision_transformer_config: Optional[TransformerConfig] = None
+    vision_projection_config: Optional[MultimodalProjectorConfig ] = None
+    vision_feature_layer: int = -2
+    secondary_vision_feature_layer: int = -2
+
+    # TODO(abhi): Not sure what these are
+    drop_vision_class_token: bool = True
+
+    encoder_pipeline_model_parallel_size: int = 0
+    encoder_tensor_model_parallel_size: int = 1
+    num_layers: int = 1  # Placeholder, NOT used!
+    num_attention_heads: int = 8  # Placeholder, NOT used!
+
+    seq_length: int = 1024
+
+    language_model_from_pretrained: Optional[str] = None
+    vision_model_from_pretrained: Optional[str] = None  # TODO
+    vision_projection_from_pretrained: Optional[str] = None  # TODO
+
+    freeze_language_model: bool = False
+    freeze_vision_model: bool = False
+    freeze_secondary_vision_model: bool = False
+    freeze_vision_projection: bool = False
+    bf16 : bool = True
+
+    forward_step_fn: Callable = openvla_forward_step
+    data_step_fn: Callable = openvla_data_step
+
+    def __post_init__(self):
+        if self.language_transformer_config is not None:
+            for attr in MODEL_CONFIG_ATTR:
+                setattr(self, attr, getattr(self.language_transformer_config, attr))
+
+    def configure_model(self, tokenizer) -> "MCoreNevaModel":
+        self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_transformer_config.sequence_parallel = self.sequence_parallel
+        self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.secondary_vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.language_transformer_config.context_parallel_size = self.context_parallel_size
+
+        assert "NEVA `encoder_pipeline_model_parallel_size` has bug for now. Fix will come soon."
+        if self.encoder_pipeline_model_parallel_size > 0:
+            assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
+            self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            self.vision_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            self.language_transformer_config.encoder_pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
+            if self.encoder_tensor_model_parallel_size > 0:
+                self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+                self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+
+        model = MCoreOpenVLAModel(
+            config=self,
+            tokenizer=tokenizer,
+            pre_process=ps.is_pipeline_first_stage(),
+            post_process=ps.is_pipeline_last_stage(),
+            add_encoder=ps.is_pipeline_first_stage(),
+            add_secondary_encoder=ps.is_pipeline_first_stage() and self.secondary_vision_transformer_config is not None,
+            add_decoder=ps.is_pipeline_last_stage()
+            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            drop_vision_class_token=self.drop_vision_class_token,
+        )
+
+        return model
+
+# TODO(abhi): Not sure if inheriting from MCoreNevaModel is correct. We can just make a Megatron Module too.
+class MCoreOpenVLAModel(MCoreLLaVAModel):
     def __init__(
         self,
-        config: NevaConfig,
+        config: OpenVLAConfig,
         tokenizer: Optional = None,
         pre_process: bool = True,
         post_process: bool = True,
         add_encoder: bool = True,
+        add_secondary_encoder: bool = True,
         add_decoder: bool = True,
         drop_vision_class_token: bool = False,
     ) -> None:
+        # Init just the Megatron Module
         super(MCoreLLaVAModel, self).__init__(config=config)
 
+        self.config = config
         language_transformer_config = config.language_transformer_config
         vision_transformer_config = config.vision_transformer_config
+        secondary_vision_transformer_config = config.secondary_vision_transformer_config
         vision_projection_config = config.vision_projection_config
 
         self.pre_process = pre_process
         self.post_process = post_process
         self.add_encoder = add_encoder
+        self.add_secondary_encoder = add_secondary_encoder
         self.add_decoder = add_decoder
 
         self.encoder_hidden_state = None
         self.vision_model = None
+        self.secondary_vision_model = None
         self.vision_projection = None
         self.language_model = None
 
@@ -442,38 +497,55 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     validate_access_integrity=False,
                 )
 
+        self._drop_vision_class_token = drop_vision_class_token # Vision class token argument is considered
         if self.add_encoder:
             self.vision_model = vision_transformer_config.configure_model()
             self.vision_projection = vision_projection_config.configure_model()
-            self._drop_vision_class_token = drop_vision_class_token
 
-        self.freeze(
-            freeze_language_model=config.freeze_language_model,
-            freeze_vision_model=config.freeze_vision_model,
-            freeze_vision_projection=config.freeze_vision_projection,
-        )
+        if self.add_secondary_encoder:
+            self.secondary_vision_model = secondary_vision_transformer_config.configure_model()
+
+        self._freeze(freeze_language_model=config.freeze_language_model, freeze_vision_model=config.freeze_vision_model,
+                    freeze_secondary_vision_model=config.freeze_secondary_vision_model,
+                    freeze_vision_projection=config.freeze_vision_projection)
 
         self.model_type = ModelType.encoder_or_decoder
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
 
         self.vision_model_from_hf = hasattr(vision_transformer_config, "image_size")
+        self.secondary_vision_model_from_hf = hasattr(secondary_vision_transformer_config, "image_size")
+
+        if self.secondary_vision_model_from_hf:
+            assert self.vision_model_from_hf == self.secondary_vision_model_from_hf, \
+                "Both vision model and secondary vision model should be from HF"
+
+        if self.vision_model_from_hf:
+            self._drop_vision_class_token = False
+
+        # TODO(abhi): This is basically the length of image seqeunce per tile. Later this is used to calculate the seq_length for language decoder as following:
+        # # Sequence length for each sample is the image sequence length multiplied by
+        #             # the number of tiles for that image, minus image token indices,
+        #             # plus text sequence length.
+        #             seq_lens = num_image_tiles_batch * img_seq_len - num_images_per_sample + text_seq_len
+        # I think we can set number of tiles as 1 and img_Seq_len as DInoV2 + SigLip models' output seq lengths or just SigLip models' output seq lengths
+        # Depending on which model we are using.
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
 
     def forward(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        loss_mask: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        images: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
-        inference_params: Optional[InferenceParams] = None,
-        num_image_tiles: Optional[List[int]] = None,
-        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
-        runtime_gather_output: Optional[bool] = None,
-        image_token_mask: Optional[torch.Tensor] = None,
-        packed_seq_params: Optional[PackedSeqParams] = None,
+            self,
+            input_ids: torch.Tensor,
+            position_ids: torch.Tensor,
+            loss_mask: Optional[torch.Tensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            images: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            inference_params: Optional[InferenceParams] = None,
+            num_image_tiles: Optional[List[int]] = None,
+            image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
+            runtime_gather_output: Optional[bool] = None,
+            image_token_mask: Optional[torch.Tensor] = None,
+            packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         """Forward function of the LLaVA model.
 
@@ -502,7 +574,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         """
 
         use_inference_kv_cache = (
-            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+                inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = images is not None and images.shape[0] > 0
         # images : bsz * 3 * 336 * 336
@@ -513,24 +585,56 @@ class MCoreNevaModel(MCoreLLaVAModel):
             vision_param = next(self.vision_model.parameters())
             # If no images provided, use an empty image embeddings tensor.
             image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(0, 0, 0)
-        elif self.add_encoder and has_images:
-            # images is in shape of (num_images_in_mbs, c, h, w)
-            # note num_images_in_mbs is not mbs but total images in this mbs.
+        elif self.add_encoder and (not self.add_secondary_encoder) and has_images:
+            assert "TODO(Abhi): Need to implement the case where we just have one vision encoder."
             images = images.to(next(self.vision_model.parameters()).dtype)
+            img = images # img is in shape of (bsz, 3, h, w) h and 2 are 224 and 224 respectively
+
             if self.vision_model_from_hf:
                 self.vision_model = self.vision_model.eval()
-                image_embeddings = self.vision_model(images, output_hidden_states=True)
-                image_embeddings = image_embeddings[-1][
-                    self.config.vision_feature_layer
-                ]  # [num_images, img_seq_len, h_vision]
+                image_embeddings = self.vision_model(images)  # [1, 256, 1024]
             else:
                 # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
                 image_embeddings = self.vision_model(images, num_unused_layers=-self.config.vision_feature_layer - 1)
+
+        elif self.add_encoder and self.add_secondary_encoder and has_images:
+            # Code from OpenVLA HF(Maybe Huy's dataset will be in the same format?)
+            #        # Split `pixel_values :: [bsz, 2 * 3, resolution, resolution]` =>> featurize =>> channel stack
+            # img, img_fused = torch.split(pixel_values, [3, 3], dim=1)
+            # patches, patches_fused = self.featurizer(img), self.fused_featurizer(img_fused)
+
+            # images is in shape of (num_images_in_mbs, c, h, w)
+            # note num_images_in_mbs is not mbs but total images in this mbs which is approximately equal to num_tiles*mbs.
+            images = images.to(next(self.vision_model.parameters()).dtype)
+
+            # Assuming we are getting images in the shape of (mbs, 2*3, h, w)
+            img, img_secondary = torch.split(images, [3, 3], dim=1)
+            # Img and img_secondary is in shape of (mbs, c, h, w) where c=3
+            if self.vision_model_from_hf:
+                self.vision_model = self.vision_model.eval()
+                image_embeddings = self.vision_model(img)  # [1, 256, 1024]
+            else:
+                # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
+                image_embeddings = self.vision_model(img, num_unused_layers=-self.config.vision_feature_layer - 1)
+
+            if self.secondary_vision_model_from_hf:
+                self.secondary_vision_model = self.secondary_vision_model.eval()
+                image_embeddings_secondary = self.secondary_vision_model(img_secondary) # [1, 256, 1152]
+            else:
+                # TOdo(yuya): MCore Clip path not yet support taking a specific layer hidden states
+                image_embeddings_secondary = self.secondary_vision_model(
+                    img_secondary, num_unused_layers=-self.config.secondary_vision_feature_layer - 1
+                )
+
+            # TODO(Abhi): Check if the dim is correct. HF concats along dim 2
+            image_embeddings = torch.cat([image_embeddings, image_embeddings_secondary], dim=2)
+            import pdb; pdb.set_trace()
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
                 image_embeddings = image_embeddings[:, class_token_len:, :]
 
             # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
+            # Todo(Abhi): Ask Yu why we are doing this
             image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
 
             # map vision model output size to language model input size.
@@ -541,10 +645,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # Store the image tokens sequence length to be used as an offset to the KV cache later.
             if inference_params is not None:
                 inference_params.key_value_memory_dict["image_tokens_count"] = (
-                    image_embeddings.shape[0] * image_embeddings.shape[1]
+                        image_embeddings.shape[0] * image_embeddings.shape[1]
                 )
         else:
-            image_embeddings = self.encoder_hidden_state
+            raise ValueError(f"Invalid combination of add_encoder and add_secondary_encoder. "
+                             f"{self.add_encoder = }, {self.add_secondary_encoder = }")
 
         if not self.add_decoder:
             return image_embeddings
@@ -561,8 +666,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 # Pad to nearest multiple of TP world size for embedding.
                 tp_world_size = ps.get_tensor_model_parallel_world_size()
                 padded_seq_len = (
-                    int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
-                    - input_ids_text.shape[1]
+                        int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
+                        - input_ids_text.shape[1]
                 )
                 if padded_seq_len != 0:
                     input_ids_text = torch.nn.functional.pad(input_ids_text, (0, padded_seq_len))
@@ -584,24 +689,26 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     language_embeddings = language_embeddings[:-padded_seq_len]
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
+
         # Assume 1 tile per image if the number of tiles is not provided.
         if num_image_tiles is None:
             num_image_tiles = torch.ones(images.shape[0], dtype=torch.int, device=input_ids.device)
         elif isinstance(num_image_tiles, list):
             num_image_tiles = torch.tensor(num_image_tiles, dtype=torch.int, device=input_ids.device)
 
+        import pdb; pdb.set_trace()
         # Preprocess input, labels and loss mask.
         combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
-            image_embeddings,
-            language_embeddings,
-            input_ids,
-            loss_mask,
-            labels,
-            use_inference_kv_cache,
-            image_token_index,
-            num_image_tiles,
-            attention_mask,
-            packed_seq_params,
+            image_embeddings=image_embeddings,
+            language_embeddings=language_embeddings,
+            input_ids=input_ids,
+            loss_mask=loss_mask,
+            labels=labels,
+            use_inference_kv_cache=use_inference_kv_cache,
+            image_token_index=image_token_index,
+            num_image_tiles=num_image_tiles,
+            attention_mask=attention_mask,
+            packed_seq_params=packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         output = self.language_model(
@@ -619,23 +726,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             return output
 
         return output, final_loss_mask.contiguous()
-
-    def set_input_tensor(self, input_tensor) -> None:
-        """Set model chunk input tensor."""
-        # This is usually handled in schedules.py but some inference code still
-        # gives us non-lists or None
-        if not isinstance(input_tensor, list):
-            input_tensor = [input_tensor]
-        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for llava'
-
-        if self.add_encoder and self.add_decoder:
-            self.vision_model.set_input_tensor(input_tensor[0])
-        elif self.add_encoder:
-            self.vision_model.set_input_tensor(input_tensor[0])
-        elif self.pre_process:
-            self.encoder_hidden_state = input_tensor[0]
-        else:
-            self.language_model.set_input_tensor(input_tensor[0])
 
     def _preprocess_data(
         self,
@@ -716,6 +806,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             num_image_tiles_batch = num_image_tiles.split(num_images_per_sample.tolist(), dim=0)
             num_image_tiles_batch = torch.tensor([x.sum() for x in num_image_tiles_batch], device=input_ids.device)
 
+            import pdb; pdb.set_trace()
             # Sequence length for each sample is the image sequence length multiplied by
             # the number of tiles for that image, minus image token indices,
             # plus text sequence length.
@@ -892,11 +983,39 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
+    def _freeze(
+        self, freeze_language_model: bool, freeze_vision_model: bool,
+            freeze_secondary_vision_model: bool,
+            freeze_vision_projection: bool
+    ):
+        """Freeze model modules.
 
-class  NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+        Make specific modules non-trainable by setting requires_grad to False.
+
+        Args:
+            freeze_language_model (bool): Freeze the language model module.
+            freeze_vision_model (bool): Freeze the vision model module.
+            freeze_secondary_vision_model (bool): Freeze the secondary vision model module.
+            freeze_vision_projection (bool): Freeze the vision projection module.
+        """
+        modules = []
+        if freeze_language_model and self.language_model is not None:
+            modules.append(self.language_model)
+        if freeze_vision_model and self.vision_model is not None:
+            modules.append(self.vision_model)
+        if freeze_secondary_vision_model and self.secondary_vision_model is not None:
+            modules.append(self.secondary_vision_model)
+        if freeze_vision_projection and self.vision_projection is not None:
+            modules.append(self.vision_projection)
+
+        for module in modules:
+            for param in module.parameters():
+                param.requires_grad = False
+
+class OpenVLAModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
-        config: NevaConfig,
+        config: OpenVLAConfig,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
@@ -976,9 +1095,3 @@ class  NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self._validation_loss_reduction
 
 
-__all__ = [
-    "NevaModel",
-    "NevaConfig",
-    "neva_data_step",
-    "neva_forward_step",
-]

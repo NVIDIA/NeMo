@@ -168,6 +168,8 @@ class WebDatasetCommon(NeMoIterableDataset):
             train_info['chunk_size'] = self.webdata_cfg.get("chunk_size", 1000)
             train_info['total_key_count'] = train_info['chunk_size'] * len(train_info['tar_files'])
 
+        # logging.info()
+        import pdb; pdb.set_trace()
         self.data_parallel_size = parallel_state.get_data_parallel_world_size()
         chunk_size = train_info['chunk_size']
 
@@ -238,6 +240,8 @@ class WebDatasetCommon(NeMoIterableDataset):
             assert (
                 self.filterings is None
             ), 'Webdataset Random Sampler should not be used with filters. Switch to infinite sampler'
+            logging.info(f'Length of shards_train_list: {len(shards_train_list)}')
+            logging.info(f"First 5 shards: {shards_train_list[:5]}")
             shards_train_list = WDSUrlsRandomSampler(
                 urls=shards_train_list,
                 total_urls=len(shards_train_list),

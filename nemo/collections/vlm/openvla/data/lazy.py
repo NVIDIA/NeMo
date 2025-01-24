@@ -30,6 +30,7 @@ from torch.utils import data
 from torch.utils.data import DataLoader, Dataset, default_collate
 from transformers import CLIPImageProcessor, SiglipImageProcessor
 
+from nemo.collections.vlm.openvla.data.prismatic.util import *
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
 from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
@@ -159,6 +160,8 @@ class OpenVLALazyDataModule(pl.LightningDataModule):
         # DEBUGGING
         # we still set it here because we need self.data_sampler in multiple places (e.g. setup_microbatch_calculator, on_megatron_step_start, compute_consumed_samples),
         # but we disable to process_dataloader() method in megatron_strategy.py
+
+        # TODO(abhinavg): WHy are we using decoder_seq_length here?
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             decoder_seq_len=self.decoder_seq_length,
@@ -190,15 +193,16 @@ class OpenVLALazyDataModule(pl.LightningDataModule):
                 train=self.train,
                 image_aug=self.image_aug,
             )
-            self._validation_ds = RLDSDataset(
-                self.paths,
-                self.data_mix,
-                self.batch_transform,
-                resize_resolution=self.vision_backbone.default_image_resolution[1:],
-                shuffle_buffer_size=self.shuffle_buffer_size,
-                train=self.train,
-                image_aug=self.image_aug,
-            )
+            self._validation_ds = self._train_ds
+            # self._validation_ds = RLDSDataset(
+            #     self.paths,
+            #     self.data_mix,
+            #     self.batch_transform,
+            #     resize_resolution=self.vision_backbone.default_image_resolution[1:],
+            #     shuffle_buffer_size=self.shuffle_buffer_size,
+            #     train=self.train,
+            #     image_aug=self.image_aug,
+            # )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return self._create_dataloader(self._train_ds)

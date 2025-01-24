@@ -93,6 +93,7 @@ class CLIPTextModelB_32_224_Config(CLIPTextModelConfig):
     persist_layer_norm: bool = True  # Use of persistent fused layer norm kernel.
     masked_softmax_fusion: bool = True
     bias_dropout_fusion: bool = True
+    bias_activation_fusion: False
 
 
 @dataclass

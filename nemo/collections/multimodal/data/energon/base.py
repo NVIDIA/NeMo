@@ -148,17 +148,34 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         # import megatron.energon.flavors.webdataset.sample_loader.WebdatasetSampleLoaderDataset
         if split not in {'train', 'val'}:
             raise ValueError("Invalid value for split. Allowed values are 'train' or 'val'.")
+        shuffle_buffer_size = 2500
+        max_samples_per_sequence = 2500
+
+        if self.num_workers != 64 and False:
+            shuffle_buffer_size = 100
+            max_samples_per_sequence = 100
+        # if self.num_workers == 32:
+        #     shuffle_buffer_size = 100
+        #     max_samples_per_sequence = 500
+
+        logging.info(f"Worker config: {worker_config}")
+        logging.info(f"Trying to get the dataset with following parameters:"
+                     f"Path: {self.path}, "
+                     f"batch_size: {self.micro_batch_size}, "
+                     f"shuffle_buffer_size: {shuffle_buffer_size}, "
+                     f"max_samples_per_sequence: {max_samples_per_sequence}, ")
         _dataset = get_train_dataset(
             self.path,
             batch_size=self.micro_batch_size,
             task_encoder=self.task_encoder,
             worker_config=worker_config,
-            max_samples_per_sequence=None,
+            max_samples_per_sequence=max_samples_per_sequence,
             packing_buffer_size=self.packing_buffer_size,
-            shuffle_buffer_size=100,
+            shuffle_buffer_size=shuffle_buffer_size,
             split_part=split,
+            image_decode="pil",
+            ignore_decoder_errors=True
         )
-        import pdb; pdb.set_trace()
         return _dataset
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -223,7 +240,8 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 f"Muiltimodal val data loader parallel state is not initialized,"
                 "using default worker config with no_workers {self.num_workers}"
             )
-            worker_config = WorkerConfig.default_worker_config(self.num_workers)
+            # worker_config = WorkerConfig.default_worker_config(self.num_workers)
+            worker_config = WorkerConfig.default_worker_config(1) # We just use 1 worker for val for now
         else:
             rank = parallel_state.get_data_parallel_rank()
             world_size = parallel_state.get_data_parallel_world_size()
@@ -233,7 +251,8 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
             worker_config = WorkerConfig(
                 rank=rank,
                 world_size=world_size,
-                num_workers=self.num_workers,
+                num_workers=1, # We just use 1 worker for val for now
+                # num_workers=self.num_workers,
                 data_parallel_group=data_parallel_group,
                 worker_debug_path=None,
                 worker_log_level=0,
@@ -267,17 +286,18 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Dict[str, Any]: A dictionary containing the state of the data module.
         """
 
-        if self.trainer and parallel_state.get_data_parallel_rank() == 0:
+        if self.trainer:
             dataloader_obj = self.trainer.train_dataloader
             start = time.time()
-            state = dataloader_obj.save_state()
+            import pdb; pdb.set_trace()
+            state = dataloader_obj.save_state_global(dst_rank=0)
             # state = dataloader_obj.save_state_rank()
             logging.info(f"Multimodal state saved in {time.time() - start} seconds")
             consumed_samples = self.data_sampler.compute_consumed_samples(
                 self.trainer.global_step - self.init_global_step
             )
             logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
-            return {'dataloader_state': state, 'consumed_samples': consumed_samples}
+            return {"dataloader_state": state, 'consumed_samples': consumed_samples}
 
         logging.warning("trainer object not connected to data module object returning empty state")
         return {}
@@ -301,7 +321,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         state = state_dict['dataloader_state']
         try:
             if self.trainer:
-                self.trainer.datamodule.train_dataloader().restore_state(state)
+                self.trainer.datamodule.train_dataloader().restore_state(state, src_rank=0)
                 logging.info(f" Multimodal dataloader state restored")
             else:
                 logging.error(f"Cannot restore state from state_dict {state_dict}")

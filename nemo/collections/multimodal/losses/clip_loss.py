@@ -124,10 +124,8 @@ class ClipLoss(nn.Module):
         self.rank = parallel_state.get_data_parallel_rank()
 
     def forward(self, output_tensor):
-
         image_features, text_features, logit_scale = output_tensor
         # print(logit_scale)
-        import pdb; pdb.set_trace()
         device = image_features.device
         if self.world_size > 1:
             all_image_features, all_text_features = gather_features(

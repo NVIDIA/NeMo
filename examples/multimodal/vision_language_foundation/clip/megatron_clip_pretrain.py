@@ -17,7 +17,7 @@ import pytorch_lightning as pl
 pl.seed_everything(1234, workers=True)
 
 import pdb
-pdb.set_trace = lambda: 1
+# pdb.set_trace = lambda: 1
 
 import torch
 

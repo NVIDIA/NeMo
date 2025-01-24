@@ -407,7 +407,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         logging.info('Starting zero-shot imagenet.')
 
         logging.info('Building zero-shot classifier')
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         classifier = self.zero_shot_classifier()
 
         logging.info('Using classifier')

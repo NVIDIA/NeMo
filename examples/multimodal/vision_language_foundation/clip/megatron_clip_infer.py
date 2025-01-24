@@ -67,7 +67,6 @@ def main(cfg) -> None:
         texts = text_transform(cfg.texts).cuda()
         image_features = vision_encoder(image)
         text_features = text_encoder(texts)
-        import pdb; pdb.set_trace()
         image_features /= image_features.norm(dim=-1, keepdim=True)
         text_features /= text_features.norm(dim=-1, keepdim=True)
 

@@ -107,7 +107,17 @@ class WDSUrlsRandomSampler(IterableDataset):
         else:
             active_total_urls = self.total_urls + self.data_parallel_size - self.remaining_urls
 
-        self.epoch.set_value(self.consumed_urls // active_total_urls)
+        if active_total_urls == 0:
+            self.epoch.set_value(0)
+            logging.info(f"{active_total_urls = },"
+                         f"self.total_urls = {self.total_urls},"
+                         f"self.remaining_urls = {self.remaining_urls},"
+                         f"self.data_parallel_size = {self.data_parallel_size},"
+                         f"self.consumed_urls = {self.consumed_urls},"
+                         f"self.num_workers = {num_workers},"
+                         f"self.chunk_size = {self.chunk_size},")
+        else:
+            self.epoch.set_value(self.consumed_urls // active_total_urls)
         current_epoch_urls = self.consumed_urls % active_total_urls
 
         # data sharding and random sampling

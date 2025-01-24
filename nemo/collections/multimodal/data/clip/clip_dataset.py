@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from functools import partial
 from typing import Any, List, Union
 
@@ -128,8 +129,13 @@ def transform_fn(sample, img_transform, text_transform):
     image, text = sample["jpg"], sample["txt"]
     # print(sample["jpg"])
     # print(sample["jpg"].type())
-
-    return img_transform(image), text_transform(text)
+    img_transformed, text_transformed = img_transform(image), text_transform(text)
+    # logging.info("img_transformed_type: {}".format(type(img_transformed)))
+    # logging.info("text_transformed_type: {}".format(type(text_transformed)))
+    # Shapes
+    # logging.info("img_transformed_shape: {}".format(img_transformed.shape))
+    # logging.info("text_transformed_shape: {}".format(text_transformed.shape))
+    return img_transformed, text_transformed
 
 
 def build_train_valid_datasets(
@@ -148,6 +154,7 @@ def build_train_valid_datasets(
         is_train=True,
     )
 
+
     val_data = None
     if data_cfg.get("validation") is not None and data_cfg.validation.get("dataset_path"):
         val_img_transform, text_transform = get_preprocess_fns(model_cfg, tokenizer, is_train=False)
@@ -159,7 +166,7 @@ def build_train_valid_datasets(
             is_train=False,
         )
 
-    return train_data, train_data
+    return train_data, val_data
 
 
 def custom_collate(batch):

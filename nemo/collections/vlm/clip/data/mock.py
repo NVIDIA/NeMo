@@ -21,6 +21,7 @@ from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADER
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
+from nemo.collections.asr.parts.numba.rnnt_loss.utils.global_constants import dtype
 from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
@@ -42,6 +43,7 @@ class MockDataModule(pl.LightningDataModule):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
+        task_encoder: Optional[Any] = None,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -54,8 +56,12 @@ class MockDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
+        self.task_encoder = task_encoder
+        self.tokenizer = tokenizer
+        self.image_processor = image_processor
 
-        if tokenizer is None or image_processor is None:
+        # if tokenizer is None or image_processor is None:
+        if False:
             logging.warning(f"Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
             from transformers import AutoProcessor
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -73,7 +79,8 @@ class MockDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = _MockClipDataset(
-            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length
+            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length,
+            task_encoder=self.task_encoder
         )
         self._validation_ds = _MockClipDataset(
             self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length
@@ -119,15 +126,6 @@ class MockDataModule(pl.LightningDataModule):
         Dict[str, Any]: A dictionary containing the state of the data module.
         """
 
-        if self.trainer:
-            dataloader_obj = self.trainer.train_dataloader
-            state = dataloader_obj.save_state()
-            consumed_samples = self.data_sampler.compute_consumed_samples(
-                self.trainer.global_step - self.init_global_step
-            )
-            logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
-            return {'dataloader_state': state, 'consumed_samples': consumed_samples}
-
         logging.warning("trainer object not connected to data module object returning empty state")
         return {}
 
@@ -142,18 +140,22 @@ class _MockClipDataset(Dataset):
         num_samples: int,
         seq_length: int,
         seed: int = 42,
+        task_encoder=None
     ) -> None:
         super().__init__()
         self.name = name
         self.seq_length = seq_length
 
+
+        print(f"{tokenizer}")
         self.vocab_size = tokenizer.vocab_size
 
-        crop_size = image_processor.crop_size
-        self.image_height, self.image_width = crop_size["height"], crop_size["width"]
+        # crop_size = image_processor.crop_size
+        # self.image_height, self.image_width = crop_size["height"], crop_size["width"]
 
         self.length = num_samples
         self.seed = seed
+        self.task_encoder = task_encoder
 
     def __len__(self) -> int:
         return self.length
@@ -164,9 +166,68 @@ class _MockClipDataset(Dataset):
 
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
+        # return {}
+
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        concatenated_pixel_values = torch.from_numpy(np_gen.random(size=(1, 6, 336, 336), dtype=np.float32))
+        input_ids = torch.from_numpy(np_gen.integers(20, size=(1, 32), dtype=np.int64))
+        input_ids[:, 1] = -200
+        labels = torch.from_numpy(np_gen.integers(20, size=(1, 32), dtype=np.int64))
+        attention_mask = torch.ones_like(input_ids)
+        loss_mask = torch.ones_like(input_ids)
+        position_ids = torch.zeros_like(input_ids)
+
+        output = dict(
+            media=concatenated_pixel_values,
+            tokens=input_ids,
+            attention_mask=None,
+            labels=labels,
+            loss_mask=None,
+            position_ids=None,
+        )
+        return output
+
+        concatenated_pixel_values = torch.randn(1, 3, 336, 336) * 0.9485338926315308 - 0.0002835348423104733
+        input_ids = torch.tensor([[1, -200, 512, 29901, 1724, 3158, 881, 278, 19964, 2125,
+                                   304, 5839, 701, 278, 13328, 18002, 29973, 13, 3744, 29901,
+                                   29871, 31999, 31872, 31872, 31872, 31872, 31872, 31744, 2, 0,
+                                   0, 0]], dtype=torch.int64)
+        labels = torch.tensor([[-100, -100, -100, -100, -100, -100, -100, -100, -100, -100,
+                                -100, -100, -100, -100, -100, -100, -100, -100, -100, -100,
+                                31999, 31872, 31872, 31872, 31872, 31872, 31744, 2, -100, -100,
+                                -100, -100]], dtype=torch.int64)
+        loss_mask = torch.tensor([[True, True, True, True, True, True, True, True, True, True,
+                                   True, True, True, True, True, True, True, True, True, True,
+                                   False, False, False, False, False, False, False, False, True, True,
+                                   True, True]], dtype=torch.bool)
+        attention_mask = torch.tensor([[True, True, True, True, True, True, True, True, True, True,
+                                        True, True, True, True, True, True, True, True, True, True,
+                                        True, True, True, True, True, True, True, True, True, False,
+                                        False, False]], dtype=torch.bool)
+        position_ids = torch.arange(0, 32).unsqueeze(0)
+        position_ids = position_ids.to(dtype=torch.int64)
+
+
+
+        # Construct the output dictionary
+        output = dict(
+            media=concatenated_pixel_values,
+            tokens=input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
+            loss_mask=loss_mask,
+            position_ids=position_ids,
+        )
+        output = {k: v.cuda() for k, v in output.items()}
+        return output
+
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
         images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
+
+        if self.task_encoder is not None:
+            # logging.info("Using task encoder")
+            return self.task_encoder.encode_sample({"image": images, "txt": "This is Random Mock Text"})
 
         return {
             "images": images,
