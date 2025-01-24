@@ -24,7 +24,7 @@ export NEMO_RUN_TAG=34259bd3e752fef94045a9a019e4aaf62bd11ce2
 export APEX_TAG=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
 export CAUSAL_CONV_TAG=v1.2.2.post1
 export MAMBA_TAG=v2.2.0
-export MCORE_TAG=5c1238256853b202c73768a64988f6a7ba411961
+export MCORE_TAG=0d591579d0c55446c4a7a6e20d9c37c7e7263470
 export NV_RESILIENCY_EXT_TAG=97aad77609d2e25ed38ac5c99f0c13f93c48464e
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
@@ -65,6 +65,7 @@ if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
     "unstructured==0.14.9"
     "git+https://github.com/Dao-AILab/causal-conv1d.git@${CAUSAL_CONV_TAG}"
     "git+https://github.com/state-spaces/mamba.git@${MAMBA_TAG}"
+    "triton==3.1.0"
   )
 
   pip install --no-cache-dir -r tools/ctc_segmentation/requirements.txt
