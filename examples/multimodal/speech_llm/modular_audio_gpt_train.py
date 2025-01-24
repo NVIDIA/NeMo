@@ -11,8 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+
 import pytorch_lightning as pl
 import torch
+from one_logger_utils.nemo import hook_model_cls
 
 
 class PROFILING(pl.Callback):
@@ -113,8 +116,38 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
+    model_name = str(cfg.exp_manager.name).split("_")[1]
+    suffix = 'test'
+
+    one_logger_callback_config = {
+        "enable_for_current_rank": os.environ.get('RANK') == '0',
+        "one_logger_async": cfg.get("exp_manager").get("create_wandb_logger", False),
+        "log_every_n_train_iterations": cfg.get("trainer").get("log_every_n_steps", 10),
+        "app_tag_run_version": "0.0.0",
+        "summary_data_schema_version": "1.0.0",
+        "app_run_type": "training",
+        "app_tag": cfg.exp_manager.name,  # Please change this
+        "app_tag_run_name": f"{model_name}-{suffix}",  # Please change this
+        "one_logger_project": "nemo-llm",  # Please change this
+        "one_logger_run_name": cfg.exp_manager.name,  # Please change this
+        "world_size": os.environ.get('WORLD_SIZE', -1),
+        "global_batch_size": cfg.get("model").get("global_batch_size", 1),
+        "batch_size": cfg.get("model").get("global_batch_size", 1),
+        "train_iterations_target": cfg.get("trainer").get("max_steps", 1),
+        "train_samples_target": cfg.get("trainer").get("max_steps", 1) * cfg.get("model").get("global_batch_size", 1),
+        "is_train_iterations_enabled": True,
+        "is_baseline_run": False,
+        "is_test_iterations_enabled": False,
+        "is_validation_iterations_enabled": True,
+        "is_save_checkpoint_enabled": True,
+        "is_log_throughput_enabled": False,
+        "micro_batch_size": cfg.get("model").get("micro_batch_size", 1),
+        "seq_length": 1,
+        "save_checkpoint_strategy": "sync",
+    }
+
     precision = cfg.trainer.precision
-    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
+    trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer(one_logger_config=one_logger_callback_config)
     if hasattr(cfg, 'do_profiling') and cfg.do_profiling:
         trainer.callbacks.append(PROFILING())
     cfg.trainer.precision = precision
@@ -127,6 +160,7 @@ def main(cfg) -> None:
         imported_cls = model_utils.import_class_by_path(cfg.model_target)
     else:
         imported_cls = ModularAudioGPTModel
+    imported_cls = hook_model_cls(imported_cls, trainer)
     model = imported_cls.restore_from_pretrained_models(cfg, trainer=trainer)
 
     trainer.fit(model)

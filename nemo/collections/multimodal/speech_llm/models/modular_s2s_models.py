@@ -466,6 +466,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         return model
 
     def post_restore_from_pretrained_models(cls, model, cfg):
+
+        model = super().restore_from_pretrained_models(cfg, trainer)
+
         codec_model, codec_model_cfg = cls.get_codec_models_and_configs(cfg)
         logging.info(f"Loaded Codec Model: {codec_model}")
 
@@ -511,9 +514,12 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         cfg: Optional[Union[OmegaConf, str]] = None,
         trainer: Optional[Trainer] = None,
     ):
+        trainer.time_event_callback.logtimeevent.on_model_init_start()
         model = super().restore_from_pretrained_models(cfg, trainer)
+        trainer.time_event_callback.logtimeevent.on_model_init_end()
+        trainer.time_event_callback.logtimeevent.on_load_checkpoint_start()
         cls.post_restore_from_pretrained_models(cls, model, cfg)
-
+        trainer.time_event_callback.logtimeevent.on_load_checkpoint_end()
         return model
 
     def load_state_dict(self, state_dict, strict: bool = True):
