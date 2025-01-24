@@ -189,7 +189,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_Lightning') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure-gpus-1
+       RUNNER: self-hosted-azure
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/lightning -m "not pleasefixme" --with_downloads
 
