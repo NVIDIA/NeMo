@@ -435,7 +435,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Setups dist env"""
         super().setup_distributed()
         _strategy_lib.init_model_parallel(self.parallelism)
-        _strategy_lib.setup_microbatch_calculator(global_batch_size=256, micro_batch_size=1, global_rank=self.cluster_environment.global_rank())
+        _strategy_lib.setup_microbatch_calculator(
+            global_batch_size=256, micro_batch_size=1, global_rank=self.cluster_environment.global_rank()
+        )
 
         if self.data_sampler:
             assert isinstance(self.cluster_environment, ClusterEnvironment), "Cluster environment not initialized"
