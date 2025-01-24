@@ -44,18 +44,30 @@ def asr_model(test_data_dir):
 
     model_defaults = {'asr_enc_hidden': 128, 'lm_enc_hidden': 64, 'lm_dec_hidden': 64}
 
+    # encoder = {
+    #     'cls': 'nemo.collections.asr.modules.ConformerEncoder',
+    #     'params': {
+    #         'feat_in': 64,
+    #         'n_layers': 1,
+    #         'd_model': model_defaults['asr_enc_hidden'],
+    #         'subsampling': 'dw_striding',
+    #         'subsampling_factor': 2,
+    #         'ff_expansion_factor': 4,
+    #         'self_attention_model': 'rel_pos',
+    #         'n_heads': 4,
+    #         'conv_kernel_size': 9,
+    #     },
+    # }
+
     encoder = {
-        'cls': 'nemo.collections.asr.modules.ConformerEncoder',
+        'cls': 'nemo.collections.asr.modules.ngpt_encoder.NGPTEncoder',
         'params': {
             'feat_in': 64,
             'n_layers': 1,
             'd_model': model_defaults['asr_enc_hidden'],
             'subsampling': 'dw_striding',
             'subsampling_factor': 2,
-            'ff_expansion_factor': 4,
-            'self_attention_model': 'rel_pos',
             'n_heads': 4,
-            'conv_kernel_size': 9,
         },
     }
 
@@ -779,3 +791,112 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
         == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|><|0|>h##el##l##o<|3|><|4|>w##o##r##l##d<|5|><|endoftext|>'
     )
     assert batch.prompted_transcript_lens[i] == 39
+
+
+@pytest.fixture()
+def asr_model_ngpt(test_data_dir):
+    preprocessor = {
+        'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
+        'params': {"window_size": 0.02, "window_stride": 0.01, "features": 64},
+    }
+
+    model_defaults = {'asr_enc_hidden': 128, 'lm_enc_hidden': 64, 'lm_dec_hidden': 64}
+
+    encoder = {
+        'cls': 'nemo.collections.asr.modules.ngpt_encoder.NGPTEncoder',
+        'params': {
+            'feat_in': 64,
+            'n_layers': 1,
+            'd_model': model_defaults['asr_enc_hidden'],
+            'subsampling': 'dw_striding',
+            'subsampling_factor': 2,
+            'ff_expansion_factor': 4,
+            'n_heads': 4,
+        },
+    }
+
+    transf_decoder = {
+        '_target_': 'nemo.collections.asr.modules.transformer.get_nemo_transformer',
+        'model_name': None,
+        'pretrained': False,
+        'encoder': None,
+        'pre_ln_final_layer_norm': True,
+        'config_dict': {
+            'max_sequence_length': 512,
+            'num_token_types': 0,
+            'hidden_size': model_defaults['lm_dec_hidden'],
+            'inner_size': 4 * model_defaults['lm_dec_hidden'],
+            'num_layers': 1,
+            'num_attention_heads': 2,
+            'pre_ln': True,
+            'vocab_size': None,
+        },
+    }
+
+    head = {
+        '_target_': 'nemo.collections.asr.parts.submodules.token_classifier.TokenClassifier',
+        'num_layers': 1,
+        'activation': 'relu',
+        'log_softmax': True,
+        'hidden_size': model_defaults['lm_dec_hidden'],
+        'num_classes': None,
+    }
+
+    decoding = {'strategy': 'beam', 'beam': {'beam_size': 1}}
+
+    # os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128")
+    tokenizer = {
+        'dir': None,
+        'type': 'agg',
+        'langs': {
+            'spl_tokens': {
+                'dir': os.path.join(test_data_dir, "asr", "tokenizers", "canary"),
+                'type': 'bpe',
+            },
+            'en': {
+                'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
+                'type': 'wpe',
+            },
+            'de': {
+                'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
+                'type': 'wpe',
+            },
+        },
+        'custom_tokenizer': {
+            '_target_': 'nemo.collections.common.tokenizers.canary_tokenizer.CanaryTokenizer',
+            'tokenizers': None,
+        },
+    }
+
+    optim = {
+        'name': 'adamw',
+        'lr': 1e-4,
+    }
+
+    loss = {
+        '_target_': 'nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss',
+        'label_smoothing': 0.0,
+    }
+
+    modelConfig = DictConfig(
+        {
+            'prompt_format': 'canary',
+            'prompt_defaults': [
+                {"role": "user", "slots": {"source_lang": "en", "target_lang": "en", "task": "asr", "pnc": "yes"}}
+            ],
+            'sample_rate': 16000,
+            'preprocessor': DictConfig(preprocessor),
+            'model_defaults': DictConfig(model_defaults),
+            'encoder': DictConfig(encoder),
+            'transf_decoder': DictConfig(transf_decoder),
+            'head': DictConfig(head),
+            'tokenizer': DictConfig(tokenizer),
+            'decoding': DictConfig(decoding),
+            'optim': DictConfig(optim),
+            'loss': DictConfig(loss),
+        }
+    )
+
+    model_instance = EncDecMultiTaskModel(cfg=modelConfig)
+    model_instance.configure_optimizers()
+    return model_instance
