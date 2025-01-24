@@ -140,7 +140,7 @@ class MegatronDataSampler(DataSampler):
 
         if step.step_i:
             from megatron.core import parallel_state
-            data_paralell_size = parallel_state.get_data_parallel_world_size()
+            data_parallel_size = parallel_state.get_data_parallel_world_size()
             consumed_samples = self.compute_consumed_samples(data_parallel_size, step.step_i + 1 - self.init_global_step)
             if self.output_log and trainer and getattr(trainer, "training", False):
                 # You may need to turn off logging, for example when doing trainer.predict(model, data)
