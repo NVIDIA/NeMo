@@ -15,6 +15,7 @@
 import os
 from argparse import ArgumentParser
 
+from lightning.pytorch.loggers import TensorBoardLogger
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
@@ -140,6 +141,8 @@ if __name__ == "__main__":
         name=args.name,
         log_dir=args.log_dir,
         ckpt=checkpoint_callback,
+        tensorboard=TensorBoardLogger(os.path.join(args.log_dir, args.name)),
+        update_logger_directory=False,
     )
 
     # Set up resume and/or restore functionality
