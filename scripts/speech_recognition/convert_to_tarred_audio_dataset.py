@@ -640,7 +640,7 @@ class ASRTarredDatasetBuilder:
                 elif len(entry_offset) > 2:
                     raise ValueError(
                         f"The offset for the entry with audio_filepath '{entry['audio_filepath']}' is incorrectly provided ({entry['offset']})."
-                        )
+                    )
                 entry_offset = "_".join(entry_offset)
 
                 entry_duration = str(entry['duration']).split('.')
@@ -649,7 +649,7 @@ class ASRTarredDatasetBuilder:
                 elif len(entry_duration) > 2:
                     raise ValueError(
                         f"The duration for the entry with audio_filepath '{entry['audio_filepath']}' is incorrectly provided ({entry['duration']})."
-                        )
+                    )
                 entry_duration = "_".join(entry_duration)
 
                 to_write = base + "_" + entry_offset + "_" + entry_duration + ext
