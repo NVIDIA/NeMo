@@ -68,6 +68,7 @@ def asr_model(test_data_dir):
             'subsampling': 'dw_striding',
             'subsampling_factor': 2,
             'n_heads': 4,
+            'use_nGPT': True,
         },
     }
 

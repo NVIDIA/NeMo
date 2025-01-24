@@ -17,12 +17,14 @@ import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import ceil
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import torch
 from lightning.pytorch import Trainer
+from lightning.pytorch.core.optimizer import LightningOptimizer
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
@@ -732,6 +734,20 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         }
 
         return {'loss': audio_loss, 'log': tensorboard_logs}
+
+    def optimizer_step(
+        self,
+        epoch: int,
+        batch_idx: int,
+        optimizer: Union[Optimizer, LightningOptimizer],
+        optimizer_closure: Optional[Callable[[], Any]] = None,
+    ) -> None:
+        ans = super().optimizer_step(
+            epoch=epoch, batch_idx=batch_idx, optimizer=optimizer, optimizer_closure=optimizer_closure
+        )
+        if hasattr(self.encoder, "normalize_matrices"):
+            self.encoder.normalize_matrices()
+        return ans
 
     def validation_pass(self, batch: PromptedAudioToTextMiniBatch, batch_idx, dataloader_idx=0, eval_mode="val"):
         input_ids, labels = batch.get_decoder_inputs_outputs()

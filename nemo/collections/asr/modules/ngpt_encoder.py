@@ -44,13 +44,7 @@ except ImportError:
         deterministic=False,
     ):
         """Quick and dirty implementation for prototyping."""
-        k_scale = k * softmax_scale
-        k_scale_T = k_scale.transpose(2, 3)
-        qk = q @ k_scale_T
-        qksftmx = nn.functional.softmax(qk, dim=-1)
-        qksftmxv = qksftmx @ v
-        return qksftmxv
-        # return nn.functional.softmax(q @ (k * softmax_scale).transpose(2, 3), dim=-1) @ v
+        return nn.functional.softmax(q @ (k * softmax_scale).transpose(2, 3), dim=-1) @ v
 
 
 __all__ = ['NGPTEncoder']
@@ -196,6 +190,9 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
         x = x.transpose(1, 2)
 
         return x, length
+
+    def normalize_matrices(self):
+        return self.ngpt.normalize_matrices()
 
 
 def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
@@ -477,3 +474,31 @@ class GPT(nn.Module):
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
         print(f"[nGPT] using fused AdamW: {use_fused}")
         return optimizer
+
+    def normalize_matrices(self):
+        if not self.config.use_nGPT:
+            return
+
+        def justnorm(x, idim=-1):
+            # Like justnorm in global scope but with higher precision.
+            dtype = x.dtype
+            x = x.float()
+            res = (x / x.norm(p=2, dim=idim, keepdim=True)).to(dtype=dtype)
+            return res
+
+        transformer = self.transformer
+        module = self
+
+        transformer.wte.weight.data.copy_(justnorm(transformer.wte.weight.data, 1))  # V, n_embd
+        module.lm_head.weight.data.copy_(justnorm(module.lm_head.weight.data, 1))  # V, n_embd
+
+        for layer_idx in range(0, module.config.n_layer):
+            block = transformer["h"][layer_idx]
+
+            block.query.weight.data.copy_(justnorm(block.query.weight.data, 1))  # n_proj, n_embd
+            block.key.weight.data.copy_(justnorm(block.key.weight.data, 1))  # n_proj, n_embd
+            block.value.weight.data.copy_(justnorm(block.value.weight.data, 1))  # n_proj, n_embd
+            block.att_c_proj.weight.data.copy_(justnorm(block.att_c_proj.weight.data, 0))  # n_embd, n_proj
+
+            block.c_fc.weight.data.copy_(justnorm(block.c_fc.weight.data, 1))  # n_proj, n_embd
+            block.mlp_c_proj.weight.data.copy_(justnorm(block.mlp_c_proj.weight.data, 0))  # n_embd, n_proj
