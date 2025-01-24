@@ -467,8 +467,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
 
     def post_restore_from_pretrained_models(cls, model, cfg):
 
-        model = super().restore_from_pretrained_models(cfg, trainer)
-
         codec_model, codec_model_cfg = cls.get_codec_models_and_configs(cfg)
         logging.info(f"Loaded Codec Model: {codec_model}")
 
