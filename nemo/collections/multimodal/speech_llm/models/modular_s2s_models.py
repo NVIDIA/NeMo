@@ -18,7 +18,7 @@ from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities import rank_zero_only
-from torch import Tensor
+from torch import Tensor, nn
 from torch.nn.utils.rnn import pad_sequence
 from torchaudio.pipelines import SQUIM_SUBJECTIVE
 
@@ -943,7 +943,10 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     text_metric_name = metric_name.replace("asr-", "")
 
                     def get_turn_split(input_preds, num_turn):
-                        return [re.split('   *', pred)[num_turn] for pred in input_preds]
+                        if all([t > num_turn for t in get_num_turn(input_preds)]):
+                            return [re.split('   *', pred)[num_turn] for pred in input_preds]
+                        else:
+                            return input_preds
 
                     def get_num_turn(input_preds):
                         return [len(re.split('   *', pred)) for pred in input_preds]
@@ -967,7 +970,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                             [sacrebleu.corpus_bleu(get_turn_split(text_preds, 2), [get_turn_split(labels, 2)]).score]
                         ).to(self.device)
                     elif metric_name == 'turndiff':
-                        metric_result = np.mean(np.subtract(get_num_turn(text_preds), get_num_turn(labels)))
+                        metric_result = torch.Tensor(
+                            [np.abs(np.mean(np.subtract(get_num_turn(text_preds), get_num_turn(labels))))]
+                        )
                     else:
                         for pred, label in zip(deduplicated_outputs['preds'], labels):
                             _ = metric_fn(pred, label)
@@ -1152,6 +1157,8 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         self.extract_codec_on_the_fly = cfg.get('extract_codec_on_the_fly', False)
         self.codec_model_downsampling_factor = cfg.get('codec_model_downsampling_factor', 1023.5)
         self.codec_sample_rate = cfg.data.train_ds.get("codec_sample_rate", 22050)
+        if cfg.get('fixed_speaker_prompt', False):
+            self.speaker_embeddings = nn.Embedding(16, cfg.hidden_size)
 
         super().__init__(cfg, trainer)
 
@@ -1394,8 +1401,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         input_ids = input_ids[:, : encoded.shape[1]]
         if 'target_texts_merge' in audio_batch:
             loss_mask = torch.ones_like(labels)
-            if 's2s_duplex_overlap' in audio_batch:
-                loss_mask[:, :, 1:] = 0
             assert self.cfg.get(
                 'duplex_loss_on_all_steps', False
             ), "only support duplex_loss_on_all_steps in real duplex data read from dataloader"
@@ -1416,6 +1421,28 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         # merge with encoded
         encoder_input = input_embeds + encoded * self.cfg.get("duplex_user_channel_weight", 0.3)
 
+        scale_loss_mask_by = self.cfg.get("scale_loss_mask_by", None)
+        if scale_loss_mask_by == 'bos_eos':
+            for i, answer_codec in enumerate(answer_codecs):
+                if 'target_texts_merge' in audio_batch:
+                    text_channel = audio_batch['target_texts_merge'][i]
+                    sliced_text_channel = text_channel[: loss_mask.shape[1]].unsqueeze(-1)
+                    loss_mask = torch.where(sliced_text_channel == self.tokenizer.bos_id, 2.0, loss_mask)
+                    loss_mask = torch.where(sliced_text_channel == self.tokenizer.eos_id, 2.0, loss_mask)
+                else:
+                    raise ValueError("scale_loss_mask_by=bos_eos is only supported for target_texts_merge")
+        elif scale_loss_mask_by == 'non_sil':
+            for i, answer_codec in enumerate(answer_codecs):
+                if 'target_texts_merge' in audio_batch:
+                    text_channel = audio_batch['target_texts_merge'][i]
+                    sliced_text_channel = text_channel[: loss_mask.shape[1]].unsqueeze(-1)
+                    loss_mask = torch.where(labels[:, :, :] != labels[:, :1, :], 2.0, loss_mask)
+                else:
+                    raise ValueError("scale_loss_mask_by=bos_eos is only supported for target_texts_merge")
+        elif scale_loss_mask_by == None:
+            pass
+        else:
+            raise ValueError(f"Unknown scale_loss_mask_by: {scale_loss_mask_by}")
         limit_max_seq_length = self.cfg.get("limit_max_seq_length", None)
         if limit_max_seq_length is not None and limit_max_seq_length < labels.shape[1] and self.training:
             import random
@@ -1432,6 +1459,12 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             encoder_input = encoder_input.transpose(0, 1).contiguous()
 
         return encoder_input, attention_mask, labels, loss_mask, (encoded, encoder_length)
+
+    def inject_speaker_prompt(self):
+        if self.cfg.get('fixed_speaker_prompt', False):
+            pass
+        else:
+            return
 
     def prepare_llm_input(self, audio_batch):
         # handle duplex and singleturn s2s
