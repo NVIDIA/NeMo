@@ -33,7 +33,7 @@ from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommO
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "mixtral_8x22b"
+NAME = "mixtral_8x22b_64k"
 
 
 @run.cli.factory(name=NAME)
@@ -46,7 +46,7 @@ def model() -> run.Config[pl.LightningModule]:
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=mixtral_8x22b ...
+            $ nemo llm pretrain model=mixtral_8x22b_64k ...
 
         Python API usage:
             >>> model_config = model()
@@ -91,7 +91,7 @@ def trainer(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain trainer=mixtral_8x22b ...
+            $ nemo llm pretrain trainer=mixtral_8x22b_64k ...
 
         Python API usage:
             >>> trainer_config = trainer(num_nodes=16, num_gpus_per_node=8)
@@ -170,8 +170,8 @@ def pretrain_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain --factory mixtral_8x22b
-            $ nemo llm pretrain --factory "mixtral_8x22b(num_nodes=16, name='my_mixtral_pretrain')"
+            $ nemo llm pretrain --factory mixtral_8x22b_64k
+            $ nemo llm pretrain --factory "mixtral_8x22b_64k(num_nodes=16, name='my_mixtral_pretrain')"
 
         Python API usage:
             >>> recipe = pretrain_recipe(name="mixtral_pretrain", num_nodes=16)
@@ -183,7 +183,7 @@ def pretrain_recipe(
         trainer=trainer(
             num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=65536, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
@@ -268,8 +268,8 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory mixtral_8x22b
-            $ nemo llm finetune --factory "mixtral_8x22b(num_nodes=2, name='my_mixtral_finetune')"
+            $ nemo llm finetune --factory mixtral_8x22b_64k
+            $ nemo llm finetune --factory "mixtral_8x22b_64k(num_nodes=2, name='my_mixtral_finetune')"
 
         Python API usage:
             >>> recipe = finetune_recipe(name="mixtral_finetune", num_nodes=2)
