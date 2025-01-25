@@ -34,7 +34,9 @@ class NeMoFWLMEval(LM):
     Created based on: https://github.com/EleutherAI/lm-evaluation-harness/blob/v0.4.4/docs/model_guide.md
     """
 
-    def __init__(self, model_name, api_url, tokenizer, batch_size, max_tokens_to_generate, temperature, top_p, top_k, add_bos):
+    def __init__(
+        self, model_name, api_url, tokenizer, batch_size, max_tokens_to_generate, temperature, top_p, top_k, add_bos
+    ):
         self.model_name = model_name
         self.api_url = api_url
         self.tokenizer = tokenizer
@@ -54,14 +56,14 @@ class NeMoFWLMEval(LM):
         nq = NemoQueryLLM(url=self.api_url, model_name=payload['model'])
 
         output_context_logits = False
-        output_generation_logits= False
-        if return_logits: # in case of loglikelihood type tasks
+        output_generation_logits = False
+        if return_logits:  # in case of loglikelihood type tasks
             if single_prediction_token:
                 # In case of single token prediction like mmlu return only the generation logits
-                output_generation_logits=True
+                output_generation_logits = True
             else:
                 # In case of multiple token prediction return the full context logits
-                output_context_logits=True
+                output_context_logits = True
         response = nq.query_llm(
             prompts=payload['prompt'] if isinstance(payload['prompt'], list) else [payload['prompt']],
             max_output_len=payload['max_tokens'],
@@ -73,12 +75,12 @@ class NeMoFWLMEval(LM):
             openai_format_response=True,
         )
 
-        if return_logits: # loglikelihood type tasks, return just logits and not text
+        if return_logits:  # loglikelihood type tasks, return just logits and not text
             if output_context_logits:
                 return response["choices"][0]["context_logits"]
             else:
                 return response["choices"][0]["generation_logits"]
-        else: # generate_until type tasks, return just text and not logits
+        else:  # generate_until type tasks, return just text and not logits
             return str(response["choices"][0]["text"])
 
     def tokenizer_type(self, tokenizer):
@@ -122,12 +124,12 @@ class NeMoFWLMEval(LM):
         results = []
         for i in tqdm(range(0, len(requests), self.batch_size)):
             # Group requests into batches
-            batch = requests[i:i + self.batch_size]
+            batch = requests[i : i + self.batch_size]
             prompts = []
             continuations = []
             continuation_encs = []
             num_ctx_tokens_list = []
-            num_cont_tokens_list = [] 
+            num_cont_tokens_list = []
             # Prepare inputs for the batch
             for request in batch:
                 # get the input prompt from the request
@@ -179,7 +181,7 @@ class NeMoFWLMEval(LM):
                 # after the final token in the prompt. Shape of context_logits: [1, #tokens_in_prompt+1, vocab_size].
                 if not single_prediction_token:
                     # Discard zero padding if any
-                    logits = logits[:, np.any(logits != 0, axis=(0,2)), :]
+                    logits = logits[:, np.any(logits != 0, axis=(0, 2)), :]
                     # Get only logits corresponding to cont tokens
                     logits = logits[:, -num_cont_tokens:, :]
                 # Convert logits to torch tensor to easily get logprobs wo manual implementation of log_softmax

@@ -27,9 +27,9 @@ import numpy as np
 import safetensors
 import tensorrt_llm
 import torch
+import torch.nn.functional as F
 import wrapt
 from tensorrt_llm._utils import numpy_to_torch
-import torch.nn.functional as F
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
@@ -1219,7 +1219,9 @@ class TensorRTLLM(ITritonDeployable):
                 # convert generation_logits to numpy array. Note: from my understanding since generation_logits is
                 # returned as a torch tensor it won't have varying number of tokens across multiple sequences,
                 # likely due to TRTLLM taking care of padding hence no addtnl padding is needed.
-                output_dict["generation_logits"] = np.array([generation_logit.cpu().numpy() for generation_logit in generation_logits])
+                output_dict["generation_logits"] = np.array(
+                    [generation_logit.cpu().numpy() for generation_logit in generation_logits]
+                )
 
             elif context_logits_available:
                 output_texts, context_logits = self.forward(**infer_input)
