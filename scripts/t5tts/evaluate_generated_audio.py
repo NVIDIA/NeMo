@@ -10,17 +10,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate_detail
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 import librosa
-
-LOCAL_EVALSETS = {
-    'riva_challenging': {
-        'manifest': '/datap/misc/Datasets/riva/riva_interspeech.json',
-        'audio_dir': '/datap/misc/Datasets/riva'
-    },
-    'vctk': {
-        'manifest': '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json',
-        'audio_dir': '/datap/misc/Datasets/VCTK-Corpus'
-    }
-}
+import evalset_config
 
 
 def find_sample_audios(audio_dir):
@@ -214,9 +204,10 @@ def main():
     args = parser.parse_args()
 
     if args.evalset is not None:
-        assert args.evalset in LOCAL_EVALSETS
-        args.manifest_path = LOCAL_EVALSETS[args.evalset]['manifest']
-        args.audio_dir = LOCAL_EVALSETS[args.evalset]['audio_dir']
+        dataset_meta_info = evalset_config.dataset_meta_info
+        assert args.evalset in dataset_meta_info
+        args.manifest_path = dataset_meta_info[args.evalset]['manifest']
+        args.audio_dir = dataset_meta_info[args.evalset]['audio_dir']
     
     evaluate(args.manifest_path, args.audio_dir, args.generated_audio_dir, args.whisper_language)
 

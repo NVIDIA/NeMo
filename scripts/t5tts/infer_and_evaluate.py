@@ -6,6 +6,7 @@ import glob
 import torch
 import soundfile as sf
 import evaluate_generated_audio
+import evalset_config
 import json
 import argparse
 import numpy as np
@@ -13,99 +14,6 @@ import scipy.stats as stats
 import copy
 import shutil
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-
-dataset_meta_info = {
-    'vctk': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
-        'audio_dir' : '/datap/misc/Datasets/VCTK-Corpus',
-        'feature_dir' : '/datap/misc/Datasets/VCTK-Corpus',
-    },
-    'riva_challenging': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json',
-        'audio_dir' : '/datap/misc/Datasets/riva',
-        'feature_dir' : '/datap/misc/Datasets/riva',
-    },
-    'riva_challenging_nozeros': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_nozeros.json',
-        'audio_dir' : '/datap/misc/Datasets/riva',
-        'feature_dir' : '/datap/misc/Datasets/riva',
-    },
-    'libri_val': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-    },
-    'libri_unseen_test': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/test_clean_withContextAudioPaths.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-    },
-    'libri_seen_test_v2': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri_seen_evalset_from_testclean_v2.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-    },
-    'libri_unseen_val': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/dev_clean_withContextAudioPaths_evalset.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-    },
-    'spanish_cml': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_spanish_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'tokenizer_names': ['spanish_phoneme'],
-        'whisper_language': 'es'
-    },
-    'german_cml': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_german_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'tokenizer_names': ['german_chartokenizer'],
-        'whisper_language': 'de',
-        'load_cached_codes_if_available': False
-    },
-    'french_cml': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_french_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
-        'tokenizer_names': ['french_chartokenizer'],
-        'whisper_language': 'fr',
-        'load_cached_codes_if_available': False
-    },
-    'italian_cml': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_italian_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
-        'tokenizer_names': ['italian_chartokenizer'],
-        'whisper_language': 'it',
-        'load_cached_codes_if_available': False
-    },
-    'portuguese_cml': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_portuguese_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
-        'tokenizer_names': ['portuguese_chartokenizer'],
-        'whisper_language': 'pt',
-        'load_cached_codes_if_available': False
-    },
-    'polish_cml': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_polish_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_polish_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_polish_v0.1',
-        'tokenizer_names': ['polish_chartokenizer'],
-        'whisper_language': 'pl',
-        'load_cached_codes_if_available': False
-    },
-    'dutch_cml': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_dutch_v0.1/dev_subset_withAudioCodes_codec21Khz_no_eliz_filtered.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
-        'tokenizer_names': ['dutch_chartokenizer'],
-        'whisper_language': 'nl',
-        'load_cached_codes_if_available': False
-    }
-}
 
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
@@ -148,7 +56,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}".format(checkpoint_name, temperature, topk, use_cfg, cfg_scale)
-    
+    dataset_meta_info = evalset_config.dataset_meta_info
     for dataset in datasets:
         metrics_n_repeated = []
         manifest_records = read_manifest(dataset_meta_info[dataset]['manifest_path'])
@@ -214,7 +122,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
                 
                 import time
                 st = time.time()
-                predicted_audio, predicted_audio_lens, _, _ = model.infer_batch(batch_cuda, max_decoder_steps=500, temperature=temperature, topk=topk, use_cfg=use_cfg, cfg_scale=cfg_scale)
+                predicted_audio, predicted_audio_lens, _, _ = model.infer_batch(batch_cuda, max_decoder_steps=440, temperature=temperature, topk=topk, use_cfg=use_cfg, cfg_scale=cfg_scale)
                 et = time.time()
                 print(f"Time taken for inference: {et-st}", predicted_audio.size())
                 for idx in range(predicted_audio.size(0)):
