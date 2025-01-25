@@ -109,7 +109,8 @@ class NeMoFWLMEval(LM):
             special_tokens_kwargs['add_special_tokens'] = self.add_bos
 
         single_prediction_token = False
-        # Assuming evaluating on only one benchmark/task at a time, hence all instances in requests are of the same task.
+        # Assuming evaluating on only one benchmark/task at a time, hence all instances in requests are of the same
+        # task.
         mmlu_regex_pattern = r"^mmlu_"
         if re.match(mmlu_regex_pattern, requests[0].task_name):
             # in case of mmlu the output token is one of 'a','b','c','d'
@@ -143,7 +144,8 @@ class NeMoFWLMEval(LM):
                     continuation_enc = continuation_enc[1:]
                 num_ctx_tokens = len(context_enc)
                 num_cont_tokens = len(continuation_enc)
-                # Delete the last token from continuation before passing it to the ip prompt by replacing with empty string
+                # Delete the last token from continuation before passing it to the ip prompt by replacing with empty
+                # string
                 prompt = context + continuation.replace(self.tokenizer.tokenizer.decode(continuation_enc[-1]), "")
 
                 prompts.append(prompt)

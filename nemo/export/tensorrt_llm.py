@@ -1227,16 +1227,6 @@ class TensorRTLLM(ITritonDeployable):
                 # In case of batched inputs (i.e multiple prompts sent as a list) context_logits returned can have
                 # different seq_len. Following code pads them as it can otherwise error while converting to numpy array
                 context_logits = self._pad_logits(context_logits)
-
-                # padding_len = max([logit_tensor.shape[0] for logit_tensor in context_logits])
-                # for i, tensor in enumerate(context_logits):
-                #     tensor_len = tensor.shape[0]
-                #     if tensor_len < padding_len:
-                #         #context_logits[i] = torch.cat([tensor, torch.zeros(padding_len - tensor_len, dtype=torch.long, device=tensor.device)], dim=0)
-                #         padding_diff = padding_len - tensor_len
-                #         # padding_diff num of rows of zeros are added at the bottom
-                #         context_logits[i] = F.pad(tensor, (0, 0, 0, padding_diff), mode='constant', value=0)
-
                 # Convert context_Logits to numpy array of shape [bS, 1, padding_len, vocab_size],.
                 context_logits = np.array([logit_tensor.unsqueeze(0).cpu().numpy() for logit_tensor in context_logits])
                 output_dict["context_logits"] = context_logits
