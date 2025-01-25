@@ -46,7 +46,10 @@ def main():
         best_records, worst_records = filter_best_and_worst_records(all_best_records, all_worst_records, args.cer_threshold)
         print("Len filtered best_records: ", len(best_records))
         print("Len filtered worst_records: ", len(worst_records))
-
+        mean_reward_rejected = sum([record['reward'] for record in worst_records]) / len(worst_records)
+        print("Mean reward rejected: ", mean_reward_rejected)
+        for record in worst_records:
+            record['reward'] = normalize_rejected_reward(record['reward'], mean_reward_rejected)
         paired_records = [(best_record, worst_record) for best_record, worst_record in zip(best_records, worst_records)]
         random.shuffle(paired_records)
 
@@ -155,6 +158,14 @@ def pareto_rank(items):
     ranked_items.sort(key=lambda x: (x[0], x[1]))
     
     return ranked_items
+
+def normalize_rejected_reward(reward, mean_negative_reward=0.80):
+    # if reward < mean, negative reward
+    # if reward > mean, positive reward
+    # if reward == mean, 0 reward
+    normalized_reward = (reward - mean_negative_reward) / (1.0 - mean_negative_reward)
+    assert normalized_reward < 1.0
+    return max(-1.0, normalized_reward)
 
 def create_chosen_rejected_records(records_orig, group_size=6, num_chosen_per_group=1):
     records = copy.deepcopy(records_orig)
