@@ -18,6 +18,8 @@ def main():
     assert len(records) <= len(audio_files), "Mismatch between number of records and number of generated audio files {} vs {}".format(len(records), len(audio_files))
 
     for idx, record in enumerate(records):
+        if idx % 100 == 0:
+            print("At idx: ", idx, len(records))
         record['audio_filepath'] = audio_files[idx]
         record['target_audio_codes_path'] = codec_files[idx]
         with open(metric_files[idx], 'r') as f:
@@ -204,9 +206,8 @@ def create_chosen_rejected_records(records_orig, group_size=6, num_chosen_per_gr
                 else:
                     reward_delta = (worst_record['cer_gts'] - best_record['cer_gts']) + (best_record['pred_context_similarity'] - worst_record['pred_context_similarity'])
                 
-                if not (reward_delta > 0):
-                    print("Warning reward_delta is not positive", reward_delta)
-                    print(best_record, worst_record)
+                if reward_delta <= 0 or worst_record['cer_gts'] < best_record['cer_gts']:
+                    print("Warning reward_delta is not positive", reward_delta, best_record['cer_gts'], worst_record['cer_gts'], best_record['pred_context_similarity'], worst_record['pred_context_similarity'])
                 else:
                     # Never add pairs in which rejected has better CER than chosen
                     reward_delta = max(0.001, reward_delta)
