@@ -15,8 +15,8 @@
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
-from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
+from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor
 
 from nemo.collections.llm import fn
 from nemo.lightning import io
