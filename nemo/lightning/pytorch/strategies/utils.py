@@ -384,9 +384,6 @@ def fsdp2_strategy_parallelize(
 
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
-
-        # NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
-        # because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
         
         # Find transformer layers and apply parallelisms
         parallelize_helper(model, dp_mesh, mp_policy)
