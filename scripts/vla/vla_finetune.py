@@ -54,7 +54,7 @@ pdb.set_trace = lambda: 1
 def main(args) -> None:
 
     mbs = args.mbs
-    gbs = args.mbs *2
+    gbs = args.mbs
     decoder_seq_length = 287
     decoder_seq_length = 287
 
@@ -94,7 +94,7 @@ def main(args) -> None:
     )
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=4,
+        tensor_model_parallel_size=2,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=False,
