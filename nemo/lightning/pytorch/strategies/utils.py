@@ -345,7 +345,13 @@ def pyt_to_mcore_state_dict(
 
 # Taken and modified from torchtitan
 # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py
-def fsdp2_strategy_parallelize(model, device_mesh: DeviceMesh = None, model_type: str = None):
+def fsdp2_strategy_parallelize(
+    model,
+    device_mesh: DeviceMesh = None,
+    model_type: str = None,
+    mp_policy: MixedPrecisionPolicy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32),
+    sub_modules_to_wrap: List[torch.nn.Module] = [],
+):
     """Apply parallelisms and activation checkpointing to the model.
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
     the model must fit on GPU or CPU memory.
@@ -361,45 +367,41 @@ def fsdp2_strategy_parallelize(model, device_mesh: DeviceMesh = None, model_type
 
         # NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
         # because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
-        mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
 
         fsdp_config = {"mesh": dp_mesh, "mp_policy": mp_policy}
-        if model_type == "speech_seq2seq":
-            for layer_id, transformer_block in enumerate(model.model.encoder.layers):
-                # Apply activation checkpointing
-                # transformer_block = checkpoint_wrapper(transformer_block)
-                # As an optimization, do not reshard after forward for the last
-                # transformer block since FSDP would prefetch it immediately
-                reshard_after_forward = int(layer_id) < len(model.model.encoder.layers) - 1
-                fully_shard(
-                    transformer_block,
-                    **fsdp_config,
-                    reshard_after_forward=reshard_after_forward,
-                )
-                model.model.encoder.layers[layer_id] = transformer_block
+        for sub_module in self.module.modules():
+            # Wrap individual submodules to fetch parameters just-in-time rather than
+            # conservatively fetching all parameters at the start of each iteration.
+            # See https://github.com/pytorch/pytorch/issues/114299.
+            if any(
+                isinstance(sub_module, sub_module_to_wrap)
+                for sub_module_to_wrap in sub_modules_to_wrap
+            ):
+                fully_shard(sub_module, **kwargs)
 
-            for layer_id, transformer_block in enumerate(model.model.decoder.layers):
-                # transformer_block = checkpoint_wrapper(transformer_block)
-                reshard_after_forward = int(layer_id) < len(model.model.decoder.layers) - 1
-                fully_shard(
-                    transformer_block,
-                    **fsdp_config,
-                    reshard_after_forward=reshard_after_forward,
-                )
-                model.model.decoder.layers[layer_id] = transformer_block
-        else:
-            for layer_id, transformer_block in enumerate(model.model.layers):
-                # Apply activation checkpointing
-                # transformer_block = checkpoint_wrapper(transformer_block)
-                # As an optimization, do not reshard after forward for the last
-                # transformer block since FSDP would prefetch it immediately
-                reshard_after_forward = int(layer_id) < len(model.model.layers) - 1
-                fully_shard(
-                    transformer_block,
-                    **fsdp_config,
-                    reshard_after_forward=reshard_after_forward,
-                )
-                model.model.layers[layer_id] = transformer_block
+                # Explicitly set the FSDP backward prefetch schedule to prevent activation
+                # recomputation from disrupting the automatically generated default schedule.
+                if config.recompute_granularity is not None:
+                    sub_module.set_modules_to_backward_prefetch(
+                        [prev_module] if prev_module else []
+                    )
+                prev_module = sub_module
+
+        # Wrap the root module as required by the FSDP API.
+        # See https://github.com/pytorch/pytorch/issues/114299.
+        fully_shard(self.module, **kwargs)
+        for layer_id, transformer_block in enumerate(model.model.layers):
+            # Apply activation checkpointing
+            # transformer_block = checkpoint_wrapper(transformer_block)
+            # As an optimization, do not reshard after forward for the last
+            # transformer block since FSDP would prefetch it immediately
+            reshard_after_forward = int(layer_id) < len(model.model.layers) - 1
+            fully_shard(
+                transformer_block,
+                **fsdp_config,
+                reshard_after_forward=reshard_after_forward,
+            )
+            model.model.layers[layer_id] = transformer_block
 
         model = fully_shard(model, **fsdp_config)
 
