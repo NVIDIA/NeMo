@@ -26,7 +26,7 @@ Requirements
     * A Docker-enabled environment, with `NVIDIA Container Runtime <https://developer.nvidia.com/container-runtime>`_ installed, which will make the container GPU-aware.
     * `Additional NIM requirements <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#prerequisites>`_.
 
-* `Authenticate with NVIDIA NGC <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-authentication>`_, and download `NGC CLI Tool <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-cli-tool>`_. You will use this tool to download the model and customize it with NeMo Framework.
+* `Authenticate with NVIDIA NGC <https://catalog.ngc.nvidia.com/>`_ and obtain an `NGC Personal API Key <https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#ngc-api-keys>`. Download `NGC CLI Tool <https://docs.nvidia.com/nim/large-language-models/latest/getting-started.html#ngc-cli-tool>`_ and configure it with the Personal API key. You will use this tool to download the model and customize it with NeMo Framework.
 
 
 `Create a LoRA Adapter with NeMo Framework <./llama3-lora-nemofw.ipynb>`__
