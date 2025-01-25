@@ -16,6 +16,7 @@ import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
+from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
@@ -45,6 +46,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
         attn_implementation="sdpa",
+        mp_policy_param_dtype=torch.bfloat16,
+        mp_policy_reduce_dtype=torch.float32,
+        parallelize_fn=None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -60,6 +64,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
+        self.mp_policy = MixedPrecisionPolicy(param_dtype=mp_policy_param_dtype, reduce_dtype=mp_policy_reduce_dtype)
+        self.parallelize_fn = parallelize_fn
 
     @property
     def tokenizer(self):
@@ -100,7 +106,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         # Apply FSDP2 and TP to the model
         if self.device_mesh is not None:
-            fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh)
+            if self.parallelize_fn is not None:
+                self.parallelize_fn(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
+            else:
+                fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
 
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
