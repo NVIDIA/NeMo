@@ -156,8 +156,8 @@ def pareto_rank(items):
         
         current_rank += 1
     
-    # Now sort the ranked items by (rank asc, cer asc)
-    ranked_items.sort(key=lambda x: (x[0], x[1]))
+    # Now sort the ranked items by (rank asc, cer asc, ssim asc)
+    ranked_items.sort(key=lambda x: (x[0], x[1], x[2]))
     
     return ranked_items
 
