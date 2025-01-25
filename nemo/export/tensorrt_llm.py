@@ -167,14 +167,14 @@ class TensorRTLLM(ITritonDeployable):
         use_parallel_embedding: bool = False,
         use_embedding_sharing: bool = False,
         paged_kv_cache: bool = True,
-        remove_input_padding: bool = False,
+        remove_input_padding: bool = True,
         paged_context_fmha: bool = False,
         dtype: Optional[str] = None,
         load_model: bool = True,
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
         max_lora_rank: int = 64,
-        max_num_tokens: Optional[int] = 16384,
+        max_num_tokens: Optional[int] = None,
         opt_num_tokens: Optional[int] = None,
         max_seq_len: Optional[int] = None,
         multiple_profiles: bool = False,
@@ -1118,6 +1118,19 @@ class TensorRTLLM(ITritonDeployable):
                     return
             self._prep_ptuning_table()
 
+    def _pad_logits(self, logits_tensor):
+        """
+        Pads the logits tensor with 0's on the right
+        """
+        padding_len = max([logit_tensor.shape[0] for logit_tensor in logits_tensor])
+        for i, tensor in enumerate(logits_tensor):
+            tensor_len = tensor.shape[0]
+            if tensor_len < padding_len:
+                padding_diff = padding_len - tensor_len
+                # padding_diff num of rows of zeros are added at the bottom
+                logits_tensor[i] = F.pad(tensor, (0, 0, 0, padding_diff), mode='constant', value=0)
+        return logits_tensor
+
     @property
     def get_supported_models_list(self):
         """Supported model list"""
@@ -1201,24 +1214,30 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["output_context_logits"] = inputs.pop("output_context_logits")[0][0]
 
             if generation_logits_available:
+                # generation_logits is a 4d torch tensor of dim [BS,1,#generated_tokens,vocab_size]
                 output_texts, generation_logits = self.forward(**infer_input)
-                # generation_logits is a 4d tensor of dim [1,bs,#generated_tokens,vocab_size], return just the 3d tensor
+                # convert generation_logits to numpy array. Note: from my understanding since generation_logits is
+                # returned as a torch tensor it won't have varying number of tokens across multiple sequences,
+                # likely due to TRTLLM taking care of padding hence no addtnl padding is needed.
                 output_dict["generation_logits"] = np.array([generation_logit.cpu().numpy() for generation_logit in generation_logits])
+
             elif context_logits_available:
                 output_texts, context_logits = self.forward(**infer_input)
-                # context_logits is a tensor shaped [bs, #tokens, vocab_size]
+                # context_logits is a list of tensors shaped [#tokens, vocab_size] and the len of the list  is BS
                 # In case of batched inputs (i.e multiple prompts sent as a list) context_logits returned can have
                 # different seq_len. Following code pads them as it can otherwise error while converting to numpy array
-                padding_len = max([logit_tensor.shape[0] for logit_tensor in context_logits])
-                for i, tensor in enumerate(context_logits):
-                    tensor_len = tensor.shape[0]
-                    if tensor_len < padding_len:
-                        #context_logits[i] = torch.cat([tensor, torch.zeros(padding_len - tensor_len, dtype=torch.long, device=tensor.device)], dim=0)
-                        padding_diff = padding_len - tensor_len
-                        # padding_diff num of rows of zeros are added at the bottom
-                        context_logits[i] = F.pad(tensor, (0, 0, 0, padding_diff), mode='constant', value=0)
-                # convert context logits to 3d tensor from list since its avaiable as a list of tensor shaped [#tokens, vocab_size]
-                # after below line, shape of context_lohgits is [BS, padding_len, 128k]
+                context_logits = self._pad_logits(context_logits)
+
+                # padding_len = max([logit_tensor.shape[0] for logit_tensor in context_logits])
+                # for i, tensor in enumerate(context_logits):
+                #     tensor_len = tensor.shape[0]
+                #     if tensor_len < padding_len:
+                #         #context_logits[i] = torch.cat([tensor, torch.zeros(padding_len - tensor_len, dtype=torch.long, device=tensor.device)], dim=0)
+                #         padding_diff = padding_len - tensor_len
+                #         # padding_diff num of rows of zeros are added at the bottom
+                #         context_logits[i] = F.pad(tensor, (0, 0, 0, padding_diff), mode='constant', value=0)
+
+                # Convert context_Logits to numpy array of shape [bS, 1, padding_len, vocab_size],.
                 context_logits = np.array([logit_tensor.unsqueeze(0).cpu().numpy() for logit_tensor in context_logits])
                 output_dict["context_logits"] = context_logits
             else:

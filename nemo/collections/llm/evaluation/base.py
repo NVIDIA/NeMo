@@ -79,7 +79,7 @@ class NeMoFWLMEval(LM):
             else:
                 return response["choices"][0]["generation_logits"]
         else: # generate_until type tasks, return just text and not logits
-            return response["choices"][0]["text"]
+            return str(response["choices"][0]["text"])
 
     def tokenizer_type(self, tokenizer):
         """

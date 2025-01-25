@@ -387,11 +387,6 @@ def deploy(
 
     unset_environment_variables()
 
-    if not isinstance(nemo_checkpoint, Path):
-        nemo_checkpoint = Path(nemo_checkpoint)
-    if not isinstance(triton_model_repository, Path):
-        triton_model_repository = Path(triton_model_repository)
-
     triton_deployable = get_trtllm_deployable(
         nemo_checkpoint,
         model_type,
@@ -496,9 +491,6 @@ def evaluate(
         )
 
     from nemo.collections.llm import evaluation
-
-    if not isinstance(nemo_checkpoint_path, Path):
-        nemo_checkpoint_path = Path(nemo_checkpoint_path)
 
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
     tokenizer = io.load_context(nemo_checkpoint_path + "/context", subpath="model.tokenizer")
