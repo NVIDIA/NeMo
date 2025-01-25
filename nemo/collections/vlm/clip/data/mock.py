@@ -169,7 +169,7 @@ class _MockClipDataset(Dataset):
         # return {}
 
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        concatenated_pixel_values = torch.from_numpy(np_gen.random(size=(1, 6, 336, 336), dtype=np.float32))
+        concatenated_pixel_values = torch.from_numpy(np_gen.random(size=(1, 6, 224, 224), dtype=np.float32))
         input_ids = torch.from_numpy(np_gen.integers(20, size=(1, 32), dtype=np.int64))
         input_ids[:, 1] = -200
         labels = torch.from_numpy(np_gen.integers(20, size=(1, 32), dtype=np.int64))
@@ -180,31 +180,31 @@ class _MockClipDataset(Dataset):
         output = dict(
             media=concatenated_pixel_values,
             tokens=input_ids,
-            attention_mask=None,
+            attention_mask=attention_mask,
             labels=labels,
-            loss_mask=None,
-            position_ids=None,
+            loss_mask=loss_mask,
+            position_ids=position_ids,
         )
-        return output
+        # return output
 
-        concatenated_pixel_values = torch.randn(1, 3, 336, 336) * 0.9485338926315308 - 0.0002835348423104733
-        input_ids = torch.tensor([[1, -200, 512, 29901, 1724, 3158, 881, 278, 19964, 2125,
+        concatenated_pixel_values = torch.randn(6, 224, 224) * 0.9485338926315308 - 0.0002835348423104733
+        input_ids = torch.tensor([1, -200, 512, 29901, 1724, 3158, 881, 278, 19964, 2125,
                                    304, 5839, 701, 278, 13328, 18002, 29973, 13, 3744, 29901,
                                    29871, 31999, 31872, 31872, 31872, 31872, 31872, 31744, 2, 0,
-                                   0, 0]], dtype=torch.int64)
-        labels = torch.tensor([[-100, -100, -100, -100, -100, -100, -100, -100, -100, -100,
+                                   0, 0], dtype=torch.int64)
+        labels = torch.tensor([-100, -100, -100, -100, -100, -100, -100, -100, -100, -100,
                                 -100, -100, -100, -100, -100, -100, -100, -100, -100, -100,
                                 31999, 31872, 31872, 31872, 31872, 31872, 31744, 2, -100, -100,
-                                -100, -100]], dtype=torch.int64)
-        loss_mask = torch.tensor([[True, True, True, True, True, True, True, True, True, True,
+                                -100, -100], dtype=torch.int64)
+        loss_mask = torch.tensor([True, True, True, True, True, True, True, True, True, True,
                                    True, True, True, True, True, True, True, True, True, True,
                                    False, False, False, False, False, False, False, False, True, True,
-                                   True, True]], dtype=torch.bool)
-        attention_mask = torch.tensor([[True, True, True, True, True, True, True, True, True, True,
+                                   True, True], dtype=torch.bool)
+        attention_mask = torch.tensor([True, True, True, True, True, True, True, True, True, True,
                                         True, True, True, True, True, True, True, True, True, True,
                                         True, True, True, True, True, True, True, True, True, False,
-                                        False, False]], dtype=torch.bool)
-        position_ids = torch.arange(0, 32).unsqueeze(0)
+                                        False, False], dtype=torch.bool)
+        position_ids = torch.arange(0, 32)
         position_ids = position_ids.to(dtype=torch.int64)
 
 
@@ -218,7 +218,7 @@ class _MockClipDataset(Dataset):
             loss_mask=loss_mask,
             position_ids=position_ids,
         )
-        output = {k: v.cuda() for k, v in output.items()}
+        # output = {k: v. for k, v in output.items()}
         return output
 
         np_gen = np.random.default_rng(seed=(self.seed + idx))

@@ -6,6 +6,7 @@ from typing import Callable, Dict, List, Optional, Union, Any, Tuple
 from megatron.core import InferenceParams
 import lightning.pytorch as L
 import torch
+import timm
 import torch.distributed
 import torch.nn.functional as F
 from megatron.core import dist_checkpointing
@@ -260,19 +261,20 @@ class TimmCLIPVisionConfig(io.IOMixin):
             add_class_token=False,
             class_token_len=1,
         )
+        self.featurizer = timm.create_model(
+            self.pretrained_model_name_or_path,
+            pretrained=True,
+            num_classes=0,
+            img_size=self.image_size,
+            act_layer=self.override_act_layer,
+        )
 
     def configure_model(self) -> "CLIPVisionModel":
         # Monkey patch the method to the vision encoder
         # CLIPVisionModel.set_input_tensor = set_input_tensor
 
-        import timm
-        self.featurizer = timm.create_model(
-            self.pretrained_model_name_or_path,
-            pretrained=False,
-            num_classes=0,
-            img_size=self.image_size,
-            act_layer=self.override_act_layer,
-        )
+        import pdb; pdb.set_trace()
+
 
         self.featurizer.forward = unpack_tuple(
             partial(self.featurizer.get_intermediate_layers, n={len(self.featurizer.blocks) - 2})
@@ -286,8 +288,8 @@ class TimmCLIPVisionConfig(io.IOMixin):
         from types import MethodType
         self.featurizer.set_input_tensor = MethodType(set_input_tensor, self.featurizer)
 
-        self.featurizer = self.featurizer.to(self.dtype)
-        self.featurizer.requires_grad_(False)
+        self.featurizer = self.featurizer.to(dtype=self.dtype)
+        # self.featurizer.requires_grad_(False)
         import pdb; pdb.set_trace()
         return self.featurizer
 
@@ -505,9 +507,9 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
         if self.add_secondary_encoder:
             self.secondary_vision_model = secondary_vision_transformer_config.configure_model()
 
-        self._freeze(freeze_language_model=config.freeze_language_model, freeze_vision_model=config.freeze_vision_model,
-                    freeze_secondary_vision_model=config.freeze_secondary_vision_model,
-                    freeze_vision_projection=config.freeze_vision_projection)
+        # self._freeze(freeze_language_model=config.freeze_language_model, freeze_vision_model=config.freeze_vision_model,
+        #             freeze_secondary_vision_model=config.freeze_secondary_vision_model,
+        #             freeze_vision_projection=config.freeze_vision_projection)
 
         self.model_type = ModelType.encoder_or_decoder
         # This attribute is needed to check if an all-reduce is required
@@ -586,7 +588,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             # If no images provided, use an empty image embeddings tensor.
             image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(0, 0, 0)
         elif self.add_encoder and (not self.add_secondary_encoder) and has_images:
-            assert "TODO(Abhi): Need to implement the case where we just have one vision encoder."
+            assert False, "TODO(Abhi): Need to implement the case where we just have one vision encoder."
             images = images.to(next(self.vision_model.parameters()).dtype)
             img = images # img is in shape of (bsz, 3, h, w) h and 2 are 224 and 224 respectively
 
@@ -607,6 +609,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             # note num_images_in_mbs is not mbs but total images in this mbs which is approximately equal to num_tiles*mbs.
             images = images.to(next(self.vision_model.parameters()).dtype)
 
+            import pdb; pdb.set_trace()
             # Assuming we are getting images in the shape of (mbs, 2*3, h, w)
             img, img_secondary = torch.split(images, [3, 3], dim=1)
             # Img and img_secondary is in shape of (mbs, c, h, w) where c=3
@@ -629,6 +632,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             # TODO(Abhi): Check if the dim is correct. HF concats along dim 2
             image_embeddings = torch.cat([image_embeddings, image_embeddings_secondary], dim=2)
             import pdb; pdb.set_trace()
+            print(f"image embedding shape: {image_embeddings.shape}")
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
                 image_embeddings = image_embeddings[:, class_token_len:, :]
@@ -648,8 +652,9 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
                         image_embeddings.shape[0] * image_embeddings.shape[1]
                 )
         else:
-            raise ValueError(f"Invalid combination of add_encoder and add_secondary_encoder. "
-                             f"{self.add_encoder = }, {self.add_secondary_encoder = }")
+            image_embeddings = self.encoder_hidden_state
+            # raise ValueError(f"Invalid combination of add_encoder and add_secondary_encoder. "
+            #                  f"{self.add_encoder = }, {self.add_secondary_encoder = }")
 
         if not self.add_decoder:
             return image_embeddings
@@ -690,6 +695,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
 
+        print(f"image embedding shape: {language_embeddings.shape}")
         # Assume 1 tile per image if the number of tiles is not provided.
         if num_image_tiles is None:
             num_image_tiles = torch.ones(images.shape[0], dtype=torch.int, device=input_ids.device)
@@ -697,6 +703,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             num_image_tiles = torch.tensor(num_image_tiles, dtype=torch.int, device=input_ids.device)
 
         import pdb; pdb.set_trace()
+        print(f"image embedding shape Right before: {language_embeddings.shape}")
         # Preprocess input, labels and loss mask.
         combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
             image_embeddings=image_embeddings,
@@ -711,6 +718,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             packed_seq_params=packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
+        print(f"combined_embeddings shape: {combined_embeddings.shape}")
         output = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -722,10 +730,35 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             packed_seq_params=packed_seq_params,
         )
 
+        print(f"output shape: {output.shape}")
         if labels is None or loss_mask is None:
             return output
 
+        print(f"Final loss mask shape: {final_loss_mask.shape}")
         return output, final_loss_mask.contiguous()
+
+    def set_input_tensor(self, input_tensor) -> None:
+        """Set model chunk input tensor."""
+        # This is usually handled in schedules.py but some inference code still
+        # gives us non-lists or None
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for llava'
+
+        if self.add_encoder and self.add_decoder:
+            self.vision_model.set_input_tensor(input_tensor[0])
+        elif self.add_encoder:
+            self.vision_model.set_input_tensor(input_tensor[0])
+        elif self.pre_process:
+            self.encoder_hidden_state = input_tensor[0]
+        else:
+            self.language_model.set_input_tensor(input_tensor[0])
+
+
+    def print_with_line_number(self):
+        import inspect
+        line_number = inspect.currentframe().f_lineno
+        print(f"Line {line_number}: This is the message.")
 
     def _preprocess_data(
         self,
@@ -776,42 +809,52 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             final_loss_mask (torch.Tensor): loss mask [b, combined_seq_len].
         """
         assert self.add_decoder, "input text preprocessing is only needed for the language model"
-
+        from inspect import currentframe, getframeinfo
         # No pre- or postprocessing needed.
         # With pipeline parallel > 2, this means a chunk in the middle of the model.
+        frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
         if not self.pre_process and not self.post_process:
             return language_embeddings, loss_mask, labels, attention_mask
 
+        frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
         # If using the inference KV cache, the image tokens are already computed.
         if use_inference_kv_cache:
             return language_embeddings, loss_mask, labels, attention_mask
 
         img_seq_len = self._img_seq_len
         batch_size, text_seq_len = input_ids.shape
-
+        frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
         has_labels = labels is not None
         if has_labels:
             assert (
                 labels.shape == loss_mask.shape
             ), f"mismatching labels shape {labels.shape} and loss mask shape {loss_mask.shape}"
-
+        frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
         packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
-
+        frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
         # Create indices for new text and label positions.
         with torch.no_grad():
+            frameinfo = getframeinfo(currentframe());
+            print(frameinfo.filename, frameinfo.lineno)
+
             image_token_mask = input_ids == image_token_index
             num_images_per_sample = torch.sum(image_token_mask, dim=-1)
-
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             # Number of tiles per sample.
+            print(f"{num_images_per_sample =}")
+            print(f"{num_image_tiles = }")
             num_image_tiles_batch = num_image_tiles.split(num_images_per_sample.tolist(), dim=0)
+            frameinfo = getframeinfo(currentframe());
+            print(frameinfo.filename, frameinfo.lineno)
             num_image_tiles_batch = torch.tensor([x.sum() for x in num_image_tiles_batch], device=input_ids.device)
-
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             import pdb; pdb.set_trace()
             # Sequence length for each sample is the image sequence length multiplied by
             # the number of tiles for that image, minus image token indices,
             # plus text sequence length.
             seq_lens = num_image_tiles_batch * img_seq_len - num_images_per_sample + text_seq_len
             max_seq_len = seq_lens.max()
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             # Pipeline parallel expects fixed input size. Check if we need to pad.
             if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
                 max_seq_len = self._language_max_sequence_length
@@ -838,47 +881,56 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
                     padded_seq_len = int((max_seq_len + (tp_world_size - 1)) // tp_world_size * tp_world_size)
                 sp_padding_needed = padded_seq_len - max_seq_len
                 max_seq_len = padded_seq_len
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             batch_indices, non_image_indices = torch.where(input_ids != image_token_index)
-
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             # New position ids for the text tokens, shifted by the image sequence length.
             # E.g. for input_ids = [-200, 1, 2, 3] and img_seq_len = 576, we get
             # new_position_ids = [576, 577, 578, 579]. text_position_ids are then [577, 578, 579].
             image_token_mask_lens = image_token_mask.int().clone()
             # -1 is for the removed image token index.
             image_token_mask_lens[image_token_mask] = num_image_tiles * img_seq_len - 1
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             # +1 is needed here for the cumulative sum. -1 is adjusting for zero-based indexing.
             new_position_ids = torch.cumsum((image_token_mask_lens + 1), dim=-1) - 1
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             text_position_ids = new_position_ids[batch_indices, non_image_indices]
-
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             # Labels are shifted to left by one.
             # So, shift text position ids and non-image indices to left by one.
             if has_labels:
+                frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
                 label_text_position_ids = text_position_ids - 1
                 valid_label_text_position_ids = label_text_position_ids >= 0
                 label_text_position_ids = label_text_position_ids[valid_label_text_position_ids]
-
+                frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
                 label_batch_indices = batch_indices[valid_label_text_position_ids]
-
+                frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
                 label_non_image_indices = non_image_indices - 1
                 valid_label_non_image_indices = label_non_image_indices >= 0
                 label_non_image_indices = label_non_image_indices[valid_label_non_image_indices]
 
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             # Create a mask for the image embedding positions.
             images_mask = torch.full((batch_size, max_seq_len), True, dtype=torch.bool, device=input_ids.device)
             # No images in the text positions.
             images_mask[batch_indices, text_position_ids] = False
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             # Samples can have different amount of images tokens.
             # new_position_ids[:, -1] gives the last text position id for each sample.
             # Padding is needed when the number of image tokens differs.
             first_padding_idx = new_position_ids[:, -1] + 1
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             images_mask[
                 torch.arange(max_seq_len, device=first_padding_idx.device).repeat(batch_size, 1)
                 >= first_padding_idx.unsqueeze(1)
             ] = False
 
         # Create the final input embedding (if this is the first language model stage).
+        frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
         final_embedding = None
         if self.pre_process:
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             embed_dim = language_embeddings.shape[-1]
             final_embedding = torch.zeros(
                 batch_size,
@@ -887,13 +939,14 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
                 dtype=language_embeddings.dtype,
                 device=language_embeddings.device,
             )
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
 
             # Put text embeddings to the text positions in the result tensor.
             final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_image_indices]
-
+            frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
             # Put image embeddings to image positions.
             final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
-
+        frameinfo = getframeinfo(currentframe()); print(frameinfo.filename, frameinfo.lineno)
         # Create the final labels and loss mask (if this is the last language model stage).
         final_labels, final_loss_mask = None, None
         if has_labels:

@@ -26,9 +26,10 @@ Nemo: CLIP text probability:  [('a dog', 0.0051774755), ('a boy', 0.0024592995),
 HF: CLIP text probability:  [('a dog', 0.004963576), ('a boy', 0.0022506083), ('a girl', 0.9927858)]
 """
 import argparse
-import os, torch
+import os
 
 import requests
+from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from pytorch_lightning.loggers import WandbLogger
 # from torchvision.transforms import ToTensor
@@ -38,13 +39,14 @@ from nemo.collections.vla.openvla.base import OpenVLAModel
 from nemo.collections.vla.openvla.openvla import OpenVLAHFConfig
 
 
-import pdb
+import pdb, torch
 
 from nemo.collections.vlm.openvla.data.lazy import OpenVLALazyDataModule
+# from nemo.collections.vlm.openvla.data.lazy import OpenVLALazyDataModule
 from nemo.lightning import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.vlm.openvla.data.mock import MockDataModule as OpenVLAMockDataModule
-# pdb.set_trace = lambda: 1
+
+pdb.set_trace = lambda: 1
 
 
 
@@ -52,31 +54,22 @@ from nemo.collections.vlm.openvla.data.mock import MockDataModule as OpenVLAMock
 def main(args) -> None:
 
     mbs = args.mbs
-    gbs = args.mbs * args.devices * args.num_nodes
-    decoder_seq_length = 1024
+    gbs = args.mbs *2
+    decoder_seq_length = 287
+    decoder_seq_length = 287
 
     # Create the data module
     if False:
         # mock dataset
-        mbs = 8
-        gbs = 8
-        decoder_seq_length = 1024
-
-        # mock dataset
-        data = OpenVLAMockDataModule(
-            llm_backbone_id="llama2-7b-pure",
-            vision_backbone_id = "dinosiglip-vit-so-224px", # fused vision encoders
-            # vision_backbone_id="clip-vit-l-336px",  # one vision encoder
-            # vision_backbone_id = "siglip-vit-b16-224px", # one vision encoder
+        data = vlm.ClipMockDataModule(
             seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
             tokenizer=None,
+            num_train_samples=10_000_000_000,
             image_processor=None,
-            num_workers=2,
-            hf_token=args.hf_token,
+            num_workers=1,
         )
-
     else:
         data = OpenVLALazyDataModule(
         paths=args.data_path,
@@ -85,7 +78,7 @@ def main(args) -> None:
         vision_backbone_id = "dinosiglip-vit-so-224px", # fused vision encoders
         # vision_backbone_id="clip-vit-l-336px",  # one vision encoder
         # vision_backbone_id = "siglip-vit-b16-224px", # one vision encoder
-        shuffle_buffer_size=100000,
+        shuffle_buffer_size=100,
         seq_length=decoder_seq_length,
         global_batch_size=gbs,
         micro_batch_size=mbs,
@@ -95,20 +88,19 @@ def main(args) -> None:
         hf_token=args.hf_token,
     )
 
-    from megatron.core.distributed import DistributedDataParallelConfig
-
     # pylint: disable=C0115,C0116
-    strategy=nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
+    strategy = nl.MegatronStrategy(
+
+    )
+
+    strategy = nl.MegatronStrategy(
+        tensor_model_parallel_size=4,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
-        ckpt_async_save=False,
-        ddp=DistributedDataParallelConfig(
-            overlap_grad_reduce=True,
-            check_for_nan_in_grad=True,
-            overlap_param_gather=True,
-        )
+        sequence_parallel=False,
+        ckpt_load_strictness="log_all",
     )
+
 
     model = OpenVLAModel(OpenVLAHFConfig(), tokenizer=data.tokenizer)
 
@@ -137,7 +129,6 @@ def main(args) -> None:
     # Auto resume setup
     resume = nl.AutoResume(
         resume_if_exists=True,
-        resume_ignore_no_checkpoint=True,
         resume_from_directory=os.path.join(args.log_dir, args.name),
         restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
     )
