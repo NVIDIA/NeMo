@@ -969,13 +969,32 @@ class T5TTS_ModelInference(T5TTS_Model):
     """Small override to save inference metrics"""
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
-        self.eval_asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-tdt-1.1b")
-        self.eval_asr_model.freeze()
-        self.eval_asr_model.eval()
+        if cfg.get('pref_set_language', "en") == "en":
+            self.eval_asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-tdt-1.1b")
+            self.eval_asr_model.freeze()
+            self.eval_asr_model.eval()
 
         self.eval_speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
         self.eval_speaker_verification_model.freeze()
         self.eval_speaker_verification_model.eval()
+
+        if cfg.get('load_whisper_model', False):
+            from transformers import WhisperProcessor, WhisperForConditionalGeneration
+            self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
+            self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
+            self.whisper_model.eval()
+
+    def transcribe_with_whisper(self, audio_filepath, language):
+        speech_array, sampling_rate = librosa.load(audio_filepath, sr=16000)
+        forced_decoder_ids = self.whisper_processor.get_decoder_prompt_ids(language=language) if language else None
+        inputs = self.whisper_processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
+        inputs = inputs.to(self.device)
+        with torch.no_grad():
+            predicted_ids = self.whisper_model.generate(inputs, forced_decoder_ids=forced_decoder_ids)
+        transcription = self.whisper_processor.batch_decode(predicted_ids, skip_special_tokens=True)
+        result = transcription[0]
+        return result
+
     
     def process_text(self, input_text):
         """
@@ -1062,7 +1081,12 @@ class T5TTS_ModelInference(T5TTS_Model):
                 predicted_audio_paths.append(audio_path)
             
             with torch.no_grad():
-                pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))[0]
+                if self.cfg.get("pref_set_language", "en") == "en":
+                    pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))[0]
+                    pred_transcripts = [ self.process_text(transcript) for transcript in pred_transcripts ]
+                else:
+                    pred_transcripts = [self.transcribe_with_whisper(audio_path, self.cfg.pref_set_language) for audio_path in predicted_audio_paths]
+                    pred_transcripts = [self.process_text(transcript) for transcript in pred_transcripts]
                 pred_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(predicted_audio_paths)
                 gt_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(batch['audio_filepaths'])
 

@@ -9,6 +9,11 @@ dataset_meta_info = {
         'audio_dir' : '/datap/misc/Datasets/riva',
         'feature_dir' : '/datap/misc/Datasets/riva',
     },
+    'riva_challenging_shehzeen': {
+        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths_v2.json',
+        'audio_dir' : '/Data/RivaData/riva',
+        'feature_dir' : '/Data/RivaData/riva',
+    },
     'riva_challenging_nozeros': {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_nozeros.json',
         'audio_dir' : '/datap/misc/Datasets/riva',
