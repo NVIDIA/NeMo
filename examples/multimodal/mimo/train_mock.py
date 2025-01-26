@@ -49,7 +49,7 @@ def main(args):
 
     mimo_config = MimoConfig(
         stage=stage,
-        language_transformer_config=Llama2Config7B(),
+        language_transformer_config=Llama2Config7B(num_layers=1),
         vocab_size=tokenizer.vocab_size,
         image_special_token_indices=image_special_token_indices,
         image_special_tokens=image_special_tokens,
