@@ -341,6 +341,13 @@ def finetune_performance_optimizations(
     if not hasattr(recipe.trainer, "callbacks"):
         recipe.trainer.callbacks = []
 
+    recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=False,
+            )
+        )
+
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
         recipe.trainer.strategy.ddp = run.Config(
@@ -350,12 +357,6 @@ def finetune_performance_optimizations(
             overlap_grad_reduce=True,
             overlap_param_gather=True,
             average_in_collective=True,
-        )
-        recipe.trainer.callbacks.append(
-            run.Config(
-                MegatronCommOverlapCallback,
-                tp_comm_overlap=False,
-            )
         )
     else:
         recipe.peft.target_modules = ['linear_qkv']
