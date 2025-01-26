@@ -342,11 +342,11 @@ def finetune_performance_optimizations(
         recipe.trainer.callbacks = []
 
     recipe.trainer.callbacks.append(
-            run.Config(
-                MegatronCommOverlapCallback,
-                tp_comm_overlap=False,
-            )
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=False,
         )
+    )
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
