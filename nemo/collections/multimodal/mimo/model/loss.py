@@ -68,7 +68,12 @@ class MimoLossReduction(MaskedTokenLossReduction):
 
             total_loss = total_loss + gen_loss
             token_loss_info['avg'] = token_loss_info['avg'] + reduced_gen_l2_loss
-        logging.info(f"token_loss: {just_token_loss}, l2_loss: {l2_loss}, gen_loss: {gen_loss}")
+        logging.info(f"token_loss: {just_token_loss}, l2_loss: {reduced_l2_loss}, gen_loss: {reduced_gen_l2_loss}")
+        if self.logger:
+            self.logger.log_metrics({'token_loss': just_token_loss})
+            self.logger.log_metrics({'l2_loss': l2_loss})
+            if gen_loss:
+                self.logger.log_metrics({'gen_loss': reduced_gen_l2_loss})
         return total_loss, token_loss_info
 
     def _calculate_l2_loss(self, embeddings1: torch.Tensor, embeddings2: torch.Tensor) -> torch.Tensor:
