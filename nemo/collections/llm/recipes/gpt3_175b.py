@@ -31,6 +31,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_bf16_h100_h12288_tp4_mbs1_seqlen2048,
 )
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
