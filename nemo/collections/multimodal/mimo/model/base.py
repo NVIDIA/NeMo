@@ -83,6 +83,7 @@ class BaseMimoModel(MCoreLLaVAModel):
 
         if config.stage not in ["encoder_alignment"]:
             self.image_decoder = config.image_decoder_transformer_config.configure_model()
+            self.image_decoder.to('cuda')
 
             self.image_output_projection_module = config.image_output_projection_config.configure_model()
 
@@ -178,12 +179,7 @@ class BaseMimoModel(MCoreLLaVAModel):
             if labels is None:
                 return output, hidden_states
             else:
-                device = output_images.device
-                # TODO: Yash refactor this, dont have to keep moving image decoder to device
-                image_decoder = self.image_decoder.to(device)
-                image_caption_embeddings = self.get_image_caption_embeddings(input_text)  # (bs, 77, 1024)
 
-                # ###########
                 start_positions = (
                     (labels == self.config.image_special_token_indices[0]).nonzero(as_tuple=False).tolist()
                 )
@@ -206,40 +202,33 @@ class BaseMimoModel(MCoreLLaVAModel):
                     # hidden_states is seq_len, batch_dim, hidden_dim
                     hidden_special_embeddings.append(hidden_states[start[1] : end[1] + 1, start[0], :])
 
-                    # labels is batch_dim, seq_len
-                    input_embedding = self.language_model.embedding(
-                        input_ids=labels[start[0], start[1] : end[1] + 1].unsqueeze(0),
-                        position_ids=torch.arange(start[1], end[1] + 1).unsqueeze(0),
-                    )
-                    input_special_embeddings.append(input_embedding.squeeze(1))
-                # hidden and input special embeddings are no_special_tokens, batch_dim, hidden_dim
+                # hidden embeddings -  no_special_tokens, batch_dim, hidden_dim
                 hidden_special_embeddings = torch.stack(hidden_special_embeddings, dim=1)
-                input_special_embeddings = torch.stack(input_special_embeddings, dim=1)
-
-                #############
-
-                inp_to_vision_projection = hidden_special_embeddings + input_special_embeddings
+                inp_to_vision_projection = hidden_special_embeddings
                 output_projection_embeddings = self.image_output_projection_module(inp_to_vision_projection)
-                output_projection_embeddings = output_projection_embeddings.to(dtype=image_decoder.dtype)
-                # image_caption_embeddings = image_caption_embeddings.to(
-                #     output_projection_embeddings.device, dtype=output_projection_embeddings.dtype
-                # )
+                image_caption_embeddings = self.get_image_caption_embeddings(input_text)  # (bs, 77, 1024)
+                image_caption_embeddings = image_caption_embeddings.to(dtype=output_projection_embeddings.dtype)
+
                 if self.config.generation_loss:
-                    latents = image_decoder.vae.encode(output_images).latent_dist.sample()
-                    latents = latents * image_decoder.vae.config.scaling_factor
+                    device = output_images.device
+                    latents = self.image_decoder.vae.encode(output_images).latent_dist.sample()
+                    latents = latents * self.image_decoder.vae.config.scaling_factor
 
                     noise = torch.randn_like(latents)
                     batch_size = latents.shape[0]
                     timesteps = torch.randint(
-                        0, image_decoder.scheduler.config.num_train_timesteps, (batch_size,), device=latents.device
+                        0,
+                        self.image_decoder.scheduler.config.num_train_timesteps,
+                        (batch_size,),
+                        device=latents.device,
                     )
                     timesteps = timesteps.long()
 
-                    noisy_latents = image_decoder.scheduler.add_noise(latents, noise, timesteps)
+                    noisy_latents = self.image_decoder.scheduler.add_noise(latents, noise, timesteps)
 
                     target = noise
 
-                    model_pred = image_decoder.unet(noisy_latents, timesteps, output_projection_embeddings).sample
+                    model_pred = self.image_decoder.unet(noisy_latents, timesteps, output_projection_embeddings).sample
                 else:
                     model_pred, target = None, None
 
