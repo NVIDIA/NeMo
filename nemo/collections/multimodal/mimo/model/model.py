@@ -19,6 +19,7 @@ import torch
 import torch.nn.functional as F
 from megatron.core.inference_params import InferenceParams
 from megatron.core.optimizer import OptimizerConfig
+from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -47,6 +48,15 @@ class MimoModel(NevaModel, L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
         self.model_transform = model_transform
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
+        self.wandb_logger = None
+
+    def on_fit_start(self):
+        # setup wandb logger to MimoLossReduction
+        if self.trainer and self.config.stage in ['decoder_alignment']:
+            for logger in self.trainer.loggers:
+                if isinstance(logger, WandbLogger):
+                    self.wandb_logger = logger
+            self.training_loss_reduction.setup_logger(self.wandb_logger)
 
     def configure_model(self):
         if not hasattr(self, "module"):
@@ -81,6 +91,25 @@ class MimoModel(NevaModel, L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
             image_token_mask=image_token_mask,
         )
 
+        if self.trainer.global_step % 50 == 0 and self.config.stage in ['decoder_alignment']:
+            if self.wandb_logger is not None:
+                image_caption_embeddings = output_tensor['image_caption_embeddings']
+                output_projection_embeddings = output_tensor['output_projection_embeddings']
+
+                with torch.no_grad():
+                    image_decoder = self.module.module.image_decoder
+                    actual_images = image_decoder(prompt_embeds=image_caption_embeddings).images
+                    predicted_images = image_decoder(prompt_embeds=output_projection_embeddings).images
+
+                    actual_image = actual_images[0]
+                    predicted_image = predicted_images[0]
+                self.wandb_logger.log_image(
+                    key="images",
+                    images=[actual_image, predicted_image],
+                    caption=["actual", "predicted"],
+                    step=self.trainer.global_step,
+                )
+
         return output_tensor
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -104,9 +133,7 @@ class MimoModel(NevaModel, L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
             if self.config.stage in ["encoder_alignment"]:
                 self._training_loss_reduction = MaskedTokenLossReduction()
             elif self.config.stage in ["decoder_alignment"]:
-                self._training_loss_reduction = MimoLossReduction(
-                    lightning_module=self, generation_loss=self.config.generation_loss
-                )
+                self._training_loss_reduction = MimoLossReduction(generation_loss=self.config.generation_loss)
             else:
                 NotImplementedError(f"Loss function not implemented for stage {self.config.stage}")
 
