@@ -3667,7 +3667,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_VLM_HF_Transformer_SFT_FSDP2') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: self-hosted-azure-gpus-2-h100
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/sft_fsdp2.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
       AFTER_SCRIPT: |
