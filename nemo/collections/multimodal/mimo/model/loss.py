@@ -16,12 +16,14 @@ class MimoLossReduction(MaskedTokenLossReduction):
         val_drop_last: bool = True,
         l2_weight: float = 1.0,
         generation_loss=False,
-        lightning_module=None,
     ) -> None:
         super().__init__(validation_step, val_drop_last)
         self.l2_weight = l2_weight
-        self.lightning_module = lightning_module
         self.generation_loss = generation_loss
+        self.logger = None
+
+    def setup_logger(self, logger):
+        self.logger = logger
 
     def forward(
         self,
@@ -53,6 +55,7 @@ class MimoLossReduction(MaskedTokenLossReduction):
         token_loss_info['avg'] = token_loss_info['avg'] + reduced_l2_loss
         token_loss_info.update({"l2_loss": reduced_l2_loss})
 
+        gen_loss = None
         # denoise loss
         if self.generation_loss:
             assert model_pred is not None
@@ -66,15 +69,6 @@ class MimoLossReduction(MaskedTokenLossReduction):
             total_loss = total_loss + gen_loss
             token_loss_info['avg'] = token_loss_info['avg'] + reduced_gen_l2_loss
         logging.info(f"token_loss: {just_token_loss}, l2_loss: {l2_loss}, gen_loss: {gen_loss}")
-        if self.lightning_module:
-            self.lightning_module.log("token_loss", just_token_loss, prog_bar=True, batch_size=1, sync_dist=False)
-            self.lightning_module.log(
-                "embedding_l2_loss", reduced_l2_loss, prog_bar=True, batch_size=1, sync_dist=False
-            )
-            if self.generation_loss:
-                self.lightning_module.log(
-                    "denoise_loss", reduced_gen_l2_loss, prog_bar=True, batch_size=1, sync_dist=False
-                )
         return total_loss, token_loss_info
 
     def _calculate_l2_loss(self, embeddings1: torch.Tensor, embeddings2: torch.Tensor) -> torch.Tensor:
