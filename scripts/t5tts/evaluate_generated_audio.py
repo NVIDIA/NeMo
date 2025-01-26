@@ -195,8 +195,8 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en"):
     avg_metrics['ssim_pred_gt_avg_alternate'] = sum([m['pred_gt_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
     avg_metrics['ssim_pred_context_avg_alternate'] = sum([m['pred_context_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
     avg_metrics['ssim_gt_context_avg_alternate'] = sum([m['gt_context_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
-    avg_metrics["cer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=pred_texts, references=gt_audio_texts, use_cer=True)[0]
-    avg_metrics["wer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=pred_texts, references=gt_audio_texts, use_cer=False)[0]
+    avg_metrics["cer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=gt_audio_texts, references=gt_texts, use_cer=True)[0]
+    avg_metrics["wer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=gt_audio_texts, references=gt_texts, use_cer=False)[0]
 
     pprint.pprint(avg_metrics)
 
