@@ -235,13 +235,16 @@ jobs:
       
       - name: Download artifacts
         uses: actions/download-artifact@v4
+        with:
+          path: ${{ github.run_id }}
         
       - name: Combine
+        shell: bash -x -e -u -o pipefail {0}
         run: |
           pip install coverage
-          cd $GITHUB_WORKSPACE
+          cd $${{ github.run_id }}
           ls -al .
-          coverage combine $(ls -d coverage-*)
+          coverage combine $(ls -d coverage-*/${{ github.run_id }})
           coverage report
 
 #   L0_Unit_Tests_CPU_Audio:
