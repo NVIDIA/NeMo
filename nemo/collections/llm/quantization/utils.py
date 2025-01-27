@@ -74,7 +74,7 @@ def load_with_modelopt_layer_spec(
     pipeline_model_parallel_size: int = 1,
     inference_only: bool = True,
     ckpt_load_strictness: Optional[str] = None,
-):
+) -> llm.GPTModel:
     """
     Loads a model from a NeMo 2.0 checkpoint using modelopt layer spec.
 
