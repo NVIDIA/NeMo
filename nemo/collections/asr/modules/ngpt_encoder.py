@@ -123,6 +123,7 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
         feat_in,
         n_layers,
         d_model,
+        base_scale: float = 1 / (1024**0.5),  # 1/sqrt(d_model)
         n_heads=4,
         causal_downsampling=False,
         subsampling='striding',
@@ -141,6 +142,7 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
                 feat_in=feat_in,
                 feat_out=d_model,
                 use_bias=use_bias,
+                base_scale=base_scale,
             )
         else:  # temporary back-compat with 1st expts
             self.pre_encode = ConvSubsampling(
@@ -158,7 +160,7 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
                 n_layer=n_layers,
                 n_head=n_heads,
                 n_embd=d_model,
-                base_scale=1.0 / (d_model**0.5),
+                base_scale=base_scale,
                 use_nGPT=use_nGPT,
                 dropout=dropout,
                 bias=use_bias,
