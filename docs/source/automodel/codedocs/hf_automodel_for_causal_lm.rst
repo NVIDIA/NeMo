@@ -1,7 +1,7 @@
 HFAutoModelForCausalLM Class
 ============================
 
-.. currentmodule:: your_module_name
+.. currentmodule:: nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm
 
 Overview
 --------
