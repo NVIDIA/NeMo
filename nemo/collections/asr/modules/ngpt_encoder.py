@@ -134,16 +134,25 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
         use_nGPT=True,
     ):
         super().__init__()
-        self.pre_encode = ConvSubsampling(
-            subsampling=subsampling,
-            subsampling_factor=subsampling_factor,
-            feat_in=feat_in,
-            feat_out=d_model,
-            conv_channels=subsampling_conv_channels,
-            subsampling_conv_chunking_factor=subsampling_conv_chunking_factor,
-            activation=nn.ReLU(True),
-            is_causal=causal_downsampling,
-        )
+        self._feat_out = d_model
+        if subsampling == "ngpt-frame-stack":
+            self.pre_encode = NGPTStackingSubsampling(
+                subsampling_factor=subsampling_factor,
+                feat_in=feat_in,
+                feat_out=d_model,
+                use_bias=use_bias,
+            )
+        else:  # temporary back-compat with 1st expts
+            self.pre_encode = ConvSubsampling(
+                subsampling=subsampling,
+                subsampling_factor=subsampling_factor,
+                feat_in=feat_in,
+                feat_out=d_model,
+                conv_channels=subsampling_conv_channels,
+                subsampling_conv_chunking_factor=subsampling_conv_chunking_factor,
+                activation=nn.ReLU(True),
+                is_causal=causal_downsampling,
+            )
         self.ngpt = GPT(
             config=GPTConfig(
                 n_layer=n_layers,
@@ -218,6 +227,20 @@ def get_sinusoidal_embeddings(n_positions, dim, device):
     return sinusoidal_emb
 
 
+def justnorm(x, fp32: bool = False, idim: int = -1):
+    if fp32:
+        dtype = x.dtype
+        x = x.float()
+        res = (x / x.norm(p=2, dim=idim, keepdim=True)).to(dtype=dtype)
+    else:
+        res = x / x.norm(p=2, dim=idim, keepdim=True)
+    return res
+
+
+def justnorm_fp32(x, idim: int = -1):
+    return justnorm(x, idim=idim, fp32=True)
+
+
 class Block(nn.Module):
 
     def __init__(self, config, iblock):
@@ -260,11 +283,6 @@ class Block(nn.Module):
                 self.suv_init_scaling * torch.ones(2 * 4 * config.n_embd, dtype=torch.float32)
             )
 
-    def justnorm(self, x):
-        # return F.normalize(x, p=2, dim=-1)
-        res = x / x.norm(p=2, dim=-1, keepdim=True)
-        return res
-
     def forward(self, h, mask):
         B, T, C = h.size()
 
@@ -289,8 +307,8 @@ class Block(nn.Module):
             sqk = (self.sqk * (self.sqk_init_value / self.sqk_init_scaling)).view(
                 1, 1, self.config.n_head, self.config.n_embd // self.config.n_head
             )
-            q = sqk * self.justnorm(q)
-            k = sqk * self.justnorm(k)
+            q = sqk * justnorm(q)
+            k = sqk * justnorm(k)
 
         sqrt_head_dim = (self.config.n_embd / self.config.n_head) ** 0.5
         if self.config.use_nGPT == 0:
@@ -319,12 +337,12 @@ class Block(nn.Module):
             lr = self.attn_alpha * (self.attn_alpha_init_value / self.attn_alpha_init_scaling)
             lr = torch.abs(lr)
 
-            A_norm = self.justnorm(h)  # normally, normalization is not needed
-            B_norm = self.justnorm(h_att)
+            A_norm = justnorm(h)  # normally, normalization is not needed
+            B_norm = justnorm(h_att)
 
             # res = (1.0 - lr) * A_norm + lr * B_norm
             res = A_norm + lr * (B_norm - A_norm)
-            h = self.justnorm(res)
+            h = justnorm(res)
 
         hin = h
         if self.config.use_nGPT == 0:
@@ -343,12 +361,12 @@ class Block(nn.Module):
             lr = self.mlp_alpha * (self.mlp_alpha_init_value / self.mlp_alpha_init_scaling)
             lr = torch.abs(lr)
 
-            A_norm = self.justnorm(h)  # normally, normalization is not needed
-            B_norm = self.justnorm(h_mlp)
+            A_norm = justnorm(h)  # normally, normalization is not needed
+            B_norm = justnorm(h_mlp)
 
             # res = (1.0 - lr) * A_norm + lr * B_norm
             res = A_norm + lr * (B_norm - A_norm)
-            h = self.justnorm(res)
+            h = justnorm(res)
 
         return h
 
@@ -408,11 +426,6 @@ class GPT(nn.Module):
                 torch.nn.init.normal_(p, mean=0.0, std=config.base_scale / math.sqrt(2 * config.n_layer))
         # report number of parameters
         logging.info("[nGPT] number of parameters: %.2fM" % (self.get_num_params() / 1e6,))
-
-        # if (config.use_nGPT == 1):
-        #     self.sz_init_value = 1.00
-        #     self.sz_init_scaling = config.base_scale
-        #     self.sz = torch.nn.Parameter(self.sz_init_scaling * torch.ones(config.vocab_size, dtype=torch.float32))
 
         if config.use_nGPT == 0:
             self.rmsnorm_f = RMSNorm(config.n_embd)
@@ -479,26 +492,103 @@ class GPT(nn.Module):
         if not self.config.use_nGPT:
             return
 
-        def justnorm(x, idim=-1):
-            # Like justnorm in global scope but with higher precision.
-            dtype = x.dtype
-            x = x.float()
-            res = (x / x.norm(p=2, dim=idim, keepdim=True)).to(dtype=dtype)
-            return res
-
         transformer = self.transformer
         module = self
 
-        transformer.wte.weight.data.copy_(justnorm(transformer.wte.weight.data, 1))  # V, n_embd
-        module.lm_head.weight.data.copy_(justnorm(module.lm_head.weight.data, 1))  # V, n_embd
+        transformer.wte.weight.data.copy_(justnorm_fp32(transformer.wte.weight.data, 1))  # V, n_embd
+        module.lm_head.weight.data.copy_(justnorm_fp32(module.lm_head.weight.data, 1))  # V, n_embd
 
         for layer_idx in range(0, module.config.n_layer):
             block = transformer["h"][layer_idx]
 
-            block.query.weight.data.copy_(justnorm(block.query.weight.data, 1))  # n_proj, n_embd
-            block.key.weight.data.copy_(justnorm(block.key.weight.data, 1))  # n_proj, n_embd
-            block.value.weight.data.copy_(justnorm(block.value.weight.data, 1))  # n_proj, n_embd
-            block.att_c_proj.weight.data.copy_(justnorm(block.att_c_proj.weight.data, 0))  # n_embd, n_proj
+            block.query.weight.data.copy_(justnorm_fp32(block.query.weight.data, 1))  # n_proj, n_embd
+            block.key.weight.data.copy_(justnorm_fp32(block.key.weight.data, 1))  # n_proj, n_embd
+            block.value.weight.data.copy_(justnorm_fp32(block.value.weight.data, 1))  # n_proj, n_embd
+            block.att_c_proj.weight.data.copy_(justnorm_fp32(block.att_c_proj.weight.data, 0))  # n_embd, n_proj
 
-            block.c_fc.weight.data.copy_(justnorm(block.c_fc.weight.data, 1))  # n_proj, n_embd
-            block.mlp_c_proj.weight.data.copy_(justnorm(block.mlp_c_proj.weight.data, 0))  # n_embd, n_proj
+            block.c_fc.weight.data.copy_(justnorm_fp32(block.c_fc.weight.data, 1))  # n_proj, n_embd
+            block.mlp_c_proj.weight.data.copy_(justnorm_fp32(block.mlp_c_proj.weight.data, 0))  # n_embd, n_proj
+
+
+class NGPTHead(nn.Module):
+    def __init__(
+        self,
+        feat_in: int,
+        num_classes: int,
+        base_scale: float = 1 / (1024**0.5),
+        use_log_softmax: bool = True,
+        include_blank: bool = False,
+        vocabulary=None,  # ignored, included for compatibility
+    ) -> None:
+        super().__init__()
+        self._num_classes = num_classes
+        if include_blank:
+            self._num_classes += 1
+        self.lm_head = nn.Linear(feat_in, self._num_classes, bias=False)
+        self.sz_init_scaling = base_scale
+        self.sz = torch.nn.Parameter(self.sz_init_scaling * torch.ones(self._num_classes, dtype=torch.float32))
+        self.use_log_softmax = use_log_softmax
+        self.vocabulary = vocabulary
+
+    def _init_weights(self):
+        torch.nn.init.normal_(self.lm_head.weight, mean=0.0, std=self.config.base_scale)
+
+    def normalize_matrices(self):
+        self.lm_head.weight.data.copy_(justnorm_fp32(self.lm_head.weight.data, 1))
+
+    def forward(self, encoder_output):
+        x = encoder_output.transpose(1, 2)  # (B, C, T) -> (B, T, C)
+        logits = self.lm_head(x)
+        sz = self.sz * (1.0 / self.sz_init_scaling)
+        logits = sz * logits
+        if self.use_log_softmax:
+            logits = nn.functional.log_softmax(logits, dim=-1)
+        return logits
+
+    @property
+    def num_classes_with_blank(self):
+        return self._num_classes
+
+
+class NGPTStackingSubsampling(torch.nn.Module):
+    """Stacking subsampling which simply stacks consecutive frames to reduce the sampling rate
+    Args:
+        subsampling_factor (int): The subsampling factor
+        feat_in (int): size of the input features
+        feat_out (int): size of the output features
+    """
+
+    def __init__(
+        self,
+        subsampling_factor: int,
+        feat_in: int,
+        feat_out: int,
+        use_bias: bool = False,
+        base_scale: float = 1 / (1024**0.5),
+    ):
+        super().__init__()
+        self.subsampling_factor = subsampling_factor
+        self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out, bias=use_bias)
+        self.silu = nn.SiLU()
+
+    def _init_weights(self):
+        torch.nn.init.normal_(self.proj_out.weight, mean=0.0, std=self.config.base_scale)
+        if self.proj_out.bias is not None:
+            torch.nn.init.zeros_(self.proj_out.bias)
+
+    def normalize_matrices(self):
+        self.proj_out.weight.data.copy_(justnorm_fp32(self.proj_out.weight.data, 1))
+
+    def forward(self, x, lengths):
+        b, t, h = x.size()
+        pad_size = (self.subsampling_factor - (t % self.subsampling_factor)) % self.subsampling_factor
+        lengths = torch.div(lengths + pad_size, self.subsampling_factor, rounding_mode='floor')
+
+        x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
+        _, t, _ = x.size()
+        x = torch.reshape(x, (b, t // self.subsampling_factor, h * self.subsampling_factor))
+        x = self.proj_out(x)
+        x = self.silu(x)
+        x = justnorm(x)
+
+        return x, lengths

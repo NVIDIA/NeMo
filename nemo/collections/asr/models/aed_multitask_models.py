@@ -745,9 +745,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         ans = super().optimizer_step(
             epoch=epoch, batch_idx=batch_idx, optimizer=optimizer, optimizer_closure=optimizer_closure
         )
-        if hasattr(self.encoder, "normalize_matrices"):
-            self.encoder.normalize_matrices()
+        self.normalize_matrices()
         return ans
+
+    def normalize_matrices(self):
+        for attr in ("encoder", "transf_encoder", "transf_decoder", "log_softmax"):
+            module = getattr(self, attr)
+            if hasattr(module, "normalize_matrices"):
+                module.normalize_matrices()
+
+    def on_train_start(self):
+        super().on_train_start()
+        self.normalize_matrices()
 
     def validation_pass(self, batch: PromptedAudioToTextMiniBatch, batch_idx, dataloader_idx=0, eval_mode="val"):
         input_ids, labels = batch.get_decoder_inputs_outputs()

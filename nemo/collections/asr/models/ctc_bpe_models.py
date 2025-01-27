@@ -93,6 +93,29 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             log_prediction=self._cfg.get("log_prediction", False),
         )
 
+    def optimizer_step(
+        self,
+        epoch: int,
+        batch_idx: int,
+        optimizer,
+        optimizer_closure=None,
+    ) -> None:
+        ans = super().optimizer_step(
+            epoch=epoch, batch_idx=batch_idx, optimizer=optimizer, optimizer_closure=optimizer_closure
+        )
+        self.normalize_matrices()
+        return ans
+
+    def normalize_matrices(self):
+        for attr in ("encoder", "decoder"):
+            module = getattr(self, attr)
+            if hasattr(module, "normalize_matrices"):
+                module.normalize_matrices()
+
+    def on_train_start(self):
+        super().on_train_start()
+        self.normalize_matrices()
+
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
