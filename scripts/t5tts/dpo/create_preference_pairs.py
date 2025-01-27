@@ -1,6 +1,7 @@
 import argparse
 import os
 import json
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--input_manifest", type=str, default="/Data/testing_240subset.json")
@@ -52,6 +53,7 @@ def create_chosen_rejected_records(records, group_size=6):
     num_groups = len(records) // group_size
     best_records = []
     worst_records = []
+    num_skipped = 0
     for gidx in range(num_groups):
         gsi = gidx * group_size
         gei = (gidx + 1) * group_size
@@ -59,8 +61,11 @@ def create_chosen_rejected_records(records, group_size=6):
         
         cer_sim_indices = []
         for sidx, record in enumerate(group):
+            if record['pred_transcript'] == "<INVALID>":
+                print(f"Skipping group starting at index {gsi} due to invalid entries.")
+                num_skipped += len(group)
+                continue
             cer_sim_indices.append((record['cer_gts'], -record['pred_context_similarity'], sidx))
-        
         cer_sim_indices = sorted(cer_sim_indices)
         best_record = group[cer_sim_indices[0][2]]
         worst_record = group[cer_sim_indices[-1][2]]
@@ -79,7 +84,7 @@ def create_chosen_rejected_records(records, group_size=6):
         worst_record['reward'] = 1.0 - reward_delta
         best_records.append(best_record)
         worst_records.append(worst_record)
-    
+    print(f"Skipped {num_skipped} records due to invalid entries in associated groups.")    
     return best_records, worst_records
 
 def filter_best_and_worst_records(best_records, worst_records, cer_threshold=0.02):
@@ -116,9 +121,9 @@ def filter_best_and_worst_records(best_records, worst_records, cer_threshold=0.0
 
 records = read_records(args.input_manifest)
 audio_files, codec_files, metric_files = find_audio_files(args.generated_audio_dir)
-assert len(records) < len(audio_files), "Mismatch between number of records and number of generated audio files" # For multi-node, it generates more audio than records
+assert len(records) <= len(audio_files), "Mismatch between number of records and number of generated audio files" # For multi-node, it generates more audio than records
 
-for idx, record in enumerate(records):
+for idx, record in tqdm(enumerate(records)):
     record['audio_filepath'] = audio_files[idx]
     record['target_audio_codes_path'] = codec_files[idx]
     with open(metric_files[idx], 'r') as f:
