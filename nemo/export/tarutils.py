@@ -16,7 +16,6 @@ import fnmatch
 import os
 import tarfile
 
-from pathlib import Path
 from typing import IO, Union
 
 import zarr.storage

@@ -18,7 +18,6 @@ import json
 import logging
 import os
 import shutil
-from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -30,12 +29,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizer
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
-from nemo.export.utils import (
-    load_sharded_metadata_torch_dist,
-    load_sharded_metadata_zarr,
-    nemo_to_path,
-    torch_dtype_from_precision,
-)
+from nemo.export.utils import load_model_weights, nemo_to_path, torch_dtype_from_precision
 
 try:
     from nemo.lightning import io
@@ -153,17 +147,11 @@ def torch_to_numpy_state_dict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     return state_dict
 
 
-def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    with (checkpoint_dir / 'metadata.json').open(mode='r') as f:
-        config_dict = json.load(f)
-    if config_dict['sharded_backend'] == 'zarr':
-        state_dict = load_sharded_metadata_zarr(checkpoint_dir, load_extra_states=True, torch_tensor=torch_tensor)
-    elif config_dict['sharded_backend'] == 'torch_dist':
-        state_dict = load_sharded_metadata_torch_dist(checkpoint_dir, load_extra_states=True)
-        if not torch_tensor:
-            state_dict = torch_to_numpy_state_dict(state_dict)
-    else:
-        raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')
+def load_sharded_metadata(checkpoint_dir: Union[str, Path], torch_tensor: bool= True):
+    state_dict = load_model_weights(checkpoint_dir, load_extra_states=True)
+
+    if not torch_tensor:
+        state_dict = torch_to_numpy_state_dict(state_dict)
 
     state_dict = rename_extra_states(state_dict)
     return state_dict
@@ -434,20 +422,20 @@ def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
 
 
 def load_distributed_model_weights(
-    weights_directory: Union[Path, TarPath], mcore_scales_format: bool
+    nemo_checkpoint: Union[str, Path], mcore_scales_format: bool
 ) -> Dict[str, Any]:
     """
-    Loads model weights in `torch_dist` format directly from weights directory.
+    Loads model weights in `torch_dist` format from the model path.
     Preprocesses the scaling factors for local export if mcore_scales_format is set to False.
 
     Args:
-        weights_directory (Path | TarPath): Path to the weights directory.
+        nemo_checkpoint (str | Path): Path to the nemo checkpoint.
         mcore_scales_format (bool): Flag for local vs megatron.core export.
 
     Returns:
         dict: Model state dictionary
     """
-    model = load_sharded_metadata(weights_directory)
+    model = load_sharded_metadata(nemo_checkpoint)
     if not mcore_scales_format:
         model.update({k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)})
         model = preprocess_scaling_factors_for_local_export(model)
@@ -466,9 +454,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
         unpacked_checkpoint_dir = UnpackedNemoCheckpointDir(nemo_dir, load_checkpoints_to_cpu=True)
 
         if (nemo_dir / "model_weights").exists():
-            dist_ckpt_folder = nemo_dir / "model_weights"
-
-            model = load_distributed_model_weights(dist_ckpt_folder, mcore_scales_format)
+            model = load_distributed_model_weights(nemo_ckpt, mcore_scales_format)
 
             nemo_model_config = unpacked_checkpoint_dir.model_config
 
@@ -483,8 +469,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
                 tokenizer = build_tokenizer(tokenizer_config)
         elif (nemo_dir / "weights").exists():
-            dist_ckpt_folder = nemo_dir / "weights"
-            model = load_distributed_model_weights(dist_ckpt_folder, mcore_scales_format)
+            model = load_distributed_model_weights(nemo_ckpt, mcore_scales_format)
             io_folder = nemo_dir / "context"
 
             if (io_folder / "model.yaml").exists():
