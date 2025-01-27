@@ -13,48 +13,12 @@
 # limitations under the License.
 
 import fiddle as fdl
-import torch.nn as nn
 from lightning.pytorch.loggers import WandbLogger
-from torch.nn import Module
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-
-
-def is_mlp_layer(module):
-    """
-    Check if a module is an MLP layer.
-    """
-    if isinstance(module, nn.Sequential):
-        for submodule in module:
-            if not isinstance(
-                submodule, (nn.Linear, nn.ReLU, nn.Dropout, nn.BatchNorm1d)
-            ):
-                return False
-        return True
-    elif isinstance(module, nn.Linear):
-        return True
-    return False
-
-
-def mlp_activation_checkpointing_policy(
-    module: Module, recurse: bool, nonwrapped_numel: int
-) -> bool:
-    """
-    Custom activation checkpointing policy for FSDPStrategy.
-    Returns True for MLP layers.
-    Args:
-        module (Module): The module being inspected.
-        recurse (bool): Whether to recurse into submodules.
-        nonwrapped_numel (int): The number of elements in non-wrapped parameters.
-    Returns:
-        bool: True if the module should be wrapped for activation checkpointing.
-    """
-    # Check if the current module is an MLP layer
-    breakpoint()
-    return is_mlp_layer(module)
 
 
 def make_squad_hf_dataset(tokenizer):
