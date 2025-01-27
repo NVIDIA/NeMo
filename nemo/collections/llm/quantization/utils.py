@@ -52,7 +52,9 @@ def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model config for TensorRT-Model-Optimizer quantization"""
 
-    model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec(num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True)
+    model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec(
+        num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True
+    )
     if model_cfg.sequence_parallel:
         logging.warning("Disabling sequence parallelism for quantization...")
         model_cfg.sequence_parallel = False
