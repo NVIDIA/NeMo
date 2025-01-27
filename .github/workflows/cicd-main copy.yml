@@ -107,7 +107,7 @@ jobs:
        TIMEOUT: 20
        # TODO: remove this hack
        SCRIPT: |
-         python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cov-report=term --cov=collections/asr --with_downloads
+         python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cov-report=term --cov=nemo/collections/asr --with_downloads
 
   # L0_Unit_Tests_GPU_Audio:
   #    needs: [cicd-test-container-setup]
@@ -223,7 +223,7 @@ jobs:
        RUNNER: self-hosted-azure-cpu
        TIMEOUT: 20
        SCRIPT: |
-         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --cov-report=term --cov=collections/asr --relax_numba_compat
+         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --cov-report=term --cov=nemo/collections/asr --relax_numba_compat
 
   COVERAGE:
     runs-on: ubuntu-latest
