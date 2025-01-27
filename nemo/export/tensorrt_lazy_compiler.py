@@ -189,7 +189,7 @@ class TRTEngine:
 
         def try_set_inputs():
             for binding in self.input_names:
-                t = feed_dict.get(self.input_table[binding], None)
+                t = feed_dict.get(self.input_table[binding], None).cuda()
                 if t is not None:
                     t = t.contiguous()
                     shape = t.shape
