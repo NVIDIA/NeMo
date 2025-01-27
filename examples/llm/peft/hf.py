@@ -105,13 +105,11 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="meta-llama/Llama-3.2-1B")
+    parser.add_argument("--model", default="meta-llama/Llama-3.1-8B")
     parser.add_argument(
         "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp"]
     )
-    parser.add_argument(
-        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"]
-    )
+
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
     parser.add_argument("--max-steps", type=int, default=100)

@@ -143,12 +143,12 @@ def main():
         from nemo.lightning.pytorch.strategies import FSDP2Strategy
 
         grad_clip = None
-        from transformers.models.llama.modeling_llama import LlamaMLP
+        # from transformers.models.llama.modeling_llama import LlamaMLP
 
         args.strategy = FSDP2Strategy(
             data_parallel_size=args.devices,
             tensor_parallel_size=1,
-            activation_checkpointing_policy={LlamaMLP},
+            # activation_checkpointing_policy={LlamaMLP},
         )
 
     use_dist_samp = False
@@ -174,6 +174,13 @@ def main():
         )
         callbacks = [JitTransform(jit_config)]
 
+    import torch
+
+    MAX_NUM_OF_MEM_EVENTS_PER_SNAPSHOT = 100000
+    torch.cuda.memory._record_memory_history(
+        max_entries=MAX_NUM_OF_MEM_EVENTS_PER_SNAPSHOT
+    )
+
     llm.api.finetune(
         model=model,
         data=make_squad_hf_dataset(DATA_PATH, tokenizer),
@@ -196,6 +203,12 @@ def main():
         log=None,
     )
 
+    file_prefix = "ddp-no-checkpointing"
+    try:
+        torch.cuda.memory._dump_snapshot(f"{file_prefix}.pickle")
+    except Exception as e:
+        print(f"Failed to capture memory snapshot {e}")
+    torch.cuda.memory._record_memory_history(enabled=None)
     import torch
 
     print(torch.cuda.memory_summary())
