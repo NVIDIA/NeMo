@@ -43,8 +43,10 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         model_transform=None,
         model_accelerator=None,
         trust_remote_code=False,
-        mp_policy_param_dtype=torch.bfloat16,
-        mp_policy_reduce_dtype=torch.float32,
+        param_dtype=torch.bfloat16,
+        reduce_dtype=torch.float32,
+        output_dtype=None,
+        cast_forward_inputs=True,
         parallelize_fn=None,
     ):
         super().__init__()
@@ -59,7 +61,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.model_transform = model_transform
         self.model_accelerator = model_accelerator
         self.trust_remote_code = trust_remote_code
-        self.mp_policy = MixedPrecisionPolicy(param_dtype=mp_policy_param_dtype, reduce_dtype=mp_policy_reduce_dtype)
+        self.mp_policy = MixedPrecisionPolicy(param_dtype=param_dtype, reduce_dtype=reduce_dtype, output_dtype=output_dtype, cast_forward_inputs=cast_forward_inputs)
         self.parallelize_fn = parallelize_fn
 
     @property
