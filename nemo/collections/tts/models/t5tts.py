@@ -1128,7 +1128,7 @@ class T5TTS_ModelDPO(T5TTS_Model):
             ref_model_cfg.validation_ds = None
         self._reference_model = T5TTS_Model(cfg=ref_model_cfg)
         print("Loading reference model from checkpoint")
-        self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path)['state_dict'])
+        self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path, map_location="cpu")['state_dict'])
         self.freeze_model(self._reference_model)
         self._reference_model.eval()
         self._reference_model._no_state_dict = True
