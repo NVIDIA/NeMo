@@ -146,6 +146,7 @@ def torch_to_numpy_state_dict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
 
     return state_dict
 
+
 def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
     def _update_config_entry(key, file_pattern):
         old_path = tokenizer_config.get(key, None)
@@ -410,7 +411,9 @@ def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     return dtype
 
 
-def load_distributed_model_weights(nemo_checkpoint: Union[str, Path], mcore_scales_format: bool, torch_tensor: bool = True) -> Dict[str, Any]:
+def load_distributed_model_weights(
+    nemo_checkpoint: Union[str, Path], mcore_scales_format: bool, torch_tensor: bool = True
+) -> Dict[str, Any]:
     """
     Loads model weights in `torch_dist` format from the model path.
     Preprocesses the scaling factors for local export if mcore_scales_format is set to False.
