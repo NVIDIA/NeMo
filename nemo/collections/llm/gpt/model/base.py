@@ -193,6 +193,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             )
 
         vp_size = self.virtual_pipeline_model_parallel_size
+        print(f"\n\n\n {self.pipeline_model_parallel_size=}, {self.num_layers=}, {vp_size=}\n\n\n")
         if vp_size:
             p_size = self.pipeline_model_parallel_size
             assert (
