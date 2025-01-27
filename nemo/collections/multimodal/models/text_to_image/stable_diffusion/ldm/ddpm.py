@@ -532,6 +532,19 @@ class DDPM(torch.nn.Module):
                 return {key: log[key] for key in return_keys}
         return log
 
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False) -> Dict[str, Any]:
+        """
+        Returns the state dict for saving the checkpoint.
+        This method can be customized to include/exclude specific parts of the model.
+        """
+        return self.state_dict()
+
+    def load_state_dict_for_checkpoint(self, state_dict: Dict[str, Any], strict: bool = False):
+        """
+        Loads the state dict from a checkpoint.
+        """
+        self.load_state_dict(state_dict, strict=strict)
+
 
 class LatentDiffusion(DDPM, Serialization):
     """main class"""
@@ -1682,6 +1695,20 @@ class LatentDiffusion(DDPM, Serialization):
         pass
 
 
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False) -> Dict[str, Any]:
+        """
+        Returns the state dict for saving the checkpoint.
+        Customize this if specific components need to be included/excluded.
+        """
+        return self.state_dict()
+
+    def load_state_dict_for_checkpoint(self, state_dict: Dict[str, Any], strict: bool = True):
+        """
+        Loads the state dict from a checkpoint.
+        """
+        self.load_state_dict(state_dict, strict=strict)
+
+
 class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
     """Megatron LatentDiffusion Model."""
 
@@ -2424,6 +2451,34 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         state_dict = _modify_state_dict(state_dict)
         assert set(state_dict.keys()) == self.adapter_keys
         super().load_state_dict(state_dict, strict=False)
+
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False) -> Dict[str, Any]:
+        """
+        Aggregates state dicts from all McoreDDP-wrapped model chunks.
+        """
+        sharded_state_dict = {}
+        for idx, model_chunk in enumerate(self.model):
+            model_state = model_chunk.module.state_dict_for_save_checkpoint(
+                destination=destination,
+                prefix=f'{prefix}model_{idx}.',
+                keep_vars=keep_vars
+            )
+            sharded_state_dict.update(model_state)
+        return sharded_state_dict
+
+    def on_save_checkpoint(self, checkpoint) -> None:
+        """
+        Saves the aggregated state dict.
+        """
+        checkpoint['state_dict'] = self.state_dict_for_save_checkpoint()
+        assert len(checkpoint['state_dict']) > 0, "State dict is empty. Check model wrapping with McoreDDP."
+
+    def load_state_dict(self, state_dict, strict=False):
+        """
+        Loads the state dict into each McoreDDP-wrapped model chunk.
+        """
+        state_dict = {key.removeprefix("model."): value for key, value in state_dict.items()}
+        self.model[0].load_state_dict(state_dict, strict=strict)
 
     def setup_mcore_distributed_parallel(self):
         """Set up mcore distributed data parallel"""
