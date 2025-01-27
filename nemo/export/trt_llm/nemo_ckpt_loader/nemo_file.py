@@ -30,7 +30,12 @@ from transformers import AutoTokenizer, PreTrainedTokenizer
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
-from nemo.export.utils import torch_dtype_from_precision, load_sharded_metadata_torch_dist, load_sharded_metadata_zarr, nemo_to_path
+from nemo.export.utils import (
+    load_sharded_metadata_torch_dist,
+    load_sharded_metadata_zarr,
+    nemo_to_path,
+    torch_dtype_from_precision,
+)
 
 try:
     from nemo.lightning import io

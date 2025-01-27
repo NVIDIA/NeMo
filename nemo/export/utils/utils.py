@@ -34,7 +34,6 @@ def is_nemo2_checkpoint(checkpoint_path: str) -> bool:
     return (ckpt_path / 'context').is_dir()
 
 
-
 def prepare_directory_for_export(model_dir: str, delete_existing_files: bool) -> None:
     """
     Prepares model_dir path for the TRT-LLM/vLLM export.
@@ -76,6 +75,7 @@ def is_nemo_tarfile(path: str) -> bool:
     checkpoint_path = Path(path)
     return checkpoint_path.exists() and checkpoint_path.suffix == '.nemo'
 
+
 # Copied from nemo.collections.nlp.parts.utils_funcs to avoid introducing extra NeMo dependencies:
 def torch_dtype_from_precision(precision: Union[int, str], megatron_amp_O2: bool = True) -> torch.dtype:
     """
@@ -99,4 +99,3 @@ def torch_dtype_from_precision(precision: Union[int, str], megatron_amp_O2: bool
         return torch.float32
     else:
         raise ValueError(f"Could not parse the precision of '{precision}' to a valid torch.dtype")
-

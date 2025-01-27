@@ -55,7 +55,7 @@ from nemo.export.trt_llm.tensorrt_llm_run import (
     unload_engine,
 )
 from nemo.export.trt_llm.utils import is_rank
-from nemo.export.utils import torch_dtype_from_precision, is_nemo_tarfile, prepare_directory_for_export
+from nemo.export.utils import is_nemo_tarfile, prepare_directory_for_export, torch_dtype_from_precision
 
 use_deploy = True
 try:
