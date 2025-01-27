@@ -36,21 +36,28 @@ class LLamaMLPWrapPolicy(ModuleWrapPolicy):
         super().__init__(module_classes=(LlamaMLP,))
 
 
+def find_module_by_class_name(model: Module, class_name: str) -> Optional[Module]:
+    for module in model.modules():
+        if module.__class__.__name__ == class_name:
+            return module
+    return None
+
+
 def setup_activation_checkpointing(
     module: Module,
-    activation_checkpointing_policy: Optional["_POLICY"] = None,
+    layer_names: Optional[list[str]] = None,
 ) -> None:
-    if not activation_checkpointing_policy:
-        # use default policy
-        if has_llama_mlp(module):
-            policy = LLamaMLPWrapPolicy()
-        else:
-            # wrap all linear layers
-            policy = LinearWrapPolicy()
+    if not layer_names:
+        return
+    module_types = []
+
+    for layer_name in layer_names:
+        module_type = type(find_module_by_class_name(module, layer_name))
+        if module_type is not None and module_type not in module_types:
+            module_types.append(module_type)
 
     activation_checkpointing_kwargs = {}
-    if activation_checkpointing_policy:
-        policy = ModuleWrapPolicy(activation_checkpointing_policy)
+    policy = ModuleWrapPolicy(module_types)
     activation_checkpointing_kwargs["auto_wrap_policy"] = policy
     if any(isinstance(mod, CheckpointWrapper) for mod in module.modules()):
         logging.warning(

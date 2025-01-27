@@ -77,7 +77,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         data_sampler=None,
-        activation_checkpointing_policy=None,
+        checkpointing_layers=None,
         **kwargs,
     ):
         super().__init__(
@@ -89,7 +89,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
-        self.activation_checkpointing_policy = activation_checkpointing_policy
+        self.checkpointing_layers = checkpointing_layers
 
     @override
     def setup_environment(self) -> None:
@@ -103,7 +103,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
         super().setup(trainer)
-        setup_activation_checkpointing(self.model, self.activation_checkpointing_policy)
+        setup_activation_checkpointing(self.model, self.checkpointing_layers)
 
     def _get_loss_reduction(self, step_type: str):
         for fn_name in [f"{step_type}_loss_reduction", "loss_reduction"]:

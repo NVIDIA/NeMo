@@ -125,6 +125,7 @@ def main():
     parser.add_argument("--wandb-project", type=str, default=None)
     parser.add_argument("--model-save-path", type=str, default=None)
     parser.add_argument("--use-torch-jit", action="store_true")
+    parser.add_argument("--checkpointing-layers", type=str, nargs="+", default=[])
     args = parser.parse_args()
 
     wandb = None
@@ -143,12 +144,11 @@ def main():
         from nemo.lightning.pytorch.strategies import FSDP2Strategy
 
         grad_clip = None
-        from transformers.models.llama.modeling_llama import LlamaMLP
 
         args.strategy = FSDP2Strategy(
             data_parallel_size=args.devices,
             tensor_parallel_size=1,
-            activation_checkpointing_policy={LlamaMLP},
+            checkpointing_layers=args.checkpointing_layers,
         )
 
     use_dist_samp = False
