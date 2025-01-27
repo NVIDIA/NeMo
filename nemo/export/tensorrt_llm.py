@@ -159,7 +159,7 @@ class TensorRTLLM(ITritonDeployable):
         pipeline_parallelism_size: int = 1,
         gpus_per_node: Optional[int] = None,
         max_input_len: int = 256,
-        max_output_len: Optional[int] = 256,
+        max_output_len: Optional[int] = None,
         max_batch_size: int = 8,
         max_prompt_embedding_table_size: Optional[int] = None,
         use_parallel_embedding: bool = False,
@@ -174,7 +174,7 @@ class TensorRTLLM(ITritonDeployable):
         max_lora_rank: int = 64,
         max_num_tokens: Optional[int] = None,
         opt_num_tokens: Optional[int] = None,
-        max_seq_len: Optional[int] = None,
+        max_seq_len: Optional[int] = 512,
         multiple_profiles: bool = False,
         gpt_attention_plugin: str = "auto",
         gemm_plugin: str = "auto",
@@ -235,13 +235,15 @@ class TensorRTLLM(ITritonDeployable):
         self.model = None
 
         if max_output_len is not None:
-            warnings.warn(
-                "Parameter max_output_len is deprecated and will be removed. Please use max_seq_len instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+            warnings.warn("Parameter max_output_len is deprecated and will be removed.", DeprecationWarning, stacklevel=2)
+            max_output_len = max_output_len if max_output_len is not None else 256
+
             if max_seq_len is None:
                 max_seq_len = max_input_len + max_output_len
+            else:
+                warnings.warn(f"Parameter max_output_len will be overwritten by max_seq_len={max_seq_len}.", DeprecationWarning, stacklevel=2)
+
+        max_seq_len = max_seq_len if max_seq_len is not None else 512
 
         if max_batch_size < 4:
             warnings.warn(

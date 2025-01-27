@@ -36,11 +36,11 @@ LOGGER = logging.getLogger("NeMo")
 
 @wrapt.decorator
 def noop_decorator(func):
+    """No op decorator"""
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
     return wrapper
-
 
 use_pytriton = True
 try:
