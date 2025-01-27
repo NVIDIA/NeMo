@@ -19,10 +19,11 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Union
 
+import numpy
+
 # tenosrstore is needed to register 'bfloat16' dtype with numpy for zarr compatibility
 import tensorstore  # pylint: disable=unused-import
 import torch
-import numpy
 import zarr
 from torch.distributed.checkpoint import FileSystemReader, load
 from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
