@@ -150,17 +150,6 @@ def torch_to_numpy_state_dict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
 
     return state_dict
 
-
-def load_sharded_metadata(checkpoint_dir: Union[str, Path], torch_tensor: bool = True):
-    state_dict = load_model_weights(checkpoint_dir, load_extra_states=True)
-
-    if not torch_tensor:
-        state_dict = torch_to_numpy_state_dict(state_dict)
-
-    state_dict = rename_extra_states(state_dict)
-    return state_dict
-
-
 def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
     def _update_config_entry(key, file_pattern):
         old_path = tokenizer_config.get(key, None)
@@ -425,7 +414,7 @@ def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     return dtype
 
 
-def load_distributed_model_weights(nemo_checkpoint: Union[str, Path], mcore_scales_format: bool) -> Dict[str, Any]:
+def load_distributed_model_weights(nemo_checkpoint: Union[str, Path], mcore_scales_format: bool, torch_tensor: bool = True) -> Dict[str, Any]:
     """
     Loads model weights in `torch_dist` format from the model path.
     Preprocesses the scaling factors for local export if mcore_scales_format is set to False.
@@ -433,16 +422,20 @@ def load_distributed_model_weights(nemo_checkpoint: Union[str, Path], mcore_scal
     Args:
         nemo_checkpoint (str | Path): Path to the nemo checkpoint.
         mcore_scales_format (bool): Flag for local vs megatron.core export.
-
+        torch_tensor (bool): If set to False, converts returns weights in numpy format.
     Returns:
-        dict: Model state dictionary
+        dict: Model state dictionary.
     """
-    model = load_sharded_metadata(nemo_checkpoint)
-    if not mcore_scales_format:
-        model.update({k: v[0] for k, v in model.items() if EXTRA_STATE in k and isinstance(v, list)})
-        model = preprocess_scaling_factors_for_local_export(model)
+    state_dict = load_model_weights(nemo_checkpoint, load_extra_states=True)
+    if not torch_tensor:
+        state_dict = torch_to_numpy_state_dict(state_dict)
 
-    return model
+    state_dict = rename_extra_states(state_dict)
+    if not mcore_scales_format:
+        state_dict.update({k: v[0] for k, v in state_dict.items() if EXTRA_STATE in k and isinstance(v, list)})
+        state_dict = preprocess_scaling_factors_for_local_export(state_dict)
+
+    return state_dict
 
 
 def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path], mcore_scales_format: bool = True):
