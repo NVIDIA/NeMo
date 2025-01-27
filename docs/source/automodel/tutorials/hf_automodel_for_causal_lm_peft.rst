@@ -1,9 +1,9 @@
 Supervised Fine-tuning (SFT) LLMs with Nemo AutoModel: A Day-0 Support Approach
 =========================================================================================
 
-This tutorial explains how to perform superfived fine-tuning (SFT) on Large Language Models (LLMs) using the Nemo framework.
-The seamless integration with 🤗 Transformers' ``HFAutoModelForCausalLM``
-provides day-0 support for a wide range of models without requiring checkpoint conversions.
+This tutorial explains how to perform Supervised Fine-Tuning (SFT) on Large Language Models (LLMs) using the Nemo framework.
+The seamless integration with 🤗 Transformers' ``HFAutoModelForCausalLM`` enables day-0 support for a wide range of models without requiring checkpoint conversions.
+For the data aspect of the task, we will show how to load a dataset and format its prompts according to a template.
 
 
 Introduction
