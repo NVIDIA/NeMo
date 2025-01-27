@@ -13,17 +13,14 @@
 # limitations under the License.
 
 import fiddle as fdl
+import torch.nn as nn
 from lightning.pytorch.loggers import WandbLogger
+from torch.nn import Module
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-
-
-from torch.nn import Module
-
-import torch.nn as nn
 
 
 def is_mlp_layer(module):
@@ -105,11 +102,10 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="meta-llama/Llama-3.1-8B")
+    parser.add_argument("--model", default="meta-llama/Llama-3.2-1B")
     parser.add_argument(
         "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp"]
     )
-
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
     parser.add_argument("--max-steps", type=int, default=100)
@@ -138,9 +134,10 @@ def main():
         # See:
         # https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
-        from nemo.lightning.pytorch.strategies import FSDPStrategy
         import torch
         from torch.nn import Linear
+
+        from nemo.lightning.pytorch.strategies import FSDPStrategy
 
         args.strategy = FSDPStrategy(
             # activation_checkpointing_policy=mlp_activation_checkpointing_policy
