@@ -5155,7 +5155,6 @@ jobs:
       - L2_HF_Transformer_PT_2gpu
       - L2_HF_Transformer_PT_2gpu_nemorun
       - L2_HF_Transformer_PT_TE_Acceleration
-      - L2_VLM_HF_Transformer_PEFT
       - L2_NeMo_2_SSM_Pretraining
       - L2_NeMo_2_SSM_Finetuning
       - L2_NeMo_2_T5_Pretraining
