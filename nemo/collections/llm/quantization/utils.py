@@ -13,18 +13,9 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Optional
 
 import torch
-from megatron.core.extensions.transformer_engine import TEDotProductAttention, TENorm
-from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.models.gpt.gpt_layer_specs import _get_mlp_module_spec
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-from megatron.core.transformer.enums import AttnMaskType
-from megatron.core.transformer.identity_op import IdentityOp
-from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -58,56 +49,10 @@ def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
     return None
 
 
-def get_gpt_layer_modelopt_spec(num_experts: Optional[int] = None) -> ModuleSpec:
-    """Mix the native spec with TENorm and TEDotProductAttention.
-
-    This is essentially the native local spec except for the layernorm implementation
-    is using TENorm from Transformer-Engine. This TENorm supports both FusedLayerNorm and RMSNorm and
-    prevents the apex dependency.
-
-    TEDotProductAttention is used to support sliding window attention.
-
-    Args:
-        num_experts (int): Number of experts. Defaults to None.
-
-    Returns:
-        ModuleSpec: Module specification with Megatron-Core modules.
-    """
-
-    mlp = _get_mlp_module_spec(use_te=False, num_experts=num_experts, moe_grouped_gemm=False)
-
-    return ModuleSpec(
-        module=TransformerLayer,
-        submodules=TransformerLayerSubmodules(
-            input_layernorm=TENorm,
-            self_attention=ModuleSpec(
-                module=SelfAttention,
-                params={"attn_mask_type": AttnMaskType.causal},
-                submodules=SelfAttentionSubmodules(
-                    linear_qkv=ColumnParallelLinear,
-                    core_attention=TEDotProductAttention,
-                    linear_proj=RowParallelLinear,
-                    q_layernorm=IdentityOp,
-                    k_layernorm=IdentityOp,
-                ),
-            ),
-            self_attn_bda=get_bias_dropout_add,
-            pre_mlp_layernorm=TENorm,
-            mlp=mlp,
-            mlp_bda=get_bias_dropout_add,
-            # Map TE-layernorm-fusion keys back
-            sharded_state_dict_keys_map={
-                'input_layernorm.': 'self_attention.linear_qkv.layer_norm_',
-                **({'pre_mlp_layernorm.': 'mlp.linear_fc1.layer_norm_'} if num_experts is None else {}),
-            },
-        ),
-    )
-
-
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model config for TensorRT-Model-Optimizer quantization"""
 
-    model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec(num_experts=model_cfg.num_moe_experts)
+    model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec(num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True)
     if model_cfg.sequence_parallel:
         logging.warning("Disabling sequence parallelism for quantization...")
         model_cfg.sequence_parallel = False
@@ -125,21 +70,8 @@ def load_with_modelopt_layer_spec(
     tensor_model_parallel_size: int = 1,
     pipeline_model_parallel_size: int = 1,
     inference_only: bool = True,
-    ckpt_load_strictness: Optional[str] = None,
-) -> llm.GPTModel:
-    """
-    Loads a model from a NeMo 2.0 checkpoint using modelopt layer spec.
-
-    Args:
-        nemo_checkpoint_path (str): Path to the NeMo checkpoint.
-        tensor_model_parallel_size (int): Size of the tensor model parallelism.
-        pipeline_model_parallel_size (int): Size of the pipeline model parallelism.
-        inference_only (bool): If True, loads the model for inference only w/o initializing the optimizer.
-        ckpt_load_strictness (Optional[str]): Handling of checkpoint loading mismatch for tensor keys.
-
-    Returns:
-        llm.GPTModel: The loaded model with the specified configuration.
-    """
+):
+    """Loads a model from a NeMo 2.0 checkpoint using modelopt layer spec."""
     # TODO: setting ddp="pytorch" and deleting model.optim is a hackish way to disable DDP initialization.
     # Needs a systematic solution.
     if inference_only:
@@ -149,7 +81,6 @@ def load_with_modelopt_layer_spec(
             pipeline_dtype=torch.bfloat16,
             ckpt_load_optimizer=False,
             ckpt_parallel_save_optim=False,
-            ckpt_load_strictness=ckpt_load_strictness,
             setup_optimizers=False,
             lazy_init=True,
             ddp="pytorch",
@@ -159,7 +90,6 @@ def load_with_modelopt_layer_spec(
             tensor_model_parallel_size=tensor_model_parallel_size,
             pipeline_model_parallel_size=pipeline_model_parallel_size,
             pipeline_dtype=torch.bfloat16,
-            ckpt_load_strictness=ckpt_load_strictness,
         )
 
     trainer = nl.Trainer(
