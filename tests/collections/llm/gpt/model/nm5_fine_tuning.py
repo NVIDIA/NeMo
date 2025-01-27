@@ -102,10 +102,10 @@ if __name__ == "__main__":
         use_fast=True,
     )
 
-    model = llm.GPTModel(model_config, optim=optim, tokenizer=tokenizer)
+    model = llm.MambaModel(model_config, optim=optim, tokenizer=tokenizer)
 
     # ckpt_path = "/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_nemo" 
-    ckpt_path = "/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nemotron5/nm5_ux_from_nemo1"
+    ckpt_path = "/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/nm5_exp/nm5_from_hf_to_nemo"
     #model.import_ckpt(
     #     path="pytorch://" + args.model_path,
     #     model_config=model_config,

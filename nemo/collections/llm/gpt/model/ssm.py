@@ -15,14 +15,19 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Literal, Optional
+from typing import TYPE_CHECKING, Callable, Literal, Optional, Annotated
 import torch
+from torch import nn
 import torch.nn.functional as F
 from nemo.utils import logging
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step, torch_dtype_from_mcore_config
-from nemo.lightning import get_vocab_size, io, teardown
+from nemo.lightning import get_vocab_size, io, teardown, OptimizerModule
 from nemo.lightning.pytorch.utils import dtype_from_hf
+from nemo.collections.llm.utils import Config
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from transformers import Nemotron5Config, Nemotron5ForCausalLM, AutoTokenizer
+from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 
 try:
     from megatron.core import parallel_state
@@ -154,7 +159,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     tokenizer_model_path: str = None
     deallocate_pipeline_outputs: bool = True
     bias_dropout_fusion: bool = True
-
+    cross_entropy_loss_fusion: bool = True
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
 
         return MCoreMambaModel(
@@ -174,18 +179,57 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             post_process=post_process or parallel_state.is_pipeline_last_stage(),
         )
 
+class MambaModel(GPTModel):
+    def __init__(
+        self,
+        config: Annotated[Optional[SSMConfig], Config[SSMConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+    ):
+        super().__init__(config or SSMConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+    
+    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+        # This is to get the MCore model required in GPTInferenceWrapper.
+        mcore_model = self.module
+        while mcore_model:
+            if type(mcore_model) is MCoreMambaModel:
+                break
+            mcore_model = getattr(mcore_model, "module", None)
+        if mcore_model is None or type(mcore_model) is not MCoreMambaModel:
+            raise ValueError("Exact MCoreMambaModel instance not found in the model structure.")
 
-@io.model_importer(GPTModel, "pytorch")
-class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
+        vocab_size = None
+        if self.tokenizer is not None:
+            vocab_size = self.tokenizer.vocab_size
+        elif hasattr(self.config, 'vocab_size'):
+            vocab_size = self.config.vocab_size
+        else:
+            raise ValueError(
+                'Unable to find vocab size. Either pass in a tokenizer with vocab size, or set vocab size in the model config'
+            )
+
+        inference_wrapper_config = InferenceWrapperConfig(
+            hidden_size=mcore_model.config.hidden_size,
+            params_dtype=params_dtype,
+            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+            padded_vocab_size=vocab_size,
+        )
+
+        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
+        return model_inference_wrapper
+
+@io.model_importer(MambaModel, "pytorch")
+class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
 
     def __new__(cls, path: str, model_config=None):
         instance = super().__new__(cls, path)
         instance.model_config = model_config
         return instance
 
-    def init(self) -> GPTModel:
+    def init(self) -> MambaModel:
 
-        return GPTModel(self.config, tokenizer=self.tokenizer)
+        return MambaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path, source_dist_ckpt: bool = False) -> Path:
 
@@ -299,10 +343,10 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
         return self.model_config
 
 
-@io.model_importer(GPTModel, "hf")
-class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", GPTModel]):
-    def init(self) -> GPTModel:
-        return GPTModel(self.config, tokenizer=self.tokenizer)
+@io.model_importer(MambaModel, "hf")
+class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", MambaModel]):
+    def init(self) -> MambaModel:
+        return MambaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
 
@@ -371,7 +415,7 @@ class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", GPTModel]):
                 base //= 2
             return base
 
-        output = SSMConfig(
+        output = Nemotron5HybridConfig8B(
             num_layers=source.num_hidden_layers,
             hybrid_override_pattern=source.hybrid_override_pattern,
             hidden_size=source.hidden_size,
@@ -389,8 +433,8 @@ class HFNemotron5Importer(io.ModelConnector["Nemotron5ForCausalLM", GPTModel]):
         return output
 
 
-@io.model_exporter(GPTModel, "hf")
-class HFNemotron5Exporter(io.ModelConnector[GPTModel, "Nemotron5ForCausalLM"]):
+@io.model_exporter(MambaModel, "hf")
+class HFNemotron5Exporter(io.ModelConnector[MambaModel, "Nemotron5ForCausalLM"]):
     def init(self, dtype=torch.bfloat16) -> "Nemotron5ForCausalLM":
         from transformers.modeling_utils import no_init_weights
 
@@ -473,6 +517,8 @@ class HFNemotron5Exporter(io.ModelConnector[GPTModel, "Nemotron5ForCausalLM"]):
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
             vocab_size=source.vocab_size,
+            mlp_hidden_act='relu2',
+            mamba_hidden_act="silu",
         )
 
 @io.state_transform(

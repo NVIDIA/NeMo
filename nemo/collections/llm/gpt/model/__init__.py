@@ -100,6 +100,7 @@ from nemo.collections.llm.gpt.model.ssm import (
     NVIDIAMambaHybridConfig8B,
     Nemotron5HybridConfig8B,
     SSMConfig,
+    MambaModel,
 )
 from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B, StarcoderModel
 from nemo.collections.llm.gpt.model.starcoder2 import (
@@ -187,6 +188,7 @@ __all__ = [
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
     "Nemotron5HybridConfig8B",
+    "MambaModel",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",

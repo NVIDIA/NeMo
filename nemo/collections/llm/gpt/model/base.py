@@ -21,7 +21,6 @@ import torch.distributed
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-from megatron.core.models.mamba.mamba_model import MambaModel as MCoreMambaModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -390,17 +389,27 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module
         while mcore_model:
-            if type(mcore_model) is MCoreGPTModel or type(mcore_model) is MCoreMambaModel:
+            if type(mcore_model) is MCoreGPTModel:
                 break
             mcore_model = getattr(mcore_model, "module", None)
-        if mcore_model is None or type(mcore_model) is not MCoreGPTModel and type(mcore_model) is not MCoreMambaModel:
+        if mcore_model is None or type(mcore_model) is not MCoreGPTModel:
             raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
+
+        vocab_size = None
+        if self.tokenizer is not None:
+            vocab_size = self.tokenizer.vocab_size
+        elif hasattr(self.config, 'vocab_size'):
+            vocab_size = self.config.vocab_size
+        else:
+            raise ValueError(
+                'Unable to find vocab size. Either pass in a tokenizer with vocab size, or set vocab size in the model config'
+            )
 
         inference_wrapper_config = InferenceWrapperConfig(
             hidden_size=mcore_model.config.hidden_size,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            padded_vocab_size=self.tokenizer.vocab_size,
+            padded_vocab_size=vocab_size,
         )
 
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)

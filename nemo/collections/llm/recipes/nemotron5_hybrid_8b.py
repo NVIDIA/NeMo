@@ -30,6 +30,7 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils.exp_manager import TimingCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 
 NAME = "nemotron5_hybrid_8b"
 
@@ -63,7 +64,7 @@ def model(vocab_file: str = None) -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return run.Config(
-        llm.GPTModel,
+        llm.MambaModel,
         config=run.Config(llm.Nemotron5HybridConfig8B),
         tokenizer=tokenizer(vocab_file=vocab_file),
     )
@@ -165,7 +166,8 @@ def pretrain_recipe(
     vocab_file: str = None,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    tensor_parallelism: int = 8,
+    tensor_parallelism: int = 2,
+    sequence_parallelism: bool = False,
     pipeline_parallelism: int = 1,
     max_steps: int = 100,
     val_check_interval: int = 100,
@@ -175,6 +177,7 @@ def pretrain_recipe(
     seq_length: int = 8192,
     gbs: int = 8,
     mbs: int = 1,
+    performance_mode: bool = False,
     fn=pretrain,
 ) -> run.Partial:
     """
@@ -206,7 +209,8 @@ def pretrain_recipe(
         For more details on pre-training LLMs with NeMo, see the pre-training
         guide in the `examples/llm/pretrain/` directory.
     """
-    return run.Partial(
+    
+    recipe = run.Partial(
         fn,
         model=model(vocab_file=vocab_file),
         trainer=trainer(
@@ -214,6 +218,7 @@ def pretrain_recipe(
             num_nodes=num_nodes,
             tensor_parallelism=tensor_parallelism,
             pipeline_parallelism=pipeline_parallelism,
+            sequence_parallelism=sequence_parallelism,
             num_gpus_per_node=num_gpus_per_node,
             val_check_interval=val_check_interval,
             limit_test_batches=limit_test_batches,
@@ -232,7 +237,9 @@ def pretrain_recipe(
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
-
+    if performance_mode:
+        recipe = performance_optimizations(recipe)
+    return recipe
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
@@ -242,7 +249,8 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    tensor_model_parallel_size: int = 8,
+    tensor_model_parallel_size: int = 2,
+    sequence_parallelism: bool = False,
     pipeline_model_parallel_size: int = 1,
     seq_length: int = 8192,
     max_steps: int = 100,
@@ -252,6 +260,7 @@ def finetune_recipe(
     log_every_n_steps: int = 10,
     gbs: int = 8,
     mbs: int = 1,
+    performance_mode: bool = False,
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
@@ -285,7 +294,7 @@ def finetune_recipe(
         `examples/llm/finetune/` directory.
         For converting an SSM pytorch checkpoint, use the following line of python code:
 
-        llm.GPTModel(llm.Nemotron5HybridConfig8B(), tokenizer=tokenizer(vocab_file=vocab_file)).import_ckpt(
+        llm.MambaModel(llm.Nemotron5HybridConfig8B(), tokenizer=tokenizer(vocab_file=vocab_file)).import_ckpt(
             path="pytorch://ABSOLUTE_PATH_TO_CKPT/your_pytorch_state_dict_file",
             model_config=llm.Nemotron5HybridConfig8B())
         This line will cache the nemo checkpoint to following directory:
@@ -300,10 +309,11 @@ def finetune_recipe(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_model_parallel_size,
         pipeline_model_parallel_size=pipeline_model_parallel_size,
+        sequence_parallelism=sequence_parallelism,
         gradient_as_bucket_view=True,
-        ckpt_load_optimizer=False,
-        ckpt_save_optimizer=False,
-        ckpt_async_save=False,
+        ckpt_load_optimizer=True,
+        ckpt_save_optimizer=True,
+        ckpt_async_save=True,
     )
     checkpoint_callback = run.Config(
         nl.ModelCheckpoint,
@@ -350,4 +360,31 @@ def finetune_recipe(
         recipe.optim.config.lr = 5e-6
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
+    if performance_mode:
+        recipe = performance_optimizations(recipe)
+    return recipe
+
+def performance_optimizations(recipe: run.Partial) -> run.Partial:
+    """
+    Create a performance-optimized pre-training recipe for Nemotron5 Hybrid 8B model.
+
+    This method enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+
+    Args:
+        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized pre-training.
+
+    Note:
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=True,
+        )
+    )
     return recipe

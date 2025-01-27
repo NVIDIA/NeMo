@@ -63,7 +63,7 @@ def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return run.Config(
-        llm.GPTModel, config=run.Config(llm.BaseMambaConfig130M), tokenizer=tokenizer(tokenizer_model=tokenizer_model)
+        llm.MambaModel, config=run.Config(llm.BaseMambaConfig130M), tokenizer=tokenizer(tokenizer_model=tokenizer_model)
     )
 
 
@@ -283,7 +283,7 @@ def finetune_recipe(
         `examples/llm/finetune/` directory.
         For converting an SSM pytorch checkpoint, use the following line of python code:
 
-        llm.GPTModel(llm.BaseMambaConfig130M(), tokenizer=tokenizer()).import_ckpt(
+        llm.MambaModel(llm.BaseMambaConfig130M(), tokenizer=tokenizer()).import_ckpt(
             path="pytorch://ABSOLUTE_PATH_TO_CKPT/your_pytorch_state_dict_file",
             model_config=llm.BaseMambaConfig130M())
         This line will cache the nemo checkpoint to following directory:
