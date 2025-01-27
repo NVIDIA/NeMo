@@ -22,15 +22,17 @@ import lightning.pytorch as pl
 import torch
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
-from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
+from lightning.pytorch.strategies.model_parallel import (
+    ModelParallelStrategy as PLModelParallelStrategy,
+)
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+
 from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
     StateDictOptions,
     get_optimizer_state_dict,
     set_state_dict,
 )
-from torch.nn import Module
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
@@ -45,6 +47,7 @@ from nemo.lightning.pytorch.strategies.utils import (
     setup_data_sampler,
     setup_parallel_ranks,
 )
+from nemo.lightning.pytorch.checkpointing import setup_activation_checkpointing
 
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
@@ -80,19 +83,13 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         super().__init__(
             data_parallel_size=data_parallel_size,
             tensor_parallel_size=tensor_parallel_size,
-            activation_checkpointing_policy=activation_checkpointing_policy,
             **kwargs,
         )
 
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
-        self._activation_checkpointing_kwargs = {}
-        if activation_checkpointing_policy is not None:
-            from torch.distributed.fsdp.wrap import ModuleWrapPolicy
-
-            policy = ModuleWrapPolicy(activation_checkpointing_policy)
-            self._activation_checkpointing_kwargs["auto_wrap_policy"] = policy
+        self.activation_checkpointing_policy = activation_checkpointing_policy
 
     @override
     def setup_environment(self) -> None:
@@ -106,6 +103,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
         super().setup(trainer)
+        setup_activation_checkpointing(self.model, self.activation_checkpointing_policy)
 
     def _get_loss_reduction(self, step_type: str):
         for fn_name in [f"{step_type}_loss_reduction", "loss_reduction"]:
@@ -116,7 +114,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     def _step_proxy(self, step_type, batch, batch_idx=None):
         method_name = f"{step_type}_step"
         if self.model != self.lightning_module:
-            loss = self._forward_redirection(self.model, self.lightning_module, method_name, batch, batch_idx)
+            loss = self._forward_redirection(
+                self.model, self.lightning_module, method_name, batch, batch_idx
+            )
         else:
             loss = getattr(self.lightning_module, method_name)(batch, batch_idx)
 
@@ -161,7 +161,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.val_step_context():
             loss, reduced = self._step_proxy("validation", batch, batch_idx)
-            self.lightning_module.log("val_loss", reduced["avg"], rank_zero_only=True, batch_size=1)
+            self.lightning_module.log(
+                "val_loss", reduced["avg"], rank_zero_only=True, batch_size=1
+            )
             return loss
 
     @override
@@ -170,7 +172,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.test_step_context():
             loss, reduced = self._step_proxy("test", batch, batch_idx)
-            self.lightning_module.log("test_loss", reduced["avg"], rank_zero_only=True, batch_size=1)
+            self.lightning_module.log(
+                "test_loss", reduced["avg"], rank_zero_only=True, batch_size=1
+            )
 
             return loss
 
@@ -234,7 +238,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         )
         checkpoint["state_dict"] = OrderedDict([])
 
-        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
+        if (
+            "optimizer_states" in checkpoint
+            and self.trainer.state.fn == TrainerFn.FITTING
+        ):
             # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
             # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}
@@ -243,14 +250,18 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
             ## the checkpoint will contain only model weights. Optimizer states will be omitted.
             if self.ckpt_save_optimizer:
-                checkpoint["optimizer"] = get_optimizer_state_dict(self.model, self.optimizers)
+                checkpoint["optimizer"] = get_optimizer_state_dict(
+                    self.model, self.optimizers
+                )
                 pyt_to_mcore_state_dict(
                     checkpoint["optimizer"]["state"],
                     prefix="optimizer.state.",
                     device_mesh=self.device_mesh,
                 )
 
-        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        self.checkpoint_io.save_checkpoint(
+            checkpoint, filepath, storage_options=storage_options
+        )
 
     @override
     def load_checkpoint(self, checkpoint_path: str | Path) -> Dict[str, Any]:
@@ -278,45 +289,31 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             sharded_state_dict["sharded_state_dict"] = msd
 
         if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
-            osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
-            pyt_to_mcore_state_dict(osd["state"], prefix="optimizer.state.", device_mesh=self.device_mesh)
+            osd = get_optimizer_state_dict(
+                self.model, self.optimizers, options=StateDictOptions(cpu_offload=True)
+            )
+            pyt_to_mcore_state_dict(
+                osd["state"], prefix="optimizer.state.", device_mesh=self.device_mesh
+            )
             sharded_state_dict["optimizer"] = osd
 
-        checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
+        checkpoint = self.checkpoint_io.load_checkpoint(
+            path, sharded_state_dict=sharded_state_dict
+        )
         mcore_to_pyt_sharded_state_dict(checkpoint["sharded_state_dict"], msd)
 
         if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
-            mcore_to_pyt_sharded_state_dict(checkpoint["optimizer"]["state"], osd["state"])
+            mcore_to_pyt_sharded_state_dict(
+                checkpoint["optimizer"]["state"], osd["state"]
+            )
 
         set_state_dict(
             self.model,
             self.optimizers if self.ckpt_load_optimizer else [],
             model_state_dict=checkpoint["sharded_state_dict"],
-            optim_state_dict=checkpoint["optimizer"] if self.ckpt_load_optimizer else None,
+            optim_state_dict=checkpoint["optimizer"]
+            if self.ckpt_load_optimizer
+            else None,
         )
 
         return checkpoint
-
-    def _setup_activation_checkpointing(self, module: Module, activation_checkpointing_kwargs: dict) -> None:
-        if not activation_checkpointing_kwargs:
-            return
-
-        from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import CheckpointWrapper
-
-        if any(isinstance(mod, CheckpointWrapper) for mod in module.modules()):
-            rank_zero_warn(
-                "FSDP checkpointing is configured, but the model already contains checkpointed layers."
-                " Checkpointing will be ignored."
-            )
-            return
-
-        from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
-            apply_activation_checkpointing,
-            checkpoint_wrapper,
-        )
-
-        apply_activation_checkpointing(
-            module,
-            checkpoint_wrapper_fn=checkpoint_wrapper,
-            **activation_checkpointing_kwargs,
-        )
