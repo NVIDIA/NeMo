@@ -3,12 +3,17 @@ NVIDIA NeMo AutoModel Docs
 
 NVIDIA NeMo Framework is an end-to-end, cloud-native framework designed to build, customize, and deploy generative AI models anywhere.
 
-NVIDIA AutoModel supports training and finetuning of models available via 🤗 Transformers ``HFAutoModel``,
+NVIDIA NeMo AutoModel supports training and finetuning of models available via 🤗 Transformers' ``AutoModel`` classes,
 in particular it supports models available via:
 
 - AutoModelForCausalLM
 - AutoModelForImageTextToText
 - AutoModelForSpeechSeq2Seq
+
+Covering LLM, VLM and ASR domains.
+
+
+For distributed processing NeMo AutoModel offers integration with DDP and FSDP2.
 
 
 For quick guides and tutorials, see the "Getting started" section below.
