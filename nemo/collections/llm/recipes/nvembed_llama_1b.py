@@ -20,9 +20,10 @@ import nemo_run as run
 import torch
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from nemo.collections import llm
+
 from nemo import lightning as nl
-from nemo.collections.llm import NVEmbedLlamaModel, NVEmbedLlama32Config1B
+from nemo.collections import llm
+from nemo.collections.llm import NVEmbedLlama32Config1B, NVEmbedLlamaModel
 from nemo.collections.llm.api import finetune
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
@@ -221,7 +222,7 @@ def finetune_recipe(
             'negative_sample_strategy': recipe.model.config.negative_sample_strategy,
             'add_bos': recipe.model.config.add_bos,
             'add_eos': recipe.model.config.add_eos,
-        }
+        },
     )
 
     return recipe
