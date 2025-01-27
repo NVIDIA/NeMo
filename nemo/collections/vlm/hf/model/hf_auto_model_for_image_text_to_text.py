@@ -65,7 +65,12 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.model_transform = model_transform
         self.trust_remote_code = trust_remote_code
         self.load_in_4bit = load_in_4bit
-        self.mp_policy = MixedPrecisionPolicy(param_dtype=param_dtype, reduce_dtype=reduce_dtype, output_dtype=output_dtype, cast_forward_inputs=cast_forward_inputs)
+        self.mp_policy = MixedPrecisionPolicy(
+            param_dtype=param_dtype,
+            reduce_dtype=reduce_dtype,
+            output_dtype=output_dtype,
+            cast_forward_inputs=cast_forward_inputs,
+        )
         self.parallelize_fn = parallelize_fn
 
     @property

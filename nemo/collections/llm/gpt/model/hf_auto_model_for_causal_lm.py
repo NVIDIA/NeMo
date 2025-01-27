@@ -66,7 +66,12 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
-        self.mp_policy = MixedPrecisionPolicy(param_dtype=param_dtype, reduce_dtype=reduce_dtype, output_dtype=output_dtype, cast_forward_inputs=cast_forward_inputs)
+        self.mp_policy = MixedPrecisionPolicy(
+            param_dtype=param_dtype,
+            reduce_dtype=reduce_dtype,
+            output_dtype=output_dtype,
+            cast_forward_inputs=cast_forward_inputs,
+        )
         self.parallelize_fn = parallelize_fn
 
     @property
