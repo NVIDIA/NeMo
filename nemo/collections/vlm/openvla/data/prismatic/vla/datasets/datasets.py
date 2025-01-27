@@ -55,6 +55,11 @@ class RLDSBatchTransform:
 
         # Tokenize (w/ `base_tokenizer`)
         input_ids = self.base_tokenizer(prompt_builder.get_prompt(), add_special_tokens=True).input_ids
+        # input_ids = self.base_tokenizer(prompt_builder.get_prompt(), add_special_tokens=True,
+        #                                 padding='max_length', max_length=40, truncation=True,).input_ids
+
+        # sample_new["captions"] = self.tokenizer.tokenizer(sample["txt"], return_tensors="pt", truncation=True,
+        #                                                   padding='max_length', max_length=self.max_length).input_ids
         labels = list(input_ids)
 
         # Tensorize =>> Run Image Transform to get `pixel_values` =>> Return

@@ -568,6 +568,12 @@ def make_interleaved_dataset(
         dataset = dataset.take(shuffle_buffer_size).cache()
 
     # Shuffle the Dataset
+    from megatron.core import parallel_state
+    dp_rank = parallel_state.get_data_parallel_rank()
+    print(f"Data Parallel Rank: {dp_rank}")
+
+    import tensorflow as tf
+    tf.random.set_seed(40)
     #   =>> IMPORTANT :: Shuffle AFTER .cache(), or else memory will still leak!
     dataset = dataset.shuffle(shuffle_buffer_size)
 

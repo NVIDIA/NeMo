@@ -289,7 +289,8 @@ class TimmCLIPVisionConfig(io.IOMixin):
         self.featurizer.set_input_tensor = MethodType(set_input_tensor, self.featurizer)
 
         self.featurizer = self.featurizer.to(dtype=self.dtype)
-        # self.featurizer.requires_grad_(False)
+        self.featurizer.requires_grad_(False)
+        self.featurizer = self.featurizer.to("cuda")
         import pdb; pdb.set_trace()
         return self.featurizer
 
@@ -662,6 +663,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
         language_embeddings = None
         if self.pre_process:
             input_ids_text = input_ids.clone()
+            print(f"input_ids_text shape: {input_ids_text.shape}")
             # MultiModal Token indices are assumed to be values
             input_ids_text[input_ids_text < 0] = 0
             # Note: This adds absolute position embedding but not RoPE.
@@ -718,7 +720,10 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             packed_seq_params=packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
-        print(f"combined_embeddings shape: {combined_embeddings.shape}")
+        print(f"combined_embeddings shape: {combined_embeddings.shape}\n"
+              f"final_labels: {final_labels}\n"
+              f"final_loss_mask: {final_loss_mask}\n"
+              f"final_attention_mask: {final_attention_mask}")
         output = self.language_model(
             input_ids=None,
             position_ids=None,

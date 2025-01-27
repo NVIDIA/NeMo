@@ -84,7 +84,7 @@ def main(args) -> None:
         micro_batch_size=mbs,
         tokenizer=None,
         image_processor=None,
-        num_workers=4,
+        num_workers=1,
         hf_token=args.hf_token,
     )
 
