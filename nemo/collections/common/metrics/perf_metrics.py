@@ -247,3 +247,26 @@ class FLOPsMeasurementCallback(Callback):
             * self.hs
             * (1 + (self.enc_seq_len / (6 * self.hs)) + (vocab_size / (12 * self.hs * self.layers)))
         )
+
+    def _clip_vit_l(self):
+        """Model FLOPs for CLIP ViT"""
+
+        img_seq_len = (self.img_h * self.img_w) / (self.patch_dim * self.patch_dim) + self.img_token_len
+        return (
+            self.gbs
+            * self.hs
+            * self.hs
+            * img_seq_len
+            * (
+                24
+                + (4 * img_seq_len / self.hs)
+            )
+            + (
+                2 
+                * self.gbs 
+                * self.hs 
+                * self.in_channels 
+                * self.img_h 
+                * self.img_w
+            )
+        )
