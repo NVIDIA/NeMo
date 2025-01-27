@@ -72,12 +72,18 @@ This function prepares the SQuAD dataset for fine-tuning. It uses ``HFDatasetDat
       )
       return datamodule
 
-The ``formatting_prompts_func`` takes a dictionary of Squad examples and reformats it into a prompt suitable for instruction tuning. It constructs a prompt using the context as the instruction and the question as the input, and the answer as the target output. Key operations within this function include:
+The ``formatting_prompts_func`` takes a dictionary of Squad examples and reformats it into a prompt suitable for instruction tuning.
+It constructs a prompt using the context as the instruction and the question as the input, and the answer as the target output. Key operations within this function include:
 
-* Formatting input data into a prompt template.
+* Formatting input data using a prompt template.
 * Tokenizing the formatted text using the provided tokenizer.
-* Creating labels by shifting the input IDs by one position to the left, which is standard for language modeling tasks (predicting the next token).
+* Creating labels by shifting the input IDs by one position to the left, which is standard for language modeling tasks (next token prediction).
 * Removing the last token from input_ids and attention mask to align with the shifted labels.
+* Remove unnecessary columns from the training batch.
+
+The last operation is very important. Internally, ``HFAutoModelForCausalLM``'s forward function expects a dictionary whose contents are
+passed to the underlying model. Therefore, any key contained within the batch dictionary needs to match to ``HFAutoModelForCausalLM``'s forward arguments.
+
 
 The ``getattr(tokenizer, 'tokenizer', tokenizer)`` line handles cases where the tokenizer might be wrapped in another object (like a FastTokenizer).
 
@@ -96,7 +102,7 @@ This function orchestrates the fine-tuning process.
     # ... Argument parsing ...
     args = parser.parse_args()
 
-    tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model) # Day 0 Support!
+    tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
 
     wandb = None
     if args.wandb_project is not None:
@@ -139,7 +145,7 @@ The emphasized lines highlight:
 
 * Line 19: Argument parsing for command-line options.
 * Line 44: Tokenizer initialization using ``HFAutoModelForCausalLM.configure_tokenizer``.
-* Line 47: Gradient clipping setup, disabled when using FSDP.
+* Line 47: Gradient clipping setup.
 * Lines 50-53: Setting up JIT compilation if the corresponding flag is passed.
 * Lines 64-70: Trainer configuration with important parameters such as gradient accumulation, gradient clipping, precision, and logging.
 * Lines 77-83: Using LoRA for Parameter Efficient Fine-Tuning, only training a small subset of the model's parameters.
