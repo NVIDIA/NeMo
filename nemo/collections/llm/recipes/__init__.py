@@ -60,6 +60,7 @@ from nemo.collections.llm.recipes import (
     nemotron4_15b_16k,
     nemotron4_15b_64k,
     nemotron4_340b,
+    nvembed_llama_1b,
     phi3_mini_4k_instruct,
     qwen2,
     qwen2_1p5b,
