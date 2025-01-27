@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import shutil
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -29,7 +30,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizer
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
-from nemo.export.utils import load_sharded_metadata_torch_dist, load_sharded_metadata_zarr, nemo_to_path
+from nemo.export.utils import torch_dtype_from_precision, load_sharded_metadata_torch_dist, load_sharded_metadata_zarr, nemo_to_path
 
 try:
     from nemo.lightning import io
@@ -358,7 +359,7 @@ def get_model_type(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     Determine the model type from a NeMo checkpoint for TensorRT-LLM engine build.
 
     Args:
-        nemo_ckpt (str): Path to the NeMo checkpoint file.
+        nemo_ckpt (Union[str, Path]): Path to the NeMo checkpoint file.
     Returns:
         Optional[str]: The model type if it can be determined, otherwise None.
     """
@@ -395,6 +396,36 @@ def get_model_type(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     else:
         LOGGER.warning(f"Parameter model_type cannot be determined for {nemo_ckpt} checkpoint.")
     return model_type
+
+
+def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
+    """Determine the weights data type from a NeMo checkpoint for TensorRT-LLM engine build.
+
+    Args:
+        nemo_ckpt (Union[str, Path]): Path to the NeMo checkpoint file.
+    Returns:
+        Optional[str]: The dtype if it can be determined, otherwise None.
+    """
+    model_config = load_nemo_config(nemo_ckpt)
+    torch_dtype = None
+    dtype = None
+
+    is_nemo2 = "_target_" in model_config
+    if is_nemo2:
+        torch_dtype = model_config["config"]["params_dtype"]["_target_"]
+    elif precision := model_config.get("precision", None):
+        torch_dtype = str(torch_dtype_from_precision(precision))
+
+    if torch_dtype is not None:
+        dtype = torch_dtype.removeprefix("torch.")
+        LOGGER.info(f"Determined weights dtype='{dtype}' for {nemo_ckpt} checkpoint.")
+    else:
+        LOGGER.warning(
+            f"Parameter dtype for model weights cannot be determined for {nemo_ckpt} checkpoint. "
+            "There is no 'precision' field specified in the model_config.yaml file."
+        )
+
+    return dtype
 
 
 def load_distributed_model_weights(
