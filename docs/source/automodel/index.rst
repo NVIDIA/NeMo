@@ -1,4 +1,4 @@
-NVIDIA NeMO AutoModel Docs
+NVIDIA NeMo AutoModel Docs
 ==========================
 
 NVIDIA NeMo Framework is an end-to-end, cloud-native framework designed to build, customize, and deploy generative AI models anywhere.
