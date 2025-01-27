@@ -43,6 +43,7 @@ class NemoModelLoader(BaseModelLoader):
         return load_model_weights(nemo_file)
 
     def download_model(self, model_config: ModelConfig) -> None:
+        # pylint: disable=C0116
         raise NotImplementedError
 
     def load_model(
