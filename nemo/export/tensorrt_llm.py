@@ -235,13 +235,19 @@ class TensorRTLLM(ITritonDeployable):
         self.model = None
 
         if max_output_len is not None:
-            warnings.warn("Parameter max_output_len is deprecated and will be removed.", DeprecationWarning, stacklevel=2)
+            warnings.warn(
+                "Parameter max_output_len is deprecated and will be removed.", DeprecationWarning, stacklevel=2
+            )
             max_output_len = max_output_len if max_output_len is not None else 256
 
             if max_seq_len is None:
                 max_seq_len = max_input_len + max_output_len
             else:
-                warnings.warn(f"Parameter max_output_len will be overwritten by max_seq_len={max_seq_len}.", DeprecationWarning, stacklevel=2)
+                warnings.warn(
+                    f"Parameter max_output_len will be overwritten by max_seq_len={max_seq_len}.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
 
         max_seq_len = max_seq_len if max_seq_len is not None else 512
 
