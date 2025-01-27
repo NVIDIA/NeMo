@@ -22,7 +22,7 @@ from lightning.pytorch.callbacks import Callback
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.utils import flops_formulas, logging
 
-__all__ = ["FLOPsMeasurementCallback"]
+__all__ = ["FLOPsMeasurementCallback", "MM_FLOPsMeasurementCallback"]
 
 
 class FLOPsMeasurementCallback(Callback):
@@ -160,5 +160,119 @@ class FLOPsMeasurementCallback(Callback):
         total_flops = model_flops_map[self.model](self.flops_config)
         num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
         flops_per_gpu = total_flops / num_devices
+
+        return total_flops, flops_per_gpu
+
+class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
+    """
+    Calculate and log FLOPs per second after every ``trainer.log_every_n_steps`` steps for multi-modal models.
+    The following models are supported:
+            hf_clip_vit_l, neva_projection, gpt3, llama2, llama3, nemotron, mixtral, bert.
+
+    Args:
+        model_name_config_dict (dict):
+            Dictionary containing all the individual model configs that make up the multi-modal model.
+        data_config (pl.LightningDataModule): Data module being used in the experiment.
+    """
+
+    higher_is_better = True
+
+    def __init__(
+        self,
+        model_name_config_dict: dict(),
+        data_config: pl.LightningDataModule,
+    ):
+        self.data_cfg = data_config
+        self.flops_config_dict = dict()
+
+        gbs = self.data_cfg.global_batch_size
+        for model_name, model_cfg in model_name_config_dict.items():
+            hs = model_cfg.hidden_size         
+            if model_name in ["hf_clip_vit_l"]:
+                layers = model_cfg.num_hidden_layers
+                img_seq_len = model_cfg.num_image_embeddings_per_tile
+                img_h = model_cfg.image_size
+                img_w = model_cfg.image_size
+                patch_dim = model_cfg.patch_size
+                in_channels = model_cfg.num_channels
+                class_token_len = 1 #TODO: Add directly to HFCLIPVisionConfig
+            elif model_name in ["neva_projection"]:
+                projector_type = model_cfg.projector_type
+                ffn_hs = model_cfg.ffn_hidden_size
+                inp_s = model_cfg.input_size
+                #TODO: Add img_seq_len directly to MultimodalProjectorConfig
+                img_seq_len = model_name_config_dict["hf_clip_vit_l"].num_image_embeddings_per_tile
+            else:
+                enc_seq_len = model_cfg.seq_length
+                layers = model_cfg.num_layers
+                ffn_hs = model_cfg.ffn_hidden_size
+                attention_heads = model_cfg.num_attention_heads
+                moe_router_topk = model_cfg.moe_router_topk
+            
+            try:
+                query_groups = model_cfg.num_query_groups
+                if query_groups is None:
+                    query_groups = attention_heads
+            except:
+                # Multi-modal models use HF model configs which may/may not define num_query_groups
+                pass
+
+            kwargs = {
+                "gbs": gbs,
+                "hs" : hs,
+            }
+            if model_name in ["hf_clip_vit_l"]:
+                kwargs.update({
+                    "layers" : layers,
+                    "img_seq_len" : img_seq_len,
+                    "img_h" : img_h,
+                    "img_w" : img_w,
+                    "in_channels" : in_channels,
+                    "patch_dim" : patch_dim,
+                })
+            elif model_name in ["neva_projection"]:
+                kwargs.update({
+                    "projector_type" : projector_type,
+                    "ffn_hs" : ffn_hs,
+                    "inp_s": inp_s,
+                    "img_seq_len" : img_seq_len,
+                })
+            else:
+                kwargs.update({
+                    "enc_seq_len" : enc_seq_len,
+                    "layers" : layers,
+                    "ffn_hs" : ffn_hs,
+                    "attention_heads" : attention_heads,
+                    "moe_router_topk" : moe_router_topk,
+                    "query_groups" : query_groups,
+                })
+            self.flops_config_dict[model_name] = flops_formulas.FLOPSConfig(**kwargs)
+
+        self.avg_train_step_time = 0
+
+    def eval_model_flops(self):
+        """
+        Calculate model FLOPs for a given model
+        """
+
+        model_flops_map = {
+            "gpt3": flops_formulas.gpt3,
+            "llama2": flops_formulas.llama2,
+            "llama3": flops_formulas.llama3,
+            "nemotron": flops_formulas.nemotron,
+            "mixtral": flops_formulas.mixtral,
+            "bert": flops_formulas.bert,
+            "hf_clip_vit_l": flops_formulas.clip_vit_l,
+            "neva_projection": flops_formulas.neva_projection,
+        }
+
+        total_flops = flops_per_gpu = 0
+        for model_name, flops_cfg in self.flops_config_dict.items():
+            if model_name not in model_flops_map:
+                logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
+                raise KeyError(f"Failed to extract valid model name from or missing FLOPs calculations for {model_name}")
+            total_flops += model_flops_map[model_name](flops_cfg)
+            num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+            flops_per_gpu += total_flops / num_devices
 
         return total_flops, flops_per_gpu
