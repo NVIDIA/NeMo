@@ -152,3 +152,17 @@ def adjust_distillation_model_for_mcore(
         # HACK: Pipeline-parallel forward function relies on the config in the model to know what
         # hidden size of tensor to communicate to next stage.
         model.swap_teacher_config = MethodType(_swap_teacher_config, model)
+
+
+def load_cicd_models(student_path: str):
+    # pylint: disable=C0116
+    import os.path
+
+    from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+    from tests.collections.llm.common import Llama3ConfigCI
+
+    tokenizer = get_nmt_tokenizer(tokenizer_model=os.path.join(student_path, "dummy_tokenizer.model"))
+    student_model = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
+    teacher_model = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
+
+    return student_model, teacher_model, tokenizer

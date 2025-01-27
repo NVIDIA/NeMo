@@ -88,13 +88,15 @@ if __name__ == "__main__":
 
     ## Load both models and combine into an aggregate module
     if args.cicd_run:
-        from tests.collections.llm.common import Llama3ConfigCI  # pylint: disable=W0611
+        from nemo.collections.llm.distillation.utils import load_cicd_models
 
-    _student_model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
-    _teacher_model = nl.io.load_context(path=ckpt_to_context_subdir(args.teacher_path), subpath="model")
+        _student_model, _teacher_model, tokenizer = load_cicd_models(args.student_path)
+    else:
+        _student_model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
+        _teacher_model = nl.io.load_context(path=ckpt_to_context_subdir(args.teacher_path), subpath="model")
 
-    tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
-    assert tokenizer is not None, "Please provide a model checkpoint with tokenizer included."
+        tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
+        assert tokenizer is not None, "Please provide a model checkpoint with tokenizer included."
 
     model = distill.DistillationGPTModel(
         _student_model.config,
