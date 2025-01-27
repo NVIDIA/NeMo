@@ -495,9 +495,6 @@ class GPT(nn.Module):
         transformer = self.transformer
         module = self
 
-        transformer.wte.weight.data.copy_(justnorm_fp32(transformer.wte.weight.data, 1))  # V, n_embd
-        module.lm_head.weight.data.copy_(justnorm_fp32(module.lm_head.weight.data, 1))  # V, n_embd
-
         for layer_idx in range(0, module.config.n_layer):
             block = transformer["h"][layer_idx]
 
