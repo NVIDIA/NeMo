@@ -1070,6 +1070,7 @@ class T5TTS_ModelInference(T5TTS_Model):
                         np.linalg.norm(spk_embedding_pred) * np.linalg.norm(spk_embedding_gt)
                     )
                 else:
+                    # Create an entry indicating invalid metrics
                     cer_gt = 1.0
                     wer_gt = 1.0
                     spk_similarity = 0.0
