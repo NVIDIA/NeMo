@@ -23,7 +23,7 @@ from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm import NVEmbedLlama32Config1B, NVEmbedLlamaModel
+from nemo.collections.llm import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
 from nemo.collections.llm.api import finetune
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
@@ -51,7 +51,7 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(NVEmbedLlamaModel, config=run.Config(NVEmbedLlama32Config1B))
+    return run.Config(LlamaEmbeddingModel, config=run.Config(Llama32EmbeddingConfig1B))
 
 
 def trainer(

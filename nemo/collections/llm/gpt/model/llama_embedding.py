@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Dict, Literal, Optional, Union
@@ -22,7 +35,6 @@ from nemo.utils.import_utils import safe_import
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-    from transformers import LlamaConfig as HFLlamaConfig
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 _, HAVE_TE = safe_import("transformer_engine")
@@ -90,8 +102,8 @@ def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.T
 
 
 @dataclass
-class NVEmbedLlama32Config1B(Llama32Config1B):
-    """NV Embedding Llama3.2 1B Config"""
+class Llama32EmbeddingConfig1B(Llama32Config1B):
+    """Llama3.2 Embedding 1B Config"""
 
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = get_nv_embedding_layer_spec
     forward_step_fn: Callable = nv_embedding_forward_step
@@ -125,7 +137,7 @@ def _average_pool(last_hidden_states: Tensor, attention_mask: Tensor):
     return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
 
-class NVEmbedLlamaModel(LlamaModel):
+class LlamaEmbeddingModel(LlamaModel):
     """NV Embedding Llama Model"""
 
     def __init__(
@@ -213,12 +225,12 @@ class NVEmbedLlamaModel(LlamaModel):
         return self._validation_loss_reduction
 
 
-@io.model_importer(NVEmbedLlamaModel, "hf")
-class HFNVEmbedLlamaImporter(HFLlamaImporter):
-    """HF Importer for NV Embedding Llama Model"""
+@io.model_importer(LlamaEmbeddingModel, "hf")
+class LlamaEmbeddingImporter(HFLlamaImporter):
+    """HF Importer for Llama Embedding Model"""
 
-    def init(self) -> NVEmbedLlamaModel:
-        return NVEmbedLlamaModel(self.config, tokenizer=self.tokenizer)
+    def init(self) -> LlamaEmbeddingModel:
+        return LlamaEmbeddingModel(self.config, tokenizer=self.tokenizer)
 
     @property
     def config(self) -> Llama32Config1B:
@@ -233,7 +245,7 @@ class HFNVEmbedLlamaImporter(HFLlamaImporter):
                 base //= 2
             return base
 
-        output = NVEmbedLlama32Config1B(
+        output = Llama32EmbeddingConfig1B(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
@@ -253,8 +265,8 @@ class HFNVEmbedLlamaImporter(HFLlamaImporter):
         return output
 
 
-@io.model_exporter(NVEmbedLlamaModel, "hf")
-class HFNVEmbedLlamaExporter(io.ModelConnector[NVEmbedLlamaModel, "LlamaBidirectionalModel"]):
+@io.model_exporter(LlamaEmbeddingModel, "hf")
+class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidirectionalModel"]):
     """HF Exporter for NV Embedding Llama Model.
     Note that NV Embedding LLama uses customized LlamaBidirectionalConfig config.
     """
@@ -262,7 +274,7 @@ class HFNVEmbedLlamaExporter(io.ModelConnector[NVEmbedLlamaModel, "LlamaBidirect
     def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
         from transformers.modeling_utils import no_init_weights
 
-        from nemo.collections.llm.gpt.model.hf_nvembed_llama import LlamaBidirectionalModel
+        from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
 
         LlamaBidirectionalModel.register_for_auto_class("AutoModel")
         with no_init_weights(True):
@@ -293,7 +305,7 @@ class HFNVEmbedLlamaExporter(io.ModelConnector[NVEmbedLlamaModel, "LlamaBidirect
         """Get HF NV Embedding Llama Config."""
         source: LlamaConfig = io.load_context(str(self), subpath="model.config")
 
-        from nemo.collections.llm.gpt.model.hf_nvembed_llama import LlamaBidirectionalConfig
+        from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalConfig
 
         LlamaBidirectionalConfig.register_for_auto_class("AutoConfig")
         return LlamaBidirectionalConfig(

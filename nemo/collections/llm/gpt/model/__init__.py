@@ -81,7 +81,7 @@ from nemo.collections.llm.gpt.model.nemotron import (
     NemotronConfig,
     NemotronModel,
 )
-from nemo.collections.llm.gpt.model.nvembed_llama import NVEmbedLlama32Config1B, NVEmbedLlamaModel
+from nemo.collections.llm.gpt.model.llama_embedding import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
 from nemo.collections.llm.gpt.model.phi3mini import Phi3Config, Phi3ConfigMini, Phi3Model
 from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config,
@@ -146,8 +146,8 @@ __all__ = [
     "Nemotron3Config22B",
     "Nemotron4Config340B",
     "NemotronModel",
-    "NVEmbedLlamaModel",
-    "NVEmbedLlama32Config1B",
+    "LlamaEmbeddingModel",
+    "Llama32EmbeddingConfig1B",
     "Phi3Config",
     "Phi3ConfigMini",
     "Phi3Model",
