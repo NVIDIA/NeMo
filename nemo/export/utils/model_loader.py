@@ -30,6 +30,7 @@ from nemo.export.tarutils import TarPath, ZarrPathStore
 
 LOGGER = logging.getLogger("NeMo")
 
+
 def nemo_to_path(nemo_checkpoint: Union[Path, str]) -> Union[Path, TarPath]:
     """
     Creates Path / TarPath object suitable for navigating inside the nemo checkpoint.
@@ -122,7 +123,9 @@ def contains_extra_states(subdir: Union[Path, TarPath]) -> bool:
     return list(subdir.glob('shard_0_*.pt')) != []
 
 
-def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], load_extra_states: bool = False) -> Dict[str, Any]:
+def load_sharded_metadata_zarr(
+    checkpoint_dir: Union[Path, TarPath], load_extra_states: bool = False
+) -> Dict[str, Any]:
     """
     Loads model dictionary from the zarr format.
 

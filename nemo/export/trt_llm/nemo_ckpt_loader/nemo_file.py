@@ -147,7 +147,7 @@ def torch_to_numpy_state_dict(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     return state_dict
 
 
-def load_sharded_metadata(checkpoint_dir: Union[str, Path], torch_tensor: bool= True):
+def load_sharded_metadata(checkpoint_dir: Union[str, Path], torch_tensor: bool = True):
     state_dict = load_model_weights(checkpoint_dir, load_extra_states=True)
 
     if not torch_tensor:
@@ -421,9 +421,7 @@ def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     return dtype
 
 
-def load_distributed_model_weights(
-    nemo_checkpoint: Union[str, Path], mcore_scales_format: bool
-) -> Dict[str, Any]:
+def load_distributed_model_weights(nemo_checkpoint: Union[str, Path], mcore_scales_format: bool) -> Dict[str, Any]:
     """
     Loads model weights in `torch_dist` format from the model path.
     Preprocesses the scaling factors for local export if mcore_scales_format is set to False.
