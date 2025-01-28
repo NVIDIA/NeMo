@@ -150,8 +150,6 @@ echo 'Uninstalling stuff'
 # Some of these packages are uninstalled for legacy purposes
 ${PIP} uninstall -y nemo_toolkit sacrebleu nemo_asr nemo_nlp nemo_tts
 
-python -m venv /opt/NeMo-env
-PIP=/opt/NeMo-env/bin/pip
 ${PIP} install setuptools
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
