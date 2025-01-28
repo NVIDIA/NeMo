@@ -23,3 +23,4 @@ sentence_transformers
 tensorstore
 tiktoken==0.7.0
 zarr
+onnxruntime-gpu>=1.20.1
