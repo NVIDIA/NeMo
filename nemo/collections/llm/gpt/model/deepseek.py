@@ -80,6 +80,8 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     qk_pos_emb_head_dim: int = 64
     v_head_dim: int = 128
     rotary_scaling_factor: float = 40
+    mscale: float = 1.0
+    mscale_all_dim: float = 1.0
 
     # Miscellaneous
     init_method_std: float = 0.006
@@ -195,14 +197,13 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
         We rename model.layers.*.post_attention_layernorm.weight in the first case to prevent a one-to-many mapping
         """
-        assert "V2" in str(self) or "V3" in str(self), f"cannot determine v2 or v3 from {str(self)}"
-        is_v3 = "V3" in str(self)
+
         state_dict = source.state_dict()
 
         for layer_i, use_moe in enumerate(self.config.moe_layer_freq):
             if use_moe == 0:
                 weight = state_dict.pop(
-                    f"model.layers.{layer_i+2 if is_v3 else layer_i}.post_attention_layernorm.weight"
+                    f"model.layers.{layer_i}.post_attention_layernorm.weight"
                 )
                 state_dict[f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
 
