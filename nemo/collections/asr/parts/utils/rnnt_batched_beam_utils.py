@@ -128,19 +128,19 @@ class BatchedBeamHyps:
         )
         # self.transcript.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         # self.transcript_prev_ptr.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1))
-        self.current_lengths_wb += 1
+        torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
-        self.current_lengths_nb = (
+        self.current_lengths_nb.copy_(
             torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
         )
 
         self.next_timestep.copy_(self.current_lengths_wb - self.current_lengths_nb)
-        self.last_timestep_lasts = torch.where(
+        self.last_timestep_lasts.copy_(torch.where(
             extended_with_blank,
             0,
             torch.gather(self.last_timestep_lasts, dim=-1, index=hyps_indices) + extended_with_label,
-        )
+        ))
 
         prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
         prev_transcript_prefix_hash = torch.gather(self.transcript_prefix_hash, dim=-1, index=hyps_indices)

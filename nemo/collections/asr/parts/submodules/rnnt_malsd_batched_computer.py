@@ -757,11 +757,11 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
         # self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
         # self.state.decoder_state = self.decoder.initialize_state(encoder_output_projected)
-        decoder_output, self.state.decoder_state, *_ = self.decoder.predict(
+        self.state.decoder_output, self.state.decoder_state , *_ = self.decoder.predict(
             self.state.last_labels_wb.reshape(-1).unsqueeze(1), None, add_sos=False, batch_size=self.state.batch_size * self.state.beam_size
         )
         # to avoid recalculation of joint projection, store decoder output in state
-        self.state.decoder_output = self.joint.project_prednet(decoder_output)
+        self.state.decoder_output.copy_(self.joint.project_prednet(self.state.decoder_output))
         
         if self.ngram_lm_batch is not None:
             device = encoder_output_projected.device
@@ -1037,7 +1037,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             batch_size=self.state.batch_size * self.beam_size,
         )
         self.state.decoder_output.copy_(self.joint.project_prednet(decoder_output))  # do not recalculate joint projection
-        self.state.decoder_output = torch.where(preserve_state.view(-1)[:, None, None], prev_decoder_output, self.state.decoder_output)
+        torch.where(preserve_state.view(-1)[:, None, None], prev_decoder_output, self.state.decoder_output, out=self.state.decoder_output)
         self.decoder.batch_replace_states_all(src_states=decoder_state, dst_states=self.state.decoder_state)
         self.decoder.batch_replace_states_mask(
             src_states=prev_decoder_state, 
