@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
 import logging
 from typing import Any, Callable, Generic, TypeVar, Union, overload
 
@@ -75,3 +76,16 @@ def factory(*args: Any, **kwargs: Any) -> Union[Callable[[T], T], T]:
             return noop_decorator
         else:
             return noop_decorator
+
+
+def torch_dtype_from_precision(precision: Union[int, str]) -> torch.dtype:
+    """Mapping from PTL precision types to corresponding PyTorch parameter datatype."""
+
+    if precision in ['bf16', 'bf16-mixed']:
+        return torch.bfloat16
+    elif precision in [16, '16', '16-mixed']:
+        return torch.float16
+    elif precision in [32, '32', '32-true']:
+        return torch.float32
+    else:
+        raise ValueError(f"Could not parse the precision of `{precision}` to a valid torch.dtype")

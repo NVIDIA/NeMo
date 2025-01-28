@@ -24,6 +24,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from nemo.collections import llm
+from nemo.collections.llm.utils import torch_dtype_from_precision
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
@@ -358,15 +359,3 @@ def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration
 
     return _get_iterator
 
-
-def torch_dtype_from_precision(precision: Union[int, str]) -> torch.dtype:
-    """Mapping from PTL precision types to corresponding PyTorch parameter datatype."""
-
-    if precision in ['bf16', 'bf16-mixed']:
-        return torch.bfloat16
-    elif precision in [16, '16', '16-mixed']:
-        return torch.float16
-    elif precision in [32, '32', '32-true']:
-        return torch.float32
-    else:
-        raise ValueError(f"Could not parse the precision of `{precision}` to a valid torch.dtype")
