@@ -26,6 +26,10 @@ export MAMBA_TAG=v2.2.0
 export MCORE_TAG=4dc8977167d71f86bdec47a60a98e85c4cfa0031
 export NV_RESILIENCY_EXT_TAG=97aad77609d2e25ed38ac5c99f0c13f93c48464e
 
+python -m venv /opt/NeMo-env
+PIP=/opt/NeMo-env/bin/pip
+${PIP} install setuptools
+
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
   echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
 
