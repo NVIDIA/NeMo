@@ -55,7 +55,7 @@ jobs:
           echo "main=${{ github.event_name }}" | tee -a "$GITHUB_OUTPUT"
   
   cicd-test-container-build:
-    if: ${{ github.event.label.name == 'Run CICD' || needs.pre-flight.outputs.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event.label.name == 'Run CICD' || needs.pre-flight.outputs.event_name == 'workflow_dispatch' || github.ref_name == 'ko3n1g/ci/run-unit-tests-on-main' }}
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.14.0
     needs: pre-flight
     with:
