@@ -90,8 +90,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         try:
             return AutoTokenizer(model_name, use_fast=use_fast, trust_remote_code=trust_remote_code)
         except:
-            if use_fast:
-                return AutoTokenizer(model_name, use_fast=False, trust_remote_code=trust_remote_code)
+            return AutoTokenizer(model_name, use_fast=not use_fast, trust_remote_code=trust_remote_code)
 
     def configure_model(self):
         # create all your layers here
