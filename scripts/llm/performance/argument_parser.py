@@ -4,6 +4,7 @@ from nemo_run.config import NEMORUN_HOME
 
 from utils import DEFAULT_NEMO_HOME
 
+
 def parse_cli_args():
     """
     Command line arguments correspong to Slurm cluster and NeMo2.0 for running pre-training and

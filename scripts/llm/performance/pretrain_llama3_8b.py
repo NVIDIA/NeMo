@@ -15,13 +15,20 @@
 from os.path import basename, splitext
 
 import nemo_run as run
-from utils import get_comm_overlap_callback_idx, hf_tokenizer, slurm_executor, set_recipe_primary_configs, get_performance_configs
 from argument_parser import parse_cli_args
+from utils import (
+    get_comm_overlap_callback_idx,
+    get_performance_configs,
+    hf_tokenizer,
+    set_recipe_primary_configs,
+    slurm_executor,
+)
 
 from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+
 
 def llama3_8b_performance_recipe(
     compute_dtype: str,
@@ -37,13 +44,15 @@ def llama3_8b_performance_recipe(
     ep_size: int,
 ):
     """
-    llama3 8b pre-train recipe aimed at achieving best possible performance and faster 
+    llama3 8b pre-train recipe aimed at achieving best possible performance and faster
     overall runtime.
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     recipe = pretrain_recipe(performance_mode=True)
-    recipe = set_recipe_primary_configs(recipe, num_nodes, num_gpus_per_node, mbs, gbs, max_steps, tp_size, pp_size, cp_size, vp_size, ep_size)
+    recipe = set_recipe_primary_configs(
+        recipe, num_nodes, num_gpus_per_node, mbs, gbs, max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
+    )
 
     # data module configs
     recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
@@ -89,9 +98,9 @@ if __name__ == "__main__":
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
 
     exp_params = [
-            f"{splitext(basename(__file__))}_{args.compute_dtype}",
-            f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{ep_size}_{mbs}mbs_{gbs}gbs",
-        ]
+        f"{splitext(basename(__file__))}_{args.compute_dtype}",
+        f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{ep_size}_{mbs}mbs_{gbs}gbs",
+    ]
     exp_name = "_".join(exp_params)
 
     executor = slurm_executor(
@@ -119,7 +128,7 @@ if __name__ == "__main__":
         pp_size,
         cp_size,
         vp_size,
-        ep_size
+        ep_size,
     )
 
     if not args.tensorboard:  # tensorboard adds performance overhead.
@@ -132,7 +141,7 @@ if __name__ == "__main__":
 
     plugins = [
         PerfEnvPlugin(
-            enable_vboost=True, 
+            enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
         )
     ]

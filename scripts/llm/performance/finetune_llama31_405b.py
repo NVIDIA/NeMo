@@ -15,6 +15,7 @@
 from typing import Optional
 
 import nemo_run as run
+from argument_parser import parse_cli_args
 from utils import (
     get_comm_overlap_callback_idx,
     hf_tokenizer,
@@ -22,7 +23,6 @@ from utils import (
     isfile_train_pack_metadata,
     slurm_executor,
 )
-from argument_parser import parse_cli_args
 
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama31_405b import finetune_recipe, model

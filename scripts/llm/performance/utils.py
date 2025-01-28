@@ -17,6 +17,7 @@ import sys
 from typing import Dict, List
 
 import nemo_run as run
+import pandas as pd
 from lightning.pytorch.callbacks.callback import Callback
 from nemo_run.config import NEMORUN_HOME
 
@@ -26,7 +27,6 @@ from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.utils import logging
-import pandas as pd
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
@@ -125,6 +125,7 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         use_fast=True,
     )
 
+
 def get_performance_configs(gpu, model_name, model_size, args):
     recommended_configs_csv = os.path.join("recommended_model_configs", f"model_configs_{gpu}.csv")
     df = pd.read_csv(recommended_configs_csv)
@@ -135,7 +136,7 @@ def get_performance_configs(gpu, model_name, model_size, args):
 
     mbs = config["mbs"] or args.micro_batch_size
     gbs = config["gbs"] or args.global_batch_size
-    
+
     tp_size = config["tp_size"] or args.tensor_parallel_size
     pp_size = config["pp_size"] or args.pipeline_parallel_size
     cp_size = config["cp_size"] or args.context_parallel_size
@@ -144,7 +145,20 @@ def get_performance_configs(gpu, model_name, model_size, args):
 
     return num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size
 
-def set_recipe_primary_configs(recipe, num_nodes, num_gpus_per_node, mbs, gbs, max_steps, tp_size, pp_size, cp_size, vp_size, ep_size,):
+
+def set_recipe_primary_configs(
+    recipe,
+    num_nodes,
+    num_gpus_per_node,
+    mbs,
+    gbs,
+    max_steps,
+    tp_size,
+    pp_size,
+    cp_size,
+    vp_size,
+    ep_size,
+):
     # nemo.lightning.Trainer configs
     recipe.trainer.num_nodes = num_nodes
     recipe.trainer.devices = num_gpus_per_node
@@ -163,6 +177,7 @@ def set_recipe_primary_configs(recipe, num_nodes, num_gpus_per_node, mbs, gbs, m
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
 
     return recipe
+
 
 def import_ckpt_experiment(executor: run.SlurmExecutor, model: run.Config[GPTModel], source: str):
     """
