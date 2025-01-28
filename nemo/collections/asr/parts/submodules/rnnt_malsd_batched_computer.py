@@ -127,7 +127,7 @@ class MALSDState:
             dtype=float_dtype,
             device=self.device,
         )
-        self.encoder_output_length = torch.zeros([self.batch_size, 1], dtype=torch.long, device=self.device)
+        self.encoder_output_length = torch.zeros([self.batch_size, self.beam_size], dtype=torch.long, device=self.device)
 
         # self.labels = torch.zeros([self.batch_size], dtype=torch.long, device=self.device)
         # self.scores = torch.zeros([self.batch_size], dtype=float_dtype, device=self.device)
@@ -914,6 +914,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.state.time_indices.fill_(0)
         self.state.safe_time_indices.fill_(0)  # safe time indices: guaranteed to be < encoder_output_length
         # self.state.time_indices_current_labels.fill_(0).
+        
         torch.sub(
             self.state.encoder_output_length,
             1,
@@ -932,10 +933,11 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         # same as: self.active_mask_any = active_mask.any()
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
         
-        self.state.decoder_output, self.state.decoder_state, *_ = self.decoder.predict(
+        decoder_output, decoder_state, *_ = self.decoder.predict(
             self.state.last_labels_wb.reshape(-1).unsqueeze(1), None, add_sos=False, batch_size=self.state.encoder_output_projected.shape[0] * self.beam_size
         )
-        self.state.decoder_output = self.joint.project_prednet(self.state.decoder_output)  # do not recalculate joint projection
+        self.decoder.batch_replace_states_all(src_states=decoder_state, dst_states=self.state.decoder_state)
+        self.state.decoder_output.copy_(self.joint.project_prednet(decoder_output))  # do not recalculate joint projection
 
     def _loop_body(self):
         """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
@@ -1060,18 +1062,21 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 ).view(self.state.decoder_state[1].shape[0], self.state.batch_size * self.beam_size, -1),
             )
 
-        self.state.decoder_output, self.state.decoder_state, *_ = self.decoder.predict(
+        decoder_output, decoder_state, *_ = self.decoder.predict(
             last_labels_wb.reshape(-1).unsqueeze(1),
             prev_decoder_state,
             add_sos=False,
             batch_size=self.state.batch_size * self.beam_size,
         )
-        self.state.decoder_output = self.joint.project_prednet(self.state.decoder_output)  # do not recalculate joint projection
-
+        self.state.decoder_output.copy_(self.joint.project_prednet(decoder_output))  # do not recalculate joint projection
         self.state.decoder_output = torch.where(preserve_state.view(-1)[:, None, None], prev_decoder_output, self.state.decoder_output)
+        self.decoder.batch_replace_states_all(src_states=decoder_state, dst_states=self.state.decoder_state)
         self.decoder.batch_replace_states_mask(
-            src_states=prev_decoder_state, dst_states=self.state.decoder_state, mask=preserve_state.view(-1)
+            src_states=prev_decoder_state, 
+            dst_states=self.state.decoder_state,
+            mask=preserve_state.view(-1)
         )
+        
         if self.ngram_lm_batch is not None:
             # batch_lm_states: [(BxBeam)]
             # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
