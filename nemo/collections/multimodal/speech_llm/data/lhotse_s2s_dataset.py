@@ -500,9 +500,14 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "answer_audio": answer_audios,
             "answer_audio_lens": answer_audio_lens,
             "num_turns": torch.Tensor(num_turns).long(),
+            "speaker_ids": self.get_speaker_id(cuts),
         }
 
         return return_batch
+
+    def get_speaker_id(self, cuts):
+        speaker_ids = [getattr(cut, "speaker_id", 0) for cut in cuts]
+        return torch.tensor(speaker_ids).long()
 
     def __getitem__duplex_overlap_(self, cuts) -> dict[str, torch.Tensor | list[str] | dict]:
         import re
@@ -696,6 +701,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             "answer_audio_lens": answer_audio_lens,
             "num_turns": torch.Tensor(num_turns).long(),
             "s2s_duplex_overlap": torch.ones_like(target_text_lengths),
+            "speaker_ids": self.get_speaker_id(cuts),
         }
 
         return return_batch

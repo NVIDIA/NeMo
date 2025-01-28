@@ -1161,10 +1161,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         self.extract_codec_on_the_fly = cfg.get('extract_codec_on_the_fly', False)
         self.codec_model_downsampling_factor = cfg.get('codec_model_downsampling_factor', 1023.5)
         self.codec_sample_rate = cfg.data.train_ds.get("codec_sample_rate", 22050)
+        super().__init__(cfg, trainer)
         if cfg.get('fixed_speaker_prompt', False):
             self.speaker_embeddings = nn.Embedding(16, cfg.hidden_size)
-
-        super().__init__(cfg, trainer)
 
     def _get_codec_embeddings(self, audio_signal, audio_signal_length):
         """Get codec embeddings for the input audio signal."""
@@ -1458,17 +1457,26 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             encoder_length = torch.minimum(encoder_length, torch.tensor(limit_max_seq_length).long().cuda())
             encoded = encoded[:, start : start + limit_max_seq_length]
 
+        encoder_input, labels, loss_mask, encoded, encoder_length = self.inject_speaker_prompt(
+            audio_batch, encoder_input, labels, loss_mask, encoded, encoder_length
+        )
+
         attention_mask = self._create_attention_mask(encoder_input)
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()
 
         return encoder_input, attention_mask, labels, loss_mask, (encoded, encoder_length)
 
-    def inject_speaker_prompt(self):
+    def inject_speaker_prompt(self, audio_batch, encoder_input, labels, loss_mask, encoded, encoder_length):
         if self.cfg.get('fixed_speaker_prompt', False):
-            pass
-        else:
-            return
+            speaker_ids = audio_batch['speaker_ids']
+            speaker_embeds = self.speaker_embeddings(speaker_ids).unsqueeze(1)
+            encoder_input = torch.cat([speaker_embeds, encoder_input], dim=1)
+            labels = torch.cat([labels[:, :1], labels], dim=1)
+            loss_mask = torch.cat([loss_mask[:, :1], loss_mask], dim=1)
+            encoder_length += 1
+            encoded = torch.cat([speaker_embeds, encoded], dim=1)
+        return encoder_input, labels, loss_mask, encoded, encoder_length
 
     def prepare_llm_input(self, audio_batch):
         # handle duplex and singleturn s2s

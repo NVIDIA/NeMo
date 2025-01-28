@@ -349,6 +349,7 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
 
     def init_batch_duplex_from_multiturn(self, context_tokens, context_lengths, audio_signal, audio_length):
         tokens_to_generate = self.model.get_inference_config()['tokens_to_generate']
+        speaker_ids = torch.ones_like(context_lengths) * self.model.get_inference_config().get("infer_speaker_id", 0)
         _, answer_audio_lens = self.model.get_duration_by_steps(
             tokens_to_generate * 0.1
         )  # generate extra 10% of tokens on top of the groundtruth length
@@ -383,6 +384,7 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
                 'answer_audio_lens': all_lens_answer_rate,
                 'answer_audio': torch.zeros([audio_signal.shape[0], all_lens_answer_rate.max()]).cuda(),
                 'loss_mask': None,
+                'speaker_ids': speaker_ids,
             }
         elif duplex_method == 'from_multiturn':
             batch = {
@@ -393,6 +395,7 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
                 'answer_audio_lens': torch.full([audio_signal.shape[0]], answer_audio_lens).cuda(),
                 'answer_audio': torch.zeros([audio_signal.shape[0], answer_audio_lens]).cuda(),
                 'loss_mask': None,
+                'speaker_ids': speaker_ids,
             }
             # pad user signal with silence of the length of answer_audio_lens and store the encoded for prepare_batch_at_step
             # in real setting, encoded has to be recomputed every time if using bidirectional encoder or incrementally computed
