@@ -163,6 +163,7 @@ class FLOPsMeasurementCallback(Callback):
 
         return total_flops, flops_per_gpu
 
+
 class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
     """
     Calculate and log FLOPs per second after every ``trainer.log_every_n_steps`` steps for multi-modal models.
@@ -187,7 +188,7 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
 
         gbs = self.data_cfg.global_batch_size
         for model_name, model_cfg in model_name_config_dict.items():
-            hs = model_cfg.hidden_size         
+            hs = model_cfg.hidden_size
             if model_name in ["hf_clip_vit_l"]:
                 layers = model_cfg.num_hidden_layers
                 img_seq_len = model_cfg.num_image_embeddings_per_tile
@@ -195,12 +196,12 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
                 img_w = model_cfg.image_size
                 patch_dim = model_cfg.patch_size
                 in_channels = model_cfg.num_channels
-                class_token_len = 1 #TODO: Add directly to HFCLIPVisionConfig
+                class_token_len = 1  # TODO: Add directly to HFCLIPVisionConfig
             elif model_name in ["neva_projection"]:
                 projector_type = model_cfg.projector_type
                 ffn_hs = model_cfg.ffn_hidden_size
                 inp_s = model_cfg.input_size
-                #TODO: Add img_seq_len directly to MultimodalProjectorConfig
+                # TODO: Add img_seq_len directly to MultimodalProjectorConfig
                 img_seq_len = model_name_config_dict["hf_clip_vit_l"].num_image_embeddings_per_tile
             else:
                 enc_seq_len = model_cfg.seq_length
@@ -208,7 +209,7 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
                 ffn_hs = model_cfg.ffn_hidden_size
                 attention_heads = model_cfg.num_attention_heads
                 moe_router_topk = model_cfg.moe_router_topk
-            
+
             try:
                 query_groups = model_cfg.num_query_groups
                 if query_groups is None:
@@ -219,33 +220,39 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
 
             kwargs = {
                 "gbs": gbs,
-                "hs" : hs,
+                "hs": hs,
             }
             if model_name in ["hf_clip_vit_l"]:
-                kwargs.update({
-                    "layers" : layers,
-                    "img_seq_len" : img_seq_len,
-                    "img_h" : img_h,
-                    "img_w" : img_w,
-                    "in_channels" : in_channels,
-                    "patch_dim" : patch_dim,
-                })
+                kwargs.update(
+                    {
+                        "layers": layers,
+                        "img_seq_len": img_seq_len,
+                        "img_h": img_h,
+                        "img_w": img_w,
+                        "in_channels": in_channels,
+                        "patch_dim": patch_dim,
+                    }
+                )
             elif model_name in ["neva_projection"]:
-                kwargs.update({
-                    "projector_type" : projector_type,
-                    "ffn_hs" : ffn_hs,
-                    "inp_s": inp_s,
-                    "img_seq_len" : img_seq_len,
-                })
+                kwargs.update(
+                    {
+                        "projector_type": projector_type,
+                        "ffn_hs": ffn_hs,
+                        "inp_s": inp_s,
+                        "img_seq_len": img_seq_len,
+                    }
+                )
             else:
-                kwargs.update({
-                    "enc_seq_len" : enc_seq_len,
-                    "layers" : layers,
-                    "ffn_hs" : ffn_hs,
-                    "attention_heads" : attention_heads,
-                    "moe_router_topk" : moe_router_topk,
-                    "query_groups" : query_groups,
-                })
+                kwargs.update(
+                    {
+                        "enc_seq_len": enc_seq_len,
+                        "layers": layers,
+                        "ffn_hs": ffn_hs,
+                        "attention_heads": attention_heads,
+                        "moe_router_topk": moe_router_topk,
+                        "query_groups": query_groups,
+                    }
+                )
             self.flops_config_dict[model_name] = flops_formulas.FLOPSConfig(**kwargs)
 
         self.avg_train_step_time = 0
@@ -270,7 +277,9 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
         for model_name, flops_cfg in self.flops_config_dict.items():
             if model_name not in model_flops_map:
                 logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
-                raise KeyError(f"Failed to extract valid model name from or missing FLOPs calculations for {model_name}")
+                raise KeyError(
+                    f"Failed to extract valid model name from or missing FLOPs calculations for {model_name}"
+                )
             total_flops += model_flops_map[model_name](flops_cfg)
             num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
             flops_per_gpu += total_flops / num_devices
