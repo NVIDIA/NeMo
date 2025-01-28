@@ -14,6 +14,7 @@
 
 import argparse
 
+import os
 import torch
 
 from nemo.collections.diffusion.models.flux.pipeline import FluxInferencePipeline
@@ -22,8 +23,10 @@ from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 
 
 def parse_args():
+    # pylint: disable=C0116
     parser = argparse.ArgumentParser(
-        description="The flux inference pipeline is utilizing megatron core transformer.\nPlease prepare the necessary checkpoints for flux model on local disk in order to use this script"
+        description="The flux inference pipeline is utilizing megatron core transformer.\n"
+        "Please prepare the necessary checkpoints for flux model on local disk in order to use this script"
     )
 
     parser.add_argument("--flux_ckpt", type=str, default="", help="Path to Flux transformer checkpoint(s)")
@@ -47,16 +50,15 @@ def parse_args():
         help="Must be true if provided checkpoint is not already converted to NeMo version",
     )
     parser.add_argument(
-        "--save_converted_model",
-        action="store_true",
-        default=False,
+        "--save_converted_model_to",
+        type=str,
+        default=None,
         help="Whether to save the converted NeMo transformer checkpoint for Flux",
     )
     parser.add_argument(
         "--version",
         type=str,
         default='dev',
-        choices=['dev', 'schnell'],
         help="Must align with the checkpoint provided.",
     )
     parser.add_argument("--height", type=int, default=1024, help="Image height.")
@@ -64,6 +66,12 @@ def parse_args():
     parser.add_argument("--inference_steps", type=int, default=10, help="Number of inference steps to run.")
     parser.add_argument(
         "--num_images_per_prompt", type=int, default=1, help="Number of images to generate for each prompt."
+    )
+    parser.add_argument(
+        "--num_joint_layers", type=int, default=19, help="Number of joint transformer layers in controlnet."
+    )
+    parser.add_argument(
+        "--num_single_layers", type=int, default=38, help="Number of single transformer layers in controlnet."
     )
     parser.add_argument("--guidance", type=float, default=0.0, help="Guidance scale.")
     parser.add_argument(
@@ -75,7 +83,6 @@ def parse_args():
         default="A cat holding a sign that says hello world",
         help="Inference prompts, use \',\' to separate if multiple prompts are provided.",
     )
-    parser.add_argument("--bf16", action='store_true', default=False, help="Use bf16 in inference.")
     args = parser.parse_args()
     return args
 
@@ -87,22 +94,27 @@ if __name__ == '__main__':
 
     print('Initializing flux inference pipeline')
     params = configs[args.version]
-    params.vae_params.ckpt = args.vae_ckpt
-    params.clip_params['version'] = args.clip_version
-    params.t5_params['version'] = args.t5_version
+    params.vae_config.ckpt = args.vae_ckpt if os.path.exists(args.vae_ckpt) else None
+    params.clip_params.version = (
+        args.clip_version if os.path.exists(args.clip_version) else "openai/clip-vit-large-patch14"
+    )
+    params.t5_params.version = args.t5_version if os.path.exists(args.t5_version) else "google/t5-v1_1-xxl"
+    params.flux_config.num_joint_layers = args.num_joint_layers
+    params.flux_config.num_single_layers = args.num_single_layers
     pipe = FluxInferencePipeline(params)
 
-    print('Loading transformer weights')
-    pipe.load_from_pretrained(
-        args.flux_ckpt,
-        do_convert_from_hf=args.do_convert_from_hf,
-        save_converted_model=args.save_converted_model,
-    )
-    dtype = torch.bfloat16 if args.bf16 else torch.float32
+    if os.path.exists(args.flux_ckpt):
+        print('Loading transformer weights')
+        pipe.load_from_pretrained(
+            args.flux_ckpt,
+            do_convert_from_hf=args.do_convert_from_hf,
+            save_converted_model_to=args.save_converted_model_to,
+        )
+    dtype = torch.float32
     text = args.prompts.split(',')
     pipe(
         text,
-        max_sequence_length=256,
+        max_sequence_length=512,
         height=args.height,
         width=args.width,
         num_inference_steps=args.inference_steps,
