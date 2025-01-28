@@ -72,8 +72,10 @@ def tokenize(texts: Union[str, List[str]], tokenizer: Any, context_length: int =
         result = result[0]
     return result
 
-def get_preprocess_fns_params(img_h, img_w, img_mean=None, img_std=None, is_train=True,
-                               max_position_embedding=None, tokenizer=None):
+
+def get_preprocess_fns_params(
+    img_h, img_w, img_mean=None, img_std=None, is_train=True, max_position_embedding=None, tokenizer=None
+):
 
     # This is equivalent to `get_preprocess_fns` but does not need the whole config to get the functions. This is
     # Particularly used in Nemo2
@@ -154,7 +156,6 @@ def build_train_valid_datasets(
         is_train=True,
     )
 
-
     val_data = None
     if data_cfg.get("validation") is not None and data_cfg.validation.get("dataset_path"):
         val_img_transform, text_transform = get_preprocess_fns(model_cfg, tokenizer, is_train=False)
@@ -175,15 +176,32 @@ def custom_collate(batch):
     else:
         return default_collate(batch)
 
-def build_imagenet_validation_dataloader_params(imagenet_val, img_h, img_w, mbs, gbs,
-                                                num_workers=0, pin_memory=True,
-                                                img_mean=None, img_std=None, is_train=False,
-                               max_position_embedding=None, tokenizer=None):
+
+def build_imagenet_validation_dataloader_params(
+    imagenet_val,
+    img_h,
+    img_w,
+    mbs,
+    gbs,
+    num_workers=0,
+    pin_memory=True,
+    img_mean=None,
+    img_std=None,
+    is_train=False,
+    max_position_embedding=None,
+    tokenizer=None,
+):
     # This is equivalent to `build_imagenet_validation_dataloader` but does not need the whole config to get the functions. This is
     # Particularly used in Nemo2
-    val_image_transform, text_transform = get_preprocess_fns_params(img_h, img_w, img_mean, img_std, is_train=is_train,
-                                                                    max_position_embedding=max_position_embedding,
-                                                                    tokenizer=tokenizer)
+    val_image_transform, text_transform = get_preprocess_fns_params(
+        img_h,
+        img_w,
+        img_mean,
+        img_std,
+        is_train=is_train,
+        max_position_embedding=max_position_embedding,
+        tokenizer=tokenizer,
+    )
 
     imagenet_val_data = {}
 
@@ -196,7 +214,6 @@ def build_imagenet_validation_dataloader_params(imagenet_val, img_h, img_w, mbs,
         transform=val_image_transform,
     )
 
-
     image_batch_sampler = MegatronPretrainingSampler(
         total_samples=len(image_dataset),
         consumed_samples=0,
@@ -206,8 +223,6 @@ def build_imagenet_validation_dataloader_params(imagenet_val, img_h, img_w, mbs,
         data_parallel_size=parallel_state.get_data_parallel_world_size(),
         drop_last=False,
     )
-
-
 
     imagenet_val_data["images"] = torch.utils.data.DataLoader(
         image_dataset,
@@ -229,8 +244,6 @@ def build_imagenet_validation_dataloader_params(imagenet_val, img_h, img_w, mbs,
     )
 
     return imagenet_val_data
-
-
 
 
 # For zero-shot imagenet validation

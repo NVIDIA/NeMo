@@ -133,7 +133,7 @@ class ClipMegatronLoss(MegatronLossReduction):
         image_features, text_features, logit_scale = forward_out
         # print(logit_scale)
 
-         # import pdb; pdb.set_trace()()
+        # import pdb; pdb.set_trace()()
         device = image_features.device
         if self.world_size > 1:
             # TODO: I feel like this should move to reduce part of the class?

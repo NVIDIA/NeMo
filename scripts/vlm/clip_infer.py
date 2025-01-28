@@ -109,7 +109,7 @@ def main(args) -> None:
 
     hf_repo = args.hf_path.split("//")[1]
     processor = AutoProcessor.from_pretrained(hf_repo)
-    max_length =  processor.tokenizer.model_max_length
+    max_length = processor.tokenizer.model_max_length
 
     # Load the image
     raw_image = load_image(args.image_url)
@@ -123,8 +123,6 @@ def main(args) -> None:
     # Freeze the models, We have a few nesting in the model
     vision_model = model.module.module.module.vision_model.eval()
     text_model = model.module.module.module.text_model.eval()
-
-
 
     with torch.no_grad(), torch.cuda.amp.autocast(enabled=True, dtype=torch.bfloat16):
         # %% Zero-shot classification
@@ -141,7 +139,6 @@ def main(args) -> None:
 
         inputs = {key: value.to("cuda") for key, value in inputs.items()}
 
-
         model_hf = HFCLIPModel.from_pretrained(hf_repo)
         model_hf = model_hf.to("cuda")
         output_hf = model_hf(**inputs)
@@ -149,15 +146,12 @@ def main(args) -> None:
         image_embeds_nemo = vision_model(inputs["pixel_values"].cuda().to(torch.bfloat16))
         image_embeds_hf = output_hf["image_embeds"]
 
-
         text_embeds_nemo = text_model(inputs["input_ids"].cuda())
         text_embeds_hf = output_hf["text_embeds"]
-
 
         # assert_tensors_close(text_embeds_nemo, text_embeds_hf)
         image_embeds_nemo /= image_embeds_nemo.norm(dim=-1, keepdim=True)
         text_embeds_nemo /= text_embeds_nemo.norm(dim=-1, keepdim=True)
-
 
         nemo_probs = (100.0 * image_embeds_nemo @ text_embeds_nemo.T).softmax(dim=-1)
         hf_probs = (100.0 * image_embeds_hf @ text_embeds_hf.T).softmax(dim=-1)

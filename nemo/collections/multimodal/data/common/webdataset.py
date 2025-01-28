@@ -169,7 +169,9 @@ class WebDatasetCommon(NeMoIterableDataset):
             train_info['total_key_count'] = train_info['chunk_size'] * len(train_info['tar_files'])
 
         # logging.info()
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         self.data_parallel_size = parallel_state.get_data_parallel_world_size()
         chunk_size = train_info['chunk_size']
 
@@ -266,7 +268,9 @@ class WebDatasetCommon(NeMoIterableDataset):
             )
         else:
             train_dataset = WebDataset(
-                shards_train_list, handler=warn_and_continue, resampled=self.infinite_sampler or False,
+                shards_train_list,
+                handler=warn_and_continue,
+                resampled=self.infinite_sampler or False,
             )
 
         return train_dataset, epoch
@@ -289,7 +293,11 @@ if HAVE_WEBDATASET:
 
     class detshuffle2(wds.PipelineStage):
         def __init__(
-            self, bufsize=1000, initial=100, seed=0, epoch=-1,
+            self,
+            bufsize=1000,
+            initial=100,
+            seed=0,
+            epoch=-1,
         ):
             self.bufsize = bufsize
             self.initial = initial
@@ -312,7 +320,6 @@ if HAVE_WEBDATASET:
                 seed = self.seed + epoch + (100 * parallel_state.get_data_parallel_rank())
             rng.seed(seed)
             return _shuffle(src, self.bufsize, self.initial, rng)
-
 
 else:
 

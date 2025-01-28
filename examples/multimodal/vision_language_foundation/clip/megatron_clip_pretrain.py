@@ -17,9 +17,11 @@ import pytorch_lightning as pl
 pl.seed_everything(1234, workers=True)
 
 import pdb
-# pdb.set_trace = lambda: 1
 
 import torch
+
+# pdb.set_trace = lambda: 1
+
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False

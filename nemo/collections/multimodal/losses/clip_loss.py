@@ -30,7 +30,10 @@ except (ImportError, ModuleNotFoundError):
 
 
 def gather_features(
-    image_features, text_features, local_loss=False, gather_with_grad=False,
+    image_features,
+    text_features,
+    local_loss=False,
+    gather_with_grad=False,
 ):
     """
     Gathers image and text features across multiple data parallel processes.
@@ -109,7 +112,10 @@ class ClipLoss(nn.Module):
     """
 
     def __init__(
-        self, local_loss=False, gather_with_grad=False, cache_labels=False,
+        self,
+        local_loss=False,
+        gather_with_grad=False,
+        cache_labels=False,
     ):
         super().__init__()
         self.local_loss = local_loss

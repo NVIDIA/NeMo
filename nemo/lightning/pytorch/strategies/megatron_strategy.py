@@ -409,7 +409,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.trainer.callbacks.append(AsyncFinalizerCallback())
 
         ## Restore model weights and optimizer states if needed
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         if self.restore_config and not self.trainer.ckpt_path:
             self.selective_restore()
 
@@ -784,7 +786,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def selective_restore(self) -> None:
         """Implements selective restoration of checkpoint"""
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         if not self.restore_config:
             return
 

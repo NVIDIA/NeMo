@@ -1,7 +1,6 @@
 from typing import Optional
 
-from megatron.energon import DefaultTaskEncoder, basic_sample_keys, \
-    Cooker, SkipSample
+from megatron.energon import Cooker, DefaultTaskEncoder, SkipSample, basic_sample_keys
 from torchvision import transforms
 
 from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
@@ -37,9 +36,18 @@ def cook_raw_iamges(sample: dict) -> dict:
 
 class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
     cookers = [Cooker(cook_raw_iamges)]
-    def __init__(self, img_h: int = 224, img_w: int = 224, img_mean: int = None,
-                 img_std: int = None, max_length: int = 77, tokenizer: Optional = None,
-                 image_processor: Optional = None, is_train: bool =True):
+
+    def __init__(
+        self,
+        img_h: int = 224,
+        img_w: int = 224,
+        img_mean: int = None,
+        img_std: int = None,
+        max_length: int = 77,
+        tokenizer: Optional = None,
+        image_processor: Optional = None,
+        is_train: bool = True,
+    ):
         super().__init__()
 
         self.tokenizer = tokenizer
@@ -48,6 +56,7 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
         if image_processor is None or tokenizer is None:
             logging.warning(f"Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
             from transformers import AutoProcessor
+
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("openai/clip-vit-large-patch14")
@@ -66,11 +75,8 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
         self.toPIL = transforms.ToPILImage()
         self.max_length = max_length
 
-
     def encode_sample(self, sample: dict) -> dict:
         sample_new = {}
         sample_new["images"] = self.img_transform(sample["image"])
         sample_new["captions"] = tokenize(sample["txt"], self.tokenizer, context_length=self.max_length)
         return sample_new
-
-

@@ -296,11 +296,7 @@ class TimingCallback(Callback):
         self._on_batch_end("train_backward_timing", pl_module)
 
 
-
-
-
 class DataLoaderProfilingCallback(Callback):
-
 
     def __init__(self, timer_kwargs={}):
         self.timer = timers.NamedTimer(**timer_kwargs)
@@ -335,13 +331,11 @@ class DataLoaderProfilingCallback(Callback):
             prog_bar=(name == "train_step_timing"),
         )
 
-
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_end("data_step_timing", pl_module)
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._on_batch_start("data_step_timing")
-
 
 
 class DeltaTimingCallback(Callback):

@@ -13,7 +13,12 @@
 # limitations under the License.
 
 from nemo.collections.vlm.clip.model.base import ClipConfig, CLIPModel, CLIPTextModelConfig, CLIPViTConfig
-from nemo.collections.vlm.clip.model.clip import ClipConfigL14, ClipConfigB32, CLIPTextModelL_14_224_Config, CLIPViTL_14_224_Config
+from nemo.collections.vlm.clip.model.clip import (
+    ClipConfigB32,
+    ClipConfigL14,
+    CLIPTextModelL_14_224_Config,
+    CLIPViTL_14_224_Config,
+)
 
 __all__ = [
     "CLIPViTConfig",
@@ -22,6 +27,5 @@ __all__ = [
     "CLIPViTL_14_224_Config",
     "CLIPTextModelL_14_224_Config",
     "ClipConfigL14",
-    "ClipConfigB32"
-    "CLIPModel",
+    "ClipConfigB32" "CLIPModel",
 ]

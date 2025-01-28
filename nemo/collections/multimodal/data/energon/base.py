@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from copy import deepcopy
 import time
+from copy import deepcopy
 from typing import Any, Dict, Literal, Optional
 
 import fiddle as fdl
@@ -135,8 +135,11 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
 
-        cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items() if k not in ['image_processor', 'task_encoder',
-                                                                             'valid_task_encoder']}
+        cfg_kwargs = {
+            k: deepcopy(v)
+            for k, v in kwargs.items()
+            if k not in ['image_processor', 'task_encoder', 'valid_task_encoder']
+        }
 
         for val in cfg_kwargs.values():
             if not serialization.find_node_traverser(type(val)):
@@ -250,7 +253,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 "using default worker config with no_workers {self.num_workers}"
             )
             # worker_config = WorkerConfig.default_worker_config(self.num_workers)
-            worker_config = WorkerConfig.default_worker_config(1) # We just use 1 worker for val for now
+            worker_config = WorkerConfig.default_worker_config(1)  # We just use 1 worker for val for now
         else:
             rank = parallel_state.get_data_parallel_rank()
             world_size = parallel_state.get_data_parallel_world_size()
@@ -260,7 +263,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
             worker_config = WorkerConfig(
                 rank=rank,
                 world_size=world_size,
-                num_workers=1, # We just use 1 worker for val for now
+                num_workers=1,  # We just use 1 worker for val for now
                 # num_workers=self.num_workers,
                 data_parallel_group=data_parallel_group,
                 worker_debug_path=None,

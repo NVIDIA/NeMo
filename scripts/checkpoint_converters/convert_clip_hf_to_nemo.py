@@ -40,10 +40,10 @@ from argparse import ArgumentParser
 import torch
 from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from lightning.pytorch.trainer.trainer import Trainer
-import nemo.lightning as nl
 from omegaconf import OmegaConf
 from transformers import CLIPModel
 
+import nemo.lightning as nl
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import MegatronCLIPModel
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
@@ -193,8 +193,10 @@ def convert(local_rank, rank, world_size, args):
     app_state.data_parallel_rank = 0
     num_nodes = world_size // args.gpus_per_node
     trainer = Trainer(
-        devices=args.gpus_per_node, num_nodes=num_nodes,
-        accelerator='gpu', plugins=[TorchElasticEnvironment(), nl.MegatronMixedPrecision(precision="bf16-mixed")]
+        devices=args.gpus_per_node,
+        num_nodes=num_nodes,
+        accelerator='gpu',
+        plugins=[TorchElasticEnvironment(), nl.MegatronMixedPrecision(precision="bf16-mixed")],
     )
 
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
@@ -232,7 +234,9 @@ def convert(local_rank, rank, world_size, args):
     cfg.model.text.position_embedding_type = "learned_absolute"
     cfg.model.vision.position_embedding_type = "learned_absolute"
 
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()
     model = MegatronCLIPModel(cfg.model, trainer)
 
     hf_model = CLIPModel.from_pretrained(args.input_name_or_path)

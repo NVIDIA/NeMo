@@ -140,7 +140,9 @@ def image_transform(
             train_transform = Compose(
                 [
                     RandomResizedCrop(
-                        image_size, scale=aug_cfg_dict.pop('scale'), interpolation=InterpolationMode.BICUBIC,
+                        image_size,
+                        scale=aug_cfg_dict.pop('scale'),
+                        interpolation=InterpolationMode.BICUBIC,
                     ),
                     _convert_to_rgb,
                     ToTensor(),
@@ -161,6 +163,10 @@ def image_transform(
                 CenterCrop(image_size),
             ]
         transforms.extend(
-            [_convert_to_rgb, ToTensor(), normalize,]
+            [
+                _convert_to_rgb,
+                ToTensor(),
+                normalize,
+            ]
         )
         return Compose(transforms)

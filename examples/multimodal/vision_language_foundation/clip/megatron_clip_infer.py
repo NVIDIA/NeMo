@@ -42,9 +42,10 @@ def main(cfg) -> None:
         model_cfg.activations_checkpoint_granularity = None
         model_cfg.activations_checkpoint_method = None
 
-
     trainer, model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronCLIPModel, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronCLIPModel,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
 
     if model.cfg.get("megatron_amp_O2", False):
@@ -54,14 +55,22 @@ def main(cfg) -> None:
         vision_encoder = model.model.vision_encoder
         text_encoder = model.model.text_encoder
 
-    val_image_transform, text_transform = get_preprocess_fns(model.cfg, model.tokenizer, is_train=False,)
+    val_image_transform, text_transform = get_preprocess_fns(
+        model.cfg,
+        model.tokenizer,
+        is_train=False,
+    )
 
     autocast_dtype = torch_dtype_from_precision(trainer.precision)
 
     image = Image.open(cfg.image_path).convert('RGB')
 
-    with torch.no_grad(), torch.cuda.amp.autocast(
-        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    with (
+        torch.no_grad(),
+        torch.cuda.amp.autocast(
+            enabled=autocast_dtype in (torch.half, torch.bfloat16),
+            dtype=autocast_dtype,
+        ),
     ):
         image = val_image_transform(image).unsqueeze(0).cuda()
         texts = text_transform(cfg.texts).cuda()

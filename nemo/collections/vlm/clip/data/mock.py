@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 import lightning.pytorch as pl
 import numpy as np
@@ -65,6 +65,7 @@ class MockDataModule(pl.LightningDataModule):
         if tokenizer is None or image_processor is None:
             logging.warning(f"Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
             from transformers import AutoProcessor
+
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("openai/clip-vit-large-patch14")
@@ -80,8 +81,12 @@ class MockDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = _MockClipDataset(
-            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length,
-            task_encoder=self.task_encoder
+            self.tokenizer,
+            self.image_processor,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
+            task_encoder=self.task_encoder,
         )
         self._validation_ds = _MockClipDataset(
             self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length
@@ -115,7 +120,6 @@ class MockDataModule(pl.LightningDataModule):
             **kwargs,
         )
 
-
     def state_dict(self) -> Dict[str, Any]:
         """
         Save the state of the data module.
@@ -131,7 +135,6 @@ class MockDataModule(pl.LightningDataModule):
         return {}
 
 
-
 class _MockClipDataset(Dataset):
     def __init__(
         self,
@@ -141,7 +144,7 @@ class _MockClipDataset(Dataset):
         num_samples: int,
         seq_length: int,
         seed: int = 42,
-        task_encoder=None
+        task_encoder=None,
     ) -> None:
         super().__init__()
         self.name = name

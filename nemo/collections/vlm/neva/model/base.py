@@ -16,12 +16,12 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Union
-from megatron.core import InferenceParams
+
 import lightning.pytorch as L
 import torch
 import torch.distributed
 import torch.nn.functional as F
-from megatron.core import dist_checkpointing
+from megatron.core import InferenceParams, dist_checkpointing
 from megatron.core import parallel_state as ps
 from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
@@ -893,7 +893,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
 
-class  NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def __init__(
         self,
         config: NevaConfig,

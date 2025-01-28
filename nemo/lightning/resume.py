@@ -103,7 +103,9 @@ class AutoResume:
         if isinstance(trainer, fl.Fabric):
             raise NotImplementedError("Fabric is not supported yet.")
 
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
 
         trainer_ckpt_path = self.get_trainer_ckpt_path(model)
         if trainer_ckpt_path:
@@ -279,7 +281,9 @@ class AutoResume:
         return checkpoint
 
     def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         if self.resume_from_path:
             maybe_weights_path = self.get_weights_path(self.resume_from_path)
             return maybe_weights_path if maybe_weights_path.is_dir() else self.resume_from_path

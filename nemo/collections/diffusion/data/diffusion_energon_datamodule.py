@@ -60,7 +60,7 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
         virtual_epoch_length: int = 1_000_000_000,  # a hack to avoid energon end of epoch warning
         packing_buffer_size: int | None = None,
         max_samples_per_sequence: int | None = None,
-        tokenizer = None,
+        tokenizer=None,
     ) -> None:
         """
         Initialize the EnergonMultiModalDataModule.

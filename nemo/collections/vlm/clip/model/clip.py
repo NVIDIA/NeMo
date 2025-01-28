@@ -66,6 +66,7 @@ class CLIPViTB_32_224_Config(CLIPViTConfig):
     masked_softmax_fusion: bool = True
     persist_layer_norm: bool = True
 
+
 @dataclass
 class CLIPTextModelB_32_224_Config(CLIPTextModelConfig):
     # model architecture
@@ -126,11 +127,11 @@ class ClipConfigB32(ClipConfig):
     text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelB_32_224_Config())
     vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTB_32_224_Config())
 
+
 @io.model_importer(CLIPModel, "hf")
 class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
     def init(self) -> CLIPModel:
         return CLIPModel(self.config, tokenizer=self.tokenizer)
-
 
     def apply(self, output_path: Path) -> Path:
         from transformers import CLIPModel
@@ -139,7 +140,6 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
         source = CLIPModel.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
-
 
         # Convert both to bfloat16
         target = target.to(torch.bfloat16)
@@ -233,7 +233,6 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
             while vocab_size % base != 0:
                 base //= 2
             return base
-
 
         language_transformer_config = CLIPTextModelConfig(
             output_dim=text_conifg.projection_dim,
@@ -395,7 +394,6 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
-
 
 
 @io.state_transform(

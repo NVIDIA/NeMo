@@ -32,6 +32,7 @@ def clip_forward_step(model, batch) -> torch.Tensor:
     forward_args = {"images": batch["images"], "captions": batch["captions"]}
     return model(**forward_args)
 
+
 def clip_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     batch = next(dataloader_iter)
 
@@ -118,7 +119,7 @@ class CLIPViTModel(MCoreCLIPViTModel):
             model_subtype=model_subtype,
         )
 
-        self.final_layernorm =  TENorm(
+        self.final_layernorm = TENorm(
             config=self.config,
             hidden_size=self.config.hidden_size,
             eps=self.config.layernorm_epsilon,
@@ -313,13 +314,16 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.max_workers = max_workers
 
     def on_fit_start(self):
-        self.imagenet_val = build_imagenet_validation_dataloader_params( self.imagenet_val,
+        self.imagenet_val = build_imagenet_validation_dataloader_params(
+            self.imagenet_val,
             self.config.vision_transformer_config.img_h,
             self.config.vision_transformer_config.img_w,
-            self.mbs, self.gbs, num_workers=self.max_workers,
+            self.mbs,
+            self.gbs,
+            num_workers=self.max_workers,
             max_position_embedding=self.config.text_transformer_config.max_seq_length,
             tokenizer=self.tokenizer,
-            )
+        )
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
@@ -404,7 +408,6 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         top5 = top5 / n
         return top1, top5
 
-
     def on_validation_epoch_end(self):
         # Run zero shot imagenet evaluation
         if self.imagenet_val is not None:
@@ -413,8 +416,6 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             imagenet_metric = average_losses_across_data_parallel_group(imagenet_metric)
             self.log('imagenet_top1', imagenet_metric[0], prog_bar=True, rank_zero_only=True, batch_size=1)
             self.log('imagenet_top5', imagenet_metric[1], prog_bar=True, rank_zero_only=True, batch_size=1)
-
-
 
     @property
     def training_loss_reduction(self) -> ClipMegatronLoss:

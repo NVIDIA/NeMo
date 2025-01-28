@@ -288,7 +288,6 @@ def setup_trainer_and_model_for_inference(
             find_unused_parameters=False,
         )
 
-
     else:
         logging.info("Using FSDP strategy.")
         strategy = NLPFSDPStrategy(
