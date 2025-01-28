@@ -125,23 +125,23 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         use_fast=True,
     )
 
-
-def get_performance_configs(gpu, model_name, model_size, args):
+def get_performance_configs(gpu, task, model_name, model_size, args):
     recommended_configs_csv = os.path.join("recommended_model_configs", f"model_configs_{gpu}.csv")
     df = pd.read_csv(recommended_configs_csv)
-    config = df[gpu][model_name][model_size][args.compute_dtype]
+    config = df[(df["task"]==task) & (df["model"]==model_name) & (df["size"] == model_size) & (df["dtype"] == args.compute_dtype)]
+    config = config.to_dict(orient='records')[0]
 
-    num_gpus = config["num_gpus"] or args.num_gpus
-    num_nodes = num_gpus / args.devices_per_node
+    num_gpus = args.num_gpus or int(config["num_gpus"])
+    num_nodes = num_gpus // args.devices_per_node
 
-    mbs = config["mbs"] or args.micro_batch_size
-    gbs = config["gbs"] or args.global_batch_size
+    mbs = args.micro_batch_size or int(config["mbs"])
+    gbs = args.global_batch_size or int(config["gbs"])
 
-    tp_size = config["tp_size"] or args.tensor_parallel_size
-    pp_size = config["pp_size"] or args.pipeline_parallel_size
-    cp_size = config["cp_size"] or args.context_parallel_size
-    vp_size = config["vp_size"] or args.virtual_pipeline_parallel_size
-    ep_size = config["ep_size"] or args.expert_parallel_size
+    tp_size = args.tensor_parallel_size or int(config["tp_size"])
+    pp_size = args.pipeline_parallel_size or int(config["pp_size"])
+    cp_size = args.context_parallel_size or int(config["cp_size"])
+    vp_size = args.virtual_pipeline_parallel_size or int(config["vp_size"])
+    ep_size = args.expert_parallel_size or int(config["ep_size"]) 
 
     return num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size
 
@@ -175,6 +175,12 @@ def set_recipe_primary_configs(
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = vp_size
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
+
+    # Misc. for overall faster experiment runtime
+    recipe.log.ckpt = None
+    recipe.trainer.enable_checkpointing = False
+    recipe.trainer.val_check_interval = max_steps
+    recipe.trainer.log_every_n_steps = 1
 
     return recipe
 

@@ -31,10 +31,8 @@ from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 
 def llama3_8b_performance_recipe(
-    compute_dtype: str,
+    args: str,
     num_nodes: int,
-    num_gpus_per_node: int,
-    max_steps: int,
     mbs: int,
     gbs: int,
     tp_size: int,
@@ -51,17 +49,17 @@ def llama3_8b_performance_recipe(
     """
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_recipe_primary_configs(
-        recipe, num_nodes, num_gpus_per_node, mbs, gbs, max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
+        recipe, num_nodes, args.devices_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
     )
 
     # data module configs
-    recipe.data.num_train_samples = max_steps * gbs * mbs  # ensure only 1 epoch for whole run
+    recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-8B")
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
 
     # compute dtype configs
-    if compute_dtype.lower() == "fp8":
+    if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
 
     # callback configs
@@ -75,18 +73,20 @@ def llama3_8b_performance_recipe(
             garbage_collection_callback,
         ]
     )
-    dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
+    dp_size = (num_nodes * args.devices_per_node) / (tp_size * pp_size * cp_size)
     if comm_overlap_callback_idx is not None:
         # WARNING: If True, checkpointing (if enabled) might not work
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
-
-    # Misc. for overall faster experiment runtime
-    recipe.log.ckpt = None
-    recipe.trainer.enable_checkpointing = False
-    recipe.trainer.val_check_interval = max_steps
-    recipe.trainer.log_every_n_steps = 1
+    
+    if not args.tensorboard:  # tensorboard adds performance overhead.
+        recipe.log.tensorboard = None
+        recipe.trainer.logger = False
+    else:
+        # default path is NOT intuitive- `<log_dir>/code/nemo_experiments/tb_logs/default/<tfevents_file>`
+        # following line ensures file is at- `<log_dir>/lightning_logs/tb_logs/default/<tfevents_file>`
+        recipe.log.log_dir = "/nemo_run/lightning_logs"
 
     return recipe
 
@@ -94,14 +94,11 @@ def llama3_8b_performance_recipe(
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
-    kwargs = get_performance_configs(args.gpu.lower(), "llama3", "8b", args)
+    kwargs = get_performance_configs(args.gpu.lower(), "pre_train", "llama3", "8b", args)
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
 
-    exp_params = [
-        f"{splitext(basename(__file__))}_{args.compute_dtype}",
-        f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{ep_size}_{mbs}mbs_{gbs}gbs",
-    ]
-    exp_name = "_".join(exp_params)
+    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
+    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
         args.account,
@@ -117,27 +114,7 @@ if __name__ == "__main__":
         nemo_home=args.nemo_home,
     )
 
-    recipe = llama3_8b_performance_recipe(
-        args.compute_dtype,
-        num_nodes,
-        args.devices_per_node,
-        args.max_steps,
-        mbs,
-        gbs,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
-        ep_size,
-    )
-
-    if not args.tensorboard:  # tensorboard adds performance overhead.
-        recipe.log.tensorboard = None
-        recipe.trainer.logger = False
-    else:
-        # default path is NOT intuitive- `<log_dir>/code/nemo_experiments/tb_logs/default/<tfevents_file>`
-        # following line ensures file is at- `<log_dir>/lightning_logs/tb_logs/default/<tfevents_file>`
-        recipe.log.log_dir = "/nemo_run/lightning_logs"
+    recipe = llama3_8b_performance_recipe(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
 
     plugins = [
         PerfEnvPlugin(
