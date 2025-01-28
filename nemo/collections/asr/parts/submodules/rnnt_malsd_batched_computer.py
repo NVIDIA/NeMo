@@ -184,13 +184,11 @@ class MALSDState:
         )
         
 @dataclass
-class SeparateGraphsLoopLabels:
+class SeparateGraphsMALSD:
     """Class to store Cuda graphs for decoding when separate graphs are used"""
 
-    before_outer_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-    before_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-    inner_loop_code: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-    after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    before_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    loop_body: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
 
 class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     """
@@ -210,7 +208,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         NO_WHILE_LOOPS = "no_while_loops"  # Decoding with PyTorch while loops + partial Cuda graphs
         NO_GRAPHS = "no_graphs"  # decoding without graphs, stateful implementation, only for testing purposes
 
-    separate_graphs: Optional[SeparateGraphsLoopLabels]
+    separate_graphs: Optional[SeparateGraphsMALSD]
     full_graph: Optional[torch.cuda.CUDAGraph]
     cuda_graphs_mode: Optional[CudaGraphsMode]
     state: Optional[MALSDState]
@@ -257,7 +255,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.separate_graphs = None
         
         # prprpr
-        self.cuda_graphs_mode = self.CudaGraphsMode("no_graphs")
+        self.cuda_graphs_mode = self.CudaGraphsMode("no_while_loops")
+        # self.cuda_graphs_mode = self.CudaGraphsMode("no_graphs")
         # self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
         
@@ -681,20 +680,14 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self.full_graph.replay()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
-            self.separate_graphs.before_outer_loop.replay()
+            self.separate_graphs.before_loop.replay()
             while self.state.active_mask_any.item():
-                self.separate_graphs.before_inner_loop.replay()
-                while self.state.advance_mask_any.item():
-                    self.separate_graphs.inner_loop_code.replay()
-                self.separate_graphs.after_inner_loop.replay()
+                self.separate_graphs.loop_body.replay()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_GRAPHS:
             # this mode is only for testing purposes
             # manual loop instead of using graphs
             self._before_loop()
-            step=0
             while self.state.active_mask_any.item():
-                # print("Step: ", step)
-                step+=1
                 self._loop_body()
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
@@ -798,12 +791,12 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
         stream_for_graph.wait_stream(torch.cuda.default_stream(self.state.device))
-        self.separate_graphs = SeparateGraphsLoopLabels()
+        self.separate_graphs = SeparateGraphsMALSD()
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
             torch.cuda.graph(
-                self.separate_graphs.before_outer_loop, stream=stream_for_graph, capture_error_mode="thread_local"
+                self.separate_graphs.before_loop, stream=stream_for_graph, capture_error_mode="thread_local"
             ),
         ):
             self._before_loop()
@@ -812,29 +805,10 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
             torch.cuda.graph(
-                self.separate_graphs.before_inner_loop, stream=stream_for_graph, capture_error_mode="thread_local"
+                self.separate_graphs.loop_body, stream=stream_for_graph, capture_error_mode="thread_local"
             ),
         ):
-            self._before_inner_loop_get_decoder_output()
             self._loop_body()
-
-        with (
-            torch.cuda.stream(stream_for_graph),
-            torch.inference_mode(),
-            torch.cuda.graph(
-                self.separate_graphs.inner_loop_code, stream=stream_for_graph, capture_error_mode="thread_local"
-            ),
-        ):
-            self._inner_loop_code()
-
-        with (
-            torch.cuda.stream(stream_for_graph),
-            torch.inference_mode(),
-            torch.cuda.graph(
-                self.separate_graphs.after_inner_loop, stream=stream_for_graph, capture_error_mode="thread_local"
-            ),
-        ):
-            self._after_loop()
 
     def _full_graph_compile(self):
         """Compile full graph for decoding"""
@@ -865,7 +839,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             with with_conditional_node(
                 outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
             ):
-                self._before_inner_loop_get_decoder_output()
                 self._loop_body()
                 # capture: while self.advance_mask_any.item():
                 inner_while_loop_kernel = self._create_inner_while_loop_kernel()
@@ -878,11 +851,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     ],
                     dtype=np.uint64,
                 )
-                with with_conditional_node(
-                    inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
-                ):
-                    self._inner_loop_code()
-                self._after_loop()
 
     def _before_loop(self):
         """Clear state and compute initial active mask"""

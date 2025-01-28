@@ -44,6 +44,7 @@ class BatchedBeamHyps:
         float_dtype: Optional[torch.dtype] = None,
     ):
         self.INACTIVE_SCORE = -float("inf")
+        self.INACTIVE_SCORE_TENSOR = torch.tensor(self.INACTIVE_SCORE, device=device, dtype=torch.float)
         self.INIT_POINTER_VALUE = -1
         self.INIT_PREFIX_HASH_VALUE = 0
         self.NON_EXISTENT_LABEL_VALUE = -1
@@ -179,14 +180,14 @@ class BatchedBeamHyps:
         scores_matrix = torch.where(
             hyps_equal,
             self.scores[:, None, :].expand(self.batch_size, self.beam_size, self.beam_size),
-            self.INACTIVE_SCORE,
+            self.INACTIVE_SCORE_TENSOR,
         )
         scores_argmax = scores_matrix.argmax(-1, keepdim=False)
         scores_to_keep = (
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
         new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
-        torch.where(scores_to_keep, new_scores, torch.tensor(self.INACTIVE_SCORE), out=self.scores)
+        torch.where(scores_to_keep, new_scores, self.INACTIVE_SCORE_TENSOR, out=self.scores)
     
     def remove_duplicates(self, labels, total_logps):
         if self.beam_size <= 1:
