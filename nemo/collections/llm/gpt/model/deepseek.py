@@ -202,9 +202,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
         for layer_i, use_moe in enumerate(self.config.moe_layer_freq):
             if use_moe == 0:
-                weight = state_dict.pop(
-                    f"model.layers.{layer_i}.post_attention_layernorm.weight"
-                )
+                weight = state_dict.pop(f"model.layers.{layer_i}.post_attention_layernorm.weight")
                 state_dict[f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
 
         source = _ModelState(state_dict)
