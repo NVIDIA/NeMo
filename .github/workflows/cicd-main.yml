@@ -104,7 +104,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_ASR') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        TIMEOUT: 20
        # TODO: remove this hack
        SCRIPT: |
@@ -115,7 +115,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_Audio') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        TIMEOUT: 20
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --with_downloads
@@ -125,7 +125,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_Common') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/common -m "not pleasefixme" --with_downloads
 
@@ -134,7 +134,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_LLM') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/llm -m "not pleasefixme" --with_downloads
 
@@ -143,7 +143,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_Multimodal') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --with_downloads
 
@@ -152,7 +152,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_NLP') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --with_downloads
 
@@ -161,7 +161,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_TTS') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --with_downloads
 
@@ -170,7 +170,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_GPU_Core') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        TIMEOUT: 20
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/core -m "not pleasefixme" --with_downloads
@@ -181,7 +181,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_Hydra') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest tests/hydra -m "not pleasefixme" --with_downloads
 
@@ -199,7 +199,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_GPU_Others') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-gpus-1
        SCRIPT: |
          NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads \
          --ignore=tests/collections/asr \
@@ -268,7 +268,7 @@ jobs:
      uses: ./.github/workflows/_test_template.yml
      if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L0_Unit_Tests_CPU_NLP') || needs.cicd-test-container-setup.outputs.all == 'true'
      with:
-       RUNNER: self-hosted-azure
+       RUNNER: self-hosted-azure-cpu
        TIMEOUT: 20
        SCRIPT: |
          CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
@@ -3638,6 +3638,7 @@ jobs:
         TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --strategy fsdp --devices 2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
+
   L2_VLM_HF_Transformer_PEFT_4bit:
     needs: [ cicd-test-container-setup ]
     uses: ./.github/workflows/_test_template.yml
@@ -3646,6 +3647,17 @@ jobs:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --use-4bit
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_VLM_HF_Transformer_SFT_FSDP2:
+    needs: [ cicd-test-container-setup ]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_VLM_HF_Transformer_SFT_FSDP2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/sft_fsdp2.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -5093,6 +5105,7 @@ jobs:
       - L2_VLM_HF_Transformer_PEFT
       - L2_VLM_HF_Transformer_PEFT_FSDP
       - L2_VLM_HF_Transformer_PEFT_4bit
+      - L2_VLM_HF_Transformer_SFT_FSDP2
       - L2_HF_Transformer_SFT_2gpu_nemorun
       - L2_HF_Transformer_SFT_TE_Acceleration
       - L2_HF_Transformer_PT
