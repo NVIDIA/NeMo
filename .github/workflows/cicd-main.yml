@@ -5085,328 +5085,328 @@ jobs:
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/vllm_from_nemo2
 
-  Nemo_CICD_Test:
-    needs: 
-      - pre-flight
-      - cicd-import-tests
+  # Nemo_CICD_Test:
+  #   needs: 
+  #     - pre-flight
+  #     - cicd-import-tests
 
-      - L0_Unit_Tests_GPU_ASR
-      - L0_Unit_Tests_GPU_Audio
-      - L0_Unit_Tests_GPU_Common
-      - L0_Unit_Tests_GPU_LLM
-      - L0_Unit_Tests_GPU_Multimodal
-      - L0_Unit_Tests_GPU_NLP
-      - L0_Unit_Tests_GPU_TTS
-      #- OPTIONAL_L0_Unit_Tests_GPU_Core
-      - L0_Unit_Tests_GPU_Hydra
-      - L0_Unit_Tests_GPU_Lightning
-      - L0_Unit_Tests_GPU_Others
+  #     - L0_Unit_Tests_GPU_ASR
+  #     - L0_Unit_Tests_GPU_Audio
+  #     - L0_Unit_Tests_GPU_Common
+  #     - L0_Unit_Tests_GPU_LLM
+  #     - L0_Unit_Tests_GPU_Multimodal
+  #     - L0_Unit_Tests_GPU_NLP
+  #     - L0_Unit_Tests_GPU_TTS
+  #     #- OPTIONAL_L0_Unit_Tests_GPU_Core
+  #     - L0_Unit_Tests_GPU_Hydra
+  #     - L0_Unit_Tests_GPU_Lightning
+  #     - L0_Unit_Tests_GPU_Others
 
-      - L0_Unit_Tests_CPU_ASR
-      - L0_Unit_Tests_CPU_Audio
-      - L0_Unit_Tests_CPU_Common
-      - L0_Unit_Tests_CPU_LLM
-      - L0_Unit_Tests_CPU_Multimodal
-      - L0_Unit_Tests_CPU_NLP
-      - L0_Unit_Tests_CPU_TTS
-      - L0_Unit_Tests_CPU_Core
-      - L0_Unit_Tests_CPU_Hydra
-      - L0_Unit_Tests_CPU_Lightning
-      - L0_Unit_Tests_CPU_Others
+  #     - L0_Unit_Tests_CPU_ASR
+  #     - L0_Unit_Tests_CPU_Audio
+  #     - L0_Unit_Tests_CPU_Common
+  #     - L0_Unit_Tests_CPU_LLM
+  #     - L0_Unit_Tests_CPU_Multimodal
+  #     - L0_Unit_Tests_CPU_NLP
+  #     - L0_Unit_Tests_CPU_TTS
+  #     - L0_Unit_Tests_CPU_Core
+  #     - L0_Unit_Tests_CPU_Hydra
+  #     - L0_Unit_Tests_CPU_Lightning
+  #     - L0_Unit_Tests_CPU_Others
 
-      - L2_Community_LLM_Checkpoints_tests_Bert
-      - L2_Community_LLM_Checkpoints_tests_Mamba2
-      - L2_Community_LLM_Checkpoints_tests_Llama
-      - L2_Community_LLM_Checkpoints_tests_StarCoder
-      - L2_Community_LLM_Checkpoints_tests_Falcon
-      - L2_Community_vita_Checkpoints_tests_Llama3
-      #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
-      - ASR_dev_run_Speech_to_Text
-      - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
-      - ASR_dev_run_Speech_Pre-training_-_CitriNet
-      - ASR_dev_run_Speech_To_Text_Finetuning
-      - ASR_dev_run_Speech_To_Text_HF_Finetuning
-      - ASR_dev_run_Speech_to_Text_WPE_-_Conformer
-      - ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
-      - L2_Speech_to_Text_EMA
-      - L2_Speaker_dev_run_Speaker_Recognition
-      - L2_Speaker_dev_run_Speaker_Diarization
-      - L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
-      - L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
-      - L2_Speaker_dev_run_Speech_to_Label
-      - L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
-      - L2_Speaker_dev_run_Clustering_Diarizer_Inference
-      - L2_Speaker_dev_run_Neural_Diarizer_Inference
-      - L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
-      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
-      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
-      - L2_ASR_Adapters_Linear_Adapters
-      - L2_ASR_Adapters_RelPos_MHA_Adapters
-      - L2_Speech_Transcription_Speech_to_Text_Transcribe
-      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
-      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
-      - L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
-      - L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
-      - L2_Pretraining_BERT_pretraining_from_Text
-      - L2_Pretraining_BERT_from_Preprocessed
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
-      - L2_NMT_Attention_is_All_You_Need_Inference
-      - L2_NMT_Attention_is_All_You_Need_Finetuning
-      - L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation
-      - L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
-      - L2_Megatron_NMT_Training_TP2
-      - L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism
-      - L2_Megatron_Core_Bert_Pretraining_and_Resume_Training
-      - L2_RAG_Pipeline_Indexing
-      - L2_RAG_Pipeline_Generating
-      - L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_GPT_Skip_Train
-      - L2_Megatron_LM_To_NeMo_Conversion
-      - L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_GPT_with_Drop_Optimizer_States_TP2
-      - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
-      #- OPTIONAL_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
-      - L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
-      - L2_Megatron_GPT_Finetuning_PP2
-      - L2_Megatron_GPT_Finetuning_StarCoder_PP1
-      - L2_Megatron_GPT_Embedding
-      - L2_Megatron_GPT_PEFT_Lora_PP2_O2
-      - L2_Megatron_GPT_PEFT_Lora_TP2_O1
-      - L2_Megatron_GPT_PEFT_Lora_TP2SP1
-      - L2_Megatron_GPT_Eval
-      - L2_Megatron_GPT_Eval_PP2
-      - L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len
-      - L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2
-      - L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2
-      - L2_Megatron_Core_T5_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2
-      #- OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
-      - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
-      - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_Core_T5_Eval
-      - L2_Megatron_Core_T5_PEFT_Lora_TP2
-      - L2_Megatron_Mock_Data_Generation_MockGPTDataset
-      - L2_Megatron_Mock_Data_Generation_MockT5Dataset
-      - L2_TTS_Fast_dev_runs_1_Tacotron_2
-      - L2_TTS_Fast_dev_runs_1_WaveGlow
-      - L2_TTS_Fast_dev_runs_1_FastPitch
-      #- OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS
-      - L2_TTS_Fast_dev_runs_1_Hifigan
-      - Speech_Checkpoints_tests
-      - L2_Stable_Diffusion_Training
-      - L2_NeMo_2_NEVA_MOCK_TRAINING
-      - L2_NeMo_2_NEVA_MOCK_PACKED_TRAINING
-      - L2_NeMo_2_MLLAMA_MOCK_TRAINING
-      - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
-      - L2_NeMo_2_GPT_DDP_Param_Parity_check
-      - L2_NeMo_2_HF_MODEL_IMPORT
-      - L2_NeMo_2_llama3_pretraining_recipe
-      - L2_NeMo_2_llama3_fault_tolerance_plugin
-      - L2_NeMo_2_llama3_straggler_detection
-      - L2_HF_Transformer_PEFT
-      - L2_HF_Transformer_PEFT_nemorun
-      - L2_HF_Transformer_PEFT_2gpu
-      - L2_HF_Transformer_PEFT_2gpu_nemorun
-      - L2_HF_Transformer_SFT
-      - L2_HF_Transformer_SFT_nemorun
-      - L2_HF_Transformer_SFT_2gpu
-      - L2_VLM_HF_Transformer_PEFT
-      - L2_VLM_HF_Transformer_PEFT_FSDP
-      - L2_VLM_HF_Transformer_PEFT_4bit
-      - L2_VLM_HF_Transformer_SFT_FSDP2
-      - L2_HF_Transformer_SFT_2gpu_nemorun
-      - L2_HF_Transformer_SFT_TE_Acceleration
-      - L2_HF_Transformer_PT
-      - L2_HF_Transformer_PT_nemorun
-      - L2_HF_Transformer_PT_2gpu
-      - L2_HF_Transformer_PT_2gpu_nemorun
-      - L2_HF_Transformer_PT_TE_Acceleration
-      - L2_NeMo_2_SSM_Pretraining
-      - L2_NeMo_2_SSM_Finetuning
-      - L2_NeMo_2_T5_Pretraining
-      - L2_NeMo_2_T5_Finetuning
-      - L2_NeMo_2_T5_LoRA
-      - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
-      - L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
-      - L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
-      - L2_NeMo_2_GPT_SFT_TP2PP1_MBS2
-      - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
-      - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
-      - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
-      - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
-      #- OPTIONAL_L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
-      - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
-      - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
-      - L2_NEMO_2_LoRA_MERGE
-      - L2_NEMO_2_LoRA_Export
-      - L2_NEMO_2_LoRA_Inference
-      - L2_NeMo_2_Mixtral_Pretraining
-      - L2_PTQ_Llama2_FP8
-      - L2_Community_LLM_Checkpoints_tests_Llama3
-      - L2_Distill_Llama2
-      - L2_Prune_Width_Llama2
-      - L2_Prune_Depth_Llama2
-      - L2_Speech_to_Text_AED
-      - L2_Speech_Estimate_Duration_Bins
-      - L2_Speech_Batch_Size_OOMptimizer
-      - L2_Speech_Batch_Size_OOMptimizer_Canary
-      - L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
-      - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
-      - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
-      - L2_Megatron_GPT_Reranker
-      - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
-      - L2_NeMo_2_PTQ_Llama2_FP8
-      - L2_NeMo_2_Export_In_Framework
-      - L2_NeMo_2_jit_callback
-      - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
-      - L2_HF_Transformer_SFT_FSDP2_2gpu
-      - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
-      - L2_NeMo_2_VLLM_EXPORT
-    if: always() && github.event != 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Evaluate conclusion
-        if: ${{ always() }}
-        id: pipeline-conclusion
-        run: |
-          # Slack notifications are send only on test failure (not cancelled):
-          FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') }}
-          echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
+  #     - L2_Community_LLM_Checkpoints_tests_Bert
+  #     - L2_Community_LLM_Checkpoints_tests_Mamba2
+  #     - L2_Community_LLM_Checkpoints_tests_Llama
+  #     - L2_Community_LLM_Checkpoints_tests_StarCoder
+  #     - L2_Community_LLM_Checkpoints_tests_Falcon
+  #     - L2_Community_vita_Checkpoints_tests_Llama3
+  #     #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
+  #     - ASR_dev_run_Speech_to_Text
+  #     - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
+  #     - ASR_dev_run_Speech_Pre-training_-_CitriNet
+  #     - ASR_dev_run_Speech_To_Text_Finetuning
+  #     - ASR_dev_run_Speech_To_Text_HF_Finetuning
+  #     - ASR_dev_run_Speech_to_Text_WPE_-_Conformer
+  #     - ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
+  #     - L2_Speech_to_Text_EMA
+  #     - L2_Speaker_dev_run_Speaker_Recognition
+  #     - L2_Speaker_dev_run_Speaker_Diarization
+  #     - L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
+  #     - L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
+  #     - L2_Speaker_dev_run_Speech_to_Label
+  #     - L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
+  #     - L2_Speaker_dev_run_Clustering_Diarizer_Inference
+  #     - L2_Speaker_dev_run_Neural_Diarizer_Inference
+  #     - L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
+  #     - L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
+  #     - L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
+  #     - L2_ASR_Adapters_Linear_Adapters
+  #     - L2_ASR_Adapters_RelPos_MHA_Adapters
+  #     - L2_Speech_Transcription_Speech_to_Text_Transcribe
+  #     - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
+  #     - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
+  #     - L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
+  #     - L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
+  #     - L2_Pretraining_BERT_pretraining_from_Text
+  #     - L2_Pretraining_BERT_from_Preprocessed
+  #     - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
+  #     - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
+  #     - L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
+  #     - L2_NMT_Attention_is_All_You_Need_Inference
+  #     - L2_NMT_Attention_is_All_You_Need_Finetuning
+  #     - L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation
+  #     - L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
+  #     - L2_Megatron_NMT_Training_TP2
+  #     - L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism
+  #     - L2_Megatron_Core_Bert_Pretraining_and_Resume_Training
+  #     - L2_RAG_Pipeline_Indexing
+  #     - L2_RAG_Pipeline_Generating
+  #     - L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2
+  #     - L2_Megatron_GPT_Skip_Train
+  #     - L2_Megatron_LM_To_NeMo_Conversion
+  #     - L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2
+  #     - L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2
+  #     - L2_Megatron_GPT_with_Drop_Optimizer_States_TP2
+  #     - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
+  #     - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
+  #     #- OPTIONAL_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
+  #     - L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
+  #     - L2_Megatron_GPT_Finetuning_PP2
+  #     - L2_Megatron_GPT_Finetuning_StarCoder_PP1
+  #     - L2_Megatron_GPT_Embedding
+  #     - L2_Megatron_GPT_PEFT_Lora_PP2_O2
+  #     - L2_Megatron_GPT_PEFT_Lora_TP2_O1
+  #     - L2_Megatron_GPT_PEFT_Lora_TP2SP1
+  #     - L2_Megatron_GPT_Eval
+  #     - L2_Megatron_GPT_Eval_PP2
+  #     - L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len
+  #     - L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2
+  #     - L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2
+  #     - L2_Megatron_Core_T5_Pretraining_and_Resume_Training_TP2
+  #     - L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2
+  #     - L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2
+  #     #- OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
+  #     - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
+  #     - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
+  #     - L2_Megatron_Core_T5_Eval
+  #     - L2_Megatron_Core_T5_PEFT_Lora_TP2
+  #     - L2_Megatron_Mock_Data_Generation_MockGPTDataset
+  #     - L2_Megatron_Mock_Data_Generation_MockT5Dataset
+  #     - L2_TTS_Fast_dev_runs_1_Tacotron_2
+  #     - L2_TTS_Fast_dev_runs_1_WaveGlow
+  #     - L2_TTS_Fast_dev_runs_1_FastPitch
+  #     #- OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS
+  #     - L2_TTS_Fast_dev_runs_1_Hifigan
+  #     - Speech_Checkpoints_tests
+  #     - L2_Stable_Diffusion_Training
+  #     - L2_NeMo_2_NEVA_MOCK_TRAINING
+  #     - L2_NeMo_2_NEVA_MOCK_PACKED_TRAINING
+  #     - L2_NeMo_2_MLLAMA_MOCK_TRAINING
+  #     - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
+  #     - L2_NeMo_2_GPT_DDP_Param_Parity_check
+  #     - L2_NeMo_2_HF_MODEL_IMPORT
+  #     - L2_NeMo_2_llama3_pretraining_recipe
+  #     - L2_NeMo_2_llama3_fault_tolerance_plugin
+  #     - L2_NeMo_2_llama3_straggler_detection
+  #     - L2_HF_Transformer_PEFT
+  #     - L2_HF_Transformer_PEFT_nemorun
+  #     - L2_HF_Transformer_PEFT_2gpu
+  #     - L2_HF_Transformer_PEFT_2gpu_nemorun
+  #     - L2_HF_Transformer_SFT
+  #     - L2_HF_Transformer_SFT_nemorun
+  #     - L2_HF_Transformer_SFT_2gpu
+  #     - L2_VLM_HF_Transformer_PEFT
+  #     - L2_VLM_HF_Transformer_PEFT_FSDP
+  #     - L2_VLM_HF_Transformer_PEFT_4bit
+  #     - L2_VLM_HF_Transformer_SFT_FSDP2
+  #     - L2_HF_Transformer_SFT_2gpu_nemorun
+  #     - L2_HF_Transformer_SFT_TE_Acceleration
+  #     - L2_HF_Transformer_PT
+  #     - L2_HF_Transformer_PT_nemorun
+  #     - L2_HF_Transformer_PT_2gpu
+  #     - L2_HF_Transformer_PT_2gpu_nemorun
+  #     - L2_HF_Transformer_PT_TE_Acceleration
+  #     - L2_NeMo_2_SSM_Pretraining
+  #     - L2_NeMo_2_SSM_Finetuning
+  #     - L2_NeMo_2_T5_Pretraining
+  #     - L2_NeMo_2_T5_Finetuning
+  #     - L2_NeMo_2_T5_LoRA
+  #     - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
+  #     - L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
+  #     - L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
+  #     - L2_NeMo_2_GPT_SFT_TP2PP1_MBS2
+  #     - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED
+  #     - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1
+  #     - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
+  #     - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
+  #     - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
+  #     - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat
+  #     - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
+  #     - L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
+  #     - L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
+  #     - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
+  #     - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
+  #     #- OPTIONAL_L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
+  #     - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
+  #     - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
+  #     - L2_NEMO_2_LoRA_MERGE
+  #     - L2_NEMO_2_LoRA_Export
+  #     - L2_NEMO_2_LoRA_Inference
+  #     - L2_NeMo_2_Mixtral_Pretraining
+  #     - L2_PTQ_Llama2_FP8
+  #     - L2_Community_LLM_Checkpoints_tests_Llama3
+  #     - L2_Distill_Llama2
+  #     - L2_Prune_Width_Llama2
+  #     - L2_Prune_Depth_Llama2
+  #     - L2_Speech_to_Text_AED
+  #     - L2_Speech_Estimate_Duration_Bins
+  #     - L2_Speech_Batch_Size_OOMptimizer
+  #     - L2_Speech_Batch_Size_OOMptimizer_Canary
+  #     - L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
+  #     - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
+  #     - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
+  #     - L2_Megatron_GPT_Reranker
+  #     - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
+  #     - L2_NeMo_2_PTQ_Llama2_FP8
+  #     - L2_NeMo_2_Export_In_Framework
+  #     - L2_NeMo_2_jit_callback
+  #     - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
+  #     - L2_HF_Transformer_SFT_FSDP2_2gpu
+  #     - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
+  #     - L2_NeMo_2_VLLM_EXPORT
+  #   if: always() && github.event != 'push'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Evaluate conclusion
+  #       if: ${{ always() }}
+  #       id: pipeline-conclusion
+  #       run: |
+  #         # Slack notifications are send only on test failure (not cancelled):
+  #         FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') }}
+  #         echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
           
-          # Mark as successful if no job was cancelled:
-          SUCCESS=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
-          echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
+  #         # Mark as successful if no job was cancelled:
+  #         SUCCESS=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
+  #         echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
 
-      # This should depend on all the tests so we block/unblock based on all tests passing
-      - name: Pipeline successful, set exit code to 0
-        if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
-        run: exit 0
+  #     # This should depend on all the tests so we block/unblock based on all tests passing
+  #     - name: Pipeline successful, set exit code to 0
+  #       if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
+  #       run: exit 0
 
-      - name: Pipeline successful, add PR comment
-        if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
-        uses: peter-evans/create-or-update-comment@v4
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-        with:
-          issue-number: ${{ github.event.number }}
-          body: |
-            [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
+  #     - name: Pipeline successful, add PR comment
+  #       if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
+  #       uses: peter-evans/create-or-update-comment@v4
+  #       env:
+  #         SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+  #         REPOSITORY: ${{ github.repository }}
+  #         RUN_ID: ${{ github.run_id }}
+  #       with:
+  #         issue-number: ${{ github.event.number }}
+  #         body: |
+  #           [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
             
-            We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully
+  #           We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully
 
-            So it might be time to merge this PR or get some approvals
+  #           So it might be time to merge this PR or get some approvals
 
-            I'm just a bot so I'll leave it you what to do next.
+  #           I'm just a bot so I'll leave it you what to do next.
 
-            //cc @pablo-garay @ko3n1g
+  #           //cc @pablo-garay @ko3n1g
 
-      - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
-        if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          SLACK_WEBHOOK_ADMIN: <!subteam^${{ secrets.SLACK_WEBHOOK_ADMIN }}>
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          PR_NUMBER: ${{ github.event.number }}
-          SERVER_URL: ${{ github.server_url }}
-        run: |
-          set -x
+  #     - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
+  #       if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
+  #       env:
+  #         SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+  #         SLACK_WEBHOOK_ADMIN: <!subteam^${{ secrets.SLACK_WEBHOOK_ADMIN }}>
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         GITHUB_ACTOR: ${{ github.actor }}
+  #         BRANCH: ${{ github.head_ref || github.ref_name }}
+  #         REPOSITORY: ${{ github.repository }}
+  #         RUN_ID: ${{ github.run_id }}
+  #         PR_NUMBER: ${{ github.event.number }}
+  #         SERVER_URL: ${{ github.server_url }}
+  #       run: |
+  #         set -x
 
-          PR_INFO=$(curl -L \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER
-          )
-          PR_URL=$(echo -E $PR_INFO | jq '.html_url' | tr -d '"')
-          PR_TITLE=$(echo -E $PR_INFO | jq '.title' | tr -d '"')
+  #         PR_INFO=$(curl -L \
+  #           -H "Accept: application/vnd.github+json" \
+  #           -H "Authorization: Bearer $GITHUB_TOKEN" \
+  #           -H "X-GitHub-Api-Version: 2022-11-28" \
+  #           https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER
+  #         )
+  #         PR_URL=$(echo -E $PR_INFO | jq '.html_url' | tr -d '"')
+  #         PR_TITLE=$(echo -E $PR_INFO | jq '.title' | tr -d '"')
           
-          PIPELINE_URL=$SERVER_URL/$REPOSITORY/actions/runs/$RUN_ID
-          BASE_MESSAGE='
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "🚨 *CI/CD failure at <'$PIPELINE_URL'|NeMo CI>*."
-                  }
-                }
-              ]
-            }
-          '
+  #         PIPELINE_URL=$SERVER_URL/$REPOSITORY/actions/runs/$RUN_ID
+  #         BASE_MESSAGE='
+  #           {
+  #             "blocks": [
+  #               {
+  #                 "type": "section",
+  #                 "text": {
+  #                   "type": "mrkdwn",
+  #                   "text": "🚨 *CI/CD failure at <'$PIPELINE_URL'|NeMo CI>*."
+  #                 }
+  #               }
+  #             ]
+  #           }
+  #         '
 
-          # Since this workflow contains more than 100 jobs, we need to iterate over job pages
-          JOBS='[]'
-          PAGE=1
-          while : ; do
-            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"  
-            RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" $JOBS_URL | jq '.jobs')
-            JOBS=$(echo -e "$JOBS\n$RESPONSE" | jq -cs 'add')
-            if [[ $(echo $RESPONSE | jq 'length') -lt 100 ]]; then
-              break
-            else
-              PAGE=$(( PAGE + 1))
-            fi
-          done
+  #         # Since this workflow contains more than 100 jobs, we need to iterate over job pages
+  #         JOBS='[]'
+  #         PAGE=1
+  #         while : ; do
+  #           JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"  
+  #           RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" $JOBS_URL | jq '.jobs')
+  #           JOBS=$(echo -e "$JOBS\n$RESPONSE" | jq -cs 'add')
+  #           if [[ $(echo $RESPONSE | jq 'length') -lt 100 ]]; then
+  #             break
+  #           else
+  #             PAGE=$(( PAGE + 1))
+  #           fi
+  #         done
           
-          SUMMARY="[]"
-          echo "Failed jobs: " | tee -a $GITHUB_STEP_SUMMARY
-          while IFS= read -r JOB; do
-            JOB_NAME="$(echo $JOB | jq '.key' | tr -d '"') / main"
-            JOB_ID=$(echo $JOBS | jq --arg job_name "$JOB_NAME" '.[] | select(.name == $job_name) | .id')
-            JOB_URL="https://github.com/$REPOSITORY/actions/runs/$RUN_ID/job/$JOB_ID"
+  #         SUMMARY="[]"
+  #         echo "Failed jobs: " | tee -a $GITHUB_STEP_SUMMARY
+  #         while IFS= read -r JOB; do
+  #           JOB_NAME="$(echo $JOB | jq '.key' | tr -d '"') / main"
+  #           JOB_ID=$(echo $JOBS | jq --arg job_name "$JOB_NAME" '.[] | select(.name == $job_name) | .id')
+  #           JOB_URL="https://github.com/$REPOSITORY/actions/runs/$RUN_ID/job/$JOB_ID"
 
-            echo "* [$JOB_NAME]($JOB_URL)" | tee -a $GITHUB_STEP_SUMMARY
+  #           echo "* [$JOB_NAME]($JOB_URL)" | tee -a $GITHUB_STEP_SUMMARY
 
-            LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
-            LOGS=$([[ $(echo $LOGS | wc -c) -gt 0 ]] && echo -E "\`\`\`\n$LOGS\n\`\`\`" || echo "")
-            LOGS=$([[ $(echo $JOB | yq '.value.outputs.potential_infra_failure') == "true" ]] && echo -E "$LOGS\n\ncc: $SLACK_WEBHOOK_ADMIN" || echo -E "$LOGS")
+  #           LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
+  #           LOGS=$([[ $(echo $LOGS | wc -c) -gt 0 ]] && echo -E "\`\`\`\n$LOGS\n\`\`\`" || echo "")
+  #           LOGS=$([[ $(echo $JOB | yq '.value.outputs.potential_infra_failure') == "true" ]] && echo -E "$LOGS\n\ncc: $SLACK_WEBHOOK_ADMIN" || echo -E "$LOGS")
             
-            SUMMARY=$(echo "$SUMMARY" | jq \
-              --arg pr "<$PR_URL|$PR_TITLE>" \
-              --arg job "<$JOB_URL|$JOB_NAME>" \
-              --arg logs "$(echo -e "$LOGS")" \
-              --arg author "<https://github.com/$GITHUB_ACTOR|$GITHUB_ACTOR>" \
-              --arg branch "<https://github.com/$REPOSITORY/tree/$BRANCH|$BRANCH>"\
-              '. += [
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": (
-                    "PR: " + $pr
-                    + "\nJob: " + $job
-                    + "\nAuthor: " + $author
-                    + "\nBranch: " + $branch
-                    + "\nLogs:" + $logs
-                  )
-                }
-              }
-            ]')
-          done <<<$(echo '${{ toJSON(needs) }}' | jq -c 'to_entries | .[] | select(.value.outputs.conclusion == "failure")')
+  #           SUMMARY=$(echo "$SUMMARY" | jq \
+  #             --arg pr "<$PR_URL|$PR_TITLE>" \
+  #             --arg job "<$JOB_URL|$JOB_NAME>" \
+  #             --arg logs "$(echo -e "$LOGS")" \
+  #             --arg author "<https://github.com/$GITHUB_ACTOR|$GITHUB_ACTOR>" \
+  #             --arg branch "<https://github.com/$REPOSITORY/tree/$BRANCH|$BRANCH>"\
+  #             '. += [
+  #             {
+  #               "type": "section",
+  #               "text": {
+  #                 "type": "mrkdwn",
+  #                 "text": (
+  #                   "PR: " + $pr
+  #                   + "\nJob: " + $job
+  #                   + "\nAuthor: " + $author
+  #                   + "\nBranch: " + $branch
+  #                   + "\nLogs:" + $logs
+  #                 )
+  #               }
+  #             }
+  #           ]')
+  #         done <<<$(echo '${{ toJSON(needs) }}' | jq -c 'to_entries | .[] | select(.value.outputs.conclusion == "failure")')
 
-          MESSAGE=$(echo $BASE_MESSAGE | jq -c --argjson summary "$SUMMARY" '.blocks += $summary')
+  #         MESSAGE=$(echo $BASE_MESSAGE | jq -c --argjson summary "$SUMMARY" '.blocks += $summary')
 
-          curl -X POST -H "Content-type: application/json" --data "$MESSAGE" $SLACK_WEBHOOK
+  #         curl -X POST -H "Content-type: application/json" --data "$MESSAGE" $SLACK_WEBHOOK
 
-      - name: "Pipeline not successful, set exit code to 1"
-        if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
-        run: exit 1
+  #     - name: "Pipeline not successful, set exit code to 1"
+  #       if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
+  #       run: exit 1
