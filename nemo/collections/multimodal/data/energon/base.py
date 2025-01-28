@@ -66,10 +66,14 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         global_batch_size: int = 1,
         num_workers: int = 1,
         pin_memory: bool = True,
+        shuffle_buffer_size: int = 100,
+        max_samples_per_sequence: int | None = None,
         multimodal_sample_config: Optional[MultiModalSampleConfig] = MultiModalSampleConfig(),
         task_encoder: Optional[MultiModalTaskEncoder] = None,
         decoder_seq_length: Optional[int] = None,
         packing_buffer_size: Optional[int] = None,
+        valid_task_encoder: Optional[MultiModalTaskEncoder] = None,
+        **kwargs,
     ) -> None:
         """
         Initialize the EnergonMultiModalDataModule.
@@ -84,10 +88,16 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         pin_memory (bool, optional): Whether to pin memory in the DataLoader. Defaults to True.
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
         Defaults to MultiModalSampleConfig().
+        shuffle_buffer_size (int, optional): Size of the shuffle buffer. Defaults to 100.
+        max_samples_per_sequence (int, optional): Maximum number of samples per sequence to load from memory.
+        Defaults to None (loads the whole tar file at once).
         task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples.
         If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
         decoder_seq_length (int, optional): The maximum sequence length for the decoder. Used in encoder-decoder models.
         packing_buffer_size (int, optional): Size of the packing buffer for batched samples. Defaults to None.
+        valid_task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples for
+        validation. Defaults to None and will be the same as task_encoder.
+        **kwargs: Additional keyword arguments. Will be passed to get_train_dataset() of Energon
         """
 
         super().__init__()
@@ -103,6 +113,8 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.multimodal_sample_config = multimodal_sample_config
+        self.shuffle_buffer_size = shuffle_buffer_size
+        self.max_samples_per_sequence = max_samples_per_sequence
         self.task_encoder = task_encoder or MultiModalTaskEncoder(
             tokenizer=self.tokenizer,
             image_processor=self.image_processor,
@@ -118,10 +130,13 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.train_dataloader_object = None
         self.val_dataloader_object = None
         self.packing_buffer_size = packing_buffer_size
+        self.valid_task_encoder = valid_task_encoder or self.task_encoder
+        self.kwargs = kwargs
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
 
-        cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items() if k not in ['image_processor', 'task_encoder']}
+        cfg_kwargs = {k: deepcopy(v) for k, v in kwargs.items() if k not in ['image_processor', 'task_encoder',
+                                                                             'valid_task_encoder']}
 
         for val in cfg_kwargs.values():
             if not serialization.find_node_traverser(type(val)):
@@ -143,39 +158,33 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Returns:
         Dataset: The dataset configured for the specified split.
         """
-        # import megatron.energon.wrappers.map_dataset.MapDataset
-        # import megatron.energon.wrappers.batch_dataset.BatchDataset
-        # import megatron.energon.flavors.webdataset.sample_loader.WebdatasetSampleLoaderDataset
+
         if split not in {'train', 'val'}:
             raise ValueError("Invalid value for split. Allowed values are 'train' or 'val'.")
-        shuffle_buffer_size = 2500
-        max_samples_per_sequence = 2500
 
-        if self.num_workers != 64 and False:
-            shuffle_buffer_size = 100
-            max_samples_per_sequence = 100
-        # if self.num_workers == 32:
-        #     shuffle_buffer_size = 100
-        #     max_samples_per_sequence = 500
-
-        logging.info(f"Worker config: {worker_config}")
-        logging.info(f"Trying to get the dataset with following parameters:"
-                     f"Path: {self.path}, "
-                     f"batch_size: {self.micro_batch_size}, "
-                     f"shuffle_buffer_size: {shuffle_buffer_size}, "
-                     f"max_samples_per_sequence: {max_samples_per_sequence}, ")
-        _dataset = get_train_dataset(
-            self.path,
-            batch_size=self.micro_batch_size,
-            task_encoder=self.task_encoder,
-            worker_config=worker_config,
-            max_samples_per_sequence=max_samples_per_sequence,
-            packing_buffer_size=self.packing_buffer_size,
-            shuffle_buffer_size=shuffle_buffer_size,
-            split_part=split,
-            image_decode="pil",
-            ignore_decoder_errors=True
-        )
+        if split == "train":
+            _dataset = get_train_dataset(
+                self.path,
+                batch_size=self.micro_batch_size,
+                task_encoder=self.task_encoder,
+                worker_config=worker_config,
+                packing_buffer_size=self.packing_buffer_size,
+                split_part=split,
+                shuffle_buffer_size=self.shuffle_buffer_size,
+                max_samples_per_sequence=self.max_samples_per_sequence,
+                **self.kwargs,
+            )
+        else:
+            _dataset = get_train_dataset(
+                self.path,
+                batch_size=self.micro_batch_size,
+                task_encoder=self.valid_task_encoder,
+                worker_config=worker_config,
+                split_part=split,
+                shuffle_buffer_size=self.shuffle_buffer_size,
+                max_samples_per_sequence=self.max_samples_per_sequence,
+                **self.kwargs,
+            )
         return _dataset
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -288,11 +297,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
         if self.trainer:
             dataloader_obj = self.trainer.train_dataloader
-            start = time.time()
-            import pdb; pdb.set_trace()
             state = dataloader_obj.save_state_global(dst_rank=0)
-            # state = dataloader_obj.save_state_rank()
-            logging.info(f"Multimodal state saved in {time.time() - start} seconds")
             consumed_samples = self.data_sampler.compute_consumed_samples(
                 self.trainer.global_step - self.init_global_step
             )

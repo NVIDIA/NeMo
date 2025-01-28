@@ -4,7 +4,6 @@ from pathlib import Path
 import torch
 import torch.distributed
 
-from nemo.collections.llm.fn.activation import quick_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApproxGELUActivation
 from nemo.collections.vlm.clip.model import ClipConfig, CLIPModel, CLIPTextModelConfig, CLIPViTConfig
 from nemo.lightning import io, teardown
@@ -17,7 +16,7 @@ class CLIPViTL_14_224_Config(CLIPViTConfig):
     # TOdo these are probably not super upto date but that's ok
     # Will handle it later
     vision_model_type: str = "clip"
-    patch_dim: int = 16
+    patch_dim: int = 14
     img_h: int = 224
     img_w: int = 224
     num_layers: int = 12
@@ -43,8 +42,6 @@ class CLIPViTL_14_224_Config(CLIPViTConfig):
 class CLIPViTB_32_224_Config(CLIPViTConfig):
     """Clip vit large patch14 config"""
 
-    # TOdo these are probably not super upto date but that's ok
-    # Will handle it later
     vision_model_type: str = "clip"
     patch_dim: int = 32
     img_h: int = 224
@@ -89,7 +86,6 @@ class CLIPTextModelB_32_224_Config(CLIPTextModelConfig):
     normalization: bool = "LayerNorm"
     do_layer_norm_weight_decay: bool = False  # True means weight decay on all params
 
-    # TODO(askYu): Does these 3 makes sense?
     persist_layer_norm: bool = True  # Use of persistent fused layer norm kernel.
     masked_softmax_fusion: bool = True
     bias_dropout_fusion: bool = True
@@ -114,7 +110,6 @@ class CLIPTextModelL_14_224_Config(CLIPTextModelConfig):
     apply_query_key_layer_scaling: bool = False  # scale Q * K^T by 1 / layer-number.
     do_layer_norm_weight_decay: bool = False  # True means weight decay on all params
 
-    # TODO(askYu): Does these 3 makes sense?
     persist_layer_norm: bool = True  # Use of persistent fused layer norm kernel.
     masked_softmax_fusion: bool = True
     bias_dropout_fusion: bool = True
@@ -136,14 +131,21 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
     def init(self) -> CLIPModel:
         return CLIPModel(self.config, tokenizer=self.tokenizer)
 
+
     def apply(self, output_path: Path) -> Path:
         from transformers import CLIPModel
 
+        # Get source model from HF
         source = CLIPModel.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
-        import pdb; pdb.set_trace()
+
+
+        # Convert both to bfloat16
+        target = target.to(torch.bfloat16)
+        source = source.to(torch.bfloat16)
         self.convert_state(source, target)
+
         print(f"Converted Clip model to Nemo, saving to {output_path}")
 
         self.nemo_save(output_path, trainer)
@@ -226,28 +228,6 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
 
         text_conifg = source.text_config
 
-        #
-        # text_conifg = {
-        #     "attention_dropout": 0.0, #
-        #     "bos_token_id": 49406,
-        #     "dropout": 0.0, #
-        #     "eos_token_id": 49407,
-        #     "hidden_act": "quick_gelu", #
-        #     "hidden_size": 768, #
-        #     "initializer_factor": 1.0,
-        #     "initializer_range": 0.02, #
-        #     "intermediate_size": 3072, #
-        #     "layer_norm_eps": 1e-05, #
-        #     "max_position_embeddings": 77,
-        #     "model_type": "clip_text_model",
-        #     "num_attention_heads": 12, #
-        #     "num_hidden_layers": 12, #
-        #     "pad_token_id": 1,
-        #     "projection_dim": 768, #
-        #     "transformers_version": "4.46.0",
-        #     "vocab_size": 49408
-        # }
-
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
             while vocab_size % base != 0:
@@ -271,40 +251,10 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
             activation_func=ApproxGELUActivation,
             max_seq_length=text_conifg.max_position_embeddings,
             apply_query_key_layer_scaling=False,
-
-            # These are just to match the nemo1 exactly
-            bf16=True,
-            params_dtype=torch.bfloat16,
-            autocast_dtype=torch.bfloat16,
-            pipeline_dtype=torch.bfloat16,
-            deallocate_pipeline_outputs=True,
-            masked_softmax_fusion=True,
-            persist_layer_norm=True,
-            bias_dropout_fusion=True,
-            distribute_saved_activations=False
         )
 
         vision_config = source.vision_config
-        # from attrdict import AttrDict
-        # vision_config = AttrDict({
-        #     "attention_dropout": 0.0,
-        #     "dropout": 0.0,
-        #     "hidden_act": "quick_gelu",
-        #     "hidden_size": 1024,
-        #     "image_size": 224,
-        #     "initializer_factor": 1.0,
-        #     "initializer_range": 0.02,
-        #     "intermediate_size": 4096,
-        #     "layer_norm_eps": 1e-05,
-        #     "model_type": "clip_vision_model",
-        #     "num_attention_heads": 16,
-        #     "num_channels": 3,
-        #     "num_hidden_layers": 24,
-        #     "patch_size": 14,
-        #     "projection_dim": 768,
-        #     "transformers_version": "4.46.0"
-        # })
-        #
+
         vision_transformer_config = CLIPViTConfig(
             vision_model_type="clip",
             patch_dim=vision_config.patch_size,
@@ -324,22 +274,6 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
             layernorm_epsilon=vision_config.layer_norm_eps,
             # HF only uses one class token
             class_token_len=1,
-            # bias_activation_fusion: bool = False
-            # bias_dropout_fusion: bool = False
-            # attention_softmax_in_fp32: bool = True
-            # normalization: str = 'LayerNorm'
-            # apply_rope_fusion: bool = False
-
-            # These are just to match the nemo1 exactly
-            bf16 = True,
-            params_dtype=torch.bfloat16,
-            autocast_dtype=torch.bfloat16,
-            pipeline_dtype=torch.bfloat16,
-            deallocate_pipeline_outputs=True,
-            masked_softmax_fusion=True,
-            persist_layer_norm=True,
-            bias_dropout_fusion=True,
-            distribute_saved_activations=False
         )
 
         output = ClipConfig(
@@ -440,7 +374,6 @@ def _import_language_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
     ).squeeze(-1)
 
 
-# from nemo.lightning.io.state import
 @io.state_transform(
     source_key=(
         "text_model.encoder.layers.*.self_attn.q_proj.weight",
@@ -464,7 +397,7 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
     )
 
 
-# Todo (Ask Yu) about class token
+
 @io.state_transform(
     source_key=("vision_model.embeddings.class_embedding",),
     target_key="vision_model.class_token",

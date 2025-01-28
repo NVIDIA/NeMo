@@ -13,10 +13,9 @@ from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIP
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.enums import AttnMaskType as MCoreAttnMaskType
-from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from nemo.collections.llm import fn
@@ -28,12 +27,24 @@ from nemo.collections.vlm.clip.loss.clip_loss import ClipMegatronLoss
 from nemo.lightning import MegatronOptimizerModule, OptimizerModule, get_vocab_size, io
 from nemo.utils import logging
 
-import megatron
 
 def clip_forward_step(model, batch) -> torch.Tensor:
     forward_args = {"images": batch["images"], "captions": batch["captions"]}
-    # import pdb; pdb.set_trace()()
     return model(**forward_args)
+
+def clip_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+    batch = next(dataloader_iter)
+
+    if isinstance(batch, tuple) and len(batch) == 3:
+        _batch = batch[0]
+    else:
+        _batch = batch
+
+    if "captions" in _batch and len(_batch["captions"].shape) == 3:
+        _batch["captions"] = _batch["captions"].squeeze()
+
+    _batch = {key: val.cuda(non_blocking=True) if val is not None else None for key, val in _batch.items()}
+    return _batch
 
 
 def set_input_tensor(self, tensor):
@@ -42,10 +53,7 @@ def set_input_tensor(self, tensor):
 
 @dataclass
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
-    output_dim: int = 512  # Getting this default from megatron_clip_VIT-H-14.yaml
-    ln_final_impl: Union[ModuleSpec, type] = TENorm
-    ln_pre_impl: Union[ModuleSpec, type] = TENorm
-    ln_post_impl: Union[ModuleSpec, type] = TENorm
+    output_dim: int = 512
     add_class_token: bool = True
     class_token_len: int = 8
     patch_dim: int = 16
@@ -69,12 +77,10 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
 
         transformer_layer_spec.submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
         self.transformer_layer_spec = transformer_layer_spec
-        # import pdb; pdb.set_trace()()
+
         return CLIPViTModel(
             self,
             transformer_layer_spec=transformer_layer_spec,
-            ln_pre_impl=self.ln_pre_impl,
-            ln_post_impl=self.ln_post_impl,
             add_class_token=self.add_class_token,
             class_token_len=self.class_token_len,
             patch_dim=self.patch_dim,
@@ -82,7 +88,6 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
             img_w=self.img_w,
             model_subtype=self.vision_model_type,
             output_dim=self.output_dim,
-            ln_final_impl=self.ln_final_impl,
         )
 
 
@@ -91,8 +96,6 @@ class CLIPViTModel(MCoreCLIPViTModel):
         self,
         transformer_config: TransformerConfig,
         transformer_layer_spec: ModuleSpec,
-        ln_pre_impl: Union[ModuleSpec, type] = TENorm,
-        ln_post_impl: Union[ModuleSpec, type] = TENorm,
         add_class_token: bool = True,
         class_token_len: int = 8,
         patch_dim: int = 16,
@@ -100,7 +103,6 @@ class CLIPViTModel(MCoreCLIPViTModel):
         img_w: int = 224,
         model_subtype: str = "clip",
         output_dim: int = 1024,
-        ln_final_impl: Union[ModuleSpec, type] = TENorm,
     ):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = output_dim
@@ -145,16 +147,14 @@ class CLIPViTModel(MCoreCLIPViTModel):
 @dataclass
 class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
     output_dim: int = 512
-    ln_final_impl: Union[ModuleSpec, type] = TENorm
     make_vocab_size_divisible_by: int = 128
     max_seq_length: int = 1024
-    # TODO: ask Yao if he knows defaults for this. Actually this might not matter?
+
     share_embeddings_and_output_weights: bool = False
-    # Copied from gpt/base model
-    gated_linear_unit: bool = False
+
+    # Imported from gpt/base model
     use_transformer_engine_full_layer_spec: bool = False
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
-    attention_softmax_in_fp32: bool = False
 
     # Without these the init for transformer will give error
 
@@ -178,10 +178,7 @@ class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
             transformer_layer_spec=transformer_layer_spec,
             vocab_size=vocab_size,
             max_sequence_length=self.max_seq_length,
-            pre_process=pre_process,
-            post_process=post_process,
             output_dim=self.output_dim,
-            ln_final_impl=self.ln_final_impl,
             share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
         )
 
@@ -193,18 +190,13 @@ class CLIPTextModel(MCoreGPTModel):
         transformer_layer_spec: ModuleSpec,
         vocab_size: int,
         max_sequence_length: int,
-        pre_process: bool = True,
-        post_process: bool = True,
         output_dim: int = 1024,
-        ln_final_impl: Union[ModuleSpec, type] = TENorm,
         share_embeddings_and_output_weights: bool = False,
     ):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
-        # TODO: I give post_process as false to get hidden states instead of logits
-        # What's the right way to do this?
         self.output_dim = output_dim
-        # import pdb; pdb.set_trace()()
 
+        # We give post_process as false to get hidden states instead of logits as we have one more layer head
         super().__init__(
             transformer_config,
             transformer_layer_spec,
@@ -230,11 +222,8 @@ class CLIPTextModel(MCoreGPTModel):
             self.position_ids = torch.arange(max_sequence_length).expand(1, -1).cuda()
 
     def forward(self, input_ids):
-        # import pdb;
-        # pdb.set_trace()
+
         x = super().forward(input_ids, position_ids=self.position_ids, attention_mask=None)
-        # import pdb;
-        # pdb.set_trace()
         x = self.final_layernorm(x)
         x = x[input_ids.argmax(dim=-1), torch.arange(x.shape[1])]
         x = self.head(x)
@@ -250,8 +239,8 @@ class ClipConfig(TransformerConfig, io.IOMixin):
     vision_transformer_config: Optional[CLIPViTConfig] = None
     get_attention_mask_from_fusion: bool = True
     forward_step_fn: Callable = clip_forward_step
+    data_step_fn: Callable = clip_data_step
 
-    imagenet_val: str = None # PAth to imagenet validation
     # Without these the init for transformer will give error
     num_layers: int = 1  # Placeholder, NOT used!
     num_attention_heads: int = 8  # Placeholder, NOT used!
@@ -287,9 +276,7 @@ class MCoreClipModel(MegatronModule):
     def forward(self, images: torch.Tensor, captions: torch.Tensor):
         image_features = self.vision_model(images)
         text_features = self.text_model(captions)
-        # import pdb; pdb.set_trace()()
         if self.post_process:
-            # return  image_features, text_features, self.logit_scale.exp()
             return F.normalize(image_features, dim=-1), F.normalize(text_features, dim=-1), self.logit_scale.exp()
 
         return image_features, text_features
@@ -306,12 +293,10 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
         imagenet_val: Optional[str] = None,
-            mbs: int = 8,
-            gbs: int = 8,
-            max_workers: int = 4,
+        mbs: int = 8,
+        gbs: int = 8,
+        max_workers: int = 4,
     ):
-        # I feel like only use of tokenizer we are doing here is to get the vocab size which can be removed
-
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
@@ -320,27 +305,21 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.model_transform = model_transform
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
+
+        # These parameters are just for imagenet validation
         self.imagenet_val = imagenet_val
         self.mbs = mbs
         self.gbs = gbs
         self.max_workers = max_workers
 
-    # def set_imageval_dataloader(self, dataloader):
-    #     self.imagenet_val = dataloader
-
     def on_fit_start(self):
-        # import pdb; pdb.set_trace()
         self.imagenet_val = build_imagenet_validation_dataloader_params( self.imagenet_val,
-        self.config.vision_transformer_config.img_h,
-        self.config.vision_transformer_config.img_w,
-        self.mbs, self.gbs, num_workers=self.max_workers,
-      max_position_embedding=self.config.text_transformer_config.max_seq_length,
-      tokenizer=self.tokenizer,
-     )
-
-
-
-
+            self.config.vision_transformer_config.img_h,
+            self.config.vision_transformer_config.img_w,
+            self.mbs, self.gbs, num_workers=self.max_workers,
+            max_position_embedding=self.config.text_transformer_config.max_seq_length,
+            tokenizer=self.tokenizer,
+            )
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
@@ -350,21 +329,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.module(images, captions)
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
-        batch = next(dataloader_iter)
-        # TODO: I have no odea why we have 3 inputs? Are the preprocess and post ?
-        if isinstance(batch, tuple) and len(batch) == 3:
-            _batch = batch[0]
-        else:
-            _batch = batch
-
-        if  "captions" in _batch and len(_batch["captions"].shape) == 3:
-            _batch["captions"] = _batch["captions"].squeeze()
-
-        _batch = {key: val.cuda(non_blocking=True) if val is not None else None for key, val in _batch.items()}
-        return _batch
-        #     _batch: dict
-        # TODO (make data_step_fn)
-        # return self.config.data_step_fn(dataloader_iter)
+        return self.config.data_step_fn(dataloader_iter)
 
     def forward_step(self, batch) -> torch.Tensor:
         return self.config.forward_step_fn(self, batch)
@@ -374,14 +339,10 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return self.forward_step(batch)
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
-        # In mcore the loss-function is part of the forward-pass (when labels are provided)
-
         return self.forward_step(batch)
 
     def zero_shot_classifier(self):
         text_encoder = self.module.module.module.text_model
-
-
         with torch.no_grad():
             zeroshot_weights = []
             for texts in self.imagenet_val["texts"]:
@@ -407,7 +368,6 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         logging.info('Starting zero-shot imagenet.')
 
         logging.info('Building zero-shot classifier')
-        # import pdb; pdb.set_trace()
         classifier = self.zero_shot_classifier()
 
         logging.info('Using classifier')
@@ -422,8 +382,8 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
                 images = images.cuda(non_blocking=True).to(torch.bfloat16)
                 target = target.cuda(non_blocking=True)
-                # predict
 
+                # predict
                 with torch.cuda.amp.autocast(
                     enabled=True,
                     dtype=torch.bfloat16,

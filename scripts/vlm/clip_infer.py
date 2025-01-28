@@ -14,33 +14,28 @@
 
 """
 Usage example:
-    wget https://upload.wikimedia.org/wikipedia/commons/0/0f/1665_Girl_with_a_Pearl_Earring.jpg
-    python scripts/vlm/clip_infer.py --image_url 1665_Girl_with_a_Pearl_Earring.jpg \
+    python scripts/vlm/clip_infer.py \
+    --image_url https://upload.wikimedia.org/wikipedia/commons/0/0f/1665_Girl_with_a_Pearl_Earring.jpg \
     --hf_path hf://openai/clip-vit-large-patch14 \
     --classes "a dog" "a boy" "a girl"
 
 
 
 It should generate a high probability for "a girl" tag, e.g.
-Nemo: CLIP text probability:  [('a dog', 0.0051774755), ('a boy', 0.0024592995), ('a girl', 0.9923632)]
-HF: CLIP text probability:  [('a dog', 0.004963576), ('a boy', 0.0022506083), ('a girl', 0.9927858)]
+Nemo: CLIP text probability:  [('a dog', 0.0048940657), ('a boy', 0.002311793), ('a girl', 0.9927942)]
+HF: CLIP text probability:  [('a dog', 0.0048940657), ('a boy', 0.002311793), ('a girl', 0.9927942)]
 """
 import argparse
 import os
 
 import requests
-from torchvision.transforms import ToTensor
 import torch
 from PIL import Image
 from transformers import AutoProcessor
 from transformers import CLIPModel as HFCLIPModel
 
 import nemo.lightning as nl
-from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
-from nemo.collections.vlm.clip.data.clip_data_module import ClipTaskEncoder
-
-# make init so that we don;t have to do long imports
-from nemo.collections.vlm.clip.model import CLIPModel
+from nemo.collections.vlm import CLIPModel
 
 
 def load_image(image_path: str) -> Image.Image:
@@ -101,6 +96,7 @@ def main(args) -> None:
         ckpt_include_optimizer=False,
         ckpt_save_optimizer=False,
     )
+
     trainer = nl.Trainer(
         devices=1,
         max_steps=1000,
@@ -112,8 +108,8 @@ def main(args) -> None:
     )
 
     hf_repo = args.hf_path.split("//")[1]
-    # Tokenize the input texts
     processor = AutoProcessor.from_pretrained(hf_repo)
+    max_length =  processor.tokenizer.model_max_length
 
     # Load the image
     raw_image = load_image(args.image_url)
@@ -123,11 +119,10 @@ def main(args) -> None:
     fabric = trainer.to_fabric()
     model = fabric.import_model(args.hf_path, CLIPModel)
     model = model.module.cuda()
-    model = model.eval()
+
+    # Freeze the models, We have a few nesting in the model
     vision_model = model.module.module.module.vision_model.eval()
     text_model = model.module.module.module.text_model.eval()
-
-    model = model.to(torch.bfloat16)
 
 
 
@@ -141,37 +136,21 @@ def main(args) -> None:
             return_tensors="pt",
             truncation=True,  # Truncate if the sentence is longer than max_seq_length
             padding='max_length',  # Pad to max_seq_length
-            max_length=77,
+            max_length=max_length,
         )
-        inputs = {key: value.to("cuda") for key, value in inputs.items()}
-        input_ids = inputs["input_ids"]  # Size is 1 X 3
-        media = inputs['pixel_values'].cuda()
-        media = media.reshape(media.size(0), 3, 224, 224)
 
+        inputs = {key: value.to("cuda") for key, value in inputs.items()}
 
 
         model_hf = HFCLIPModel.from_pretrained(hf_repo)
         model_hf = model_hf.to("cuda")
-
-        input_ids = input_ids.cuda()
-
-        task_encoder = ClipTaskEncoder(max_length=77, is_train=False)
-        out_encoder = task_encoder.encode_sample({"txt": ["SAMPLE"], "image": ToTensor()(raw_image)})
-
-        #
-        # output_nemo = model(
-        #     images=out_encoder["images"].reshape(1, 3, 224, 224).cuda(),
-        #     captions=input_ids,
-        # )
-
         output_hf = model_hf(**inputs)
 
-        image_embeds_nemo = vision_model(out_encoder["images"].reshape(1, 3, 224, 224).cuda().to(torch.bfloat16))
+        image_embeds_nemo = vision_model(inputs["pixel_values"].cuda().to(torch.bfloat16))
         image_embeds_hf = output_hf["image_embeds"]
 
-        # assert_tensors_close(image_embeds_nemo, image_embeds_hf)
 
-        text_embeds_nemo = text_model(input_ids)
+        text_embeds_nemo = text_model(inputs["input_ids"].cuda())
         text_embeds_hf = output_hf["text_embeds"]
 
 
@@ -182,7 +161,7 @@ def main(args) -> None:
 
         nemo_probs = (100.0 * image_embeds_nemo @ text_embeds_nemo.T).softmax(dim=-1)
         hf_probs = (100.0 * image_embeds_hf @ text_embeds_hf.T).softmax(dim=-1)
-        import pdb; pdb.set_trace()
+
         print(f"Nemo: CLIP text probability: ", list(zip(classes, nemo_probs[0].cpu().numpy())))
         print(f"HF: CLIP text probability: ", list(zip(classes, hf_probs[0].cpu().numpy())))
 
