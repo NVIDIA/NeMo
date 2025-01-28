@@ -19,9 +19,10 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar,
 
 import numpy as np
 import torch
-from nemo.utils import logging
 from torch import nn
+
 from nemo.lightning.pytorch.utils import extract_dtypes
+from nemo.utils import logging
 
 SourceModuleT = TypeVar("SourceModuleT", bound=nn.Module)
 TargetModuleT = TypeVar("TargetModuleT", bound=nn.Module)
@@ -195,8 +196,10 @@ def apply_transforms(
         if param.is_meta:
             meta_tensor_keys.append(name)
 
-    assert not meta_tensor_keys, (f"{meta_tensor_keys}\nThere are meta tensors in the model after conversion."
-        f"Did you forget to include these parameters in the mapping or transforms in `convert_state`?")
+    assert not meta_tensor_keys, (
+        f"{meta_tensor_keys}\nThere are meta tensors in the model after conversion."
+        f"Did you forget to include these parameters in the mapping or transforms in `convert_state`?"
+    )
 
     assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
         f"dtype mismatch between source and target state dicts. "
