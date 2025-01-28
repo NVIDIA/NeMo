@@ -194,6 +194,7 @@ def create_chosen_rejected_records(records_orig, group_size=6, num_chosen_per_gr
         for sidx, record in enumerate(group):
             cer_sim_indices.append((record['cer_gts'], record['pred_context_similarity'], sidx))
         
+        cer_sim_indices_orig = copy.deepcopy(cer_sim_indices)
         cer_sim_indices = pareto_rank(cer_sim_indices)
 
         for cgi in chosen_group_indices:
@@ -201,15 +202,13 @@ def create_chosen_rejected_records(records_orig, group_size=6, num_chosen_per_gr
                 best_record = group[cer_sim_indices[cgi][3]]
                 worst_record = group[cer_sim_indices[rji][3]]
                 best_record['reward'] = 1
-                if worst_record['pred_context_similarity'] > best_record['pred_context_similarity']:
-                    reward_delta = (worst_record['cer_gts'] - best_record['cer_gts'])
-                else:
-                    reward_delta = (worst_record['cer_gts'] - best_record['cer_gts']) + (best_record['pred_context_similarity'] - worst_record['pred_context_similarity'])
-                
-                if reward_delta <= 0 or worst_record['cer_gts'] < best_record['cer_gts']:
+                reward_delta = (worst_record['cer_gts'] - best_record['cer_gts']) + (best_record['pred_context_similarity'] - worst_record['pred_context_similarity'])
+                if reward_delta <= 0 or worst_record['cer_gts'] < best_record['cer_gts'] or worst_record['pred_context_similarity'] > best_record['pred_context_similarity']:
                     print("Warning reward_delta is not positive", reward_delta, best_record['cer_gts'], worst_record['cer_gts'], best_record['pred_context_similarity'], worst_record['pred_context_similarity'])
+                    print(cer_sim_indices_orig)
+                    print(cer_sim_indices)
                 else:
-                    # Never add pairs in which rejected has better CER than chosen
+                    # Never add pairs in which rejected has better CER than chosen or better context similarity
                     reward_delta = max(0.001, reward_delta)
                     worst_record['reward'] = 1.0 - reward_delta
                     best_records.append(best_record)
