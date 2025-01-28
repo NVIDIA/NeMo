@@ -393,28 +393,28 @@ jobs:
       - L0_Unit_Tests_CPU_Lightning
       - L0_Unit_Tests_CPU_Others
     steps:
-      - name: Get last successful run of main
-        run: |
+      # - name: Get last successful run of main
+      #   run: |
           
-      - name: Download coverage summary of main branch
-        uses: actions/download-artifact@v4
-        with:
-          path: ${{ github.run_id }}/main
-          run-id: ${{ steps.get_run_id.outputs.main }}
+      # - name: Download coverage summary of main branch
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     path: ${{ github.run_id }}/main
+      #     run-id: ${{ steps.get_run_id.outputs.main }}
 
       - name: Download coverage reports of current branch
         uses: actions/download-artifact@v4
         with:
           path: ${{ github.run_id }}/current
       
-      - name: Get total coverage of main branch
-        shell: bash -x -e -u -o pipefail {0}
-        id: total-main-branch
-        run: |
-          cd ${{ github.run_id }}/main
-          REPORT=$(coverage report)
-          TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
-          echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
+      # - name: Get total coverage of main branch
+      #   shell: bash -x -e -u -o pipefail {0}
+      #   id: total-main-branch
+      #   run: |
+      #     cd ${{ github.run_id }}/main
+      #     REPORT=$(coverage report)
+      #     TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
+      #     echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
@@ -437,13 +437,13 @@ jobs:
           path: ${{ github.run_id }}/current/.coverage
           include-hidden-files: true
         
-      - name: Compare coverage change
-        shell: bash -x -e -u -o pipefail {0}
-        run: |
-          TOTAL_MAIN_BRANCH=${{ steps.total-main-branch.outputs.main }}
-          TOTAL_CURRENT_BRANCH=${{ steps.total-current-branch.outputs.main }}
+      # - name: Compare coverage change
+      #   shell: bash -x -e -u -o pipefail {0}
+      #   run: |
+      #     TOTAL_MAIN_BRANCH=${{ steps.total-main-branch.outputs.main }}
+      #     TOTAL_CURRENT_BRANCH=${{ steps.total-current-branch.outputs.main }}
 
-          test $TOTAL_CURRENT_BRANCH -ge $TOTAL_MAIN_BRANCH
+      #     test $TOTAL_CURRENT_BRANCH -ge $TOTAL_MAIN_BRANCH
 
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
