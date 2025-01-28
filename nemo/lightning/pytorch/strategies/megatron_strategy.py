@@ -16,6 +16,7 @@ import functools
 import inspect
 import os
 import shutil
+import time
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
@@ -763,7 +764,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.ckpt_save_optimizer:
                 checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
+        start_time = time.monotonic()
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        end_time = time.monotonic()
+        logging.info(
+            f'Global Checkpoint Save: Start time : {start_time} s : Time spent in save_checkpoint: {end_time - start_time} s'
+        )
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
         """Determines whether to restore optimizer states or not"""
