@@ -57,6 +57,7 @@ DEPS=(
 if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
   ${PIP} install --no-cache-dir virtualenv &&
     virtualenv /opt/venv &&
+    /opt/venv/bin/pip install --no-cache-dir setuptools &&
     /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
       -r /workspace/requirements/requirements_vllm.txt \
       -r /workspace/requirements/requirements_infer.txt
