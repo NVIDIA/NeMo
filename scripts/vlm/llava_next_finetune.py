@@ -125,7 +125,7 @@ def main(args):
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
-        save_last=True,
+        save_last=True,"link"
         monitor="reduced_train_loss",
         save_top_k=2,
         every_n_train_steps=1000,

@@ -11,20 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytorch_lightning as pl
 
-# Set the seed for reproducibility
-pl.seed_everything(1234, workers=True)
-
-import pdb
-
-import torch
-
-# pdb.set_trace = lambda: 1
-
-
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
@@ -36,7 +23,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="megatron_clip_config_launcher")
+@hydra_runner(config_path="conf", config_name="megatron_clip_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
