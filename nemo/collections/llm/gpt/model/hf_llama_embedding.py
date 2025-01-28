@@ -7,10 +7,7 @@ from transformers.cache_utils import Cache
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 from transformers.modeling_outputs import SequenceClassifierOutputWithPast
 from transformers.models.llama.configuration_llama import LlamaConfig
-from transformers.models.llama.modeling_llama import (
-    LlamaForSequenceClassification,
-    LlamaModel,
-)
+from transformers.models.llama.modeling_llama import LlamaForSequenceClassification, LlamaModel
 from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
@@ -33,9 +30,7 @@ def pool(last_hidden_states: Tensor, attention_mask: Tensor, pool_type: str) -> 
         else:
             sequence_lengths = attention_mask.sum(dim=1) - 1
             batch_size = last_hidden.shape[0]
-            emb = last_hidden[
-                torch.arange(batch_size, device=last_hidden.device), sequence_lengths
-            ]
+            emb = last_hidden[torch.arange(batch_size, device=last_hidden.device), sequence_lengths]
     else:
         raise ValueError(f"pool_type {pool_type} not supported")
 
@@ -44,20 +39,27 @@ def pool(last_hidden_states: Tensor, attention_mask: Tensor, pool_type: str) -> 
 
 class LlamaBidirectionalConfig(LlamaConfig):
     """LLamaBidirectionalConfig for LlamaBidirectionalModel."""
+
     model_type = "llama_bidirec"
 
     def __init__(
-        self, pooling="avg", temperature=1.0, **kwargs,
+        self,
+        pooling="avg",
+        temperature=1.0,
+        **kwargs,
     ):
         self.pooling = pooling
         self.temperature = temperature
-        super().__init__(**kwargs,)
+        super().__init__(
+            **kwargs,
+        )
 
 
 class LlamaBidirectionalModel(LlamaModel):
     """LlamaBidirectionalModel.
     Attention has been adjusted to bidirectional.
     """
+
     config_class = LlamaBidirectionalConfig
 
     def __init__(self, config: LlamaConfig):
@@ -81,6 +83,7 @@ class LlamaBidirectionalModel(LlamaModel):
 
 class LlamaBidirectionalForSequenceClassification(LlamaForSequenceClassification):
     """The LLaMa Model transformer with a sequence classification head on top (linear layer)."""
+
     config_class = LlamaBidirectionalConfig
 
     def __init__(self, config):
@@ -113,9 +116,7 @@ class LlamaBidirectionalForSequenceClassification(LlamaForSequenceClassification
             config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss), If
             `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
         """
-        return_dict = (
-            return_dict if return_dict is not None else self.config.use_return_dict
-        )
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         transformer_outputs = self.model(
             input_ids,
@@ -145,9 +146,7 @@ class LlamaBidirectionalForSequenceClassification(LlamaForSequenceClassification
             if self.config.problem_type is None:
                 if self.num_labels == 1:
                     self.config.problem_type = "regression"
-                elif self.num_labels > 1 and (
-                    labels.dtype == torch.long or labels.dtype == torch.int
-                ):
+                elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
                     self.config.problem_type = "single_label_classification"
                 else:
                     self.config.problem_type = "multi_label_classification"
@@ -160,9 +159,7 @@ class LlamaBidirectionalForSequenceClassification(LlamaForSequenceClassification
                     loss = loss_fct(pooled_logits, labels)
             elif self.config.problem_type == "single_label_classification":
                 loss_fct = CrossEntropyLoss()
-                loss = loss_fct(
-                    pooled_logits.view(-1, self.num_labels), labels.view(-1)
-                )
+                loss = loss_fct(pooled_logits.view(-1, self.num_labels), labels.view(-1))
             elif self.config.problem_type == "multi_label_classification":
                 loss_fct = BCEWithLogitsLoss()
                 loss = loss_fct(pooled_logits, labels)
