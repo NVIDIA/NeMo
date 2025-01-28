@@ -23,7 +23,6 @@ from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataM
 # from megatron.energon.wrappers.iter_map_dataset import
 
 
-
 # pdb.set_trace = lambda: 1
 """
 Example:
