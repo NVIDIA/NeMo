@@ -125,10 +125,16 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         use_fast=True,
     )
 
+
 def get_performance_configs(gpu, task, model_name, model_size, args):
     recommended_configs_csv = os.path.join("recommended_model_configs", f"model_configs_{gpu}.csv")
     df = pd.read_csv(recommended_configs_csv)
-    config = df[(df["task"]==task) & (df["model"]==model_name) & (df["size"] == model_size) & (df["dtype"] == args.compute_dtype)]
+    config = df[
+        (df["task"] == task)
+        & (df["model"] == model_name)
+        & (df["size"] == model_size)
+        & (df["dtype"] == args.compute_dtype)
+    ]
     config = config.to_dict(orient='records')[0]
 
     num_gpus = args.num_gpus or int(config["num_gpus"])
@@ -141,7 +147,7 @@ def get_performance_configs(gpu, task, model_name, model_size, args):
     pp_size = args.pipeline_parallel_size or int(config["pp_size"])
     cp_size = args.context_parallel_size or int(config["cp_size"])
     vp_size = args.virtual_pipeline_parallel_size or int(config["vp_size"])
-    ep_size = args.expert_parallel_size or int(config["ep_size"]) 
+    ep_size = args.expert_parallel_size or int(config["ep_size"])
 
     return num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size
 

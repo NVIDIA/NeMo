@@ -79,7 +79,7 @@ def llama3_8b_performance_recipe(
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
-    
+
     if not args.tensorboard:  # tensorboard adds performance overhead.
         recipe.log.tensorboard = None
         recipe.trainer.logger = False
