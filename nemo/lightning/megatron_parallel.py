@@ -1722,9 +1722,7 @@ class MaskedTokenLossReductionWithLossMask(MaskedTokenLossReduction):
         forward_out, loss_mask = forward_out
         batch["loss_mask"] = loss_mask
 
-        loss = super().forward(batch, forward_out)
-        print(f"{loss =}")
-        return loss
+        return super().forward(batch, forward_out)
 
 
 def masked_token_loss(tensor: Tensor, mask: Tensor):

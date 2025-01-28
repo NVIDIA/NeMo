@@ -19,7 +19,6 @@ from typing import List, Literal, Optional
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
-import nemo.lightning.pytorch.callbacks.progress_printer
 from nemo.lightning.megatron_parallel import MegatronStep
 
 

@@ -428,9 +428,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.trainer.callbacks.append(AsyncFinalizerCallback())
 
         ## Restore model weights and optimizer states if needed
-        import pdb
-
-        pdb.set_trace()
         if self.restore_config and not self.trainer.ckpt_path:
             self.selective_restore()
 
@@ -448,13 +445,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
         """Setups dataloader"""
-
-        # DEBUGGING
-        # dataloader.dataset is IterableDataset, do not set batch_sampler because not support
-        # if self.data_sampler:
-        from torch.utils.data import IterableDataset
-
-        if self.data_sampler and not (isinstance(dataloader.dataset, IterableDataset)):
+        if self.data_sampler:
             return self.data_sampler.transform_dataloader(dataloader)
 
         return dataloader
@@ -805,9 +796,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def selective_restore(self) -> None:
         """Implements selective restoration of checkpoint"""
-        import pdb
-
-        pdb.set_trace()
         if not self.restore_config:
             return
 

@@ -419,11 +419,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
         ## in which case we can create a symlink
         ## otherwise, we have to save the checkpoint
         saved_current_step = str(ckpt_to_dir(linkpath)).replace("-last", "") == str(ckpt_to_dir(filepath))
-        import pdb
-
-        pdb.set_trace()
-
-        # TODO(abhinav): ckpt_to_dir does not remove the version number
         if not saved_current_step:
             self._save_checkpoint(trainer, linkpath)
             return
