@@ -263,8 +263,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
             worker_config = WorkerConfig(
                 rank=rank,
                 world_size=world_size,
-                num_workers=1,  # We just use 1 worker for val for now
-                # num_workers=self.num_workers,
+                num_workers=self.num_workers,
                 data_parallel_group=data_parallel_group,
                 worker_debug_path=None,
                 worker_log_level=0,
@@ -305,7 +304,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 self.trainer.global_step - self.init_global_step
             )
             logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
-            return {"dataloader_state": state, 'consumed_samples': consumed_samples}
+            return {'dataloader_state': state, 'consumed_samples': consumed_samples}
 
         logging.warning("trainer object not connected to data module object returning empty state")
         return {}

@@ -1,21 +1,13 @@
-NeMo (**Ne**ural **Mo**dules) is a toolkit for creating AI applications built around **neural modules**, conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs.
+# NeMo Lightning
 
-**NeMo Core** provides common APIs all modules and models have to implement.
+The NeMo Lightning directory provides custom PyTorch Lightning-compatible objects for seamlessly training NeMo 2.0 models using PTL. NeMo 2.0 models
+are implemented using [Megatron Core](https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core). NeMo Lightning provides the bridge between higher-level, object-oriented PTL APIs and lower-level Megatron APIs.
+For detailed tutorials and documentation on NeMo 2.0, refer to the [docs](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/index.html).
 
-**NeMo 2.0 Collections**
+Some of the helpful classes provided here include:
+- [`Trainer`](./pytorch/trainer.py): A lightweight wrapper around PTL's `Trainer` object which provides some additional support for capturing the arguments used to initialized the trainer. More information on NeMo 2's serialization mechanisms is available [here](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/design/serialization.html).
+- [`MegatronStrategy`](./pytorch/strategies/megatron_strategy.py): A PTL strategy that enables training of Megatron models on NVIDIA GPUs.
+- [`MegatronParallel`](./megatron_parallel.py): Class which sets up and manages Megatron's distributed model parallelism.
+- [`MegatronMixedPrecision`](./pytorch/plugins/mixed_precision.py): A specialized precision plugin for training Megatron-based models in PTL.
 
-* LLM - A collection of data modules, models, configurations, and recipes for building training and parameter-efficient fine-tuning (PEFT) pipelines, including decoder-only models like those in the Llama, Gemma, and Mamba families.
-* VLM - A collection of data modules, models, configurations, and recipes for training and PEFT pipelines in vision-language models.
-
-**NeMo 1.0 Collections**
-
-* ASR - collection of modules and models for building speech recognition networks
-* TTS - collection of modules and models for building speech synthesis networks
-* NLP - collection of modules and models for building NLP networks
-* Vision - collection of modules and models for building computer vision networks
-* Multimodal - collection of modules and models for building multimodal networks
-* Audio - collection of modules and models for building audio processing networks
-
-**Performance**
-
-Performance benchmarks for pre-training and fine-tuning of various models can be found [here](../docs/source/performance/performance_summary.md)
+More information on `MegatronStrategy`, `MegatronParallel`, and `MegatronMixedPrecision` can be found in [this document](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/design/megatron.html).

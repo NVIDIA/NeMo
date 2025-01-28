@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 from functools import partial
 from typing import Any, List, Union
 
@@ -129,14 +128,7 @@ def tuple_to_dict(inp):
 
 def transform_fn(sample, img_transform, text_transform):
     image, text = sample["jpg"], sample["txt"]
-    # print(sample["jpg"])
-    # print(sample["jpg"].type())
     img_transformed, text_transformed = img_transform(image), text_transform(text)
-    # logging.info("img_transformed_type: {}".format(type(img_transformed)))
-    # logging.info("text_transformed_type: {}".format(type(text_transformed)))
-    # Shapes
-    # logging.info("img_transformed_shape: {}".format(img_transformed.shape))
-    # logging.info("text_transformed_shape: {}".format(text_transformed.shape))
     return img_transformed, text_transformed
 
 

@@ -14,8 +14,6 @@
 
 import itertools
 import os
-import random
-import uuid
 import warnings
 from contextlib import nullcontext
 from dataclasses import fields
@@ -339,7 +337,6 @@ class SiglipMHAPoolingHead(TransformerLayer):
 class MCoreSiglipViTModel(CLIPViTModel):
     def __init__(self, *args, **kwargs):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
-
         self.output_dim = kwargs.pop('output_dim')
         kwargs['ln_pre_impl'] = IdentityOp
         super().__init__(*args, **kwargs)
@@ -439,7 +436,6 @@ class MCoreCLIPViTModel(CLIPViTModel):
         )
 
     def forward(self, x):
-        x = x.to(torch.bfloat16)
         x = super().forward(
             x,
         )
@@ -453,6 +449,7 @@ class MCoreCLIPTextModel(MCoreGPTModel):
     def __init__(self, *args, **kwargs):
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = kwargs.pop('output_dim')
+
         super().__init__(*args, **kwargs)
         self.final_layernorm = TENorm(
             config=self.config,
@@ -469,54 +466,11 @@ class MCoreCLIPTextModel(MCoreGPTModel):
             self.position_ids = torch.arange(kwargs['max_sequence_length']).expand(1, -1).cuda()
 
     def forward(self, input_ids):
-        import pdb
-
-        pdb.set_trace()
-        # input_ids = input_ids.to(torch.bfloat16)
         x = super().forward(input_ids, position_ids=self.position_ids, attention_mask=None)
-        import pdb
-
-        pdb.set_trace()
         x = self.final_layernorm(x)
         x = x[input_ids.argmax(dim=-1), torch.arange(x.shape[1])]
         x = self.head(x)
         return x
-
-
-def save_batches(image_batches, input_ids_batches, save_folder="/workspace/data/cc3m_training_samples/") -> None:
-    """
-    Saves batches of images and input IDs to a specified folder.
-
-    Args:
-        image_batches (Tensor): Tensor of images with shape (N, C, H, W).
-        input_ids_batches (Tensor): Tensor of input IDs with shape (N, T).
-        save_folder (str): Path to the folder to save batches.
-    """
-    os.makedirs(save_folder, exist_ok=True)
-    random_filename = f"batch_{uuid.uuid4().hex}.pt"  # Generate a unique filename
-    batch_path = os.path.join(save_folder, random_filename)
-    torch.save({"images": image_batches, "input_ids": input_ids_batches}, batch_path)
-
-
-def load_random_batch(save_folder="/workspace/data/cc3m_training_samples/"):
-    """
-    Loads a random batch of images and input IDs from the specified folder.
-
-    Args:
-        save_folder (str): Path to the folder containing saved batches.
-
-    Returns:
-        Tuple[Tensor, Tensor]: A tuple containing the images and input IDs tensors.
-    """
-    files = [f for f in os.listdir(save_folder) if f.endswith(".pt")]
-    if not files:
-        raise FileNotFoundError(f"No batch files found in {save_folder}")
-
-    random_file = random.choice(files)
-    batch_path = os.path.join(save_folder, random_file)
-    batch_data = torch.load(batch_path)
-    print(f"Loaded batch from {random_file}")
-    return batch_data["images"], batch_data["input_ids"]
 
 
 class CLIPModel(MegatronModule):
@@ -559,7 +513,6 @@ class CLIPModel(MegatronModule):
             else:
                 vision_module = MCoreCLIPViTModel
                 text_module = MCoreCLIPTextModel
-
             self.vision_encoder = vision_module(
                 transformer_config=vision_transformer_config,
                 transformer_layer_spec=vision_layer_spec,
@@ -570,9 +523,6 @@ class CLIPModel(MegatronModule):
                 class_token_len=model_cfg.vision.get('class_token_length'),
                 output_dim=model_cfg.output_dim,
             )
-            import pdb
-
-            pdb.set_trace()
             self.text_encoder = text_module(
                 config=text_transformer_config,
                 transformer_layer_spec=get_specs(
@@ -620,16 +570,8 @@ class CLIPModel(MegatronModule):
         pass
 
     def forward(self, images, captions):
-        # import pdb; pdb.set_trace()
-        # save_batches(images, captions)
-        # images, captions = load_random_batch()
-        # images, captions = images.to(torch.bfloat16).to("cuda"), captions.to("cuda")
-        return
         image_features = self.vision_encoder(images)
         text_features = self.text_encoder(captions)
-        import pdb
-
-        pdb.set_trace()
 
         if self.post_process:
             if self.use_siglip:
@@ -639,7 +581,6 @@ class CLIPModel(MegatronModule):
                     self.logit_scale.exp(),
                     self.logit_bias,
                 )
-            # import pdb; pdb.set_trace()
             return F.normalize(image_features, dim=-1), F.normalize(text_features, dim=-1), self.logit_scale.exp()
 
         return image_features, text_features
@@ -842,9 +783,6 @@ class MegatronCLIPModel(MegatronBaseModel):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        import pdb
-
-        pdb.set_trace()
         if self.cfg.get('do_layer_norm_weight_decay', False):
             if isinstance(self.model, list):
                 self._optimizer_param_groups = get_all_params_for_weight_decay_optimization(self.model)
@@ -942,7 +880,6 @@ class MegatronCLIPModel(MegatronBaseModel):
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
 
-        return torch.tensor(0.0).cuda()
         # handle asynchronous grad reduction
         no_sync_func = None
         grad_sync_func = None
@@ -1233,9 +1170,6 @@ class MegatronCLIPModel(MegatronBaseModel):
             )
 
         def fwd_output_and_loss_func(dataloader_iter, model):
-            import pdb
-
-            pdb.set_trace()
             batch, _, _ = next(dataloader_iter)
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 images = batch["images"].cuda(non_blocking=True)
@@ -1344,8 +1278,6 @@ class MegatronCLIPModel(MegatronBaseModel):
         return loss
 
     def on_validation_epoch_end(self):
-
-        # return 0
         # TODO (yuya): need fix later, check with Sean
         if not self.validation_step_outputs:
             return
