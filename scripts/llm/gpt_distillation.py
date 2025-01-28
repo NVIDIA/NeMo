@@ -72,7 +72,7 @@ if __name__ == "__main__":
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         context_parallel_size=args.cp_size,
-        sequence_parallel=True,
+        sequence_parallel=(args.tp_size > 1),
     )
     trainer = nl.Trainer(
         devices=args.devices,

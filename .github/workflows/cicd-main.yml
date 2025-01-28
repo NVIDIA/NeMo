@@ -5069,10 +5069,11 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
+        export CUDA_LAUNCH_BLOCKING=1 && \
         python scripts/llm/gpt_distillation.py \
           --name nemo2_llama_distill \
-          --teacher_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-          --student_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
+          --teacher_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+          --student_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
           --tp_size 1 \
           --cp_size 1 \
           --pp_size 2 \
