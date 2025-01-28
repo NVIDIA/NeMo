@@ -1,42 +1,47 @@
+run:
+  name: clip_vit_B_32
+  time_limit: "4-00:00:00"
+  dependency: "singleton"
+
+name: nemo_clip
+
 trainer:
   devices: 1
   num_nodes: 1
   accelerator: gpu
-  precision: 32
+  precision: bf16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
-  use_distributed_sampler: False
+  use_distributed_sampler: Falsxe
   max_epochs: -1 # PTL default. In practice, max_steps will be reached first.
   max_steps: 375000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 100
+  val_check_interval: 2000
   check_val_every_n_epoch: null
   limit_val_batches: 50
-  limit_test_batches: 500
+  limit_test_batches: 50
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
   gradient_clip_val: 1.0
   benchmark: False
   enable_model_summary: False # default PTL callback for this does not support model parallelism, instead we log manually
 
 exp_manager:
-  explicit_log_dir: null
   exp_dir: null
-  name: megatron_clip
-  create_wandb_logger: False
+  name: nemo_clip
+  create_wandb_logger: True
   wandb_logger_kwargs:
-    project: null
-    name: null
+    project: clip_nemo2
+    name: nemo1_run
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
-  resume_from_checkpoint: ${model.resume_from_checkpoint}
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: val_loss
-    save_top_k: 10
+    save_top_k: 5
     mode: min
-    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-    save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
-    filename: 'megatron_clip--{val_loss:.2f}-{step}-{consumed_samples}'
+    always_save_nemo: False # saves nemo file during validation
+    save_nemo_on_train_end: True # not recommended when large models on clusters with short time limits
+    filename: 'nemo_clip--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
   ema:
     enable: False
@@ -46,18 +51,18 @@ exp_manager:
     cpu_offload: False
 
 model:
-  precision: 32
+  precision: ${trainer.precision}
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
-  micro_batch_size: 64 # limited by GPU memory
-  global_batch_size: 2048 # will use more micro batches to reach global batch size
+  micro_batch_size: 500 # limited by GPU memory
+  global_batch_size: 500 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   virtual_pipeline_model_parallel_size: null # interleaved pipeline
-
-  restore_from_pretrained: null # used in fine-tuning
+  do_layer_norm_weight_decay: False
+  restore_from_path: null # used in fine-tuning
   # multimodal configs
-  output_dim: 768
+  output_dim: 512
   #  As the number of devices used to train increases, so does the space complexity of
   #  the logit matrix. Using a naïve all-gather scheme, space complexity will be
   #  `O(n^2)`. Instead, complexity may become effectively linear if the flags
@@ -65,43 +70,35 @@ model:
   #  numerical results as the naïve method.
   local_loss: False # calculate loss w/ local features @ global (instead of realizing full global @ global matrix)
   gather_with_grad: True # enable full distributed gradient for feature gather, set this to False may cause convergence issue
-
-  mcore_gpt: False
-  transformer_engine: False
+  mcore_gpt: True
+  transformer_engine: True
 
   vision:
-    precision: 32
+    precision: ${trainer.precision}
     # vision configs
-    patch_dim: 14
+    patch_dim: 32
     img_h: 224
     img_w: 224
     image_mean: null
     image_std: null
     num_channels: 3
-    drop_patch_rate: 0.0
-    drop_path_rate: 0.0
-    global_average_pool: False
     output_dim: ${model.output_dim}
-    class_token_length: 1
-    preprocess_layernorm: True # apply layer norm to embedded tokens
+    class_token_length: 7 # padding seq length to multiple of 8
 
     # model architecture
-    encoder_seq_length: 196
-    max_position_embeddings: ${.encoder_seq_length}
-    position_embedding_type: learned_parameters
-    num_layers: 24
-    hidden_size: 1024
-    ffn_hidden_size: 4096 # Transformer FFN hidden size. Usually 4 * hidden_size.
-    num_attention_heads: 16
+    position_embedding_type: learned_absolute
+    num_layers: 12
+    hidden_size: 768
+    ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
+    num_attention_heads: 12
     init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
     use_scaled_init_method: True # use scaled residuals initialization
     hidden_dropout: 0. # Dropout probability for hidden state transformer.
     attention_dropout: 0.
     kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
-    apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
     normalization: layernorm # Type of normalization layers
     layernorm_epsilon: 1e-5
-    do_layer_norm_weight_decay: False # True means weight decay on all params
+    do_layer_norm_weight_decay: True # True means weight decay on all params
     pre_process: True # add embedding
     post_process: True # add pooler
     persist_layer_norm: True # Use of persistent fused layer norm kernel.
@@ -119,7 +116,7 @@ model:
     fp32_residual_connection: False # Move residual connections to fp32
     fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
-    # model fusions
+    # model global_s
     masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
     bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
 
@@ -128,24 +125,22 @@ model:
     gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism.
     openai_gelu: False
     bias_activation_fusion: False
-    megatron_legacy: True
-    activation: approx-gelu
-
+    megatron_legacy: False
 
 
   text:
-    precision: 32
+    precision: ${trainer.precision}
     # text configs
     output_dim: ${model.output_dim}
 
     # model architecture
-    encoder_seq_length: 77
+    encoder_seq_length: 80
     max_position_embeddings: ${.encoder_seq_length}
-    position_embedding_type: learned_parameters
+    position_embedding_type: learned_absolute
     num_layers: 12
-    hidden_size: 768
-    ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
-    num_attention_heads: 12
+    hidden_size: 512
+    ffn_hidden_size: 2048 # Transformer FFN hidden size. Usually 4 * hidden_size.
+    num_attention_heads: 8
     init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
     use_scaled_init_method: True # use scaled residuals initialization
     hidden_dropout: 0. # Dropout probability for hidden state transformer.
@@ -154,7 +149,7 @@ model:
     apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
     normalization: layernorm # Type of normalization layers
     layernorm_epsilon: 1e-5
-    do_layer_norm_weight_decay: False # True means weight decay on all params
+    do_layer_norm_weight_decay: True # True means weight decay on all params
     pre_process: True # add embedding
     post_process: True # add pooler
     persist_layer_norm: True # Use of persistent fused layer norm kernel.
@@ -183,25 +178,16 @@ model:
     gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs. Only used with pipeline parallelism.
     openai_gelu: False
     bias_activation_fusion: False
-    megatron_legacy: True
+    megatron_legacy: False
 
-    fp8: False # enables fp8 in TransformerLayer forward
-    fp8_e4m3: False # sets fp8_format = recipe.Format.E4M3
-    fp8_hybrid: False # sets fp8_format = recipe.Format.HYBRID
-    fp8_margin: 0 # scaling margin
-    fp8_interval: 1 # scaling update interval
-    fp8_amax_history_len: 1 # Number of steps for which amax history is recorded per tensor
-    fp8_amax_compute_algo: most_recent # 'most_recent' or 'max'. Algorithm for computing amax from history
-    use_emha: False # Use fused multi-head attention for large sequence-length. Note this is not yet supported. Please set to False.
-    activation: approx-gelu
 
   # Megatron O2-style half-precision
-  megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
+  megatron_amp_O2: True # Enable O2-level automatic mixed precision using main parameters
+  async_grad_allreduce: False
   grad_allreduce_chunk_size_mb: 125
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
 
   # miscellaneous
-  seed: 1234
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
   gradient_as_bucket_view: True # PyTorch DDP argument. Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
@@ -219,14 +205,14 @@ model:
   data:
     num_workers: 8
     train:
-      dataset_path: # List of paths to pkl files or tar files
-        - /datasets/coyo/test.pkl
-    validation: # List of paths to pkl files or tar files
-      dataset_path:
-        - /datasets/coyo/test.pkl
+      dataset_path: /lustre/fsw/coreai_dlalgo_genai/datasets/coyo-700m/*/*.tar
+#    validation:
+#      dataset_path: # List of paths to pkl files or tar files
+#        - /workspace/data/cc3m_training/00001.tar
     webdataset:
       infinite_sampler: False
-      local_root_path: /datasets/coyo
+      chuck_size: 1000
+      local_root_path: /lustre/fsw/coreai_dlalgo_genai/datasets/coyo-700m/
 
     imagenet_val: null # Path to imagenet val set for conducting zero shot evaluation.
 
