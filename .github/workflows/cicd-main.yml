@@ -5274,7 +5274,7 @@ jobs:
       - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
-    if: always() && github.event != "push"
+    if: always() && github.event != 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate conclusion
