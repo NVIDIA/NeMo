@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Union
 import lightning.pytorch as pl
 import torch
 from megatron.core import parallel_state
+from megatron.core.num_microbatches_calculator import update_num_microbatches
 from omegaconf.omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils.data import DataLoader
@@ -254,6 +255,8 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             data_parallel_size = parallel_state.get_data_parallel_world_size()
             num_micro_batches = data_cfg.global_batch_size // (data_cfg.micro_batch_size * data_parallel_size)
             global_batch_size_on_this_data_parallel_rank = num_micro_batches * data_cfg.micro_batch_size
+            # following nemo/collections/llm/gpt/data/fine_tuning.py:FineTuningDataModule:_create_dataloader
+            # add WrappedDataLoader to store the dataloader mode
             dataloader = WrappedDataLoader(
                 mode=mode,
                 dataset=dataset,
@@ -448,12 +451,6 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
             state_dict: the datamodule state returned by ``state_dict``.
 
         """
-        try:
-            from megatron.core.num_microbatches_calculator import update_num_microbatches
-
-        except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
 
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples

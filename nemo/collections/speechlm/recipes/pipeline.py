@@ -62,7 +62,7 @@ def speech_to_text_llm_train(cfg: DictConfig):
     callbacks = get_object_list_from_config(cfg['callbacks'])
     if cfg.get('max_time_per_run', None):
         if cfg['strategy'].get('ckpt_async_save', True):
-            logging.warning(
+            raise ValueError(
                 f"`strategy.ckpt_async_save` must be `False` to save ckpt when `max_time_per_run` is set,",
                 f"got {cfg['strategy']['ckpt_async_save']}. `max_time_per_run` will not work in this case!",
             )

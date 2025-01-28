@@ -78,7 +78,7 @@ def set_input_tensor(self, tensor: torch.Tensor):
 def speech_to_text_llm_data_step(dataloader_iter) -> Dict[str, Any]:
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
-
+    # used in SpeechToTextLLMConfig
     batch = next(dataloader_iter)
     _batch: dict
     batch_idx, dataloader_idx = None, None
@@ -180,11 +180,6 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
     inference_config: Optional[Dict[str, Any]] = None
 
     data_config: Optional[DictConfig] = None
-
-    def freeze_module(self, module: nn.Module):
-        for param in module.parameters():
-            param.requires_grad = False
-        module.eval()
 
     def configure_model(
         self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
@@ -310,7 +305,10 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         input_length: torch.Tensor,
         context_start_idx: List[List[int]],
     ):
-        """Concatenate multiple audio features with text segments."""
+        """
+        Concatenate multiple audio features with text segments.
+        This is used when there are more than one audio in a single sample.
+        """
         encoder_input_list, encoder_length_list = [], []
         batch_size = input_embeds.size(0)
         max_length = 0
