@@ -2470,15 +2470,17 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         """
         Saves the aggregated state dict.
         """
-        checkpoint['state_dict'] = self.state_dict_for_save_checkpoint()
-        assert len(checkpoint['state_dict']) > 0, "State dict is empty. Check model wrapping with McoreDDP."
+        if self.use_mcore_dist_optim:
+            checkpoint['state_dict'] = self.state_dict_for_save_checkpoint()
+            assert len(checkpoint['state_dict']) > 0, "State dict is empty. Check model wrapping with McoreDDP."
 
     def load_state_dict(self, state_dict, strict=False):
         """
         Loads the state dict into each McoreDDP-wrapped model chunk.
         """
-        state_dict = {key.removeprefix("model."): value for key, value in state_dict.items()}
-        self.model[0].load_state_dict(state_dict, strict=strict)
+        if self.use_mcore_dist_optim:
+            state_dict = {key.removeprefix("model."): value for key, value in state_dict.items()}
+            self.model[0].load_state_dict(state_dict, strict=strict)
 
     def setup_mcore_distributed_parallel(self):
         """Set up mcore distributed data parallel"""
