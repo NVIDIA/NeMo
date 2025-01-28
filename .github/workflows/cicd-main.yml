@@ -371,43 +371,79 @@ jobs:
     runs-on: self-hosted-azure-cpu
     container: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
     needs:
-      - L0_Unit_Tests_GPU_ASR
-      - L0_Unit_Tests_GPU_Audio
-      - L0_Unit_Tests_GPU_Common
-      - L0_Unit_Tests_GPU_LLM
-      - L0_Unit_Tests_GPU_Multimodal
-      - L0_Unit_Tests_GPU_NLP
-      - L0_Unit_Tests_GPU_TTS
-      - L0_Unit_Tests_GPU_Hydra
-      - L0_Unit_Tests_GPU_Lightning
-      - L0_Unit_Tests_GPU_Others
-      - L0_Unit_Tests_CPU_ASR
-      - L0_Unit_Tests_CPU_Audio
-      - L0_Unit_Tests_CPU_Common
-      - L0_Unit_Tests_CPU_LLM
-      - L0_Unit_Tests_CPU_Multimodal
-      - L0_Unit_Tests_CPU_NLP
-      - L0_Unit_Tests_CPU_TTS
-      - L0_Unit_Tests_CPU_Core
-      - L0_Unit_Tests_CPU_Hydra
+      # - L0_Unit_Tests_GPU_ASR
+      # - L0_Unit_Tests_GPU_Audio
+      # - L0_Unit_Tests_GPU_Common
+      # - L0_Unit_Tests_GPU_LLM
+      # - L0_Unit_Tests_GPU_Multimodal
+      # - L0_Unit_Tests_GPU_NLP
+      # - L0_Unit_Tests_GPU_TTS
+      # - L0_Unit_Tests_GPU_Hydra
+      # - L0_Unit_Tests_GPU_Lightning
+      # - L0_Unit_Tests_GPU_Others
+      # - L0_Unit_Tests_CPU_ASR
+      # - L0_Unit_Tests_CPU_Audio
+      # - L0_Unit_Tests_CPU_Common
+      # - L0_Unit_Tests_CPU_LLM
+      # - L0_Unit_Tests_CPU_Multimodal
+      # - L0_Unit_Tests_CPU_NLP
+      # - L0_Unit_Tests_CPU_TTS
+      # - L0_Unit_Tests_CPU_Core
+      # - L0_Unit_Tests_CPU_Hydra
       - L0_Unit_Tests_CPU_Lightning
       - L0_Unit_Tests_CPU_Others
     steps:
-      
-      - name: Download artifacts
+      - name: Get last successful run of main
+        run: |
+          
+      - name: Download coverage summary of main branch
         uses: actions/download-artifact@v4
         with:
-          path: ${{ github.run_id }}
-        
-      - name: Combine
+          path: ${{ github.run_id }}/main
+          run-id: ${{ steps.get_run_id.outputs.main }}
+
+      - name: Download coverage reports of current branch
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ github.run_id }}/current
+      
+      - name: Get total coverage of main branch
         shell: bash -x -e -u -o pipefail {0}
+        id: total-main-branch
         run: |
-          pip install coverage
-          cd ${{ github.run_id }}
+          cd ${{ github.run_id }}/main
+          REPORT=$(coverage report)
+          TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
+          echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Get total coverage of current branch
+        shell: bash -x -e -u -o pipefail {0}
+        id: total-current-branch
+        run: |
+          cd ${{ github.run_id }}/current
           ls -al .
           ls -al coverage-*/
           coverage combine --keep $(ls coverage-*/.coverage)
           coverage report
+
+          REPORT=$(coverage report)
+          TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
+          echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary-${{ github.run_id }}-$(uuidgen)
+          path: ${{ github.run_id }}/current/.coverage
+          include-hidden-files: true
+        
+      - name: Compare coverage change
+        shell: bash -x -e -u -o pipefail {0}
+        run: |
+          TOTAL_MAIN_BRANCH=${{ steps.total-main-branch.outputs.main }}
+          TOTAL_CURRENT_BRANCH=${{ steps.total-current-branch.outputs.main }}
+
+          test $TOTAL_CURRENT_BRANCH -ge $TOTAL_MAIN_BRANCH
 
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
@@ -5238,7 +5274,7 @@ jobs:
       - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
-    if: always()
+    if: always() && github.event != "push"
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate conclusion
