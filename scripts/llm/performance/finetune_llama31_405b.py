@@ -20,9 +20,9 @@ from utils import (
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
-    parse_cli_args,
     slurm_executor,
 )
+from argument_parser import parse_cli_args
 
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama31_405b import finetune_recipe, model

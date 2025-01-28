@@ -224,6 +224,8 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
             tp_comm_overlap=False,
         )
     )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
     return recipe
 
 

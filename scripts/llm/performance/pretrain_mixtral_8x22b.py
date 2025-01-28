@@ -16,7 +16,8 @@ from os.path import basename
 from typing import Optional
 
 import nemo_run as run
-from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, slurm_executor
+from utils import get_comm_overlap_callback_idx, hf_tokenizer, slurm_executor
+from argument_parser import parse_cli_args
 
 from nemo.collections.llm.recipes.mixtral_8x22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
