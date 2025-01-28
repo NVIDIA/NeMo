@@ -68,7 +68,7 @@ jobs:
       
   cicd-import-tests:
     needs: [cicd-test-container-build, pre-flight]
-    runs-on: self-hosted-azure-builder
+    runs-on: self-hosted-azure-gpus-1
     if: ${{ github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch' }}
     steps:
     - name: Run some checks
