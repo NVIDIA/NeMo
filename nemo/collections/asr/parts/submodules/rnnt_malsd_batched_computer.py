@@ -255,7 +255,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.separate_graphs = None
         
         # prprpr
-        self.cuda_graphs_mode = self.CudaGraphsMode("no_while_loops")
+        self.cuda_graphs_mode = self.CudaGraphsMode("full_graph")
+        # self.cuda_graphs_mode = self.CudaGraphsMode("no_while_loops")
         # self.cuda_graphs_mode = self.CudaGraphsMode("no_graphs")
         # self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
@@ -700,7 +701,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         # )
 
     @classmethod
-    def _create_outer_while_loop_kernel(cls):
+    def _create_loop_body_kernel(cls):
         """
         Creates a kernel that evaluates whether to enter the outer loop body (not all hypotheses are decoded).
         Condition: while(active_mask_any).
@@ -711,31 +712,12 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
     
         extern "C" __global__
-        void outer_loop_labels_conditional(cudaGraphConditionalHandle handle, const bool *active_mask_any)
+        void loop_conditional(cudaGraphConditionalHandle handle, const bool *active_mask_any)
         {
          cudaGraphSetConditional(handle, *active_mask_any);
         }
         """
-        return run_nvrtc(kernel_string, b"outer_loop_labels_conditional", cls.CUDA_PROGRAM_NAME)
-
-    @classmethod
-    def _create_inner_while_loop_kernel(cls):
-        """
-        Creates a kernel that evaluates whether to enter the inner loop body (not all non-blank labels found).
-        Condition: while(advance_mask_any).
-        """
-        kernel_string = r"""\
-        typedef __device_builtin__ unsigned long long cudaGraphConditionalHandle;
-    
-        extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
-    
-        extern "C" __global__
-        void inner_find_non_blank_conditional(cudaGraphConditionalHandle handle, const bool *advance_mask_any)
-        {
-         cudaGraphSetConditional(handle, *advance_mask_any);
-        }
-        """
-        return run_nvrtc(kernel_string, b"inner_find_non_blank_conditional", cls.CUDA_PROGRAM_NAME)
+        return run_nvrtc(kernel_string, b"loop_conditional", cls.CUDA_PROGRAM_NAME)
 
     def _graph_reinitialize(
         self,
@@ -828,29 +810,18 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
             # capture: while self.active_mask_any:
-            (outer_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
-            outer_loop_kernel = self._create_outer_while_loop_kernel()
+            (loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
+            loop_kernel = self._create_loop_body_kernel()
             active_mask_any_ptr = np.array([self.state.active_mask_any.data_ptr()], dtype=np.uint64)
-            outer_loop_args = np.array(
-                [outer_loop_conditional_handle.getPtr(), active_mask_any_ptr.ctypes.data],
+            loop_args = np.array(
+                [loop_conditional_handle.getPtr(), active_mask_any_ptr.ctypes.data],
                 dtype=np.uint64,
             )
             # loop while there are active utterances
             with with_conditional_node(
-                outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
+                loop_kernel, loop_args, loop_conditional_handle, device=self.state.device
             ):
                 self._loop_body()
-                # capture: while self.advance_mask_any.item():
-                inner_while_loop_kernel = self._create_inner_while_loop_kernel()
-                (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
-                advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
-                inner_loop_args = np.array(
-                    [
-                        inner_loop_conditional_handle.getPtr(),
-                        advance_mask_any_ptr.ctypes.data,
-                    ],
-                    dtype=np.uint64,
-                )
 
     def _before_loop(self):
         """Clear state and compute initial active mask"""
@@ -909,6 +880,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
     def _loop_body(self):
         """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
+        print("Loop body")
         # stage 2: get joint output, iteratively seeking for non-blank labels
         # blank label in `labels` tensor means "end of hypothesis" (for this index)
         logits = (
@@ -941,7 +913,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             hyps_scores + log_probs_blank
         )  # hyps with forced blank (top-k-prev x blank)
 
-
         # step 2.2 force add final hyps with the same score to the beam
         # final hyps cannot be extended -> mask with minus inf, copy prev scores; label - set to -1
         hyps_candidates_prob = torch.where(
@@ -955,7 +926,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             hyps_scores,
         )
         labels_top_k = torch.where(self.state.active_mask.unsqueeze(-1), labels_top_k, -1)
-            
+    
         # step 2.3: force blank extension with respect to self.max_symbols
         if self.max_symbols is not None:
             force_blank = (self.state.batched_hyps.last_timestep_lasts >= self.max_symbols) & self.state.active_mask
@@ -984,7 +955,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         )
         hyps_indices = torch.gather(hyps_indices.reshape(self.state.batch_size, -1), dim=-1, index=hyps_candidates_indices)
         next_labels = torch.gather(labels_top_k.reshape(self.state.batch_size, -1), dim=-1, index=hyps_candidates_indices)
-
+        
         # step 3: store results
         if self.max_symbols is None:
             self.state.batched_hyps.add_results_(hyps_indices, next_labels, next_hyps_prob)
@@ -1029,13 +1000,15 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                     ),
                 ).view(self.state.decoder_state[1].shape[0], self.state.batch_size * self.beam_size, -1),
             )
-
+        print("End Loop body11")
         decoder_output, decoder_state, *_ = self.decoder.predict(
             last_labels_wb.reshape(-1).unsqueeze(1),
             prev_decoder_state,
             add_sos=False,
             batch_size=self.state.batch_size * self.beam_size,
         )
+        print("End Loop body22")
+
         self.state.decoder_output.copy_(self.joint.project_prednet(decoder_output))  # do not recalculate joint projection
         torch.where(preserve_state.view(-1)[:, None, None], prev_decoder_output, self.state.decoder_output, out=self.state.decoder_output)
         self.decoder.batch_replace_states_all(src_states=decoder_state, dst_states=self.state.decoder_state)
@@ -1071,7 +1044,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 states=batch_lm_states
             )  # vocab_size_no_blank
             lm_scores = lm_scores.to(dtype=self.state.float_dtype).view(self.state.batch_size, self.beam_size, -1) * self.ngram_lm_alpha
-            
+
         # step 5: update time indices + active mask
         self.state.time_indices.copy_(self.state.batched_hyps.next_timestep)
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
