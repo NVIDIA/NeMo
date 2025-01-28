@@ -789,11 +789,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.ckpt_save_optimizer:
                 checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
+        from nemo.utils import AppState
+
+        app_state = AppState()
         start_time = time.monotonic()
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
         end_time = time.monotonic()
         logging.info(
-            f'Global Checkpoint Save: Start time : {start_time} s : Time spent in save_checkpoint: {end_time - start_time} s'
+            f'Global Checkpoint Save: Rank : {app_state.global_rank} : Start time : {start_time} s : Time spent in save_checkpoint: {end_time - start_time} s'
         )
 
         if HAVE_MODELOPT:
