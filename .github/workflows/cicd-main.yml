@@ -78,14 +78,12 @@ jobs:
           python -c "import lightning.pytorch; print(lightning.pytorch.__version__)"
 
           # PyTorch Lightning DDP Checks
-          CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"
+          CUDA_VISIBLE_DEVICES="0,1" Gotchapython "tests/core_ptl/check_for_ranks.py"
 
           # Basic Import Checks
-          python -c "import nemo.collections.asr as nemo_asr"
-          python -c "import nemo.collections.nlp as nemo_nlp"
-          python -c "import nemo.collections.nlp as nemo_nlp; nemo_nlp.modules.get_tokenizer_list()"
-          python -c "import nemo.collections.tts as nemo_tts"
-        '
+          python tests/core_ptl/check_imports.py --domain asr
+          python tests/core_ptl/check_imports.py --domain nlp
+          python tests/core_ptl/check_imports.py --domain tts        '
   
   # L0: GPU unit tests
   L0_Unit_Tests_GPU_ASR:
