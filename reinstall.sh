@@ -19,7 +19,6 @@ ${PIP} uninstall -y nemo_tts
 
 export MAMBA_FORCE_BUILD=TRUE
 export CAUSAL_CONV1D_FORCE_BUILD=TRUE
-export TE_TAG=7d576ed25266a17a7b651f2c12e8498f67e0baea
 export NEMO_RUN_TAG=34259bd3e752fef94045a9a019e4aaf62bd11ce2
 export APEX_TAG=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
 export CAUSAL_CONV_TAG=v1.2.2.post1
@@ -75,13 +74,6 @@ if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
   git clone https://github.com/NVIDIA/Megatron-LM.git &&
     pushd Megatron-LM &&
     git checkout ${MCORE_TAG} &&
-    pip install -e . &&
-    popd
-
-  git clone https://github.com/NVIDIA/TransformerEngine.git &&
-    pushd TransformerEngine &&
-    git checkout ${TE_TAG} &&
-    git submodule update --init --recursive -q &&
     pip install -e . &&
     popd
 
