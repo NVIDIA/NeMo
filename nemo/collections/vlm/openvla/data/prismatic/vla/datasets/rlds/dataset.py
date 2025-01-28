@@ -236,7 +236,7 @@ def make_dataset_from_rlds(
     else:
         split = "train" if train else "val"
 
-    dataset = dl.DLataset.from_rlds(builder, split=split, shuffle=shuffle, num_parallel_reads=num_parallel_reads)
+    dataset = dl.DLataset.from_rlds(builder, split=split, shuffle=False, num_parallel_reads=num_parallel_reads)
 
     dataset = dataset.traj_map(restructure, num_parallel_calls)
     dataset = dataset.traj_map(
@@ -573,7 +573,7 @@ def make_interleaved_dataset(
     print(f"Data Parallel Rank: {dp_rank}")
 
     import tensorflow as tf
-    tf.random.set_seed(40)
+    tf.random.set_seed(dp_rank)
     #   =>> IMPORTANT :: Shuffle AFTER .cache(), or else memory will still leak!
     dataset = dataset.shuffle(shuffle_buffer_size)
 
