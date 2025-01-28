@@ -550,6 +550,7 @@ class _ModelState:
     """
     Helper class for used for to modify state dict of a source model during model conversion.
     """
+
     def __init__(self, state_dict):
         self._state_dict = state_dict
 
