@@ -314,6 +314,15 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             torch.full([batch, self.context_size - 1], fill_value=self.blank_idx, dtype=torch.long, device=y.device)
         ]
         return state
+    
+    def initialize_state_like(self, batch: int, device: torch.device) -> List[torch.Tensor]:
+        batch = y.size(0)
+        # state contains context_size - 1 elements for each utterance in batch,
+        # consistent with the state returned from StatelessNet.forward
+        state = [
+            torch.full([batch, self.context_size - 1], fill_value=self.blank_idx, dtype=torch.long, device=y.device)
+        ]
+        return state
 
     def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]):
         """
@@ -859,6 +868,36 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             state = (
                 torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
                 torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
+            )
+        return state
+
+    def initialize_state_like(self, batch: int, dtype: torch.dtype, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Initialize the state of the LSTM layers, with same dtype and device as input `y`.
+        LSTM accepts a tuple of 2 tensors as a state.
+
+        Args:
+            y: A torch.Tensor whose device the generated states will be placed on.
+
+        Returns:
+            Tuple of 2 tensors, each of shape [L, B, H], where
+
+                L = Number of RNN layers
+
+                B = Batch size
+
+                H = Hidden size of RNN.
+        """
+        if self.random_state_sampling and self.training:
+            state = (
+                torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=dtype, device=device),
+                torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=dtype, device=device),
+            )
+
+        else:
+            state = (
+                torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=dtype, device=device),
+                torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=dtype, device=device),
             )
         return state
 
