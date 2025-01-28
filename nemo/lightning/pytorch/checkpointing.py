@@ -7,33 +7,6 @@ from typing import (
     Optional,
 )
 from nemo.utils import logging
-import torch
-
-
-def has_llama_mlp(module: Module) -> bool:
-    try:
-        from transformers.models.llama.modeling_llama import LlamaMLP
-    except ImportError:
-        return False
-
-    for child in module.modules():
-        if isinstance(child, LlamaMLP):
-            return True
-    return False
-
-
-class LinearWrapPolicy(ModuleWrapPolicy):
-    def __init__(self):
-        from transformers.models.llama.modeling_llama import LlamaMLP
-
-        super().__init__(module_classes=(torch.nn.Linear, LlamaMLP))
-
-
-class LLamaMLPWrapPolicy(ModuleWrapPolicy):
-    def __init__(self):
-        from transformers.models.llama.modeling_llama import LlamaMLP
-
-        super().__init__(module_classes=(LlamaMLP,))
 
 
 def find_module_by_class_name(model: Module, class_name: str) -> Optional[Module]:
