@@ -104,6 +104,7 @@ try:
         optim_state_to_sharding_state,
     )
     from megatron.core.dist_checkpointing.strategies import tensorstore
+    from megatron.core.dist_checkpointing.core import CheckpointingException
     from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
@@ -133,6 +134,11 @@ except Exception:
     HAVE_MODELOPT = False
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
+URL = "https://docs.nvidia.com/nemo-framework/user-guide/latest/knownissues.html"
+LOAD_ERROR = f"""
+    (1) To resolve this issue, try to set `model.dist_ckpt_load_strictness` to `log_all`. This setting enables loading older checkpoints.
+    (2) For more details and troubleshooting guidance, please refer to the framework documentation: {URL}.
+"""
 
 
 def init_model_parallel(
@@ -565,7 +571,11 @@ class NLPDDPStrategy(DDPStrategy):
             if self._check_param_groups_mismatch(checkpoint_path, checkpoint):
                 checkpoint = self._fix_param_groups(checkpoint_path, checkpoint)
             else:
-                checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+                try:
+                    checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+                except CheckpointingException as e:
+                    error_message = f"{e}\n{LOAD_ERROR}"
+                    raise CheckpointingException(error_message)
 
             if getattr(self.lightning_module, 'continue_training', False):
                 checkpoint = self._integrate_original_checkpoint_data(checkpoint)
