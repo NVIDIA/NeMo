@@ -5065,7 +5065,7 @@ jobs:
   L2_NeMo_2_Distill_Llama3_TP1PP2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_NeMo_2_Distill_Llama3_TP1PP2') || needs.cicd-test-container-setup.outputs.all == 'true'
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Distill_Llama3_TP1PP2') || needs.pre-flight.outputs.all == 'true'
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
