@@ -49,4 +49,6 @@ class VideoToken(MultiModalToken):
 IGNORE_INDEX = -100
 IMAGE_TOKEN_INDEX = ImageToken.token_index
 VIDEO_TOKEN_INDEX = VideoToken.token_index
-SPECIAL_TOKEN_MAP = [(ImageToken.token_str, ImageToken.token_index), (VideoToken.token_str, VideoToken.token_index)]
+SPECIAL_TOKEN_MAP = [
+    (ImageToken.token_str, ImageToken.token_index),
+]

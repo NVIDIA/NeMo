@@ -355,7 +355,20 @@ class LazySupervisedDataset(Dataset):
                 return_tensors="pt",
             )[0]
             answer_start, answer_end = find_pattern_indices(tokens, answer_tokens, search_start_index)
-            assert answer_start > 0, "Not found valid answer in conversation."
+            if answer_start < 0:
+                logging.warning(
+                    "Unable to find a valid answer in the conversation. "
+                    "Details: "
+                    "\n- Messages: %s"
+                    "\n- Tokens: %s"
+                    "\n- Answer Tokens: %s"
+                    "\n- Search Start Index: %d",
+                    self.conv.messages,
+                    tokens,
+                    answer_tokens,
+                    search_start_index,
+                )
+                break
             labels[answer_start:answer_end] = tokens[answer_start:answer_end]
             search_start_index = answer_end
         tokens = tokens[:-1]

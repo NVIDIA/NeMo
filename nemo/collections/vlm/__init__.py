@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# HF
 from nemo.collections.vlm.hf.data.hf_dataset import HFDatasetDataModule
 from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import HFAutoModelForImageTextToText
+
+# LLAVA_NEXT
 from nemo.collections.vlm.llava_next.data import LlavaNextMockDataModule, LlavaNextTaskEncoder
 from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
 from nemo.collections.vlm.llava_next.model.llava_next import LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel
+
+# MLLAMA
 from nemo.collections.vlm.mllama.data import MLlamaLazyDataModule, MLlamaMockDataModule
 from nemo.collections.vlm.mllama.model.base import (
     CrossAttentionTextConfig,
@@ -30,6 +35,8 @@ from nemo.collections.vlm.mllama.model.mllama import (
     MLlamaConfig90B,
     MLlamaConfig90BInstruct,
 )
+
+# NEVA
 from nemo.collections.vlm.neva.data import (
     DataConfig,
     ImageDataConfig,
@@ -40,17 +47,28 @@ from nemo.collections.vlm.neva.data import (
     VideoDataConfig,
     VideoToken,
 )
-from nemo.collections.vlm.neva.model.base import (
-    CLIPViTConfig,
-    HFCLIPVisionConfig,
-    MultimodalProjectorConfig,
-    NevaConfig,
-    NevaModel,
-)
+from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
 from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
-from nemo.collections.vlm.neva.model.vit_config import CLIPViTL_14_336_Config, SigLIPViT400M_14_384_Config
+
+# PEFT
 from nemo.collections.vlm.peft import LoRA
+
+# RECIPES
 from nemo.collections.vlm.recipes import *
+
+# VISION
+from nemo.collections.vlm.vision import (
+    BaseCLIPViTModel,
+    CLIPViTConfig,
+    CLIPViTL_14_336_Config,
+    HFCLIPVisionConfig,
+    InternViT_6B_448px_Config,
+    InternViT_300M_448px_Config,
+    InternViTModel,
+    MultimodalProjectorConfig,
+    SigLIPViT400M_14_384_Config,
+    SigLIPViTModel,
+)
 
 __all__ = [
     "HFDatasetDataModule",
@@ -68,6 +86,7 @@ __all__ = [
     "CLIPViTConfig",
     "HFCLIPVisionConfig",
     "CLIPViTL_14_336_Config",
+    "SigLIPViTModel",
     "SigLIPViT400M_14_384_Config",
     "MultimodalProjectorConfig",
     "NevaConfig",
@@ -92,5 +111,7 @@ __all__ = [
     "LlavaNextConfig13B",
     "LlavaNextModel",
     "LlavaNextMockDataModule",
-    "LlavaNextTaskEncoder",
+    "InternViTModel",
+    "InternViT_300M_448px_Config",
+    "InternViT_6B_448px_Config",
 ]

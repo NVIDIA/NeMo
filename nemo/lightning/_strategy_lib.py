@@ -121,11 +121,13 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
+                expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
             )
 
             # assert that fake tp and pp rank match after model parallel init
             assert app_state.tensor_model_parallel_rank == parallel_state.get_tensor_model_parallel_rank()
             assert app_state.pipeline_model_parallel_rank == parallel_state.get_pipeline_model_parallel_rank()
+            assert app_state.expert_tensor_parallel_rank == parallel_state.get_expert_tensor_parallel_rank()
 
             app_state.tensor_model_parallel_group = parallel_state.get_tensor_model_parallel_group()
             app_state.data_parallel_group = parallel_state.get_data_parallel_group()
@@ -528,6 +530,13 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
         ]
         strict = strict in strict_options
 
+    try:
+        from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
+
+        have_custom_fsdp = True
+    except ImportError or ModuleNotFoundError:
+        have_custom_fsdp = False
+
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             if "state_dict" in checkpoint:
@@ -563,6 +572,10 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 _state_dict[key[len(to_remove) :]] = value
             else:
                 _state_dict[key] = value
+
+        if have_custom_fsdp and hasattr(module, "module") and isinstance(module.module, FullyShardedDataParallel):
+            module.module.load_state_dict(_state_dict, strict=strict)
+            continue
 
         module.load_state_dict(_state_dict, strict=strict)
 
