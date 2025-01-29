@@ -393,29 +393,6 @@ jobs:
       - L0_Unit_Tests_CPU_Lightning
       - L0_Unit_Tests_CPU_Others
     steps:
-      - name: Get last successful run of main
-        id: get_run_id
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          WORKFLOWS=$(curl -L \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/NVIDIA/NeMo/actions/workflows)
-
-          WORKFLOW_ID=$(echo -E "$WORKFLOWS" | jq '.workflows[] | select(.path==".github/workflows/cicd-main.yml") | .id')
-
-          RUNS=$(curl -L \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/NVIDIA/NeMo/actions/workflows/$WORKFLOW_ID/runs?branch=ko3n1g/ci/run-unit-tests-on-main&status=success")
-
-          RUN_ID=$(echo -E "$RUNS" | jq '.workflow_runs[0].id')
-
-          echo "main=$RUN_ID" | tee -a "$GITHUB_OUTPUT"
-          
       - name: Download coverage reports of current branch
         uses: actions/download-artifact@v4
         with:
@@ -444,32 +421,56 @@ jobs:
           path: ${{ github.run_id }}/current/.coverage
           include-hidden-files: true
 
-      - name: Download coverage summary of main branch
-        uses: actions/download-artifact@v4
-        with:
-          path: ${{ github.run_id }}/main
-          run-id: ${{ steps.get_run_id.outputs.main }}
+      # Enable this after we have a first successful run on `main`
+      # - name: Get last successful run of main
+      #   id: get_run_id
+      #   env:
+      #     GH_TOKEN: ${{ github.token }}
+      #   run: |
+      #     WORKFLOWS=$(curl -L \
+      #       -H "Accept: application/vnd.github+json" \
+      #       -H "Authorization: Bearer $GH_TOKEN" \
+      #       -H "X-GitHub-Api-Version: 2022-11-28" \
+      #       https://api.github.com/repos/NVIDIA/NeMo/actions/workflows)
 
-      - name: Get total coverage of main branch
-        shell: bash -x -e -u -o pipefail {0}
-        if: always()
-        id: total-main-branch
-        run: |
-          cd ${{ github.run_id }}/main
-          coverage combine --keep $(ls coverage-summary-*/.coverage)
-          coverage report 
+      #     WORKFLOW_ID=$(echo -E "$WORKFLOWS" | jq '.workflows[] | select(.path==".github/workflows/cicd-main.yml") | .id')
 
-          REPORT=$(coverage report)
-          TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
-          echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
+      #     RUNS=$(curl -L \
+      #       -H "Accept: application/vnd.github+json" \
+      #       -H "Authorization: Bearer $GH_TOKEN" \
+      #       -H "X-GitHub-Api-Version: 2022-11-28" \
+      #       "https://api.github.com/repos/NVIDIA/NeMo/actions/workflows/$WORKFLOW_ID/runs?branch=main&status=success")
 
-      - name: Compare coverage change
-        shell: bash -x -e -u -o pipefail {0}
-        run: |
-          TOTAL_MAIN_BRANCH=${{ steps.total-main-branch.outputs.main }}
-          TOTAL_CURRENT_BRANCH=${{ steps.total-current-branch.outputs.main }}
+      #     RUN_ID=$(echo -E "$RUNS" | jq '.workflow_runs[0].id')
 
-          test $TOTAL_CURRENT_BRANCH -ge $TOTAL_MAIN_BRANCH
+      #     echo "main=$RUN_ID" | tee -a "$GITHUB_OUTPUT"
+
+      # - name: Download coverage summary of main branch
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     path: ${{ github.run_id }}/main
+      #     run-id: ${{ steps.get_run_id.outputs.main }}
+
+      # - name: Get total coverage of main branch
+      #   shell: bash -x -e -u -o pipefail {0}
+      #   if: always()
+      #   id: total-main-branch
+      #   run: |
+      #     cd ${{ github.run_id }}/main
+      #     coverage combine --keep $(ls coverage-summary-*/.coverage)
+      #     coverage report 
+
+      #     REPORT=$(coverage report)
+      #     TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
+      #     echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
+
+      # - name: Compare coverage change
+      #   shell: bash -x -e -u -o pipefail {0}
+      #   run: |
+      #     TOTAL_MAIN_BRANCH=${{ steps.total-main-branch.outputs.main }}
+      #     TOTAL_CURRENT_BRANCH=${{ steps.total-current-branch.outputs.main }}
+
+      #     test $TOTAL_CURRENT_BRANCH -ge $TOTAL_MAIN_BRANCH
 
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
