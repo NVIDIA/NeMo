@@ -1,11 +1,9 @@
-from torch.nn import Module
+from typing import Optional
+
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import CheckpointWrapper
 from torch.distributed.fsdp.wrap import ModuleWrapPolicy
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
-    CheckpointWrapper,
-)
-from typing import (
-    Optional,
-)
+from torch.nn import Module
+
 from nemo.utils import logging
 
 
@@ -33,10 +31,7 @@ def setup_activation_checkpointing(
     policy = ModuleWrapPolicy(module_types)
     activation_checkpointing_kwargs["auto_wrap_policy"] = policy
     if any(isinstance(mod, CheckpointWrapper) for mod in module.modules()):
-        logging.warning(
-            "The model already contains checkpointed layers."
-            " Checkpointing will be ignored."
-        )
+        logging.warning("The model already contains checkpointed layers." " Checkpointing will be ignored.")
         return
 
     from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (

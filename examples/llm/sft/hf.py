@@ -114,9 +114,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="meta-llama/Llama-3.2-1B")
-    parser.add_argument(
-        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"]
-    )
+    parser.add_argument("--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp", "fsdp2"])
     parser.add_argument("--devices", type=int, default=1)
     parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
     parser.add_argument("--model-accelerator", default=None, choices=["te"])
@@ -162,24 +160,18 @@ def main():
 
     from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
-    model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=model_accelerator
-    )
+    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     tokenizer = model.tokenizer
 
     callbacks = []
     if args.use_torch_jit:
-        jit_config = JitConfig(
-            use_torch=True, torch_kwargs={"dynamic": False}, use_thunder=False
-        )
+        jit_config = JitConfig(use_torch=True, torch_kwargs={"dynamic": False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
     import torch
 
     MAX_NUM_OF_MEM_EVENTS_PER_SNAPSHOT = 100000
-    torch.cuda.memory._record_memory_history(
-        max_entries=MAX_NUM_OF_MEM_EVENTS_PER_SNAPSHOT
-    )
+    torch.cuda.memory._record_memory_history(max_entries=MAX_NUM_OF_MEM_EVENTS_PER_SNAPSHOT)
 
     llm.api.finetune(
         model=model,
