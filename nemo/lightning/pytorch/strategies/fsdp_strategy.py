@@ -45,6 +45,7 @@ from nemo.lightning.pytorch.strategies.utils import (
     setup_data_sampler,
     setup_parallel_ranks,
 )
+from nemo.lightning.pytorch.checkpointing import setup_activation_checkpointing
 
 
 class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
@@ -74,10 +75,14 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         data_sampler=None,
+        checkpointing_layers=None,
         **kwargs,
     ):
-        super().__init__(auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs)
+        super().__init__(
+            auto_wrap_policy=auto_wrap_policy, state_dict_type=state_dict_type, **kwargs
+        )
 
+        breakpoint()
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
@@ -94,6 +99,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
         super().setup(trainer)
+        setup_activation_checkpointing(self.model, self.checkpointing_layers)
 
     def _get_loss_reduction(self, step_type: str):
         for fn_name in [f"{step_type}_loss_reduction", "loss_reduction"]:
@@ -104,14 +110,16 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     def _step_proxy(self, step_type, batch, batch_idx=None):
         method_name = f"{step_type}_step"
         if self.model != self.lightning_module:
-            loss = self._forward_redirection(self.model, self.lightning_module, method_name, batch, batch_idx)
+            loss = self._forward_redirection(
+                self.model, self.lightning_module, method_name, batch, batch_idx
+            )
         else:
             loss = getattr(self.lightning_module, method_name)(batch, batch_idx)
 
         _loss_reduction = self._get_loss_reduction(step_type)
         if _loss_reduction:
             return _loss_reduction.forward(batch, loss)
-        return loss, {'avg': loss}
+        return loss, {"avg": loss}
 
     @override
     def training_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
@@ -121,7 +129,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             loss, reduced = self._step_proxy("training", batch, batch_idx)
 
             self.lightning_module.log(
-                'global_step',
+                "global_step",
                 self.trainer.global_step,
                 prog_bar=True,
                 rank_zero_only=True,
@@ -129,11 +137,15 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             )
 
             self.lightning_module.log(
-                'step',
+                "step",
                 self.trainer.global_step,
             )
             self.lightning_module.log(
-                'reduced_train_loss', reduced['avg'], prog_bar=True, rank_zero_only=True, batch_size=1
+                "reduced_train_loss",
+                reduced["avg"],
+                prog_bar=True,
+                rank_zero_only=True,
+                batch_size=1,
             )
 
             # returns unreduced loss for backward
@@ -145,7 +157,9 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.val_step_context():
             loss, reduced = self._step_proxy("validation", batch, batch_idx)
-            self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+            self.lightning_module.log(
+                "val_loss", reduced["avg"], rank_zero_only=True, batch_size=1
+            )
             return loss
 
     @override
@@ -154,7 +168,9 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.test_step_context():
             loss, reduced = self._step_proxy("test", batch, batch_idx)
-            self.lightning_module.log('test_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+            self.lightning_module.log(
+                "test_loss", reduced["avg"], rank_zero_only=True, batch_size=1
+            )
 
             return loss
 
@@ -207,13 +223,21 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def save_checkpoint(
-        self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
+        self,
+        checkpoint: Dict[str, Any],
+        filepath: Union[str, Path],
+        storage_options: Optional[Any] = None,
     ) -> None:
         """Converts PyT checkpoints to MCore format and save using MCore dist ckpt library."""
-        checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(checkpoint.pop("state_dict"))
+        checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(
+            checkpoint.pop("state_dict")
+        )
         checkpoint["state_dict"] = OrderedDict([])
 
-        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
+        if (
+            "optimizer_states" in checkpoint
+            and self.trainer.state.fn == TrainerFn.FITTING
+        ):
             # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
             # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}
@@ -222,10 +246,16 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
             ## the checkpoint will contain only model weights. Optimizer states will be omitted.
             if self.ckpt_save_optimizer:
-                checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
-                pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
+                checkpoint["optimizer"] = get_optimizer_state_dict(
+                    self.model, self.optimizers
+                )
+                pyt_to_mcore_state_dict(
+                    checkpoint["optimizer"]["state"], prefix="optimizer.state."
+                )
 
-        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        self.checkpoint_io.save_checkpoint(
+            checkpoint, filepath, storage_options=storage_options
+        )
 
     @override
     def load_checkpoint(self, checkpoint_path: str | Path) -> Dict[str, Any]:
@@ -253,21 +283,29 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             sharded_state_dict["sharded_state_dict"] = msd
 
         if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
-            osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
-            pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.")
+            osd = get_optimizer_state_dict(
+                self.model, self.optimizers, options=StateDictOptions(cpu_offload=True)
+            )
+            pyt_to_mcore_state_dict(osd["state"], prefix="optimizer.state.")
             sharded_state_dict["optimizer"] = osd
 
-        checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
-        mcore_to_pyt_sharded_state_dict(checkpoint['sharded_state_dict'], msd)
+        checkpoint = self.checkpoint_io.load_checkpoint(
+            path, sharded_state_dict=sharded_state_dict
+        )
+        mcore_to_pyt_sharded_state_dict(checkpoint["sharded_state_dict"], msd)
 
         if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
-            mcore_to_pyt_sharded_state_dict(checkpoint['optimizer']['state'], osd['state'])
+            mcore_to_pyt_sharded_state_dict(
+                checkpoint["optimizer"]["state"], osd["state"]
+            )
 
         set_state_dict(
             self.model,
             self.optimizers if self.ckpt_load_optimizer else [],
-            model_state_dict=checkpoint['sharded_state_dict'],
-            optim_state_dict=checkpoint['optimizer'] if self.ckpt_load_optimizer else None,
+            model_state_dict=checkpoint["sharded_state_dict"],
+            optim_state_dict=checkpoint["optimizer"]
+            if self.ckpt_load_optimizer
+            else None,
         )
 
         return checkpoint

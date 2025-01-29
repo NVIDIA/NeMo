@@ -76,13 +76,7 @@ def main():
     parser.add_argument("--wandb-project", type=str, default=None)
     parser.add_argument("--use-torch-jit", action="store_true")
     parser.add_argument("--ckpt-folder", type=str, default=None)
-    parser.add_argument(
-        "--ckpting-layers",
-        type=str,
-        nargs="+",  # Accepts one or more strings as a list
-        default=None,
-        help="Checkpointing layers as a list of strings or a single string",
-    )
+    parser.add_argument("--checkpointing-layers", type=str, nargs="+", default=[])
 
     args = parser.parse_args()
 
@@ -98,15 +92,6 @@ def main():
         # See:
         # https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
-        import torch
-        from torch.nn import Linear
-
-        from nemo.lightning.pytorch.strategies import FSDPStrategy
-
-        args.strategy = FSDPStrategy(
-            # activation_checkpointing_policy=mlp_activation_checkpointing_policy
-            activation_checkpointing_policy={Linear}
-        )
 
     use_dist_samp = False
 

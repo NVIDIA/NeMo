@@ -86,6 +86,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             **kwargs,
         )
 
+        breakpoint()
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
