@@ -86,9 +86,9 @@ class SortformerModules(NeuralModule, Exportable):
         self.visualization: bool = False
         self.log = False
 
-    def length_to_mask(self, context_embs):
+    def length_to_mask(self, lengths, max_length):
         """
-        Convert length values to encoder mask input tensor.
+        Convert length values to encoder mask input tensor
 
         Args:
             lengths (torch.Tensor): tensor containing lengths of sequences
@@ -98,24 +98,20 @@ class SortformerModules(NeuralModule, Exportable):
             mask (torch.Tensor): tensor of shape (batch_size, max_len) containing 0's
                                 in the padded region and 1's elsewhere
         """
-        lengths = torch.tensor([context_embs.shape[1]] * context_embs.shape[0])
-        batch_size = context_embs.shape[0]
-        max_len = context_embs.shape[1]
-        # create a tensor with the shape (batch_size, 1) filled with ones
-        row_vector = torch.arange(max_len).unsqueeze(0).expand(batch_size, -1).to(lengths.device)
-        # create a tensor with the shape (batch_size, max_len) filled with lengths
-        length_matrix = lengths.unsqueeze(1).expand(-1, max_len).to(lengths.device)
-        # create a mask by comparing the row vector and length matrix
-        mask = row_vector < length_matrix
-        return mask.float().to(context_embs.device)
-    
-    def streaming_feat_loader(self, feat_seq):
+        batch_size = lengths.shape[0]
+        arange = torch.arange(max_length, device=lengths.device)
+        mask = arange.expand(batch_size, max_length) < lengths.unsqueeze(1)
+        return mask
+
+    def streaming_feat_loader(self, feat_seq, feat_seq_length):
         """
         Load a chunk of feature sequence for streaming inference.
 
         Args:
             feat_seq (torch.Tensor): Tensor containing feature sequence
                 Dimension: (batch_size, feat_dim, feat frame count)
+            feat_seq_length (torch.Tensor): Tensor containing feature sequence lengths
+                Dimension: (batch_size,)
 
         Yields:
             step_idx (int): Index of the current step
@@ -127,19 +123,18 @@ class SortformerModules(NeuralModule, Exportable):
         feat_len = feat_seq.shape[2]
         num_chunks = math.ceil(feat_len / (self.step_len * self.subsampling_factor))
         if self.log:
-            logging.info(f"feat_len={feat_len}, num_chunks={num_chunks}")
+            logging.info(f"feat_len={feat_len}, num_chunks={num_chunks}, feat_seq_length={feat_seq_length}")
         stt_feat = 0
         for step_idx in range(num_chunks):
             left_offset = min(self.step_left_context * self.subsampling_factor, stt_feat)
             end_feat = min(stt_feat + self.step_len * self.subsampling_factor, feat_len)
             right_offset = min(self.step_right_context * self.subsampling_factor, feat_len-end_feat)
             chunk_feat_seq = feat_seq[:, :, stt_feat-left_offset:end_feat+right_offset]
+            feat_lengths = (feat_seq_length - stt_feat + left_offset).clamp(0,chunk_feat_seq.shape[2])
             stt_feat = end_feat
-
-            feat_lengths = torch.tensor(chunk_feat_seq.shape[-1]).repeat(chunk_feat_seq.shape[0])
             chunk_feat_seq_t = torch.transpose(chunk_feat_seq, 1, 2)
             if self.log:
-                logging.info(f"step_idx: {step_idx}, chunk_feat_seq_t shape: {chunk_feat_seq_t.shape}")
+                logging.info(f"step_idx: {step_idx}, chunk_feat_seq_t shape: {chunk_feat_seq_t.shape}, chunk_feat_lengths: {feat_lengths}")
             yield step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset
      
     def forward_speaker_sigmoids(self, hidden_out):
@@ -266,16 +261,7 @@ class SortformerModules(NeuralModule, Exportable):
         emb_seq_sil_mean = emb_seq_sil_sum / sil_count # Shape: (B, emb_dim)
         emb_seq_sil_mean = emb_seq_sil_mean.unsqueeze(1).expand(-1, self.mem_len, -1) # Shape: (B, mem_len, emb_dim)
 
-        if self.use_memory_pe:
-            #add position embeddings
-            start_pos=0
-            position_ids = torch.arange(start=start_pos, end=start_pos + n_frames, dtype=torch.long, device=preds.device)
-            position_ids = position_ids.unsqueeze(0).repeat(preds.size(0), 1)
-            preds = preds + self.memory_position_embedding(position_ids)
-
         #get frame importance scores
-        encoder_mask = self.length_to_mask(preds)
-        # scores = self.transformer_memory_compressor(encoder_states=preds, encoder_mask=encoder_mask) # Shape: (B, n_frames, n_spk)
         scores = preds
 #        logging.info(f"MC scores: {scores[0,:,:]}")
 
