@@ -24,6 +24,16 @@ from nemo.utils import flops_formulas, logging
 
 __all__ = ["FLOPsMeasurementCallback", "MM_FLOPsMeasurementCallback"]
 
+_model_flops_map = {
+    "gpt3": flops_formulas.gpt3,
+    "llama2": flops_formulas.llama2,
+    "llama3": flops_formulas.llama3,
+    "nemotron": flops_formulas.nemotron,
+    "mixtral": flops_formulas.mixtral,
+    "bert": flops_formulas.bert,
+    "hf_clip_vit_l": flops_formulas.clip_vit_l,
+    "neva_projection": flops_formulas.neva_projection,
+}
 
 class FLOPsMeasurementCallback(Callback):
     """
@@ -141,23 +151,14 @@ class FLOPsMeasurementCallback(Callback):
         Calculate model FLOPs for a given model
         """
 
-        model_flops_map = {
-            "gpt3": flops_formulas.gpt3,
-            "llama2": flops_formulas.llama2,
-            "llama3": flops_formulas.llama3,
-            "nemotron": flops_formulas.nemotron,
-            "mixtral": flops_formulas.mixtral,
-            "bert": flops_formulas.bert,
-        }
-
         if self.model is not None:
-            model_matches = [model for model in model_flops_map if model in self.model]
+            model_matches = [model for model in _model_flops_map if model in self.model]
             self.model = model_matches[0] if len(model_matches) > 0 else self.model
-        if self.model not in model_flops_map:
-            logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
+        if self.model not in _model_flops_map:
+            logging.info(f"FLOPs measurement supported for {list(_model_flops_map.keys())}")
             raise KeyError(f"Failed to extract valid model name from or missing FLOPs calculations for {self.model}")
 
-        total_flops = model_flops_map[self.model](self.flops_config)
+        total_flops = _model_flops_map[self.model](self.flops_config)
         num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
         flops_per_gpu = total_flops / num_devices
 
@@ -186,102 +187,58 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
         self.data_cfg = data_config
         self.flops_config_dict = dict()
 
-        gbs = self.data_cfg.global_batch_size
         for model_name, model_cfg in model_name_config_dict.items():
-            hs = model_cfg.hidden_size
+            kwargs = dict()
+            kwargs["gbs"] = self.data_cfg.global_batch_size
+            kwargs["hs"] = model_cfg.hidden_size
             if model_name in ["hf_clip_vit_l"]:
-                layers = model_cfg.num_hidden_layers
-                img_seq_len = model_cfg.num_image_embeddings_per_tile
-                img_h = model_cfg.image_size
-                img_w = model_cfg.image_size
-                patch_dim = model_cfg.patch_size
-                in_channels = model_cfg.num_channels
-                class_token_len = 1  # TODO: Add directly to HFCLIPVisionConfig
+                kwargs["layers"] = model_cfg.num_hidden_layers
+                kwargs["img_seq_len"] = model_cfg.num_image_embeddings_per_tile
+                kwargs["img_h"] = model_cfg.image_size
+                kwargs["img_w"] = model_cfg.image_size
+                kwargs["patch_dim"] = model_cfg.patch_size
+                kwargs["in_channels"] = model_cfg.num_channels
+                kwargs["class_token_len"] = 1  # TODO: Add directly to HFCLIPVisionConfig
             elif model_name in ["neva_projection"]:
-                projector_type = model_cfg.projector_type
-                ffn_hs = model_cfg.ffn_hidden_size
-                inp_s = model_cfg.input_size
+                kwargs["projector_type"] = model_cfg.projector_type
+                kwargs["ffn_hs"] = model_cfg.ffn_hidden_size
+                kwargs["inp_s"] = model_cfg.input_size
                 # TODO: Add img_seq_len directly to MultimodalProjectorConfig
-                img_seq_len = model_name_config_dict["hf_clip_vit_l"].num_image_embeddings_per_tile
+                kwargs["img_seq_len"] = model_name_config_dict["hf_clip_vit_l"].num_image_embeddings_per_tile
             else:
-                enc_seq_len = model_cfg.seq_length
-                layers = model_cfg.num_layers
-                ffn_hs = model_cfg.ffn_hidden_size
-                attention_heads = model_cfg.num_attention_heads
-                moe_router_topk = model_cfg.moe_router_topk
+                kwargs["enc_seq_len"] = model_cfg.seq_length
+                kwargs["layers"] = model_cfg.num_layers
+                kwargs["ffn_hs"] = model_cfg.ffn_hidden_size
+                kwargs["attention_heads"] = model_cfg.num_attention_heads
+                kwargs["moe_router_topk"] = model_cfg.moe_router_topk
 
             try:
                 query_groups = model_cfg.num_query_groups
                 if query_groups is None:
                     query_groups = attention_heads
+                kwargs["query_groups"] = query_groups
             except:
                 # Multi-modal models use HF model configs which may/may not define num_query_groups
                 pass
 
-            kwargs = {
-                "gbs": gbs,
-                "hs": hs,
-            }
-            if model_name in ["hf_clip_vit_l"]:
-                kwargs.update(
-                    {
-                        "layers": layers,
-                        "img_seq_len": img_seq_len,
-                        "img_h": img_h,
-                        "img_w": img_w,
-                        "in_channels": in_channels,
-                        "patch_dim": patch_dim,
-                    }
-                )
-            elif model_name in ["neva_projection"]:
-                kwargs.update(
-                    {
-                        "projector_type": projector_type,
-                        "ffn_hs": ffn_hs,
-                        "inp_s": inp_s,
-                        "img_seq_len": img_seq_len,
-                    }
-                )
-            else:
-                kwargs.update(
-                    {
-                        "enc_seq_len": enc_seq_len,
-                        "layers": layers,
-                        "ffn_hs": ffn_hs,
-                        "attention_heads": attention_heads,
-                        "moe_router_topk": moe_router_topk,
-                        "query_groups": query_groups,
-                    }
-                )
             self.flops_config_dict[model_name] = flops_formulas.FLOPSConfig(**kwargs)
 
         self.avg_train_step_time = 0
 
     def eval_model_flops(self):
         """
-        Calculate model FLOPs for a given model
+        Calculate model FLOPs for a given model recursively when model has multiple sub-models
         """
-
-        model_flops_map = {
-            "gpt3": flops_formulas.gpt3,
-            "llama2": flops_formulas.llama2,
-            "llama3": flops_formulas.llama3,
-            "nemotron": flops_formulas.nemotron,
-            "mixtral": flops_formulas.mixtral,
-            "bert": flops_formulas.bert,
-            "hf_clip_vit_l": flops_formulas.clip_vit_l,
-            "neva_projection": flops_formulas.neva_projection,
-        }
 
         total_flops = flops_per_gpu = 0
         for model_name, flops_cfg in self.flops_config_dict.items():
-            if model_name not in model_flops_map:
-                logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
+            if model_name not in _model_flops_map:
+                logging.info(f"FLOPs measurement supported for {list(_model_flops_map.keys())}")
                 raise KeyError(
                     f"Failed to extract valid model name from or missing FLOPs calculations for {model_name}"
                 )
-            total_flops += model_flops_map[model_name](flops_cfg)
-            num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
-            flops_per_gpu += total_flops / num_devices
+            total_flops += _model_flops_map[model_name](flops_cfg)
+        num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+        flops_per_gpu = total_flops / num_devices
 
         return total_flops, flops_per_gpu

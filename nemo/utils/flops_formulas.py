@@ -22,7 +22,7 @@ from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP
 class FLOPSConfig:
     """Contains the model hparams needed for FLOPS computations"""
 
-    gbs: Optional[int] = None
+    gbs: int
     enc_seq_len: Optional[int] = None
     hs: Optional[int] = None
     layers: Optional[int] = None
