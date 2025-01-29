@@ -845,7 +845,7 @@ class TensorRTLLM(ITritonDeployable):
                     dtype=input_dtype,
                     state_dict_split_by_layer_numbers=True,
                     on_device_distributed_conversion=True,
-                    vocab_size=self.tokenizer.vocab_size,
+                    vocab_size=model_config.get("override_vocab_size", self.tokenizer.vocab_size),
                     gpus_per_node=gpus_per_node,
                 )
             )
@@ -888,7 +888,7 @@ class TensorRTLLM(ITritonDeployable):
                 use_parallel_embedding=True,
                 use_distributed_convert=True,
                 model_parallel_rank=self.mp_rank,
-                vocab_size=self.tokenizer.vocab_size,
+                vocab_size=model_config.get("override_vocab_size", self.tokenizer.vocab_size),
             )
 
             engine = build_and_save_engine(
@@ -925,7 +925,7 @@ class TensorRTLLM(ITritonDeployable):
             nemo_model_conversion_dict = self.get_nemo_to_trtllm_conversion_dict(model_state_dict)
             self.trtllm_helper.weights_converter.convert(
                 model_state_dict=model_state_dict,
-                tokenizer_vocab_size=self.tokenizer.vocab_size,
+                tokenizer_vocab_size=model_config.get("override_vocab_size", self.tokenizer.vocab_size),
                 trtllm_conversion_dict=nemo_model_conversion_dict,
             )
             weights_dict = self.trtllm_helper.weights_converter.trtllm_model_weights
@@ -936,7 +936,7 @@ class TensorRTLLM(ITritonDeployable):
                 nemo_model_config=model_config,
                 inference_tp_size=self.tp_size,
                 inference_pp_size=self.pp_size,
-                tokenizer_vocab_size=self.tokenizer.vocab_size,
+                tokenizer_vocab_size=model_config.get("override_vocab_size", self.tokenizer.vocab_size),
             )
         load_distributed(self.model_dir, self.mp_rank, self.gpus_per_node)
         gc.collect()
