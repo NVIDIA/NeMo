@@ -387,12 +387,6 @@ def finetune_performance_optimizations(
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
         recipe.peft.target_modules = ['linear_qkv']
-        recipe.trainer.callbacks.append(
-            run.Config(
-                MegatronCommOverlapCallback,
-                tp_comm_overlap=False,
-            )
-        )
 
     recipe.trainer.strategy.sequence_parallel = True
 
