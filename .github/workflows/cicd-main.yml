@@ -429,6 +429,7 @@ jobs:
       
       - name: Get total coverage of main branch
         shell: bash -x -e -u -o pipefail {0}
+        if: always()
         id: total-main-branch
         run: |
           cd ${{ github.run_id }}/main
@@ -438,6 +439,7 @@ jobs:
 
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
+        if: always()
         id: total-current-branch
         run: |
           cd ${{ github.run_id }}/current
