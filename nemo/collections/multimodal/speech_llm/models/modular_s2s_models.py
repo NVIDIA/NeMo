@@ -122,6 +122,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         self.n_proj_heads = len(proj_head_dims)
         self.proj_head_dims = proj_head_dims
         self.proj_head_loss_weights = proj_head_loss_weights
+        self.predict_source_text = predict_source_text
         self.output_layers = torch.nn.ModuleList(
             [
                 tensor_parallel.ColumnParallelLinear(
@@ -235,10 +236,11 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         all_logits[0], _ = self.output_layer(
             hidden_states, weight=output_weight[: self.vocab_size] if output_weight is not None else None
         )
-        # Use the original output layer for source text
-        all_logits[-1], _ = self.output_layer(
-            hidden_states, weight=output_weight[-self.vocab_size:] if output_weight is not None else None
-        )
+        # Use the original output layer for source text (may not need b/c it is just transcription)
+        # if self.predict_source_text:
+        #     all_logits[-1], _ = self.output_layer(
+        #         hidden_states, weight=output_weight[-self.vocab_size:] if output_weight is not None else None
+        #     )
 
 
         if labels is None:
@@ -1167,7 +1169,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 sliced_text_channel = text_channel[: answer_codec.shape[0]]
 
             if getattr(self.cfg, 'predict_source_text', False):
-                # TODO(kevinhu): Add delay to better predict user text.
                 # Predict user text when the agent turn starts.
                 all_channels.append(torch.cat([sliced_text_channel, answer_codec, sliced_source_text_channel], dim=-1))
             else:
@@ -1202,6 +1203,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
         all_channels = pad_sequence(all_channels, batch_first=True)
         input_ids = all_channels[:, :-1]
+        # import pdb; pdb.set_trace()
         encoded = encoded[:, : input_ids.shape[1]]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]

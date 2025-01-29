@@ -124,12 +124,16 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             tokenized_words = []
             word_length = []
             for idx, word in enumerate(words):
+                if id == 0:
+                    logging.debug(f'word: {word}')
                 # Tokenize the word using the provided text processor
                 tokenized_word = self.text_processor._process_example(context="", output=word)
                 # Remove the EOS token (assuming the EOS token is at the end of "answer_ids")
                 token_ids = tokenized_word["answer_ids"][:-1]  # Remove EOS token
                 if idx != 0:  # If not the first word, remove the first token
                     token_ids = token_ids[1:]
+                if id == 0:
+                    logging.debug(f'token_ids: {token_ids}')    
                 token_length = len(token_ids)  # Calculate the length
                 tokenized_words.extend(token_ids)
                 word_length.append(token_length)
@@ -186,6 +190,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
                     # Reduction of start time index due to stacking of frames
                     start_time_index = int(start_time_index / self.decoder_reduction_factor)
+                    if batch_idx == 0:
+                        logging.debug(f'start_time_index[0]: {start_time_index}')
 
                     end_time_index = start_time_index + word_length
                     end_time_index = min(end_time_index, max_length)
@@ -242,8 +248,10 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     text = supervisions[1].text
                     pattern = r"<\|\d+\|>"
                     if not use_word_alignment:    
+                        # import pdb; pdb.set_trace()
                         output_text = re.sub(pattern, "", supervisions[1].text)
                         output_text = re.sub(r'\s+', ' ', output_text).strip()
+                        # logging.debug(f'target_text: {output_text}')
                         target_text = self.text_processor._process_example(context="", output=output_text)
                         # -1 to remove the eos token added by the text processor
                         target_text, target_text_length = torch.as_tensor(
@@ -401,23 +409,32 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 text_start_step = get_step_by_time(text_start_time[i][j])
                 text_end_step = get_step_by_time(text_end_time[i][j]) + 1
                 cur_target_text[text_start_step] = self.text_processor.bos_id
-                src_text_start_step = 0 if j == 0 else get_step_by_time(text_end_time[i][j-1]) + 2
-                src_text_start_step += self.src_text_delay
-                src_text_end_step = src_text_start_step + source_texts[cnt].shape[0] + 1
+                # Push the src text to be close to the target text
+                src_text_end_step = get_step_by_time(text_start_time[i][j]) - 1
+                src_text_start_step = max(src_text_end_step - source_texts[cnt].shape[0] - 1, 0)
+                # src_text_start_step += self.src_text_delay
+                # src_text_end_step = src_text_start_step + source_texts[cnt].shape[0] + 1
                 if self.merge_src_to_tgt_text:
                     cur_target_text[src_text_start_step] = self.text_processor.bos_id
                 else:
                     cur_source_text[src_text_start_step] = self.text_processor.bos_id
                 if getattr(cut, "s2s_duplex", False):
                     src_text_len = min(src_text_end_step - src_text_start_step - 1, source_texts[cnt].shape[0])
-                    if self.merge_src_to_tgt_text:
-                        cur_target_text[(src_text_start_step + 1) : (src_text_start_step + 1 + src_text_len)] = source_texts[cnt][
-                            :src_text_len
-                        ]
-                    else:
-                        cur_source_text[(src_text_start_step + 1) : (src_text_start_step + 1 + src_text_len)] = source_texts[cnt][
-                            :src_text_len
-                        ]
+                    logging.debug(f'src_text_start_step: {src_text_start_step}')
+                    logging.debug(f'src_text_len: {src_text_len}')
+                    try:
+                        if self.merge_src_to_tgt_text:
+                            cur_target_text[(src_text_start_step + 1) : (src_text_start_step + 1 + src_text_len)] = source_texts[cnt][
+                                :src_text_len
+                            ]
+                        else:
+                            cur_source_text[(src_text_start_step + 1) : (src_text_start_step + 1 + src_text_len)] = source_texts[cnt][
+                                :src_text_len
+                            ]
+                    except:
+                        print(f'src_text_start_step: {src_text_start_step}')
+                        print(f'src_text_len: {src_text_len}')
+                        import pdb; pdb.set_trace()
                     # Note: text can be truncated
                     text_len = min(text_end_step - text_start_step - 1, target_texts[cnt].shape[0])
                     cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len)] = target_texts[cnt][
@@ -432,9 +449,13 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                         [text_len_plus_eos],
                         self.codec_model_downsampling_factor / self.codec_sample_rate,
                         pad_id=self.text_processor.unk_id)
+                    logging.debug(f'start_time_token: {start_time_tokens[cnt]}')
+                    logging.debug(f'target_tokens: {target_texts[cnt]}')
+                    logging.debug(f'word_length: {word_lengths[cnt]}')
+                    logging.debug(f'target_texts_expanded: {target_texts_expanded[0]}')
                     cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len_plus_eos)] = target_texts_expanded[0]
                 else:
-                    raise Exception("Undefined assistant channel text format.")
+                    raise Exception("Undefin()ed assistant channel text format.")
 
                 cur_target_text[text_end_step] = self.text_processor.eos_id
                 if self.merge_src_to_tgt_text:
