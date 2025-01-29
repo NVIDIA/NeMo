@@ -26,6 +26,9 @@ from nemo.utils import logging
 
 
 class MockDataModule(pl.LightningDataModule):
+    """
+    Mock data module with data sampling and preprocessing configurations.
+    """
     def __init__(
         self,
         seq_length: int = 77,

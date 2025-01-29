@@ -61,7 +61,8 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
         image_processor: image processor for image
         is_train: whether it is training or not
 
-    This class augments and tokenizes the sample using the provided tokenizer and image processor and returns a dictionary.
+    This class augments and tokenizes the sample using the provided tokenizer and image processor
+    and returns a dictionary.
     """
 
     cookers = [Cooker(cook_raw_iamges)]
@@ -105,6 +106,9 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
         self.max_length = max_length
 
     def encode_sample(self, sample: dict) -> dict:
+        """
+        Encodes a sample dictionary into a dictionary with specific keys. Applied the augmenters and tokenizers.
+        """
         sample_new = {}
         sample_new["images"] = self.img_transform(sample["image"])
         sample_new["captions"] = tokenize(sample["txt"], self.tokenizer, context_length=self.max_length)
