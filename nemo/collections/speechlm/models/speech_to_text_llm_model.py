@@ -181,6 +181,10 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
     data_config: Optional[DictConfig] = None
 
+    def freeze_module(self, module: nn.Module) -> None:
+        for param in module.parameters():
+            param.requires_grad = False
+
     def configure_model(
         self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
     ) -> "MCoreSpeechToTextLLM":

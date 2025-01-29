@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from typing import Optional
 from omegaconf import DictConfig, OmegaConf
 
 from nemo import lightning as nl
@@ -29,7 +29,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, TimingCallback
 
 
-def speech_to_text_llm_train(cfg: DictConfig):
+def speech_to_text_llm_train(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None):
     """Train the model using provided config."""
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
@@ -37,13 +37,23 @@ def speech_to_text_llm_train(cfg: DictConfig):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     # 1. build the model
-    tokenizer = AutoTokenizer(cfg['model']['llm']['pretrained_model'])
+    if tokenizer is not None:
+        logging.info(f"Using provided tokenizer: {tokenizer}")
+    elif 'pretrained_model' in cfg['model']['llm']:
+        logging.info(f"Using tokenizer from pretrained model: {cfg['model']['llm']['pretrained_model']}")
+        tokenizer = AutoTokenizer(cfg['model']['llm']['pretrained_model'])
+    else:
+        raise ValueError(
+            "Tokenizer is not provided, please pass `tokenizer` to `speech_to_text_llm_train`",
+            "or specify `pretrained_model` in the config.",
+        )
+
     model_config = SpeechToTextLLMConfig(
         language_model_class=cfg['model']['llm']['_target_'],
         language_model_config=Serialization.from_config_dict(cfg['model']['llm']['config']),
         speech_model_config=ASRModuleConfig(**cfg['model']['speech_encoder']),
         modality_adapter_config=ModalityAdapterConfig(**cfg['model']['modality_adapter']),
-        language_model_from_pretrained=cfg['model']['llm']['pretrained_model'],
+        language_model_from_pretrained=cfg['model']['llm'].get('pretrained_model', None),
         freeze_language_model=cfg['model']['freeze_language_model'],
         freeze_speech_model=cfg['model']['freeze_speech_model'],
         freeze_modality_adapter=cfg['model']['freeze_modality_adapter'],
@@ -103,11 +113,22 @@ def speech_to_text_llm_train(cfg: DictConfig):
     return logger.log_dir
 
 
-def speech_to_text_llm_validate(cfg: DictConfig):
+def speech_to_text_llm_validate(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None):
     """Validate the model using provided config, groundtruth required."""
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+
+    if tokenizer is not None:
+        logging.info(f"Using provided tokenizer: {tokenizer}")
+    elif 'pretrained_model' in cfg['model']['llm']:
+        logging.info(f"Using tokenizer from pretrained model: {cfg['model']['llm']['pretrained_model']}")
+        tokenizer = AutoTokenizer(cfg['model']['llm']['pretrained_model'])
+    else:
+        raise ValueError(
+            "Tokenizer is not provided, please pass `tokenizer` to `speech_to_text_llm_train`",
+            "or specify `pretrained_model` in the config.",
+        )
 
     # 1. build the model
     tokenizer = AutoTokenizer(cfg['model']['llm']['pretrained_model'])
@@ -116,7 +137,7 @@ def speech_to_text_llm_validate(cfg: DictConfig):
         language_model_config=Serialization.from_config_dict(cfg['model']['llm']['config']),
         speech_model_config=ASRModuleConfig(**cfg['model']['speech_encoder']),
         modality_adapter_config=ModalityAdapterConfig(**cfg['model']['modality_adapter']),
-        language_model_from_pretrained=cfg['model']['llm']['pretrained_model'],
+        language_model_from_pretrained=cfg['model']['llm'].get('pretrained_model', None),
         freeze_language_model=cfg['model']['freeze_language_model'],
         freeze_speech_model=cfg['model']['freeze_speech_model'],
         freeze_modality_adapter=cfg['model']['freeze_modality_adapter'],
