@@ -71,8 +71,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         t5_style: bool = False,
         load_answer_audio: bool = False,
         codec_model_downsampling_factor: float = 1023.5,
-        src_text_delay: int = 2,
-        merge_src_to_tgt_text: bool = False
     ):
         super().__init__()
         self.text_processor = text_processor
@@ -100,8 +98,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.sample_rate = sample_rate
         self.load_answer_audio = load_answer_audio
         self.codec_model_downsampling_factor = codec_model_downsampling_factor
-        self.src_text_delay = src_text_delay
-        self.merge_src_to_tgt_text = merge_src_to_tgt_text
 
         # To be consistent with SALM text processor
         self.text_processor.add_sep = False
@@ -478,7 +474,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                         pad_id=self.text_processor.unk_id)
                     cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len_plus_eos)] = target_texts_expanded[0]
                 else:
-                    raise Exception("Undefin()ed assistant channel text format.")
+                    raise Exception("Undefined assistant channel text format.")
 
                 text_len = min(text_end_step - text_start_step - 1, target_texts[cnt].shape[0])
                 cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len)] = target_texts[cnt][
@@ -1010,9 +1006,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             token_list = torch.concat([bos_tensor, target_codec], 1)
             features_lens += 1
 
-            # import pdb; pdb.set_trace()
-
-            logging.debug(f'token_list[0].shape: {token_list[0].shape}')
             if not self.t5_style:
                 token_list = [
                     torch.concat([it[:itl], tt], 0)
