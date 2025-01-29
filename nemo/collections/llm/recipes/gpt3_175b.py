@@ -241,6 +241,6 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         ]
     )
 
-    recipe.trainer.plugins.grad_reduce_in_fp32 = False  # bf16 grad dtype
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
