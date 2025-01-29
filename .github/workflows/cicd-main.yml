@@ -39,7 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
-      event_name: ${{ steps.github-event.outputs.main }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -74,11 +73,6 @@ jobs:
 
           parsed_string=$(echo "$TESTS_TO_RUN" | jq -c --raw-input 'split(",")')
           echo "main=${parsed_string}" | tee -a "$GITHUB_OUTPUT"
-    
-      - name: Infer github event
-        id: github-event
-        run: |
-          echo "main=$EVENT_NAME" | tee -a "$GITHUB_OUTPUT"
   
   cicd-test-container-build:
     if: ${{ needs.pre-flight.outputs.test_to_run != '' }}
