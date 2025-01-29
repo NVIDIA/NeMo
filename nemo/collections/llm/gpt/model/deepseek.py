@@ -199,13 +199,6 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         """
 
         state_dict = source.state_dict()
-        to_pop = []
-        for k in state_dict.keys():
-            if match := re.match(r"model\.layers\.(\d+)\.", k):
-                # remove the MTP module (layer index 61 in v3; none in v2)
-                if int(match.group(1)) == 61:
-                    to_pop.append(k)
-        [state_dict.pop(k) for k in to_pop]
 
         for layer_i, use_moe in enumerate(self.config.moe_layer_freq):
             if use_moe == 0:
