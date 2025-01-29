@@ -35,6 +35,7 @@ _model_flops_map = {
     "neva_projection": flops_formulas.neva_projection,
 }
 
+
 class FLOPsMeasurementCallback(Callback):
     """
     Calculate and log FLOPs per second after every ``trainer.log_every_n_steps`` steps.
