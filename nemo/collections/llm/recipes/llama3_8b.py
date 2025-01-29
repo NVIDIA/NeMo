@@ -227,9 +227,9 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         gc_interval_val=100,
     )
     mcomm_overlap_callback = run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
-        )
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
     recipe.trainer.callbacks.extend(
         [
             garbage_collection_callback,
@@ -355,7 +355,7 @@ def finetune_performance_optimizations(
 
     if not recipe.trainer.callbacks:
         recipe.trainer.callbacks = []
-    
+
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
         recipe.trainer.strategy.ddp = run.Config(
@@ -370,11 +370,11 @@ def finetune_performance_optimizations(
         recipe.peft.target_modules = ['linear_qkv']
 
     recipe.trainer.callbacks.append(
-            run.Config(
-                MegatronCommOverlapCallback,
-                tp_comm_overlap=False,
-            )
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=False,
         )
+    )
     recipe.trainer.callbacks.append(run.Config(TimingCallback))
     recipe.trainer.callbacks.append(
         run.Config(

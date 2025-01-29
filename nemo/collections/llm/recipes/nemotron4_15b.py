@@ -209,9 +209,9 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         gc_interval_val=100,
     )
     mcomm_overlap_callback = run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=True,
-        )
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=True,
+    )
     recipe.trainer.callbacks.extend(
         [
             garbage_collection_callback,

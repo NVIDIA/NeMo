@@ -231,14 +231,14 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         gc_interval_val=100,
     )
     mcomm_overlap_callback = run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=True,
-            tp_comm_overlap_cfg=userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
-            defer_embedding_wgrad_compute=True,
-            wgrad_deferral_limit=50,
-            # 'overlap_param_gather_with_optimizer_step' is set automatically. Added here for user's knowledge
-            overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing
-        )
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=True,
+        tp_comm_overlap_cfg=userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+        defer_embedding_wgrad_compute=True,
+        wgrad_deferral_limit=50,
+        # 'overlap_param_gather_with_optimizer_step' is set automatically. Added here for user's knowledge
+        overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing
+    )
     recipe.trainer.callbacks.append(
         [
             garbage_collection_callback,
