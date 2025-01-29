@@ -20,6 +20,7 @@ from nemo.collections.audio.parts.submodules.flow import ConditionalFlowMatching
 
 NUM_STEPS = [1, 5, 10, 20, 100]
 
+
 @pytest.mark.parametrize("num_steps", NUM_STEPS)
 def test_euler_sampler_nfe(num_steps):
     """
@@ -29,14 +30,13 @@ def test_euler_sampler_nfe(num_steps):
     class IdentityEstimator(torch.nn.Module):
         def forward(self, input, input_length, condition):
             return input, input_length
-    
+
     @dataclass
     class ForwardCounterHook:
         counter: int = 0
 
         def __call__(self, *args, **kwargs):
             self.counter += 1
-
 
     estimator = IdentityEstimator()
     counter_hook = ForwardCounterHook()
@@ -52,4 +52,3 @@ def test_euler_sampler_nfe(num_steps):
     sampler.forward(state=init_state, estimator_condition=None, state_length=init_state_length)
 
     assert counter_hook.counter == sampler.num_steps
-
