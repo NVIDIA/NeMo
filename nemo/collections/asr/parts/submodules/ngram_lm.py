@@ -25,6 +25,7 @@ import torch.nn as nn
 from tqdm.auto import tqdm
 
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
+from nemo.collections.common.parts import NEG_INF
 from nemo.utils import logging
 
 if KENLM_AVAILABLE:
@@ -164,6 +165,9 @@ class Arc(NamedTuple):
     to: int
 
 
+_EOS_ID = -2
+
+
 @dataclass
 class SuffixTreeStorage:
     num_states_max: InitVar[int]
@@ -178,6 +182,7 @@ class SuffixTreeStorage:
     _arc_cache: dict[tuple[int, ...], int] = field(default_factory=dict)
 
     unk_prob: float = float("-inf")
+    normalize_unk: bool = True
 
     num_states: int = 0
     num_arcs: int = 0
@@ -199,8 +204,10 @@ class SuffixTreeStorage:
                 ("order", int_np_dtype),
                 ("backoff_to", int_np_dtype),
                 ("backoff_w", np.float32),
+                ("final", np.float32),
             ],
         )
+        self.states["final"] = NEG_INF
 
     def _add_unigrams(self, ngrams: np.ndarray, bos_id: int, unk_id: int):
         start_state = 0
@@ -222,12 +229,15 @@ class SuffixTreeStorage:
         self.num_arcs = 0
         # TODO: order 1 or 0?
         # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
-        self.states[start_state] = (0, self.vocab_size, 1, start_state, 0.0)
+        self.states[start_state] = (0, self.vocab_size, 1, start_state, 0.0, NEG_INF)
         added_symbols = set()
+        num_vocab_labels = 0
         for ngram in ngrams:
             ilabel = ngram["symbols"][-1]
             if ilabel < 0:
                 # special symbol
+                if ilabel == _EOS_ID:
+                    self.states[start_state]["final"] = ngram["weight"]
                 continue
             assert ilabel < self.vocab_size
             arc_id = ilabel
@@ -237,8 +247,19 @@ class SuffixTreeStorage:
             self.arcs[arc_id] = (start_state, next_state, ilabel, ngram["weight"])
             self.num_arcs += 1
             # state order
-            self.states[next_state] = (0, 0, self.states[start_state]["order"] + 1, start_state, ngram["backoff"])
+            self.states[next_state] = (
+                0,
+                0,
+                self.states[start_state]["order"] + 1,
+                start_state,
+                ngram["backoff"],
+                NEG_INF,
+            )
+            num_vocab_labels += 1
 
+        if self.normalize_unk:
+            num_unk_labels = self.vocab_size - num_vocab_labels
+            self.unk_prob -= np.log(num_unk_labels)
         for ilabel in range(self.vocab_size):
             if ilabel not in added_symbols:
                 self.arcs[ilabel] = (start_state, start_state, ilabel, self.unk_prob)
@@ -246,7 +267,14 @@ class SuffixTreeStorage:
 
         # add BOS unigram
         # NB: we do not add BOS unigram to the arcs, but only to the states
-        self.states[bos_state] = (0, 0, self.states[start_state]["order"] + 1, start_state, bos_unigram["backoff"])
+        self.states[bos_state] = (
+            0,
+            0,
+            self.states[start_state]["order"] + 1,
+            start_state,
+            bos_unigram["backoff"],
+            NEG_INF,
+        )
 
     def find_state(self, symbols: tuple[int, ...], bos_id: int) -> int:
         if len(symbols) > 1:
@@ -265,12 +293,12 @@ class SuffixTreeStorage:
         for ngram in tqdm(ngrams):
             symbols = ngram["symbols"].item()
             ilabel = symbols[-1]
+            from_state = self.find_state(symbols[:-1], bos_id=bos_id)
             if ilabel < 0:
-                if ilabel != -2:
-                    logging.info(f"Ignoring ngram {ngram.symbols}")
+                assert ilabel == -2
+                self.states[from_state]["final"] = ngram["weight"]
                 continue
             assert 0 <= ilabel < self.vocab_size
-            from_state = self.find_state(symbols[:-1], bos_id=bos_id)
             backoff_state = self.find_state(symbols[1:], bos_id=bos_id)
 
             arc_id = self.num_arcs
@@ -279,7 +307,14 @@ class SuffixTreeStorage:
             self.num_states += 1
             self.arcs[arc_id] = (from_state, next_state, ilabel, ngram["weight"])
             # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
-            self.states[next_state] = (0, 0, self.states[from_state]["order"] + 1, backoff_state, ngram["backoff"])
+            self.states[next_state] = (
+                0,
+                0,
+                self.states[from_state]["order"] + 1,
+                backoff_state,
+                ngram["backoff"],
+                NEG_INF,
+            )
 
             if self.states[from_state]["arcs_start"] == 0:
                 self.states[from_state]["arcs_start"] = arc_id
@@ -328,11 +363,11 @@ class SuffixTreeStorage:
 
     def _add_ngram_max_order(self, ngram: NGram, bos_id: int):
         ilabel = ngram.symbols[-1]
-        if ilabel < 0:
-            if ilabel != -2:
-                logging.info(f"Ignoring ngram {ngram.symbols}")
-            return
         from_state = self.find_state(ngram.symbols[:-1], bos_id=bos_id)
+        if ilabel < 0:
+            assert ilabel == -2
+            self.states[from_state]["final"] = ngram.weight
+            return
         backoff_state = self.find_state(ngram.symbols[1:], bos_id=bos_id)
 
         arc_id = self.num_arcs
@@ -361,7 +396,7 @@ class FastNGramLM(nn.Module):
     UNK_ID = -3
     BACKOFF_ID = -10
     BOS_ID = -1  # Begin-of-Sentence
-    EOS_ID = -2  # End-of-Sentence
+    EOS_ID = _EOS_ID  # End-of-Sentence
     SPECIAL_SYMBOLS_MAP = {"<s>": BOS_ID, "</s>": EOS_ID, "<unk>": UNK_ID}
     START_STATE = 0
     BOS_STATE = 1
@@ -400,6 +435,7 @@ class FastNGramLM(nn.Module):
         # parameters: weights (forward/backoff)
         self.arcs_weights = nn.Parameter(torch.zeros([self.num_arcs_extended]))
         self.backoff_weights = nn.Parameter(torch.zeros([num_states]))
+        self.final_weights = nn.Parameter(torch.zeros([num_states]))
 
         if max(num_states, self.num_arcs_extended) < torch.iinfo(torch.int32).max:
             int_dtype = torch.int32
@@ -417,7 +453,12 @@ class FastNGramLM(nn.Module):
 
     @classmethod
     def from_arpa(
-        cls, lm_path: Path | str, vocab_size: int, token_offset: int = 100, use_triton: bool | None = None
+        cls,
+        lm_path: Path | str,
+        vocab_size: int,
+        normalize_unk: bool = True,
+        token_offset: int = 100,
+        use_triton: bool | None = None,
     ) -> "FastNGramLM":
         """
         Constructor from ARPA LM (text format).
@@ -425,6 +466,8 @@ class FastNGramLM(nn.Module):
         Args:
             lm_path: path to ARPA model (human-readable)
             vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
+            normalize_unk: unk normalization to make all output probabilities sum to 1.0 (default: True).
+                Setting to False can be useful for one-to-one comparison with KenLM (tests, etc.).
             token_offset: offset for the tokens used for building ARPA LM
             use_triton: allow using Triton implementation;
                 None (default) means "auto" (used if available), True means forced mode
@@ -446,6 +489,7 @@ class FastNGramLM(nn.Module):
                 num_states=0,
                 num_arcs=0,
                 num_arcs_max=total_ngrams + vocab_size * 2 + 1,
+                normalize_unk=normalize_unk,
                 vocab_size=vocab_size,
                 max_order=max_order,
             )
@@ -649,6 +693,7 @@ class FastNGramLM(nn.Module):
         # parameters: weights
         self.arcs_weights.data.copy_(torch.from_numpy(suffix_tree_np.arcs["weight"][: self.num_arcs_extended]))
         self.backoff_weights.data.copy_(torch.from_numpy(suffix_tree_np.states["backoff_w"][: self.num_states]))
+        self.final_weights.data.copy_(torch.from_numpy(suffix_tree_np.states["final"][: self.num_states]))
 
         # buffers: LM (suffix tree) structure
         self.from_states.data.copy_(torch.from_numpy(suffix_tree_np.arcs["from"][: self.num_arcs_extended]))
@@ -757,6 +802,23 @@ class FastNGramLM(nn.Module):
 
         return scores, new_states
 
+    def get_final(self, states: torch.Tensor) -> torch.Tensor:
+        # TODO: add Triton kernel
+        return self._get_final_pytorch(states=states)
+
+    def _get_final_pytorch(self, states: torch.Tensor) -> torch.Tensor:
+        cur_states = states.clone().detach()
+        out_scores = self.final_weights[cur_states]
+        accumulated_backoff = torch.zeros_like(out_scores)
+        while (out_scores <= NEG_INF).any() and (cur_states != self.START_STATE).any():
+            accumulated_backoff += self.backoff_weights[cur_states]
+            cur_states = self.backoff_to_states[cur_states]
+            cur_final = self.final_weights[cur_states]
+            out_scores = torch.where(
+                (out_scores > NEG_INF) | (cur_final <= NEG_INF), out_scores, accumulated_backoff + cur_final
+            )
+        return out_scores
+
     def _advance_pytorch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size = states.shape[0]
         device = states.device
@@ -766,6 +828,7 @@ class FastNGramLM(nn.Module):
         out_scores = torch.zeros(batch_size, self.vocab_size, device=device)
         out_states = torch.full([batch_size, self.vocab_size], fill_value=-1, dtype=states_dtype, device=device)
         state_found = torch.full([batch_size, self.vocab_size], fill_value=False, dtype=torch.bool, device=device)
+        accumulated_backoff = torch.zeros(batch_size, device=device)
 
         all_labels = torch.arange(self.vocab_size, device=device)
         batch_indices = torch.arange(batch_size, device=device)
@@ -791,10 +854,12 @@ class FastNGramLM(nn.Module):
             out_states_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.to_states[
                 indices_flat
             ].to(states_dtype)
-            out_scores = torch.where(state_found, out_scores, out_scores + scores_add[:, : self.vocab_size])
+            out_scores = torch.where(
+                state_found, out_scores, accumulated_backoff.unsqueeze(-1) + scores_add[:, : self.vocab_size]
+            )
             out_states = torch.where(state_found, out_states, out_states_add[:, : self.vocab_size])
             state_found = out_states != -1
             lm_not_done &= current_states != self.START_STATE
-            out_scores += self.backoff_weights[current_states][:, None] * (~state_found)
+            accumulated_backoff += self.backoff_weights[current_states] * lm_not_done
             torch.where(lm_not_done, self.backoff_to_states[current_states], current_states, out=current_states)
         return out_scores, out_states

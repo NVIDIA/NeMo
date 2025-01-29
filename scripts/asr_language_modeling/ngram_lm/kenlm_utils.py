@@ -20,6 +20,7 @@ The BPE sub-words are encoded using the Unicode table.
 This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space. 
 The value DEFAULT_TOKEN_OFFSET from nemo.collections.asr.parts.submodules.ctc_beam_decoding is utilized as the offset value.
 """
+from nemo.collections.common.tokenizers import AggregateTokenizer
 
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
@@ -45,6 +46,7 @@ SUPPORTED_MODELS = {
     'EncDecRNNTModel': 'char',
     'EncDecHybridRNNTCTCBPEModel': 'subword',
     'EncDecHybridRNNTCTCModel': 'char',
+    'EncDecMultiTaskModel': 'subword',
 }
 
 
@@ -89,7 +91,7 @@ def setup_tokenizer(nemo_model_file):
         encoding_level = 'char'
 
     if encoding_level == 'subword':
-        if type(model.tokenizer).__name__ == 'AggregateTokenizer':
+        if isinstance(model.tokenizer, AggregateTokenizer):
             is_aggregate_tokenizer = True
 
         tokenizer_nemo = model.tokenizer
