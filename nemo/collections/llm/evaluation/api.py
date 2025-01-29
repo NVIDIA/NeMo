@@ -62,6 +62,7 @@ class ConfigParams(BaseModel):
         description="Number of examples in few-shot context. Default: None.", default=None
     )
     max_new_tokens: Optional[int] = Field(description="max tokens to generate", default=256)
+    batch_size: Optional[int] = Field(description="batch size to use for evaluation", default=1)
     top_k: Optional[int] = Field(
         description="Limits to a certain number (K) of the top tokens to consider",
         default=1,
