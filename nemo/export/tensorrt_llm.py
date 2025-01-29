@@ -149,6 +149,7 @@ class TensorRTLLM(ITritonDeployable):
         self.task_vocab_size = 0
         self.task_vtoken_counts = []
         self.task_ids = {}
+        self.vocab_size = None
 
         if load_model:
             self._load()
@@ -804,8 +805,10 @@ class TensorRTLLM(ITritonDeployable):
             reshard_model
         )
         self.tokenizer = build_tokenizer(tokenizer)
-        if vocab_size is None:
-            vocab_size = self.tokenizer.vocab_size
+        if vocab_size is not None:
+            self.vocab_size = vocab_size
+        else:
+            self.vocab_size = self.tokenizer.vocab_size
 
         if self.dp_size > 1:
             self.model_dir = os.path.join(self.model_dir, f"dp_rank{self.dp_rank}")
@@ -848,7 +851,7 @@ class TensorRTLLM(ITritonDeployable):
                     dtype=input_dtype,
                     state_dict_split_by_layer_numbers=True,
                     on_device_distributed_conversion=True,
-                    vocab_size=vocab_size,
+                    vocab_size=self.vocab_size,
                     gpus_per_node=gpus_per_node,
                 )
             )
@@ -891,7 +894,7 @@ class TensorRTLLM(ITritonDeployable):
                 use_parallel_embedding=True,
                 use_distributed_convert=True,
                 model_parallel_rank=self.mp_rank,
-                vocab_size=vocab_size,
+                vocab_size=self.vocab_size,
             )
 
             engine = build_and_save_engine(
@@ -914,12 +917,14 @@ class TensorRTLLM(ITritonDeployable):
 
         load_distributed(self.model_dir, self.mp_rank, gpus_per_node)
 
-    def refit(self, model, model_config, use_mcore_path=True, vocab_size=None):
+    def refit(self, model, model_config, use_mcore_path=True):
         """
         Refits an TensorRT engine using an instantiated nemo model.
         This function should only be used after calling build()
         """
-        if vocab_size is None:
+        if self.vocab_size is not None:
+            vocab_size = self.vocab_size
+        else:
             vocab_size = self.tokenizer.vocab_size
         weights_dict = None
         if use_mcore_path:
