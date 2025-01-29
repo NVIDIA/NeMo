@@ -452,6 +452,7 @@ jobs:
           TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
           echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
 
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
