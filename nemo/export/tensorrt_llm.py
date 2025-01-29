@@ -149,7 +149,6 @@ class TensorRTLLM(ITritonDeployable):
         self.task_vocab_size = 0
         self.task_vtoken_counts = []
         self.task_ids = {}
-        self.vocab_size = None
 
         if load_model:
             self._load()
@@ -794,7 +793,6 @@ class TensorRTLLM(ITritonDeployable):
         use_refit: bool = True,
         reshard_model: bool = False,
         use_mcore_path: bool = True,
-        vocab_size: Optional[int] = None,
     ):
         """
         Convert a model parallel nemo model to TensorRT-LLM.
@@ -805,10 +803,6 @@ class TensorRTLLM(ITritonDeployable):
             reshard_model
         )
         self.tokenizer = build_tokenizer(tokenizer)
-        if vocab_size is not None:
-            self.vocab_size = vocab_size
-        else:
-            self.vocab_size = self.tokenizer.vocab_size
 
         if self.dp_size > 1:
             self.model_dir = os.path.join(self.model_dir, f"dp_rank{self.dp_rank}")
@@ -851,7 +845,7 @@ class TensorRTLLM(ITritonDeployable):
                     dtype=input_dtype,
                     state_dict_split_by_layer_numbers=True,
                     on_device_distributed_conversion=True,
-                    vocab_size=self.vocab_size,
+                    vocab_size=model_config.get("override_vocab_size", self.tokenizer.vocab_size),
                     gpus_per_node=gpus_per_node,
                 )
             )
@@ -894,7 +888,7 @@ class TensorRTLLM(ITritonDeployable):
                 use_parallel_embedding=True,
                 use_distributed_convert=True,
                 model_parallel_rank=self.mp_rank,
-                vocab_size=self.vocab_size,
+                vocab_size=model_config.get("override_vocab_size", self.tokenizer.vocab_size),
             )
 
             engine = build_and_save_engine(
@@ -922,10 +916,6 @@ class TensorRTLLM(ITritonDeployable):
         Refits an TensorRT engine using an instantiated nemo model.
         This function should only be used after calling build()
         """
-        if self.vocab_size is not None:
-            vocab_size = self.vocab_size
-        else:
-            vocab_size = self.tokenizer.vocab_size
         weights_dict = None
         if use_mcore_path:
             storage_dtype = torch_dtype_from_precision(model_config.precision)
@@ -935,7 +925,7 @@ class TensorRTLLM(ITritonDeployable):
             nemo_model_conversion_dict = self.get_nemo_to_trtllm_conversion_dict(model_state_dict)
             self.trtllm_helper.weights_converter.convert(
                 model_state_dict=model_state_dict,
-                tokenizer_vocab_size=vocab_size,
+                tokenizer_vocab_size=model_config.get("override_vocab_size", self.tokenizer.vocab_size),
                 trtllm_conversion_dict=nemo_model_conversion_dict,
             )
             weights_dict = self.trtllm_helper.weights_converter.trtllm_model_weights
@@ -946,7 +936,7 @@ class TensorRTLLM(ITritonDeployable):
                 nemo_model_config=model_config,
                 inference_tp_size=self.tp_size,
                 inference_pp_size=self.pp_size,
-                tokenizer_vocab_size=vocab_size,
+                tokenizer_vocab_size=model_config.get("override_vocab_size", self.tokenizer.vocab_size),
             )
         load_distributed(self.model_dir, self.mp_rank, self.gpus_per_node)
         gc.collect()
