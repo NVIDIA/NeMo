@@ -164,7 +164,6 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         if split not in {'train', 'val'}:
             raise ValueError("Invalid value for split. Allowed values are 'train' or 'val'.")
 
-
         if split == "train":
             task_encoder = self.task_encoder
         else:
