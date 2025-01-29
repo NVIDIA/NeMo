@@ -66,7 +66,7 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     precision = cfg.trainer.precision
-    trainer = MegatronTrainerBuilder(cfg).create_trainer()
+    trainer = MegatronTrainerBuilder(cfg).create_trainer(one_logger_config={})
     cfg.trainer.precision = precision
 
     # update resume from checkpoint found by exp_manager
