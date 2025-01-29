@@ -20,7 +20,7 @@ on:
     types: [ labeled ]
   push:
     branches:
-      - ko3n1g/ci/run-unit-tests-on-main # to be changed to `main`
+      - main
   workflow_dispatch:
     inputs:
       test_to_run:
