@@ -14,7 +14,6 @@
 
 import torch
 import torch.nn.functional as F
-from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 

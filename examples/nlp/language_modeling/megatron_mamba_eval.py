@@ -354,15 +354,15 @@ def main(cfg) -> None:
     prompts = load_prompts(cfg)
 
     # First method of running text generation, call model.generate method
-    # for i in range(1 if cfg.server else 3):
-    #    st = time.perf_counter()
-    #    response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
-    #    tdiff = time.perf_counter() - st
-    #    print(f"[Try{i} model.generate took {tdiff} seconds...")
+    for i in range(1 if cfg.server else 3):
+       st = time.perf_counter()
+       response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
+       tdiff = time.perf_counter() - st
+       print(f"[Try{i} model.generate took {tdiff} seconds...")
 
-    # print("***************************")
-    # print(response)
-    # print("***************************")
+    print("***************************")
+    print(response)
+    print("***************************")
 
     # Second method of running text generation, call trainer.predict [recommended]
     bs = cfg.inference.get("batch_size", 4)

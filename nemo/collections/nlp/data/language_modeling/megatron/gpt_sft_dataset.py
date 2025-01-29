@@ -54,7 +54,6 @@ class GPTSFTDataset(Dataset):
         index_mapping_dir: str = None,
         prompt_template: str = None,
         virtual_tokens: int = 0,
-        meta_tokens: int = 0,
         tokens_to_generate: int = 0,
         memmap_workers: Optional[int] = None,
         hf_dataset: bool = False,
@@ -111,7 +110,6 @@ class GPTSFTDataset(Dataset):
         self.index_mapping_dir = index_mapping_dir
         self.prompt_template = prompt_template
         self.virtual_tokens = virtual_tokens
-        self.meta_tokens = meta_tokens
         self.tokens_to_generate = tokens_to_generate
         self.memmap_workers = memmap_workers
         self.hf_dataset = hf_dataset
