@@ -453,7 +453,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-summary-${{ github.run_id }}-$(uuidgen)
+          name: coverage-summary-${{ github.run_id }}
           path: ${{ github.run_id }}/current/.coverage
           include-hidden-files: true
         
