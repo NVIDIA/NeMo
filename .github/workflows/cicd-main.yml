@@ -456,6 +456,9 @@ jobs:
         id: total-main-branch
         run: |
           cd ${{ github.run_id }}/main
+          coverage combine --keep $(ls coverage-summary-*/.coverage)
+          coverage report 
+
           REPORT=$(coverage report)
           TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
           echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
