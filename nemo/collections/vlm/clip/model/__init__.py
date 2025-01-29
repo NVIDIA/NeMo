@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,5 +27,6 @@ __all__ = [
     "CLIPViTL_14_224_Config",
     "CLIPTextModelL_14_224_Config",
     "ClipConfigL14",
-    "ClipConfigB32" "CLIPModel",
+    "ClipConfigB32",
+    "CLIPModel",
 ]

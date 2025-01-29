@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,22 @@ class MockDataModule(pl.LightningDataModule):
         """
         Initializes the mock data module with data sampling and preprocessing configurations.
         task_encoder: This Mock data module uses Energon Task encoder if provided.
+
+        Args:
+            seq_length (int): Maximum sequence length for tokens.
+            decoder_seq_length (Optional[int]): Sequence length for the decoder. Used by Megatron Sampler.
+            tokenizer: Tokenizer for text processing.
+            image_processor: Processor for image preprocessing.
+            micro_batch_size (int): Batch size for training and validation.
+            global_batch_size (int): Total batch size across GPUs.
+            rampup_batch_size (Optional[List[int]]): Batch size ramp-up schedule. Used by Megatron Sampler.
+            num_train_samples (int): Number of training samples.
+            num_val_samples (int): Number of validation samples.
+            num_test_samples (int): Number of testing samples.
+            num_workers (int): Number of workers for data loading.
+            pin_memory (bool): Whether to pin memory for data loading.
+            persistent_workers (bool): Whether workers should remain persistent.
+            task_encoder: Task encoder for Energon tasks.
         """
         super().__init__()
         self.seq_length = seq_length

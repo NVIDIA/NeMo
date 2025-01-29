@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,15 +15,10 @@
 from PIL import ImageFile
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
-# BaseWebdataset.
 import os
 
 from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
 
-# from megatron.energon.wrappers.iter_map_dataset import
-
-
-# pdb.set_trace = lambda: 1
 """
 Example:
   python scripts/vlm/clip_pretrain.py \
@@ -72,7 +67,7 @@ def main(args):
             num_workers=args.num_workers,
             task_encoder=train_task_encoder,
             tokenizer=train_task_encoder.tokenizer,
-            valid_task_encoder=valid_task_encoder,
+            validation_task_encoder=valid_task_encoder,
             image_decode="pil",
             ignore_decoder_errors=True,
         )

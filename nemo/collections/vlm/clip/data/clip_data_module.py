@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import Optional
 
 from megatron.energon import Cooker, DefaultTaskEncoder, SkipSample, basic_sample_keys
@@ -20,7 +33,6 @@ def cook_raw_iamges(sample: dict) -> dict:
         dict: A new dictionary containing the processed sample data with the following keys:
             - All keys from the result of `basic_sample_keys(sample)`
             - 'jpg': original images
-            - 'png': contains control images
             - 'txt': contains raw text
     """
     if "jpg" not in sample or "txt" not in sample:
@@ -35,6 +47,22 @@ def cook_raw_iamges(sample: dict) -> dict:
 
 
 class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
+    """
+    A simple task encoder for CLIP. The input sample is expected to have a 'jpg' key and a 'txt' key.
+    Cookers are used to process raw sample data into a dictionary with specific keys. raw_sample -> (jpg, txt)
+
+    Args:
+        img_h: height of the image
+        img_w: width of the image
+        img_mean: mean of the image
+        img_std: standard deviation of the image
+        max_length: max length of the text
+        tokenizer: tokenizer for text
+        image_processor: image processor for image
+        is_train: whether it is training or not
+
+    This class augments and tokenizes the sample using the provided tokenizer and image processor and returns a dictionary.
+    """
     cookers = [Cooker(cook_raw_iamges)]
 
     def __init__(
