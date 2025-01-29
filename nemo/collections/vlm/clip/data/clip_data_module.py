@@ -63,6 +63,7 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
 
     This class augments and tokenizes the sample using the provided tokenizer and image processor and returns a dictionary.
     """
+
     cookers = [Cooker(cook_raw_iamges)]
 
     def __init__(
