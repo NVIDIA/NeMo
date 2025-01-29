@@ -224,13 +224,24 @@ class MegatronCommOverlapCallback(Callback):
         major, _ = torch.cuda.get_device_capability()
         if major > 9:
             if (tp_size > 1 or cp_size > 1) and (dp_size > 1 or pp_size > 1):
-                # Default is 8, but for this case, we need extra connections
-                # to avoid serialization of streams
+                """
+                We need extra connections to avoid serialization of streams,
+                so we use the max connections of 32 instead of the default
+                device connection of 8.
+                """
                 os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "32"
             else:
                 os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
         else:
             if tp_size > 1 or cp_size > 1:
+                """
+                Set the device connection to 1 to enforce the kernel queuing
+                order from the host to the execution order on GPU. This is
+                needed to schedule a communication kernel before the
+                overlapping persistent GEMM kernel. Otherwise, the
+                communication kernel will be pushed to the end of the GEMM
+                kernel so failing to overlap the kernels.
+                """
                 os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "1"
             else:
                 os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
