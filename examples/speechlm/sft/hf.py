@@ -27,6 +27,17 @@ torch.set_float32_matmul_precision("medium")
 
 
 class LhotseHfNeMoDataset(torch.utils.data.Dataset):
+    """Class for a speechLM dataset
+
+    Args:
+        processor (AutoProcessor): the processor to use
+        tokenizer (AutoTokenizer): the tokenizer to use
+        decoder_mask_fill (int): Value to fill in decoder mask
+
+    Returns:
+        pl.LightningDataModule: the dataset to train with.
+    """
+
     def __init__(self, processor, tokenizer, decoder_mask_fill=-100):
         super().__init__()
         self.processor = processor
