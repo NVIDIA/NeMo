@@ -302,12 +302,27 @@ class MCoreClipModel(MegatronModule):
 
 
 class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+    """
+    CLIPModel is the base class for all CLIP models.
+
+    Args:
+        config: CLIPConfig. The configuration of the CLIP model. Please see the `CLIPConfig` for details.
+        optim: OptimizerModule. This module is just used for init and the actual optimizer is created via trainer API.
+        tokenizer: TokenizerSpec. This module is used for deciding the output length of the language model.
+
+        # These parameters are just for imagenet validation
+        imagenet_val: Optional[str] = None: Optional path to imagenet validation dataset.
+        mbs: int = 8: Batch size for imagenet validation.
+        gbs: int = 8: Global Batch for imagenet validation.
+        max_workers: int = 4: Maximum number of workers used for imagenet validation.
+
+
+    """
     def __init__(
         self,
         config: ClipConfig,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
-        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
         imagenet_val: Optional[str] = None,
         mbs: int = 8,
         gbs: int = 8,
@@ -318,7 +333,6 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.tokenizer = tokenizer
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
-        self.model_transform = model_transform
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
 
@@ -367,7 +381,6 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             zeroshot_weights = []
             for texts in self.imagenet_val["texts"]:
                 texts = texts.cuda(non_blocking=True)
-                # TODO (yuya): distributed not working
                 with torch.cuda.amp.autocast(
                     enabled=True,
                     dtype=torch.bfloat16,
