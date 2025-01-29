@@ -318,6 +318,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
 
     """
+
     def __init__(
         self,
         config: ClipConfig,
