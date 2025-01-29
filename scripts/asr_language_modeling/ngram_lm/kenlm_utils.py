@@ -69,8 +69,8 @@ def get_train_list(args_train_path):
 
 
 def setup_tokenizer(nemo_model_file):
-    """ TOKENIZER SETUP 
-        nemo_model_file (str): The path to the NeMo model file (.nemo).
+    """TOKENIZER SETUP
+    nemo_model_file (str): The path to the NeMo model file (.nemo).
     """
     logging.info(f"Loading nemo model '{nemo_model_file}' ...")
     if nemo_model_file.endswith('.nemo'):
@@ -128,7 +128,9 @@ def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_t
 
 
 def read_train_file(
-    path, is_aggregate_tokenizer: bool = False, verbose: int = 0,
+    path,
+    is_aggregate_tokenizer: bool = False,
+    verbose: int = 0,
 ):
     lines_read = 0
     text_dataset, lang_dataset = [], []

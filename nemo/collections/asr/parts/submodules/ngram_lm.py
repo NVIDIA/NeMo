@@ -24,8 +24,8 @@ import torch
 import torch.nn as nn
 from tqdm.auto import tqdm
 
-from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
 from nemo.collections.common.parts import NEG_INF
+from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
 from nemo.utils import logging
 
 if KENLM_AVAILABLE:
