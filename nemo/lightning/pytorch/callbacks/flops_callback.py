@@ -182,7 +182,7 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
 
     def __init__(
         self,
-        model_name_config_dict: dict(),
+        model_name_config_dict: dict,
         data_config: pl.LightningDataModule,
     ):
         self.data_cfg = data_config
