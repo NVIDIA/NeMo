@@ -98,11 +98,11 @@ def adjust_distillation_model_for_mcore(
 ):
     """Extra modifcations to ``mtd.DistillationModel`` requried for Megatron-Core."""
 
-    # HACK: Get rid of ModelOpt Distillation state
+    # Get rid of ModelOpt Distillation state
     # NOTE: If re-placed, above losses need modifcation as `TransformerConfig` has non-pickleable elements.
     mto.ModeloptStateManager(model)._state.pop()
 
-    # HACK: Hide teacher during `sharded_state_dict` method.
+    # Hide teacher during `sharded_state_dict` method.
     def _sharded_state_dict(self, *args, **kwargs) -> "ShardedStateDict":
         with self.hide_teacher_model():
             return self._sharded_state_dict(*args, **kwargs)
@@ -110,7 +110,7 @@ def adjust_distillation_model_for_mcore(
     model._sharded_state_dict = model.sharded_state_dict
     model.sharded_state_dict = MethodType(_sharded_state_dict, model)
 
-    # HACK: Skip `lm_loss` bypassing it when training if not needed for backprop.
+    # Skip `lm_loss` bypassing it when training if not needed for backprop.
     def _compute_language_model_loss(self, labels, logits) -> Tensor:
         if self.training:
             return torch.zeros_like(labels, dtype=logits.dtype)
@@ -120,7 +120,7 @@ def adjust_distillation_model_for_mcore(
         model._compute_language_model_loss = model.compute_language_model_loss
         model.compute_language_model_loss = MethodType(_compute_language_model_loss, model)
 
-    # HACK: Skip `lm_loss` always for teacher.
+    # Skip `lm_loss` always for teacher.
     def _compute_language_model_loss(self, labels, logits) -> Tensor:
         return torch.zeros_like(labels, dtype=logits.dtype)
 
@@ -132,7 +132,7 @@ def adjust_distillation_model_for_mcore(
             obj = self.teacher_model if self._only_teacher_fwd else self
             return type(self).set_input_tensor(obj, input_tensor)
 
-        # HACK: Pipeline-parallel Distillation requires a way to cache input batches for subsequent
+        # Pipeline-parallel Distillation requires a way to cache input batches for subsequent
         # forward calls, as well as a way to pass through output tensors to teacher model.
         model.set_input_tensor = MethodType(_set_input_tensor, model)
 
@@ -149,20 +149,6 @@ def adjust_distillation_model_for_mcore(
                     model_wrapper.config = model_wrapper._config
                     del model_wrapper._config
 
-        # HACK: Pipeline-parallel forward function relies on the config in the model to know what
+        # Pipeline-parallel forward function relies on the config in the model to know what
         # hidden size of tensor to communicate to next stage.
         model.swap_teacher_config = MethodType(_swap_teacher_config, model)
-
-
-def load_cicd_models(student_path: str):
-    # pylint: disable=C0116
-    import os.path
-
-    from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-    from tests.collections.llm.common import Llama3ConfigCI
-
-    tokenizer = get_nmt_tokenizer(tokenizer_model=os.path.join(student_path, "dummy_tokenizer.model"))
-    student_model = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
-    teacher_model = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
-
-    return student_model, teacher_model, tokenizer

@@ -20,10 +20,11 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm import distillation as distill
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
+from tests.collections.llm.common import Llama3ConfigCI
 
 # Suppress lengthy HF warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -83,11 +84,10 @@ if __name__ == "__main__":
     )
 
     ## Load both models and combine into an aggregate module
-    _student_model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
-    _teacher_model = nl.io.load_context(path=ckpt_to_context_subdir(args.teacher_path), subpath="model")
-
-    tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
-    assert tokenizer is not None, "Please provide a model checkpoint with tokenizer included."
+    # NOTE: Special model and tokenizer for CI runs only
+    tokenizer = AutoTokenizer("gpt2")
+    _student_model = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
+    _teacher_model = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
 
     model = distill.DistillationGPTModel(
         _student_model.config,

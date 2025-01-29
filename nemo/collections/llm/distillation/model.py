@@ -141,6 +141,26 @@ class DistillationGPTModel(llm.GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        """
+        Constructor.
+
+        This subclass of GPTModel takes the configs of a student and teacher model and overrides
+        the model construction step to create a ModelOpt `DistillationModel` as the underlying
+        MCore model. This model abstracts both student and teacher as a single module whose forward
+        pass runs both, and whose loss function automatically calculates a distillation loss on the
+        output logits.
+
+        NOTE: This class saves checkpoints which will be re-loaded as the student's original class.
+        This allows one to continue using the model after distillation without this special class.
+
+        Args:
+            student_config: Config of student model.
+            teacher_config: Config of teacher model.
+            teacher_ckpt_path: Path to teacher checkpoint (to restore weights).
+            optim: Optimizer.
+            tokenizer: Tokenizer.
+            model_transform: Transform to apply to model during setup.
+        """
         super().__init__(student_config, optim, tokenizer, model_transform)
         self._teacher_config = teacher_config
         self._teacher_ckpt_path = teacher_ckpt_path
