@@ -310,7 +310,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         assert self.load_answer_audio
         assert not getattr(cut, "direct_s2s", False), "direct_s2s not supported when load_answer_audio is True"
 
-
         def load_audio_from_cut(cuts, name, sample_rate):
             answer_audio_lens = []
             answer_audios = []  # b*N
@@ -359,7 +358,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             raise ValueError(
                 "cut does not have target_audio. In duplex mode, recording keeps user channel and target_audio keeps agent channel"
             )
-
 
         text_pad_id = self.text_processor.pad_id
 
@@ -448,16 +446,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 cur_source_text[src_text_start_step] = self.text_processor.bos_id
                 if getattr(cut, "s2s_duplex", False):
                     src_text_len = min(src_text_end_step - src_text_start_step - 1, source_texts[cnt].shape[0])
-                    logging.debug(f'src_text_start_step: {src_text_start_step}')
-                    logging.debug(f'src_text_len: {src_text_len}')
-                    try:
-                        cur_source_text[(src_text_start_step + 1) : (src_text_start_step + 1 + src_text_len)] = source_texts[cnt][
-                            :src_text_len
-                        ]
-                    except:
-                        print(f'src_text_start_step: {src_text_start_step}')
-                        print(f'src_text_len: {src_text_len}')
-                        import pdb; pdb.set_trace()
+                    cur_source_text[(src_text_start_step + 1) : (src_text_start_step + 1 + src_text_len)] = source_texts[cnt][
+                        :src_text_len
+                    ]
                     # Note: text can be truncated
                     text_len = min(text_end_step - text_start_step - 1, target_texts[cnt].shape[0])
                     cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len)] = target_texts[cnt][
@@ -482,7 +473,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 ]
                 cur_target_text[text_end_step] = self.text_processor.eos_id
                 cur_source_text[src_text_end_step] = self.text_processor.eos_id
-                logging.debug(f'cur_target_text: {cur_target_text}')
                 cnt += 1
             new_target_texts.append(cur_target_text)
             new_source_texts.append(cur_source_text)

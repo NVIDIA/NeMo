@@ -1230,7 +1230,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
         all_channels = pad_sequence(all_channels, batch_first=True)
         input_ids = all_channels[:, :-1]
-        # import pdb; pdb.set_trace()
         encoded = encoded[:, : input_ids.shape[1]]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
