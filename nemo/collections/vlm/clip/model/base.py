@@ -167,10 +167,11 @@ class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
 
         if hasattr(self, 'vocab_size'):
             vocab_size = self.vocab_size
-            logging.info(
-                f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
-                f" {vocab_size - tokenizer.vocab_size}."
-            )
+            if tokenizer is not None:
+                logging.info(
+                    f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
+                    f" {vocab_size - tokenizer.vocab_size}."
+                )
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
@@ -314,16 +315,17 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.max_workers = max_workers
 
     def on_fit_start(self):
-        self.imagenet_val = build_imagenet_validation_dataloader_params(
-            self.imagenet_val,
-            self.config.vision_transformer_config.img_h,
-            self.config.vision_transformer_config.img_w,
-            self.mbs,
-            self.gbs,
-            num_workers=self.max_workers,
-            max_position_embedding=self.config.text_transformer_config.max_seq_length,
-            tokenizer=self.tokenizer,
-        )
+        if self.imagenet_val is not None:
+            self.imagenet_val = build_imagenet_validation_dataloader_params(
+                self.imagenet_val,
+                self.config.vision_transformer_config.img_h,
+                self.config.vision_transformer_config.img_w,
+                self.mbs,
+                self.gbs,
+                num_workers=self.max_workers,
+                max_position_embedding=self.config.text_transformer_config.max_seq_length,
+                tokenizer=self.tokenizer,
+            )
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
