@@ -151,6 +151,28 @@ class LhotseDataLoadingConfig:
     # In most cases (such as regular multi-GPU training) it will result in a deadlock due to
     # a different number of steps on different DDP ranks.
     force_finite: bool = False
+    # The following two options may be used to override auto-detection of appropriate PyTorch dataset flavor
+    #   for your data types. PyTorch DataLoader uses two objects to yield data: dataset and sampler.
+    # *Map-dataset flavor.* There is one sampler per GPU that lives in the training loop process;
+    #   it selects the examples to be prepared by map-dataset class. Each batch selection determined by the sampler
+    #   is then passed by the dataloader to one of its worker processes to be processed by the dataset class.
+    # *Iterable-dataset flavor.* Each dataloading worker has its own sampler replica instead;
+    #   the sampler must have the logic for either data deduplication or unique order shuffling to avoid
+    #   duplicated data across workers and GPUs. Lhotse relies on unique order shuffling.
+    # The default settings are:
+    # * use iterable dataset for tarred audio data.
+    # * use iterable dataset for any text data.
+    # * use map dataset for non-tarred audio data (we might change this in the future)
+    force_map_dataset: bool = False
+    force_iterable_dataset: bool = False
+
+
+def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
+    assert not (
+        config.force_map_dataset and config.force_iterable_dataset
+    ), "Conflicting options: force_map_dataset=True and force_iterable_dataset=True"
+    use_iterable_dataset = (use_iterable_dataset or config.force_iterable_dataset) and not config.force_map_dataset
+    return use_iterable_dataset
 
 
 def get_lhotse_dataloader_from_config(
@@ -353,7 +375,8 @@ def get_lhotse_dataloader_from_multi_config(
 
 def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None) -> tuple[CutSampler, bool]:
     # 1. Load a manifest as a Lhotse CutSet.
-    cuts, is_tarred = read_cutset_from_config(config)
+    cuts, use_iterable_dataset = read_cutset_from_config(config)
+    use_iterable_dataset = determine_use_iterable_dataset(use_iterable_dataset, config)
 
     # Apply channel selector
     if config.channel_selector is not None:
@@ -373,7 +396,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
         )
 
     if tokenizer is not None and config.pretokenize:
-        if not is_tarred:
+        if not use_iterable_dataset:
             logging.warning(
                 "You are using a non-tarred dataset and requested tokenization during data sampling (pretokenize=True). "
                 "This will cause the tokenization to happen in the main (GPU) process, possibly impacting the training speed "
@@ -489,8 +512,8 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             num_cuts_for_bins_estimate=config.num_cuts_for_bins_estimate,
             buffer_size=config.bucket_buffer_size,
             concurrent=config.concurrent_bucketing,
-            rank=0 if is_tarred else global_rank,
-            world_size=1 if is_tarred else world_size,
+            rank=0 if use_iterable_dataset else global_rank,
+            world_size=1 if use_iterable_dataset else world_size,
         )
     else:
         # Non-bucketing sampler, similar to original NeMo dataloading without bucketing,
@@ -507,8 +530,8 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             drop_last=config.drop_last,
             shuffle_buffer_size=config.shuffle_buffer_size,
             seed=config.shard_seed,
-            rank=0 if is_tarred else global_rank,
-            world_size=1 if is_tarred else world_size,
+            rank=0 if use_iterable_dataset else global_rank,
+            world_size=1 if use_iterable_dataset else world_size,
         )
 
     if config.concatenate_samples:
@@ -539,7 +562,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             )
         )
 
-    return sampler, is_tarred
+    return sampler, use_iterable_dataset
 
 
 def determine_bucket_duration_bins(config):

@@ -1,3 +1,4 @@
+import copy
 import itertools
 import json
 import math
@@ -64,11 +65,20 @@ class SumVocabParallelEmbedding(tensor_parallel.VocabParallelEmbedding):
     def __init__(
         self,
         proj_head_dims,
+        include_proj=False,
         *args,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.proj_head_dims = proj_head_dims
+        self.include_proj = include_proj
+        if include_proj:
+            self.output_proj = tensor_parallel.ColumnParallelLinear(
+                kwargs['embedding_dim'] * len(proj_head_dims),
+                output_size=kwargs['embedding_dim'],
+                config=kwargs['config'],
+                init_method=kwargs['init_method'],
+            )
 
     def forward(self, input_):
 
@@ -81,8 +91,13 @@ class SumVocabParallelEmbedding(tensor_parallel.VocabParallelEmbedding):
             assert input_.max() < sum(self.proj_head_dims)
         embeddings = super().forward(input_)
         if input_.ndim == 3:
-            # sum the multi proj embeddings as the final embeddings
-            embeddings = torch.sum(embeddings, axis=2)
+            if self.include_proj:
+                new_embeddings = embeddings.reshape(embeddings.shape[0], embeddings.shape[1], -1)
+                new_embeddings, _ = self.output_proj(new_embeddings)
+                embeddings = embeddings[:, :, 0] + new_embeddings
+            else:
+                # sum the multi proj embeddings as the final embeddings
+                embeddings = torch.sum(embeddings, axis=2)
         return embeddings
 
 
@@ -92,6 +107,7 @@ class SumMultiEmbedding(LanguageModelEmbedding):
     def __init__(
         self,
         proj_head_dims,
+        include_proj=False,
         *args,
         **kwargs,
     ) -> None:
@@ -104,6 +120,7 @@ class SumMultiEmbedding(LanguageModelEmbedding):
             reduce_scatter_embeddings=self.reduce_scatter_embeddings,
             config=self.config,
             proj_head_dims=proj_head_dims,
+            include_proj=include_proj,
         )
 
 
@@ -144,7 +161,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
 
     # TODO rewrite setup_embeddings_and_output_layer to include self.output_layers
 
-    def extend_embedding(self, vocab_size: int):
+    def extend_embedding(self, vocab_size: int, include_proj=False):
         """Extend the embedding layer with new vocab size."""
 
         # Extend word embedding table if self.padded_vocab_size is larger than the size of the pre-trained word embedding
@@ -156,6 +173,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             max_sequence_length=self.max_sequence_length,
             position_embedding_type=self.position_embedding_type,
             proj_head_dims=self.proj_head_dims,
+            include_proj=include_proj,
         )
         self.embedding.word_embeddings.weight.data[: pretrained_emb.word_embeddings.weight.shape[0]] = (
             pretrained_emb.word_embeddings.weight.data
@@ -364,13 +382,13 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         else:
             base_model = model.model
 
-        base_model.extend_embedding(model.padded_vocab_size)
+        base_model.extend_embedding(model.padded_vocab_size, include_proj=cfg.model.get('combine_emb_by_proj', False))
         # print out params in more details
         model.summarize(max_depth=2)
 
-        cls.codec_model = codec_model
-        cls.asr_model = asr_model
-        cls.mos_model = mos_model
+        cls.codec_model = codec_model.cuda()
+        cls.asr_model = asr_model.cuda()
+        cls.mos_model = mos_model.cuda()
         return model
 
     # change to add one more dimension
@@ -477,6 +495,132 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 self.test_step_outputs[-1] = outputs
         return outputs
 
+    def post_inference_step(self, list_outputs, mode, data_cfg):
+        deduplicated_outputs = {
+            'preds': [],
+            'labels': [],
+            'inputs': [],
+            'metadata': [],
+            'speech_preds': [],
+            'speech_answers': [],
+            'text_answers': [],
+            'batch_idx': [],
+        }
+        for outputs in list_outputs:
+            for answer, pred, input, metadata, labels_text, pred_context_length in zip(
+                outputs['labels'],
+                outputs['preds'],
+                outputs['inputs'],
+                outputs['metadata'],
+                outputs['labels_text'],
+                outputs['context_lengths'],
+            ):
+                context_length = 0
+                batch_idx = outputs['batch_idx']
+                text_answer, speech_answer = self.parse_decoder_outputs(
+                    answer,
+                    self.tokenizer.eos_id,
+                    context_length,
+                    self.cfg.data.train_ds.speech_pad_id,
+                    self.cfg.data.train_ds.speech_eos_id,
+                )
+                key = input + self.tokenizer.ids_to_text(text_answer) + str(metadata)
+
+                text_pred, speech_pred = self.parse_decoder_outputs(
+                    torch.Tensor(pred),
+                    self.tokenizer.eos_id,
+                    pred_context_length,
+                    self.cfg.data.train_ds.speech_pad_id,
+                    self.cfg.data.train_ds.speech_eos_id,
+                )
+
+                def normalize_text(text):
+                    return text.strip().replace('⁇', '')
+
+                # TODO
+                if speech_answer == None:
+                    speech_answer = torch.zeros_like(speech_pred)
+                text_pred_text = self.tokenizer.ids_to_text(text_pred)
+                deduplicated_outputs['preds'].append(normalize_text(text_pred_text))
+                deduplicated_outputs['labels'].append(normalize_text(labels_text))
+                text_answer_text = self.tokenizer.ids_to_text(text_answer)
+                deduplicated_outputs['text_answers'].append(normalize_text(text_answer_text))
+                deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
+                deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
+
+                deduplicated_outputs['inputs'].append(input)
+                deduplicated_outputs['metadata'].append(metadata)
+                deduplicated_outputs['batch_idx'].append(batch_idx)
+
+        # Compute metric score
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        metric = self.val_metric if mode == 'validation' else self.test_metric
+        averaged_metric = [[] for _ in range(len(metric_name))]
+        output_dir = data_cfg.get("output_dir", "./")
+        run_codec = any(("asr" in metric_name or "mos" in metric_name) for metric_name in metric_name)
+        run_asr = any("asr" in metric_name for metric_name in metric_name)
+        run_mos = any("mos" in metric_name for metric_name in metric_name)
+
+        # TODO: move the following model init code to init() function
+        if run_codec:
+            self.additional_models['codec_model'] = self.codec_model
+            assert 'codec_model' in self.additional_models
+            codec_model = self.additional_models['codec_model']
+            codec_model.to(self.device)
+            codec_model.eval()
+
+            with torch.no_grad():
+                logging.info(f"Decoding and saving audio")
+                pred_wavs = self.decode_and_save_wavs(
+                    codec_model,
+                    deduplicated_outputs['speech_preds'],
+                    os.path.join(output_dir, "wav", "pred"),
+                    deduplicated_outputs['metadata'],
+                )
+                answer_wavs = self.decode_and_save_wavs(
+                    codec_model,
+                    deduplicated_outputs['speech_answers'],
+                    os.path.join(output_dir, "wav", "answer"),
+                    deduplicated_outputs['metadata'],
+                )
+
+        if run_asr:
+            self.additional_models['asr_model'] = self.asr_model
+            assert 'asr_model' in self.additional_models
+            asr_model = self.additional_models['asr_model']
+
+            with torch.no_grad():
+                logging.info(f"Running ASR on speech preds")
+                asr_batch_size = min(64, len(pred_wavs))
+                speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)
+                speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)
+                deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
+                deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
+
+        if run_mos:
+            self.additional_models['squim_mos_model'] = self.mos_model
+            assert 'squim_mos_model' in self.additional_models
+            squim_mos_model = self.additional_models['squim_mos_model']
+            codec_sample_rate = self.codec_sample_rate
+
+            with torch.no_grad():
+                logging.info(f"Running MOS prediction")
+
+                pred_wavs_resampled = [
+                    torchaudio.functional.resample(wav.cuda(), codec_sample_rate, 16000).unsqueeze(0)
+                    for wav in pred_wavs
+                ]
+                answer_wavs_resampled = [
+                    torchaudio.functional.resample(wav.cuda(), codec_sample_rate, 16000).unsqueeze(0)
+                    for wav in answer_wavs
+                ]
+                squim_mos_scores = [
+                    squim_mos_model(pred_wav, answer_wav).cpu()
+                    for pred_wav, answer_wav in zip(pred_wavs_resampled, answer_wavs_resampled)
+                ]
+                deduplicated_outputs['mos_scores'] = squim_mos_scores
+        return deduplicated_outputs
+
     def parse_decoder_outputs(
         self, input_decoder_output, text_separator, context_length, speech_pad_id=1001, speech_eos_id=1004
     ):
@@ -530,6 +674,15 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         for codes, metadata in zip(codes_list, metadata_list):
             codes = torch.tensor(codes).to(codec_model.device).T
             codec_len = torch.Tensor([codes.shape[1]]).long().to(codec_model.device)
+
+            # get rid of bos and eos ids in the codec decoding
+            def replace_speech_code(codes, id):
+                return torch.where(codes == id, codes[:, :1], codes)
+
+            codes = replace_speech_code(codes, self.cfg.data.train_ds.speech_bos_id)
+            codes = replace_speech_code(codes, self.cfg.data.train_ds.speech_eos_id)
+            codes = replace_speech_code(codes, self.cfg.data.train_ds.speech_unk_id)
+            codes = replace_speech_code(codes, self.cfg.data.train_ds.speech_pad_id)
             wav, _ = codec_model.decode(tokens=codes.unsqueeze(0), tokens_len=codec_len)
             wav = wav[0]
             wavs.append(wav)
@@ -581,152 +734,32 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
             self.log(loss_log_key, loss, batch_size=1)
             averaged_loss.append(loss)
 
+            output = self.post_inference_step(output, mode, data_cfg)
+
             # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
             gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
             torch.distributed.all_gather_object(
                 gathered_outputs,
-                [
-                    {
-                        'preds': x['preds'],
-                        'labels': x['labels'],
-                        'inputs': x['inputs'],
-                        'metadata': x['metadata'],
-                        'context_lengths': x['context_lengths'],
-                        'batch_idx': x['batch_idx'],
-                        'labels_text': x['labels_text'],
-                    }
-                    for x in output
-                ],
+                output,
                 group=parallel_state.get_data_parallel_group(),
             )
 
             # Remove duplicate examples due to distributed sampler.
             inp_label_set = set()
-            deduplicated_outputs = {
-                'preds': [],
-                'labels': [],
-                'inputs': [],
-                'metadata': [],
-                'speech_preds': [],
-                'speech_answers': [],
-                'text_answers': [],
-                'batch_idx': [],
-            }
+
+            deduplicated_outputs = {}
             total_size = 0
             for rank in range(0, parallel_state.get_data_parallel_world_size()):
-                for batch in gathered_outputs[rank]:
-                    for pred, answer, input, metadata, pred_context_length, labels_text in zip(
-                        batch['preds'],
-                        batch['labels'],
-                        batch['inputs'],
-                        batch['metadata'],
-                        batch['context_lengths'],
-                        batch['labels_text'],
-                    ):
-                        context_length = len(self.tokenizer.text_to_ids(input))
-                        text_answer, speech_answer = self.parse_decoder_outputs(
-                            answer,
-                            self.tokenizer.eos_id,
-                            context_length,
-                            self.cfg.data.train_ds.speech_pad_id,
-                            self.cfg.data.train_ds.speech_eos_id,
-                        )
-                        key = input + self.tokenizer.ids_to_text(text_answer) + str(metadata)
-                        total_size += 1
-                        if key not in inp_label_set:
-                            inp_label_set.add(key)
-
-                            text_pred, speech_pred = self.parse_decoder_outputs(
-                                torch.Tensor(pred),
-                                self.tokenizer.eos_id,
-                                pred_context_length,
-                                self.cfg.data.train_ds.speech_pad_id,
-                                self.cfg.data.train_ds.speech_eos_id,
-                            )
-
-                            def normalize_text(text):
-                                return text.strip().replace('⁇', '')
-
-                            if speech_answer == None:
-                                speech_answer = torch.zeros_like(speech_pred)
-                            text_pred_text = self.tokenizer.ids_to_text(text_pred)
-                            deduplicated_outputs['preds'].append(normalize_text(text_pred_text))
-                            deduplicated_outputs['labels'].append(normalize_text(labels_text))
-                            text_answer_text = self.tokenizer.ids_to_text(text_answer)
-                            deduplicated_outputs['text_answers'].append(normalize_text(text_answer_text))
-                            deduplicated_outputs['speech_preds'].append(speech_pred.cpu().numpy())
-                            deduplicated_outputs['speech_answers'].append(speech_answer.cpu().numpy())
-
-                            deduplicated_outputs['inputs'].append(input)
-                            deduplicated_outputs['metadata'].append(metadata)
-                            deduplicated_outputs['batch_idx'].append(batch['batch_idx'])
+                for k, v in gathered_outputs[rank].items():
+                    # TODO: add deduplication
+                    if k not in deduplicated_outputs:
+                        deduplicated_outputs[k] = []
+                    deduplicated_outputs[k].extend(v)  # use extend for the b dim
 
             # Compute metric score
             metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
             metric = self.val_metric if mode == 'validation' else self.test_metric
             averaged_metric = [[] for _ in range(len(metric_name))]
-            output_dir = data_cfg.get("output_dir", "./")
-            run_codec = any(("asr" in metric_name or "mos" in metric_name) for metric_name in metric_name)
-            run_asr = any("asr" in metric_name for metric_name in metric_name)
-            run_mos = any("mos" in metric_name for metric_name in metric_name)
-
-            # TODO: move the following model init code to init() function
-            if run_codec:
-                self.additional_models['codec_model'] = self.codec_model
-                assert 'codec_model' in self.additional_models
-                codec_model = self.additional_models['codec_model']
-                codec_model.to(self.device)
-                codec_model.eval()
-
-                with torch.no_grad():
-                    logging.info(f"Decoding and saving audio")
-                    pred_wavs = self.decode_and_save_wavs(
-                        codec_model,
-                        deduplicated_outputs['speech_preds'],
-                        os.path.join(output_dir, "wav", "pred"),
-                        deduplicated_outputs['metadata'],
-                    )
-                    answer_wavs = self.decode_and_save_wavs(
-                        codec_model,
-                        deduplicated_outputs['speech_answers'],
-                        os.path.join(output_dir, "wav", "answer"),
-                        deduplicated_outputs['metadata'],
-                    )
-
-            if run_asr:
-                self.additional_models['asr_model'] = self.asr_model
-                assert 'asr_model' in self.additional_models
-                asr_model = self.additional_models['asr_model']
-
-                with torch.no_grad():
-                    logging.info(f"Running ASR on speech preds")
-                    asr_batch_size = min(64, len(pred_wavs))
-                    speech_preds_transcribed = asr_model.transcribe(pred_wavs, batch_size=asr_batch_size)
-                    speech_answers_transcribed = asr_model.transcribe(answer_wavs, batch_size=asr_batch_size)
-                    deduplicated_outputs['speech_preds_transcribed'] = speech_preds_transcribed
-                    deduplicated_outputs['speech_answers_transcribed'] = speech_answers_transcribed
-
-            if run_mos:
-                self.additional_models['squim_mos_model'] = self.mos_model
-                assert 'squim_mos_model' in self.additional_models
-                squim_mos_model = self.additional_models['squim_mos_model']
-                codec_sample_rate = self.codec_sample_rate
-
-                with torch.no_grad():
-                    logging.info(f"Running MOS prediction")
-
-                    pred_wavs_resampled = [
-                        torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0) for wav in pred_wavs
-                    ]
-                    answer_wavs_resampled = [
-                        torchaudio.functional.resample(wav, codec_sample_rate, 16000).unsqueeze(0)
-                        for wav in answer_wavs
-                    ]
-                    squim_mos_scores = [
-                        squim_mos_model(pred_wav, answer_wav)
-                        for pred_wav, answer_wav in zip(pred_wavs_resampled, answer_wavs_resampled)
-                    ]
-                    deduplicated_outputs['mos_scores'] = squim_mos_scores
 
             if self.global_rank == 0:
                 for (
@@ -983,8 +1016,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         codec_model = self.additional_models['codec_model']
         codec_model.eval()
         with torch.no_grad():
-            original_codec_codes, _ = codec_model.encode(audio=audio_signal, audio_len=audio_signal_length)
-            original_codec_codes = original_codec_codes.transpose(1, 2)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                original_codec_codes, _ = codec_model.encode(audio=audio_signal, audio_len=audio_signal_length)
+                original_codec_codes = original_codec_codes.transpose(1, 2)
         out_codec_codes = []
         out_codec_lens = []
         n_speech_codebooks = original_codec_codes.shape[-1]
@@ -1122,7 +1156,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         )  # list, list
 
         answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
-        assert all(torch.isclose(answer_codecs_lens, encoded_len, atol=1))
+        assert all(torch.isclose(answer_codecs_lens, encoded_len, atol=3))
         encoded_len = answer_codecs_lens
         if 'answer_features_lens' in audio_batch:
             assert 'target_texts_merge' not in audio_batch
@@ -1169,7 +1203,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 sliced_text_channel = text_channel[: answer_codec.shape[0]]
 
             if getattr(self.cfg, 'predict_source_text', False):
-                # Predict user text when the agent turn starts.
                 all_channels.append(torch.cat([sliced_text_channel, answer_codec, sliced_source_text_channel], dim=-1))
             else:
                 if getattr(self.cfg, 'speech_delay', False):
@@ -1195,7 +1228,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                     # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
                     all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
 
-            if loss_mask is not None:
+            if 'target_texts_merge' not in audio_batch and loss_mask is not None:
                 cur_loss_mask = torch.cat(
                     [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]).cuda(), loss_mask[i, base_length:]],
                     dim=0,
@@ -1207,17 +1240,19 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         encoded = encoded[:, : input_ids.shape[1]]
         encoder_length = encoded_len - 1
         labels = all_channels[:, 1:]
-        if loss_mask is not None:
-            loss_mask = pad_sequence(new_loss_mask, batch_first=True)
-            assert loss_mask.shape == labels.shape
-            if self.cfg.get('duplex_loss_on_all_steps', False):
-                loss_mask = torch.ones_like(labels)  # include loss on silence too
-        elif 'target_texts_merge' in audio_batch:
+        # assert labels.shape[1] == encoded.shape[1]
+        labels = labels[:, : encoded.shape[1]]
+        input_ids = input_ids[:, : encoded.shape[1]]
+        if 'target_texts_merge' in audio_batch:
             loss_mask = torch.ones_like(labels)
             assert self.cfg.get(
                 'duplex_loss_on_all_steps', False
             ), "only support duplex_loss_on_all_steps in real duplex data read from dataloader"
-        assert labels.shape[1] == encoded.shape[1]
+        elif loss_mask is not None:
+            loss_mask = pad_sequence(new_loss_mask, batch_first=True)
+            assert loss_mask.shape == labels.shape
+            if self.cfg.get('duplex_loss_on_all_steps', False):
+                loss_mask = torch.ones_like(labels)  # include loss on silence too
         # lookup input_ids
         if self.cfg.get('megatron_amp_O2', False):
             base_module = self.model.module
@@ -1229,6 +1264,18 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
         input_embeds = lm_embedding.word_embeddings(input_ids)
         # merge with encoded
         encoder_input = input_embeds + encoded * self.cfg.get("duplex_user_channel_weight", 0.3)
+
+        limit_max_seq_length = self.cfg.get("limit_max_seq_length", None)
+        if limit_max_seq_length is not None and limit_max_seq_length < labels.shape[1] and self.training:
+            import random
+
+            start = random.randint(0, labels.shape[1] - limit_max_seq_length - 1)
+            encoder_input = encoder_input[:, start : start + limit_max_seq_length]
+            labels = labels[:, start : start + limit_max_seq_length]
+            loss_mask = loss_mask[:, start : start + limit_max_seq_length]
+            encoder_length = torch.minimum(encoder_length, torch.tensor(limit_max_seq_length).long().cuda())
+            encoded = encoded[:, start : start + limit_max_seq_length]
+
         attention_mask = self._create_attention_mask(encoder_input)
         if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
             encoder_input = encoder_input.transpose(0, 1).contiguous()

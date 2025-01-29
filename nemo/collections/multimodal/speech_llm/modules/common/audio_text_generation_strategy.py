@@ -349,7 +349,9 @@ class AudioToAudioGenerationStrategy(AudioToTextGenerationStrategy):
 
     def init_batch_duplex_from_multiturn(self, context_tokens, context_lengths, audio_signal, audio_length):
         tokens_to_generate = self.model.get_inference_config()['tokens_to_generate']
-        _, answer_audio_lens = self.model.get_duration_by_steps(tokens_to_generate)
+        _, answer_audio_lens = self.model.get_duration_by_steps(
+            tokens_to_generate * 0.1
+        )  # generate extra 10% of tokens on top of the groundtruth length
 
         duplex_method = self.model.cfg.get("duplex_method", None)
         if duplex_method == 'from_duplex':

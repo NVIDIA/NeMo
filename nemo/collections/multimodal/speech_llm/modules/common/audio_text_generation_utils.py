@@ -751,6 +751,9 @@ def s2s_sample_sequence_batch(
         all_generated_indices = None  # used to track all generated indices
         # Generate enough tokens for the longest sequence
         maxlen = tokens_to_generate + audio_text_context_lengths.max().item()
+        duplex_method = inference_strategy.model.cfg.get("duplex_method", None)
+        if duplex_method == 'from_duplex':
+            maxlen = context_tokens.shape[1]
         maxlen = inference_strategy.clip_max_len(maxlen)
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
         while context_length < maxlen:
