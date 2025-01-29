@@ -119,8 +119,8 @@ def pretrain_recipe(
         data=run.Config(
             vlm.ClipMockDataModule,
             seq_length=80,
-            global_batch_size=8,
-            micro_batch_size=4,
+            global_batch_size=128,
+            micro_batch_size=2,
             tokenizer=None,
             image_processor=None,
             num_workers=4,
