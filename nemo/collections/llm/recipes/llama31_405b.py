@@ -239,7 +239,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         # 'overlap_param_gather_with_optimizer_step' is set automatically. Added here for user's knowledge
         overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing
     )
-    recipe.trainer.callbacks.append(
+    recipe.trainer.callbacks.extend(
         [
             garbage_collection_callback,
             mcomm_overlap_callback,
