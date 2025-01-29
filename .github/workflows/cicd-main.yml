@@ -444,21 +444,21 @@ jobs:
           path: ${{ github.run_id }}/current/.coverage
           include-hidden-files: true
 
-      # - name: Download coverage summary of main branch
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     path: ${{ github.run_id }}/main
-      #     run-id: ${{ steps.get_run_id.outputs.main }}
+      - name: Download coverage summary of main branch
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ github.run_id }}/main
+          run-id: ${{ steps.get_run_id.outputs.main }}
 
-      # - name: Get total coverage of main branch
-      #   shell: bash -x -e -u -o pipefail {0}
-      #   if: always()
-      #   id: total-main-branch
-      #   run: |
-      #     cd ${{ github.run_id }}/main
-      #     REPORT=$(coverage report)
-      #     TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
-      #     echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
+      - name: Get total coverage of main branch
+        shell: bash -x -e -u -o pipefail {0}
+        if: always()
+        id: total-main-branch
+        run: |
+          cd ${{ github.run_id }}/main
+          REPORT=$(coverage report)
+          TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
+          echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
 
       # - name: Compare coverage change
       #   shell: bash -x -e -u -o pipefail {0}
