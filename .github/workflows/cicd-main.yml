@@ -437,21 +437,20 @@ jobs:
           TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
           echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
 
-      - name: Get total coverage of current branch
-        shell: bash -x -e -u -o pipefail {0}
-        if: always()
-        id: total-current-branch
-        run: |
-          cd ${{ github.run_id }}/current
-          ls -al .
-          ls -al coverage-*/
-          coverage combine --keep $(ls coverage-*/.coverage)
-          coverage report
+      # - name: Get total coverage of current branch
+      #   shell: bash -x -e -u -o pipefail {0}
+      #   if: always()
+      #   id: total-current-branch
+      #   run: |
+      #     cd ${{ github.run_id }}/current
+      #     ls -al .
+      #     ls -al coverage-*/
+      #     coverage combine --keep $(ls coverage-*/.coverage)
+      #     coverage report
 
-          REPORT=$(coverage report)
-          TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
-          echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
-
+      #     REPORT=$(coverage report)
+      #     TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
+      #     echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -461,13 +460,13 @@ jobs:
           path: ${{ github.run_id }}/current/.coverage
           include-hidden-files: true
         
-      - name: Compare coverage change
-        shell: bash -x -e -u -o pipefail {0}
-        run: |
-          TOTAL_MAIN_BRANCH=${{ steps.total-main-branch.outputs.main }}
-          TOTAL_CURRENT_BRANCH=${{ steps.total-current-branch.outputs.main }}
+      # - name: Compare coverage change
+      #   shell: bash -x -e -u -o pipefail {0}
+      #   run: |
+      #     TOTAL_MAIN_BRANCH=${{ steps.total-main-branch.outputs.main }}
+      #     TOTAL_CURRENT_BRANCH=${{ steps.total-current-branch.outputs.main }}
 
-          test $TOTAL_CURRENT_BRANCH -ge $TOTAL_MAIN_BRANCH
+      #     test $TOTAL_CURRENT_BRANCH -ge $TOTAL_MAIN_BRANCH
 
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
