@@ -398,7 +398,7 @@ def _mask_targets(
                 # newline_loc = torch.where((s_id[skip_name_len:] == name_end_token_ids))[0]
                 newline_loc = _identify_start_index_of_subsequence(name_end_token_ids, s_id[skip_name_len:])
                 if newline_loc < 0:
-                    # cannot find new line token, which means the the whole turn 
+                    # cannot find new line token, which means the the whole turn
                     # is just a partial label string. Mask the whole turn
                     target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
                     continue
@@ -430,7 +430,7 @@ def _mask_targets(
             # mask out everything in the second turn
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
         else:
-            # mask up to name part, label part for VALUE_TO_TEXT, or name part, 
+            # mask up to name part, label part for VALUE_TO_TEXT, or name part,
             # response and label start tokens for TEXT_TO_VALUE, or just the name part if gtype is None
             target[cur_idx : cur_idx + skip_name_len] = IGNORE_INDEX
         cur_idx += tokenized_len
@@ -506,7 +506,7 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 f"source type {gtype} not supported, only 'VALUE_TO_TEXT' and 'TEXT_TO_VALUE' are supported"
             )
         conversation += sentence["value"]
-        # if the last turn is not masked, add next token start token to the end, 
+        # if the last turn is not masked, add next token start token to the end,
         # which will be included for loss calculation
         if sentence_from not in mask_role and i == len(source) - 1:
             conversation += TURN_TOKEN
