@@ -26,7 +26,6 @@ from utils import (
 
 from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 
@@ -63,16 +62,6 @@ def llama3_8b_performance_recipe(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
 
     # callback configs
-    garbage_collection_callback = run.Config(
-        GarbageCollectionCallback,
-        gc_interval_train=100,
-        gc_interval_val=100,
-    )
-    recipe.trainer.callbacks.extend(
-        [
-            garbage_collection_callback,
-        ]
-    )
     dp_size = (num_nodes * args.devices_per_node) / (tp_size * pp_size * cp_size)
     if comm_overlap_callback_idx is not None:
         # WARNING: If True, checkpointing (if enabled) might not work
