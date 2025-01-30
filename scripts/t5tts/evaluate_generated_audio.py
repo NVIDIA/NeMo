@@ -10,17 +10,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate_detail
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 import librosa
-
-LOCAL_EVALSETS = {
-    'riva_challenging': {
-        'manifest': '/datap/misc/Datasets/riva/riva_interspeech.json',
-        'audio_dir': '/datap/misc/Datasets/riva'
-    },
-    'vctk': {
-        'manifest': '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5.json',
-        'audio_dir': '/datap/misc/Datasets/VCTK-Corpus'
-    }
-}
+import evalset_config
 
 
 def find_sample_audios(audio_dir):
@@ -105,6 +95,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en"):
     filewise_metrics = []
     pred_texts = []
     gt_texts = []
+    gt_audio_texts = []
     for ridx, record in enumerate(records):
         gt_audio_filepath = record['audio_filepath']
         context_audio_filepath = record.get('context_audio_filepath', None)
@@ -118,9 +109,13 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en"):
             with torch.no_grad():
                 pred_text = asr_model.transcribe([pred_audio_filepath])[0][0]
                 pred_text = process_text(pred_text)
+                gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0][0]
+                gt_audio_text = process_text(gt_audio_text)
         else:
             pred_text = transcribe_with_whisper(whisper_model, whisper_processor, pred_audio_filepath, language, device)
             pred_text = process_text(pred_text)
+            gt_audio_text = transcribe_with_whisper(whisper_model, whisper_processor, gt_audio_filepath, language, device)
+            gt_audio_text = process_text(gt_audio_text)
 
         if 'normalized_text' in record:
             gt_text = process_text(record['normalized_text'])
@@ -137,6 +132,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en"):
         
         pred_texts.append(pred_text)
         gt_texts.append(gt_text)
+        gt_audio_texts.append(gt_audio_text)
 
         pred_context_ssim = 0.0
         gt_context_ssim = 0.0
@@ -164,6 +160,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en"):
         filewise_metrics.append({
             'gt_text': gt_text,
             'pred_text': pred_text,
+            'gt_audio_text': gt_audio_text,
             'detailed_cer': detailed_cer,
             'detailed_wer': detailed_wer,
             'cer': detailed_cer[0],
@@ -198,6 +195,8 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en"):
     avg_metrics['ssim_pred_gt_avg_alternate'] = sum([m['pred_gt_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
     avg_metrics['ssim_pred_context_avg_alternate'] = sum([m['pred_context_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
     avg_metrics['ssim_gt_context_avg_alternate'] = sum([m['gt_context_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
+    avg_metrics["cer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=gt_audio_texts, references=gt_texts, use_cer=True)[0]
+    avg_metrics["wer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=gt_audio_texts, references=gt_texts, use_cer=False)[0]
 
     pprint.pprint(avg_metrics)
 
@@ -214,9 +213,10 @@ def main():
     args = parser.parse_args()
 
     if args.evalset is not None:
-        assert args.evalset in LOCAL_EVALSETS
-        args.manifest_path = LOCAL_EVALSETS[args.evalset]['manifest']
-        args.audio_dir = LOCAL_EVALSETS[args.evalset]['audio_dir']
+        dataset_meta_info = evalset_config.dataset_meta_info
+        assert args.evalset in dataset_meta_info
+        args.manifest_path = dataset_meta_info[args.evalset]['manifest']
+        args.audio_dir = dataset_meta_info[args.evalset]['audio_dir']
     
     evaluate(args.manifest_path, args.audio_dir, args.generated_audio_dir, args.whisper_language)
 
