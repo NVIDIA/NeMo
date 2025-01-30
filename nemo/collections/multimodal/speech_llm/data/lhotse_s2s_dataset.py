@@ -440,16 +440,19 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                     continue  # the case of the last turn is user
 
                 cur_target_text[text_start_step] = self.text_processor.bos_id
-                cur_source_text[text_start_step] = self.text_processor.bos_id
+                # Push the src text to be close to the target text
+                src_text_end_step = get_step_by_time(text_start_time[i][j]) - 1
+                src_text_start_step = max(src_text_end_step - source_texts[cnt].shape[0] - 1, 0)
+                cur_source_text[src_text_start_step] = self.text_processor.bos_id
                 if getattr(cut, "s2s_duplex", False):
+                    src_text_len = min(src_text_end_step - src_text_start_step - 1, source_texts[cnt].shape[0])
+                    cur_source_text[(src_text_start_step + 1) : (src_text_start_step + 1 + src_text_len)] = source_texts[cnt][
+                        :src_text_len
+                    ]
                     # Note: text can be truncated
                     text_len = min(text_end_step - text_start_step - 1, target_texts[cnt].shape[0])
                     cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len)] = target_texts[cnt][
                         :text_len
-                    ]
-                    src_text_len = min(text_end_step - text_start_step - 1, source_texts[cnt].shape[0])
-                    cur_source_text[(text_start_step + 1) : (text_start_step + 1 + src_text_len)] = source_texts[cnt][
-                        :src_text_len
                     ]
                 elif getattr(cut, "s2s_duplex_align", False):
                     text_len_plus_eos = torch.tensor(text_end_step - text_start_step)
@@ -459,16 +462,13 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                         [start_time_tokens[cnt]],
                         [text_len_plus_eos],
                         self.codec_model_downsampling_factor / self.codec_sample_rate,
-                        pad_id=self.text_processor.unk_id,
-                    )
-                    cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len_plus_eos)] = (
-                        target_texts_expanded[0]
-                    )
+                        pad_id=self.text_processor.unk_id)
+                    cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len_plus_eos)] = target_texts_expanded[0]
                 else:
                     raise Exception("Undefined assistant channel text format.")
 
                 cur_target_text[text_end_step] = self.text_processor.eos_id
-                cur_source_text[text_end_step] = self.text_processor.eos_id
+                cur_source_text[src_text_end_step] = self.text_processor.eos_id
                 cnt += 1
             new_target_texts.append(cur_target_text)
             new_source_texts.append(cur_source_text)

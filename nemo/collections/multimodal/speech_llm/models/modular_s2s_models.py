@@ -131,6 +131,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         config: TransformerConfig,
         proj_head_dims: List[int],
         proj_head_loss_weights: List[float],
+        predict_source_text: False,
         *args,
         **kwargs,
     ) -> None:
@@ -138,6 +139,7 @@ class S2sMCoreGPTModel(MCoreGPTModel):
         self.n_proj_heads = len(proj_head_dims)
         self.proj_head_dims = proj_head_dims
         self.proj_head_loss_weights = proj_head_loss_weights
+        self.predict_source_text = predict_source_text
         self.output_layers = torch.nn.ModuleList(
             [
                 tensor_parallel.ColumnParallelLinear(
@@ -247,9 +249,11 @@ class S2sMCoreGPTModel(MCoreGPTModel):
             all_logits.append(self.output_layers[i](hidden_states, weight=cur_output_weight)[0])
             cur_dims += self.proj_head_dims[i]
         assert self.vocab_size == self.proj_head_dims[0]
+        # Use the original output layer for target text
         all_logits[0], _ = self.output_layer(
             hidden_states, weight=output_weight[: self.vocab_size] if output_weight is not None else None
         )
+
 
         if labels is None:
             # [s b h] => [b s h]
@@ -320,6 +324,7 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 rotary_base=self.cfg.get('rotary_base', 10000),
                 proj_head_dims=self.proj_head_dims,
                 proj_head_loss_weights=self.proj_head_loss_weights,
+                predict_source_text=self.cfg.get('predict_source_text', False)
             )
 
             if self.cfg.get('scale_positional_embedding', False):
@@ -1192,8 +1197,6 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 sliced_text_channel = text_channel[: answer_codec.shape[0]]
 
             if getattr(self.cfg, 'predict_source_text', False):
-                # TODO(kevinhu): Add delay to better predict user text.
-                # Predict user text when the agent turn starts.
                 all_channels.append(torch.cat([sliced_text_channel, answer_codec, sliced_source_text_channel], dim=-1))
             else:
                 if getattr(self.cfg, 'speech_delay', False):
