@@ -1,17 +1,16 @@
-import torch
 import copy
-import time
 import datetime
-import os
-import numpy as np
 import multiprocessing as mp
-
-from typing import Any
+import os
+import time
 from functools import partial
+from typing import Any
 
-from nemo.utils import logging
+import numpy as np
+import torch
+
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-
+from nemo.utils import logging
 
 PREFIX_STR = (
     "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers

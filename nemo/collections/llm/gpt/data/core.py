@@ -12,36 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import time
 import datetime
-import re
-import torch
-import math
 import json
+import math
 import pickle
-
-from pathlib import Path
-from datasets import load_dataset
-from typing import TYPE_CHECKING, Optional, Callable, List, Type
+import re
+import time
 from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, List, Optional, Type
 
-from nemo.lightning.base import NEMO_DATASETS_CACHE
-from nemo.utils import AppState, logging
+import numpy as np
+import torch
+from datasets import load_dataset
+
 from nemo.collections.llm.gpt.data.utils import (
-    build_index_from_memdata,
     build_index_files,
+    build_index_from_memdata,
+    get_samples_mapping,
     handle_index,
     lightning_prepare_data,
-    get_samples_mapping,
     preprocess,
 )
+from nemo.lightning.base import NEMO_DATASETS_CACHE
+from nemo.utils import AppState, logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.core.classes import Dataset
 
 import datasets
+
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
 
