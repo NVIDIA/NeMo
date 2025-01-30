@@ -331,8 +331,10 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                     f"Cannot restore state from state_dict: Is the trainer object is initialized and attached to datamodule???"
                 )
         except Exception as e:
-            logging.warning(f"Failed to dataloader restore state due to [Please ensure you are using same version "
-                            f"of energon while saving and loading, Continuing without restoring data loader] : {e}")
+            logging.warning(
+                f"Failed to dataloader restore state due to [Please ensure you are using same version "
+                f"of energon while saving and loading, Continuing without restoring data loader] : {e}"
+            )
 
         try:
             from megatron.core.num_microbatches_calculator import update_num_microbatches
