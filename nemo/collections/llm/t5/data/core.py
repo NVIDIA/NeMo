@@ -20,10 +20,10 @@ import numpy as np
 import torch
 from datasets import load_dataset
 
-from nemo.core.classes import Dataset
-from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import JSONLMemMapDataset
+from nemo.core.classes import Dataset
+from nemo.lightning.base import NEMO_DATASETS_CACHE
 
 
 def get_dataset_root(name: str) -> Path:

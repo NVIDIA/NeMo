@@ -20,12 +20,14 @@ import re
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional, Type, Mapping
+from typing import TYPE_CHECKING, Callable, List, Mapping, Optional, Type
 
+import datasets
 import numpy as np
 import torch
 from datasets import load_dataset
 
+from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.utils import (
     build_index_files,
     build_index_from_memdata,
@@ -34,12 +36,9 @@ from nemo.collections.llm.gpt.data.utils import (
     lightning_prepare_data,
     preprocess,
 )
+from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.utils import AppState, logging
-from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.core.classes import Dataset
-
-import datasets
 
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
