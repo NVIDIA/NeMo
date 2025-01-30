@@ -95,12 +95,12 @@ def get_huggingface_model_from_trainer(trainer: 'lightning.pytorch.Trainer') -> 
     #       (model): FSDP<automodel>
     if getattr(trainer.model, "is_hf_model", False) == True:
         return trainer.model
-    try:
-        # DDP -> trainer.model holds:
-        # DistributedDataParallel(
-        #   (module): HFAutoModelForCausalLM(
-        if getattr(trainer.model.module, "is_hf_model", False) == True:
-            return trainer.model.module
+
+    # DDP -> trainer.model holds:
+    # DistributedDataParallel(
+    #   (module): HFAutoModelForCausalLM(
+    if hasattr(trainer.model, 'module'): and getattr(trainer.model.module, "is_hf_model", False) == True:
+       return trainer.model.module
     except:
         pass
     return None
