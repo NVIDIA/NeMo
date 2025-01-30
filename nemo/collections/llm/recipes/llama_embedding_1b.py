@@ -143,6 +143,7 @@ def trainer(
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
+    resume_path: str = "meta-llama/Llama-3.2-1B",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     micro_batch_size: int = 4,
@@ -160,6 +161,7 @@ def finetune_recipe(
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the fine-tuning run.
+        resume_path (str): Path to the Huggingface model or pretrained distributed checkpoint for resume
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         micro_batch_size (int): Size of micro batch.
@@ -191,7 +193,7 @@ def finetune_recipe(
 
     assert packed_sequence is None, 'pack_sequence is not supported for Embedding model finetuning.'
     recipe = default_finetune_recipe(
-        model(), "meta-llama/Llama-3.2-1B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 1
