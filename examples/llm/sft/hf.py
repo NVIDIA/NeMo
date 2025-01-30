@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,9 +18,9 @@ import lightning.pytorch as pl
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
+from functools import partial
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
@@ -66,13 +67,14 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
-    parser.add_argument('--devices', default=1)
-    parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--model-accelerator', default=None, choices=['te'])
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.2-1B')
+    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'])
+    parser.add_argument('--devices', type=int, default=1)
+    parser.add_argument('--accelerator', type=str, default='gpu', choices=['gpu'])
+    parser.add_argument('--grad-clip', type=float, default=1.0)
+    parser.add_argument('--model-accelerator', type=str, default=None, choices=['te'])
     parser.add_argument('--max-steps', type=int, default=100)
-    parser.add_argument("--fp8-autocast", default=False, action='store_true')
+    parser.add_argument("--fp8-autocast", action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--model-save-path', type=str, default=None)
     parser.add_argument('--use-torch-jit', action='store_true')
@@ -85,32 +87,25 @@ def main():
             project=args.wandb_project,
             name=f'{model}_dev{args.devices}_strat_{args.strategy}',
         )
-    grad_clip = 0.5
-    if args.strategy == 'fsdp':
-        # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
-        grad_clip = None
-    use_dist_samp = False
 
     model_accelerator = None
     if args.model_accelerator == "te":
-        from functools import partial
         from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
-
         model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
 
-    from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
-
     model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
-    tokenizer = model.tokenizer
 
     callbacks = []
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
+    if args.strategy == 'fsdp2':
+        args.strategy = nl.FSDP2Strategy(data_parallel_size=args.devices, tensor_parallel_size=1)
+
     llm.api.finetune(
         model=model,
-        data=squad(tokenizer),
+        data=squad(model.tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
@@ -120,8 +115,8 @@ def main():
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
             accumulate_grad_batches=10,
-            gradient_clip_val=grad_clip,
-            use_distributed_sampler=use_dist_samp,
+            gradient_clip_val=args.grad_clip,
+            use_distributed_sampler=False,
             logger=wandb,
             callbacks=callbacks,
             precision="bf16",
@@ -129,12 +124,6 @@ def main():
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
     )
-
-    if args.model_accelerator:
-        if args.model_accelerator == "te":
-            te_acc = is_te_accelerated(model.model)
-            assert te_acc, "Transformer Engine acceleration was unsuccessful"
-            print("TE Accelerated: ", te_acc)
 
     if args.model_save_path is not None:
         model.save_pretrained(args.model_save_path)
