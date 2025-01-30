@@ -456,19 +456,19 @@ def evaluate(
             "Please ensure that lm-evaluation-harness is installed in your env as it is required " "to run evaluations"
         )
 
-    from nemo.collections.llm import evaluation
+    from nemo.collections.llm.evaluation.base import wait_for_server_ready, NeMoFWLMEval
 
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
     endpoint = target_cfg.api_endpoint
     tokenizer = io.load_context(endpoint.nemo_checkpoint_path + "/context", subpath="model.tokenizer")
 
     # Wait for server to be ready before starting evaluation
-    evaluation.wait_for_server_ready(
+    wait_for_server_ready(
         url=endpoint.url, triton_http_port=endpoint.nemo_triton_http_port, model_name=endpoint.model_id
     )
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
     params = eval_cfg.params
-    model = evaluation.NeMoFWLMEval(
+    model = NeMoFWLMEval(
         model_name=endpoint.model_id,
         api_url=endpoint.url,
         tokenizer=tokenizer,
