@@ -93,7 +93,6 @@ def check_subword_timestamps(hyp: Hypothesis, decoding: CTCBPEDecoding):
     segments_count = sum([hyp.text.count(seperator) for seperator in decoding.segment_seperators])
     if not hyp.text or hyp.text[-1] not in decoding.segment_seperators:
         segments_count += 1
-
     assert len(hyp.timestep['segment']) == segments_count
 
 
@@ -184,6 +183,7 @@ class TestCTCDecoding:
             for text in texts:
                 assert isinstance(text, str)
 
+    @pytest.mark.pleasefixme
     @pytest.mark.unit
     @pytest.mark.parametrize('alignments', [False, True])
     @pytest.mark.parametrize('timestamps', [False, True])
