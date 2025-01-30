@@ -192,9 +192,7 @@ def finetune_recipe(
         seq_length = 512
 
     assert packed_sequence is None, 'pack_sequence is not supported for Embedding model finetuning.'
-    recipe = default_finetune_recipe(
-        model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
-    )
+    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence)
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 1
         recipe.optim.config.lr = 5e-6
