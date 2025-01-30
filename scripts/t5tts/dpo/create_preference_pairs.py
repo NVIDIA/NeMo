@@ -33,7 +33,7 @@ def main():
             record['pred_transcript'] = metrics['pred_transcript']
             record['gt_transcript'] = metrics['gt_transcript']
 
-    out_manifest_dir = args.generated_audio_dir.replace("/audios", "/manifests")
+    out_manifest_dir = args.generated_audio_dir.replace("/audios", "/manifests_debug")
     if not os.path.exists(out_manifest_dir):
         os.makedirs(out_manifest_dir)
 
@@ -205,9 +205,16 @@ def create_chosen_rejected_records(records_orig, group_size=6, num_chosen_per_gr
         group = records[gsi:gei]
         
         cer_sim_indices = []
+        skip_group = False
         for sidx, record in enumerate(group):
+            if record['pred_transcript'] == "<INVALID>":
+                print(f"Skipping group starting at index {gsi} due to invalid entries.")
+                num_skipped += len(group)
+                skip_group = True
+                break            
             cer_sim_indices.append((record['cer_gts'], record['pred_context_similarity'], sidx))
-        
+        if skip_group:
+            continue
         cer_sim_indices_orig = copy.deepcopy(cer_sim_indices)
         cer_sim_indices = pareto_rank(cer_sim_indices)
 
@@ -230,7 +237,7 @@ def create_chosen_rejected_records(records_orig, group_size=6, num_chosen_per_gr
                     best_records.append(best_record)
                     worst_records.append(worst_record)
     
-    print(f"Skipped {num_skipped} records due to invalid entries in associated groups.")    
+    print(f"Skipped {num_skipped} records due to invalid entries.")    
     return best_records, worst_records
 
 def filter_best_and_worst_records(best_records, worst_records, cer_threshold=0.02):
