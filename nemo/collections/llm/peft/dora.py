@@ -21,7 +21,7 @@ from megatron.core.tensor_parallel import gather_from_tensor_model_parallel_regi
 from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_sharded_tensor_for_checkpoint
 from torch import nn
 
-from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, wildcard_match, ParallelLinearAdapter
+from nemo.collections.llm.peft.utils import ParallelLinearAdapter, get_adapter_attributes_from_linear, wildcard_match
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
