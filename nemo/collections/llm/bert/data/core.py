@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+from random import choices, sample
+from typing import TYPE_CHECKING, Mapping, Optional
+
 import datasets
 import numpy as np
 import torch
 
-from random import choices, sample
-from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Mapping
-
-from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.collections.llm.gpt.data.core import JSONLMemMapDataset
 from nemo.collections.llm.gpt.data.utils import get_samples_mapping
 from nemo.core.classes import Dataset
+from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.utils import logging
 
 if TYPE_CHECKING:
