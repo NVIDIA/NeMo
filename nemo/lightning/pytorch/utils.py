@@ -99,7 +99,7 @@ def get_huggingface_model_from_trainer(trainer: 'lightning.pytorch.Trainer') -> 
     # DDP -> trainer.model holds:
     # DistributedDataParallel(
     #   (module): HFAutoModelForCausalLM(
-    if hasattr(trainer.model, 'module'): and getattr(trainer.model.module, "is_hf_model", False) == True:
+    if hasattr(trainer.model, 'module') and getattr(trainer.model.module, "is_hf_model", False) == True:
        return trainer.model.module
 
     return None
