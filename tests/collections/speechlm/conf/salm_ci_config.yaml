@@ -154,7 +154,7 @@ optim:
 
 # Set this to "DD:HH:MM:SS" format to limit the max time for this job
 # If `max_time_per_run` is set, `strategy.ckpt_async_save` must be set to false
-max_time_per_run: "00:00:01:00"
+max_time_per_run: "00:00:00:20"
 
 trainer:
   # _target_: nemo.lightning.Trainer
