@@ -29,9 +29,9 @@ def make_squad_hf_dataset(tokenizer):
         ]
         context_ids, answer_ids = list(map(tokenizer.text_to_ids, formatted_text))
         if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id:
-            context_ids = [tokenizer.bos_id] + context_ids
+            context_ids.insert(0, tokenizer.bos_id)
         if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id:
-            answer_ids += [tokenizer.eos_id]
+            answer_ids.append(tokenizer.eos_id)
         token_ids = context_ids + answer_ids
 
         return dict(
