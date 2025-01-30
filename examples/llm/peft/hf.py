@@ -75,7 +75,6 @@ def main():
             name=f'{model}_dev{args.devices}_strat_{args.strategy}',
         )
 
-    tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
     callbacks = []
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': True}, use_thunder=False)
@@ -86,7 +85,7 @@ def main():
 
     llm.api.finetune(
         model=llm.HFAutoModelForCausalLM(model_name=args.model),
-        data=make_squad_hf_dataset(tokenizer),
+        data=make_squad_hf_dataset(llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
