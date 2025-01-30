@@ -85,7 +85,7 @@ def main():
         args.strategy = nl.FSDP2Strategy(data_parallel_size=args.devices, tensor_parallel_size=1)
 
     llm.api.finetune(
-        model=llm.HFAutoModelForCausalLM(model=args.model),
+        model=llm.HFAutoModelForCausalLM(model_name=args.model),
         data=make_squad_hf_dataset(tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
