@@ -64,6 +64,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         micro_batch_size: int = 1,
         global_batch_size: int = 1,
         num_workers: int = 1,
+        num_val_workers: int | None = None,
         pin_memory: bool = True,
         shuffle_buffer_size: int = 100,
         max_samples_per_sequence: int | None = None,
@@ -84,6 +85,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         seq_length (int, optional): The maximum sequence length for tokenized text. Defaults to 2048.
         micro_batch_size (int, optional): The batch size for training and validation. Defaults to 1.
         num_workers (int, optional): Number of workers for data loading. Defaults to 1.
+        num_val_workers (int, optional): Number of workers for validation data loading. Defaults to num_workers.
         pin_memory (bool, optional): Whether to pin memory in the DataLoader. Defaults to True.
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
         Defaults to MultiModalSampleConfig().
@@ -130,6 +132,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.val_dataloader_object = None
         self.packing_buffer_size = packing_buffer_size
         self.validation_task_encoder = validation_task_encoder or self.task_encoder
+        self.num_val_workers = num_val_workers or self.num_workers
         self.kwargs = kwargs
 
     def io_init(self, **kwargs) -> fdl.Config[Self]:
@@ -245,8 +248,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 f"Muiltimodal val data loader parallel state is not initialized,"
                 "using default worker config with no_workers {self.num_workers}"
             )
-            # worker_config = WorkerConfig.default_worker_config(self.num_workers)
-            worker_config = WorkerConfig.default_worker_config(1)  # We just use 1 worker for val for now
+            worker_config = WorkerConfig.default_worker_config(self.num_val_workers)
         else:
             rank = parallel_state.get_data_parallel_rank()
             world_size = parallel_state.get_data_parallel_world_size()
@@ -329,7 +331,8 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                     f"Cannot restore state from state_dict: Is the trainer object is initialized and attached to datamodule???"
                 )
         except Exception as e:
-            raise RuntimeError(f"Failed to dataloader restore state due to: {e}")
+            logging.warning(f"Failed to dataloader restore state due to [Please ensure you are using same version "
+                            f"of energon while saving and loading, Continuing without restoring data loader] : {e}")
 
         try:
             from megatron.core.num_microbatches_calculator import update_num_microbatches
