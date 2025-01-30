@@ -5024,7 +5024,7 @@ jobs:
         rm -rf /tmp/vllm_from_nemo2
 
   L2_SpeechLM_LoRA_TP1PP1_MBS2:
-    needs: [cicd-test-container-setup]
+    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.cicd-test-container-setup.outputs.test_to_run), 'L2_SpeechLM_LoRA_TP1PP1_MBS2') || needs.cicd-test-container-setup.outputs.all == 'true'
     with:
