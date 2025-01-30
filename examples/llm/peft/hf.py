@@ -51,6 +51,7 @@ def make_squad_hf_dataset(tokenizer):
 
 
 def main():
+    """Example script to run PEFT with a HF transformers-instantiated model on squad."""
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -84,7 +85,7 @@ def main():
         args.strategy = nl.FSDP2Strategy(data_parallel_size=args.devices, tensor_parallel_size=1)
 
     llm.api.finetune(
-        model=llm.HFAutoModelForCausalLM(args.model),
+        model=llm.HFAutoModelForCausalLM(model=args.model),
         data=make_squad_hf_dataset(tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
