@@ -1120,7 +1120,7 @@ class T5TTS_ModelInference(T5TTS_Model):
                     cer_gt = 1.0
                     wer_gt = 1.0
                     spk_similarity = 0.0
-                    pred_transcript = "<INVALID>"
+                    pred_transcript = "<INVALID>" # do not change this string; subsequent processing relies on it
                     gt_transcript = self.process_text(batch['raw_texts'][idx])
 
                 item_metrics = {
