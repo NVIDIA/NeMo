@@ -39,20 +39,7 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
-
-def ensure_energon_version():
-    # Right now we are pinning the energon version to 3.0.1.dev136+g920bb6b
-    # TODO(abhi) : once that is released, we can remove this
-    from importlib.metadata import version
-
-    assert version("megatron.energon") == '3.0.1.dev136+g920bb6b', (
-        "Please use the dev energon.\n"
-        "pip install 'megatron-energon @ git+https://github.com/NVIDIA/Megatron-Energon.git@920bb6b430f115fc0d9e75900bd39bfb21335ed9'"
-    )
-
-
 def main(args):
-    ensure_energon_version()
     max_steps = args.max_steps
 
     train_task_encoder = ClipTaskEncoder(max_length=args.decoder_seq_length)
