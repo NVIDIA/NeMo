@@ -29,7 +29,6 @@ from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.enums import AttnMaskType as MCoreAttnMaskType
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import nn
 from tqdm import tqdm
 
 from nemo.collections.llm import fn
