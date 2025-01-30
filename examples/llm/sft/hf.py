@@ -23,7 +23,7 @@ from torch.utils.data import DataLoader
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-
+import tempfile
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
     """Creates a squad dataset with a PT dataloader"""
@@ -76,7 +76,7 @@ def main():
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument("--fp8-autocast", action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
-    parser.add_argument('--model-save-path', type=str, default=None)
+    parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name)
     parser.add_argument('--use-torch-jit', action='store_true')
     args = parser.parse_args()
 
@@ -98,6 +98,13 @@ def main():
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
+
+    callbacks.append(
+        nl.ModelCheckpoint(
+            every_n_train_steps=args.max_steps//2,
+            dirpath=args.ckpt_folder,
+        )
+    )
 
     if args.strategy == 'fsdp2':
         args.strategy = nl.FSDP2Strategy(data_parallel_size=args.devices, tensor_parallel_size=1)
@@ -123,9 +130,6 @@ def main():
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=None,
     )
-
-    if args.model_save_path is not None:
-        model.save_pretrained(args.model_save_path)
 
 
 if __name__ == '__main__':
