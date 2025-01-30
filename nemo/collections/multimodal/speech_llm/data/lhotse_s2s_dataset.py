@@ -467,10 +467,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 else:
                     raise Exception("Undefined assistant channel text format.")
 
-                text_len = min(text_end_step - text_start_step - 1, target_texts[cnt].shape[0])
-                cur_target_text[(text_start_step + 1) : (text_start_step + 1 + text_len)] = target_texts[cnt][
-                    :text_len
-                ]
                 cur_target_text[text_end_step] = self.text_processor.eos_id
                 cur_source_text[src_text_end_step] = self.text_processor.eos_id
                 cnt += 1
