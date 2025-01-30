@@ -4,6 +4,7 @@ import json
 import copy
 import random
 import math
+from tqdm import tqdm
 
 def main():
     parser = argparse.ArgumentParser()
@@ -18,7 +19,7 @@ def main():
     audio_files, codec_files, metric_files = find_audio_files(args.generated_audio_dir)
     assert len(records) <= len(audio_files), "Mismatch between number of records and number of generated audio files {} vs {}".format(len(records), len(audio_files))
 
-    for idx, record in enumerate(records):
+    for idx, record in tqdm(enumerate(records)):
         if idx % 100 == 0:
             print("At idx: ", idx, len(records))
         record['audio_filepath'] = audio_files[idx]
@@ -187,6 +188,7 @@ def create_chosen_rejected_records(records_orig, group_size=6, num_chosen_per_gr
     num_groups = len(records) // group_size
     best_records = []
     worst_records = []
+    num_skipped = 0
 
     if num_chosen_per_group == 1:
         chosen_group_indices = [0]
@@ -203,9 +205,16 @@ def create_chosen_rejected_records(records_orig, group_size=6, num_chosen_per_gr
         group = records[gsi:gei]
         
         cer_sim_indices = []
+        skip_group = False
         for sidx, record in enumerate(group):
+            if record['pred_transcript'] == "<INVALID>":
+                print(f"Skipping group starting at index {gsi} due to invalid entries.")
+                num_skipped += len(group)
+                skip_group = True
+                break            
             cer_sim_indices.append((record['cer_gts'], record['pred_context_similarity'], sidx))
-        
+        if skip_group:
+            continue
         cer_sim_indices_orig = copy.deepcopy(cer_sim_indices)
         cer_sim_indices = pareto_rank(cer_sim_indices)
 
@@ -228,6 +237,7 @@ def create_chosen_rejected_records(records_orig, group_size=6, num_chosen_per_gr
                     best_records.append(best_record)
                     worst_records.append(worst_record)
     
+    print(f"Skipped {num_skipped} records due to invalid entries.")    
     return best_records, worst_records
 
 def filter_best_and_worst_records(best_records, worst_records, cer_threshold=0.02):

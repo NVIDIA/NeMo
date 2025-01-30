@@ -1062,6 +1062,7 @@ class T5TTS_ModelInference(T5TTS_Model):
             )
             predicted_audio_paths = []
             audio_durations = []
+            batch_invalid = False
             for idx in range(predicted_audio.size(0)):
                 predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                 predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
@@ -1079,33 +1080,49 @@ class T5TTS_ModelInference(T5TTS_Model):
                 predicted_codes_torch = predicted_codes_torch[:, :predicted_codes_lens[idx]]
                 torch.save(predicted_codes_torch, os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_codes.pt'))
                 predicted_audio_paths.append(audio_path)
-            
-            with torch.no_grad():
-                if self.cfg.get("pref_set_language", "en") == "en":
-                    pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))[0]
-                    pred_transcripts = [ self.process_text(transcript) for transcript in pred_transcripts ]
-                else:
-                    pred_transcripts = [self.transcribe_with_whisper(audio_path, self.cfg.pref_set_language) for audio_path in predicted_audio_paths]
-                    pred_transcripts = [self.process_text(transcript) for transcript in pred_transcripts]
-                pred_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(predicted_audio_paths)
-                gt_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(batch['audio_filepaths'])
+                
+                if not batch_invalid:
+                    with torch.no_grad():
+                        try:
+                            if self.cfg.get("pref_set_language", "en") == "en":
+                                pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))[0]
+                                pred_transcripts = [ self.process_text(transcript) for transcript in pred_transcripts ]
+                            else:
+                                pred_transcripts = [self.transcribe_with_whisper(audio_path, self.cfg.pref_set_language) for audio_path in predicted_audio_paths]
+                                pred_transcripts = [self.process_text(transcript) for transcript in pred_transcripts]
+                        except Exception as e:
+                            assert (predicted_audio_lens[idx] < 1000).any(), f"Expected short audio file to be the only cause of ASR errors, but got error with lengths {predicted_audio_lens}"
+                            logging.warning(f"Exception during ASR transcription: {e}")
+                            logging.warning(f"Skipping processing of the batch; generating metrics indicating a WER of 100% and Speaker Similarity of 0.0")
+                            batch_invalid = True
+                            continue # don't break since we want to continue building audio durations list
+                        pred_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(predicted_audio_paths)
+                        gt_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(batch['audio_filepaths'])
 
             for idx in range(predicted_audio.size(0)):
-                audio_path = predicted_audio_paths[idx]
-                item_idx = batch_idx * test_dl_batch_size + idx
-                pred_transcript = pred_transcripts[idx]
-                gt_transcript = self.process_text(batch['raw_texts'][idx])
+                if not batch_invalid:
+                    audio_path = predicted_audio_paths[idx]
+                    item_idx = batch_idx * test_dl_batch_size + idx
+                    pred_transcript = pred_transcripts[idx]
+                    gt_transcript = self.process_text(batch['raw_texts'][idx])
 
-                cer_gt = word_error_rate([pred_transcript], [gt_transcript], use_cer=True)
-                wer_gt = word_error_rate([pred_transcript], [gt_transcript], use_cer=False)
+                    cer_gt = word_error_rate([pred_transcript], [gt_transcript], use_cer=True)
+                    wer_gt = word_error_rate([pred_transcript], [gt_transcript], use_cer=False)
 
-                spk_embedding_pred = pred_speaker_embeddings[idx].cpu().numpy()
-                spk_embedding_gt = gt_speaker_embeddings[idx].cpu().numpy()
-                
-                spk_similarity = np.dot(spk_embedding_pred, spk_embedding_gt) / (
-                    np.linalg.norm(spk_embedding_pred) * np.linalg.norm(spk_embedding_gt)
-                )
-                
+                    spk_embedding_pred = pred_speaker_embeddings[idx].cpu().numpy()
+                    spk_embedding_gt = gt_speaker_embeddings[idx].cpu().numpy()
+                    
+                    spk_similarity = np.dot(spk_embedding_pred, spk_embedding_gt) / (
+                        np.linalg.norm(spk_embedding_pred) * np.linalg.norm(spk_embedding_gt)
+                    )
+                else:
+                    # Create an entry indicating invalid metrics
+                    cer_gt = 1.0
+                    wer_gt = 1.0
+                    spk_similarity = 0.0
+                    pred_transcript = "<INVALID>"
+                    gt_transcript = self.process_text(batch['raw_texts'][idx])
+
                 item_metrics = {
                     'cer_gt': float(cer_gt),
                     'wer_gt': float(wer_gt),
