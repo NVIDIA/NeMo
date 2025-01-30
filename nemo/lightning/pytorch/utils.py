@@ -101,6 +101,5 @@ def get_huggingface_model_from_trainer(trainer: 'lightning.pytorch.Trainer') -> 
     #   (module): HFAutoModelForCausalLM(
     if hasattr(trainer.model, 'module'): and getattr(trainer.model.module, "is_hf_model", False) == True:
        return trainer.model.module
-    except:
-        pass
+
     return None
