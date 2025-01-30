@@ -271,12 +271,14 @@ def ptq(
     calibration_tp: int = 1,
     calibration_pp: int = 1,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
+    ckpt_load_strictness: Optional[str] = None,
 ) -> Path:
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
     This function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy modules
     or direcly using TensorRT-LLM library.
+
     The function can be used through the NeMo CLI in the following way:
     ```bash
     # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
@@ -284,17 +286,21 @@ def ptq(
         export_config.path=/models/Llama-3-70B-FP8 \
         calibration_tp=8 \
         export_config.inference_tp=2
+
     # Choose different quantization method, for example, INT8 SmoothQuant
     nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq
     ```
+
     Args:
         nemo_checkpoint (str): The path to model to be quantized.
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
+        ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
+
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
     """
@@ -308,7 +314,12 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calibration_tp, calibration_pp)
+    model = quantization.load_with_modelopt_layer_spec(
+        nemo_checkpoint,
+        calibration_tp,
+        calibration_pp,
+        ckpt_load_strictness=ckpt_load_strictness,
+    )
 
     model = quantizer.quantize(model)
 
@@ -376,11 +387,6 @@ def deploy(
 
     unset_environment_variables()
 
-    if not isinstance(nemo_checkpoint, Path):
-        nemo_checkpoint = Path(nemo_checkpoint)
-    if not isinstance(triton_model_repository, Path):
-        triton_model_repository = Path(triton_model_repository)
-
     triton_deployable = get_trtllm_deployable(
         nemo_checkpoint,
         model_type,
@@ -435,6 +441,8 @@ def evaluate(
     limit: Optional[Union[int, float]] = None,
     bootstrap_iters: int = 100000,
     # inference params
+    batch_size: Optional[int] = 1,
+    max_tokens_to_generate: Optional[int] = 256,
     temperature: Optional[float] = 0.000000001,
     top_p: Optional[float] = 0.0,
     top_k: Optional[int] = 1,
@@ -484,15 +492,14 @@ def evaluate(
 
     from nemo.collections.llm import evaluation
 
-    if not isinstance(nemo_checkpoint_path, Path):
-        nemo_checkpoint_path = Path(nemo_checkpoint_path)
-
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
     tokenizer = io.load_context(nemo_checkpoint_path + "/context", subpath="model.tokenizer")
     # Wait for server to be ready before starting evaluation
     evaluation.wait_for_server_ready(url=url, triton_http_port=triton_http_port, model_name=model_name)
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
-    model = evaluation.NeMoFWLMEval(model_name, url, tokenizer, temperature, top_p, top_k, add_bos)
+    model = evaluation.NeMoFWLMEval(
+        model_name, url, tokenizer, batch_size, max_tokens_to_generate, temperature, top_p, top_k, add_bos
+    )
     results = evaluator.simple_evaluate(
         model=model,
         tasks=eval_task,
