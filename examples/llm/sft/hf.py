@@ -13,12 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import partial
+
 import fiddle as fdl
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-from functools import partial
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
@@ -91,6 +92,7 @@ def main():
     model_accelerator = None
     if args.model_accelerator == "te":
         from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+
         model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
 
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)

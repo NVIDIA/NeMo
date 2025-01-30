@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tempfile
+
 import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
 
@@ -19,13 +21,13 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-import tempfile
+
 
 def make_squad_hf_dataset(tokenizer):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
-            f" {example['answers']['text'][0].strip()}"
+            f" {example['answers']['text'][0].strip()}",
         ]
         context_ids, answer_ids = list(map(tokenizer.text_to_ids, formatted_text))
         if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id:
@@ -34,13 +36,12 @@ def make_squad_hf_dataset(tokenizer):
             answer_ids.append(tokenizer.eos_id)
 
         return dict(
-            labels= (context_ids + answer_ids)[1:],
-            input_ids= (context_ids + answer_ids)[:-1],
-            loss_mask= [0] * (len(context_ids)-1) + [1] * len(answer_ids),
+            labels=(context_ids + answer_ids)[1:],
+            input_ids=(context_ids + answer_ids)[:-1],
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-    datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_id)
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_id)
     datamodule.map(
         formatting_prompts_func,
         batched=False,
@@ -73,7 +74,6 @@ def main():
             project=args.wandb_project,
             name=f'{model}_dev{args.devices}_strat_{args.strategy}',
         )
-
 
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
     callbacks = []

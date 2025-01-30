@@ -273,7 +273,7 @@ class SquadHFDataModule(HFDatasetDataModule):
     def formatting_prompts_func(self, example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
-            f" {example['answers']['text'][0].strip()}"
+            f" {example['answers']['text'][0].strip()}",
         ]
         context_ids, answer_ids = list(map(self.tokenizer.text_to_ids, formatted_text))
         if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id:
@@ -282,9 +282,9 @@ class SquadHFDataModule(HFDatasetDataModule):
             answer_ids.append(tokenizer.eos_id)
 
         return dict(
-            labels= (context_ids + answer_ids)[1:],
-            input_ids= (context_ids + answer_ids)[:-1],
-            loss_mask= [0] * (len(context_ids)-1) + [1] * len(answer_ids),
+            labels=(context_ids + answer_ids)[1:],
+            input_ids=(context_ids + answer_ids)[:-1],
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
     def setup(self, stage):
