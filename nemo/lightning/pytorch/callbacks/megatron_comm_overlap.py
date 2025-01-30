@@ -231,7 +231,8 @@ class MegatronCommOverlapCallback(Callback):
                 """
                 os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "32"
             else:
-                os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
+                if 'CUDA_DEVICE_MAX_CONNECTIONS' in os.environ:
+                    os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
         else:
             if tp_size > 1 or cp_size > 1:
                 """
@@ -244,7 +245,8 @@ class MegatronCommOverlapCallback(Callback):
                 """
                 os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "1"
             else:
-                os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
+                if 'CUDA_DEVICE_MAX_CONNECTIONS' in os.environ:
+                    os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         assert isinstance(trainer.strategy, MegatronStrategy), "MegatronCommOverlapCallback requires MegatronStrategy"
