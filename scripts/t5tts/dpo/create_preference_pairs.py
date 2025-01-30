@@ -33,7 +33,7 @@ def main():
             record['pred_transcript'] = metrics['pred_transcript']
             record['gt_transcript'] = metrics['gt_transcript']
 
-    out_manifest_dir = args.generated_audio_dir.replace("/audios", "/manifests_debug")
+    out_manifest_dir = args.generated_audio_dir.replace("/audios", "/manifests")
     if not os.path.exists(out_manifest_dir):
         os.makedirs(out_manifest_dir)
 

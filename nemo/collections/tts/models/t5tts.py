@@ -1080,12 +1080,16 @@ class T5TTS_ModelInference(T5TTS_Model):
                 predicted_codes_torch = predicted_codes_torch[:, :predicted_codes_lens[idx]]
                 torch.save(predicted_codes_torch, os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_codes.pt'))
                 predicted_audio_paths.append(audio_path)
-<<<<<<< HEAD
                 
                 if not batch_invalid:
                     with torch.no_grad():
                         try:
-                            pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))[0]
+                            if self.cfg.get("pref_set_language", "en") == "en":
+                                pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))[0]
+                                pred_transcripts = [ self.process_text(transcript) for transcript in pred_transcripts ]
+                            else:
+                                pred_transcripts = [self.transcribe_with_whisper(audio_path, self.cfg.pref_set_language) for audio_path in predicted_audio_paths]
+                                pred_transcripts = [self.process_text(transcript) for transcript in pred_transcripts]
                         except Exception as e:
                             assert (predicted_audio_lens[idx] < 1000).any(), f"Expected short audio file to be the only cause of ASR errors, but got error with lengths {predicted_audio_lens}"
                             logging.warning(f"Exception during ASR transcription: {e}")
@@ -1094,18 +1098,6 @@ class T5TTS_ModelInference(T5TTS_Model):
                             continue # don't break since we want to continue building audio durations list
                         pred_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(predicted_audio_paths)
                         gt_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(batch['audio_filepaths'])
-=======
-            
-            with torch.no_grad():
-                if self.cfg.get("pref_set_language", "en") == "en":
-                    pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))[0]
-                    pred_transcripts = [ self.process_text(transcript) for transcript in pred_transcripts ]
-                else:
-                    pred_transcripts = [self.transcribe_with_whisper(audio_path, self.cfg.pref_set_language) for audio_path in predicted_audio_paths]
-                    pred_transcripts = [self.process_text(transcript) for transcript in pred_transcripts]
-                pred_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(predicted_audio_paths)
-                gt_speaker_embeddings = self.get_speaker_embeddings_from_filepaths(batch['audio_filepaths'])
->>>>>>> paarth/experimentalt5tts_finalizedtransformer
 
             for idx in range(predicted_audio.size(0)):
                 if not batch_invalid:
