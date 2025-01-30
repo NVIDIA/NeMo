@@ -69,7 +69,6 @@ if __name__ == '__main__':
     # Models can be one of the supported ones by AutoModelForSpeechSeq2Seq such as
     # openai/whisper-large-v3 and facebook/s2t-small-librispeech-asr
     parser.add_argument('--model', default='openai/whisper-large-v3')
-    parser.add_argument('--data-path', type=str, required=True)
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
@@ -84,7 +83,7 @@ if __name__ == '__main__':
 
     config = OmegaConf.create(
         {
-            "cuts_path": args.data_path,
+            "cuts_path": "/home/TestData/speechlm/lhotse/libri/libri-train-5.jsonl.gz",
             "sample_rate": 16000,
             "shuffle": True,
             "num_workers": 2,

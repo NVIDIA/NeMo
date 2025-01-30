@@ -3896,7 +3896,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/speechlm/hf/sft.py --model /home/TestData/speechlm/whisper-small/ --data-path /home/TestData/speechlm/lhotse/libri/libri-train-5.jsonl.gz --max-steps 10 --devices 2 --strategy ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/speechlm/hf/sft.py --model /home/TestData/speechlm/whisper-small/ --max-steps 10 --devices 2 --strategy ddp
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -5176,6 +5176,7 @@ jobs:
       - L2_HF_Transformer_PT_2gpu
       - L2_HF_Transformer_PT_2gpu_nemorun
       - L2_HF_Transformer_PT_TE_Acceleration
+      - L2_HF_Transformer_SpeechLM_SFT_2gpu
       - L2_NeMo_2_SSM_Pretraining
       - L2_NeMo_2_SSM_Finetuning
       - L2_NeMo_2_T5_Pretraining
