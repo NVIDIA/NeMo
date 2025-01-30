@@ -20,7 +20,7 @@ import re
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional, Type
+from typing import TYPE_CHECKING, Callable, List, Optional, Type, Mapping
 
 import numpy as np
 import torch
@@ -36,10 +36,8 @@ from nemo.collections.llm.gpt.data.utils import (
 )
 from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.utils import AppState, logging
-
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers import TokenizerSpec
-    from nemo.core.classes import Dataset
+from nemo.collections.common.tokenizers import TokenizerSpec
+from nemo.core.classes import Dataset
 
 import datasets
 
