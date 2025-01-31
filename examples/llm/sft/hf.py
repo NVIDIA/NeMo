@@ -57,7 +57,7 @@ def squad(tokenizer, mbs=1, gbs=2) -> pl.LightningDataModule:
         num_workers=0,
         dataset_kwargs={
             "sanity_check_dist_workers": False,
-            "get_attention_mask_from_fusion": False,
+            "get_attention_mask_from_fusion": True,
         },
     )
 
