@@ -15,6 +15,7 @@
 import os
 import sys
 from typing import Dict, List
+from pathlib import Path
 
 import nemo_run as run
 import pandas as pd
@@ -27,6 +28,7 @@ from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.utils import logging
+from dataclasses import dataclass
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
@@ -70,7 +72,7 @@ def slurm_executor(
     mounts = []
     srun_args = ["--mpi=pmix"]
 
-    if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
+    if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
         mounts.extend([f"{nemo_home}:{nemo_home}"])
     if hf_token is not None:
@@ -125,20 +127,34 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         use_fast=True,
     )
 
+@dataclass
+class ModelConfig:
 
-def get_performance_configs(gpu, task, model_name, model_size, args):
-    recommended_configs_csv = os.path.join("recommended_model_configs", f"model_configs_{gpu}.csv")
+    num_nodes: int
+    mbs: int
+    gbs: int
+    tp_size: int
+    pp_size: int
+    cp_size: int
+    vp_size: int
+    ep_size: int
+
+def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
+    script_dir = str(Path(__file__).parent.absolute())
+    recommended_configs_csv = os.path.join(script_dir, "recommended_model_configs", f"model_configs_{gpu}.csv")
+    logging.info(f"Using {recommended_configs_csv} for loading default recommended model configs")
     df = pd.read_csv(recommended_configs_csv)
-    config = df[
+    config_df = df[
         (df["task"] == task)
         & (df["model"] == model_name)
         & (df["size"] == model_size)
         & (df["dtype"] == args.compute_dtype)
     ]
-    config = config.to_dict(orient='records')[0]
+    logging.info(f"Found model configs for {task}-{model_name}-{model_size}-{args.compute_dtype}\n{config_df}")
+    config = config_df.to_dict(orient='records')[0]
 
     num_gpus = args.num_gpus or int(config["num_gpus"])
-    num_nodes = num_gpus // args.devices_per_node
+    num_nodes = -(num_gpus // -args.gpus_per_node) # ceil division
 
     mbs = args.micro_batch_size or int(config["mbs"])
     gbs = args.global_batch_size or int(config["gbs"])
@@ -154,16 +170,16 @@ def get_performance_configs(gpu, task, model_name, model_size, args):
 
 def set_recipe_primary_configs(
     recipe,
-    num_nodes,
-    num_gpus_per_node,
-    mbs,
-    gbs,
-    max_steps,
-    tp_size,
-    pp_size,
-    cp_size,
-    vp_size,
-    ep_size,
+    num_nodes: int,
+    num_gpus_per_node: int,
+    mbs: int,
+    gbs: int,
+    max_steps: int,
+    tp_size: int,
+    pp_size: int,
+    cp_size: int,
+    vp_size: int,
+    ep_size: int,
 ):
     # nemo.lightning.Trainer configs
     recipe.trainer.num_nodes = num_nodes

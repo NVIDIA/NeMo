@@ -18,7 +18,7 @@ import nemo_run as run
 from argument_parser import parse_cli_args
 from utils import (
     get_comm_overlap_callback_idx,
-    get_performance_configs,
+    get_user_configs,
     hf_tokenizer,
     set_recipe_primary_configs,
     slurm_executor,
@@ -29,7 +29,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 
-def llama3_8b_performance_recipe(
+def set_recipe_configs(
     args: str,
     num_nodes: int,
     mbs: int,
@@ -48,7 +48,7 @@ def llama3_8b_performance_recipe(
     """
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_recipe_primary_configs(
-        recipe, num_nodes, args.devices_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
+        recipe, num_nodes, args.gpus_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
     )
 
     # data module configs
@@ -62,7 +62,7 @@ def llama3_8b_performance_recipe(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
 
     # callback configs
-    dp_size = (num_nodes * args.devices_per_node) / (tp_size * pp_size * cp_size)
+    dp_size = (num_nodes * args.gpus_per_node) / (tp_size * pp_size * cp_size)
     if comm_overlap_callback_idx is not None:
         # WARNING: If True, checkpointing (if enabled) might not work
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
@@ -83,8 +83,11 @@ def llama3_8b_performance_recipe(
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
-    kwargs = get_performance_configs(args.gpu.lower(), "pre_train", "llama3", "8b", args)
+    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama3", "8b", args)
+    assert all(cfg is not None for cfg in kwargs), "Some values are None"
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
+
+    recipe = set_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
@@ -94,7 +97,7 @@ if __name__ == "__main__":
         args.partition,
         args.log_dir,
         num_nodes,
-        args.devices_per_node,
+        args.gpus_per_node,
         args.time_limit,
         args.container_image,
         custom_mounts=[],
@@ -103,15 +106,13 @@ if __name__ == "__main__":
         nemo_home=args.nemo_home,
     )
 
-    recipe = llama3_8b_performance_recipe(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
-
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
         )
     ]
-    if args.enable_profiling:
+    if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
     with run.Experiment(splitext(basename(__file__))) as exp:
