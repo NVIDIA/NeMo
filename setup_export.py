@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,53 +12,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import setuptools
+import importlib.util
 import os
+import setuptools
+
+spec = importlib.util.spec_from_file_location('package_info', 'nemo/package_info.py')
+package_info = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(package_info)
+
+
+__contact_emails__ = package_info.__contact_emails__
+__contact_names__ = package_info.__contact_names__
+__download_url__ = package_info.__download_url__
+__license__ = package_info.__license__
+__repository_url__ = package_info.__repository_url__
+__version__ = package_info.__version__
 
 
 def req_file(filename, folder="requirements"):
     with open(os.path.join(folder, filename), encoding='utf-8') as f:
         content = f.readlines()
-    # you may also want to remove whitespace characters
-    # Example: `\n` at the end of each line
     return [x.strip() for x in content]
 
 
-def setup_export():
-    install_requires = req_file("requirements_infer_nim.txt")
-
-    setuptools.setup(
-        name="NeMo Export",
-        # Versions should comply with PEP440.  For a discussion on single-sourcing
-        # the version across setup.py and the project code, see
-        # https://packaging.python.org/en/latest/single_source_version.html
-        version="24.12",
-        description="NeMo Export - a module to export nemo checkpoints to TensorRT-LLM",
-        long_description="NeMo Export - a module to export nemo checkpoints to TensorRT-LLM",
-        # Author details
-        author="NVIDIA",
-        license='Apache2',
-        packages=[
-            "nemo",
-            "nemo.export",
-            "nemo.export.trt_llm",
-            "nemo.export.vllm",
-            "nemo.export.multimodal",
-            "nemo.export.quantize",
-            "nemo.export.utils",
-            "nemo.export.trt_llm.converter",
-            "nemo.export.trt_llm.nemo_ckpt_loader",
-            "nemo.export.trt_llm.qnemo",
-            "nemo.deploy",
-        ],
-        install_requires=install_requires,
-        # Add in any packaged data.
-        include_package_data=True,
-        exclude=['tools', 'tests'],
-        package_data={'': ['*.tsv', '*.txt', '*.far', '*.fst', '*.cpp', 'Makefile']},
-        zip_safe=False,
-    )
-
-
-if __name__ == '__main__':
-    setup_export()
+setuptools.setup(
+    name="NeMo-Export",
+    version=__version__,
+    description="NeMo Export - a package to export NeMo checkpoints to TensorRT-LLM",
+    long_description="NeMo Export - a package to export NeMo checkpoints to TensorRT-LLM",
+    url=__repository_url__,
+    download_url=__download_url__,
+    author=__contact_names__,
+    maintainer=__contact_names__,
+    maintainer_email=__contact_emails__,
+    license=__license__,
+    packages=[
+        "nemo",
+        "nemo.export",
+        "nemo.export.trt_llm",
+        "nemo.export.vllm",
+        "nemo.export.multimodal",
+        "nemo.export.quantize",
+        "nemo.export.utils",
+        "nemo.export.trt_llm.converter",
+        "nemo.export.trt_llm.nemo_ckpt_loader",
+        "nemo.export.trt_llm.qnemo",
+        "nemo.deploy",
+    ],
+    install_requires=req_file("requirements_infer_nim.txt"),
+    include_package_data=True,
+    exclude={'': ['tools', 'tests']},
+    package_data={'': ['*.tsv', '*.txt', '*.far', '*.fst', '*.cpp', 'Makefile']},
+    zip_safe=False,
+)
