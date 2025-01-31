@@ -317,14 +317,11 @@ def _measure_tps(cut: Cut) -> float:
     return num_tokens / cut.duration
 
 
-class SkipmeFilter:
+class PlaceholderFilter:
     """
     Callable, returns ``True`` if a cut's "_skipme" is set and ``False`` otherwise.
     Acts as a pass-through for objects of other type than Cut.
     """
-
-    def __init__(self) -> None:
-        pass
 
     def __call__(self, example) -> bool:
         if not isinstance(example, Cut):

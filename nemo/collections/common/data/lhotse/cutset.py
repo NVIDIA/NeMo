@@ -30,7 +30,7 @@ from nemo.collections.common.data.lhotse.nemo_adapters import (
     LazyNeMoTarredIterator,
     expand_sharded_filepaths,
 )
-from nemo.collections.common.data.lhotse.sampling import SkipmeFilter
+from nemo.collections.common.data.lhotse.sampling import PlaceholderFilter
 from nemo.collections.common.data.lhotse.text_adapters import (
     LhotseTextAdapter,
     LhotseTextPairAdapter,
@@ -59,6 +59,10 @@ def read_cutset_from_config(config: DictConfig | dict) -> Tuple[CutSet, bool]:
         cuts, is_tarred = read_nemo_manifest(config)
     else:
         cuts, is_tarred = read_lhotse_manifest(config)
+
+    # After reading cuts we filter cutsets to exclude cuts with valid "_skipme" values.
+    # This filtration is done before mixing cutsets as well. Here it is being done for non-mixed cutsets.
+    cuts = cuts.filter(PlaceholderFilter())
     return cuts, is_tarred
 
 
@@ -366,7 +370,7 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
             logging.info(f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.shar_path}'")
             cuts = CutSet.from_shar(
                 **_resolve_shar_inputs(config.shar_path, metadata_only), shuffle_shards=True, seed=shard_seed
-            ).filter(SkipmeFilter())
+                )
             if not metadata_only and not force_finite:
                 cuts = cuts.repeat()
         elif isinstance(config.shar_path, Sequence):
@@ -399,6 +403,8 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
                 logging.info(f"- {path=} {weight=}")
                 cutsets.append(cs)
                 weights.append(weight)
+
+            cutsets = [cutset.filter(PlaceholderFilter()) for cutset in cutsets]
             cuts = mux(
                 *cutsets,
                 weights=weights,
@@ -426,7 +432,7 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
     else:
         # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
         path = config.cuts_path
-        cuts = CutSet.from_file(path).map(partial(resolve_relative_paths, manifest_path=path)).filter(SkipmeFilter())
+        cuts = CutSet.from_file(path).map(partial(resolve_relative_paths, manifest_path=path))
     return cuts, is_tarred
 
 
@@ -513,14 +519,11 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                     tar_paths=config.tarred_audio_filepaths,
                     tarred_random_access=config.tarred_random_access,
                     **common_kwargs,
-                )
-            ).filter(SkipmeFilter())
+                ))
             if not config.tarred_random_access and not force_finite:
                 cuts = cuts.repeat()
         else:
-            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs)).filter(
-                SkipmeFilter()
-            )
+            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
     else:
         # Format option 1:
         #   Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
@@ -582,12 +585,14 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
             #   to the one desired in spite of the limit.
             if config.max_open_streams is not None:
                 for subiter in nemo_iter.to_shards():
-                    cutsets.append(CutSet(subiter).filter(SkipmeFilter()))
+                    cutsets.append(CutSet(subiter))
                     weights.append(weight)
             else:
-                cutsets.append(CutSet(nemo_iter).filter(SkipmeFilter()))
+                cutsets.append(CutSet(nemo_iter))
                 weights.append(weight)
-        # Finally, we multiplex the dataset streams to mix the data.
+        # Finally, we multiplex the dataset streams to mix the data. 
+        # Before that we filter cutsets to exclude cuts with valid "_skipme" values to mix the data correctly.
+        cutsets = [cutset.filter(PlaceholderFilter()) for cutset in cutsets]
         cuts = mux(
             *cutsets,
             weights=weights,
