@@ -279,7 +279,7 @@ class LoRA(PEFT):
         full_name = f"{prefix}.{name}" if prefix else name
         if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
             if isinstance(m, nn.Linear):
-                # Will use the `patch_linear_module` if:
+                # Will use the `patch_linear_module` function if:
                 # - is FSDP v1
                 # - is DTensor (has _local_tensor attribute)
                 # - is quantized weights.
