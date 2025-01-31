@@ -230,9 +230,11 @@ class MegatronCommOverlapCallback(Callback):
                 device connection of 8.
                 """
                 os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "32"
+                logging.info(f"Set CUDA_DEVICE_MAX_CONNECTIONS to 32")
             else:
                 if 'CUDA_DEVICE_MAX_CONNECTIONS' in os.environ:
                     os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
+                logging.info("Unset CUDA_DEVICE_MAX_CONNECTIONS")
         else:
             if tp_size > 1 or cp_size > 1:
                 """
@@ -244,9 +246,11 @@ class MegatronCommOverlapCallback(Callback):
                 kernel so failing to overlap the kernels.
                 """
                 os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "1"
+                logging.info(f"Set CUDA_DEVICE_MAX_CONNECTIONS to 1")
             else:
                 if 'CUDA_DEVICE_MAX_CONNECTIONS' in os.environ:
                     os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
+                logging.info("Unset CUDA_DEVICE_MAX_CONNECTIONS")
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         assert isinstance(trainer.strategy, MegatronStrategy), "MegatronCommOverlapCallback requires MegatronStrategy"
