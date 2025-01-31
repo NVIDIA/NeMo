@@ -279,7 +279,11 @@ class LoRA(PEFT):
         full_name = f"{prefix}.{name}" if prefix else name
         if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
             if isinstance(m, nn.Linear):
-                if self._is_fsdp_v1 or m.weight.data.dtype == torch.uint8:
+                # Will use the `patch_linear_module` if:
+                # - is FSDP v1
+                # - is DTensor (has _local_tensor attribute)
+                # - is quantized weights.
+                if self._is_fsdp_v1 or hasattr(m.weight.data, '_local_tensor') or m.weight.data.dtype == torch.uint8:
                     lora_cls = patch_linear_module
                 else:
                     lora_cls = LinearAdapter
