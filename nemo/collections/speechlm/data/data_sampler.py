@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import lhotse
 from torch.utils.data import DataLoader, IterableDataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
@@ -28,7 +29,7 @@ class SpeechLMDataSampler(MegatronDataSampler):
         """
         sampler = getattr(dataloader, 'sampler', None)
 
-        if sampler is not None and "lhotse." in str(type(sampler)):
+        if isinstance(sampler, lhotse.dataset.sampling.base.CutSampler):
             logging.info(f"Using Lhotse sampler for dataloader {dataloader}. Skipping Megatron data sampler.")
             return dataloader
 
