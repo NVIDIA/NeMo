@@ -51,7 +51,7 @@ def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
 
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model config for TensorRT-Model-Optimizer quantization"""
-    
+
     from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
 
     model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec(
