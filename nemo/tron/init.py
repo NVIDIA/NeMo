@@ -82,9 +82,6 @@ def initialize_megatron(
     # tensorboard-writer, and timers.
     set_global_variables()  # TODO (maanug): implement
 
-    # set logging level
-    setup_logging()  # TODO (maanug): implement
-
     # init rerun global state
     _init_rerun_state(rerun_sm_cfg)
 
