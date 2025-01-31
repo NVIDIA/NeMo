@@ -36,22 +36,15 @@ from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_p
 
 from nemo.utils import logging, str_to_dtype
 from nemo.utils.import_utils import safe_import_from
-from nemo.utils.te_utils import is_float8tensor, is_mxfp8tensor
+from nemo.utils.te_utils import is_float8tensor, is_mxfp8tensor, te_version
 
 
-# Try importing quantization-related objects from Transformer Engine
-Float8Tensor, TE_HAS_FLOAT8TENSOR = safe_import_from("transformer_engine.pytorch.tensor.float8_tensor", "Float8Tensor")
-if not TE_HAS_FLOAT8TENSOR:
-    Float8Tensor, TE_HAS_FLOAT8TENSOR = safe_import_from("transformer_engine.pytorch.float8_tensor", "Float8Tensor")
-TE_HAS_QUANTIZER = False
-if TE_HAS_FLOAT8TENSOR:
-    _, TE_HAS_QUANTIZER = safe_import_from("transformer_engine.pytorch.tensor.quantized_tensor", "Quantizer")
-
-if TE_HAS_QUANTIZER:
+if te_version() >= (2, 0):
 
     # TE quantization logic using quantizer API
     # Supported TE versions: 2.0+
 
+    from transformer_engine.pytorch.tensor.float8_tensor import Float8Tensor
     from transformer_engine.pytorch.tensor._internal.float8_tensor_base import Float8TensorBase
 
     def _quantize_param_fragment_impl(
@@ -76,7 +69,7 @@ if TE_HAS_QUANTIZER:
         quantizer = tensor._quantizer
         return quantizer.scale, quantizer.amax
 
-elif TE_HAS_FLOAT8TENSOR:
+elif te_version() >= (1, 0):
 
     # TE quantization logic with fp8_meta dicts
     # Supported TE versions: 1.0 - 1.14
@@ -97,7 +90,7 @@ elif TE_HAS_FLOAT8TENSOR:
             out=dst.view(1, -1),
         )
 
-    def _get_fp8_scale_and_amax_impl(tensor: Float8Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _get_fp8_scale_and_amax_impl(tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         fp8_meta = tensor._fp8_meta["scaling_fwd"]
         fp8_meta_index = tensor._fp8_meta_index
         return fp8_meta.scale[fp8_meta_index], fp8_meta.amax_history[0][fp8_meta_index]
