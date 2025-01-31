@@ -73,17 +73,17 @@ def initialize_megatron(
     #     assert args.load is not None
     #     args.exit_on_missing_checkpoint = True
 
-    # TODO: determine if we want to support this behavior
+    # TODO (maanug): determine if we want to support this behavior
     # if args.use_checkpoint_args or args_defaults.get("use_checkpoint_args", False):
     #     assert args.load is not None, "--use-checkpoint-args requires --load argument"
     #     load_args_from_checkpoint(args)
 
     # set global args, build tokenizer, and set adlr-autoresume,
     # tensorboard-writer, and timers.
-    set_global_variables()  # TODO: implement
+    set_global_variables()  # TODO (maanug): implement
 
     # set logging level
-    setup_logging()  # TODO: implement
+    setup_logging()  # TODO (maanug): implement
 
     # init rerun global state
     _init_rerun_state(rerun_sm_cfg)
@@ -95,19 +95,19 @@ def initialize_megatron(
 def _torch_dist_init(cfg: DistInitConfig, get_embedding_ranks, get_position_embedding_ranks, skip_mpu_initialization):
     def finish_mpu_init():
         # Pytorch distributed.
-        _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)  # TODO: implement
+        _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)  # TODO (maanug): implement
 
         if get_rank_preinit() == 0:
             print("> setting random seeds to {} ...".format(cfg.seed))
         _set_random_seed(
             cfg.seed, cfg.data_parallel_random_init, cfg.te_rng_tracker, cfg.inference_rng_tracker
-        )  # TODO: implement
+        )  # TODO (maanug): implement
 
     if skip_mpu_initialization:
         return None
 
     if cfg.lazy_mpu_init:
-        # TODO: determine where this is accessed downstream
+        # TODO (maanug): determine where this is accessed downstream
         # args.use_cpu_initialization = True
 
         # delayed initialization of DDP-related stuff
@@ -121,11 +121,11 @@ def _torch_dist_init(cfg: DistInitConfig, get_embedding_ranks, get_position_embe
         # Megatron's MPU is the master. Complete initialization right away.
         finish_mpu_init()
 
-        _compile_dependencies()  # TODO: implement
+        _compile_dependencies()  # TODO (maanug): implement
 
         if cfg.tp_comm_overlap:
             # TODO: Should this be activated with just decoder-tp-comm-overlap too?
-            _initialize_tp_communicators()  # TODO: implement
+            _initialize_tp_communicators()  # TODO (maanug): implement
 
         # No continuation function
         return None
