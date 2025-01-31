@@ -17,8 +17,14 @@ from nemo.utils.import_utils import safe_import_from
 
 # Check if Transformer Engine has Float8Tensor class
 Float8Tensor, HAVE_TE_FLOAT8TENSOR = safe_import_from("transformer_engine.pytorch.float8_tensor", "Float8Tensor")
+MXFP8Tensor, HAVE_TE_MXFP8TENSOR = safe_import_from("transformer_engine.pytorch.mxfp8_tensor", "MXFP8Tensor")
 
 
 def is_float8tensor(tensor: torch.Tensor) -> bool:
     """Check if a tensor is a Transformer Engine Float8Tensor"""
     return HAVE_TE_FLOAT8TENSOR and isinstance(tensor, Float8Tensor)
+
+
+def is_mxfp8tensor(tensor: torch.Tensor) -> bool:
+    """Check if a tensor is a Transformer Engine MXFP8Tensor"""
+    return HAVE_TE_MXFP8TENSOR and isinstance(tensor, MXFP8)
