@@ -24,7 +24,7 @@ from lightning.pytorch import Callback
 from lightning.pytorch.loggers import WandbLogger
 from nemo_run.core.serialization.yaml import YamlSerializer
 
-from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
+from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback, MemoryProfileCallback
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
 
@@ -173,6 +173,33 @@ class NsysPlugin(run.Plugin):
         launcher.nsys_profile = True
         launcher.nsys_trace = self.nsys_trace or ["nvtx", "cuda"]
 
+
+@dataclass(kw_only=True)
+class  MemoryProfilePlugin(run.Plugin):
+    """
+    A plugin for memory profiling.
+
+    The MemoryProfilePlugin allows you to profile a timeline of memory allocations during you run.
+    The memory profiling plugin creates snapshots during the entire training. You can specify which ranks to run the profiling.
+
+    Args:
+        dir (str): Directory to store the memory profile dump .pickle files
+        ranks (Optional[list[int]]): The ranks on which to run the memory profiling. If not specified,
+            profiling will be run on rank 0.
+    """
+
+    dir: str
+    ranks: Optional[list[int]] = None
+
+    def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+        if isinstance(task, run.Partial):
+            memprof_callback = run.Config(
+                MemoryProfileCallback,
+                dir=self.dir,
+                ranks=self.ranks or [0],
+            )
+            callbacks: list[run.Config[Callback]] = [memprof_callback]  # type: ignore
+            _merge_callbacks(task, callbacks=callbacks)
 
 @dataclass(kw_only=True)
 class WandbPlugin(run.Plugin):
