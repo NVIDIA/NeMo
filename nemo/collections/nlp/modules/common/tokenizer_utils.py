@@ -173,7 +173,7 @@ def get_nmt_tokenizer(
     import omegaconf
     from omegaconf import OmegaConf
 
-    if isinstance(special_tokens, omegaconf.listconfig.ListConfig):
+    if isinstance(special_tokens, (omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig)):
         special_tokens = OmegaConf.to_container(special_tokens)
     if special_tokens is None:
         special_tokens_dict = {}
@@ -254,6 +254,6 @@ def get_nmt_tokenizer(
         return NullTokenizer(vocab_size)
     else:
         raise NotImplementedError(
-            'Currently we only support "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'
-            'libraries.'
+            'Currently we only support "huggingface", "sentencepiece", "megatron", "byte-level", "regex", "tabular",'
+            '"tiktoken", and "null" tokenizer libraries.'
         )

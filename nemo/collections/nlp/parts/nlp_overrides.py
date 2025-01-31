@@ -96,6 +96,7 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import dist_checkpointing, parallel_state
+    from megatron.core.dist_checkpointing.core import CheckpointingException
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
     from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject
     from megatron.core.dist_checkpointing.optimizer import (
@@ -133,6 +134,11 @@ except Exception:
     HAVE_MODELOPT = False
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
+URL = "https://docs.nvidia.com/nemo-framework/user-guide/latest/knownissues.html"
+LOAD_ERROR = f"""
+    (1) To resolve this issue, try to set `model.dist_ckpt_load_strictness` to `log_all`. This setting enables loading older checkpoints.
+    (2) For more details and troubleshooting guidance, please refer to the framework documentation: {URL}.
+"""
 
 
 def init_model_parallel(
@@ -163,6 +169,7 @@ def init_model_parallel(
                 use_sharp=sharp,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 order='tp-pp-dp' if app_state.use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+                num_distributed_optimizer_instances=app_state.num_distributed_optimizer_instances,
                 distributed_timeout_minutes=distributed_timeout_minutes,
             )
 
@@ -564,7 +571,11 @@ class NLPDDPStrategy(DDPStrategy):
             if self._check_param_groups_mismatch(checkpoint_path, checkpoint):
                 checkpoint = self._fix_param_groups(checkpoint_path, checkpoint)
             else:
-                checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+                try:
+                    checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=checkpoint)
+                except CheckpointingException as e:
+                    error_message = f"{e}\n{LOAD_ERROR}"
+                    raise CheckpointingException(error_message)
 
             if getattr(self.lightning_module, 'continue_training', False):
                 checkpoint = self._integrate_original_checkpoint_data(checkpoint)

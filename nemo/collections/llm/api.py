@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import os
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -47,6 +46,7 @@ if TYPE_CHECKING:
 
 
 TokenizerType = Any
+AnyPath = Union[Path, str]
 
 
 @run.cli.entrypoint(namespace="llm")
@@ -271,12 +271,14 @@ def ptq(
     calibration_tp: int = 1,
     calibration_pp: int = 1,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
+    ckpt_load_strictness: Optional[str] = None,
 ) -> Path:
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
     This function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy modules
     or direcly using TensorRT-LLM library.
+
     The function can be used through the NeMo CLI in the following way:
     ```bash
     # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
@@ -284,17 +286,21 @@ def ptq(
         export_config.path=/models/Llama-3-70B-FP8 \
         calibration_tp=8 \
         export_config.inference_tp=2
+
     # Choose different quantization method, for example, INT8 SmoothQuant
     nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq
     ```
+
     Args:
         nemo_checkpoint (str): The path to model to be quantized.
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
+        ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
+
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
     """
@@ -308,7 +314,12 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calibration_tp, calibration_pp)
+    model = quantization.load_with_modelopt_layer_spec(
+        nemo_checkpoint,
+        calibration_tp,
+        calibration_pp,
+        ckpt_load_strictness=ckpt_load_strictness,
+    )
 
     model = quantizer.quantize(model)
 
@@ -322,14 +333,14 @@ def ptq(
 
 @run.cli.entrypoint(namespace="llm")
 def deploy(
-    nemo_checkpoint: Path = None,
+    nemo_checkpoint: AnyPath = None,
     model_type: str = "llama",
     triton_model_name: str = "triton_model",
     triton_model_version: Optional[int] = 1,
     triton_http_port: int = 8000,
     triton_grpc_port: int = 8001,
     triton_http_address: str = "0.0.0.0",
-    triton_model_repository: Path = None,
+    triton_model_repository: AnyPath = None,
     num_gpus: int = 1,
     tensor_parallelism_size: int = 1,
     pipeline_parallelism_size: int = 1,
@@ -337,6 +348,7 @@ def deploy(
     max_input_len: int = 256,
     max_output_len: int = 256,
     max_batch_size: int = 8,
+    output_context_logits: bool = True,
     output_generation_logits: bool = True,
 ):
     """
@@ -364,8 +376,11 @@ def deploy(
         Needs to be True to be able to run evaluation. Default: True.
         openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
         be True while running evaluation. Default: True.
+        output_context_logits (bool): If True builds trtllm engine with gather_context_logits set to True. Default: True.
+        context_logits are used to compute the logProb of the output token in case of multi token prediction benchmarks.
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
-        generation_logits are used to compute the logProb of the output token. Default: True.
+        generation_logits are used to compute the logProb of the output token in case of single token prediction
+        benchmarks (like MMLU, lambada). Default: True.
     """
     from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
@@ -383,6 +398,7 @@ def deploy(
         max_output_len,
         max_batch_size,
         dtype,
+        output_context_logits,
         output_generation_logits,
     )
 
@@ -416,7 +432,7 @@ def deploy(
 
 
 def evaluate(
-    nemo_checkpoint_path: Path,
+    nemo_checkpoint_path: AnyPath,
     url: str = "grpc://0.0.0.0:8001",
     triton_http_port: int = 8000,
     model_name: str = "triton_model",
@@ -425,6 +441,7 @@ def evaluate(
     limit: Optional[Union[int, float]] = None,
     bootstrap_iters: int = 100000,
     # inference params
+    batch_size: Optional[int] = 1,
     max_tokens_to_generate: Optional[int] = 256,
     temperature: Optional[float] = 0.000000001,
     top_p: Optional[float] = 0.0,
@@ -438,7 +455,8 @@ def evaluate(
     Args:
         nemo_checkpoint_path (Path): Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt
         which is required to tokenize the evaluation input and output prompts.
-        url (str): grpc service url that were used in the deploy method above in the format: grpc://{grpc_service_ip}:{grpc_port}.
+        url (str): grpc service url that were used in the deploy method above
+            in the format: grpc://{grpc_service_ip}:{grpc_port}.
         triton_http_port (int): HTTP port that was used for the PyTriton server in the deploy method. Default: 8000.
         Please pass the triton_http_port if using a custom port in the deploy method.
         model_name (str): Name of the model that is deployed on PyTriton server. It should be the same as
@@ -454,7 +472,6 @@ def evaluate(
         bootstrap_iters (int): Number of iterations for bootstrap statistics, used when calculating stderrs. Set to 0
         for no stderr calculations to be performed. Default: 100000.
         # inference params
-        max_tokens_to_generate (int): max tokens to generate. Default: 256.
         temperature: Optional[float]: float value between 0 and 1. temp of 0 indicates greedy decoding, where the token
         with highest prob is chosen. Temperature can't be set to 0.0 currently, due to a bug with TRTLLM
         (# TODO to be investigated). Hence using a very samll value as the default. Default: 0.000000001.
@@ -481,7 +498,7 @@ def evaluate(
     evaluation.wait_for_server_ready(url=url, triton_http_port=triton_http_port, model_name=model_name)
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
     model = evaluation.NeMoFWLMEval(
-        model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos
+        model_name, url, tokenizer, batch_size, max_tokens_to_generate, temperature, top_p, top_k, add_bos
     )
     results = evaluator.simple_evaluate(
         model=model,
@@ -498,7 +515,7 @@ def evaluate(
 def import_ckpt(
     model: pl.LightningModule,
     source: str,
-    output_path: Optional[Path] = None,
+    output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
 ) -> Path:
     """
@@ -556,6 +573,9 @@ def import_ckpt(
         ValueError: If the model does not implement ConnectorMixin, indicating a lack of
             necessary importer functionality.
     """
+    if output_path and not isinstance(output_path, Path):
+        output_path = Path(output_path)
+
     output = io.import_ckpt(model=model, source=source, output_path=output_path, overwrite=overwrite)
 
     console = Console()
@@ -568,15 +588,17 @@ def import_ckpt(
     return output
 
 
-def load_connector_from_trainer_ckpt(path: Path, target: str) -> io.ModelConnector:
+def load_connector_from_trainer_ckpt(path: AnyPath, target: str) -> io.ModelConnector:
+    if not isinstance(path, Path):
+        path = Path(path)
     return io.load_context(path, subpath="model").exporter(target, path)
 
 
 @run.cli.entrypoint(name="export", namespace="llm")
 def export_ckpt(
-    path: Path,
+    path: AnyPath,
     target: str,
-    output_path: Optional[Path] = None,
+    output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
 ) -> Path:
@@ -627,6 +649,11 @@ def export_ckpt(
         ValueError: If the model does not implement ConnectorMixin, indicating a lack of
             necessary exporter functionality.
     """
+    if not isinstance(path, Path):
+        path = Path(path)
+    if output_path and not isinstance(output_path, Path):
+        output_path = Path(output_path)
+
     output = io.export_ckpt(path, target, output_path, overwrite, load_connector)
 
     console = Console()
@@ -637,7 +664,7 @@ def export_ckpt(
 
 @run.cli.entrypoint(name="generate", namespace="llm")
 def generate(
-    path: Union[Path, str],
+    path: AnyPath,
     trainer: nl.Trainer,
     prompts: Optional[list[str]] = None,
     encoder_prompts: Optional[list[str]] = None,
@@ -649,7 +676,7 @@ def generate(
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
-    output_path: Optional[Union[Path, str]] = None,
+    output_path: Optional[AnyPath] = None,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
