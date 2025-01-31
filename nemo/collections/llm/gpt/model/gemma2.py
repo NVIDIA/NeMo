@@ -46,17 +46,20 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
+try:
+    from megatron.core.extensions.transformer_engine import TERowParallelLinear
+except ImportError:
+    from abc import ABC
+
+    TERowParallelLinear = ABC
+
 
 def gemma2_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
-    from megatron.core.extensions.transformer_engine import (
-        TELayerNormColumnParallelLinear,
-        TENorm,
-        TERowParallelLinear,
-    )
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
     from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
+    from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear
 
     return ModuleSpec(
         module=TransformerLayer,
@@ -525,6 +528,8 @@ class TERowParallelLinearLayerNorm(TERowParallelLinear):
         is_expert: bool,
         tp_comm_buffer_name: str = None,
     ):
+        from megatron.core.extensions.transformer_engine import TENorm
+
         super().__init__(
             input_size,
             output_size,
