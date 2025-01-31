@@ -29,15 +29,28 @@ class SentencePieceTokenizer:
         special_tokens: either list of special tokens or dictionary of token name to token value
         legacy: when set to True, the previous behavior of the SentecePiece wrapper will be restored,
             including the possibility to add special tokens inside wrapper.
+        tokenizer: wraps an existing tokenizer
     """
 
     def __init__(
-        self, model_path: str, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None, legacy: bool = False
+        self,
+        model_path: Optional[str] = None,
+        special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
+        legacy: bool = False,
+        tokenizer: Optional[sentencepiece.SentencePieceProcessor] = None,
     ):
-        if not model_path or not os.path.exists(model_path):
-            raise ValueError(f"model_path: {model_path} is invalid")
-        self.tokenizer = sentencepiece.SentencePieceProcessor()
-        self.tokenizer.Load(model_path)
+        model_path_provided = model_path is not None
+        tokenizer_provided = tokenizer is not None
+        if not (model_path_provided ^ tokenizer_provided):
+            raise ValueError("Exactly only one of the arguments 'model_path', 'tokenizer' should be provided")
+
+        if tokenizer_provided:
+            self.tokenizer = tokenizer
+        else:
+            if not model_path or not os.path.exists(model_path):
+                raise ValueError(f"model_path: {model_path} is invalid")
+            self.tokenizer = sentencepiece.SentencePieceProcessor()
+            self.tokenizer.Load(model_path)
 
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
@@ -248,7 +261,7 @@ class SentencePieceTokenizer:
         ]
         return main_vocab + special_tokens
 
-    ### Below are a few methods that mimic transformers.PreTrainedTokenizer for vLLM
+    # Below are a few methods that mimic transformers.PreTrainedTokenizer for vLLM
 
     def convert_ids_to_tokens(self, ids, skip_special_tokens: bool = False):
         return self.ids_to_tokens(ids)  # TODO: support skip_special_tokens
