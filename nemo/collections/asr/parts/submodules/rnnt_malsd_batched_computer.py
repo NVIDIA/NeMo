@@ -99,11 +99,13 @@ class MALSDState:
     lm_scores: Optional[torch.Tensor] = None
     batch_lm_states_candidates: Optional[torch.Tensor] = None
     ngram_lm_batch: Optional[FastNGramLM] = None
+    batch_lm_states_prev: Optional[torch.Tensor] = None
+    init_batch_lm_states: Optional[torch.Tensor] = None
+    init_lm_scores: Optional[torch.Tensor] = None
+    init_batch_lm_states_candidates: Optional[torch.Tensor] = None
     
     def __init__(
         self,
-        decoder,
-        joint,
         batch_size: int,
         beam_size: int,
         max_time: int,
@@ -199,14 +201,6 @@ class MALSDState:
         
         self.alignments = None
         self.last_decoder_state = None
-        
-        self.init_decoder_output, self.init_decoder_state, *_ = decoder.predict(
-            self.last_labels_wb.view(-1, 1),
-            None, 
-            add_sos=False,
-            batch_size=self.batch_size * self.beam_size
-        )
-        self.init_decoder_output.copy_(joint.project_prednet(self.init_decoder_output))  # do not recalculate joint projection        
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
         """Check if need to reinit state: larger batch_size/max_time, or new device"""
@@ -289,10 +283,10 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.separate_graphs = None
         
         # prprpr
-        self.cuda_graphs_mode = self.CudaGraphsMode("full_graph")
+        # self.cuda_graphs_mode = self.CudaGraphsMode("full_graph")
         # self.cuda_graphs_mode = self.CudaGraphsMode("no_while_loops")
         # self.cuda_graphs_mode = self.CudaGraphsMode("no_graphs")
-        # self.cuda_graphs_mode = None
+        self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
         
         if ngram_lm_model is not None:
@@ -765,8 +759,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         batch_size, max_time, encoder_dim = encoder_output_projected.shape
 
         self.state = MALSDState(
-            self.decoder,
-            self.joint,
             batch_size=batch_size,
             beam_size=self.beam_size,
             max_time=max(max_time, self.INITIAL_MAX_TIME),
@@ -777,32 +769,44 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             blank_index=self._blank_index
         )
 
-        self.state.decoder_state = self.decoder.initialize_state_like(
-            self.state.batch_size * self.state.beam_size, 
-            encoder_output_projected.dtype,
-            encoder_output_projected.device)
+        self.state.init_decoder_output, self.state.init_decoder_state, *_ = self.decoder.predict(
+            self.state.last_labels_wb.view(-1, 1),
+            None, 
+            add_sos=False,
+            batch_size=batch_size * self.beam_size
+        )
+        self.state.init_decoder_output.copy_(self.joint.project_prednet(self.state.init_decoder_output))  # do not recalculate joint projection        
+
+        self.state.decoder_state = (
+            self.state.init_decoder_state[0].clone(),
+            self.state.init_decoder_state[1].clone(),
+        )
+        self.state.decoder_output = self.state.init_decoder_output.clone()
         
         self.state.prev_decoder_state = (
-            torch.zeros_like(self.state.decoder_state[0]),
-            torch.zeros_like(self.state.decoder_state[1])
+            self.state.init_decoder_state[0].clone(),
+            self.state.init_decoder_state[1].clone(),
         )
-        
-        # to avoid recalculation of joint projection, store decoder output in state
-        self.state.decoder_output = torch.zeros([self.beam_size * self.state.batch_size, 1, 640], dtype=encoder_output_projected.dtype, device=encoder_output_projected.device)
-        self.state.prev_decoder_output = torch.zeros_like(self.state.decoder_output)
+        self.state.prev_decoder_output = self.state.init_decoder_output.clone()
         
         if self.ngram_lm_batch is not None:
             device = encoder_output_projected.device
-            float_dtype = encoder_output_projected.dtype
-            vocab_size = self.ngram_lm_batch.vocab_size
+            
             self.ngram_lm_batch.to(device)
-            self.state.batch_lm_states = self.ngram_lm_batch.get_init_states(
-                batch_size=self.state.batch_size, bos=True
-            )
-            self.state.batch_lm_states_candidates = torch.zeros(
-                [batch_size, vocab_size], dtype=torch.long, device=device
-            )
-            self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
+            
+            self.state.init_batch_lm_states = self.ngram_lm_batch.get_init_states(
+                batch_size=self.state.batch_size * self.beam_size, bos=True
+            ).view(self.state.batch_size, self.beam_size)
+            init_lm_scores, init_batch_lm_states_candidates  = self.ngram_lm_batch.advance(
+                states=self.state.init_batch_lm_states.view(-1)
+            )  # vocab_size_no_blank
+            self.state.init_lm_scores = init_lm_scores.to(dtype=self.state.float_dtype).view(self.state.batch_size, self.beam_size, -1) * self.ngram_lm_alpha
+            self.state.init_batch_lm_states_candidates = init_batch_lm_states_candidates.view(self.state.batch_size, self.beam_size, -1)
+            
+            self.state.batch_lm_states = self.state.init_batch_lm_states.clone()
+            self.state.batch_lm_states_candidates = self.state.init_batch_lm_states_candidates.clone()
+            self.state.lm_scores = self.state.init_lm_scores.clone()
+            self.state.batch_lm_states_prev = self.state.init_batch_lm_states.clone()
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self._full_graph_compile()
@@ -862,7 +866,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             capture_status, _, graph, _, _ = cu_call(
                 cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.state.device).cuda_stream)
             )
-            print(capture_status)
+            
             assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
             # capture: while self.active_mask_any:
@@ -878,7 +882,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 loop_kernel, loop_args, loop_conditional_handle, device=self.state.device
             ):
                 self._loop_body()
-                print("shshshshshhshs")
                 self._loop_update_decoder()
 
     def _before_loop(self):
@@ -886,22 +889,13 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.state.batched_hyps.clear_()
         if self.state.alignments is not None:
             self.state.alignments.clear_()
-
-        # # initial state
-        # self.decoder.batch_replace_states_all(
-        #     src_states=self.decoder.initialize_state_like(
-        #         self.state.batch_size * self.beam_size,
-        #         self.state.encoder_output_projected.dtype,
-        #         self.state.encoder_output_projected.device
-        #     ),
-        #     dst_states=self.state.decoder_state,
-        # )
         
         # initial state - lm
         if self.ngram_lm_batch is not None:
-            self.state.batch_lm_states.copy_(
-                self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size, bos=True)
-            )
+            self.state.batch_lm_states.copy_(self.state.init_batch_lm_states)
+            self.state.batch_lm_states_candidates.copy_(self.state.init_batch_lm_states_candidates)
+            self.state.lm_scores.copy_(self.state.init_lm_scores)
+            self.state.batch_lm_states_prev.copy_(self.state.init_batch_lm_states)
 
         # last found labels - initially <SOS> (<blank>) symbol
         self.state.last_labels_wb.fill_(self._SOS)
@@ -912,7 +906,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         # time indices
         self.state.time_indices.fill_(0)
         self.state.safe_time_indices.fill_(0)  # safe time indices: guaranteed to be < encoder_output_length
-        # self.state.time_indices_current_labels.fill_(0).
         
         torch.sub(
             self.state.encoder_output_length,
@@ -1014,7 +1007,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.state.next_idx.copy_(torch.gather(self.state.beam_indices.reshape(self.state.batch_size, -1), dim=-1, index=hyps_candidates_indices))
         self.state.next_labels.copy_(torch.gather(labels_top_k.reshape(self.state.batch_size, -1), dim=-1, index=hyps_candidates_indices))
         self.state.next_scores.copy_(next_hyps_prob)
-        
+       
         # step 3: store results
         if self.max_symbols is None:
             self.state.batched_hyps.add_results_(self.state.next_idx, self.state.next_labels, self.state.next_scores)
@@ -1104,29 +1097,46 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         if self.ngram_lm_batch is not None:
             # batch_lm_states: [(BxBeam)]
             # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
-            batch_lm_states_candidates = torch.gather(
-                batch_lm_states_candidates.view(self.state.batch_size, self.beam_size, -1),
-                dim=1,
-                index=self.state.next_idx[:, :, None].expand(
-                    self.state.batch_size, self.beam_size, batch_lm_states_candidates.shape[-1]
-                ),
+            self.state.batch_lm_states_candidates.copy_(
+                torch.gather(
+                    self.state.batch_lm_states_candidates,
+                    dim=1,
+                    index=self.state.next_idx[:, :, None]
+                    .expand(
+                        self.state.batch_size,
+                        self.beam_size,
+                        self.state.batch_lm_states_candidates.shape[-1]
+                    ),
+                )
             )
-            batch_lm_states_prev = torch.gather(
-                batch_lm_states.view(self.state.batch_size, self.beam_size), dim=1, index=self.state.next_idx
+            self.state.batch_lm_states_prev.copy_(
+                torch.gather(
+                    self.state.batch_lm_states, dim=1, index=self.state.next_idx
+                )
             )
             last_labels_wb_blank_replaced = torch.where(
                 preserve_state, 0, self.state.last_labels_wb
             )
 
-            batch_lm_states = torch.gather(
-                batch_lm_states_candidates, dim=-1, index=last_labels_wb_blank_replaced.unsqueeze(-1)
-            ).squeeze(-1)
-            batch_lm_states = torch.where(preserve_state, batch_lm_states_prev, batch_lm_states).view(-1)
+            self.state.batch_lm_states.copy_(
+                torch.gather(
+                    self.state.batch_lm_states_candidates, dim=-1, index=last_labels_wb_blank_replaced.unsqueeze(-1)
+                ).squeeze(-1)
+            )
+            self.state.batch_lm_states.copy_(
+                torch.where(
+                    preserve_state,
+                    self.state.batch_lm_states_prev,
+                    self.state.batch_lm_states)
+            )
 
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
-                states=batch_lm_states
+                states=self.state.batch_lm_states.view(-1)
             )  # vocab_size_no_blank
             lm_scores = lm_scores.to(dtype=self.state.float_dtype).view(self.state.batch_size, self.beam_size, -1) * self.ngram_lm_alpha
+            
+            self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates.view(self.state.batch_size, self.state.beam_size, -1))
+            self.state.lm_scores.copy_(lm_scores)
 
         # step 5: update time indices + active mask
         self.state.time_indices.copy_(self.state.batched_hyps.next_timestep)

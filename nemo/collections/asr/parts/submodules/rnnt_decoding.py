@@ -500,6 +500,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
                         pruning_mode=self.cfg.beam.get('pruning_mode', None),
                         score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
                     )
                 else:
                     self.decoding = tdt_beam_decoding.Best1BeamBatchedTDTInfer(
@@ -516,6 +517,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
                         pruning_mode=self.cfg.beam.get('pruning_mode', None),
                         score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
                     )    
         elif self.cfg.strategy == 'maes_batch':
             if self.big_blank_durations is None or self.big_blank_durations == []:
