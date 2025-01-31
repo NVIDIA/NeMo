@@ -40,7 +40,7 @@ class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
         )
 
 
-def squad(tokenizer) -> pl.LightningDataModule:
+def squad(tokenizer, mbs=1, gbs=2) -> pl.LightningDataModule:
     """Instantiates a SquadDataModuleWithPthDataloader and return it
 
     Args:
@@ -52,12 +52,12 @@ def squad(tokenizer) -> pl.LightningDataModule:
     return SquadDataModuleWithPthDataloader(
         tokenizer=tokenizer,
         seq_length=512,
-        micro_batch_size=2,
-        global_batch_size=128,  # assert gbs == mbs * accumulate_grad_batches
+        micro_batch_size=mbs,
+        global_batch_size=gbs,
         num_workers=0,
         dataset_kwargs={
             "sanity_check_dist_workers": False,
-            "get_attention_mask_from_fusion": True,
+            "get_attention_mask_from_fusion": False,
         },
     )
 
@@ -111,7 +111,7 @@ def main():
 
     llm.api.finetune(
         model=llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator),
-        data=squad(llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)),
+        data=squad(llm.HFAutoModelForCausalLM.configure_tokenizer(args.model), gbs=args.devices),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
@@ -120,7 +120,7 @@ def main():
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
-            accumulate_grad_batches=10,
+            accumulate_grad_batches=1,
             gradient_clip_val=args.grad_clip,
             use_distributed_sampler=False,
             logger=wandb,
