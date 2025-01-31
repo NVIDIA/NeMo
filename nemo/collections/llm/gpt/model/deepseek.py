@@ -146,7 +146,7 @@ class DeepSeekV3Config(DeepSeekConfig):
     moe_router_topk_limited_devices: int = 4
     moe_router_topk_scaling_factor: float = 2.5
     moe_aux_loss_coeff: float = 1e-4
-    make_vocab_size_divisible_by: int = 128
+    make_vocab_size_divisible_by: int = 1280
     moe_router_score_function: str = "sigmoid"
     moe_router_enable_expert_bias: bool = True
     moe_router_bias_update_rate: float = 1e-3
@@ -288,6 +288,13 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
         n_moe_layers = source.num_hidden_layers - source.first_k_dense_replace
         is_v3 = source.scoring_func == "sigmoid"
+        if is_v3:
+            v3_kwargs = {
+                "moe_router_score_function": "sigmoid",
+                "moe_router_enable_expert_bias": True,
+            }
+        else:
+            v3_kwargs = {}
         return DeepSeekConfig(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
@@ -300,12 +307,11 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             moe_router_topk_limited_devices=source.topk_group,
             moe_router_topk_scaling_factor=source.routed_scaling_factor,
             moe_aux_loss_coeff=source.aux_loss_alpha,
-            moe_router_score_function=source.scoring_func,
-            moe_router_enable_expert_bias=is_v3,
             make_vocab_size_divisible_by=1280 if is_v3 else 3200,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
+            **v3_kwargs,
         )
 
 
