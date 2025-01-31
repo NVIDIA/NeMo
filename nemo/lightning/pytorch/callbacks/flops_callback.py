@@ -31,8 +31,6 @@ _model_flops_map = {
     "nemotron": flops_formulas.nemotron,
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,
-    "hf_clip_vit_l": flops_formulas.clip_vit_l,
-    "neva_projection": flops_formulas.neva_projection,
 }
 
 class FLOPsMeasurementCallback(Callback):
@@ -230,14 +228,21 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
         Calculate model FLOPs for a given model recursively when model has multiple sub-models
         """
 
+        # Add Multimodal models supported only by MM_FLOPsMeasurementCallback
+        mm_model_flops_map = {
+            **_model_flops_map,
+            "hf_clip_vit_l": flops_formulas.clip_vit_l,
+            "neva_projection": flops_formulas.neva_projection,
+        }
+
         total_flops = flops_per_gpu = 0
         for model_name, flops_cfg in self.flops_config_dict.items():
-            if model_name not in _model_flops_map:
-                logging.info(f"FLOPs measurement supported for {list(_model_flops_map.keys())}")
+            if model_name not in mm_model_flops_map:
+                logging.info(f"FLOPs measurement supported for {list(mm_model_flops_map.keys())}")
                 raise KeyError(
                     f"Failed to extract valid model name from or missing FLOPs calculations for {model_name}"
                 )
-            total_flops += _model_flops_map[model_name](flops_cfg)
+            total_flops += mm_model_flops_map[model_name](flops_cfg)
         num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
         flops_per_gpu = total_flops / num_devices
 
