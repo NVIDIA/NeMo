@@ -38,14 +38,13 @@ from nemo.utils import logging, str_to_dtype
 from nemo.utils.import_utils import safe_import_from
 from nemo.utils.te_utils import is_float8tensor, is_mxfp8tensor, te_version
 
-
 if te_version() >= (2, 0):
 
     # TE quantization logic using quantizer API
     # Supported TE versions: 2.0+
 
-    from transformer_engine.pytorch.tensor.float8_tensor import Float8Tensor
     from transformer_engine.pytorch.tensor._internal.float8_tensor_base import Float8TensorBase
+    from transformer_engine.pytorch.tensor.float8_tensor import Float8Tensor
 
     def _quantize_param_fragment_impl(
         input_: torch.Tensor,
@@ -99,14 +98,10 @@ else:
 
     # Fallback impl if TE version is invalid
     def _quantize_param_fragment_impl(*args, **kwargs) -> None:
-        raise RuntimeError(
-            "Invalid Transformer Engine version for FP8 distributed optimizer"
-        )
+        raise RuntimeError("Invalid Transformer Engine version for FP8 distributed optimizer")
 
     def _get_fp8_scale_and_amax_impl(*args, **kwargs):
-        raise RuntimeError(
-            "Invalid Transformer Engine version for FP8 distributed optimizer"
-        )
+        raise RuntimeError("Invalid Transformer Engine version for FP8 distributed optimizer")
 
 
 def quantize_param_fragment(
@@ -131,7 +126,6 @@ def quantize_param_fragment(
 def get_fp8_scale_and_amax(tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """Get FP8 scale and amax from Float8Tensor"""
     return _get_fp8_scale_and_amax_impl(tensor)
-
 
 
 _distribute_within_nodes_pgs = {}
