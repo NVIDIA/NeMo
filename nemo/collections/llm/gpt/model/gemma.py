@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 from megatron.core import parallel_state
+
 # from megatron.core.transformer.enums import AttnBackend
 from torch import nn
 

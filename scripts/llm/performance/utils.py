@@ -14,8 +14,9 @@
 
 import os
 import sys
-from typing import Dict, List
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict, List
 
 import nemo_run as run
 import pandas as pd
@@ -28,7 +29,6 @@ from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.utils import logging
-from dataclasses import dataclass
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
@@ -127,6 +127,7 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         use_fast=True,
     )
 
+
 @dataclass
 class ModelConfig:
 
@@ -138,6 +139,7 @@ class ModelConfig:
     cp_size: int
     vp_size: int
     ep_size: int
+
 
 def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
     script_dir = str(Path(__file__).parent.absolute())
@@ -154,7 +156,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     config = config_df.to_dict(orient='records')[0]
 
     num_gpus = args.num_gpus or int(config["num_gpus"])
-    num_nodes = -(num_gpus // -args.gpus_per_node) # ceil division
+    num_nodes = -(num_gpus // -args.gpus_per_node)  # ceil division
 
     mbs = args.micro_batch_size or int(config["mbs"])
     gbs = args.global_batch_size or int(config["gbs"])
