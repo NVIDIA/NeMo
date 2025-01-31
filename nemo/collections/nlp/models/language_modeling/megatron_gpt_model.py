@@ -1679,7 +1679,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
                 "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
                 "num_dataset_builder_threads": self.cfg.data.get("num_dataset_builder_threads", 1),
-                "renormalize_blend_weights": self.cfg.data.get("renormalize_blend_weights", False),
                 "add_extra_token_to_sequence": add_extra_token,
             }
 
@@ -1998,7 +1997,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         key.replace('model.', ''): checkpoint_state_dict.pop(key)
                         for key in list(checkpoint_state_dict.keys())
                     }
-                    module.load_state_dict(checkpoint_state_dict, strict=True)
+                    try:
+                        module.load_state_dict(checkpoint_state_dict, strict=True)
+                    except RuntimeError as e:
+                        missing_keys, expected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
+                        if all(s.endswith('_extra_state') for s in missing_keys):
+                            logging.warning(
+                                f'Loding checkpoint created with Transformer Engine version lower than 1.13. Missing layers {missing_keys} will be ignored.'
+                            )
+                        else:
+                            raise e
             else:
                 # when restoring a distributed checkpoint from a ptl checkpoint we need to defer loading the state_dict
                 # see NLPModel.on_load_checkpoint
