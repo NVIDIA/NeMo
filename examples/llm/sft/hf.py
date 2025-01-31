@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tempfile
 from functools import partial
 
 import fiddle as fdl
@@ -23,7 +24,7 @@ from torch.utils.data import DataLoader
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-import tempfile
+
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
     """Creates a squad dataset with a PT dataloader"""
@@ -101,7 +102,7 @@ def main():
 
     callbacks.append(
         nl.ModelCheckpoint(
-            every_n_train_steps=args.max_steps//2,
+            every_n_train_steps=args.max_steps // 2,
             dirpath=args.ckpt_folder,
         )
     )

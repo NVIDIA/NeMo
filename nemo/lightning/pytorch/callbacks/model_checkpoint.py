@@ -28,9 +28,10 @@ from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
+from nemo.lightning.pytorch.utils import get_huggingface_model_from_trainer
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.lightning.pytorch.utils import get_huggingface_model_from_trainer
+
 
 class ModelCheckpoint(PTLModelCheckpoint):
     """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.

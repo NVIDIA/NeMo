@@ -175,13 +175,15 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def save_pretrained(self, path):
         assert self.model is not None, "Model has to be created first."
         import os
-        from torch.distributed.tensor import DTensor
-        from torch import Tensor
+
         import torch.distributed as dist
+        from torch import Tensor
+        from torch.distributed.tensor import DTensor
 
         is_dist = dist.is_initialized()
         is_rank0 = not is_dist or (is_dist and dist.get_rank() == 0)
         if is_rank0 or type(self.model).__name__.startswith('FSDP'):
+
             def to_cpu(v):
                 if isinstance(v, DTensor):
                     return v.full_tensor().cpu()
@@ -189,6 +191,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     return v.cpu()
                 else:
                     return v
+
             cpu_state_dict = {k: to_cpu(v) for k, v in self.model.state_dict().items()}
 
         if is_rank0:
