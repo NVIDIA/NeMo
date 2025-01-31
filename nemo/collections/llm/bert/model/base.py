@@ -148,6 +148,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
     bert_binary_head: bool = True
     add_lm_head: bool = True
     num_tokentypes: float = None
+    mask_vocab_padding_tokens: bool = False
 
     def configure_model(self, tokenizer) -> "MCoreBertModelWrapperWithPostLNSupport":
         """Configure the BERT Model.
@@ -176,7 +177,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
             num_tokentypes=self.num_tokentypes,
             transformer_layer_spec=transformer_layer_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
-            tokenizer=tokenizer,
+            tokenizer=tokenizer if self.mask_vocab_padding_tokens else None,
             max_sequence_length=self.seq_length,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
@@ -328,11 +329,12 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             unpadded_vocab_size = self.tokenizer.vocab_size
 
             get_vocab_range = VocabUtility.vocab_range_from_per_partition_vocab_size
-            partition_vocab_size = logits.size()[-1]
+            padded_vocab_size = logits.size()[-1]
             rank = parallel_state.get_tensor_model_parallel_rank()
             world_size = parallel_state.get_tensor_model_parallel_world_size()
-            vocab_start_index, _ = get_vocab_range(partition_vocab_size, rank, world_size)
+            vocab_start_index, _ = get_vocab_range(padded_vocab_size, rank, world_size)  # gets range on this tp rank
 
+            # mask tokens past unpadded_vocab_size. must be offset by where each tp rank's vocab range starts
             mask_start = max(unpadded_vocab_size - vocab_start_index, 0)
             logits[:, :, mask_start:] = float('-inf')
 
