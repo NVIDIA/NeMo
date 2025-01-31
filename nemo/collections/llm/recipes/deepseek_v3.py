@@ -136,15 +136,15 @@ def finetune_recipe(
 
     if num_nodes is None:
         if peft_scheme is None or peft_scheme.lower() == 'none':
-            num_nodes = 32
+            num_nodes = 24
         elif peft_scheme.lower() in ['lora', 'dora']:
-            num_nodes = 8
+            num_nodes = 6
 
     recipe = default_finetune_recipe(
         model(), "deepseek-ai/DeepSeek-V3-Base", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.pipeline_model_parallel_size = 3
+        recipe.trainer.strategy.pipeline_model_parallel_size = 6
         recipe.trainer.strategy.expert_model_parallel_size = 32
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:
@@ -166,7 +166,7 @@ def finetune_recipe(
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
 
     # verify the speculation below:
-    # first pipeline has emb but three dense layers, so it should be faster, so we give it one more
+    # first pipeline has emb but three dense layers, so it should be faster, so we give it one more layer
     recipe.model.config.first_pipeline_num_layers = (
         recipe.model.config.num_layers // recipe.trainer.strategy.pipeline_model_parallel_size + 1
     )
