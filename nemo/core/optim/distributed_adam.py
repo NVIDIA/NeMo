@@ -35,7 +35,6 @@ from megatron.core.dist_checkpointing.mapping import ShardedTensor
 from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
 
 from nemo.utils import logging, str_to_dtype
-from nemo.utils.import_utils import safe_import_from
 from nemo.utils.te_utils import is_float8tensor, is_mxfp8tensor, te_version
 
 if te_version() >= (2, 0):
@@ -43,7 +42,6 @@ if te_version() >= (2, 0):
     # TE quantization logic using quantizer API
     # Supported TE versions: 2.0+
 
-    from transformer_engine.pytorch.tensor._internal.float8_tensor_base import Float8TensorBase
     from transformer_engine.pytorch.tensor.float8_tensor import Float8Tensor
 
     def _quantize_param_fragment_impl(
@@ -579,6 +577,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         self._try_start_bucket_grad_sync(params=params)
 
     def zero_grad(self, *args, **kwargs) -> None:
+        """Clear parameter gradients"""
         super().zero_grad(*args, **kwargs)
 
         # Reset main grads
@@ -593,6 +592,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         norm_type: float = 2.0,
         force: bool = False,
     ) -> torch.Tensor:
+        """L2 norm of parameter gradients"""
         assert norm_type == 2
 
         if parameters is not None:
@@ -804,6 +804,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         super()._check_params_shard_dtypes(params_buckets)
 
     def sharded_state_dict(self, model_sharded_state_dict, optimizer_state_dict=None):
+        """Create sharded state dict"""
         if optimizer_state_dict is None:
             optimizer_state_dict = self.state_dict()
 
