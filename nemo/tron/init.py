@@ -1,4 +1,5 @@
 import os
+import time
 from dataclasses import dataclass
 from typing import Literal, Optional
 
@@ -96,9 +97,7 @@ def _torch_dist_init(cfg: DistInitConfig, get_embedding_ranks, get_position_embe
 
         if get_rank_preinit() == 0:
             print("> setting random seeds to {} ...".format(cfg.seed))
-        _set_random_seed(
-            cfg.seed, cfg.data_parallel_random_init, cfg.te_rng_tracker, cfg.inference_rng_tracker
-        )  # TODO (maanug): implement
+        _set_random_seed(cfg.seed, cfg.data_parallel_random_init, cfg.te_rng_tracker, cfg.inference_rng_tracker)
 
     if skip_mpu_initialization:
         return None
@@ -118,7 +117,7 @@ def _torch_dist_init(cfg: DistInitConfig, get_embedding_ranks, get_position_embe
         # Megatron's MPU is the master. Complete initialization right away.
         finish_mpu_init()
 
-        _compile_dependencies()  # TODO (maanug): implement
+        _compile_dataset_helpers()
 
         if cfg.tp_comm_overlap:
             # TODO: Should this be activated with just decoder-tp-comm-overlap too?
@@ -152,3 +151,41 @@ def _init_rerun_state(cfg: RerunStateMachineConfig):
             error_injection_type=RerunDiagnostic(cfg.error_injection_type),
         ),
     )
+
+
+def _compile_dataset_helpers():
+
+    # =========================
+    # Compile dataset C++ code.
+    # =========================
+    # TODO: move this to ninja
+    if torch.distributed.get_rank() == 0:
+        start_time = time.time()
+        print("> compiling dataset index builder ...")
+        from megatron.core.datasets.utils import compile_helpers
+
+        compile_helpers()
+        print(
+            ">>> done with dataset index builder. Compilation time: {:.3f} "
+            "seconds".format(time.time() - start_time),
+            flush=True,
+        )
+
+
+def _set_random_seed(seed_, data_parallel_random_init=False, te_rng_tracker=False, inference_rng_tracker=False):
+    """Set random seed for reproducability."""
+    assert seed_ is not None and seed_ > 0, f"Seed ({seed_}) should be a positive integer."
+
+    import random
+    import numpy as np
+
+    # Ensure that different pipeline MP stages get different seeds.
+    seed = seed_ + (100 * parallel_state.get_pipeline_model_parallel_rank())
+    # Ensure different data parallel ranks get different seeds
+    if data_parallel_random_init:
+        seed = seed + (10 * parallel_state.get_data_parallel_rank())
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.device_count() > 0:
+        tensor_parallel.model_parallel_cuda_manual_seed(seed, te_rng_tracker, inference_rng_tracker)
