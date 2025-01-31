@@ -63,6 +63,7 @@ if __name__ == '__main__':
     parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp', 'fsdp2'])
     parser.add_argument('--devices', default=1, type=int)
+    parser.add_argument('--num-nodes', default=1, type=int)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
@@ -91,6 +92,7 @@ if __name__ == '__main__':
         data=make_squad_hf_dataset(DATA_PATH, tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
+            num_nodes=args.num_nodes,
             max_steps=args.max_steps,
             accelerator=args.accelerator,
             strategy=args.strategy,
