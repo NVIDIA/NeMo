@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Tuple
 import numpy as np
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -71,7 +72,7 @@ Note:
 """
 
 
-def tokenize_dataset(cfg: 'DictConfig'):
+def tokenize_dataset(cfg: 'DictConfig', tokenizer_type: str, is_chat: bool):
     """
     Tokenizes a dataset using the same configuration file as finetuninng with GPTSFTDataset.
 
@@ -88,13 +89,20 @@ def tokenize_dataset(cfg: 'DictConfig'):
     # using the same template as SFT/PEFT script. This may be overkill but guarantees the preprocess settings
     # are identical to normal SFT training
     data_cfg = cfg.model.data.train_ds
-    if os.path.isdir(cfg.tokenizer_path):
-        # pass in a Hugging Face folder which contains tokenizer.json
+    if tokenizer_type == "huggingface":
+        # pass in either a local Hugging Face folder which contains tokenizer.json or a path to the tokenizer on huggingface
         tokenizer = get_nmt_tokenizer(library="huggingface", model_name=cfg.tokenizer_path, use_fast=True)
-    else:
+    elif tokenizer_type == "sentencepiece":
         tokenizer = get_nmt_tokenizer(library="sentencepiece", tokenizer_model=cfg.tokenizer_path)
+    elif cfg.tokenizer_type=="tiktoken":
+        ## TODO: tokenizer_model unused?
+        tokenizer = get_nmt_tokenizer(library="tiktoken", vocab_file=cfg.tokenizer_path, tokenizer_model=cfg.tokenizer_path)
+    else:
+        raise ValueError(f"unsupported tokenizer type {tokenizer_type}")
 
-    dataset = GPTSFTDataset(
+    clss = GPTSFTChatDataset if is_chat else GPTSFTDataset
+
+    dataset = clss(
         file_path=data_cfg.file_names[0],
         tokenizer=tokenizer,
         max_seq_length=data_cfg.max_seq_length,
@@ -130,6 +138,8 @@ class PackingArgs:
     pack_sizes: Tuple[int] = (2048,)
     packing_algorithm: str = "first_fit_shuffle"
     seed: int = 0
+    tokenizer_type: str = "sentencepiece"  ## one of "huggingface" or "sentencepiece"
+    is_chat: bool = False ## whether this is a chat dataset
 
     def from_config(self, cfg: 'DictConfig'):
         for required_arg in ('output_dir', 'pack_sizes'):
@@ -138,6 +148,8 @@ class PackingArgs:
         self.pack_sizes = cfg.pack_sizes
         self.packing_algorithm = cfg.get("packing_algorithm", "first_fit_shuffle")
         self.seed = cfg.get("seed", 0)
+        self.tokenizer_type = cfg.tokenizer_type
+        self.is_chat = cfg.is_chat
         return self
 
 
@@ -146,7 +158,7 @@ class PackingArgs:
 )
 def main(cfg: 'DictConfig') -> None:
     args = PackingArgs().from_config(cfg)
-    dataset = tokenize_dataset(cfg)
+    dataset = tokenize_dataset(cfg, args.tokenizer_type, args.is_chat)
     sequences, histogram = create_hist(dataset, cfg.model.data.train_ds.max_seq_length)
     for pack_size in args.pack_sizes:
         assignments = create_packing_strategy(histogram, pack_size, args.packing_algorithm)
