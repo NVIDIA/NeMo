@@ -82,6 +82,7 @@ def cutset_shar_path(cutset_path: Path) -> Path:
     cuts.to_shar(p, fields={"recording": "wav"}, shard_size=5)
     return p
 
+
 @pytest.fixture(scope="session")
 def cutset_shar_with_skipme_path(cutset_with_skipme_path: Path) -> Path:
     """Create a a Lhotse Shar (tarred) CutSet with last 2 utterances out of 10 with `_skipme` key enabled"""
@@ -129,6 +130,7 @@ def nemo_manifest_path(cutset_path: Path):
     save_to_jsonl(nemo, p)
     return p
 
+
 @pytest.fixture(scope="session")
 def nemo_manifest_with_skipme_path(nemo_manifest_path: Path) -> Path:
     """Create a nemo manifest with last 2 utterances out of 10 with `_skipme` key enabled"""
@@ -142,6 +144,7 @@ def nemo_manifest_with_skipme_path(nemo_manifest_path: Path) -> Path:
     p = nemo_manifest_path.parent / "nemo_manifest_with_skipme.json"
     save_to_jsonl(all_items, p)
     return p
+
 
 @pytest.fixture(scope="session")
 def mc_cutset_path(tmp_path_factory) -> Path:
@@ -2563,14 +2566,15 @@ def test_dataloader_from_tarred_nemo_manifest_with_skipme(nemo_tarred_manifest_w
             "batch_size": 1,
             # lhotse specific
             "use_bucketing": False,
-            "force_finite": True
+            "force_finite": True,
         }
     )
 
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
     batches = [batch for batch in dl]
-    
+
     assert len(batches) == 8
+
 
 def test_dataloader_from_lhotse_cuts_with_skipme(cutset_with_skipme_path: Path):
     config = OmegaConf.create(
@@ -2586,9 +2590,7 @@ def test_dataloader_from_lhotse_cuts_with_skipme(cutset_with_skipme_path: Path):
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=Identity()
-    )
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
 
     batches = [batch for batch in dl]
     assert len(batches) == 8
@@ -2609,9 +2611,7 @@ def test_dataloader_from_lhotse_shar_cuts_with_skipme(cutset_shar_with_skipme_pa
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=Identity()
-    )
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
 
     batches = [batch for batch in dl]
     assert len(batches) == 8

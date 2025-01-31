@@ -370,7 +370,7 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
             logging.info(f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.shar_path}'")
             cuts = CutSet.from_shar(
                 **_resolve_shar_inputs(config.shar_path, metadata_only), shuffle_shards=True, seed=shard_seed
-                )
+            )
             if not metadata_only and not force_finite:
                 cuts = cuts.repeat()
         elif isinstance(config.shar_path, Sequence):
@@ -591,7 +591,7 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
             else:
                 cutsets.append(CutSet(nemo_iter))
                 weights.append(weight)
-        # Finally, we multiplex the dataset streams to mix the data. 
+        # Finally, we multiplex the dataset streams to mix the data.
         # Before that we filter cutsets to exclude cuts with valid "_skipme" values to mix the data correctly.
         cutsets = [cutset.filter(PlaceholderFilter()) for cutset in cutsets]
         cuts = mux(
