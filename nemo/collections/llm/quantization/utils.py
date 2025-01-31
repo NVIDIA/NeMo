@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -52,6 +51,8 @@ def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
 
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model config for TensorRT-Model-Optimizer quantization"""
+    
+    from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
 
     model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec(
         num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True
