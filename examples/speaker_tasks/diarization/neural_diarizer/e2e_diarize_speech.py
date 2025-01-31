@@ -36,9 +36,11 @@ python $BASEPATH/neural_diarizer/e2e_diarize_speech.py \
     dataset_manifest=/path/to/diarization_manifest.json
 
 """
+import json
 import logging
 import os
 import tempfile
+from tempfile import NamedTemporaryFile
 from dataclasses import dataclass, is_dataclass
 from typing import Dict, List, Optional, Union
 
@@ -48,6 +50,8 @@ import torch
 from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
 
+from nemo.collections.asr.parts.utils.transcribe_utils import read_and_maybe_sort_manifest
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models import SortformerEncLabelModel
 from nemo.collections.asr.parts.utils.speaker_utils import (
@@ -73,6 +77,7 @@ class DiarizationConfig:
 
     model_path: Optional[str] = None  # Path to a .nemo file
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
+    presort_manifest: Optional[bool] = True
 
     postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
     no_der: bool = False
@@ -86,6 +91,9 @@ class DiarizationConfig:
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
     bypass_postprocessing: bool = True  # If True, postprocessing will be bypassed
     log: bool = False # If True, log will be printed
+
+    use_lhotse: bool = True
+    batch_duration: int = 33000
 
     # Eval Settings: (0.25, False) should be default setting for sortformer eval.
     collar: float = 0.25  # Collar in seconds for DER calculation
@@ -403,10 +411,31 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.set_trainer(trainer)
 
     diar_model = diar_model.eval()
-    diar_model._cfg.test_ds.manifest_filepath = cfg.dataset_manifest
-    infer_audio_rttm_dict = audio_rttm_map(cfg.dataset_manifest)
+
+    if cfg.presort_manifest:
+        audio_key = cfg.get('audio_key', 'audio_filepath')
+        with NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
+                audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
+                item[audio_key] = audio_file
+                f.write(json.dumps(item) + "\n")
+            sorted_manifest_path = f.name
+        diar_model._cfg.test_ds.manifest_filepath = sorted_manifest_path
+        infer_audio_rttm_dict = audio_rttm_map(sorted_manifest_path)
+    else:
+        diar_model._cfg.test_ds.manifest_filepath = cfg.dataset_manifest
+        infer_audio_rttm_dict = audio_rttm_map(cfg.dataset_manifest)
+    remove_path_after_done = sorted_manifest_path if sorted_manifest_path is not None else None
+
     diar_model._cfg.test_ds.batch_size = cfg.batch_size
     diar_model._cfg.test_ds.pin_memory = False
+
+    OmegaConf.set_struct(diar_model._cfg, False)
+    diar_model._cfg.test_ds.use_lhotse = cfg.use_lhotse
+    diar_model._cfg.test_ds.use_bucketing = False
+    diar_model._cfg.test_ds.drop_last = False
+    diar_model._cfg.test_ds.batch_duration = cfg.batch_duration
+    OmegaConf.set_struct(diar_model._cfg, True)
 
     # Model setup for inference
     diar_model._cfg.test_ds.num_workers = cfg.num_workers
@@ -509,6 +538,10 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                 out_dir=cfg.out_dir
             )
 
+    # clean-up
+    if cfg.presort_manifest is not None:
+        if remove_path_after_done is not None:
+            os.unlink(remove_path_after_done)
 
 if __name__ == '__main__':
     main()
