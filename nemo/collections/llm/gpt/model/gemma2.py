@@ -49,7 +49,11 @@ if TYPE_CHECKING:
 
 def gemma2_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
-    from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear, TENorm, TERowParallelLinear
+    from megatron.core.extensions.transformer_engine import (
+        TELayerNormColumnParallelLinear,
+        TENorm,
+        TERowParallelLinear,
+    )
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
     from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
