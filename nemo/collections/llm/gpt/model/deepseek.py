@@ -237,7 +237,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             "model.norm.weight": "decoder.final_layernorm.weight",
             "lm_head.weight": "output_layer.weight",
         }
-        if self.config.moe_router_enable_expert_bias:
+        if hasattr(self.config, "moe_router_enable_expert_bias") and self.config.moe_router_enable_expert_bias:
             mapping.update(
                 {
                     "model.layers.*.mlp.gate.e_score_correction_bias": "decoder.layers.*.mlp.router.expert_bias",
