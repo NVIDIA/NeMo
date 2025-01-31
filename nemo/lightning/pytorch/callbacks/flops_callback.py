@@ -33,6 +33,7 @@ _model_flops_map = {
     "bert": flops_formulas.bert,
 }
 
+
 class FLOPsMeasurementCallback(Callback):
     """
     Calculate and log FLOPs per second after every ``trainer.log_every_n_steps`` steps.
@@ -179,7 +180,7 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
 
     def __init__(
         self,
-        model_name_config_dict: dict(),
+        model_name_config_dict: dict,
         data_config: pl.LightningDataModule,
     ):
         self.data_cfg = data_config
