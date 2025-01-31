@@ -82,7 +82,7 @@ if __name__ == '__main__':
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         grad_clip = None
     if args.strategy == 'fsdp2':
-        args.strategy = nl.FSDP2Strategy(data_parallel_size=args.devices, tensor_parallel_size=1)
+        args.strategy = nl.FSDP2Strategy(data_parallel_size=args.devices * args.num_nodes, tensor_parallel_size=1)
 
     use_dist_samp = False
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
