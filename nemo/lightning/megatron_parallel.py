@@ -42,8 +42,8 @@ from typing import (
 
 import torch
 import torch.distributed
-from lightning.pytorch.utilities import move_data_to_device
 from lightning.pytorch.trainer.states import TrainerFn
+from lightning.pytorch.utilities import move_data_to_device
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
