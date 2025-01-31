@@ -21,7 +21,7 @@ from nemo.utils import logging
 SAFE_EXTENSION = '.safetensor'
 
 
-def torch_load(filename: str, map_location: str = 'cpu', safe: bool = False):
+def torch_load(filename: str, map_location: str = 'cpu', weights_only: bool = True, safe: bool = False):
     """
     load PyTorch files, for backwards compatability it loads insecurely
     by default because files have to be saved securely to work perfectly,
@@ -42,7 +42,7 @@ def torch_load(filename: str, map_location: str = 'cpu', safe: bool = False):
         else:
             logging.info(e)
 
-    return torch.load(filename, map_location=map_location)
+    return torch.load(filename, map_location=map_location, weights_only=weights_only)
 
 
 def torch_save(tensors, filename: str, safe: bool = False):
