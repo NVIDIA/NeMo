@@ -20,7 +20,7 @@ import nemo_run as run
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.model.deepseek import DeepSeekV3Config, DeepSeekModel
+from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Config
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 
@@ -167,7 +167,9 @@ def finetune_recipe(
 
     # verify the speculation below:
     # first pipeline has emb but three dense layers, so it should be faster, so we give it one more
-    recipe.model.config.first_pipeline_num_layers = recipe.model.config.num_layers // recipe.trainer.strategy.pipeline_model_parallel_size + 1
+    recipe.model.config.first_pipeline_num_layers = (
+        recipe.model.config.num_layers // recipe.trainer.strategy.pipeline_model_parallel_size + 1
+    )
 
     # Sequence length settings in the model and dataset must agree
     recipe.model.config.seq_length = seq_length
@@ -175,6 +177,5 @@ def finetune_recipe(
     if packed_sequence:
         recipe.data.dataset_kwargs = {'pad_to_max_length': True}
         recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
-
 
     return recipe

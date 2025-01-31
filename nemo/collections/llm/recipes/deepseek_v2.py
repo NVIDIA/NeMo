@@ -20,7 +20,7 @@ import nemo_run as run
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.model.deepseek import DeepSeekV2Config, DeepSeekModel
+from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2Config
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 
@@ -171,6 +171,5 @@ def finetune_recipe(
     if packed_sequence:
         recipe.data.dataset_kwargs = {'pad_to_max_length': True}
         recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
-
 
     return recipe
