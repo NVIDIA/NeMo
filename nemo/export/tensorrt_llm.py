@@ -159,6 +159,8 @@ class TensorRTLLM(ITritonDeployable):
         delete_existing_files: bool = True,
         tensor_parallelism_size: int = 1,
         pipeline_parallelism_size: int = 1,
+        moe_tensor_parallelism_size: int = -1,
+        moe_expert_parallelism_size: int = -1,
         gpus_per_node: Optional[int] = None,
         max_input_len: int = 256,
         max_output_len: Optional[int] = 256,
@@ -346,6 +348,9 @@ class TensorRTLLM(ITritonDeployable):
                     from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import (
                         DEFAULT_CONVERSION_DICT,
                     )
+                    from megatron.core.export.trtllm.model_to_trllm_mapping.deepseek_dict import (
+                        DEEPSEEK_DICT,
+                    )
                     from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
                     from tensorrt_llm.layers import MoeConfig
 
@@ -362,6 +367,8 @@ class TensorRTLLM(ITritonDeployable):
 
                     # MCore export supports some default conversion dictionaries
                     mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT
+                    if model_type == "deepseek":
+                        mcore_model_conversion_dict.update(DEEPSEEK_DICT)
 
                     # TODO: remove after adding this mapping to mcore
                     from megatron.core.export.trtllm.trtllm_layers import TRTLLMLayers
@@ -401,12 +408,15 @@ class TensorRTLLM(ITritonDeployable):
                             'moe_renorm_mode', MoeConfig.ExpertScaleNormalizationMode.RENORMALIZE
                         ),
                         share_embeddings_and_output_weights=share_embeddings_and_output_weights,
+                        moe_router_score_function=model_config.get("moe_router_score_function"),
                     )
 
                     input_dtype = getattr(DataType, dtype)
                     export_config = ExportConfig(
                         tensor_parallelism_size,
                         pipeline_parallelism_size,
+                        moe_tensor_parallelism_size,
+                        moe_expert_parallelism_size,
                         use_parallel_embedding,
                         share_embeddings_and_output_weights,
                     )
@@ -416,7 +426,7 @@ class TensorRTLLM(ITritonDeployable):
                             model_state_dict=model,
                             export_config=export_config,
                             dtype=input_dtype,
-                            state_dict_split_by_layer_numbers=False,
+                            state_dict_split_by_layer_numbers=True,
                             fp8_quantized=fp8_quantized,
                             fp8_kvcache=fp8_kvcache,
                         )
@@ -525,7 +535,7 @@ class TensorRTLLM(ITritonDeployable):
 
     def get_transformer_config(self, nemo_model_config):
         """Given nemo model config get transformer config"""
-        from megatron.core.transformer.transformer_config import TransformerConfig
+        from megatron.core.transformer.transformer_config import TransformerConfig, MLATransformerConfig
 
         normalization = nemo_model_config.get('normalization', 'layernorm')
         transformer_config_normalization = 'LayerNorm'
@@ -535,10 +545,37 @@ class TensorRTLLM(ITritonDeployable):
         elif normalization == 'rmsnorm':
             transformer_config_normalization = 'RMSNorm'
 
+        if nemo_model_config.get('q_lora_rank') is None:
+            config_cls = TransformerConfig
+            extra_args = {}
+        else:
+            config_cls = MLATransformerConfig
+            extra_args = dict(
+                moe_grouped_gemm=nemo_model_config.get('moe_grouped_gemm'),
+                moe_router_pre_softmax=nemo_model_config.get('moe_router_pre_softmax'),
+                moe_token_dispatcher_type=nemo_model_config.get('moe_token_dispatcher_type'),
+                moe_router_load_balancing_type=nemo_model_config.get('moe_router_load_balancing_type'),
+                moe_shared_expert_overlap=nemo_model_config.get('moe_shared_expert_overlap'),
+                moe_ffn_hidden_size=nemo_model_config.get('moe_ffn_hidden_size'),
+                moe_shared_expert_intermediate_size=nemo_model_config.get('moe_shared_expert_intermediate_size'),
+                moe_layer_freq=nemo_model_config.get('moe_layer_freq'),
+                q_lora_rank=nemo_model_config.get('q_lora_rank'),
+                kv_lora_rank=nemo_model_config.get('kv_lora_rank'),
+                qk_head_dim=nemo_model_config.get('qk_head_dim'),
+                qk_pos_emb_head_dim=nemo_model_config.get('qk_pos_emb_head_dim'),
+                v_head_dim=nemo_model_config.get('v_head_dim'),
+                rotary_scaling_factor=nemo_model_config.get('rotary_scaling_factor'),
+                mscale=nemo_model_config.get('mscale'),
+                mscale_all_dim=nemo_model_config.get('mscale_all_dim'),
+                expert_model_parallel_size=8,
+            )
+
         num_moe_experts = nemo_model_config.get('num_moe_experts', 0)
-        conf = TransformerConfig(
+        conf = config_cls(
             num_layers=nemo_model_config.get('num_layers'),
             moe_router_topk=nemo_model_config.get('moe_router_topk', 0),
+            moe_router_topk_limited_devices=nemo_model_config.get('moe_router_topk_limited_devices'),
+            moe_router_topk_scaling_factor=nemo_model_config.get('moe_router_topk_scaling_factor'),
             num_attention_heads=nemo_model_config.get('num_attention_heads'),
             num_query_groups=nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
             kv_channels=nemo_model_config.get("kv_channels", None),
@@ -550,6 +587,7 @@ class TensorRTLLM(ITritonDeployable):
             normalization=transformer_config_normalization,
             layernorm_zero_centered_gamma=layernorm_zero_centered_gamma,
             gated_linear_unit=nemo_model_config.get('gated_linear_unit', False),
+            **extra_args,
         )
         return conf
 
@@ -1135,7 +1173,7 @@ class TensorRTLLM(ITritonDeployable):
     def get_supported_models_list(self):
         """Supported model list"""
         # gpt and gptnext are the same. Keeping the gptnext due to backward compatibility.
-        return ["gpt", "gptnext", "llama", "falcon", "starcoder", "mixtral", "gemma"]
+        return ["gpt", "gptnext", "llama", "falcon", "starcoder", "mixtral", "gemma", "deepseek"]
 
     @property
     def get_hidden_size(self):

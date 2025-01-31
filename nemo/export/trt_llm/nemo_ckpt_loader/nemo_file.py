@@ -576,7 +576,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
                 nemo_model_config = {}
                 for k, v in config["config"].items():
-                    if isinstance(v, (float, int, str, bool)):
+                    if isinstance(v, (float, int, str, bool, list)):
                         nemo_model_config[k] = v
                     elif k == "activation_func":
                         nemo_model_config["activation"] = v["_target_"].rsplit('.', 1)[-1]
@@ -587,7 +587,7 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
                 nemo_model_config = {}
                 for k, v in config.__dict__.items():
-                    if isinstance(v, (float, int, str, bool)):
+                    if isinstance(v, (float, int, str, bool, list)):
                         nemo_model_config[k] = v
                     elif k == "activation_func":
                         if isinstance(v, torch.jit.ScriptFunction):
