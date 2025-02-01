@@ -65,7 +65,6 @@ def is_trainer_attached(model: pl.LightningModule):
     return hasattr(model, 'trainer')
 
 
-
 def get_huggingface_model_from_trainer(trainer: 'lightning.pytorch.Trainer') -> 'nn.Module':
     """
     Extracts the Hugging Face model from a PyTorch Lightning trainer instance.
