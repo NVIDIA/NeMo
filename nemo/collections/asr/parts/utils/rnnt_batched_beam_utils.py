@@ -363,9 +363,11 @@ class BatchedBeamHypsTDT:
         float_dtype: Optional[torch.dtype] = None,
     ):
         self.INACTIVE_SCORE = -float("inf")
+        self.INACTIVE_SCORE_TENSOR = torch.tensor(self.INACTIVE_SCORE, device=device, dtype=torch.float)
         self.INIT_POINTER_VALUE = -1
         self.INIT_PREFIX_HASH_VALUE = 0
         self.NON_EXISTENT_LABEL_VALUE = -1
+        self.ZERO_TENSOR = torch.tensor(0, device=device, dtype=torch.long)
                 
         self._max_length = init_length
         self.beam_size = beam_size
@@ -449,22 +451,20 @@ class BatchedBeamHypsTDT:
         )
         # self.transcript.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         # self.transcript_prev_ptr.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1))
-        self.current_lengths_wb += 1
+        torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
-        self.current_lengths_nb = (
+        self.current_lengths_nb.copy_(
             torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
         )
 
-        self.next_timestep = torch.where(
-            next_labels >= 0,
-            torch.gather(self.next_timestep, dim=-1, index=hyps_indices) + next_label_durations, 
-            torch.gather(self.next_timestep, dim=-1, index=hyps_indices)
-        )
-        self.last_timestep_lasts = torch.where(
+        timesteps = torch.gather(self.next_timestep, dim=-1, index=hyps_indices)
+        torch.where(next_labels >= 0, timesteps + next_label_durations, timesteps, out=self.next_timestep)
+        torch.where(
             next_label_durations>0,
-            0,
+            self.ZERO_TENSOR,
             torch.gather(self.last_timestep_lasts, dim=-1, index=hyps_indices) + extended_with_label,
+            out=self.last_timestep_lasts
         )
 
         prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
@@ -506,14 +506,14 @@ class BatchedBeamHypsTDT:
         scores_matrix = torch.where(
             hyps_equal,
             self.scores[:, None, :].expand(self.batch_size, self.beam_size, self.beam_size),
-            self.INACTIVE_SCORE,
+            self.INACTIVE_SCORE_TENSOR,
         )
         scores_argmax = scores_matrix.argmax(-1, keepdim=False)
         scores_to_keep = (
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
         new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
-        torch.where(scores_to_keep, new_scores, torch.tensor(self.INACTIVE_SCORE), out=self.scores)
+        torch.where(scores_to_keep, new_scores, self.INACTIVE_SCORE_TENSOR, out=self.scores)
     
     def remove_duplicates(self, labels, total_logps):
         if self.beam_size <= 1:
