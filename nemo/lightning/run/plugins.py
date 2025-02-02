@@ -24,10 +24,9 @@ from lightning.pytorch import Callback
 from lightning.pytorch.loggers import WandbLogger
 from nemo_run.core.serialization.yaml import YamlSerializer
 
-from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback, MemoryProfileCallback
+from nemo.lightning.pytorch.callbacks import MemoryProfileCallback, NsysCallback, PreemptionCallback
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
-
 from nemo.utils.import_utils import safe_import
 
 res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
@@ -175,7 +174,7 @@ class NsysPlugin(run.Plugin):
 
 
 @dataclass(kw_only=True)
-class  MemoryProfilePlugin(run.Plugin):
+class MemoryProfilePlugin(run.Plugin):
     """
     A plugin for memory profiling.
 
@@ -200,6 +199,7 @@ class  MemoryProfilePlugin(run.Plugin):
             )
             callbacks: list[run.Config[Callback]] = [memprof_callback]  # type: ignore
             _merge_callbacks(task, callbacks=callbacks)
+
 
 @dataclass(kw_only=True)
 class WandbPlugin(run.Plugin):
