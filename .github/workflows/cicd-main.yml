@@ -396,7 +396,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ${{ github.run_id }}/current
-   
+
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
         if: always()
@@ -411,6 +411,12 @@ jobs:
           REPORT=$(coverage report)
           TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
           echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
+      
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          directory: ${{ github.run_id }}/current
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
