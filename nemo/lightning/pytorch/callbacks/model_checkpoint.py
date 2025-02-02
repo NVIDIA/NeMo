@@ -483,6 +483,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
             # sync save calls the finalization function immediately after save.
             finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
             if self.async_save:
+                logging.info(
+                    f'Checkpoint async save for step {trainer.gloubal_step} starts. - logging'
+                )
+                print(
+                    f'Checkpoint async save for step {trainer.gloubal_step} starts. - print'
+                )
                 checkpoint_io = trainer.strategy.checkpoint_io
                 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
@@ -494,7 +500,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             else:
                 storage_options = None
 
-            logging.info(f'Checkpoint save for step {trainer.gloubal_step} starts')
             trainer.save_checkpoint(filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
@@ -503,6 +508,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if self.async_save:
                 self._last_checkpoint_saved = filepath
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
+                logging.info(
+                    f'Checkpoint async save for step {trainer.gloubal_step} ends. - logging'
+                )
+                print(
+                    f'Checkpoint async save for step {trainer.gloubal_step} ends. - print'
+                )
             else:
                 finalize_fn()
                 logging.info(f'Checkpoint save for step {trainer.gloubal_step} ends')

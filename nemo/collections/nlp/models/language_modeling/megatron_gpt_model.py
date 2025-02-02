@@ -1787,7 +1787,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path and not self.continue_training:
+            logging.info(
+                f'Extract consumed samples from ckpt {resume_checkpoint_path} starts - logging'
+            )
+            print(
+                f'Extract consumed samples from ckpt {resume_checkpoint_path} starts - print'
+            )
             init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+            logging.info(
+                f'Extract consumed samples from ckpt {resume_checkpoint_path} ends - logging'
+            )
+            print(
+                f'Extract consumed samples from ckpt {resume_checkpoint_path} ends - print'
+            )
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples

@@ -46,6 +46,12 @@ def main(cfg) -> None:
         logging.info(f"Continual training: loading weights from {cfg.model.restore_from_path}")
         from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
 
+        logging.info(
+            f'Checkpoint load from path {cfg.model.restore_from_path} starts - logging'
+        )
+        print(
+            f'Checkpoint load from path {cfg.model.restore_from_path} starts - print'
+        )
         model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.model.restore_from_path,
@@ -53,11 +59,29 @@ def main(cfg) -> None:
             trainer=trainer,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
+        logging.info(
+            f'Checkpoint load from path {cfg.model.restore_from_path} ends - logging'
+        )
+        print(
+            f'Checkpoint load from path {cfg.model.restore_from_path} ends - print'
+        )
     elif cfg.model.get("restore_from_ckpt") is not None:
         # Option 2: Restore both model weights and optimizer states from a PTL checkpoint
         logging.info(f"Continual training: loading weights and optimizer states from {cfg.model.restore_from_ckpt}")
+        logging.info(
+            f'Checkpoint load from ckpt {cfg.model.restore_from_ckpt} starts - logging'
+        )
+        print(
+            f'Checkpoint load from ckpt {cfg.model.restore_from_ckpt} starts - print'
+        )
         trainer.ckpt_path = Path(cfg.model.restore_from_ckpt)
         model = MegatronGPTModel(cfg.model, trainer)
+        logging.info(
+            f'Checkpoint load from ckpt {cfg.model.restore_from_ckpt} ends - logging'
+        )
+        print(
+            f'Checkpoint load from ckpt {cfg.model.restore_from_ckpt} ends - print'
+        )
 
     # Start new pretraining or resume from a checkpoint if it exists
     else:
