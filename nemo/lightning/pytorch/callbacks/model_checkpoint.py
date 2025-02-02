@@ -494,9 +494,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             else:
                 storage_options = None
 
-            logging.info(
-                f'Checkpoint save for step {trainer.gloubal_step} starts'
-            )
+            logging.info(f'Checkpoint save for step {trainer.gloubal_step} starts')
             trainer.save_checkpoint(filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
@@ -507,9 +505,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
-                logging.info(
-                    f'Checkpoint save for step {trainer.gloubal_step} ends'
-                )
+                logging.info(f'Checkpoint save for step {trainer.gloubal_step} ends')
 
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'lightning.pytorch.Trainer', filepath: str, global_step: int
