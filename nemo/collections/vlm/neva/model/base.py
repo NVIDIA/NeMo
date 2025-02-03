@@ -337,6 +337,16 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
 
         return (grad_in, None, None, None)
 
+class PrintGradFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        ctx.save_for_backward(input)
+        return input
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        print(f"Gradient at this point: {grad_output}")
+        return grad_output  # Pass gradient downstream unchanged
 
 class MCoreNevaModel(MCoreLLaVAModel):
     def __init__(
@@ -488,7 +498,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
             image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
 
             # map vision model output size to language model input size.
+            # print(f"fc1 weight: {self.vision_projection.encoder.linear_fc1.weight} fc2_weight: {self.vision_projection.encoder.linear_fc2.weight}")
             image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
+            # print(f"image_embeddings after projection: {image_embeddings}")
+
+            # image_embeddings = PrintGradFunction.apply(image_embeddings)
 
             # TODO: Support batched inference.
             # In inference, the language model KV cache will be updated for image token positions.
