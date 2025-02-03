@@ -31,10 +31,10 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from tqdm import tqdm
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.llm.gpt.model.base import default_layer_spec
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.multimodal.data.clip.clip_dataset import build_imagenet_validation_dataloader_params
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.vlm.clip.loss.clip_loss import ClipMegatronLoss

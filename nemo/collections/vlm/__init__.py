@@ -100,5 +100,5 @@ __all__ = [
     "LoRA",
     "ClipConfigL14",
     "ClipConfigB32",
-    "ClipMockDataModule"
+    "ClipMockDataModule",
 ]
