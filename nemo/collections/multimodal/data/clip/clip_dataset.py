@@ -238,6 +238,7 @@ def build_imagenet_validation_dataloader_params(
 
     return imagenet_val_data
 
+
 # pylint: enable=C0116
 # For zero-shot imagenet validation
 def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
@@ -289,6 +290,7 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
 
 class ImagenetClassnameDataset(Dataset):
     """Imagenet class dataset"""
+
     def __init__(self, classnames, templates, text_transform):
         # pylint: disable=C0116
         self.num_templates = len(templates)

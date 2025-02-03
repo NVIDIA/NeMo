@@ -227,7 +227,6 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
         )
         # pylint: enable=line-too-long
 
-
         return io.apply_transforms(
             source,
             target,
