@@ -47,6 +47,7 @@ OPENAI_DATASET_STD = (0.26862954, 0.26130258, 0.27577711)
 @dataclass
 class AugmentationCfg:
     """Augmentation Config"""
+
     scale: Tuple[float, float] = (0.9, 1.0)
     ratio: Optional[Tuple[float, float]] = None
     color_jitter: Optional[Union[float, Tuple[float, float, float]]] = None
@@ -58,6 +59,7 @@ class AugmentationCfg:
 
 class ResizeMaxSize(nn.Module):
     """Resize module"""
+
     def __init__(self, max_size, interpolation=InterpolationMode.BICUBIC, fn='max', fill=0):
         super().__init__()
         if not isinstance(max_size, int):
