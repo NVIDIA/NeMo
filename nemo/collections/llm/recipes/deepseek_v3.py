@@ -136,7 +136,7 @@ def finetune_recipe(
 
     if num_nodes is None:
         if peft_scheme is None or peft_scheme.lower() == 'none':
-            num_nodes = 24
+            num_nodes = 64
         elif peft_scheme.lower() in ['lora', 'dora']:
             num_nodes = 6
 
@@ -144,8 +144,10 @@ def finetune_recipe(
         model(), "deepseek-ai/DeepSeek-V3-Base", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.pipeline_model_parallel_size = 6
-        recipe.trainer.strategy.expert_model_parallel_size = 32
+        recipe.trainer.strategy.expert_model_parallel_size = 64
+        recipe.trainer.strategy.pipeline_model_parallel_size = 8
+        recipe.model.config.first_pipeline_num_layers = 7
+        recipe.model.config.last_pipeline_num_layers = 6
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
@@ -159,17 +161,13 @@ def finetune_recipe(
         recipe.optim.config.use_distributed_optimizer = False
         recipe.model.config.cross_entropy_loss_fusion = False
         recipe.trainer.strategy.tensor_model_parallel_size = 1
-        recipe.trainer.strategy.pipeline_model_parallel_size = 3
         recipe.trainer.strategy.expert_model_parallel_size = 16
+        recipe.trainer.strategy.pipeline_model_parallel_size = 3
+        recipe.model.config.first_pipeline_num_layers = 20
+        recipe.model.config.last_pipeline_num_layers = 20
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
-
-    # verify the speculation below:
-    # first pipeline has emb but three dense layers, so it should be faster, so we give it one more layer
-    recipe.model.config.first_pipeline_num_layers = (
-        recipe.model.config.num_layers // recipe.trainer.strategy.pipeline_model_parallel_size + 1
-    )
 
     # Sequence length settings in the model and dataset must agree
     recipe.model.config.seq_length = seq_length

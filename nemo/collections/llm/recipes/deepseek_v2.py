@@ -136,7 +136,7 @@ def finetune_recipe(
 
     if num_nodes is None:
         if peft_scheme is None or peft_scheme.lower() == 'none':
-            num_nodes = 12
+            num_nodes = 16
         elif peft_scheme.lower() in ['lora', 'dora']:
             num_nodes = 2
 
@@ -144,8 +144,8 @@ def finetune_recipe(
         model(), "deepseek-ai/DeepSeek-V2", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.pipeline_model_parallel_size = 6
-        recipe.trainer.strategy.expert_model_parallel_size = 16
+        recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.expert_model_parallel_size = 32
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
