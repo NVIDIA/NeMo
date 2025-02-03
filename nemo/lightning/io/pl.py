@@ -308,7 +308,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
         loaded_keys = []
-        missing_keys = []
         unexpected_keys = []
 
         def should_remove_missing_sharded_base(x: Any):
