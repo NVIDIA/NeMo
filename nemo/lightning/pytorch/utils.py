@@ -38,7 +38,7 @@ def dtype_from_str(dtype):
     assert isinstance(dtype, str)
     if dtype in ["float16", "fp16", "16", "16-mixed"]:
         return torch.float16
-    elif dtype == ["bfloat16", "bf16-mixed"]:
+    elif dtype in ["bfloat16", "bf16-mixed"]:
         return torch.bfloat16
     else:
         return torch.float32
@@ -62,8 +62,40 @@ def is_trainer_attached(model: pl.LightningModule):
     """
     Returns true if trainer is attached to a model
     """
-    try:
-        trainer = model.trainer
-        return True
-    except (AttributeError, RuntimeError):
-        return False
+    return hasattr(model, 'trainer')
+
+
+def get_huggingface_model_from_trainer(trainer: 'lightning.pytorch.Trainer') -> 'nn.Module':
+    """
+    Extracts the Hugging Face model from a PyTorch Lightning trainer instance.
+
+    This function checks whether the `trainer.model` is a Hugging Face model (`HFAutoModelForCausalLM`).
+    It handles different distributed training strategies:
+
+    - If no DistributedDataParallel (DDP) or Fully Sharded Data Parallel (FSDP) is used,
+    `trainer.model` directly holds the Hugging Face model.
+    - If DDP is used, `trainer.model.module` contains the actual Hugging Face model.
+    - If FSDP is used, `trainer.model` still holds the Hugging Face model wrapped inside an FSDP structure.
+
+    Args:
+        trainer (lightning.pytorch.Trainer): The PyTorch Lightning trainer instance.
+
+    Returns:
+        nn.Module or None: The Hugging Face model if found, otherwise `None`.
+    """
+    # No DDP -> trainer.model holds:
+    #   HFAutoModelForCausalLM(
+    #       (model): <automodel>
+    # FSDP -> trainer.model holds:
+    #   HFAutoModelForCausalLM(
+    #       (model): FSDP<automodel>
+    if getattr(trainer.model, "is_hf_model", False) == True:
+        return trainer.model
+
+    # DDP -> trainer.model holds:
+    #   DistributedDataParallel(
+    #       (module): HFAutoModelForCausalLM(
+    if hasattr(trainer.model, 'module') and getattr(trainer.model.module, "is_hf_model", False) == True:
+        return trainer.model.module
+
+    return None
