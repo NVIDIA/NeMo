@@ -21,16 +21,20 @@ from nemo.utils.app_state import AppState
 
 # pylint: disable=C0116
 
+
 @functools.lru_cache
 def _nvtx_enabled() -> bool:
     return AppState()._nvtx_ranges
+
 
 def nvtx_range_push(msg: str) -> None:
     if _nvtx_enabled():
         torch.cuda.nvtx.range_push(msg)
 
+
 def nvtx_range_pop() -> None:
     if _nvtx_enabled():
         torch.cuda.nvtx.range_pop()
+
 
 # pylint: enable=C0116

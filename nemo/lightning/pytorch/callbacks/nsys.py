@@ -18,8 +18,8 @@ import torch
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo.utils import logging
-from nemo.utils.get_rank import get_rank
 from nemo.utils.app_state import AppState
+from nemo.utils.get_rank import get_rank
 
 
 def get_current_epoch_step(trainer) -> int:
