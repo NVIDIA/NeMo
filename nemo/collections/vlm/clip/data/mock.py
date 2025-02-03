@@ -83,7 +83,7 @@ class MockDataModule(pl.LightningDataModule):
         self.image_processor = image_processor
 
         if tokenizer is None or image_processor is None:
-            logging.warning(f"Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
+            logging.warning("Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
             from transformers import AutoProcessor
 
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer

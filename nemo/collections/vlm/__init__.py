@@ -90,12 +90,15 @@ __all__ = [
     "mllama_11b",
     "mllama_90b",
     "llava_next_7b",
+    "LlavaNextConfig",
     "LlavaNextConfig7B",
     "LlavaNextConfig13B",
     "LlavaNextModel",
     "LlavaNextMockDataModule",
     "LlavaNextTaskEncoder",
     "CLIPModel",
+    "LoRA",
     "ClipConfigL14",
     "ClipConfigB32",
+    "ClipMockDataModule"
 ]

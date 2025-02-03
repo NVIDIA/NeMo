@@ -246,7 +246,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         if not parallel_state.is_initialized():
             logging.info(
                 f"Muiltimodal val data loader parallel state is not initialized,"
-                "using default worker config with no_workers {self.num_workers}"
+                f"using default worker config with no_workers {self.num_workers}"
             )
             worker_config = WorkerConfig.default_worker_config(self.num_val_workers)
         else:
@@ -278,7 +278,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Returns:
         None
         """
-        logging.warning(f"Multimodal dataloader test dataset split does not exist")
+        logging.warning("Multimodal dataloader test dataset split does not exist")
         return None
 
     def state_dict(self) -> Dict[str, Any]:
@@ -324,11 +324,11 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         try:
             if self.trainer:
                 self.trainer.datamodule.train_dataloader().restore_state(state, src_rank=0)
-                logging.info(f" Multimodal dataloader state restored")
+                logging.info("Multimodal dataloader state restored")
             else:
                 logging.error(f"Cannot restore state from state_dict {state_dict}")
                 raise ValueError(
-                    f"Cannot restore state from state_dict: Is the trainer object is initialized and attached to datamodule???"
+                    "Cannot restore state from state_dict: Is the trainer object is initialized and attached to datamodule???"
                 )
         except Exception as e:
             logging.warning(

@@ -84,7 +84,7 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
         self.image_processor = image_processor
 
         if image_processor is None or tokenizer is None:
-            logging.warning(f"Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
+            logging.warning("Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
             from transformers import AutoProcessor
 
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
