@@ -20,7 +20,6 @@ from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
 import lightning.pytorch as pl
 import torch
 from lightning.fabric.plugins import CheckpointIO
-from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from megatron.core.dist_checkpointing.serialization import (
@@ -45,6 +44,7 @@ try:
     from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 except ImportError:
     AsyncCompatibleCheckpointIO = CheckpointIO
+from torch.distributed.tensor import DTensor
 
 
 log = logging.getLogger(__name__)
@@ -331,7 +331,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         return sharded_state_dict
 
 
-class HuggingFaceCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
+class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
     """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
     common for most use cases.
 
@@ -339,8 +339,8 @@ class HuggingFaceCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     """
 
-    def __init__(self, hf_model=None, lora=False):
-        self.hf_model = hf_model
+    def __init__(self, lora=False):
+        super().__init__()
         self.lora = lora
 
     @override
@@ -358,15 +358,20 @@ class HuggingFaceCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
                 If ``storage_options`` arg is passed in
 
         """
+        from nemo.lightning.pytorch.strategies.utils import to_cpu
 
         if self.lora:
             from safetensors.torch import save_file
 
             state_dict = {}
-            for module_name, module_weight in checkpoint["state_dict"].items():
-                new_module_name = module_name.replace("model.model", "base_model.model")
-                new_module_name = new_module_name.replace("lora_a", "lora_A.weight").replace("lora_b", "lora_B.weight")
-                state_dict[new_module_name] = module_weight
+            module_names = list(checkpoint["state_dict"].keys())
+            for name in module_names:
+                param = checkpoint["state_dict"].pop(name)
+                name = name\
+                    .replace("model.model", "base_model.model")\
+                    .replace("lora_a", "lora_A.weight")\
+                    .replace("lora_b", "lora_B.weight")
+                state_dict[name] = to_cpu(param)
 
             checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
             fs = get_filesystem(checkpoint_dir)
@@ -460,7 +465,5 @@ def is_distributed_ckpt(path) -> bool:
 
     checkpoint_dir = ckpt_to_dir(path)
     fs = get_filesystem(checkpoint_dir)
-    if fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir):
-        return True
-
-    return False
+    return fs.isdir(checkpoint_dir) \
+        and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir)
