@@ -266,9 +266,9 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         """
         if self.save_ckpt_format == 'zarr':
             logging.warning(
-                f'`zarr` distributed checkpoint backend is deprecated.'
-                f' Distributed optimizer checkpoint saving might be extremely slow.'
-                f' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
+                '`zarr` distributed checkpoint backend is deprecated.'
+                ' Distributed optimizer checkpoint saving might be extremely slow.'
+                ' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
             )
 
         if self.async_save and self.save_ckpt_format != 'torch_dist':
