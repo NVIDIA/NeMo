@@ -284,7 +284,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self.is_global_zero:
             if os.path.islink(ckpt):
                 os.unlink(ckpt)
-            else:
+            elif os.path.exists(ckpt):
                 shutil.rmtree(ckpt)
 
     @override
