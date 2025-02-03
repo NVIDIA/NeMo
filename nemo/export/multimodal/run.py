@@ -79,6 +79,20 @@ class MultimodalModelRunner:
 
         if modality == 'vision':
             self.init_image_encoder(visual_engine_dir)
+
+        if self.model_type == "mllama":
+            self.vision_input_names = [
+                "pixel_values",
+                "aspect_ratio_ids",
+                "aspect_ratio_mask",
+            ]
+            self.vision_output_names = [
+                "output",
+            ]
+        else:
+            self.vision_input_names = ["input"]
+            self.vision_output_names = ["output"]
+
         self.init_tokenizer(llm_engine_dir)
         self.init_llm(llm_engine_dir)
         if self.model_type == 'lita' or self.model_type == 'vila' or self.model_type == 'vita':
@@ -165,6 +179,11 @@ class MultimodalModelRunner:
 
             self.image_processor = SiglipImageProcessor.from_pretrained(
                 vision_config["from_pretrained"], torch_dtype=torch.bfloat16, trust_remote_code=True
+            )
+        elif self.model_type == 'mllama':
+            processor_name="meta-llama/Llama-3.2-11B-Vision-Instruct"
+            self.image_processor = AutoProcessor.from_pretrained(
+                processor_name, torch_dtype=torch.bfloat16, trust_remote_code=True
             )
         else:
             raise ValueError(f"Invalid model type: {self.model_type}")
@@ -303,6 +322,13 @@ class MultimodalModelRunner:
                 batch_size, visual_input, first_batch_split_prompts, input_lengths
             )
             return input_ids, input_lengths, ptuning_args, visual_features
+
+        elif self.model_type == 'mllama':
+            pre_input_ids = self.tokenizer(pre_prompt,
+                                           return_tensors="pt",
+                                           padding=True).input_ids
+            length = pre_input_ids.shape[1]
+            post_input_ids = None
         else:
             visual_features, visual_atts = self.get_visual_features(image, attention_mask)
             pre_input_ids = self.tokenizer(pre_prompt, return_tensors="pt", padding=True).input_ids
@@ -376,6 +402,8 @@ class MultimodalModelRunner:
         decoder_input_ids,
         max_new_tokens,
         attention_mask,
+        other_vision_inputs,
+        other_decoder_inputs,
         warmup,
         batch_size,
         top_k,
@@ -710,6 +738,8 @@ class MultimodalModelRunner:
     def setup_inputs(self, input_text, raw_image, batch_size):
         attention_mask = None
         image = None
+        other_vision_inputs = {}
+        other_decoder_inputs = {}
 
         if self.model_type == "neva":
             image_size = self.image_size
@@ -756,6 +786,36 @@ class MultimodalModelRunner:
                     input_text = "<image>\n Please elaborate what you see in the images?"
                 post_prompt = input_text + "<|start_header_id|>assistant<|end_header_id|>\n\n"
 
+        elif self.model_type in ['mllama']:
+            if raw_image is not None:
+                inputs = self.image_processor(images=raw_image,
+                                        text=input_text,
+                                        return_tensors="pt")
+                other_vision_inputs = {
+                    "aspect_ratio_ids":
+                    inputs["aspect_ratio_ids"].to(self.device).expand(
+                        batch_size, -1).contiguous(),
+                    "aspect_ratio_mask":
+                    inputs["aspect_ratio_mask"].to(self.device).expand(
+                        batch_size, -1, -1).contiguous(),
+                }
+                other_decoder_inputs = {
+                    "cross_attention_mask":
+                    inputs["cross_attention_mask"].to(self.device).expand(
+                        batch_size, -1, -1, -1).contiguous(),
+                }
+                pre_prompt = input_text
+                post_prompt = None
+                image = inputs["pixel_values"]
+            else:
+                pre_prompt = input_text
+                post_prompt = None
+                image = None
+                logger.warning(
+                    "image_path is None. Will not pass image as input, skipping the vision encoder."
+                )
+                image = None
+
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
 
@@ -778,7 +838,7 @@ class MultimodalModelRunner:
 
         decoder_input_ids = None
 
-        return input_text, pre_prompt, post_prompt, image, decoder_input_ids, attention_mask
+        return input_text, pre_prompt, post_prompt, image, decoder_input_ids, attention_mask, other_vision_inputs, other_decoder_inputs
 
     def run(
         self,
@@ -795,7 +855,7 @@ class MultimodalModelRunner:
         run_profiling=False,
         check_accuracy=False,
     ):
-        input_text, pre_prompt, post_prompt, processed_image, decoder_input_ids, attention_mask = self.setup_inputs(
+        input_text, pre_prompt, post_prompt, processed_image, decoder_input_ids, attention_mask, other_vision_inputs, other_decoder_inputs = self.setup_inputs(
             input_text, input_image, batch_size
         )
 
@@ -806,6 +866,8 @@ class MultimodalModelRunner:
             decoder_input_ids,
             max_new_tokens,
             attention_mask=attention_mask,
+            other_vision_inputs=other_vision_inputs,
+            other_decoder_inputs=other_decoder_inputs,
             warmup=True,
             batch_size=batch_size,
             top_k=top_k,
@@ -824,6 +886,8 @@ class MultimodalModelRunner:
                 decoder_input_ids,
                 max_new_tokens,
                 attention_mask=attention_mask,
+                other_vision_inputs=other_vision_inputs,
+                other_decoder_inputs=other_decoder_inputs,
                 warmup=False,
                 batch_size=batch_size,
                 top_k=top_k,
