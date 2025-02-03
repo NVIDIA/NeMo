@@ -202,11 +202,29 @@ def mcore_to_pyt_sharded_state_dict(
     dtensor: bool = False,
     device_mesh: DeviceMesh = None,
 ) -> Dict[str, Union[TorchShardedTensor, io.BytesIO]]:
+    """
+    Converts a Megatron-Core sharded state dictionary into a PyTorch-compatible format.
+
+    Args:
+        checkpoint (Dict[str, List[torch.Tensor]]):
+            The Megatron-Core checkpoint containing a list of tensors for each key.
+        sharded_state_dict (Dict[str, Union[List[ShardedTensor], ShardedObject]]):
+            The corresponding PyTorch sharded state dictionary.
+        dtensor (bool, optional):
+            Whether to use DTensor for the conversion. Defaults to False.
+        device_mesh (DeviceMesh, optional):
+            The device mesh configuration for distributed tensors.
+
+    Returns:
+        Dict[str, Union[TorchShardedTensor, io.BytesIO]]:
+            A PyTorch-compatible state dictionary with properly formatted sharded tensors.
+    """
     def _mcore_to_pyt_dtensor(
         tens: List[torch.Tensor],
         sh_tens: List[ShardedTensor],
         device_mesh: DeviceMesh,
     ) -> DTensor:
+        """Converts a Megatron-Core tensor into a PyTorch DTensor."""
         assert len(tens) == 1 and len(sh_tens) == 1
 
         dten = DTensor.from_local(
@@ -220,6 +238,7 @@ def mcore_to_pyt_sharded_state_dict(
         return dten
 
     def _mcore_to_pyt_sharded_tensor(tens: List[torch.Tensor], sh_tens: List[ShardedTensor]) -> TorchShardedTensor:
+        """Converts a Megatron-Core tensor into a PyTorch sharded tensor."""
         for ten, sh_ten in zip(tens, sh_tens):
             # remove prepend axes and put in loaded tensor
             sh_ten.global_shape = sh_ten.global_shape[sh_ten.prepend_axis_num :]
@@ -232,6 +251,7 @@ def mcore_to_pyt_sharded_state_dict(
         return sharded_tensor_to_torch_sharded_tensor(sh_tens)
 
     def _convert(checkpoint, sharded_state_dict, k, device_mesh=None):
+        """Recursively converts checkpoint tensors into PyTorch-compatible formats."""
         assert k in sharded_state_dict, f"{k} not in sharded_state_dict"
 
         if isinstance(sharded_state_dict[k], Dict):
@@ -262,6 +282,21 @@ def pyt_to_mcore_state_dict(
         allow_shape_mismatch: bool = False,
         device_mesh: DeviceMesh = None,
     ) -> List[ShardedTensor]:
+        """
+        Converts a PyTorch state dictionary into a Megatron-Core compatible format.
+
+        Args:
+            state_dict (Dict[str, Any]):
+                The PyTorch state dictionary.
+            prefix (str, optional):
+                A prefix to prepend to all keys. Defaults to "".
+            device_mesh (DeviceMesh, optional):
+                The device mesh configuration for distributed tensors.
+
+        Returns:
+            Dict[str, List[ShardedBase]]:
+                A Megatron-Core formatted state dictionary with properly sharded tensors.
+        """
         prepend_axis_num = len(prepend_offsets)
 
         assert device_mesh is not None
@@ -343,6 +378,7 @@ def pyt_to_mcore_state_dict(
         sharded_offsets: Iterable[Tuple[int, int, int]] = (),
         prefix: str = "",
     ) -> ShardedObject:
+        """ mcore helper"""
         replica_id = (
             0,
             0,
@@ -352,6 +388,7 @@ def pyt_to_mcore_state_dict(
         return ShardedObject(f"{prefix}{key}", obj, *_get_extra_state_offsets(sharded_offsets), replica_id)
 
     def _convert(state_dict, k, sh_key, v, prepend_offsets, prefix="", allow_shape_mismatch=False, device_mesh=None):
+        """ mcore helper"""
         if isinstance(v, Dict):
             for kk, vv in v.items():
                 _convert(
