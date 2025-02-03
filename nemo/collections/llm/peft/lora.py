@@ -140,24 +140,42 @@ class LinearAdapter(nn.Linear):
         assert dropout_position in ['pre', 'post'], dropout_position
         obj.dropout_position = dropout_position
 
-    @staticmethod
-    def _forward(obj, x, fwd=None):
+    def forward(self, x):
         # pylint: disable=C0115,C0116
-        if fwd is not None:
+        # If LinearAdapter is used to monkey-patch a nn.Linear module, we want to use nn.Linear's
+        # forward in the case where it uses quantized weights. We store a reference to nn.Linear's
+        # forward in `super_fwd` attribute. If the attribute does not exist we do the usual linear.
+        if (fwd := getattr(self, 'super_fwd', None)) is not None:
             res = fwd(x)
         else:
-            res = F.linear(x, obj.weight, obj.bias)
-        if obj.dropout_position == 'pre':
-            x = obj.dropout(x)
-        lora_res = obj.lora_b(obj.lora_a(x))
-        lora_res = lora_res * obj.scale
-        if obj.dropout_position == 'post':
-            lora_res = obj.dropout(lora_res)
+            res = F.linear(x, self.weight, self.bias)
+        if self.dropout_position == 'pre':
+            x = self.dropout(x)
+        lora_res = self.lora_b(self.lora_a(x))
+        lora_res = lora_res * self.scale
+        if self.dropout_position == 'post':
+            lora_res = self.dropout(lora_res)
         return res + lora_res
 
     def forward(self, x):
         return LinearAdapter._forward(self, x)
 
+    def state_dict(self):
+        # Originally, LinearAdapter held nn.Parameter in `lora_a` and `lora_b` attributes.
+        # To maintain backwards compatibility, we apply the folowing renaming.
+        ans = super().state_dict()
+        for k in ['lora_a.weight', 'lora_b.weight']:
+            new_k = k.replace('.weight', '')
+            ans[new_k] = ans.pop(k)
+        return ans
+
+    def load_state_dict(
+        self, state_dict, strict: bool = True, assign: bool = False
+    ):
+        for k in ['lora_a', 'lora_b']:
+            new_k = f'{k}.weight'
+            state_dict[new_k] = state_dict.pop(k)
+        return super().load_state_dict(state_dict, strict, assign)
 
 def patch_linear_module(
     orig_linear,
@@ -188,7 +206,7 @@ def patch_linear_module(
             Defaults to 'post' (choices: 'pre', 'post').
         lora_A_init_method (str, optional): lora_a init method. Defaults to 'xavier'.
         lora_dtype (_type_, optional): Lora weights' dtype. By default will use orig_linear's dtype
-        but orig_linear might use non-trainable dtype (e.g. 4bit), in which case the user must
+        but orig_linear might use non-trainable dtype (e.g., 4bit), in which case the user must
         specify the dtype manually. Defaults to None.
 
     Returns:
@@ -201,12 +219,14 @@ def patch_linear_module(
     fwd = None
     # If the model uses quantized weights, we want to use orig_linear's forward
     if orig_linear.weight.dtype == torch.uint8:
-        fwd = orig_linear.forward
+        orig_linear.super_fwd = orig_linear.forward
     orig_linear.forward = lambda x: LinearAdapter._forward(orig_linear, x, fwd)
 
+    cls = orig_linear.__class__
+    new_cls = type(f'PatchedLinearAdapter', (LinearAdapter, cls), {})
+    orig_linear.__class__ = new_cls
 
-    has_dtensor = hasattr(orig_linear.weight.data, '_local_tensor')
-    if has_dtensor:
+    if hasattr(orig_linear.weight.data, '_local_tensor'):
         # If orig_linear's weights are stored in a DTensor, wrap lora weights wtih fully_shard too.
         from torch.distributed._composable.fsdp.fully_shard import fully_shard
         fully_shard(orig_linear.lora_a, reshard_after_forward=False)
