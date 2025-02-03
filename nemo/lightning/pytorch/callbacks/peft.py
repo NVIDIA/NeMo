@@ -480,25 +480,25 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
         adapter_ckpt = None
         if getattr(path, "base_model_path", None):
-            ## PEFT Resume, FIRST TIME
+            # PEFT Resume, FIRST TIME
             self.adapter_ckpt_path = Path(str(path))
             adapter_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict={})  # Loads only metadata
             # path is adapter path to restore the training metadata, but switch to loading base model here.
             path = self.model_ckpt_path = path.base_model_path
         elif adapter_meta_path.exists():
-            ## PEFT Resume, SECOND TIME
+            # PEFT Resume, SECOND TIME
             with open(adapter_meta_path, "r") as f:
                 metadata = json.load(f)
             self.model_ckpt_path = Path(metadata['model_ckpt_path'])
             self.adapter_ckpt_path = path
         else:
-            ## Initial PEFT Training
+            # Initial PEFT Training
             self.model_ckpt_path = path
 
         # Note: this will include the Trainer-state of the model-checkpoint
         model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location, strict)
         if adapter_ckpt is not None:
-            ## PEFT Resume, FIRST TIME
+            # PEFT Resume, FIRST TIME
             adapter_ckpt['state_dict'].update(model_ckpt['state_dict'])
             return adapter_ckpt
         return model_ckpt
