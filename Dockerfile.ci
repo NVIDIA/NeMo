@@ -15,9 +15,61 @@
 # limitations under the License.
 
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.07-py3
+ARG NEMO_REPO
+ARG NEMO_TAG
+ARG MLM_REPO
+ARG MLM_TAG
+ARG TE_REPO
+ARG TE_TAG
+ARG APEX_REPO
+ARG APEX_TAG
 ARG IMAGE_LABEL
+
+FROM ${BASE_IMAGE} as nemo-bump
+ARG NEMO_TAG
+WORKDIR /opt
+# NeMo
+RUN <<"EOF" bash -exu
+if [[ ! -d NeMo ]]; then
+    git clone https://github.com/NVIDIA/NeMo.git
+fi
+cd NeMo/
+git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge'
+git checkout -f $NEMO_TAG
+EOF
+
+FROM ${BASE_IMAGE} as te-wheel
+ARG MAX_JOBS
+ARG TE_TAG
+ARG TE_REPO
+COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
+RUN bash /opt/NeMo/reinstall.sh --library te --mode build && \
+    ls -al /opt/TransformerEngine
+
+FROM ${BASE_IMAGE} as mlm-wheel
+ARG MAX_JOBS
+ARG MLM_REPO
+ARG MLM_TAG
+COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
+RUN bash /opt/NeMo/reinstall.sh --library mcore --mode build && \
+    ls -al /opt/Megatron-LM
+
+FROM ${BASE_IMAGE} as apex-wheel
+ARG MAX_JOBS
+ARG APEX_REPO
+ARG APEX_TAG
+COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
+RUN bash /opt/NeMo/reinstall.sh --library apex --mode build && \
+    ls -al /opt/Megatron-LM
+
 FROM ${BASE_IMAGE}
 ARG IMAGE_LABEL
+ARG MLM_REPO
+ARG MLM_TAG
+ARG TE_REPO
+ARG TE_TAG
+ARG APEX_REPO
+ARG APEX_TAG
 LABEL "nemo.library"=${IMAGE_LABEL}
 
 ENV TRANSFORMERS_OFFLINE=0
@@ -32,6 +84,10 @@ apt-get clean
 EOF
 
 WORKDIR /workspace
+COPY --from=te-wheel /tmp/wheels/* /tmp/wheels/ 
+COPY --from=mlm-wheel /tmp/wheels/* /tmp/wheels/ 
+COPY --from=apex-wheel /tmp/wheels/* /tmp/wheels/ 
+COPY --from=nemo-bump /opt/NeMo /opt/
 
 RUN \
   --mount=type=bind,source=requirements,target=requirements \
@@ -40,11 +96,11 @@ RUN \
   --mount=type=bind,source=setup.py,target=setup.py \
   --mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
   --mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex
-
-  HEAVY_DEPS=TRUE bash reinstall.sh "dev"
+  
+  bash /opt/NeMo/reinstall.sh --library all --mode install
 
   # Megatron Core installation
-  cp -r /opt/Megatron-LM /workspace
+  # cp -r /opt/Megatron-LM /workspace
 EOF
 
 # Copy over NeMo code
