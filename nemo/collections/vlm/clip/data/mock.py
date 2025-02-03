@@ -100,6 +100,7 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
+        # pylint: disable=C0116
         self._train_ds = _MockClipDataset(
             self.tokenizer,
             self.image_processor,
@@ -116,21 +117,25 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        # pylint: disable=C0116
         if not hasattr(self, "_train_ds"):
             self.setup()
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        # pylint: disable=C0116
         if not hasattr(self, "_validation_ds"):
             self.setup()
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        # pylint: disable=C0116
         if not hasattr(self, "_test_ds"):
             self.setup()
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+        # pylint: disable=C0116
         return DataLoader(
             dataset,
             num_workers=self.num_workers,

@@ -41,6 +41,7 @@ from nemo.lightning import MegatronOptimizerModule, OptimizerModule, get_vocab_s
 from nemo.utils import logging
 
 
+# pylint: disable=C0116
 def clip_forward_step(model, batch) -> torch.Tensor:
     forward_args = {"images": batch["images"], "captions": batch["captions"]}
     return model(**forward_args)
@@ -64,12 +65,14 @@ def clip_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 def set_input_tensor(self, tensor):
     pass
 
-
+# pylint: enable=C0116
 @dataclass
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
+    """Clip ViT model config"""
     output_dim: int = 512
     add_class_token: bool = True
     class_token_len: int = 8
+
     patch_dim: int = 16
     img_h: int = 224
     img_w: int = 224
@@ -83,6 +86,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
     num_attention_heads: int = 8  # Placeholder, NOT used!
 
     def configure_model(self) -> "CLIPViTModel":
+        # pylint: disable=C0116
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
@@ -106,6 +110,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
 
 
 class CLIPViTModel(MCoreCLIPViTModel):
+    """Clip ViT model"""
     def __init__(
         self,
         transformer_config: TransformerConfig,
@@ -118,6 +123,7 @@ class CLIPViTModel(MCoreCLIPViTModel):
         model_subtype: str = "clip",
         output_dim: int = 1024,
     ):
+        # pylint: disable=C0116
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = output_dim
 
@@ -145,10 +151,11 @@ class CLIPViTModel(MCoreCLIPViTModel):
         )
 
     def set_input_tensor(self, tensor):
+        # pylint: disable=C0116
         pass
 
     def forward(self, x):
-
+        # pylint: disable=C0116
         x = super().forward(
             x,
         )
@@ -160,6 +167,7 @@ class CLIPViTModel(MCoreCLIPViTModel):
 
 @dataclass
 class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
+    """Clip text model config"""
     output_dim: int = 512
     make_vocab_size_divisible_by: int = 128
     max_seq_length: int = 1024
@@ -173,7 +181,7 @@ class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
     # Without these the init for transformer will give error
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "CLIPTextModel":
-
+        # pylint: disable=C0116
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
@@ -199,6 +207,7 @@ class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
 
 
 class CLIPTextModel(MCoreGPTModel):
+    """Clip text model"""
     def __init__(
         self,
         transformer_config: TransformerConfig,
@@ -208,6 +217,7 @@ class CLIPTextModel(MCoreGPTModel):
         output_dim: int = 1024,
         share_embeddings_and_output_weights: bool = False,
     ):
+        # pylint: disable=C0116
         # TODO (yuya): need to handle post_process correctly in order to enable PP
         self.output_dim = output_dim
 
@@ -237,7 +247,7 @@ class CLIPTextModel(MCoreGPTModel):
             self.position_ids = torch.arange(max_sequence_length).expand(1, -1).cuda()
 
     def forward(self, input_ids):
-
+        # pylint: disable=C0116
         x = super().forward(input_ids, position_ids=self.position_ids, attention_mask=None)
         x = self.final_layernorm(x)
         x = x[input_ids.argmax(dim=-1), torch.arange(x.shape[1])]
@@ -245,11 +255,13 @@ class CLIPTextModel(MCoreGPTModel):
         return x
 
     def set_input_tensor(self, tensor):
+        # pylint: disable=C0116
         pass
 
 
 @dataclass
 class ClipConfig(TransformerConfig, io.IOMixin):
+    """Clip model config"""
     text_transformer_config: Optional[CLIPTextModelConfig] = None
     vision_transformer_config: Optional[CLIPViTConfig] = None
     get_attention_mask_from_fusion: bool = True
@@ -262,6 +274,7 @@ class ClipConfig(TransformerConfig, io.IOMixin):
     hidden_size: int = 768  # Placeholder, NOT used!
 
     def configure_model(self, tokenizer, pre_process=True, post_process=True):
+        # pylint: disable=C0116
         print(self.kv_channels)
         return MCoreClipModel(
             self,
@@ -272,8 +285,9 @@ class ClipConfig(TransformerConfig, io.IOMixin):
 
 
 class MCoreClipModel(MegatronModule):
-
+    """Clip model"""
     def __init__(self, config: ClipConfig, tokenizer, pre_process=True, post_process=True) -> None:
+        # pylint: disable=C0116
         super().__init__(config=config)
         self.pre_process = pre_process
         self.post_process = post_process
@@ -289,6 +303,7 @@ class MCoreClipModel(MegatronModule):
         self.model_type = ModelType.encoder_or_decoder
 
     def forward(self, images: torch.Tensor, captions: torch.Tensor):
+        # pylint: disable=C0116
         image_features = self.vision_model(images)
         text_features = self.text_model(captions)
         if self.post_process:
@@ -297,6 +312,7 @@ class MCoreClipModel(MegatronModule):
         return image_features, text_features
 
     def set_input_tensor(self, tensor):
+        # pylint: disable=C0116
         pass
 
 
@@ -328,6 +344,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         gbs: int = 8,
         max_workers: int = 4,
     ):
+        # pylint: disable=C0116
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
@@ -343,6 +360,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.max_workers = max_workers
 
     def on_fit_start(self):
+        """Initialize the dataloader parameters for imagenet validation"""
         if self.imagenet_val is not None:
             self.imagenet_val = build_imagenet_validation_dataloader_params(
                 self.imagenet_val,
@@ -356,26 +374,32 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             )
 
     def configure_model(self) -> None:
+        """Configure the model"""
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
 
     def forward(self, images: torch.Tensor, captions: torch.Tensor):
+        # pylint: disable=C0116
         return self.module(images, captions)
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
+        # pylint: disable=C0116
         return self.config.data_step_fn(dataloader_iter)
 
     def forward_step(self, batch) -> torch.Tensor:
+        # pylint: disable=C0116
         return self.config.forward_step_fn(self, batch)
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
-        # In mcore the loss-function is part of the forward-pass (when labels are provided)
+        """In mcore the loss-function is part of the forward-pass (when labels are provided)"""
         return self.forward_step(batch)
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
+        """In mcore the loss-function is part of the forward-pass (when labels are provided)"""
         return self.forward_step(batch)
 
     def zero_shot_classifier(self):
+        """Zero shot classifier for imagenet validation"""
         text_encoder = self.module.module.module.text_model
         with torch.no_grad():
             zeroshot_weights = []
@@ -393,6 +417,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return zeroshot_weights
 
     def zero_shot_eval(self):
+        """Zero shot evaluation for imagenet validation"""
         def accuracy(output, target, topk=(1,)):
             pred = output.topk(max(topk), 1, True, True)[1].t()
             correct = pred.eq(target.view(1, -1).expand_as(pred))
@@ -438,7 +463,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return top1, top5
 
     def on_validation_epoch_end(self):
-        # Run zero shot imagenet evaluation
+        """Run zero shot evaluation for imagenet validation"""
         if self.imagenet_val is not None:
             imagenet_metric = torch.zeros(2).cuda()
             imagenet_metric[0], imagenet_metric[1] = self.zero_shot_eval()
@@ -448,6 +473,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     @property
     def training_loss_reduction(self) -> ClipMegatronLoss:
+        # pylint: disable=C0116
         if not self._training_loss_reduction:
             self._training_loss_reduction = ClipMegatronLoss()
 
@@ -455,6 +481,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     @property
     def validation_loss_reduction(self) -> ClipMegatronLoss:
+        # pylint: disable=C0116
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = ClipMegatronLoss()
 

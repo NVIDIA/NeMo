@@ -12,19 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from PIL import ImageFile
-
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-import os
-
-from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
-
 """
 Example:
   python scripts/vlm/clip_pretrain.py \
   --data_type=mock
 """
 
+from PIL import ImageFile
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+import os
+
+from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
 import argparse
 
 import torch

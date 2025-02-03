@@ -81,6 +81,7 @@ class CLIPViTB_32_224_Config(CLIPViTConfig):
 
 @dataclass
 class CLIPTextModelB_32_224_Config(CLIPTextModelConfig):
+    """Clip text model Base config"""
     # model architecture
     max_seq_length: int = 80
     max_position_embeddings: int = 80
@@ -107,6 +108,8 @@ class CLIPTextModelB_32_224_Config(CLIPTextModelConfig):
 
 @dataclass
 class CLIPTextModelL_14_224_Config(CLIPTextModelConfig):
+    """Clip text model large config"""
+
     # model architecture
     max_seq_length: int = 77
     max_position_embeddings: int = 77
@@ -130,22 +133,27 @@ class CLIPTextModelL_14_224_Config(CLIPTextModelConfig):
 
 @dataclass
 class ClipConfigL14(ClipConfig):
+    """Main Clip config for Large model"""
     text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelL_14_224_Config())
     vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTL_14_224_Config())
 
 
 @dataclass
 class ClipConfigB32(ClipConfig):
+    """Main Clip config for Base model"""
     text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelB_32_224_Config())
     vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTB_32_224_Config())
 
 
 @io.model_importer(CLIPModel, "hf")
 class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
+    """Import model from Hugging Face"""
     def init(self) -> CLIPModel:
+        # pylint: disable=C0116
         return CLIPModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        # pylint: disable=C0116
         from transformers import CLIPModel
 
         # Get source model from HF
@@ -170,7 +178,7 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
         return output_path
 
     def convert_state(self, source, target, image_newline=False):
-
+        # pylint: disable=C0116
         # Start with the heads
         mapping = {
             'text_projection.weight': "text_model.head.weight",
@@ -190,26 +198,38 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
                 "vision_model.pre_layrnorm.bias": "vision_model.ln_pre.bias",
                 "vision_model.post_layernorm.weight": "vision_model.final_layernorm.weight",
                 "vision_model.post_layernorm.bias": "vision_model.final_layernorm.bias",
-                "text_model.encoder.layers.*.self_attn.out_proj.weight": "text_model.decoder.layers.*.self_attention.linear_proj.weight",
-                "text_model.encoder.layers.*.self_attn.out_proj.bias": "text_model.decoder.layers.*.self_attention.linear_proj.bias",
-                "text_model.encoder.layers.*.layer_norm1.weight": "text_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-                "text_model.encoder.layers.*.layer_norm1.bias": "text_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
+                "text_model.encoder.layers.*.self_attn.out_proj.weight":
+                    "text_model.decoder.layers.*.self_attention.linear_proj.weight",
+                "text_model.encoder.layers.*.self_attn.out_proj.bias":
+                    "text_model.decoder.layers.*.self_attention.linear_proj.bias",
+                "text_model.encoder.layers.*.layer_norm1.weight":
+                    "text_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                "text_model.encoder.layers.*.layer_norm1.bias":
+                    "text_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
                 "text_model.encoder.layers.*.mlp.fc1.weight": "text_model.decoder.layers.*.mlp.linear_fc1.weight",
                 "text_model.encoder.layers.*.mlp.fc1.bias": "text_model.decoder.layers.*.mlp.linear_fc1.bias",
                 "text_model.encoder.layers.*.mlp.fc2.weight": "text_model.decoder.layers.*.mlp.linear_fc2.weight",
                 "text_model.encoder.layers.*.mlp.fc2.bias": "text_model.decoder.layers.*.mlp.linear_fc2.bias",
-                "text_model.encoder.layers.*.layer_norm2.weight": "text_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-                "text_model.encoder.layers.*.layer_norm2.bias": "text_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
-                "vision_model.encoder.layers.*.self_attn.out_proj.weight": "vision_model.decoder.layers.*.self_attention.linear_proj.weight",
-                "vision_model.encoder.layers.*.self_attn.out_proj.bias": "vision_model.decoder.layers.*.self_attention.linear_proj.bias",
-                "vision_model.encoder.layers.*.layer_norm1.weight": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-                "vision_model.encoder.layers.*.layer_norm1.bias": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
+                "text_model.encoder.layers.*.layer_norm2.weight":
+                    "text_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                "text_model.encoder.layers.*.layer_norm2.bias":
+                    "text_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
+                "vision_model.encoder.layers.*.self_attn.out_proj.weight":
+                    "vision_model.decoder.layers.*.self_attention.linear_proj.weight",
+                "vision_model.encoder.layers.*.self_attn.out_proj.bias":
+                    "vision_model.decoder.layers.*.self_attention.linear_proj.bias",
+                "vision_model.encoder.layers.*.layer_norm1.weight":
+                    "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                "vision_model.encoder.layers.*.layer_norm1.bias":
+                    "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
                 "vision_model.encoder.layers.*.mlp.fc1.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.weight",
                 "vision_model.encoder.layers.*.mlp.fc1.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.bias",
                 "vision_model.encoder.layers.*.mlp.fc2.weight": "vision_model.decoder.layers.*.mlp.linear_fc2.weight",
                 "vision_model.encoder.layers.*.mlp.fc2.bias": "vision_model.decoder.layers.*.mlp.linear_fc2.bias",
-                "vision_model.encoder.layers.*.layer_norm2.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-                "vision_model.encoder.layers.*.layer_norm2.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
+                "vision_model.encoder.layers.*.layer_norm2.weight":
+                    "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                "vision_model.encoder.layers.*.layer_norm2.bias":
+                    "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
             }
         )
 
@@ -228,12 +248,14 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        # pylint: disable=C0116
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(str(self))
 
     @property
     def config(self) -> ClipConfig:
+        # pylint: disable=C0116
         from transformers import CLIPConfig as HFCLIPConfig
 
         source = HFCLIPConfig.from_pretrained(str(self))
@@ -295,6 +317,7 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
 
 
 def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+    # pylint: disable=C0116
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
     new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
@@ -328,6 +351,7 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
+    # pylint: disable=C0116
     megatron_config = ctx.target.config.vision_transformer_config
     return import_qkv(
         q,
@@ -350,6 +374,7 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
 )
 def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
+    # pylint: disable=C0116
     megatron_config = ctx.target.config.vision_transformer_config
     return import_qkv(
         q_bias.unsqueeze(-1),
@@ -372,6 +397,7 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
     target_key="text_model.decoder.layers.*.self_attention.linear_qkv.bias",
 )
 def _import_language_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
+    # pylint: disable=C0116
     megatron_config = ctx.target.config.text_transformer_config
     return import_qkv(
         q_bias.unsqueeze(-1),
@@ -394,6 +420,7 @@ def _import_language_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
     target_key="text_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
+    # pylint: disable=C0116
     megatron_config = ctx.target.config.text_transformer_config
 
     return import_qkv(
@@ -413,4 +440,5 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
     target_key="vision_model.class_token",
 )
 def _import_cls_token(ctx: io.TransformCTX, cls_token):
+    # pylint: disable=C0116
     return cls_token.reshape(1, 1, -1)

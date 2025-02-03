@@ -61,34 +61,6 @@ def load_image(image_path: str) -> Image.Image:
         return None
 
 
-def assert_tensors_close(tensor1, tensor2, atol=6e-3, rtol=5e-3):
-    """
-    Assert that two tensors are close within a given absolute and relative tolerance.
-
-    Parameters:
-    - tensor1: First tensor
-    - tensor2: Second tensor
-    - atol: Absolute tolerance
-    - rtol: Relative tolerance
-
-    Raises:
-    - AssertionError: If the tensors are not close.
-    """
-
-    abs_diff = torch.abs(tensor1 - tensor2)
-    rel_diff = abs_diff / torch.clamp(torch.abs(tensor2), min=1e-12)  # Avoid division by zero
-
-    max_abs_diff = abs_diff.max().item()
-    max_rel_diff = rel_diff.max().item()
-
-    print(f"Max absolute difference: {max_abs_diff}")
-    print(f"Max relative difference: {max_rel_diff}")
-
-    if not torch.allclose(tensor1, tensor2, atol=atol, rtol=rtol):
-        diff = torch.abs(tensor1 - tensor2)
-        raise AssertionError(f"Tensors are not close. Max difference: {diff.max().item()}")
-
-
 def main(args) -> None:
     # pylint: disable=C0115,C0116
     strategy = nl.MegatronStrategy(
@@ -149,7 +121,6 @@ def main(args) -> None:
         text_embeds_nemo = text_model(inputs["input_ids"].cuda())
         text_embeds_hf = output_hf["text_embeds"]
 
-        # assert_tensors_close(text_embeds_nemo, text_embeds_hf)
         image_embeds_nemo /= image_embeds_nemo.norm(dim=-1, keepdim=True)
         text_embeds_nemo /= text_embeds_nemo.norm(dim=-1, keepdim=True)
 
