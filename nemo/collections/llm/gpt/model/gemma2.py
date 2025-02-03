@@ -680,6 +680,14 @@ def _export_linear_fc1(linear_fc1):
     return gate_proj, up_proj
 
 
+def logit_softcapping(logits: torch.Tensor, scale: Optional[float]):
+    """Prevents logits from growing excessively by scaling them to a fixed range"""
+    if not scale:
+        return logits
+        
+    return scale * torch.tanh(logits / scale)
+
+
 __all__ = [
     "Gemma2Config",
     "Gemma2Config2B",
