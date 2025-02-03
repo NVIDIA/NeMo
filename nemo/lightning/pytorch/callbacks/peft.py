@@ -81,7 +81,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
             This method is automatically called for each module in the model when the PEFT
             instance is applied to the model using the __call__ method.
         """
-        raise NotImplementedError("The transform method should be implemented by subclasses.")
+        raise NotImplementedError(
+            "The transform method should be implemented by subclasses.")
 
     def __call__(self, model: nn.Module) -> nn.Module:
         """Apply the PEFT method to the entire model.
@@ -160,7 +161,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
                 arg: getattr(trainer.strategy, arg)
                 for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
             }
-        trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
+        trainer.strategy._checkpoint_io = create_checkpoint_io(
+            wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
         self.wrapped_io = (
             trainer.strategy._checkpoint_io._checkpoint_io
             if getattr(trainer.strategy, 'async_save', False)
@@ -184,7 +186,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         adapter_sharded_state_dict = {}
         if self.wrapped_io.adapter_ckpt_path is not None:
-            logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
+            logging.info(
+                f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
             # create sharded state dict for adapter weights only to enable PEFT resume
             adapter_sharded_state_dict['state_dict'] = {
                 k: v for k, v in trainer.model.sharded_state_dict().items() if self.adapter_key_filter(k)
@@ -200,7 +203,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
             if self.wrapped_io.adapter_ckpt_path is not None and trainer.strategy.should_restore_optimizer_states():
                 # PEFT resume, load optimizer state
                 adapter_sharded_state_dict['optimizer'] = [
-                    trainer.strategy.optimizer_sharded_state_dict(is_loading=True)
+                    trainer.strategy.optimizer_sharded_state_dict(
+                        is_loading=True)
                 ]
 
         if adapter_sharded_state_dict:
@@ -210,7 +214,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
             if trainer.state.fn == TrainerFn.FITTING:
                 # Load optimizer
-                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=False)
+                trainer.strategy.load_optimizer_state_dict(
+                    adapter_state, selective_restore=False)
                 # Load lr scheduler
                 if (lr_schedulers := adapter_state.get('lr_schedulers', None)) is not None:
                     for config, lrs_state in zip(trainer.lr_scheduler_configs, lr_schedulers):
@@ -234,6 +239,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         if isinstance(key, tuple):
             return key[1].requires_grad
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
+
 
 class AdapterWrapper(nn.Module):
     """Abstract base class for wrapping modules with adapters in Parameter-Efficient Fine-Tuning (PEFT).
@@ -347,8 +353,10 @@ class AdapterWrapper(nn.Module):
             ShardedStateDict: The combined sharded state dictionary.
         """
         sharded_state_dict = {}
-        sharded_state_dict.update(self.to_wrap.sharded_state_dict(prefix, sharded_offsets, metadata))
-        sharded_state_dict.update(self.adapter.sharded_state_dict(f"{prefix}adapter.", sharded_offsets, metadata))
+        sharded_state_dict.update(self.to_wrap.sharded_state_dict(
+            prefix, sharded_offsets, metadata))
+        sharded_state_dict.update(self.adapter.sharded_state_dict(
+            f"{prefix}adapter.", sharded_offsets, metadata))
         return sharded_state_dict
 
 
@@ -387,7 +395,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
     model_ckpt_path: Optional[Path] = None
     adapter_ckpt_path: Optional[Path] = None
 
-    def __init__(self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None) -> None: # noqa: F821
+    def __init__(self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None) -> None:  # noqa: F821
         self.peft = peft
         super().__init__(checkpoint_io)
 
@@ -402,10 +410,12 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         assert state_key is not None, "Expected checkpoint to contain `sharded_state_dict` or `state_dict`"
 
         checkpoint[state_key] = dict(
-            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint[state_key].items())
+            filter(lambda item: self.peft.adapter_key_filter(
+                item[0]), checkpoint[state_key].items())
         )
 
-        request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
+        request = self.checkpoint_io.save_checkpoint(
+            checkpoint, path, storage_options=storage_options)
 
         from nemo.utils.get_rank import is_global_rank_zero
 
@@ -482,7 +492,8 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         if getattr(path, "base_model_path", None):
             # PEFT Resume, FIRST TIME
             self.adapter_ckpt_path = Path(str(path))
-            adapter_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict={})  # Loads only metadata
+            adapter_ckpt = self.checkpoint_io.load_checkpoint(
+                path, sharded_state_dict={})  # Loads only metadata
             # path is adapter path to restore the training metadata, but switch to loading base model here.
             path = self.model_ckpt_path = path.base_model_path
         elif adapter_meta_path.exists():
@@ -496,7 +507,8 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
             self.model_ckpt_path = path
 
         # Note: this will include the Trainer-state of the model-checkpoint
-        model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location, strict)
+        model_ckpt = self.checkpoint_io.load_checkpoint(
+            path, sharded_state_dict, map_location, strict)
         if adapter_ckpt is not None:
             # PEFT Resume, FIRST TIME
             adapter_ckpt['state_dict'].update(model_ckpt['state_dict'])
