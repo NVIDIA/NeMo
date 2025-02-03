@@ -1,0 +1,2 @@
+NUM_WORKERS=${1:-8}
+echo $NUM_WORKERS

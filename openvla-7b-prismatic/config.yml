@@ -1,0 +1,37 @@
+data_root_dir: /scr/user/data
+hf_token: .hf_token
+pretrained_checkpoint: null
+resume_epoch: null
+resume_step: null
+run_id: prism-dinosiglip-224px+mx-oxe-magic-soup-plus+n8+b32+x7
+run_id_note: null
+run_root_dir: ./runs
+save_interval: 2500
+seed: 7
+stage: vla-full-train
+trackers:
+- jsonl
+- wandb
+vla:
+  base_vlm: prism-dinosiglip-224px+7b
+  data_mix: oxe_magic_soup_plus_minus
+  enable_gradient_checkpointing: true
+  enable_mixed_precision_training: true
+  epochs: 1000
+  expected_world_size: 64
+  freeze_vision_backbone: false
+  global_batch_size: 2048
+  learning_rate: 2.0e-05
+  lr_scheduler_type: constant
+  max_grad_norm: 1.0
+  max_steps: null
+  per_device_batch_size: 32
+  reduce_in_full_precision: true
+  shuffle_buffer_size: 256000
+  train_strategy: fsdp-full-shard
+  type: prism-dinosiglip-224px+mx-oxe-magic-soup-plus
+  vla_id: prism-dinosiglip-224px+mx-oxe-magic-soup-plus
+  warmup_ratio: 0.0
+  weight_decay: 0.0
+wandb_entity: null
+wandb_project: null

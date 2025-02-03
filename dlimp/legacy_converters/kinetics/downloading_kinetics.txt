@@ -1,0 +1,9 @@
+Kinetics dataset is a set of short, 10 second, youtube clips with associated labels.
+The dataset is split into 400, 600, and 700 classes. The dataset is available at https://deepmind.com/research/open-source/kinetics.
+
+For seamless integration with DLIMP, follow instructions in https://github.com/cvdfoundation/kinetics-dataset for downloading the specific kinetics dataset of your choosing.
+Then to preprocess for DLIMP, run num: 400, 600, 700:
+
+```
+python3 -m scripts.kinetics.raw_to_tfrecord --input_path /path-to-kinetics-dataset/k{num} --output_path /path-to-output/ --aspect_ratio True
+```
