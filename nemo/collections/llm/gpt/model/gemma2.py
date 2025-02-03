@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 
 try:
     from megatron.core.extensions.transformer_engine import TERowParallelLinear
-except NameError:
+except ModuleNotFoundError:
     from abc import ABC
 
     TERowParallelLinear = ABC
