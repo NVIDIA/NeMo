@@ -209,10 +209,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         """Converts PyT checkpoints to MCore format and save using MCore dist ckpt library."""
-        checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(
-            checkpoint.pop("state_dict"), device_mesh=self.device_mesh
-        )
-        checkpoint["state_dict"] = OrderedDict([])
 
         if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
             # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
