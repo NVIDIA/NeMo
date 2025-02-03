@@ -61,7 +61,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     Attributes:
         UNFINISHED_CHECKPOINT_SUFFIX (str): Suffix for unfinished checkpoint files.
-        deferred_ckpts_to_remove (List[List[str]]): List of deferred checkpoints to remove once async save is completed.
+        deferred_ckpts_to_remove (List[List[str]]): List of deferred checkpoints
+            to remove once async save is completed.
         ckpts_to_link (Dict[str, str]): Dictionary of checkpoint paths that need to be symlinked.
         future_last_model_path (str): Path to the future 'last' checkpoint, used for symbolic linking.
         best_k_models (dict): Dictionary of best-k checkpoints based on the monitored metric.
@@ -122,7 +123,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     def on_train_start(self, trainer, pl_module):
         """
-        Initializes checkpointing by handling previous runs, setting up file logging, and managing files to move or copy.
+        Initializes checkpointing by handling previous runs,
+        setting up file logging, and managing files to move or copy.
 
         This method handles:
         - Moving old files to new folders
