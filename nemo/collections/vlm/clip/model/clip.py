@@ -83,6 +83,7 @@ class CLIPViTB_32_224_Config(CLIPViTConfig):
 @dataclass
 class CLIPTextModelB_32_224_Config(CLIPTextModelConfig):
     """Clip text model Base config"""
+
     # model architecture
     max_seq_length: int = 80
     max_position_embeddings: int = 80
@@ -135,6 +136,7 @@ class CLIPTextModelL_14_224_Config(CLIPTextModelConfig):
 @dataclass
 class ClipConfigL14(ClipConfig):
     """Main Clip config for Large model"""
+
     text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelL_14_224_Config())
     vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTL_14_224_Config())
 
@@ -142,6 +144,7 @@ class ClipConfigL14(ClipConfig):
 @dataclass
 class ClipConfigB32(ClipConfig):
     """Main Clip config for Base model"""
+
     text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelB_32_224_Config())
     vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTB_32_224_Config())
 
@@ -149,6 +152,7 @@ class ClipConfigB32(ClipConfig):
 @io.model_importer(CLIPModel, "hf")
 class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
     """Import model from Hugging Face"""
+
     def init(self) -> CLIPModel:
         # pylint: disable=C0116
         return CLIPModel(self.config, tokenizer=self.tokenizer)
@@ -199,38 +203,26 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
                 "vision_model.pre_layrnorm.bias": "vision_model.ln_pre.bias",
                 "vision_model.post_layernorm.weight": "vision_model.final_layernorm.weight",
                 "vision_model.post_layernorm.bias": "vision_model.final_layernorm.bias",
-                "text_model.encoder.layers.*.self_attn.out_proj.weight":
-                    "text_model.decoder.layers.*.self_attention.linear_proj.weight",
-                "text_model.encoder.layers.*.self_attn.out_proj.bias":
-                    "text_model.decoder.layers.*.self_attention.linear_proj.bias",
-                "text_model.encoder.layers.*.layer_norm1.weight":
-                    "text_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-                "text_model.encoder.layers.*.layer_norm1.bias":
-                    "text_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
+                "text_model.encoder.layers.*.self_attn.out_proj.weight": "text_model.decoder.layers.*.self_attention.linear_proj.weight",
+                "text_model.encoder.layers.*.self_attn.out_proj.bias": "text_model.decoder.layers.*.self_attention.linear_proj.bias",
+                "text_model.encoder.layers.*.layer_norm1.weight": "text_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                "text_model.encoder.layers.*.layer_norm1.bias": "text_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
                 "text_model.encoder.layers.*.mlp.fc1.weight": "text_model.decoder.layers.*.mlp.linear_fc1.weight",
                 "text_model.encoder.layers.*.mlp.fc1.bias": "text_model.decoder.layers.*.mlp.linear_fc1.bias",
                 "text_model.encoder.layers.*.mlp.fc2.weight": "text_model.decoder.layers.*.mlp.linear_fc2.weight",
                 "text_model.encoder.layers.*.mlp.fc2.bias": "text_model.decoder.layers.*.mlp.linear_fc2.bias",
-                "text_model.encoder.layers.*.layer_norm2.weight":
-                    "text_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-                "text_model.encoder.layers.*.layer_norm2.bias":
-                    "text_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
-                "vision_model.encoder.layers.*.self_attn.out_proj.weight":
-                    "vision_model.decoder.layers.*.self_attention.linear_proj.weight",
-                "vision_model.encoder.layers.*.self_attn.out_proj.bias":
-                    "vision_model.decoder.layers.*.self_attention.linear_proj.bias",
-                "vision_model.encoder.layers.*.layer_norm1.weight":
-                    "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-                "vision_model.encoder.layers.*.layer_norm1.bias":
-                    "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
+                "text_model.encoder.layers.*.layer_norm2.weight": "text_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                "text_model.encoder.layers.*.layer_norm2.bias": "text_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
+                "vision_model.encoder.layers.*.self_attn.out_proj.weight": "vision_model.decoder.layers.*.self_attention.linear_proj.weight",
+                "vision_model.encoder.layers.*.self_attn.out_proj.bias": "vision_model.decoder.layers.*.self_attention.linear_proj.bias",
+                "vision_model.encoder.layers.*.layer_norm1.weight": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                "vision_model.encoder.layers.*.layer_norm1.bias": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
                 "vision_model.encoder.layers.*.mlp.fc1.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.weight",
                 "vision_model.encoder.layers.*.mlp.fc1.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.bias",
                 "vision_model.encoder.layers.*.mlp.fc2.weight": "vision_model.decoder.layers.*.mlp.linear_fc2.weight",
                 "vision_model.encoder.layers.*.mlp.fc2.bias": "vision_model.decoder.layers.*.mlp.linear_fc2.bias",
-                "vision_model.encoder.layers.*.layer_norm2.weight":
-                    "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-                "vision_model.encoder.layers.*.layer_norm2.bias":
-                    "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
+                "vision_model.encoder.layers.*.layer_norm2.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                "vision_model.encoder.layers.*.layer_norm2.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
             }
         )
 

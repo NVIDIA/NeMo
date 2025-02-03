@@ -66,10 +66,12 @@ def clip_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 def set_input_tensor(self, tensor):
     pass
 
+
 # pylint: enable=C0116
 @dataclass
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
     """Clip ViT model config"""
+
     output_dim: int = 512
     add_class_token: bool = True
     class_token_len: int = 8
@@ -112,6 +114,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
 
 class CLIPViTModel(MCoreCLIPViTModel):
     """Clip ViT model"""
+
     def __init__(
         self,
         transformer_config: TransformerConfig,
@@ -169,6 +172,7 @@ class CLIPViTModel(MCoreCLIPViTModel):
 @dataclass
 class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
     """Clip text model config"""
+
     output_dim: int = 512
     make_vocab_size_divisible_by: int = 128
     max_seq_length: int = 1024
@@ -209,6 +213,7 @@ class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
 
 class CLIPTextModel(MCoreGPTModel):
     """Clip text model"""
+
     def __init__(
         self,
         transformer_config: TransformerConfig,
@@ -263,6 +268,7 @@ class CLIPTextModel(MCoreGPTModel):
 @dataclass
 class ClipConfig(TransformerConfig, io.IOMixin):
     """Clip model config"""
+
     text_transformer_config: Optional[CLIPTextModelConfig] = None
     vision_transformer_config: Optional[CLIPViTConfig] = None
     get_attention_mask_from_fusion: bool = True
@@ -287,6 +293,7 @@ class ClipConfig(TransformerConfig, io.IOMixin):
 
 class MCoreClipModel(MegatronModule):
     """Clip model"""
+
     def __init__(self, config: ClipConfig, tokenizer, pre_process=True, post_process=True) -> None:
         # pylint: disable=C0116
         super().__init__(config=config)
@@ -419,6 +426,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def zero_shot_eval(self):
         """Zero shot evaluation for imagenet validation"""
+
         def accuracy(output, target, topk=(1,)):
             pred = output.topk(max(topk), 1, True, True)[1].t()
             correct = pred.eq(target.view(1, -1).expand_as(pred))
