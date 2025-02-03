@@ -5,11 +5,19 @@ from typing import Union
 import torch
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 from megatron.core.transformer.attention import Attention, SelfAttention, SelfAttentionSubmodules
-from megatron.core.transformer.custom_layers.transformer_engine import SplitAlongDim
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 
+try:
+    from megatron.core.transformer.custom_layers.transformer_engine import SplitAlongDim
+except ImportError:
+    from nemo.utils import logging
+    logging.warning(
+        "Failed to import Transformer Engine dependencies. "
+        "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
+        "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
+    )
 
 @dataclass
 class JointSelfAttentionSubmodules:
