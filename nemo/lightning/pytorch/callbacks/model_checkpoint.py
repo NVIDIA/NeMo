@@ -31,7 +31,7 @@ from nemo.lightning.io.pl import TrainerContext
 from nemo.lightning.pytorch.utils import get_automodel_from_trainer
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-
+import lightning.pytorch as pl
 
 class ModelCheckpoint(PTLModelCheckpoint):
     """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
