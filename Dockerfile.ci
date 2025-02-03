@@ -60,7 +60,7 @@ ARG APEX_REPO
 ARG APEX_TAG
 COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
 RUN bash /opt/NeMo/reinstall.sh --library apex --mode build && \
-    ls -al /opt/Megatron-LM
+    ls -al /opt/Apex
 
 FROM ${BASE_IMAGE}
 ARG IMAGE_LABEL
