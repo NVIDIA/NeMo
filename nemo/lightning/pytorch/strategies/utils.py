@@ -391,3 +391,44 @@ def fsdp2_strategy_parallelize(
         model = fully_shard(model, mesh=dp_mesh, mp_policy=mp_policy)
 
     return model
+
+
+def to_cpu(v):
+    """
+    Move a tensor or distributed tensor to the CPU.
+
+    This function takes an input tensor, which can be either a `DTensor` (distributed tensor)
+    or a standard `Tensor`, and ensures that it is moved to the CPU.
+
+    Args:
+        v (DTensor | Tensor | any): The input value, which can be a `DTensor`, `Tensor`, or
+                                    any other object. If `DTensor`, it checks the device and
+                                    moves the tensor accordingly.
+
+    Returns:
+        Tensor | any: The corresponding CPU tensor if `v` is a `DTensor` or `Tensor`,
+                    otherwise returns `v` unchanged.
+
+    Raises:
+        ValueError: If `v` is a `DTensor` but its device is neither 'cuda' nor 'cpu'.
+
+    Example:
+        >>> t = torch.tensor([1, 2, 3], device='cuda')
+        >>> to_cpu(t)  # Moves tensor to CPU
+        tensor([1, 2, 3])
+
+        >>> dt = DTensor(torch.tensor([4, 5, 6], device='cuda'))
+        >>> to_cpu(dt)  # Moves DTensor to CPU
+        tensor([4, 5, 6])
+    """
+    if isinstance(v, DTensor):
+        if v.device == torch.device('cuda'):
+            return v.full_tensor().cpu()
+        elif v.device == torch.device('cpu'):
+            return v._local_tensor
+        else:
+            raise ValueError("Unknown device")
+    elif isinstance(v, Tensor):
+        return v.cpu()
+    else:
+        return v
