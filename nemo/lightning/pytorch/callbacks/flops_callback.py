@@ -19,6 +19,7 @@ import numpy as np
 import torch
 from lightning.pytorch.callbacks import Callback
 
+from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.utils import flops_formulas, logging
 
@@ -51,7 +52,7 @@ class FLOPsMeasurementCallback(Callback):
 
     def __init__(
         self,
-        model_config: "GPTConfig",
+        model_config: GPTConfig,
         data_config: pl.LightningDataModule,
         model_name: str,
     ):
@@ -109,7 +110,7 @@ class FLOPsMeasurementCallback(Callback):
 
         n = trainer.strategy.current_epoch_step
         if n % trainer.log_every_n_steps == 0:
-            ## skip calculation if we haven't accumulated any timing data
+            # skip calculation if we haven't accumulated any timing data
             if self.avg_train_step_time == 0:
                 return
             tflops_per_sec_per_gpu = self.eval_tflops_per_sec_per_gpu(
@@ -214,7 +215,7 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
             try:
                 query_groups = model_cfg.num_query_groups
                 if query_groups is None:
-                    query_groups = attention_heads
+                    query_groups = model_cfg.num_attention_heads
                 kwargs["query_groups"] = query_groups
             except:
                 # Multi-modal models use HF model configs which may/may not define num_query_groups
