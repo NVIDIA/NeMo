@@ -876,10 +876,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """
         Get the value of step within an epoch.
         """
-        ans = max(
-            self.trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
-            self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
-        ) - 1
+        ans = (
+            max(
+                self.trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
+                self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
+            )
+            - 1
+        )
         assert ans >= 0
         return ans
 
