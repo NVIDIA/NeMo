@@ -91,10 +91,11 @@ class TestPEFT:
                 continue
             assert key in ['lora_a', 'lora_b']
 
+        state_dict = linear_adapter.state_dict()
         for key in ['lora_a', 'lora_b']:
             assert hasattr(linear_adapter, key), f"Expected {key} to be in module"
-            assert key in linear_adapter.state_dict(), f"Expected {key} to be in state dict"
-            assert getattr(linear_adapter, key).requires_grad == True, "Expected {key} to require_grad"
+            assert key in state_dict, f"Expected {key} to be in state dict"
+            assert getattr(linear_adapter, key).weight.requires_grad == True, "Expected {key} to require_grad"
 
     def test_peft_setup(self):
         peft = self.DummyPEFT()
