@@ -44,6 +44,8 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         optim (MegatronOptimizer): The distributed optimizer from Megatron Core.
     """
 
+    nvtx_label = "nemo.mcore_optim"
+
     def __init__(self, optim):
         self.defaults = {}
         self.mcore_optimizer = optim
@@ -123,10 +125,12 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         # Apply closure
         loss = None
         if closure is not None:
+            nvtx_range_push(f"{McoreDistributedOptimizer.nvtx_label}.step.closure")
             loss = closure()
+            nvtx_range_pop()
 
         # return unused update_successful, grad_norm, num_zeros_in_grad
-        nvtx_range_push("MC_optim")
+        nvtx_range_push(f"{McoreDistributedOptimizer.nvtx_label}.step.step")
         _, grad_norm, num_zeros_in_grad = self.mcore_optimizer.step()
         nvtx_range_pop()
 
