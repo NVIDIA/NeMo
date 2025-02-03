@@ -46,6 +46,7 @@ OPENAI_DATASET_STD = (0.26862954, 0.26130258, 0.27577711)
 
 @dataclass
 class AugmentationCfg:
+    """Augmentation Config"""
     scale: Tuple[float, float] = (0.9, 1.0)
     ratio: Optional[Tuple[float, float]] = None
     color_jitter: Optional[Union[float, Tuple[float, float, float]]] = None
@@ -56,6 +57,7 @@ class AugmentationCfg:
 
 
 class ResizeMaxSize(nn.Module):
+    """Resize module"""
     def __init__(self, max_size, interpolation=InterpolationMode.BICUBIC, fn='max', fill=0):
         super().__init__()
         if not isinstance(max_size, int):
@@ -66,6 +68,7 @@ class ResizeMaxSize(nn.Module):
         self.fill = fill
 
     def forward(self, img):
+        # pylint: disable=C0116
         if isinstance(img, torch.Tensor):
             height, width = img.shape[:2]
         else:
@@ -82,6 +85,7 @@ class ResizeMaxSize(nn.Module):
 
 
 def _convert_to_rgb(image):
+    # pylint: disable=C0116
     return image.convert('RGB')
 
 
@@ -94,6 +98,7 @@ def image_transform(
     fill_color: int = 0,
     aug_cfg: Optional[Union[Dict[str, Any], AugmentationCfg]] = None,
 ):
+    # pylint: disable=C0116
     assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
 
     mean = mean or OPENAI_DATASET_MEAN

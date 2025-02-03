@@ -72,6 +72,7 @@ def tokenize(texts: Union[str, List[str]], tokenizer: Any, context_length: int =
     return result
 
 
+# pylint: disable=C0116
 def get_preprocess_fns_params(
     img_h, img_w, img_mean=None, img_std=None, is_train=True, max_position_embedding=None, tokenizer=None
 ):
@@ -183,7 +184,7 @@ def build_imagenet_validation_dataloader_params(
     max_position_embedding=None,
     tokenizer=None,
 ):
-    # This is equivalent to `build_imagenet_validation_dataloader` but does not need the whole config to get the functions. This is
+    # This is equivalent to `build_imagenet_validation_dataloader` but does not need the whole config.
     # Particularly used in Nemo2
     val_image_transform, text_transform = get_preprocess_fns_params(
         img_h,
@@ -237,9 +238,10 @@ def build_imagenet_validation_dataloader_params(
 
     return imagenet_val_data
 
-
+# pylint: enable=C0116
 # For zero-shot imagenet validation
 def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
+    """Build dataloaders"""
     val_image_transform, text_transform = get_preprocess_fns(model_cfg, tokenizer, is_train=False)
     data_cfg = model_cfg.data
 
@@ -286,7 +288,9 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
 
 
 class ImagenetClassnameDataset(Dataset):
+    """Imagenet class dataset"""
     def __init__(self, classnames, templates, text_transform):
+        # pylint: disable=C0116
         self.num_templates = len(templates)
         self.samples = []
         for classname in classnames:
@@ -294,7 +298,9 @@ class ImagenetClassnameDataset(Dataset):
             self.samples.extend(text_transform(texts))
 
     def __getitem__(self, index):
+        # pylint: disable=C0116
         return self.samples[index]
 
     def __len__(self):
+        # pylint: disable=C0116
         return len(self.samples)

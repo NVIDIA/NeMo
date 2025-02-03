@@ -94,10 +94,10 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Defaults to None (loads the whole tar file at once).
         task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples.
         If not provided, a default (MultimodalTaskEncoder) encoder will be created. Defaults to None.
-        decoder_seq_length (int, optional): The maximum sequence length for the decoder. Used in encoder-decoder models.
+        decoder_seq_length (int, optional): The max sequence length for the decoder. Used in encoder-decoder models
         packing_buffer_size (int, optional): Size of the packing buffer for batched samples. Defaults to None.
-        validation_task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding and batching samples for
-        validation. Defaults to None and will be the same as task_encoder.
+        validation_task_encoder (MultiModalTaskEncoder, optional): Encoder responsible for encoding
+        and batching samples for validation. Defaults to None and will be the same as task_encoder.
         **kwargs: Additional keyword arguments. Will be passed to get_train_dataset() of Energon
         """
 
@@ -316,7 +316,8 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         """
         if not 'dataloader_state' in state_dict:
             logging.warning(
-                f"Data loader state cannot be resumed from state_dict, it does not have the required key dataloader_state. It has {state_dict.keys()}"
+                f"Data loader state cannot be resumed from state_dict, "
+                f"it does not have the required key dataloader_state. It has {state_dict.keys()}"
             )
             return
 
@@ -328,7 +329,8 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
             else:
                 logging.error(f"Cannot restore state from state_dict {state_dict}")
                 raise ValueError(
-                    "Cannot restore state from state_dict: Is the trainer object is initialized and attached to datamodule???"
+                    "Cannot restore state from state_dict: "
+                    "Is the trainer object is initialized and attached to datamodule???"
                 )
         except Exception as e:
             logging.warning(

@@ -183,7 +183,7 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
         return output_path
 
     def convert_state(self, source, target, image_newline=False):
-        # pylint: disable=C0116
+        # pylint: disable=C0116, line-too-long
         # Start with the heads
         mapping = {
             'text_projection.weight': "text_model.head.weight",
@@ -225,6 +225,8 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
                 "vision_model.encoder.layers.*.layer_norm2.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
             }
         )
+        # pylint: enable=line-too-long
+
 
         return io.apply_transforms(
             source,
