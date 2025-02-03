@@ -22,7 +22,7 @@ from nemo.collections.common.data.lhotse.cutset import get_parser_fn
 
 
 @click.command()
-@click.argument("input_cfg", type=click.Path(exists=True, dir_okay=False))
+@click.argument("input_cfgs", type=click.Path(exists=True, dir_okay=False), nargs=-1)
 @click.argument("output_cfg", type=click.Path())
 @click.option(
     "-t",
@@ -41,14 +41,18 @@ from nemo.collections.common.data.lhotse.cutset import get_parser_fn
     default="num_hours",
     help="Strategy for choosing weights for each dataset.",
 )
-def estimate_data_weights(input_cfg: str, output_cfg: str, temperature: list[float], strategy: str):
+def estimate_data_weights(input_cfgs: str, output_cfg: str, temperature: list[float], strategy: str):
     """
-    Read a YAML specification of datasets from INPUT_CFG, compute their weights, and save the result in OUTPUT_CFG.
+    Read a YAML specification of datasets from INPUT_CFGS, compute their weights, and save the result in OUTPUT_CFG.
     The weight for each entry is determined by the number of hours in a given dataset.
+
+    If more than one config is provided as input, we will concatenate them and output a single merged config.
 
     Optionally, apply temperature re-weighting to balance the datasets (specify TEMPERATURE lesser than 1).
     """
-    data = OmegaConf.load(input_cfg)
+    data = ListConfig([])
+    for icfg in input_cfgs:
+        data.extend(OmegaConf.load(icfg))
     temperature = parse_temperature(temperature)
     validate(data)
     count(data, weight_key=strategy)
