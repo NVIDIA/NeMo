@@ -577,7 +577,7 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
         if have_custom_fsdp and hasattr(module, "module") and isinstance(module.module, FullyShardedDataParallel):
             module.module.load_state_dict(_state_dict, strict=strict)
             continue
-        
+
         try:
             module.load_state_dict(_state_dict, strict=strict)
         except RuntimeError as e:
