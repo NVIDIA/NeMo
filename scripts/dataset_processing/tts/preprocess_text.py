@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#  Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ $ python <nemo_root_path>/scripts/dataset_processing/tts/preprocess_text.py \
     --num_workers=4 \
     --joblib_batch_size=16
 """
+
 import argparse
 from pathlib import Path
 
@@ -48,20 +49,13 @@ from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write
 
 def get_args():
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="Process and normalize text data.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Process and normalize text data.",
     )
     parser.add_argument(
-        "--input_manifest",
-        required=True,
-        type=Path,
-        help="Path to input training manifest.",
+        "--input_manifest", required=True, type=Path, help="Path to input training manifest.",
     )
     parser.add_argument(
-        "--output_manifest",
-        required=True,
-        type=Path,
-        help="Path to output training manifest with processed text.",
+        "--output_manifest", required=True, type=Path, help="Path to output training manifest with processed text.",
     )
     parser.add_argument(
         "--overwrite",
@@ -69,21 +63,13 @@ def get_args():
         help="Whether to overwrite the output manifest file if it exists.",
     )
     parser.add_argument(
-        "--text_key",
-        default="text",
-        type=str,
-        help="Input text field to normalize.",
+        "--text_key", default="text", type=str, help="Input text field to normalize.",
     )
     parser.add_argument(
-        "--normalized_text_key",
-        default="normalized_text",
-        type=str,
-        help="Output field to save normalized text to.",
+        "--normalized_text_key", default="normalized_text", type=str, help="Output field to save normalized text to.",
     )
     parser.add_argument(
-        "--lower_case",
-        action=argparse.BooleanOptionalAction,
-        help="Whether to convert the final text to lower case.",
+        "--lower_case", action=argparse.BooleanOptionalAction, help="Whether to convert the final text to lower case.",
     )
     parser.add_argument(
         "--normalizer_config_path",
@@ -101,8 +87,44 @@ def get_args():
         "--max_entries", default=0, type=int, help="If provided, maximum number of entries in the manifest to process."
     )
 
+    parser.add_argument(
+        "--enable_split",action="store_true",help="Enable splitting text into sentences before normalization.",
+    )
+
     args = parser.parse_args()
     return args
+
+def _split_and_normalize_text(text: str, normalizer: Normalizer) -> str:
+    """
+    Splits the input text into sentences using additional split symbols,
+    further splits sentences longer than 500 words, normalizes each sentence,
+    and then concatenates them back together.
+    """
+    additional_split_symbols = ";|:"  # Adjust based on your dataset's characteristics
+    sentences = normalizer.split_text_into_sentences(text, additional_split_symbols=additional_split_symbols)
+    split_sentences = []
+    for sentence in sentences:
+        words = sentence.split()
+        if len(words) > 500:
+            # Split into chunks of 500 words
+            for i in range(0, len(words), 500):
+                chunk = ' '.join(words[i: i + 500])
+                split_sentences.append(chunk)
+        else:
+            split_sentences.append(sentence)
+
+    # Log sentences exceeding 500 words (for debugging)
+    for idx, sentence in enumerate(split_sentences):
+        word_count = len(sentence.split())
+        if word_count > 500:
+            print(f"Warning: Sentence {idx} with {word_count} words is still too long.")
+
+    normalized_sentences = [
+        normalizer.normalize(sentence, punct_pre_process=True, punct_post_process=True)
+        for sentence in split_sentences
+    ]
+    return ' '.join(normalized_sentences)
+
 
 
 def _process_entry(
@@ -112,48 +134,23 @@ def _process_entry(
     normalized_text_key: str,
     lower_case: bool,
     lower_case_norm: bool,
+    enable_split: bool,
 ) -> dict:
     text = entry[text_key]
 
     if normalizer is not None:
-        # Define additional split symbols to enhance splitting
-        additional_split_symbols = ";|:"  # Adjust based on your dataset's characteristics
+        if enable_split:
+            text = _split_and_normalize_text(text,normalizer)
 
-        # Split text into sentences using additional split symbols
-        sentences = normalizer.split_text_into_sentences(text, additional_split_symbols=additional_split_symbols)
-
-        # Further split sentences longer than 500 words
-        split_sentences = []
-        for sentence in sentences:
-            words = sentence.split()
-            if len(words) > 500:
-                # Split into chunks of 500 words
-                for i in range(0, len(words), 500):
-                    chunk = ' '.join(words[i : i + 500])
-                    split_sentences.append(chunk)
-            else:
-                split_sentences.append(sentence)
-
-        # Log sentences exceeding 500 words (for debugging)
-        for idx, sentence in enumerate(split_sentences):
-            word_count = len(sentence.split())
-            if word_count > 500:
-                print(f"Warning: Sentence {idx} with {word_count} words is still too long.")
-
-        # Normalize each sentence individually
-        normalized_sentences = [
-            normalizer.normalize(sentence, punct_pre_process=True, punct_post_process=True)
-            for sentence in split_sentences
-        ]
-        # Concatenate normalized sentences
-        normalized_text = ' '.join(normalized_sentences)
-    else:
-        normalized_text = text
-
+        else:
+            if lower_case_norm:
+                text = text.lower()
+            text = normalizer.normalize(text, punct_pre_process=True, punct_post_process=True)
+   
     if lower_case:
-        normalized_text = normalized_text.lower()
+        text = text.lower()
 
-    entry[normalized_text_key] = normalized_text
+    entry[normalized_text_key] = text
 
     return entry
 
@@ -170,6 +167,7 @@ def main():
     batch_size = args.joblib_batch_size
     max_entries = args.max_entries
     overwrite = args.overwrite
+    enable_split = args.enable_split
 
     if output_manifest_path.exists():
         if overwrite:
@@ -200,6 +198,7 @@ def main():
             normalized_text_key=normalized_text_key,
             lower_case=lower_case,
             lower_case_norm=lower_case_norm,
+            enable_split=enable_split,
         )
         for entry in tqdm(entries)
     )
