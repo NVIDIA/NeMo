@@ -876,10 +876,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """
         Get the value of step within an epoch.
         """
-        return max(
+        ans = max(
             self.trainer.fit_loop.epoch_loop.automatic_optimization.optim_progress.optimizer.step.current.completed,
             self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.current.completed,
-        )
+        ) - 1
+        assert ans >= 0
+        return ans
 
     @property
     def distributed_sampler_kwargs(self) -> Dict[str, Any]:
