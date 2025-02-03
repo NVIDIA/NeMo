@@ -21,10 +21,8 @@ Example:
 from PIL import ImageFile
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
-import os
-
-from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
 import argparse
+import os
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
@@ -32,6 +30,7 @@ from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
 from nemo.collections.vlm.clip.data.clip_data_module import ClipTaskEncoder
 from nemo.collections.vlm.clip.model import ClipConfigB32, CLIPModel
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
