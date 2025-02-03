@@ -577,8 +577,17 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
         if have_custom_fsdp and hasattr(module, "module") and isinstance(module.module, FullyShardedDataParallel):
             module.module.load_state_dict(_state_dict, strict=strict)
             continue
-
-        module.load_state_dict(_state_dict, strict=strict)
+        
+        try:
+            module.load_state_dict(_state_dict, strict=strict)
+        except RuntimeError as e:
+            missing_keys, expected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
+            if all(s.endswith('_extra_state') for s in missing_keys):
+                logging.warning(
+                    f'Loding checkpoint created with Transformer Engine version lower than 1.13. Missing layers {missing_keys} will be ignored.'
+                )
+            else:
+                raise e
 
 
 def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False):

@@ -52,6 +52,7 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from torch import nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.distributed.checkpoint.utils import CheckpointException
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
@@ -79,6 +80,13 @@ ConfigT = TypeVar("ConfigT")
 
 
 DDPLiteral = Literal["megatron", "pytorch"]
+
+
+URL = "https://docs.nvidia.com/nemo-framework/user-guide/latest/knownissues.html"
+LOAD_ERROR = f"""
+    (1) To resolve this issue, try to set `trainer.strategy.ckpt_load_strictness` to False. This setting enables loading older checkpoints.
+    (2) For more details and troubleshooting guidance, please refer to the framework documentation: {URL}.
+"""
 
 
 @dataclass
@@ -781,9 +789,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         strict = (
             self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
         )
-        checkpoint = self.checkpoint_io.load_checkpoint(
-            checkpoint_path, sharded_state_dict=sharded_state_dict, strict=strict
-        )
+
+        try:
+            checkpoint = self.checkpoint_io.load_checkpoint(
+                checkpoint_path, sharded_state_dict=sharded_state_dict, strict=strict
+            )
+        except CheckpointException as e:
+            error_message = f"{e}\n{LOAD_ERROR}"
+            raise RuntimeError(error_message)
 
         if selective_restore:
             final_checkpoint = {}
