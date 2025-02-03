@@ -36,7 +36,7 @@ def req_file(filename, folder="requirements"):
 
 
 setuptools.setup(
-    name="NeMo-Export",
+    name="nemo_export",
     version=__version__,
     description="NeMo Export - a package to export NeMo checkpoints to TensorRT-LLM",
     long_description="NeMo Export - a package to export NeMo checkpoints to TensorRT-LLM",
