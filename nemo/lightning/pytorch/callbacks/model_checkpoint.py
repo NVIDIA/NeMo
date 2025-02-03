@@ -66,7 +66,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
         verbose: bool = True,
         save_last: Optional[Union[bool, Literal["link"]]] = True,
         save_top_k: int = 3,
-        save_weights_only: bool = False,  ## TODO: check support
+        save_weights_only: bool = False,  # TODO: check support
         mode: str = "min",
         every_n_epochs: int = None,
         every_n_train_steps: Optional[int] = None,
@@ -81,9 +81,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.save_context_on_train_end = save_context_on_train_end
         self.save_optim_on_train_end = save_optim_on_train_end
 
-        ## stores the next -last checkpoint to be saved, used only when save_last = 'link'
-        ## this is needed because when using symlinks, we need to update the non-last checkpoint's
-        ## last_model_path to point to the corresponding -last version
+        # stores the next -last checkpoint to be saved, used only when save_last = 'link'
+        # this is needed because when using symlinks, we need to update the non-last checkpoint's
+        # last_model_path to point to the corresponding -last version
         self.future_last_model_path = ""
 
         # Checkpoints which removal is deferred until async save is done.
@@ -250,7 +250,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     def state_dict(self):
         state = super().state_dict()
-        ## if using symlinks, overwrite last_model_path to avoid off-by-one issues
+        # if using symlinks, overwrite last_model_path to avoid off-by-one issues
         if self.save_last == "link":
             state["last_model_path"] = self.future_last_model_path
         return state
@@ -416,15 +416,15 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     def _link_checkpoint(self, trainer: "pl.Trainer", filepath: str, linkpath: str, override_async=False) -> None:
 
-        ## check to see whether this step has already been saved as top_k
-        ## in which case we can create a symlink
-        ## otherwise, we have to save the checkpoint
+        # check to see whether this step has already been saved as top_k
+        # in which case we can create a symlink
+        # otherwise, we have to save the checkpoint
         saved_current_step = str(ckpt_to_dir(linkpath)).replace("-last", "") == str(ckpt_to_dir(filepath))
         if not saved_current_step:
             self._save_checkpoint(trainer, linkpath)
             return
 
-        ## linking will happen as part of the finalize fn
+        # linking will happen as part of the finalize fn
         if self.async_save and not override_async:
             self.ckpts_to_link[str(filepath)] = str(linkpath)
             return
@@ -448,8 +448,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         self._last_global_step_saved = trainer.global_step
 
-        ## manually update last_model_path so symlink is up-to-date
-        ## should only be done when using a symlink
+        # manually update last_model_path so symlink is up-to-date
+        # should only be done when using a symlink
         if self.save_last == "link":
             self.future_last_model_path = str(ckpt_to_dir(filepath))
             if not str(ckpt_to_dir(filepath)).endswith("last"):
@@ -470,11 +470,11 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
         else:
-            ## Determine whether to include optimizer states in the checkpoint
-            ## optimizer states are included when
-            ## 1. save_weights_only is False and
-            ## 2. either save_optim_on_train_end is True, or save_optim_on_train_end is False but the checkpoint
-            ##    is an intermediate checkpoint.
+            # Determine whether to include optimizer states in the checkpoint
+            # optimizer states are included when
+            # 1. save_weights_only is False and
+            # 2. either save_optim_on_train_end is True, or save_optim_on_train_end is False but the checkpoint
+            #    is an intermediate checkpoint.
             save_weights_only = self.save_weights_only or (
                 not self.save_optim_on_train_end and trainer.global_step == trainer.max_steps
             )
