@@ -27,7 +27,9 @@ jobs:
             FILTER=$(jq -crn '[
               "nemo/collections/asr/**",
               "nemo/collections/tts/**",
-              "nemo/collections/audio/**"
+              "nemo/collections/audio/**",
+              "nemo/collections/multimodal/speech_llm/**",
+              "nemo/collections/speechlm/**"
             ] | join(",")')
 
           else
@@ -35,7 +37,9 @@ jobs:
               "nemo/**",
               "!nemo/collections/asr/**",
               "!nemo/collections/tts/**",
-              "!nemo/collections/audio/**"
+              "!nemo/collections/audio/**",
+              "!nemo/collections/multimodal/speech_llm/**",
+              "!nemo/collections/speechlm/**"
             ] | join(",")')
           fi
           
