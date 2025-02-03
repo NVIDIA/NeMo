@@ -31,6 +31,14 @@ from nemo.utils import logging, model_utils
 
 
 class MCoreASRModule(MegatronModule):
+    """
+    Wrapper class for ASR encoder from `nemo.collections.asr.models.ASRModel`.
+
+    `TransformerConfig` is a dummy config to satisfy the `MegatronModule` constructor.
+    `num_attention_heads` is set to 16 such that it's divisible by the value of TP.
+    `num_layers` and `hidden_size` are set to 1 since not used.
+    """
+
     def __init__(
         self,
         encoder: NeuralModule,

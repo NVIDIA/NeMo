@@ -361,11 +361,6 @@ class LazyNeMoTarredIterator:
                     yield data, raw_audio, tar_info
                 except KeyError as e:
                     if self.skip_missing_manifest_entries:
-                        logging.warning(
-                            f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                            f"Cannot locate JSON entry for tar file '{tar_info.name}'",
-                            mode=logging_mode.ONCE,
-                        )
                         continue
                     else:
                         raise RuntimeError(
