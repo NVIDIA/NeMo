@@ -65,7 +65,7 @@ def is_trainer_attached(model: pl.LightningModule):
     return hasattr(model, 'trainer')
 
 
-def get_automodel_from_trainer(trainer: 'lightning.pytorch.Trainer') -> 'nn.Module':
+def get_automodel_from_trainer(trainer: pl.Trainer):
     """
     Extracts the automodel from a PyTorch Lightning trainer instance.
 
