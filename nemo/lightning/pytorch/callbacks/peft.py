@@ -360,7 +360,7 @@ class AdapterWrapper(nn.Module):
         return sharded_state_dict
 
 
-class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
+class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # noqa: F821
     """
     A wrapper class for checkpoint I/O operations, specifically designed for PEFT (Parameter-Efficient Fine-Tuning).
 
@@ -395,7 +395,9 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
     model_ckpt_path: Optional[Path] = None
     adapter_ckpt_path: Optional[Path] = None
 
-    def __init__(self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None) -> None:  # noqa: F821
+    def __init__(
+        self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None  # noqa: F821
+    ) -> None:
         self.peft = peft
         super().__init__(checkpoint_io)
 
