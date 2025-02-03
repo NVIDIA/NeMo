@@ -201,7 +201,7 @@ def patch_linear_module(
         orig_linear.super_fwd = orig_linear.forward
 
     cls = orig_linear.__class__
-    new_cls = type(f'PatchedLinearAdapter', (LinearAdapter, cls), {})
+    new_cls = type('PatchedLinearAdapter', (LinearAdapter, cls), {})
     orig_linear.__class__ = new_cls
 
     if hasattr(orig_linear.weight.data, '_local_tensor'):
