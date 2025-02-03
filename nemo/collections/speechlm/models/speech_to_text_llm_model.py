@@ -15,6 +15,7 @@
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from types import MethodType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -22,6 +23,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import lightning.pytorch as L
 import torch
 import torch.nn as nn
+from lightning.pytorch.utilities import rank_zero_only
 from megatron.core import dist_checkpointing, parallel_state, tensor_parallel
 from megatron.core.inference_params import InferenceParams
 from megatron.core.num_microbatches_calculator import (
@@ -34,7 +36,6 @@ from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_config import TransformerConfig
 from omegaconf import DictConfig, ListConfig
-from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
@@ -185,6 +186,21 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         for param in module.parameters():
             param.requires_grad = False
 
+    def _import_and_convert_ckpt(self, ckpt_path: str) -> str:
+        if dist_checkpointing.check_is_distributed_checkpoint(ckpt_path):
+            return ckpt_path
+
+        if not torch.distributed.is_initialized():
+            raise ValueError("Distributed environment is not initialized.")
+
+        rank = torch.distributed.get_rank()
+        # Sleep to avoid racing condition when multiple GPUs try to import the same checkpoint
+        time.sleep(rank * 2)
+
+        llm_model_cls = model_utils.import_class_by_path(self.language_model_class)  # type: GPTModel
+        ckpt_path = llm_model_cls.import_ckpt(f"{self.language_model_hub}{ckpt_path}")
+        return ckpt_path
+
     def configure_model(
         self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
     ) -> "MCoreSpeechToTextLLM":
@@ -209,17 +225,12 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             logging.info(f"Loading language model weights from {self.language_model_from_pretrained}")
             ckpt_path = self.language_model_from_pretrained
 
-            if not dist_checkpointing.check_is_distributed_checkpoint(ckpt_path):
-                llm_model_cls = model_utils.import_class_by_path(self.language_model_class)  # type: GPTModel
-                ckpt_path = llm_model_cls.import_ckpt(
-                    f"{self.language_model_hub}{self.language_model_from_pretrained}"
-                )
-                ckpt_path = ckpt_to_weights_subdir(ckpt_path, is_saving=False)
+            ckpt_path = self._import_and_convert_ckpt(ckpt_path)
 
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
 
             loaded_state_dict = dist_checkpointing.load(
-                sharded_state_dict=sharded_state_dict, checkpoint_dir=ckpt_path
+                sharded_state_dict=sharded_state_dict, checkpoint_dir=ckpt_to_weights_subdir(ckpt_path)
             )
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
             language_model.load_state_dict(loaded_state_dict)
