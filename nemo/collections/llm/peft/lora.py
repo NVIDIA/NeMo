@@ -128,13 +128,14 @@ class LinearAdapter(nn.Linear):
         out_features = obj.out_features
         dtype = lora_dtype or obj.weight.dtype
 
-        obj.lora_a = nn.Parameter(torch.zeros((in_features, dim), dtype=dtype, device=device))
-        obj.lora_b = nn.Parameter(torch.zeros((dim, out_features), dtype=dtype, device=device))
+        obj.lora_a = nn.Linear(in_features, dim,  bias=False, dtype=dtype, device=device)
+        obj.lora_b = nn.Linear(dim, out_features, bias=False, dtype=dtype, device=device)
         if lora_A_init_method == 'xavier':
-            torch.nn.init.uniform_(obj.lora_a)
+            torch.nn.init.uniform_(obj.lora_a.weight)
         else:
-            nn.init.kaiming_uniform_(obj.lora_a, a=math.sqrt(5))
-
+            nn.init.kaiming_uniform_(obj.lora_a.weight, a=math.sqrt(5))
+        with torch.no_grad():
+            obj.lora_b.weight.data.fill_(0)
         obj.dropout = nn.Dropout(p=dropout)
         assert dropout_position in ['pre', 'post'], dropout_position
         obj.dropout_position = dropout_position
@@ -148,8 +149,7 @@ class LinearAdapter(nn.Linear):
             res = F.linear(x, obj.weight, obj.bias)
         if obj.dropout_position == 'pre':
             x = obj.dropout(x)
-        lora_res = x @ obj.lora_a
-        lora_res = lora_res @ obj.lora_b
+        lora_res = obj.lora_b(obj.lora_a(x))
         lora_res = lora_res * obj.scale
         if obj.dropout_position == 'post':
             lora_res = obj.dropout(lora_res)
@@ -203,6 +203,15 @@ def patch_linear_module(
     if orig_linear.weight.dtype == torch.uint8:
         fwd = orig_linear.forward
     orig_linear.forward = lambda x: LinearAdapter._forward(orig_linear, x, fwd)
+
+
+    has_dtensor = hasattr(orig_linear.weight.data, '_local_tensor')
+    if has_dtensor:
+        # If orig_linear's weights are stored in a DTensor, wrap lora weights wtih fully_shard too.
+        from torch.distributed._composable.fsdp.fully_shard import fully_shard
+        fully_shard(orig_linear.lora_a, reshard_after_forward=False)
+        fully_shard(orig_linear.lora_b, reshard_after_forward=False)
+
     return orig_linear
 
 
