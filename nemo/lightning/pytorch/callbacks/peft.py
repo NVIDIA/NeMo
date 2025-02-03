@@ -135,7 +135,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         """PTL callback setup function."""
         from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
-        from nemo.lightning.pytorch.utils import get_huggingface_model_from_trainer
+        from nemo.lightning.pytorch.utils import get_automodel_from_trainer
 
         super().setup(trainer, pl_module, stage=stage)
 
@@ -143,7 +143,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
 
-        if get_huggingface_model_from_trainer(trainer) is not None:
+        if get_automodel_from_trainer(trainer) is not None:
             ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
         else:
             ckpt_io_kwarg_names = [
