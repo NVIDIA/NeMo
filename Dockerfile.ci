@@ -87,7 +87,6 @@ WORKDIR /workspace
 COPY --from=te-wheel /tmp/wheels/* /tmp/wheels/ 
 COPY --from=mlm-wheel /tmp/wheels/* /tmp/wheels/ 
 COPY --from=apex-wheel /tmp/wheels/* /tmp/wheels/ 
-COPY --from=nemo-bump /opt/NeMo /opt/
 
 RUN \
   --mount=type=bind,source=requirements,target=requirements \
@@ -97,7 +96,7 @@ RUN \
   --mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
   --mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex
   
-  bash /opt/NeMo/reinstall.sh --library all --mode install
+  bash reinstall.sh --library all --mode install
 
   # Megatron Core installation
   # cp -r /opt/Megatron-LM /workspace
