@@ -15,7 +15,9 @@
 import fiddle as fdl
 from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
+import tempfile
 from nemo.collections import llm
+from nemo.lightning import NeMoLogger
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -68,6 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--disable-ckpt', action='store_false')
+    parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name)
     args = parser.parse_args()
 
     wandb = None
@@ -86,6 +89,7 @@ if __name__ == '__main__':
 
     use_dist_samp = False
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
+    callbacks = []
 
     llm.api.finetune(
         model=llm.HFAutoModelForCausalLM(args.model),
@@ -99,15 +103,16 @@ if __name__ == '__main__':
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
-            accumulate_grad_batches=10,
+            accumulate_grad_batches=1,
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
             enable_checkpointing=args.disable_ckpt,
             precision='bf16',
+            callbacks=callbacks,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-        log=None,
+        log=NeMoLogger(log_dir=args.ckpt_folder, use_datetime_version=False),
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],
             dim=32,
