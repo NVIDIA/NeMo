@@ -45,7 +45,7 @@ HuggingFace Pretrained Checkpoints
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ASR collection has checkpoints of several models trained on various datasets for a variety of tasks.
-These checkpoints are obtainable via NGC `NeMo Automatic Speech Recognition collection <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_.
+These checkpoints are obtainable via NGC `NeMo Automatic Speech Recognition collection <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`__.
 The model cards on NGC contain more information about each of the checkpoints available.
 
 In general, you can load models with model name in the following format, 
@@ -56,7 +56,7 @@ In general, you can load models with model name in the following format,
   huggingface-cli login
 
 .. code-block:: python
-  
+
   from nemo.collections.asr.models import SortformerEncLabelModel
   diar_model = SortformerEncLabelModel.from_pretrained("nvidia/diar_sortformer_4spk-v1")
 
@@ -132,7 +132,7 @@ NGC Pretrained Checkpoints
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ASR collection has checkpoints of several models trained on various datasets for a variety of tasks.
-These checkpoints are obtainable via NGC `NeMo Automatic Speech Recognition collection <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_.
+These checkpoints are obtainable via NGC `NeMo Automatic Speech Recognition collection <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`__.
 The model cards on NGC contain more information about each of the checkpoints available.
 
 In general, you can load models with model name in the following format, 

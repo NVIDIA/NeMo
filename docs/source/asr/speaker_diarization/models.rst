@@ -5,11 +5,12 @@ This section gives a brief overview of the supported speaker diarization models 
 
 Currently NeMo Speech AI supports two types of speaker diarization systems:
 
-* 1. **End-to-end Speaker Diarization:** Sortformer Diarizer 
-        Sortformer is a Transformer encoder-based end-to-end speaker diarization model that generates predicted speaker labels directly from input audio clips.
-* 2. **Cascaded (Pipelined) Speaker Diarization:** Clustering diarizer with Multi-Scale Diarization Decoder (MSDD)
-        The speaker diarization pipeline in NeMo Speech AI involves the use of the MarbleNet <../speech_classification/models.html#marblenet-vad>__ model for Voice Activity Detection (VAD), the TitaNet <../speaker_recognition/models.html#titanet>__ model for speaker embedding extraction, and the Multi-Scale Diarization Decoder for neural diarization, all of which are explained on this page.
-        
+1. **End-to-end Speaker Diarization:** Sortformer Diarizer 
+Sortformer is a Transformer encoder-based end-to-end speaker diarization model that generates predicted speaker labels directly from input audio clips.
+
+2. **Cascaded (Pipelined) Speaker Diarization:** Clustering diarizer with Multi-Scale Diarization Decoder (MSDD)
+The speaker diarization pipeline in NeMo Speech AI involves the use of the :doc:`MarbleNet <../speech_classification/models.html>` model for Voice Activity Detection (VAD), the :doc:`TitaNet <../speaker_recognition/models.html>` model for speaker embedding extraction, and the Multi-Scale Diarization Decoder for neural diarization, all of which are explained on this page.
+
 .. _Sortformer Diarizer:
 
 Sortformer Diarizer
@@ -27,7 +28,7 @@ On top of that, many real-world use cases need these models to handle really lon
         :width: 800px
         :alt: Intro Comparison
 
-To tackle the complexities of multispeaker automatic speech recognition (ASR), we introduce `Sortformer <https://arxiv.org/abs/2409.06656>`_, a new approach that incorporates _Sort-Loss_ and techniques to align timestamps with text tokens. Traditional approaches like permutation-invariant loss (PIL) face challenges when applied in batchable and differentiable computational graphs, especially since token-based objectives struggle to incorporate speaker-specific attributes into PIL-based loss functions.
+To tackle the complexities of multispeaker automatic speech recognition (ASR), we introduce `Sortformer <https://arxiv.org/abs/2409.06656>`__, a new approach that incorporates *Sort Loss* and techniques to align timestamps with text tokens. Traditional approaches like permutation-invariant loss (PIL) face challenges when applied in batchable and differentiable computational graphs, especially since token-based objectives struggle to incorporate speaker-specific attributes into PIL-based loss functions.
 
 To address this, we propose an arrival time sorting (ATS) approach. In this method, speaker tokens from ASR outputs and speaker timestamps from diarization outputs are sorted by their arrival times to resolve permutations. This approach allows the multispeaker ASR system to be trained or fine-tuned using token-based cross-entropy loss, eliminating the need for timestamp-based or frame-level objectives with PIL.
 
@@ -48,7 +49,7 @@ Additionally, as shown in the above figure, our diarization system integrates di
 
 As a result, our end-to-end multispeaker ASR system is fully or partially trainable with token objectives, allowing both the ASR and speaker diarization modules to be trained or fine-tuned using these objectives. Additionally, during the multispeaker ASR training phase, no specialized loss calculation functions are needed when using Sortformer, as frameworks for standard single-speaker ASR models can be employed. These compatibilities greatly simplify and accelerate the training and fine-tuning process of multispeaker ASR systems. 
 
-On top of all these benefits, _Sortformer_ can be used as a stand-alone end-to-end speaker diarization model. By training a Sortformer diarizer model especially on high-quality simulated data with accurate time-stamps, you can boost the performance of multi-speaker ASR systems, just by integrating the _Sortformer_ model as _Speaker Supervision_ model in a computation graph.
+On top of all these benefits, *Sortformer* can be used as a stand-alone end-to-end speaker diarization model. By training a Sortformer diarizer model especially on high-quality simulated data with accurate time-stamps, you can boost the performance of multi-speaker ASR systems, just by integrating the *Sortformer* model as *Speaker Supervision* model in a computation graph.
 
 In this tutorial, we will walk you through the process of training a Sortformer diarizer model with toy dataset. Before starting, we will introduce the concepts of Sort-Loss calculation and the Hybrid loss technique.
 
@@ -62,15 +63,15 @@ In this tutorial, we will walk you through the process of training a Sortformer 
         :width: 1000px
         :alt: PIL model VS SortLoss model
 
-_Sort-Loss_ is designed to compare the predicted outputs with the true labels, typically sorted in arrival-time order or another relevant metric. The key distinction that _Sortformer_ introduces compared to previous end-to-end diarization systems such as [EEND-SA](https://arxiv.org/pdf/1909.06247), [EEND-EDA](https://arxiv.org/abs/2106.10654) lies in the organization of class presence $\mathbf{\hat{Y}}$.
+*Sort Loss* is designed to compare the predicted outputs with the true labels, typically sorted in arrival-time order or another relevant metric. The key distinction that *Sortformer* introduces compared to previous end-to-end diarization systems such as `EEND-SA <https://arxiv.org/pdf/1909.06247>`__, `EEND-EDA <https://arxiv.org/abs/2106.10654>`__ lies in the organization of class presence $\mathbf{\hat{Y}}$.
 
-The figure below illustrates the difference between _Sort-Loss_ and permutation-invariant loss (PIL) or permutation-free loss.
+The figure below illustrates the difference between *Sort Loss* and permutation-invariant loss (PIL) or permutation-free loss.
 
-   - PIL is calculated by finding the permutation of the target that minimizes the loss value between the prediction and the target.
+- PIL is calculated by finding the permutation of the target that minimizes the loss value between the prediction and the target.
 
-   - _Sort-Loss_ simply compares the arrival-time-sorted version of speaker activity outputs for both the prediction and the target. Note that sometimes the same ground-truth labels lead to different target matrices for _Sort-Loss_ and PIL.
+- *Sort Loss* simply compares the arrival-time-sorted version of speaker activity outputs for both the prediction and the target. Note that sometimes the same ground-truth labels lead to different target matrices for *Sort Loss* and PIL.
 
-For example, the figure below shows two identical source target matrices (the two matrices at the top), but the resulting target matrices for _Sort-Loss_ and PIL are different.
+For example, the figure below shows two identical source target matrices (the two matrices at the top), but the resulting target matrices for *Sort Loss* and PIL are different.
 
 .. _Multi_Scale_Diarization_Decoder:
 

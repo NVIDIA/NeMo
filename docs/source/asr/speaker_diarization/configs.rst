@@ -1,5 +1,5 @@
-Speaker Diarization Configuration Files
-=======================================
+End-to-End Speaker Diarization Configuration Files
+==================================================
 
 Hydra Configurations for Sortformer Diarizer Training 
 -----------------------------------------------------
@@ -239,8 +239,9 @@ Use batch_size = 1 to have the longest inference window and the highest possible
     min_duration_on: 0.1  # Removes short silences if the duration is less than the specified minimum duration
     min_duration_off: 0.15  # Removes short speech segments if the duration is less than the specified minimum duration
 
-NeMo Speech AI Speaker Diarization Configuration Files: Cascaded Speaker Diarization
-====================================================================================
+
+Cascaded Speaker Diarization Configuration Files
+================================================
 
 Both training and inference of cascaded speaker diarization is configured by ``.yaml`` files. The diarizer section will generally require information about the dataset(s) being used, models used in this pipeline, as well as inference related parameters such as post processing of each models. The sections on this page cover each of these in more detail.
 
