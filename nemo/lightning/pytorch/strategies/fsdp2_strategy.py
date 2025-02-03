@@ -14,7 +14,6 @@
 
 import os
 import shutil
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
 
@@ -233,6 +232,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
+        """Applies data-samples to dataloader
+        """
         if self.data_sampler:
             return self.data_sampler.transform_dataloader(dataloader)
 
