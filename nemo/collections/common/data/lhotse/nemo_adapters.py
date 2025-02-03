@@ -461,7 +461,13 @@ def make_cut_with_subset_inmemory_recording(
         return cut
 
     # Otherwise, apply the memory optimization.
-    cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
+    try:
+        cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
+    except Exception as e:
+        raise RuntimeError(
+            f"Lhotse cut.truncate failed with offset={offset}, duration={duration}, recording={recording}: {e}"
+        )
+
     audiobytes = BytesIO()
     LibsndfileBackend().save_audio(audiobytes, cut.load_audio(), sampling_rate=cut.sampling_rate, format="wav")
     audiobytes.seek(0)
