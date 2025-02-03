@@ -117,7 +117,7 @@ jobs:
           if: inputs.SAVE_COVERAGE_REPORT == true
           with:
             name: ${{ steps.main.outputs.coverage_report }}
-            path: ${{ github.run_id }}/.coverage
+            path: ${{ github.run_id }}/coverage.xml
             include-hidden-files: true
             
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
