@@ -387,7 +387,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
     model_ckpt_path: Optional[Path] = None
     adapter_ckpt_path: Optional[Path] = None
 
-    def __init__(self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None) -> None:
+    def __init__(self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None) -> None: # noqa: F821
         self.peft = peft
         super().__init__(checkpoint_io)
 
@@ -449,7 +449,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         path: _PATH,
         sharded_state_dict=None,
         map_location: Optional[Callable] = None,
-        strict: Optional['StrictHandling'] | bool = None,
+        strict: Optional['StrictHandling'] | bool = None,  # noqa: F821
     ) -> Dict[str, Any]:
         """
         =====================

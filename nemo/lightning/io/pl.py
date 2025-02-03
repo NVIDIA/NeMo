@@ -173,7 +173,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         path: _PATH,
         sharded_state_dict=None,
         map_location: Optional[Callable] = None,
-        strict: Optional['StrictHandling'] | bool = None,
+        strict: Optional['StrictHandling'] | bool = None,  # noqa: F821
     ) -> Dict[str, Any]:
         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
 
@@ -380,7 +380,7 @@ class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
         path: _PATH,
         sharded_state_dict=None,
         map_location: Optional[Callable] = None,
-        strict: Optional['StrictHandling'] | bool = None,
+        strict: Optional['StrictHandling'] | bool = None,  # noqa: F821
     ) -> Dict[str, Any]:
         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
 
