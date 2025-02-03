@@ -366,8 +366,8 @@ class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
                 param = checkpoint["state_dict"].pop(name)
                 name = name\
                     .replace("model.model", "base_model.model")\
-                    .replace("lora_a", "lora_A.weight")\
-                    .replace("lora_b", "lora_B.weight")
+                    .replace("lora_a.weight", "lora_A.weight")\
+                    .replace("lora_b.weight", "lora_B.weight")
                 state_dict[name] = param
 
             checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
