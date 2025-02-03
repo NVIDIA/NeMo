@@ -210,6 +210,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     ) -> None:
         """Converts PyT checkpoints to MCore format and save using MCore dist ckpt library."""
 
+        from nemo.lightning.pytorch.strategies.utils import to_cpu
+        module_names = list(checkpoint["state_dict"].keys())
+        for name in module_names:
+            param = checkpoint["state_dict"].pop(name)
+            checkpoint["state_dict"][name] = to_cpu(param)
+
         if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
             # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
             # Ideally, the optimizer state dicts should not be generated in this case

@@ -358,8 +358,6 @@ class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
                 If ``storage_options`` arg is passed in
 
         """
-        from nemo.lightning.pytorch.strategies.utils import to_cpu
-
         if self.lora:
             from safetensors.torch import save_file
 
@@ -371,7 +369,7 @@ class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
                     .replace("model.model", "base_model.model")\
                     .replace("lora_a", "lora_A.weight")\
                     .replace("lora_b", "lora_B.weight")
-                state_dict[name] = to_cpu(param)
+                state_dict[name] = param
 
             checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
             fs = get_filesystem(checkpoint_dir)
