@@ -7,6 +7,7 @@ Data Preparation for Speaker Diarization Training (For End-to-End Diarization)
 Speaker diarization training and inference both require the same type of manifest files. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathfiles_to_diarize_manifest.py``. The following example shows how to run ``pathfiles_to_diarize_manifest.py`` by providing path list files.
 
 .. code-block:: bash
+  
   python NeMo/scripts/speaker_tasks/pathfiles_to_diarize_manifest.py \ 
     --add_duration \ 
     --paths2audio_files='/path/to/audio_file_path_list.txt' \

@@ -14,6 +14,7 @@ Sortformer Diarizer Training
 Use the following command to train a Sortformer diarizer model.
   
 .. code-block:: bash  
+  
   # Feed the config for Sortformer diarizer model training
   python ${NEMO_ROOT}/examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py --config-path='../conf/neural_diarizer' \  
     --config-name='sortformer_diarizer_hybrid_loss_4spk-v1.yaml' \   
@@ -30,6 +31,7 @@ Sortformer Diarizer Inference
 Use the following command to run inference on a Sortformer diarizer model.
 
 .. code-block:: bash  
+
   # Config for post-processing  
   PP_YAML1=${NEMO_ROOT}/examples/speaker_tasks/diarization/conf/post_processing/sortformer_diar_4spk-v1_dihard3-dev.yaml  
   PP_YAML2=${NEMO_ROOT}/examples/speaker_tasks/diarization/conf/post_processing/sortformer_diar_4spk-v1_callhome-part1.yaml   
@@ -49,10 +51,12 @@ The model cards on NGC contain more information about each of the checkpoints av
 In general, you can load models with model name in the following format, 
 
 .. code-block:: bash
+
   pip install -U "huggingface_hub[cli]"
   huggingface-cli login
 
 .. code-block:: python
+  
   from nemo.collections.asr.models import SortformerEncLabelModel
   diar_model = SortformerEncLabelModel.from_pretrained("nvidia/diar_sortformer_4spk-v1")
 
