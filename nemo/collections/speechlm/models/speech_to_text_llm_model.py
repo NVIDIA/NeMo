@@ -191,7 +191,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             return ckpt_path
 
         if not torch.distributed.is_initialized():
-            raise ValueError("Distributed environment is not initialized.")
+            raise RuntimeError("Distributed environment is not initialized.")
 
         rank = torch.distributed.get_rank()
         # Sleep to avoid racing condition when multiple GPUs try to import the same checkpoint
@@ -230,7 +230,9 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
 
             loaded_state_dict = dist_checkpointing.load(
-                sharded_state_dict=sharded_state_dict, checkpoint_dir=ckpt_to_weights_subdir(ckpt_path)
+                sharded_state_dict=sharded_state_dict,
+                checkpoint_dir=ckpt_to_weights_subdir(ckpt_path, is_saving=False),
+                validate_access_integrity=False,
             )
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
             language_model.load_state_dict(loaded_state_dict)
