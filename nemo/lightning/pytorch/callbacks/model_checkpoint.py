@@ -33,6 +33,7 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 import lightning.pytorch as pl
 
+
 class ModelCheckpoint(PTLModelCheckpoint):
     """Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end.
     Adds support for asyncronous checkpointing and provides some additional logic to clean up invalid checkpoints
@@ -71,7 +72,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         every_n_epochs: int = None,
         every_n_train_steps: Optional[int] = None,
         train_time_interval: Optional[timedelta] = None,
-        save_on_train_epoch_end: Optional[bool] = False,  # Save after training, not after validation
+        # Save after training, not after validation
+        save_on_train_epoch_end: Optional[bool] = False,
         save_optim_on_train_end: Optional[bool] = False,
         always_save_context: bool = True,
         save_context_on_train_end: bool = True,
@@ -165,7 +167,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
             logging.add_err_file_handler(log_dir / 'nemo_error_log.txt')
 
             # Add lightning file logging to global_rank zero
-            add_filehandlers_to_pl_logger(log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
+            add_filehandlers_to_pl_logger(
+                log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
@@ -186,16 +189,19 @@ class ModelCheckpoint(PTLModelCheckpoint):
         self.best_model_score = None
         self.best_model_path = ""
 
-        checkpoints = list(path for path in self._saved_checkpoint_paths if not self._is_ema_filepath(path))
+        checkpoints = list(
+            path for path in self._saved_checkpoint_paths if not self._is_ema_filepath(path))
         for checkpoint in checkpoints:
             checkpoint = str(checkpoint)
             if checkpoint[-10:] == '-last.ckpt' or checkpoint[-5:] == '-last':
                 continue
-            index = checkpoint.find(self.monitor) + len(self.monitor) + 1  # Find monitor in str + 1 for '='
+            # Find monitor in str + 1 for '='
+            index = checkpoint.find(self.monitor) + len(self.monitor) + 1
             if index != len(self.monitor):
                 match = re.search('[A-z]', checkpoint[index:])
                 if match:
-                    value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hyphen
+                    # -1 due to separator hyphen
+                    value = checkpoint[index: index + match.start() - 1]
                 else:
                     value = checkpoint[index:]
                 self.best_k_models[checkpoint] = float(value)
@@ -204,7 +210,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         _reverse = False if self.mode == "min" else True
 
-        best_k_models = sorted(self.best_k_models, key=self.best_k_models.get, reverse=_reverse)
+        best_k_models = sorted(
+            self.best_k_models, key=self.best_k_models.get, reverse=_reverse)
 
         # This section should be ok as rank zero will delete all excess checkpoints, since all other ranks are
         # instantiated after rank zero. models_to_delete should be 0 for all other ranks.
@@ -220,7 +227,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
             self.best_k_models.pop(model)
             self._del_model_without_trainer(model)
             if ema_enabled and self._fs.exists(self._ema_format_filepath(model)):
-                self._del_model_without_trainer(self._ema_format_filepath(model))
+                self._del_model_without_trainer(
+                    self._ema_format_filepath(model))
             logging.debug(f"Removed checkpoint: {model}")
 
         self.kth_best_model_path = best_k_models[-1]
@@ -234,10 +242,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
             exists = os.path.isdir(ckpt_path.removesuffix('.ckpt'))
             return exists and not self.is_checkpoint_unfinished(ckpt_path)
 
-        self.best_k_models = {k: v for k, v in self.best_k_models.items() if __is_ckpt_ok(k)}
+        self.best_k_models = {
+            k: v for k, v in self.best_k_models.items() if __is_ckpt_ok(k)}
         if len(self.best_k_models) > 0:
             reverse_arr = self.mode != "min"
-            best_k_models_arr = sorted(self.best_k_models, key=self.best_k_models.get, reverse=reverse_arr)
+            best_k_models_arr = sorted(
+                self.best_k_models, key=self.best_k_models.get, reverse=reverse_arr)
             self.kth_best_model_path = best_k_models_arr[-1]
             self.kth_value = self.best_k_models[self.kth_best_model_path]
             self.best_model_path = best_k_models_arr[0]
@@ -288,7 +298,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if should_save_last_checkpoint:
                 monitor_candidates = self._monitor_candidates(trainer)
                 if self.last_model_path == self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST):
-                    logging.debug(f'Last checkpoint {self.last_model_path} already saved')
+                    logging.debug(
+                        f'Last checkpoint {self.last_model_path} already saved')
                 else:
                     super()._save_last_checkpoint(trainer, monitor_candidates)
             if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
@@ -309,7 +320,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 shutil.rmtree(dist_ckpt, ignore_errors=True)
                 logging.info(f"Removed distributed checkpoint: {dist_ckpt}")
             except:
-                logging.info(f"Tried to remove distributed checkpoint: {dist_ckpt} but failed.")
+                logging.info(
+                    f"Tried to remove distributed checkpoint: {dist_ckpt} but failed.")
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
@@ -366,7 +378,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         from nemo.utils.get_rank import is_global_rank_zero
 
         if is_global_rank_zero():
-            marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
+            marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(
+                checkpoint_path)
             marker_path.parent.mkdir(parents=True, exist_ok=True)
             marker_path.touch()
         if barrier_after and torch.distributed.is_initialized():
@@ -388,7 +401,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
             if barrier_before and torch.distributed.is_initialized():
                 torch.distributed.barrier()
             if is_global_rank_zero():
-                marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(checkpoint_path)
+                marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(
+                    checkpoint_path)
                 if marker_path.exists():
                     marker_path.unlink()
         except:
@@ -396,7 +410,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     def file_exists(self, filepath: str, trainer: "lightning.pytorch.Trainer", check_dist_ckpt: bool = True) -> bool:
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
-        exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
+        exists = self._fs.exists(filepath) or (
+            check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
         return trainer.strategy.broadcast(exists)
 
     def _monitor_candidates(self, trainer: "pl.Trainer") -> Dict[str, torch.Tensor]:
@@ -409,8 +424,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
         for loss_name in ['reduced_train_loss']:
             if loss_name in keys or loss_name == self.monitor:
                 if loss_name not in monitor_candidates:
-                    monitor_candidates[loss_name] = torch.tensor(0.0, device=torch.cuda.current_device())
-                _sync_from_last_pipeline_stage(monitor_candidates[loss_name], broadcast=True)
+                    monitor_candidates[loss_name] = torch.tensor(
+                        0.0, device=torch.cuda.current_device())
+                _sync_from_last_pipeline_stage(
+                    monitor_candidates[loss_name], broadcast=True)
 
         return monitor_candidates
 
@@ -419,7 +436,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # check to see whether this step has already been saved as top_k
         # in which case we can create a symlink
         # otherwise, we have to save the checkpoint
-        saved_current_step = str(ckpt_to_dir(linkpath)).replace("-last", "") == str(ckpt_to_dir(filepath))
+        saved_current_step = str(ckpt_to_dir(linkpath)).replace(
+            "-last", "") == str(ckpt_to_dir(filepath))
         if not saved_current_step:
             self._save_checkpoint(trainer, linkpath)
             return
@@ -463,12 +481,15 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             # save EMA copy of the model as well.
             with ema_callback.save_ema_model(trainer):
-                rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                rank_zero_info(
+                    f"Saving EMA weights to separate checkpoint {filepath}")
                 filepath = self._ema_format_filepath(filepath)
                 if self.verbose:
-                    rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
+                    rank_zero_info(
+                        f"Saving EMA weights to separate checkpoint {filepath}")
                 super()._save_checkpoint(trainer, filepath)
-            self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+            self.remove_checkpoint_unfinished_marker(
+                filepath, barrier_before=True)
         else:
             # Determine whether to include optimizer states in the checkpoint
             # optimizer states are included when
@@ -481,22 +502,26 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             # Async save passes the finalization function to checkpoint_io,
             # sync save calls the finalization function immediately after save.
-            finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
+            finalize_fn = self._get_finalize_save_checkpoint_callback(
+                trainer, filepath, trainer.global_step)
             if self.async_save:
                 checkpoint_io = trainer.strategy.checkpoint_io
                 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
                 if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
-                    raise ValueError('Async save requires async compatible CheckpointIO')
+                    raise ValueError(
+                        'Async save requires async compatible CheckpointIO')
                 storage_options = dict(finalize_fn=finalize_fn)
                 # Each upcoming ckpt removal request will be executed as part of this save finalization
                 self.deferred_ckpts_to_remove.append([])
             else:
                 storage_options = None
-            trainer.save_checkpoint(filepath, save_weights_only, storage_options=storage_options)
+            trainer.save_checkpoint(
+                filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context", yaml_attrs=["model"])
+                TrainerContext.from_trainer(trainer).io_dump(
+                    ckpt_to_dir(filepath) / "context", yaml_attrs=["model"])
 
             if self.async_save:
                 self._last_checkpoint_saved = filepath
@@ -510,7 +535,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         """Creates a callback that can be used to finalize async (and sync) ckpt saves."""
 
         def _cb():
-            logging.debug(f'Finalize callback called for step {global_step}, filepath {filepath}')
+            logging.debug(
+                f'Finalize callback called for step {global_step}, filepath {filepath}')
             self._last_checkpoint_saved = filepath
 
             # notify loggers
@@ -520,15 +546,18 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             # barrier_before=True, so all ranks synchronize before removing the unfinished checkpoint marker
             # we don't want to remove the marker until all checkpointing is done.
-            self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
+            self.remove_checkpoint_unfinished_marker(
+                filepath, barrier_before=True)
 
             if not self.async_save:
                 return
 
-            logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
+            logging.info(
+                f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
 
             if str(filepath) in self.ckpts_to_link:
-                self._link_checkpoint(trainer, filepath, self.ckpts_to_link.pop(filepath), override_async=True)
+                self._link_checkpoint(trainer, filepath, self.ckpts_to_link.pop(
+                    filepath), override_async=True)
 
             # Remove checkpoints marked for removal by `self._remove_checkpoint`
             # For each finalization there is exactly one entry in self.deferred_ckpts_to_remove
@@ -536,7 +565,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ckpts_to_remove = self.deferred_ckpts_to_remove.pop(0)
             logging.debug(f'Checkpoints to remove: {ckpts_to_remove}')
             for ckpt_to_remove in ckpts_to_remove:
-                self._remove_checkpoint(trainer, ckpt_to_remove, override_async=True)
+                self._remove_checkpoint(
+                    trainer, ckpt_to_remove, override_async=True)
 
         return _cb
 
@@ -578,7 +608,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
     def _saved_checkpoint_paths(self) -> Iterable[Path]:
         # distributed checkpoints are directories so we check for them here
         # we filter out unfinished checkpoints, these should be deleted during next cleanup
-        dist_checkpoints = [d for d in Path(self.dirpath).glob("*") if d.is_dir()]
+        dist_checkpoints = [d for d in Path(
+            self.dirpath).glob("*") if d.is_dir()]
         if dist_checkpoints:
             return filter(lambda p: not self.is_checkpoint_unfinished(p), dist_checkpoints)
         else:
@@ -593,7 +624,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         # "Unfinished marker" files are removed as well.
 
         if not is_global_rank_zero():
-            raise AssertionError("_remove_unfinished_checkpoints should run only on rank 0")
+            raise AssertionError(
+                "_remove_unfinished_checkpoints should run only on rank 0")
 
         checkpoint_dir = Path(checkpoint_dir)
 
@@ -601,19 +633,24 @@ class ModelCheckpoint(PTLModelCheckpoint):
             f.resolve() for f in checkpoint_dir.glob(f"*{ModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX}") if f.is_file()
         }
 
-        checkpoint_filepaths = {f.resolve() for f in checkpoint_dir.rglob("*.ckpt")}
+        checkpoint_filepaths = {f.resolve()
+                                for f in checkpoint_dir.rglob("*.ckpt")}
         for filepath in checkpoint_filepaths:
-            possible_marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(filepath)
+            possible_marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(
+                filepath)
             if possible_marker_path in existing_marker_filepaths:
                 logging.warning(f'Removing unfinished checkpoint: {filepath}')
                 os.remove(filepath)
 
         # some directories might be distributed checkpoints, we remove these if they have a unfinished marker
-        all_dirpaths = {d.resolve() for d in checkpoint_dir.glob("*") if d.is_dir()}
+        all_dirpaths = {d.resolve()
+                        for d in checkpoint_dir.glob("*") if d.is_dir()}
         for ckpt_dirpath in all_dirpaths:
-            possible_marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(ckpt_dirpath)
+            possible_marker_path = ModelCheckpoint.format_checkpoint_unfinished_marker_path(
+                ckpt_dirpath)
             if possible_marker_path in existing_marker_filepaths:
-                logging.warning(f'Removing unfinished dist checkpoint: {ckpt_dirpath}')
+                logging.warning(
+                    f'Removing unfinished dist checkpoint: {ckpt_dirpath}')
                 shutil.rmtree(ckpt_dirpath)
 
         # delete markers
@@ -633,7 +670,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         if not _is_local_file_protocol(previous):
             return True
         previous = Path(previous).absolute()
-        resume_path = Path(trainer.ckpt_path).absolute() if trainer.ckpt_path is not None else None
+        resume_path = Path(trainer.ckpt_path).absolute(
+        ) if trainer.ckpt_path is not None else None
 
         if resume_path is not None and previous == resume_path:
             if str(current).endswith("-last.ckpt") and resume_path.name.endswith("-last.ckpt"):
