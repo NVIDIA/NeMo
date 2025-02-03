@@ -193,7 +193,6 @@ jobs:
       SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 pytest tests/core -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
-      IS_OPTIONAL: true
 
   L0_Unit_Tests_GPU_Hydra:
     needs: [pre-flight, cicd-test-container-build]
