@@ -28,7 +28,7 @@ from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
-from nemo.lightning.pytorch.utils import get_huggingface_model_from_trainer
+from nemo.lightning.pytorch.utils import get_automodel_from_trainer
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
@@ -435,7 +435,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     def _save_checkpoint(self, trainer: 'lightning.pytorch.Trainer', filepath: str) -> None:
         # if it's an HF model -> use HF's save_pretrained function.
-        if (mod := get_huggingface_model_from_trainer(trainer)) is not None:
+        if (mod := get_automodel_from_trainer(trainer)) is not None:
             mod.save_pretrained(filepath)
             return
 
