@@ -274,6 +274,21 @@ def mcore_to_pyt_sharded_state_dict(
 def pyt_to_mcore_state_dict(
     state_dict: Dict[str, Any], prefix: str = "", device_mesh: DeviceMesh = None
 ) -> Dict[str, List[ShardedBase]]:
+    """
+    Converts a PyTorch state dictionary into a Megatron-Core compatible format.
+
+    Args:
+        state_dict (Dict[str, Any]):
+            The PyTorch state dictionary.
+        prefix (str, optional):
+            A prefix to prepend to all keys. Defaults to "".
+        device_mesh (DeviceMesh, optional):
+            The device mesh configuration for distributed tensors.
+
+    Returns:
+        Dict[str, List[ShardedBase]]:
+            A Megatron-Core formatted state dictionary with properly sharded tensors.
+    """
     def _dtensor_to_mcore_sharded_tensor(
         key: str,
         dten: DTensor,
@@ -282,21 +297,6 @@ def pyt_to_mcore_state_dict(
         allow_shape_mismatch: bool = False,
         device_mesh: DeviceMesh = None,
     ) -> List[ShardedTensor]:
-        """
-        Converts a PyTorch state dictionary into a Megatron-Core compatible format.
-
-        Args:
-            state_dict (Dict[str, Any]):
-                The PyTorch state dictionary.
-            prefix (str, optional):
-                A prefix to prepend to all keys. Defaults to "".
-            device_mesh (DeviceMesh, optional):
-                The device mesh configuration for distributed tensors.
-
-        Returns:
-            Dict[str, List[ShardedBase]]:
-                A Megatron-Core formatted state dictionary with properly sharded tensors.
-        """
         prepend_axis_num = len(prepend_offsets)
 
         assert device_mesh is not None
