@@ -128,8 +128,8 @@ class LinearAdapter(nn.Linear):
         out_features = obj.out_features
         dtype = lora_dtype or obj.weight.dtype
 
-        obj.lora_a = nn.Linear(in_features, dim, dtype=dtype, device=device)
-        obj.lora_b = nn.Linear(dim, out_features, dtype=dtype, device=device)
+        obj.lora_a = nn.Linear(in_features, dim, bias=False, dtype=dtype, device=device)
+        obj.lora_b = nn.Linear(dim, out_features, bias=False, dtype=dtype, device=device)
         if lora_A_init_method == 'xavier':
             torch.nn.init.uniform_(obj.lora_a.weight.data)
         else:
