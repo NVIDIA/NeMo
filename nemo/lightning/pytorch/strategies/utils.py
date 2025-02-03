@@ -19,6 +19,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 
 import lightning.pytorch as pl
 import torch
+from torch import Tensor
 from lightning.fabric.plugins import ClusterEnvironment
 from lightning.pytorch.callbacks import TQDMProgressBar
 from megatron.core import parallel_state
