@@ -122,9 +122,9 @@ def get_args():
     parser.add_argument(
         "--tokenizer_model_name",
         type=str,
-        default=None,
+        default="TiktokenTokenizer",
         required=False,
-        help="Tokenizer model name, e.g. TiktokenTokenizer. Defaults to None",
+        help="Tokenizer model name, e.g. TiktokenTokenizer. Defaults to TiktokenTokenizer",
     )
     args = parser.parse_args()
     return args
