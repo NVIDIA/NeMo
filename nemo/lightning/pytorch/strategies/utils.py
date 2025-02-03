@@ -40,6 +40,16 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
 @dataclass(kw_only=True)
 class RestoreConfig:
+    """
+    Configuration for restoring model state from a checkpoint.
+
+    Attributes:
+        path (str): Path to the checkpoint directory.
+        adapter_path (Optional[str]): Path to adapter checkpoint, if any.
+        load_model_state (bool): Whether to load model weights.
+        load_optim_state (bool): Whether to load optimizer state.
+        load_artifacts (bool): Whether to load additional artifacts (e.g., tokenizer).
+    """
     path: str
     adapter_path: Optional[str] = None
     load_model_state: bool = True
@@ -49,6 +59,12 @@ class RestoreConfig:
 
 
 def setup_parallel_ranks(strategy: pl.strategies.Strategy):
+    """
+    Sets up parallel ranks for distributed training.
+
+    Args:
+        strategy (pl.strategies.Strategy): The Lightning strategy being used for training.
+    """
     from megatron.core.model_parallel_config import ModelParallelConfig
 
     env = cast(ClusterEnvironment, strategy.cluster_environment)
@@ -57,6 +73,12 @@ def setup_parallel_ranks(strategy: pl.strategies.Strategy):
 
 
 def init_model_parallel(pl_module: pl.LightningModule):
+    """
+    Initializes model parallelism for distributed training.
+
+    Args:
+        pl_module (pl.LightningModule): The PyTorch Lightning module.
+    """
     from megatron.core import parallel_state
 
     from nemo.utils import AppState
@@ -69,6 +91,12 @@ def init_model_parallel(pl_module: pl.LightningModule):
 
 
 def setup_data_sampler(trainer: pl.Trainer):
+    """
+    Configures the data sampler for distributed training.
+
+    Args:
+        trainer (pl.Trainer): The PyTorch Lightning trainer instance.
+    """
     datamodule = getattr(trainer, "datamodule", None)
     if datamodule is not None:
         if hasattr(trainer.strategy, "data_sampler") and trainer.strategy.data_sampler is not None:
@@ -85,6 +113,14 @@ def setup_data_sampler(trainer: pl.Trainer):
 
 
 def fix_progress_bar(trainer: pl.Trainer, replace_progress_bar: bool = True, progress_interval: int = 1) -> None:
+    """
+    Fixes or replaces the progress bar callback in the PyTorch Lightning trainer.
+
+    Args:
+        trainer (pl.Trainer): The PyTorch Lightning trainer instance.
+        replace_progress_bar (bool): Whether to replace the default progress bar.
+        progress_interval (int): Interval at which to log progress.
+    """
     callbacks: List[pl.Callback] = cast(List[pl.Callback], getattr(trainer, "callbacks"))
     contains_megatron_progress, contains_progress = False, False
     for callback in callbacks:
@@ -110,6 +146,15 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     """PTL considers checkpoints as .ckpt files.
     This method removes the extension and returns a path
     to be used as a directory for distributed checkpoints.
+
+    Converts a checkpoint file path to a directory path by removing the `.ckpt` extension.
+
+    Args:
+        filepath (Union[str, Path]): The checkpoint file path.
+
+    Returns:
+        Path: The directory path where the checkpoint will be stored.
+
     """
     filepath = Path(filepath)
 
@@ -120,6 +165,16 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
 
 
 def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
+    """
+    Creates a checkpoint IO handler for saving/loading checkpoints.
+
+    Args:
+        wrapping_ckpt_io: An optional wrapper for checkpoint IO.
+        **kwargs: Additional arguments to configure checkpoint IO.
+
+    Returns:
+        Checkpoint IO handler instance.
+    """
     model_library = "megatron"
     if "model_library" in kwargs.keys():
         model_library = kwargs["model_library"]
