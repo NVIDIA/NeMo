@@ -91,6 +91,7 @@ class LinearAdapter(nn.Linear):
             lora_dtype=lora_dtype,
         )
 
+    @torch.no_grad
     @staticmethod
     def _init_adapter(
         obj,
@@ -127,26 +128,17 @@ class LinearAdapter(nn.Linear):
         out_features = obj.out_features
         dtype = lora_dtype or obj.weight.dtype
 
-        obj.lora_a = nn.Parameter(torch.zeros((in_features, dim), dtype=dtype, device=device))
-        obj.lora_b = nn.Parameter(torch.zeros((dim, out_features), dtype=dtype, device=device))
+        obj.lora_a = nn.Linear(in_features, dim, dtype=dtype, device=device)
+        obj.lora_b = nn.Linear(dim, out_features, dtype=dtype, device=device)
         if lora_A_init_method == 'xavier':
-            torch.nn.init.uniform_(obj.lora_a)
+            torch.nn.init.uniform_(obj.lora_a.weight.data)
         else:
-            nn.init.kaiming_uniform_(obj.lora_a, a=math.sqrt(5))
+            nn.init.kaiming_uniform_(obj.lora_a.weight.data, a=math.sqrt(5))
+        obj.lora_b.weight.data.fill_(0)
         obj.dropout = nn.Dropout(p=dropout)
         assert dropout_position in ['pre', 'post'], dropout_position
         obj.dropout_position = dropout_position
 
-        # We use DummyLinear to make lora_a & lora_b FSDP2-wrappable, while maintaining FQNs.
-        class DummyLinear(nn.Module):
-            def __init__(self, w):
-                super().__init__()
-                self.w = w
-            def forward(self, x):
-                return x @ self.w
-
-        obj._lora_a = DummyLinear(obj.lora_a)
-        obj._lora_b = DummyLinear(obj.lora_b)
 
     def forward(self, x):
         # pylint: disable=C0115,C0116
@@ -159,7 +151,7 @@ class LinearAdapter(nn.Linear):
             res = F.linear(x, self.weight, self.bias)
         if self.dropout_position == 'pre':
             x = self.dropout(x)
-        lora_res = self._lora_b(self._lora_a(x))
+        lora_res = self.lora_b(self.lora_a(x))
         lora_res = lora_res * self.scale
         if self.dropout_position == 'post':
             lora_res = self.dropout(lora_res)
@@ -213,10 +205,9 @@ def patch_linear_module(
     orig_linear.__class__ = new_cls
 
     if hasattr(orig_linear.weight.data, '_local_tensor'):
-        # If orig_linear's weights are stored in a DTensor, wrap lora weights wtih fully_shard too.
         from torch.distributed._composable.fsdp.fully_shard import fully_shard
-        fully_shard(orig_linear._lora_a, reshard_after_forward=False)
-        fully_shard(orig_linear._lora_b, reshard_after_forward=False)
+        fully_shard(orig_linear.lora_a, reshard_after_forward=False)
+        fully_shard(orig_linear.lora_b, reshard_after_forward=False)
 
     return orig_linear
 
