@@ -84,9 +84,9 @@ apt-get clean
 EOF
 
 WORKDIR /workspace
-COPY --from=te-wheel /tmp/wheels/* /tmp/wheels/ 
-COPY --from=mlm-wheel /tmp/wheels/* /tmp/wheels/ 
-COPY --from=apex-wheel /tmp/wheels/* /tmp/wheels/ 
+COPY --from=te-wheel /tmp/wheels/te /tmp/wheels/ 
+COPY --from=mlm-wheel /tmp/wheels/mcore /tmp/wheels/ 
+COPY --from=apex-wheel /tmp/wheels/apex /tmp/wheels/ 
 
 RUN \
   --mount=type=bind,source=requirements,target=requirements \

@@ -53,10 +53,10 @@ mcore() {
       git checkout -f $MAMBA_TAG
         
     if [[ "$mode" == "build" ]]; then
-        pip wheel --wheel-dir /tmp/wheels/mamba . && \
+        pip wheel --wheel-dir /tmp/wheels/mcore . && \
         ls -al
     else
-        pip install /tmp/wheels/mamba/*.whl
+        pip install /tmp/wheels/mcore/*.whl
     fi
 
     DIR="causal-conv1d"
@@ -70,10 +70,10 @@ mcore() {
       git checkout -f $CAUSAL_CONV_TAG
         
     if [[ "$mode" == "build" ]]; then
-        pip wheel --wheel-dir /tmp/wheels/causal-conv1d/ . && \
+        pip wheel --wheel-dir /tmp/wheels/mcore/ . && \
         ls -al
     else
-        pip install /tmp/wheels/causal-conv1d/*.whl
+        pip install /tmp/wheels/mcore/*.whl
     fi
 }
 
@@ -92,10 +92,10 @@ te() {
         
     if [[ "$mode" == "build" ]]; then
        git submodule init && git submodule update && \
-        NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip wheel --wheel-dir /tmp/wheels/transformer_engine/ . && \
+        NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip wheel --wheel-dir /tmp/wheels/te/ . && \
         ls -al
     else
-        pip install /tmp/wheels/transformer_engine/*.whl
+        pip install /tmp/wheels/te/*.whl
     fi
 }
 
