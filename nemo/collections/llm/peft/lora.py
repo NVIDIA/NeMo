@@ -157,13 +157,20 @@ class LinearAdapter(nn.Linear):
             lora_res = self.dropout(lora_res)
         return res + lora_res
 
-    def state_dict(self):
+    def state_dict(self, *args, destination=None, prefix="", keep_vars=False):
         # Originally, LinearAdapter held nn.Parameter in `lora_a` and `lora_b` attributes.
         # To maintain backwards compatibility, we apply the folowing renaming.
-        ans = super().state_dict()
+        ans = super().state_dict(prefix=prefix, keep_vars=keep_vars)
         for k in ['lora_a.weight', 'lora_b.weight']:
-            new_k = k.replace('.weight', '')
-            ans[new_k] = ans.pop(k)
+            assert k.endswith(k)
+            new_k = k[:-len('.weight')]
+            ans[new_k] = ans.pop(f'{prefix}{k}')
+        if destination is not None:
+            keys = list(ans.keys())
+            for k in keys:
+                assert not k in destination
+                destination[k] = ans.pop(k)
+            return destination
         return ans
 
     def load_state_dict(
