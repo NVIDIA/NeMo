@@ -515,12 +515,12 @@ def to_cpu(v):
         tensor([4, 5, 6])
     """
     if isinstance(v, DTensor):
-        if v.device == torch.device('cuda'):
+        if v.device.type == 'cuda':
             return v.full_tensor().cpu()
-        elif v.device == torch.device('cpu'):
+        elif v.device.type == 'cpu':
             return v._local_tensor
         else:
-            raise ValueError("Unknown device")
+            raise ValueError("Unknown device " + str(v.device))
     elif isinstance(v, Tensor):
         return v.cpu()
     else:
