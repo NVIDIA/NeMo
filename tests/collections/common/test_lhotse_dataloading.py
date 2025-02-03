@@ -53,24 +53,6 @@ def cutset_path(tmp_path_factory) -> Path:
     cuts.save_audios(pa).to_file(p)
     return p
 
-
-@pytest.fixture(scope="session")
-def cutset_with_skipme_path(cutset_path: Path) -> Path:
-    """Create a a Lhotse CutSet with last 2 utterances out of 10 with `_skipme` key enabled"""
-    from lhotse import CutSet
-
-    cuts = CutSet.from_file(cutset_path)
-    other_cuts = cuts.subset(first=8)
-    skipme_cuts = cuts.subset(last=2)
-    skipme_cuts = skipme_cuts.map(lambda cut: cut.with_custom("_skipme", 1))
-
-    cuts = other_cuts + skipme_cuts
-
-    p = cutset_path.parent / "cuts_with_skipme.jsonl.gz"
-    cuts.to_file(p)
-    return p
-
-
 @pytest.fixture(scope="session")
 def cutset_shar_path(cutset_path: Path) -> Path:
     """10 utterances of length 1s as a Lhotse Shar (tarred) CutSet."""
@@ -81,18 +63,6 @@ def cutset_shar_path(cutset_path: Path) -> Path:
     p.mkdir(exist_ok=True)
     cuts.to_shar(p, fields={"recording": "wav"}, shard_size=5)
     return p
-
-@pytest.fixture(scope="session")
-def cutset_shar_with_skipme_path(cutset_with_skipme_path: Path) -> Path:
-    """Create a a Lhotse Shar (tarred) CutSet with last 2 utterances out of 10 with `_skipme` key enabled"""
-    from lhotse import CutSet
-
-    cuts = CutSet.from_file(cutset_with_skipme_path)
-    p = cutset_with_skipme_path.parent / "shar"
-    p.mkdir(exist_ok=True)
-    cuts.to_shar(p, fields={"recording": "wav"}, shard_size=5)
-    return p
-
 
 @pytest.fixture(scope="session")
 def cutset_shar_path_other(cutset_path: Path) -> Path:
@@ -2546,8 +2516,10 @@ def test_dataloader_from_nemo_manifest_with_skipme(nemo_manifest_with_skipme_pat
 
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
     batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
 
     assert len(batches) == 8
+    assert not any(skipme_s)
 
 
 def test_dataloader_from_tarred_nemo_manifest_with_skipme(nemo_tarred_manifest_with_skipme_path: tuple[Path, str]):
@@ -2569,49 +2541,7 @@ def test_dataloader_from_tarred_nemo_manifest_with_skipme(nemo_tarred_manifest_w
 
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
     batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
     
     assert len(batches) == 8
-
-def test_dataloader_from_lhotse_cuts_with_skipme(cutset_with_skipme_path: Path):
-    config = OmegaConf.create(
-        {
-            "cuts_path": cutset_with_skipme_path,
-            "sample_rate": 16000,
-            "shuffle": True,
-            "use_lhotse": True,
-            "num_workers": 0,
-            "batch_size": 1,
-            # lhotse specific
-            "use_bucketing": False,
-        }
-    )
-
-    dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=Identity()
-    )
-
-    batches = [batch for batch in dl]
-    assert len(batches) == 8
-
-
-def test_dataloader_from_lhotse_shar_cuts_with_skipme(cutset_shar_with_skipme_path: Path):
-    config = OmegaConf.create(
-        {
-            "shar_path": cutset_shar_with_skipme_path,
-            "sample_rate": 16000,
-            "shuffle": True,
-            "use_lhotse": True,
-            "num_workers": 0,
-            "batch_size": 1,
-            # lhotse specific
-            "use_bucketing": False,
-            "force_finite": True,
-        }
-    )
-
-    dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=Identity()
-    )
-
-    batches = [batch for batch in dl]
-    assert len(batches) == 8
+    assert not any(skipme_s)
