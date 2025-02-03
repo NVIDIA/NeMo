@@ -190,7 +190,8 @@ class MambaModel(GPTModel):
         super().__init__(config or SSMConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
     
     def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
-        # This is to get the MCore model required in GPTInferenceWrapper.
+        # This is to get the MCore model required in GPTInferenceWrapper. 
+        # TODO: @ataghibakhsh Change when MambaInferenceWrapper is available in mcore
         mcore_model = self.module
         while mcore_model:
             if type(mcore_model) is MCoreMambaModel:
