@@ -24,7 +24,7 @@ export NEMO_RUN_TAG=34259bd3e752fef94045a9a019e4aaf62bd11ce2
 export APEX_TAG=810ffae374a2b9cb4b5c5e28eaeca7d7998fca0c
 export CAUSAL_CONV_TAG=v1.2.2.post1
 export MAMBA_TAG=v2.2.0
-export MCORE_TAG=d5069b8ebdc59445f0baeadb65dd8614706b789e
+export MCORE_TAG=dbe8fa09c7fea90c7b480fed7b0345c56b8d92c9
 export NV_RESILIENCY_EXT_TAG=97aad77609d2e25ed38ac5c99f0c13f93c48464e
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
