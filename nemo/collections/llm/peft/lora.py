@@ -157,9 +157,6 @@ class LinearAdapter(nn.Linear):
             lora_res = self.dropout(lora_res)
         return res + lora_res
 
-    def forward(self, x):
-        return LinearAdapter._forward(self, x)
-
     def state_dict(self):
         # Originally, LinearAdapter held nn.Parameter in `lora_a` and `lora_b` attributes.
         # To maintain backwards compatibility, we apply the folowing renaming.
@@ -220,7 +217,6 @@ def patch_linear_module(
     # If the model uses quantized weights, we want to use orig_linear's forward
     if orig_linear.weight.dtype == torch.uint8:
         orig_linear.super_fwd = orig_linear.forward
-    orig_linear.forward = lambda x: LinearAdapter._forward(orig_linear, x, fwd)
 
     cls = orig_linear.__class__
     new_cls = type(f'PatchedLinearAdapter', (LinearAdapter, cls), {})
