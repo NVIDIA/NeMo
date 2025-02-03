@@ -27,6 +27,17 @@ torch.set_float32_matmul_precision("medium")
 
 
 class LhotseHfNeMoDataset(torch.utils.data.Dataset):
+    """Class for a speechLM dataset
+
+    Args:
+        processor (AutoProcessor): the processor to use
+        tokenizer (AutoTokenizer): the tokenizer to use
+        decoder_mask_fill (int): Value to fill in decoder mask
+
+    Returns:
+        pl.LightningDataModule: the dataset to train with.
+    """
+
     def __init__(self, processor, tokenizer, decoder_mask_fill=-100):
         super().__init__()
         self.processor = processor
@@ -69,6 +80,7 @@ if __name__ == '__main__':
     # Models can be one of the supported ones by AutoModelForSpeechSeq2Seq such as
     # openai/whisper-large-v3 and facebook/s2t-small-librispeech-asr
     parser.add_argument('--model', default='openai/whisper-large-v3')
+    parser.add_argument('--data-path', type=str, required=True)
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
@@ -83,7 +95,7 @@ if __name__ == '__main__':
 
     config = OmegaConf.create(
         {
-            "cuts_path": "/opt/checkpoints/lhotse/libri/libri-train-5.jsonl.gz",
+            "cuts_path": args.data_path,
             "sample_rate": 16000,
             "shuffle": True,
             "num_workers": 2,
