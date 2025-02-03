@@ -79,7 +79,8 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
 
 
 def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving) -> Path:
-    """Given an input checkpoint filepath, clean it using `ckpt_to_dir` and then return the weights subdirectory, if it exists."""
+    """Given an input checkpoint filepath, clean it using `ckpt_to_dir`
+       and then return the weights subdirectory, if it exists."""
     filepath = ckpt_to_dir(filepath=filepath)
     base_dir = filepath
     assert isinstance(base_dir, Path)
