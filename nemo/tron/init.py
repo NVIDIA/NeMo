@@ -47,8 +47,26 @@ class RerunStateMachineConfig:
     on variability of computations due to non-deterministic algorithms."""
 
 
-def get_rank_preinit() -> int:
-    return int(os.getenv('RANK', '0'))
+def get_rank_safe() -> int:
+    # In megatron init, args.rank comes from the torchrun env var.
+    # Once init has been done, args.rank is updated to value of torch get_rank()
+    if torch.distributed.is_initialized():
+        return torch.distributed.get_rank()
+    else:
+        return int(os.getenv('RANK', '0'))
+
+
+def get_world_size_safe() -> int:
+    # In megatron init, args.world_size comes from the torchrun env var.
+    # Once init has been done, args.world_size is updated to value of torch get_world_size()
+    if torch.distributed.is_initialized():
+        return torch.distributed.get_world_size()
+    else:
+        return int(os.getenv("WORLD_SIZE", '1'))
+
+
+def get_local_rank_preinit() -> int:
+    return int(os.getenv('LOCAL_RANK', '0'))
 
 
 def initialize_megatron(
@@ -95,7 +113,7 @@ def _torch_dist_init(cfg: DistInitConfig, get_embedding_ranks, get_position_embe
         # Pytorch distributed.
         _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)  # TODO (maanug): implement
 
-        if get_rank_preinit() == 0:
+        if get_rank_safe() == 0:
             print("> setting random seeds to {} ...".format(cfg.seed))
         _set_random_seed(cfg.seed, cfg.data_parallel_random_init, cfg.te_rng_tracker, cfg.inference_rng_tracker)
 
@@ -111,7 +129,7 @@ def _torch_dist_init(cfg: DistInitConfig, get_embedding_ranks, get_position_embe
         parallel_state.set_tensor_model_parallel_world_size(cfg.tensor_model_parallel_size)
         # and return function for external DDP manager
         # to call when it has DDP initialized
-        parallel_state.set_tensor_model_parallel_rank(get_rank_preinit())
+        parallel_state.set_tensor_model_parallel_rank(get_rank_safe())
         return finish_mpu_init
     else:
         # Megatron's MPU is the master. Complete initialization right away.
@@ -159,7 +177,7 @@ def _compile_dataset_helpers():
     # Compile dataset C++ code.
     # =========================
     # TODO: move this to ninja
-    if torch.distributed.get_rank() == 0:
+    if get_rank_safe() == 0:
         start_time = time.time()
         print("> compiling dataset index builder ...")
         from megatron.core.datasets.utils import compile_helpers
