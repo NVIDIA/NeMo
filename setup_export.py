@@ -46,7 +46,7 @@ setuptools.setup(
     maintainer=__contact_names__,
     maintainer_email=__contact_emails__,
     license=__license__,
-    packages=setuptools.find_packages(include=["nemo", "nemo.export*"]),
+    packages=setuptools.find_packages(include=["nemo", "nemo.export*", "nemo.deploy"]),
     install_requires=req_file("requirements_infer_nim.txt"),
     zip_safe=False,
 )
