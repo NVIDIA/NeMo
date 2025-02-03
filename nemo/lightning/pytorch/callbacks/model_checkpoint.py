@@ -19,7 +19,6 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Literal, Optional, Union
 
-import lightning.pytorch
 import torch
 from _weakref import proxy
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
