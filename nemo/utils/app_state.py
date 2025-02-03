@@ -93,6 +93,9 @@ class AppState(metaclass=Singleton):
         # command-ling arguments for run
         self._cmd_args = None
 
+        # Insert NVTX ranges to categorize execution
+        self._nvtx_ranges = False
+
     @property
     def device_id(self):
         """Property returns the device_id
