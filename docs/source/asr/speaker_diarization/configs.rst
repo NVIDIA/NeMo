@@ -224,10 +224,10 @@ Hydra Configurations for Sortformer Diarization Post-processing
 ---------------------------------------------------------------
 
 Post-processing converts the floating point number based Tensor output to time stamp output. While generating the speaker-homogeneous segments, onset and offset threshold, 
-paddings can be considered to render the time stamps that can lead to the lowest diarization error rate (DER) 
-By default, post-processing is bypassed, and only binarization is performed. 
-If you want to reproduce DER scores reported on NeMo model cards, you need to apply post-processing steps.
-Use batch_size = 1 to have the longest inference window and the highest possible accuracy.
+paddings can be considered to render the time stamps that can lead to the lowest diarization error rate (DER).  
+
+
+By default, post-processing is bypassed, and only binarization is performed. If you want to reproduce DER scores reported on NeMo model cards, you need to apply post-processing steps. Use batch_size = 1 to have the longest inference window and the highest possible accuracy.
 
 .. code-block:: yaml
 

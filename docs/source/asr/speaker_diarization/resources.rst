@@ -4,8 +4,6 @@ Resource and Documentation Guide
 
 Hands-on speaker diarization tutorial notebooks for both end-to-end and cascaded systems can be found under ``<NeMo_root>/tutorials/speaker_tasks``.
 
-
-
 There are also tutorials for performing both end-to-end speaker diarization cascaded speaker diarization. 
 We also provide tutorials about getting ASR transcriptions combined with speaker labels along with voice activity timestamps with NeMo ASR collections.
 

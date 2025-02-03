@@ -30,7 +30,7 @@ Curently, NeMo Speech AI provides the following end-to-end speaker diarization m
 
 2. Cascaded Speaker Diarization System:
 
-.. image:: images/cascaded_diar_diagram.png
+.. image:: images/e2e_and_cascaded_diar_systems.png
         :align: center
         :width: 800px
         :alt: Cascaded Diar System
