@@ -30,21 +30,6 @@ from nemo.collections.llm.gpt.model.base import (
     transformer_engine_layer_spec,
 )
 from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig, ChatGLMModel
-from nemo.collections.llm.gpt.model.gemma import (
-    CodeGemmaConfig2B,
-    CodeGemmaConfig7B,
-    GemmaConfig,
-    GemmaConfig2B,
-    GemmaConfig7B,
-    GemmaModel,
-)
-from nemo.collections.llm.gpt.model.gemma2 import (
-    Gemma2Config,
-    Gemma2Config2B,
-    Gemma2Config9B,
-    Gemma2Config27B,
-    Gemma2Model,
-)
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
@@ -152,17 +137,6 @@ __all__ = [
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
     "CodeLlamaConfig70B",
-    "GemmaConfig",
-    "GemmaConfig2B",
-    "GemmaConfig7B",
-    "CodeGemmaConfig2B",
-    "CodeGemmaConfig7B",
-    "GemmaModel",
-    "Gemma2Config",
-    "Gemma2Config27B",
-    "Gemma2Config2B",
-    "Gemma2Config9B",
-    "Gemma2Model",
     "LlamaModel",
     "Baichuan2Config",
     "Baichuan2Config7B",
