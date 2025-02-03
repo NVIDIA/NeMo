@@ -684,7 +684,7 @@ def logit_softcapping(logits: torch.Tensor, scale: Optional[float]):
     """Prevents logits from growing excessively by scaling them to a fixed range"""
     if not scale:
         return logits
-        
+
     return scale * torch.tanh(logits / scale)
 
 
