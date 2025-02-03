@@ -231,8 +231,9 @@ class PEFT(IOMixin, ABC, ModelTransform):
         Given a key in the state dict, return whether the key is an adapter (or base model).
         This function can be subclassed in each PEFT method class.
         """
+        if isinstance(key, tuple):
+            return key[1].requires_grad
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
-
 
 class AdapterWrapper(nn.Module):
     """Abstract base class for wrapping modules with adapters in Parameter-Efficient Fine-Tuning (PEFT).
@@ -393,13 +394,17 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         assert self.checkpoint_io is not None
+        state_key = None
+        for k in ['sharded_state_dict', 'state_dict']:
+            if k in checkpoint:
+                state_key = k
+                break
+        assert state_key is not None, "Expected checkpoint to contain `sharded_state_dict` or `state_dict`"
 
-        state_key = 'sharded_state_dict'
-        if not state_key in checkpoint:
-            state_key = 'state_dict'
         checkpoint[state_key] = dict(
             filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint[state_key].items())
         )
+
         request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
         from nemo.utils.get_rank import is_global_rank_zero
