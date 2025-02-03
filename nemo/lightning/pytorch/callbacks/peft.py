@@ -97,7 +97,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         """
         self.freeze_model(model)
 
-        # apply walk to model(s)
+        # walk model chunks
         if isinstance(model, MegatronParallel) and len(model) > 1:
             for model_chunk in model:
                 model_chunk.walk(self.transform)
@@ -135,6 +135,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         """PTL callback setup function."""
         from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
+        from nemo.lightning.pytorch.utils import get_huggingface_model_from_trainer
 
         super().setup(trainer, pl_module, stage=stage)
 
@@ -142,11 +143,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
 
-        is_hf_model = getattr(trainer.model, "is_hf_model", False)
-        if not type(is_hf_model) == type(True):
-            is_hf_model = False
-
-        if is_hf_model:
+        if get_huggingface_model_from_trainer(trainer) is not None:
             ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
         else:
             ckpt_io_kwarg_names = [
