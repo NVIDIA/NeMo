@@ -1,11 +1,13 @@
-NeMo Speech AI Speaker Diarization Configuration Files: End-to-End Speaker Diarization
-======================================================================================
+Speaker Diarization Configuration Files
+=======================================
 
 Hydra Configurations for Sortformer Diarizer Training 
 -----------------------------------------------------
 
 Sortformer Diarizer is an end-to-end speaker diarization model that is solely based on Transformer-encoder type of architecture.
 Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<speaker count limit>-<version>.yaml
+
+
 * Example `<NeMo_root>/examples/speaker_tasks/diarization/neural_diarizer/conf/sortformer_diarizer_hybrid_loss_4spk-v1.yaml`.
 
 .. code-block:: yaml
