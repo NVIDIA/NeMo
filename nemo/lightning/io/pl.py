@@ -55,12 +55,38 @@ ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
 @dataclass
 class TrainerContext(IOMixin, Generic[LightningModuleT]):
+    """
+    A context wrapper for a PyTorch Lightning Trainer and its associated model.
+
+    This class ensures that both the trainer and its LightningModule extend `IOMixin`
+    and provides additional context information.
+
+    Attributes:
+        model (LightningModuleT): The Lightning model associated with the trainer.
+        trainer (pl.Trainer): The PyTorch Lightning trainer instance.
+        extra (Dict[str, Any]): Additional context data, such as the `datamodule`, if available.
+    """
+
     model: LightningModuleT
     trainer: pl.Trainer
     extra: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_trainer(cls, trainer: pl.Trainer) -> Self:
+        """
+        Creates a `TrainerContext` instance from a given `pl.Trainer`.
+
+        Ensures that the trainer and its associated LightningModule support the `IOMixin` interface.
+
+        Args:
+            trainer (pl.Trainer): A PyTorch Lightning Trainer instance.
+
+        Returns:
+            TrainerContext: A new instance containing the trainer, model, and extra context.
+
+        Raises:
+            ValueError: If the trainer or its LightningModule does not extend `IOMixin`.
+        """
         if not hasattr(trainer, "__io__"):
             raise ValueError(
                 f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo.")
@@ -71,6 +97,17 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
 
     @classmethod
     def construct_extra(cls, trainer: pl.Trainer) -> Dict[str, Any]:
+        """
+        Constructs an `extra` dictionary containing additional relevant context.
+
+        If the trainer has a `datamodule` that supports `IOMixin`, it will be added to `extra`.
+
+        Args:
+            trainer (pl.Trainer): A PyTorch Lightning Trainer instance.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing extra context information.
+        """
         extra = {}
         if hasattr(trainer, "datamodule") and hasattr(trainer.datamodule, "__io__"):
             extra["datamodule"] = trainer.datamodule.__io__
@@ -310,11 +347,35 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     @property
     def save_sharded_strategy(self) -> 'SaveShardedStrategy':
+        """
+        initializes (if needed) the sharding strategy and returns its"""
         if self._save_sharded_strategy is None:
             self._save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
         return self._save_sharded_strategy
 
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
+        """
+        Adjusts the loading of a non-strict sharded checkpoint by filtering out missing keys.
+
+        This function loads the checkpoint's metadata and removes any `ShardedBase` keys from 
+        `sharded_state_dict` that do not exist in the checkpoint. It also logs unexpected keys 
+        that were not found in the checkpoint.
+
+        Args:
+            path (_PATH): The path to the checkpoint.
+            sharded_state_dict (Dict[str, Any]): The state dictionary containing sharded parameters.
+
+        Returns:
+            Dict[str, Any]: The adjusted state dictionary with missing keys removed.
+
+        Notes:
+            - Keys that exist in `sharded_state_dict` but are not found in the checkpoint metadata
+            are considered "unexpected" and are logged.
+            - Missing keys are not computed yet. To fully determine missing keys:
+            1. Perform an `all_gather_object` operation on `loaded_keys`.
+            2. Compute `missing_keys` as the difference between `ckpt_sharded_metadata.keys()` 
+                and `loaded_keys`.
+        """
         from megatron.core import dist_checkpointing
         from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
         from megatron.core.dist_checkpointing.mapping import ShardedBase
@@ -324,6 +385,15 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         unexpected_keys = []
 
         def should_remove_missing_sharded_base(x: Any):
+            """
+            Helper function to determine if a `ShardedBase` key should be removed.
+
+            Args:
+                x (Any): The object to check.
+
+            Returns:
+                bool: True if the key should be removed, False otherwise.
+            """
             if isinstance(x, ShardedBase):
                 if x.key in ckpt_sharded_metadata:
                     loaded_keys.append(x.key)
