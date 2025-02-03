@@ -44,7 +44,6 @@ try:
     from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 except ImportError:
     AsyncCompatibleCheckpointIO = CheckpointIO
-from torch.distributed.tensor import DTensor
 
 
 log = logging.getLogger(__name__)
