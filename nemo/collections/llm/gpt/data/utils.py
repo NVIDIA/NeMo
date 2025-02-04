@@ -535,3 +535,31 @@ def _identify_start_index_of_subsequence(subsequence, sequence):
         if torch.equal(sequence[i : i + subsequence.size(0)], subsequence):
             return i
     return -1
+
+
+def _build_memmap_index_files(newline_int, build_index_fn, fn, index_mapping_dir: str):
+    """Helper function to build an index file"""
+    idx_fn = _index_fn(fn, index_mapping_dir)
+
+    # create data map
+    if _index_file_exists(idx_fn):
+        return False
+    else:
+        logging.info(f"Building indexing for fn = {fn}")
+        # find all newline positions
+        midx = build_index_fn(fn, newline_int)
+        # validate midx
+        midx = np.asarray(midx)
+        if not np.issubdtype(midx.dtype, np.integer):
+            raise TypeError(f"midx must be an integer array, but got type = {midx.dtype}")
+
+        # create e metadata file
+        data = dict(newline_int=newline_int, version=__idx_version__)
+
+        # save index as numpy array to enable memmap reading
+        logging.info(f"Saving idx file = {idx_fn}.npy")
+        np.save(idx_fn + ".npy", midx, allow_pickle=True)
+        logging.info(f"Saving metadata file = {idx_fn}.info")
+        pickle.dump(data, open(idx_fn + ".info", "wb"))
+
+        return True
