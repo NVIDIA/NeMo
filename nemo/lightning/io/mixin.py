@@ -416,39 +416,6 @@ class ConnectorMixin:
         return ckpt_path
 
     @classmethod
-    def import_ckpt(cls, path: str, overwrite: bool = False, base_path: Optional[Path] = None, **kwargs) -> Path:
-        """
-        Imports a checkpoint from a specified path, potentially overwriting existing files.
-        This class method is different from the instance method `import_ckpt` in that it does not require an
-        instance of the class to be created before importing the checkpoint, nor does it try to attach tokenizer
-        to the instance (connector.on_import_ckpt(self)).
-
-        Example usage:
-        ```
-        from nemo.collections.llm.gpt.model.llama import LlamaModel
-        ckpt_path = LlamaModel.import_ckpt("hf://meta-llama/Llama-3.2-1B-Instruct")
-        ```
-
-        Args:
-            path (str): The path to the checkpoint file to be imported.
-            overwrite (bool): Flag to determine if existing files should be overwritten (default is False).
-            base_path (Optional[Path]): The base path where the checkpoint file is located; used to resolve
-                                        relative paths.
-
-        Returns
-        -------
-            Path: The path to the imported checkpoint.
-
-        Raises
-        ------
-            FileNotFoundError: If the checkpoint file does not exist at the specified path.
-        """
-        connector = cls._get_connector(path, **kwargs)
-        ckpt_path: Path = connector.local_path(base_path=base_path)
-        ckpt_path = connector(ckpt_path, overwrite=overwrite)
-        return ckpt_path
-
-    @classmethod
     def _get_connector(
         cls, ext: Union[str, Path], path: Optional[Union[str, Path]] = None, importer: bool = True, **kwargs
     ) -> ModelConnector:

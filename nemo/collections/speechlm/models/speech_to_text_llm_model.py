@@ -183,7 +183,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
     data_config: Optional[DictConfig] = None
 
-    def freeze_module(self, module: nn.Module) -> None:
+    def _freeze_module(self, module: nn.Module) -> None:
         for param in module.parameters():
             param.requires_grad = False
 
@@ -206,7 +206,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         time.sleep(rank / 2)
 
         llm_model_cls = model_utils.import_class_by_path(self.language_model_class)  # type: GPTModel
-        ckpt_path = llm_model_cls.import_ckpt(f"{self.language_model_hub}{ckpt_path}")
+        ckpt_path = io.import_ckpt(llm_model_cls(self.language_model_config), f"{self.language_model_hub}{ckpt_path}")
 
         sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
 
@@ -223,7 +223,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
     def configure_model(
         self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
     ) -> "MCoreSpeechToTextLLM":
-        language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: ignore "MCoreGPTModel"
+        language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: "MCoreGPTModel"
         language_model = self._maybe_load_pretrained_llm(language_model)
 
         if speech_model is None:
@@ -250,11 +250,11 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         )
 
         if self.freeze_language_model:
-            self.freeze_module(model.language_model)
+            self._freeze_module(model.language_model)
         if self.freeze_speech_model:
-            self.freeze_module(model.speech_model)
+            self._freeze_module(model.speech_model)
         if self.freeze_modality_adapter:
-            self.freeze_module(model.modality_adapter)
+            self._freeze_module(model.modality_adapter)
 
         return model
 
