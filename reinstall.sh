@@ -102,7 +102,7 @@ te() {
         ls -al
     else
         pip install /tmp/wheels/te/transformer_engine*
-        pip install -e .
+        pip install -e  --no-build-isolation .
     fi
 }
 
