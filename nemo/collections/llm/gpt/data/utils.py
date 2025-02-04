@@ -172,6 +172,8 @@ def get_samples_mapping(
 ):
     """Get a list that maps a sample index to a starting sentence index, end sentence index, and length"""
 
+    from megatron.core import parallel_state
+
     if not num_epochs:
         if not max_num_samples:
             raise ValueError("Need to specify either max_num_samples " "or num_epochs")
