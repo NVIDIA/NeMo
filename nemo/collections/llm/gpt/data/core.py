@@ -29,14 +29,14 @@ from datasets import load_dataset
 
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.utils import (
+    _index_file_exists,
+    _index_fn,
     build_index_files,
     build_index_from_memdata,
     get_samples_mapping,
     handle_index,
     lightning_prepare_data,
     preprocess,
-    _index_fn,
-    _index_file_exists,
 )
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
