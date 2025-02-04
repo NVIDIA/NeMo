@@ -606,7 +606,8 @@ def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False)
     casts a tensor defined on the last pipeline stage to other ranks.
 
         Args:
-            value (torch.Tensor): A tensor to be casted from the final pipeline stage of a pipeline parallelism group (e.g. loss).
+            value (torch.Tensor): A tensor to be casted from the final pipeline stage of 
+                a pipeline parallelism group (e.g. loss).
                 Note that this tensor should already be defined on the target rank(s) to fill with received data.
             broadcast (bool): When True, broadcasts value from the final pipeline stage rank to all ranks in its group.
                 When False, only rank zero receives value from the final pipeline stage rank in its group.
