@@ -593,7 +593,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 # TODO(@akoumparouli): loss_scale depends on the GBS.
                 for loss_name, loss_value in aggregate_moe_loss_stats(loss_scale=1.0).items():
                     self.lightning_module.log(loss_name, loss_value, prog_bar=True, rank_zero_only=True, batch_size=1)
-            print(f"{torch.distributed.get_rank()}: end")
 
             return out
 
@@ -614,7 +613,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 self.lightning_module.log('grad_norm', grad_norm, batch_size=1)
             if num_zeros_in_grad is not None:
                 self.lightning_module.log('num_zeros_in_grad', num_zeros_in_grad, batch_size=1)
-        print(f"{torch.distributed.get_rank()}: optimizer end")
 
         return optimizer_output
 
