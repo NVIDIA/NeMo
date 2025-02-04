@@ -38,7 +38,7 @@ from nemo.utils import logging
 
 @dataclass
 class AudioNoiseItem:
-    sample_id: Union[str, None] = None
+    sample_id: str | None = None
     audio: Union[Tensor, None] = None
     audio_len: Union[Tensor, None] = None
     noise: Union[Tensor, None] = None
@@ -49,7 +49,7 @@ class AudioNoiseItem:
 
 @dataclass
 class AudioNoiseBatch:
-    sample_id: Union[list, None] = None
+    sample_id: list | None = None
     audio: Union[Tensor, None] = None
     audio_len: Union[Tensor, None] = None
     noise: Union[Tensor, None] = None
