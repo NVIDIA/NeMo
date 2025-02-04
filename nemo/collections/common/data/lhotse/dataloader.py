@@ -699,7 +699,7 @@ def determine_bucket_duration_bins(config):
         return None
 
 
-def make_structured_with_schema_warnings(config: DictConfig | dict) -> DictConfig:
+def make_structured_with_schema_warnings(config: Union[DictConfig, dict]) -> DictConfig:
     """
     Checks the schema and fills missing default option values.
     Warns the user if any of the fields are not supported by the current schema
