@@ -28,6 +28,7 @@ from nemo.collections.common.parts.utils import apply_rope_scaling, extend_insta
 from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import EmbeddingScalingMixin, get_specs
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.modules.common.transformer import transformer_modules
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging, model_utils
@@ -302,6 +303,7 @@ class S2sMCoreGPTModelDepth(S2sMCoreGPTModel):
             num_attention_heads=8,
             mask_future=True,
         )
+        self.position_embedding = transformer_modules.FixedPositionalEncoding(config.hidden_size, 128)
 
     def forward(
         self,
@@ -359,6 +361,14 @@ class S2sMCoreGPTModelDepth(S2sMCoreGPTModel):
             .tile([1, 1, len(self.proj_head_dims), 1])
             .reshape(-1, len(self.proj_head_dims), hidden_states.shape[-1])
         )
+        position_ids = torch.arange(
+            start=0, end=len(self.proj_head_dims), dtype=torch.long, device=hidden_states.device
+        )
+        position_ids = position_ids.unsqueeze(0).repeat(depth_hidden_states.size(0), 1)
+
+        position_embeddings = self.position_embedding(position_ids)
+        depth_hidden_states = depth_hidden_states + position_embeddings
+
         y = self.depth(
             depth_hidden_states,
             torch.ones_like(depth_hidden_states[:, :, 0]),
