@@ -101,6 +101,7 @@ class MistralNeMoConfig123B(MistralConfig7B):
 
 class MistralModel(GPTModel):
     """ """
+
     def __init__(
         self,
         config: Annotated[Optional[MistralConfig7B], Config[MistralConfig7B]] = None,
@@ -116,6 +117,7 @@ class MistralModel(GPTModel):
 @io.model_importer(MistralModel, "hf")
 class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
     """ """
+
     def init(self) -> MistralModel:
         return MistralModel(self.config, tokenizer=self.tokenizer)
 
@@ -200,6 +202,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
 @io.model_exporter(MistralModel, "hf")
 class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
     """ """
+
     def init(self, dtype=torch.bfloat16) -> "MistralForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
