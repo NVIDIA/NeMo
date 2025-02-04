@@ -56,6 +56,7 @@ class MistralConfig7B(GPTConfig):
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
+    cp_comm_type: str = "a2a" 
 
 
 @dataclass
@@ -70,6 +71,7 @@ class MistralNeMoConfig12B(MistralConfig7B):
     seq_length: int = 4096  # but   "max_position_embeddings": 1024000,
 
     window_size: List[int] = None
+    cp_comm_type: str = None
     rotary_percent: float = 1.0
     rotary_base: float = 1000000.0
 
@@ -88,6 +90,7 @@ class MistralNeMoConfig123B(MistralConfig7B):
     seq_length: int = 4096  # but   "max_position_embeddings": 131072,
 
     window_size: List[int] = None
+    cp_comm_type: str = None
     rotary_percent: float = 1.0
     rotary_base: float = 1000000.0
 
@@ -175,6 +178,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             window_size=window_size,
+            cp_comm_type=source.cp_comm_type,
             share_embeddings_and_output_weights=False,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
