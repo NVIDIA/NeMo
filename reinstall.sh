@@ -119,7 +119,7 @@ apex() {
       git checkout -f $APEX_TAG
         
     if [[ "$mode" == "build" ]]; then
-       pip wheel --no-deps --wheel-dir --no-build-isolation /tmp/wheels/apex/ . && \
+       pip wheel --no-deps --no-build-isolation --wheel-dir /tmp/wheels/apex/ . && \
         ls -al
     else
         pip install --no-build-isolation /tmp/wheels/apex/*.whl
