@@ -58,7 +58,6 @@ def model() -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
 
-
     return run.Config(
         MegatronFluxModel,
         flux_params=run.Config(
@@ -95,10 +94,7 @@ def unit_test_recipe(
                     grad_reduce_in_fp32=True,
                 ),
             ),
-            plugins=run.Config(
-                nl.MegatronMixedPrecision,
-                precision="bf16-mixed"
-            ),
+            plugins=run.Config(nl.MegatronMixedPrecision, precision="bf16-mixed"),
             num_sanity_val_steps=0,
             max_steps=10,
             log_every_n_steps=1,
