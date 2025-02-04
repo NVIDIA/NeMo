@@ -35,6 +35,8 @@ from nemo.collections.llm.gpt.data.utils import (
     handle_index,
     lightning_prepare_data,
     preprocess,
+    _index_fn,
+    _index_file_exists,
 )
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
@@ -1209,53 +1211,6 @@ class JSONLMemMapDataset(TextMemMapDataset):
             logging.error(f"datapoint: {text}")
             raise e
         return record
-
-
-def _index_file_exists(idx_fn):
-    """Helper function to test if index file exists"""
-    if os.path.exists(idx_fn + ".npy") and os.path.exists(idx_fn + ".info"):
-        return True
-    else:
-        return False
-
-
-def _index_fn(fn: str, index_mapping_dir: str) -> str:
-    """Return base file name of index files.
-
-    This returns the base file name associated with specified index
-    files. This base name is the base on top of which suffixes
-    like .npy or .info are added.
-
-    The parent directory is created if it does not already exist.
-
-    fn may be specified in multiple ways:
-    1. file name: data.jsonl,
-    2. relative path to a file: relative/path/to/data.jsonl,
-    3. absolute path to a file: /absolute/path/to/data.jsonl.
-
-    This function returns paths in the pattern of:
-    1. /path/to/input_mapping_dir/data.jsonl.idx
-    2. /path/to/input_mapping_dir/relative/path/to/data.jsonl.idx
-    3. /path/to/input_mapping_dir/absolute/path/to/data.jsonl.idx
-
-    Args:
-        fn: filename to get base name for.
-        index_mapping_dir: directory to save the index mapping to.
-                If None, will write to the same folder as the dataset.
-    """
-    if index_mapping_dir:
-        # Remove leading "/" and "..".
-        while fn.startswith(("/", "..")):
-            if fn.startswith(".."):
-                fn = fn.lstrip("..")
-            if fn.startswith("/"):
-                fn = fn.lstrip("/")
-        idx_fn = f"{os.path.join(index_mapping_dir, fn)}.{__idx_suffix__}"
-        # Create parent directory if needed.
-        os.makedirs(os.path.dirname(idx_fn), exist_ok=True)
-    else:
-        idx_fn = f"{fn}.{__idx_suffix__}"
-    return idx_fn
 
 
 class OnlineSampleMapping:
