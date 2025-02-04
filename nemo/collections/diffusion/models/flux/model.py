@@ -19,7 +19,16 @@ from typing import Callable, Optional
 import lightning.pytorch as L
 import numpy as np
 import torch
-from diffusers import FluxTransformer2DModel
+
+try:
+    from diffusers import FluxTransformer2DModel
+except ImportError:
+    from nemo.utils import logging
+
+    logging.warning(
+        "Failed to import FluxTransformer2DModel from diffusers. "
+        "If using NeMo Run, this is expected. Otherwise, please check CUDA environment."
+    )
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.models.common.vision_module.vision_module import VisionModule
