@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import shutil
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -29,11 +30,12 @@ import zarr
 from torch.distributed.checkpoint import FileSystemReader
 from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
 from torch.distributed.checkpoint.state_dict_loader import load_state_dict
-from transformers import AutoTokenizer, PreTrainedTokenizer
+from transformers import AutoTokenizer, GPT2Tokenizer, PreTrainedTokenizer
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
+from nemo.export.utils import torch_dtype_from_precision
 
 try:
     from nemo.lightning import io
@@ -96,7 +98,7 @@ def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> D
             continue
 
         value.seek(0)
-        extra_state = torch.load(value)
+        extra_state = torch.load(value, weights_only=True)
         if extra_state is not None and 'scale_fwd' in extra_state:
             scales[key + '.scale_fwd'] = extra_state['scale_fwd'].cpu()
 
@@ -199,7 +201,7 @@ def load_sharded_pickle_extra_state_scale(dir: Union[Path, TarPath]):
     for file in pt_files:
         shard_name = file.name.split('.')[0]
         with file.open('rb') as opened_file:
-            extra_states[dir.name + '/' + shard_name] = torch.load(opened_file)
+            extra_states[dir.name + '/' + shard_name] = torch.load(opened_file, weights_only=True)
 
     return rename_extra_states(extra_states)
 
@@ -209,6 +211,7 @@ def contains_extra_states(subdir: Union[Path, TarPath]):
 
 
 def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
+    torch.serialization.add_safe_globals([BytesIO])  # For possible extra states
     sharded_state_dict = {}
     for subdir in checkpoint_dir.iterdir():
         if not subdir.is_dir():
@@ -441,7 +444,7 @@ def get_model_type(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     Determine the model type from a NeMo checkpoint for TensorRT-LLM engine build.
 
     Args:
-        nemo_ckpt (str): Path to the NeMo checkpoint file.
+        nemo_ckpt (Union[str, Path]): Path to the NeMo checkpoint file.
     Returns:
         Optional[str]: The model type if it can be determined, otherwise None.
     """
@@ -478,6 +481,36 @@ def get_model_type(nemo_ckpt: Union[str, Path]) -> Optional[str]:
     else:
         LOGGER.warning(f"Parameter model_type cannot be determined for {nemo_ckpt} checkpoint.")
     return model_type
+
+
+def get_weights_dtype(nemo_ckpt: Union[str, Path]) -> Optional[str]:
+    """Determine the weights data type from a NeMo checkpoint for TensorRT-LLM engine build.
+
+    Args:
+        nemo_ckpt (Union[str, Path]): Path to the NeMo checkpoint file.
+    Returns:
+        Optional[str]: The dtype if it can be determined, otherwise None.
+    """
+    model_config = load_nemo_config(nemo_ckpt)
+    torch_dtype = None
+    dtype = None
+
+    is_nemo2 = "_target_" in model_config
+    if is_nemo2:
+        torch_dtype = model_config["config"]["params_dtype"]["_target_"]
+    elif precision := model_config.get("precision", None):
+        torch_dtype = str(torch_dtype_from_precision(precision))
+
+    if torch_dtype is not None:
+        dtype = torch_dtype.removeprefix("torch.")
+        LOGGER.info(f"Determined weights dtype='{dtype}' for {nemo_ckpt} checkpoint.")
+    else:
+        LOGGER.warning(
+            f"Parameter dtype for model weights cannot be determined for {nemo_ckpt} checkpoint. "
+            "There is no 'precision' field specified in the model_config.yaml file."
+        )
+
+    return dtype
 
 
 def load_distributed_model_weights(
