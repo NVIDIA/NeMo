@@ -55,7 +55,7 @@ jobs:
         id: pylint
         env:
           CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
-          SKIP_DOCS: ${{ contains(github.event.pull_request.labels.*.name, 'Skip docs') }}
+          SKIP_DOCS: ${{ contains(github.event.pull_request.labels.*.name, 'skip-docs') }}
         run: |
           if [[ -z "$CHANGED_FILES" ]]; then
             echo Nothing to lint.
