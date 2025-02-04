@@ -568,7 +568,6 @@ class NGPTStackingSubsampling(torch.nn.Module):
         super().__init__()
         self.subsampling_factor = subsampling_factor
         self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out, bias=use_bias)
-        self.silu = nn.SiLU()
 
     def _init_weights(self):
         torch.nn.init.normal_(self.proj_out.weight, mean=0.0, std=self.config.base_scale)
@@ -586,8 +585,8 @@ class NGPTStackingSubsampling(torch.nn.Module):
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
         _, t, _ = x.size()
         x = torch.reshape(x, (b, t // self.subsampling_factor, h * self.subsampling_factor))
+        x = justnorm(x)
         x = self.proj_out(x)
-        x = self.silu(x)
         x = justnorm(x)
 
         return x, lengths
