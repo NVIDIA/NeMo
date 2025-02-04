@@ -351,7 +351,7 @@ target_label_n, "offset": offset_in_sec_n}
         tl = torch.tensor(1).long()  # For compatibility with collate_fn used later
 
         return f, fl, t, tl
-
+.,
 
 # Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
 class AudioToClassificationLabelDataset(_AudioLabelDataset):
