@@ -20,15 +20,6 @@ import lightning.pytorch as L
 import numpy as np
 import torch
 
-try:
-    from diffusers import FluxTransformer2DModel
-except ImportError:
-    from nemo.utils import logging
-
-    logging.warning(
-        "Failed to import FluxTransformer2DModel from diffusers. "
-        "If using NeMo Run, this is expected. Otherwise, please check CUDA environment."
-    )
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.models.common.vision_module.vision_module import VisionModule
@@ -707,7 +698,7 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
         return MegatronFluxModel(self.config)
 
     def apply(self, output_path: Path) -> Path:
-
+        from diffusers import FluxTransformer2DModel
         source = FluxTransformer2DModel.from_pretrained(str(self), subfolder="transformer")
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -724,6 +715,7 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
 
     @property
     def config(self) -> FluxConfig:
+        from diffusers import FluxTransformer2DModel
         source = FluxTransformer2DModel.from_pretrained(str(self), subfolder="transformer")
         source_config = source.config
         flux_config = FluxConfig(
