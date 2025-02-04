@@ -653,7 +653,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         return ans
 
     def normalize_matrices(self):
-        for module in self.modules():
+        for module in self.children():
             if hasattr(module, "normalize_matrices"):
                 module.normalize_matrices()
 
