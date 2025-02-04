@@ -37,12 +37,12 @@ class SharedStateDictProtocol(Protocol):
 
 
 def init_parallel_ranks(
-    world_size: int,
-    global_rank: int,
-    local_rank: int,
-    parallel_config: "ModelParallelConfig",
-    seed=1234,
-    fp8=False,
+        world_size: int,
+        global_rank: int,
+        local_rank: int,
+        parallel_config: "ModelParallelConfig",
+        seed=1234,
+        fp8=False,
 ) -> None:
     """
     Initializes the parallel ranks for distributed training.
@@ -90,7 +90,7 @@ def init_parallel_ranks(
         pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
         init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False)
-        and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
+                            and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
         use_te_rng_tracker=getattr(parallel_config, "use_te_rng_tracker", False),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
@@ -224,13 +224,13 @@ class GradScaler(torch.cuda.amp.GradScaler):
     """
 
     def __init__(
-        self,
-        init_scale=2.0**16,
-        growth_factor=2.0,
-        backoff_factor=0.5,
-        growth_interval=2000,
-        enabled=True,
-        hysteresis=1,
+            self,
+            init_scale=2.0 ** 16,
+            growth_factor=2.0,
+            backoff_factor=0.5,
+            growth_interval=2000,
+            enabled=True,
+            hysteresis=1,
     ):
         super().__init__(
             init_scale=init_scale,
@@ -436,10 +436,10 @@ def enable_nvidia_optimizations() -> None:
 
 
 def optimizer_sharded_state_dict(
-    model: SharedStateDictProtocol,
-    optimizer: "Optimizable",
-    is_loading=False,
-    sharding_type='fully_sharded_model_space',
+        model: SharedStateDictProtocol,
+        optimizer: "Optimizable",
+        is_loading=False,
+        sharding_type='fully_sharded_model_space',
 ) -> Dict[str, torch.Tensor]:
     """
     Sharded state dictionary for an MainParamsOptimizerWrapper.
@@ -560,7 +560,7 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
             # Count the number of "module." at the start of the key
             count, _key = 0, key
             while _key.startswith("module."):
-                _key = _key[len("module.") :]
+                _key = _key[len("module."):]
                 count += 1
 
             # Adjust the number of "module." prefixes
@@ -569,7 +569,7 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 _state_dict[f"{to_add}{key}"] = value
             elif count > n_nesting:
                 to_remove = "module." * (count - n_nesting)
-                _state_dict[key[len(to_remove) :]] = value
+                _state_dict[key[len(to_remove):]] = value
             else:
                 _state_dict[key] = value
 
@@ -596,16 +596,20 @@ def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False)
     if parallel_state.get_pipeline_model_parallel_world_size() > 1:
         src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
 
+        if not isinstance(src_rank, list):
+            src_rank = [src_rank]
+
         if not broadcast:
             group = parallel_state.get_pipeline_model_parallel_group()
             if isinstance(group, list):
                 group = group[-1]
             pp_ranks = torch.distributed.get_process_group_ranks(group)
 
-            if torch.distributed.get_rank() == src_rank and 0 in pp_ranks:
-                torch.distributed.send(value, 0)
-            elif torch.distributed.get_rank() == 0:
-                torch.distributed.recv(value, src_rank)
+            for src_rank_idx in src_rank:
+                if torch.distributed.get_rank() == src_rank_idx and 0 in pp_ranks:
+                    torch.distributed.send(value, 0)
+                elif torch.distributed.get_rank() == 0:
+                    torch.distributed.recv(value, src_rank_idx)
         else:
             torch.distributed.broadcast(
                 value,
@@ -615,11 +619,11 @@ def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False)
 
 
 def setup_megatron_optimizer(
-    model,
-    config,
-    no_weight_decay_cond: Optional[Callable] = None,
-    scale_lr_cond: Optional[Callable] = None,
-    lr_mult: float = 1.0,
+        model,
+        config,
+        no_weight_decay_cond: Optional[Callable] = None,
+        scale_lr_cond: Optional[Callable] = None,
+        lr_mult: float = 1.0,
 ):
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 
@@ -629,11 +633,11 @@ def setup_megatron_optimizer(
 
     class McoreOpt(McoreDistributedOptimizer):
         def sharded_state_dict(
-            self,
-            model_sharded_state_dict,
-            optimizer_state_dict=None,
-            is_loading=False,
-            sharding_type='fully_sharded_model_space',
+                self,
+                model_sharded_state_dict,
+                optimizer_state_dict=None,
+                is_loading=False,
+                sharding_type='fully_sharded_model_space',
         ):
             mcore_optimizer_sig = inspect.signature(self.mcore_optimizer.sharded_state_dict).parameters
             distrib_optim_kwargs = {}
@@ -655,7 +659,7 @@ def setup_megatron_optimizer(
     )
 
     if getattr(model.ddp_config, "overlap_param_gather", False) and getattr(
-        model.ddp_config, "align_param_gather", False
+            model.ddp_config, "align_param_gather", False
     ):
         param_sync_func = [model_chunk.start_param_sync for model_chunk in model]
         param_sync_func = param_sync_func[0] if len(model) == 1 else param_sync_func
