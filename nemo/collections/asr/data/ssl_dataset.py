@@ -22,9 +22,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from torch import Tensor
 from lhotse.dataset import AudioSamples
 from omegaconf import DictConfig, ListConfig, open_dict
+from torch import Tensor
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
 from nemo.collections.asr.parts.preprocessing.perturb import WhiteNoisePerturbation, process_augmentations

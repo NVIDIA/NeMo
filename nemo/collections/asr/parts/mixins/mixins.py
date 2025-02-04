@@ -21,8 +21,8 @@ from abc import ABC, abstractmethod
 from typing import List
 
 import torch
-from torch import Tensor
 from omegaconf import DictConfig, OmegaConf, open_dict
+from torch import Tensor
 
 import nemo.collections.asr.models as asr_models
 from nemo.collections.asr.parts.mixins.asr_adapter_mixins import ASRAdapterModelMixin
