@@ -217,6 +217,8 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         skipped_source = 0
         processed_cuts = []
         for cut in cuts:
+            cut.supervisions = [sup for sup in cut.supervisions if sup.duration > 0.0]  # ignore system prompt
+        for cut in cuts:
             if np.isclose(cut.target_audio.duration, cut.recording.duration):
                 is_valid = True
             else:
@@ -232,8 +234,6 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
                 processed_cuts.append(cut)
             else:
                 logging.info(f"Skipping cut {cut}")
-        for cut in processed_cuts:
-            cut.supervisions = [sup for sup in cut.supervisions if sup.duration > 0.0]  # ignore system prompt
         cuts = CutSet(cuts=processed_cuts)
         for id, cut in enumerate(cuts):
 
