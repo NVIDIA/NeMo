@@ -98,7 +98,7 @@ te() {
         
     if [[ "$mode" == "build" ]]; then
        git submodule init && git submodule update && \
-        NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip wheel--wheel-dir /tmp/wheels/te/ . && \
+        NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip wheel --wheel-dir /tmp/wheels/te/ . && \
         ls -al
     else
         pip install /tmp/wheels/te/transformer_engine*
