@@ -43,6 +43,7 @@ mcore() {
         pip install -e .
     fi
 
+    cd /opt
     DIR="mamba"
 
     if [ ! -d "$DIR/.git" ]; then
@@ -61,6 +62,7 @@ mcore() {
         pip install -e .
     fi
 
+    cd /opt
     DIR="Megatron-LM"
 
     if [ ! -d "$DIR/.git" ]; then
