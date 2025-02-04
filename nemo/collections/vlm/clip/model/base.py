@@ -28,7 +28,7 @@ except ImportError:
 
     logging.warning(
         "Failed to import Transformer Engine dependencies. "
-        "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
+        "`from megatron.core.extensions.transformer_engine import TENorm`"
         "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
     )
 
