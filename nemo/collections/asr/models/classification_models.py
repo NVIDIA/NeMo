@@ -40,7 +40,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
-from nemo.utils.decorators import deprecated
+
 
 __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel']
 
@@ -486,6 +486,11 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
 
 class EncDecClassificationModel(EncDecSpeakerLabelModel):
+    
+    logging.warning(
+    "Please use the EncDecSpeakerLabelModel instead of this model. EncDecClassificationModel model is kept for backward compatibility with older models."
+    )
+    
     def forward_for_export(self, audio_signal, length):
         encoded, length = self.encoder(audio_signal=audio_signal, length=length)
         logits = self.decoder(encoder_output=encoded, length=length)
@@ -560,6 +565,179 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel):
                 self._cfg.test_ds.labels = new_labels
 
             logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
+
+    @classmethod
+    def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="vad_multilingual_marblenet",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_marblenet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_multilingual_marblenet/versions/1.10.0/files/vad_multilingual_marblenet.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="vad_telephony_marblenet",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_telephony_marblenet/versions/1.0.0rc1/files/vad_telephony_marblenet.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="vad_marblenet",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_marblenet/versions/1.0.0rc1/files/vad_marblenet.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="commandrecognition_en_matchboxnet3x1x64_v1",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v1",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x1x64_v1/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x1x64_v1.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="commandrecognition_en_matchboxnet3x2x64_v1",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v1",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x2x64_v1/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x2x64_v1.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="commandrecognition_en_matchboxnet3x1x64_v2",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x1x64_v2/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x1x64_v2.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="commandrecognition_en_matchboxnet3x2x64_v2",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x2x64_v2/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x2x64_v2.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="commandrecognition_en_matchboxnet3x1x64_v2_subset_task",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v2_subset_task",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x1x64_v2_subset_task/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x1x64_v2_subset_task.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="commandrecognition_en_matchboxnet3x2x64_v2_subset_task",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v2_subset_task",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x2x64_v2_subset_task/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x2x64_v2_subset_task.nemo",
+        )
+        results.append(model)
+        return results
+
+
+    @torch.no_grad()
+    def transcribe(
+        self,
+        audio: Union[List[str], DataLoader],
+        batch_size: int = 4,
+        logprobs=None,
+        override_config: Optional[ClassificationInferConfig] | Optional[RegressionInferConfig] = None,
+    ) -> TranscriptionReturnType:
+        """
+        Generate class labels for provided audio files. Use this method for debugging and prototyping.
+
+        Args:
+            audio: (a single or list) of paths to audio files or a np.ndarray audio array.
+                Can also be a dataloader object that provides values that can be consumed by the model.
+                Recommended length per file is approximately 1 second.
+            batch_size: (int) batch size to use during inference. \
+                Bigger will result in better throughput performance but would use more memory.
+            logprobs: (bool) pass True to get log probabilities instead of class labels.
+            override_config: (Optional) ClassificationInferConfig to use for this inference call.
+                If None, will use the default config.
+
+        Returns:
+
+            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
+        """
+        if logprobs is None:
+            logprobs = self.is_regression_task
+
+        if override_config is None:
+            if not self.is_regression_task:
+                trcfg = ClassificationInferConfig(batch_size=batch_size, logprobs=logprobs)
+            else:
+                trcfg = RegressionInferConfig(batch_size=batch_size, logprobs=logprobs)
+        else:
+            if not isinstance(override_config, ClassificationInferConfig) and not isinstance(
+                override_config, RegressionInferConfig
+            ):
+                raise ValueError(
+                    f"override_config must be of type {ClassificationInferConfig}, " f"but got {type(override_config)}"
+                )
+            trcfg = override_config
+
+        return super().transcribe(audio=audio, override_config=trcfg)
+
+    """ Transcription related methods """
+
+    def _transcribe_input_manifest_processing(
+        self, audio_files: List[str], temp_dir: str, trcfg: ClassificationInferConfig
+    ):
+        with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+            for audio_file in audio_files:
+                label = 0.0 if self.is_regression_task else self.cfg.labels[0]
+                entry = {'audio_filepath': audio_file, 'duration': 100000.0, 'label': label}
+                fp.write(json.dumps(entry) + '\n')
+
+        config = {'paths2audio_files': audio_files, 'batch_size': trcfg.batch_size, 'temp_dir': temp_dir}
+        return config
+
+    def _transcribe_forward(self, batch: Any, trcfg: ClassificationInferConfig):
+        logits = self.forward(input_signal=batch[0], input_signal_length=batch[1])
+        output = dict(logits=logits)
+        return output
+
+    def _transcribe_output_processing(
+        self, outputs, trcfg: ClassificationInferConfig
+    ) -> Union[List[str], List[torch.Tensor]]:
+        logits = outputs.pop('logits')
+        labels = []
+
+        if trcfg.logprobs:
+            # dump log probs per file
+            for idx in range(logits.shape[0]):
+                lg = logits[idx]
+                labels.append(lg.cpu().numpy())
+        else:
+            labels_k = []
+            top_ks = self._accuracy.top_k
+            for top_k_i in top_ks:
+                # replace top k value with current top k
+                self._accuracy.top_k = top_k_i
+                labels_k_i = self._accuracy.top_k_predicted_labels(logits)
+                labels_k_i = labels_k_i.cpu()
+                labels_k.append(labels_k_i)
+
+            # convenience: if only one top_k, pop out the nested list
+            if len(top_ks) == 1:
+                labels_k = labels_k[0]
+
+            labels += labels_k
+            # reset top k to orignal value
+            self._accuracy.top_k = top_ks
+
+        return labels
+    
+    def forward(self, input_signal, input_signal_length):
+        logits, _ = super().forward(input_signal, input_signal_length)
+        return logits
 
 
 class EncDecRegressionModel(_EncDecBaseModel):
