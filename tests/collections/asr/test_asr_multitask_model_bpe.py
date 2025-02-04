@@ -65,7 +65,7 @@ def asr_model(test_data_dir):
             'feat_in': 64,
             'n_layers': 1,
             'd_model': model_defaults['asr_enc_hidden'],
-            'subsampling': 'dw_striding',
+            'subsampling': 'ngpt-frame-stack',
             'subsampling_factor': 2,
             'n_heads': 4,
             'use_nGPT': True,

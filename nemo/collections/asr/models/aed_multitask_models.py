@@ -739,8 +739,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         self,
         epoch: int,
         batch_idx: int,
-        optimizer: Union[Optimizer, LightningOptimizer],
-        optimizer_closure: Optional[Callable[[], Any]] = None,
+        optimizer,
+        optimizer_closure=None,
     ) -> None:
         ans = super().optimizer_step(
             epoch=epoch, batch_idx=batch_idx, optimizer=optimizer, optimizer_closure=optimizer_closure
@@ -749,10 +749,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         return ans
 
     def normalize_matrices(self):
-        for attr in ("encoder", "transf_encoder", "transf_decoder", "log_softmax"):
-            module = getattr(self, attr, None)
-            if module is None:
-                continue
+        for module in self.modules():
             if hasattr(module, "normalize_matrices"):
                 module.normalize_matrices()
 

@@ -107,8 +107,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         return ans
 
     def normalize_matrices(self):
-        for attr in ("encoder", "decoder"):
-            module = getattr(self, attr)
+        for module in self.modules():
             if hasattr(module, "normalize_matrices"):
                 module.normalize_matrices()
 

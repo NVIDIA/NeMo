@@ -614,3 +614,25 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
+
+    def optimizer_step(
+        self,
+        epoch: int,
+        batch_idx: int,
+        optimizer,
+        optimizer_closure=None,
+    ) -> None:
+        ans = super().optimizer_step(
+            epoch=epoch, batch_idx=batch_idx, optimizer=optimizer, optimizer_closure=optimizer_closure
+        )
+        self.normalize_matrices()
+        return ans
+
+    def normalize_matrices(self):
+        for module in self.modules():
+            if hasattr(module, "normalize_matrices"):
+                module.normalize_matrices()
+
+    def on_train_start(self):
+        super().on_train_start()
+        self.normalize_matrices()
