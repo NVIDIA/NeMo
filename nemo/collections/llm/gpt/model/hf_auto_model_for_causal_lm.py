@@ -15,6 +15,7 @@
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
+from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from transformers import AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -44,6 +45,12 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
+        attn_implementation="sdpa",
+        param_dtype=torch.bfloat16,
+        reduce_dtype=torch.float32,
+        output_dtype=None,
+        cast_forward_inputs=True,
+        parallelize_fn=None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -58,6 +65,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.trust_remote_code = trust_remote_code
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
+        self.attn_implementation = attn_implementation
+        self.mp_policy = MixedPrecisionPolicy(
+            param_dtype=param_dtype,
+            reduce_dtype=reduce_dtype,
+            output_dtype=output_dtype,
+            cast_forward_inputs=cast_forward_inputs,
+        )
+        self.parallelize_fn = parallelize_fn
 
     @property
     def tokenizer(self):
@@ -71,8 +86,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self._tokenizer = value
 
     @staticmethod
-    def configure_tokenizer(model_name, trust_remote_code=False):
-        return AutoTokenizer(model_name, trust_remote_code=trust_remote_code)
+    def configure_tokenizer(model_name, use_fast=True, trust_remote_code=False):
+        try:
+            return AutoTokenizer(model_name, use_fast=use_fast, trust_remote_code=trust_remote_code)
+        except:
+            return AutoTokenizer(model_name, use_fast=not use_fast, trust_remote_code=trust_remote_code)
 
     def configure_model(self):
         # create all your layers here
@@ -80,8 +98,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 torch_dtype='auto',
+                device_map="cpu",
                 trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
+                attn_implementation=self.attn_implementation,
             )
         else:
             from transformers import AutoConfig
@@ -89,12 +109,17 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
             dtype = getattr(config, 'torch_dtype', self.default_dtype)
             self.model = AutoModelForCausalLM.from_config(
-                config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
+                config,
+                torch_dtype=dtype,
+                trust_remote_code=self.trust_remote_code,
+                attn_implementation=self.attn_implementation,
             )
 
         # Apply FSDP2 and TP to the model
         if self.device_mesh is not None:
-            fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh)
+            if self.parallelize_fn is None:
+                self.parallelize_fn = fsdp2_strategy_parallelize
+            self.parallelize_fn(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
 
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
@@ -149,11 +174,32 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def save_pretrained(self, path):
         assert self.model is not None, "Model has to be created first."
-        self.model.save_pretrained(path)
-        if self._tokenizer is not None:
-            self._tokenizer.save_pretrained(path)
-        else:
-            logging.warning("A tokenizer wasn't created before to save.")
+        import os
+
+        import torch.distributed as dist
+        from torch import Tensor
+        from torch.distributed.tensor import DTensor
+
+        is_dist = dist.is_initialized()
+        is_rank0 = not is_dist or (is_dist and dist.get_rank() == 0)
+        if is_rank0 or type(self.model).__name__.startswith('FSDP'):
+
+            def to_cpu(v):
+                if isinstance(v, DTensor):
+                    return v.full_tensor().cpu()
+                elif isinstance(v, Tensor):
+                    return v.cpu()
+                else:
+                    return v
+
+            cpu_state_dict = {k: to_cpu(v) for k, v in self.model.state_dict().items()}
+
+        if is_rank0:
+            self.model.save_pretrained(path, state_dict=cpu_state_dict)
+            if self._tokenizer is not None:
+                self._tokenizer.save_pretrained(path)
+            else:
+                logging.warning("A tokenizer wasn't created before to save.")
 
     def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
         """Remove extra keys from batch that are not kwargs in model's forward
