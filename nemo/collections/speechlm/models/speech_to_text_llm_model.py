@@ -20,12 +20,13 @@ from dataclasses import dataclass
 from types import MethodType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import lightning.pytorch as L
+import lightning.pytorch as pl
 import torch
 import torch.nn as nn
 from lightning.pytorch.utilities import rank_zero_only
 from megatron.core import dist_checkpointing, parallel_state, tensor_parallel
 from megatron.core.inference_params import InferenceParams
+from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.num_microbatches_calculator import (
     get_current_global_batch_size,
     get_num_microbatches,
@@ -132,7 +133,7 @@ def speech_to_text_llm_data_step(dataloader_iter) -> Dict[str, Any]:
     return output
 
 
-def speech_to_text_llm_forward_step(model: L.LightningModule, batch: Dict[str, Any]) -> torch.Tensor:
+def speech_to_text_llm_forward_step(model: pl.LightningModule, batch: Dict[str, Any]) -> torch.Tensor:
     forward_args = {
         "input_ids": batch.get("tokens", None),
         "input_length": batch.get("tokens_length", None),
@@ -186,7 +187,14 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         for param in module.parameters():
             param.requires_grad = False
 
-    def _import_and_convert_ckpt(self, ckpt_path: str) -> str:
+    def _maybe_load_pretrained_llm(self, model: MCoreGPTModel) -> MCoreGPTModel:
+        if not self.language_model_from_pretrained:
+            return model
+
+        logging.info(f"Loading language model weights from {self.language_model_from_pretrained}")
+
+        ckpt_path = self.language_model_from_pretrained
+
         if dist_checkpointing.check_is_distributed_checkpoint(ckpt_path):
             return ckpt_path
 
@@ -195,19 +203,31 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
         rank = torch.distributed.get_rank()
         # Sleep to avoid racing condition when multiple GPUs try to import the same checkpoint
-        time.sleep(rank * 2)
+        time.sleep(rank / 2)
 
         llm_model_cls = model_utils.import_class_by_path(self.language_model_class)  # type: GPTModel
         ckpt_path = llm_model_cls.import_ckpt(f"{self.language_model_hub}{ckpt_path}")
-        return ckpt_path
+
+        sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
+
+        loaded_state_dict = dist_checkpointing.load(
+            sharded_state_dict=sharded_state_dict,
+            checkpoint_dir=ckpt_to_weights_subdir(ckpt_path, is_saving=False),
+            validate_access_integrity=False,
+        )
+        loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+        model.load_state_dict(loaded_state_dict)
+        logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")
+        return model
 
     def configure_model(
         self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
     ) -> "MCoreSpeechToTextLLM":
-        language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: L.LightningModule
+        language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: ignore "MCoreGPTModel"
+        language_model = self._maybe_load_pretrained_llm(language_model)
 
         if speech_model is None:
-            speech_model = self.speech_model_config.configure_model()  # type: L.LightningModule
+            speech_model = self.speech_model_config.configure_model()
         speech_model.set_input_tensor = MethodType(set_input_tensor, speech_model)
 
         self.modality_adapter_config.output_dim = self.language_model_config.hidden_size
@@ -218,25 +238,8 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             elif hasattr(speech_model.encoder, input_key):
                 self.modality_adapter_config.input_dim = getattr(speech_model.encoder, input_key)
 
-        modality_adapter = self.modality_adapter_config.configure_model()  # type: L.LightningModule
+        modality_adapter = self.modality_adapter_config.configure_model()
         modality_adapter.set_input_tensor = MethodType(set_input_tensor, modality_adapter)
-
-        if self.language_model_from_pretrained is not None:
-            logging.info(f"Loading language model weights from {self.language_model_from_pretrained}")
-            ckpt_path = self.language_model_from_pretrained
-
-            ckpt_path = self._import_and_convert_ckpt(ckpt_path)
-
-            sharded_state_dict = dict(state_dict=language_model.sharded_state_dict(prefix="module."))
-
-            loaded_state_dict = dist_checkpointing.load(
-                sharded_state_dict=sharded_state_dict,
-                checkpoint_dir=ckpt_to_weights_subdir(ckpt_path, is_saving=False),
-                validate_access_integrity=False,
-            )
-            loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
-            language_model.load_state_dict(loaded_state_dict)
-            logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")
 
         model = MCoreSpeechToTextLLM(
             config=self,
