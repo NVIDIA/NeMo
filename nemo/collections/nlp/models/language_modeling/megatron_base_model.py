@@ -182,9 +182,10 @@ class MegatronBaseModel(NLPModel):
             if vp_size == 1:
                 vp_size = None
             else:
-                assert (
-                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
-                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
+                if not(self.cfg.get('account_for_embedding_in_pipeline_split', False) and self.cfg.get('account_for_loss_in_pipeline_split', False)):
+                    assert (
+                        self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                    ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         initialize_model_parallel_for_nemo(
             world_size=init_world_size,
@@ -539,6 +540,9 @@ class MegatronBaseModel(NLPModel):
 
         tp_only_amax_red = self.cfg.get('tp_only_amax_red', False)
 
+        account_for_embedding_in_pipeline_split = self.cfg.get('account_for_embedding_in_pipeline_split', False)
+        account_for_loss_in_pipeline_split = self.cfg.get('account_for_loss_in_pipeline_split', False)
+
         attention_backend = self.cfg.get('attention_backend', "auto")
         attention_backend = AttnBackend[attention_backend]
 
@@ -566,6 +570,8 @@ class MegatronBaseModel(NLPModel):
             'rotary_interleaved': rotary_interleaved,
             'deallocate_pipeline_outputs': True,
             'tp_only_amax_red': tp_only_amax_red,
+            'account_for_embedding_in_pipeline_split': account_for_embedding_in_pipeline_split,
+            'account_for_loss_in_pipeline_split': account_for_loss_in_pipeline_split,
             'attention_backend': attention_backend,
         }
 
@@ -1015,9 +1021,10 @@ class MegatronBaseModel(NLPModel):
             if vp_size == 1:
                 self.cfg['virtual_pipeline_model_parallel_size'] = None
             else:
-                assert (
-                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
-                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
+                if not(self.cfg.get('account_for_embedding_in_pipeline_split', False) and self.cfg.get('account_for_loss_in_pipeline_split', False)):
+                    assert (
+                        self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                    ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         if self.cfg.get('ub_tp_comm_overlap', False):
             if not self.cfg.get('sequence_parallel', False):
