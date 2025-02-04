@@ -18,10 +18,11 @@ import json
 import os
 from dataclasses import dataclass
 from math import isclose
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from torch import Tensor
 from lhotse.dataset import AudioSamples
 from omegaconf import DictConfig, ListConfig, open_dict
 
@@ -37,24 +38,24 @@ from nemo.utils import logging
 
 @dataclass
 class AudioNoiseItem:
-    sample_id: str | None = None
-    audio: torch.Tensor | None = None
-    audio_len: torch.Tensor | None = None
-    noise: torch.Tensor | None = None
-    noise_len: torch.Tensor | None = None
-    noisy_audio: torch.Tensor | None = None
-    noisy_audio_len: torch.Tensor | None = None
+    sample_id: Union[str, None] = None
+    audio: Union[Tensor, None] = None
+    audio_len: Union[Tensor, None] = None
+    noise: Union[Tensor, None] = None
+    noise_len: Union[Tensor, None] = None
+    noisy_audio: Union[Tensor, None] = None
+    noisy_audio_len: Union[Tensor, None] = None
 
 
 @dataclass
 class AudioNoiseBatch:
-    sample_id: list | None = None
-    audio: torch.Tensor | None = None
-    audio_len: torch.Tensor | None = None
-    noise: torch.Tensor | None = None
-    noise_len: torch.Tensor | None = None
-    noisy_audio: torch.Tensor | None = None
-    noisy_audio_len: torch.Tensor | None = None
+    sample_id: Union[list, None] = None
+    audio: Union[Tensor, None] = None
+    audio_len: Union[Tensor, None] = None
+    noise: Union[Tensor, None] = None
+    noise_len: Union[Tensor, None] = None
+    noisy_audio: Union[Tensor, None] = None
+    noisy_audio_len: Union[Tensor, None] = None
 
 
 def _parse_manifest_item(line: str, manifest_file: str) -> Dict[str, Any]:
@@ -270,7 +271,7 @@ def sample_noise(noise_data: List[Dict], sample_rate: int, max_audio_len: int | 
     return noise_audio, noise_len
 
 
-def pad_audio(audio: torch.Tensor, min_len: int, pad_audio_mode) -> torch.Tensor:
+def pad_audio(audio: Tensor, min_len: int, pad_audio_mode) -> Tensor:
     """
     Pad audio to min_len with the specified mode
     Args:
@@ -425,7 +426,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         )
         return item
 
-    def _pad_audio(self, audio: torch.Tensor) -> torch.Tensor:
+    def _pad_audio(self, audio: Tensor) -> Tensor:
         min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
         if audio.size(0) < min_len:
             if self.pad_audio_mode == 'repeat':

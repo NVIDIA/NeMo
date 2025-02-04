@@ -118,7 +118,7 @@ Prepare the msdd training dataset for both train and validation. After the train
 In the above example training session, we use ``titanet_large`` model as a pretrained speaker embedding model.
 
 Data Preparation for Diarization Inference: for Both End-to-end and Cascaded Systems
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
 
 As in dataset preparation for diarization trainiing, diarization inference is based on Hydra configurations which are fulfilled by ``.yaml`` files. See :doc:`NeMo Speaker Diarization Configuration Files <./configs>` for setting up the input Hydra configuration file for speaker diarization inference. Input data should be provided in line delimited JSON format as below:
 	

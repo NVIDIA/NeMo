@@ -391,7 +391,7 @@ The configurations for all the components of diarization inference are included 
 In speaker diarization inference, the datasets provided in manifest format denote the data that you would like to perform speaker diarization on. 
 
 Diarizer Configurations
-^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------
 
 An example ``diarizer``  Hydra configuration could look like:
 
@@ -407,7 +407,7 @@ An example ``diarizer``  Hydra configuration could look like:
 Under ``diarizer`` key, there are ``vad``, ``speaker_embeddings``, ``clustering`` and ``asr`` keys containing configurations for the inference of the corresponding modules.
 
 Configurations for Voice Activity Detector
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Parameters for VAD model are provided as in the following Hydra config example.
 
@@ -431,7 +431,7 @@ Parameters for VAD model are provided as in the following Hydra config example.
       filter_speech_first: True 
 
 Configurations for Speaker Embedding in Diarization
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Parameters for speaker embedding model are provided in the following Hydra config example. Note that multiscale parameters either accept list or single floating point number.
 
@@ -446,7 +446,7 @@ Parameters for speaker embedding model are provided in the following Hydra confi
       save_embeddings: False # Save embeddings as pickle file for each audio input.
 
 Configurations for Clustering in Diarization
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Parameters for clustering algorithm are provided in the following Hydra config example.
 
@@ -461,7 +461,7 @@ Parameters for clustering algorithm are provided in the following Hydra config e
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
 
 Configurations for Diarization with ASR
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following configuration needs to be appended under ``diarizer`` to run ASR with diarization to get a transcription with speaker labels. 
 

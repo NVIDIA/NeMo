@@ -5,7 +5,6 @@ NeMo Speaker Diarization API
 Model Classes
 -------------
 
-
 .. autoclass:: nemo.collections.asr.models.ClusteringDiarizer
     :show-inheritance:
     :members:  
@@ -21,11 +20,11 @@ Model Classes
 Mixins
 ------
 
-.. autoclass:: nemo.collections.asr.parts.mixins.mixins.DiarizationMixin
+.. autoclass:: nemo.collections.asr.parts.mixins.DiarizationMixin
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.parts.mixins.mixins.diarization.SpkDiarizationMixin
+.. autoclass:: nemo.collections.asr.parts.mixins.diarization.SpkDiarizationMixin
     :show-inheritance:
     :members: diarize, diarize_generator, _diarize_on_begin, _diarize_input_processing, _diarize_input_manifest_processing, _setup_diarize_dataloader, _diarize_forward, _diarize_output_processing, _diarize_on_end, _input_audio_to_rttm_processing, get_value_from_diarization_config
     
