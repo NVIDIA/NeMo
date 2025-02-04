@@ -252,6 +252,30 @@ class LlamaModel(GPTModel):
         super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
+class MLPerfLoRALlamaModel(LlamaModel):
+    """
+    This class wraps LlamaModel and adds context managers around configure_model to reduce memory consumption.
+
+    Changes made here are experimental, proceed with caution.
+    """
+    def __init__(
+        self,
+        config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+    ):
+        super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+
+    def configure_model(self):
+        # Apply context managers to reduce memory by (1) avoiding unnecessary gradients
+        # and (2) requesting that TE initialize params as FP8.
+        # See https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/pytorch.html#transformer_engine.pytorch.fp8_model_init
+        import transformer_engine.pytorch as te
+        with torch.no_grad(), te.fp8_model_init():
+            super().configure_model()
+
+
 @io.model_importer(LlamaModel, "hf")
 class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
     def init(self) -> LlamaModel:
@@ -705,4 +729,5 @@ __all__ = [
     "CodeLlamaConfig34B",
     "CodeLlamaConfig70B",
     "LlamaModel",
+    "MLPerfLoRALlamaModel",
 ]

@@ -63,6 +63,7 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama32Config3B,
     LlamaConfig,
     LlamaModel,
+    MLPerfLoRALlamaModel,
 )
 from nemo.collections.llm.gpt.model.llama_embedding import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
@@ -167,6 +168,7 @@ __all__ = [
     "Gemma2Config9B",
     "Gemma2Model",
     "LlamaModel",
+    "MLPerfLoRALlamaModel",
     "Baichuan2Config",
     "Baichuan2Config7B",
     "Baichuan2Model",
