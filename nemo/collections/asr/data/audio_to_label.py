@@ -10,7 +10,7 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License.
+# limitations under the License..
 import io
 import os
 from typing import Dict, List, Optional, Union
@@ -351,7 +351,7 @@ target_label_n, "offset": offset_in_sec_n}
         tl = torch.tensor(1).long()  # For compatibility with collate_fn used later
 
         return f, fl, t, tl
-.,
+
 
 # Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
 class AudioToClassificationLabelDataset(_AudioLabelDataset):
