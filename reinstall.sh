@@ -138,10 +138,10 @@ nemo() {
     ${PIP} install --no-cache-dir virtualenv &&
       virtualenv /opt/venv &&
       /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
-        -r /workspace/requirements/requirements_vllm.txt \
-        -r /workspace/requirements/requirements_deploy.txt
+        -r requirements/requirements_vllm.txt \
+        -r requirements/requirements_deploy.txt
 
-    pip install --no-cache-dir /tmp/wheels/nemo/*.whl "llama-index==0.10.43" "unstructured==0.14.9" "triton==3.1.0"
+    pip install --no-cache-dir . "llama-index==0.10.43" "unstructured==0.14.9" "triton==3.1.0"
 }
 
 echo 'Uninstalling stuff'
