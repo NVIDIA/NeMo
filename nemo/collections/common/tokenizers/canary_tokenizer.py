@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import re
 from functools import cached_property
 from pathlib import Path
 from typing import Dict, List
@@ -30,6 +31,7 @@ CANARY_PAD = "<pad>"
 CANARY_NOSPEECH = "<|nospeech|>"
 CANARY_PNC = "<|pnc|>"
 CANARY_NOPNC = "<|nopnc|>"
+CANARY2_BOCTX = "<|startofcontext|>"
 DEFAULT_TOKENS = [CANARY_NOSPEECH, CANARY_PAD, CANARY_EOS, CANARY_BOS, CANARY_PNC, CANARY_NOPNC]
 
 CANARY_SPECIAL_TOKENIZER = "spl_tokens"
@@ -66,25 +68,87 @@ class CanaryTokenizer(AggregateTokenizer):
     def pad_id(self) -> int:
         return self.special_tokens[CANARY_PAD]
 
+    def _text_with_timestamps_to_ids(self, text_without_timestamps, time_text, lang_id) -> list[int]:
+        trans_words = text_without_timestamps.split()
+
+        # Get timestamp ids
+        time_ids = self._tokenize_special_prompt(time_text)
+
+        # Tokenize text word by wordd
+        word_ids = []
+        result_ids = []
+        time_index = 0
+
+        timestamp_every_n_words = 1  # Add timestmap for every N words
+        word_index = 0
+        # Both start and end time
+        for word in trans_words:
+            # Insert the first time_id once
+            if word_index == 0 and time_index < len(time_ids):
+                result_ids.append(time_ids[time_index])
+                time_index += 1
+            # Tokenize the word
+            word_ids += super().text_to_ids(word, lang_id)
+            result_ids += super().text_to_ids(word, lang_id)
+            word_index += 1
+            # Insert time ids every N words after the first one
+            if word_index % timestamp_every_n_words == 0 and word_index != 0 and time_index < len(time_ids):
+                result_ids.append(time_ids[time_index])
+                time_index += 1
+                if time_index < len(time_ids):
+                    result_ids.append(time_ids[time_index])
+                    time_index += 1
+            else:
+                time_index += 2
+        # Ensure the last time_id is appended at the end
+        if time_index < len(time_ids):
+            result_ids.append(time_ids[-1])
+        # Make sure the last time_id is appended only once
+        if time_index < len(time_ids) and result_ids[-1] != (time_ids[-1]):
+            result_ids.append(time_ids[-1])
+        return result_ids
+
+    def _text_to_ids_maybe_with_timestamps(self, text_no_eos, lang_id) -> list[int]:
+        time_pattern = re.compile(r"<\|\d+\|>")
+        time_text = "".join(time_pattern.findall(text_no_eos))
+        has_timestamp = bool(time_text)
+        if not has_timestamp:
+            return super().text_to_ids(text_no_eos, lang_id)
+        else:
+            text_without_timestamps = time_pattern.sub("", text_no_eos).strip()
+            return self._text_with_timestamps_to_ids(text_without_timestamps, time_text, lang_id)
+
     def text_to_ids(self, text, lang_id) -> list[int]:
         if lang_id == CANARY_SPECIAL_TOKENIZER:
             return self._tokenize_special_prompt(text)
+        lang_id = _map_canary1_to_canary2_lang(lang_id, self.langs)
         if text.endswith(CANARY_EOS):
-            return super().text_to_ids(text[: -len(CANARY_EOS)], lang_id) + [self.eos_id]
-        return super().text_to_ids(text, lang_id)
+            return self._text_to_ids_maybe_with_timestamps(text[: -len(CANARY_EOS)], lang_id) + [self.eos_id]
+        return self._text_to_ids_maybe_with_timestamps(text, lang_id)
 
     def _tokenize_special_prompt(self, text: str) -> list[int]:
         """
-        Tokenize the input special prompt of the following schema:
-
-        <|startoftranscript|><|source_lang|><|taskname|><|target_lang|><|pnc|>
+        Tokenize the input special prompt of Canary family of models.
 
         Required because otherwise self.text_to_ids() returns a different result than what Canary had been trained with.
         """
         ans = []
-        assert text.count('>') == 5, f"Expected exactly 5 special tokens in Canary's prompt, got: {text}."
-        assert text.startswith(CANARY_BOS), text
-        for _ in range(5):
+
+        if text.startswith(CANARY2_BOCTX):
+            # Canary 2 prompt format. It starts with decoder context, which should be tokenized using
+            # a different tokenizer than spl_tokens. We don't really know what it is, so we'll use the
+            # following HACK solution: look up 5th token which is target_lang and tokenize this part
+            # using its tokenizer. We skip this when decoder context is empty.
+            ans.append(self.special_tokens[CANARY2_BOCTX])
+            text = text[len(CANARY2_BOCTX) :]
+            ctx_end_idx = text.find(CANARY_BOS)
+            if decoder_ctx := text[:ctx_end_idx]:
+                target_lang = text.split("<|")[4].replace("|>", "")  # sorry
+                ans.extend(self.text_to_ids(decoder_ctx, target_lang))
+                text = text[ctx_end_idx:]
+
+        num_special_tokens = text.count(">")
+        for _ in range(num_special_tokens):
             token = text[: text.find(">") + 1]
             ans.append(self.special_tokens[token])
             text = text[len(token) :]
@@ -106,7 +170,9 @@ class CanaryTokenizer(AggregateTokenizer):
             for file in ["tokenizer.model", "tokenizer.vocab", "vocab.txt", "train_text.txt"]:
                 if os.path.exists(file):
                     os.remove(file)
-        tokens = DEFAULT_TOKENS + [f"<|{t}|>" for t in tokens]
+        spl_tok_re = re.compile(r"<\|.+\|>")
+        tokens = DEFAULT_TOKENS + [f"<|{t}|>" if spl_tok_re.match(t) is None else t for t in tokens]
+        tokens = list(dict.fromkeys(tokens))  # remove duplicates while preserving order
         output_dir = Path(model_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
         text_path = output_dir / "train_text.txt"
@@ -123,3 +189,38 @@ class CanaryTokenizer(AggregateTokenizer):
         )
         spl_tokenizer = SentencePieceTokenizer(str(model_path))
         return spl_tokenizer
+
+
+class CanaryBPETokenizer(SentencePieceTokenizer):
+    """
+    Thin wrapper around SPE tokenizer that overwrites SPE's BOS/EOS/PAD with Canary's special tokens
+    for compatibility with CanaryTokenizer (aggregate).
+    """
+
+    @cached_property
+    def eos_id(self) -> int:
+        return self.token_to_id(CANARY_EOS)
+
+    @cached_property
+    def bos_id(self) -> int:
+        return self.token_to_id(CANARY_BOS)
+
+    @cached_property
+    def nospeech_id(self) -> int:
+        return self.token_to_id(CANARY_NOSPEECH)
+
+    @cached_property
+    def pad_id(self) -> int:
+        return self.token_to_id(CANARY_PAD)
+
+
+def _map_canary1_to_canary2_lang(lang: str, available_langs: list[str]) -> str:
+    if len(lang) != 2 or lang in available_langs:
+        return lang
+
+    if (
+        mapped := {"en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE"}.get(lang)
+    ) is not None and mapped in available_langs:
+        return mapped
+
+    raise RuntimeError(f"Unsupported language: '{lang}' for CanaryTokenizer with languages: {available_langs}")

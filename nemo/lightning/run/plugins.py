@@ -24,10 +24,9 @@ from lightning.pytorch import Callback
 from lightning.pytorch.loggers import WandbLogger
 from nemo_run.core.serialization.yaml import YamlSerializer
 
-from nemo.lightning.pytorch.callbacks import NsysCallback, PreemptionCallback
+from nemo.lightning.pytorch.callbacks import MemoryProfileCallback, NsysCallback, PreemptionCallback
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.utils import logging
-
 from nemo.utils.import_utils import safe_import
 
 res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
@@ -91,13 +90,13 @@ class FaultTolerancePlugin(run.Plugin):
     This plugin enables workload hang detection, automatic calculation of timeouts used for hang detection, detection of rank(s) terminated due to an error and workload respawning in case of a failure.
     Note: FaultTolerancePlugin does not work with the NsysPlugin.
     Args:
-        num_in_process_restarts (int): Max number of restarts on failure, within the same job. Default is 3.
+        num_in_job_restarts (int): Max number of restarts on failure, within the same job. Default is 3.
         num_job_retries_on_failure (int): Max number of new job restarts on failure. Default is 2.
         initial_rank_heartbeat_timeout (int): Timeouts are time intervals used by a rank monitor to detect that a rank is not alive. This is the max timeout for the initial heartbeat. Default is 1800.
         rank_heartbeat_timeout (int): This is the timeout for subsequent hearbeats after the initial heartbeat. Default is 300.
     """
 
-    num_in_process_restarts: int = 3
+    num_in_job_restarts: int = 3
     num_job_retries_on_failure: int = 2
     initial_rank_heartbeat_timeout: int = 1800
     rank_heartbeat_timeout: int = 300
@@ -107,7 +106,7 @@ class FaultTolerancePlugin(run.Plugin):
         assert HAVE_RES, "nvidia-resiliency-ext.ptl_resiliency is required to use the FaultTolerancePlugin."
 
         executor.launcher = run.FaultTolerance(
-            max_restarts=self.num_in_process_restarts,
+            max_restarts=self.num_in_job_restarts,
             initial_rank_heartbeat_timeout=self.initial_rank_heartbeat_timeout,
             rank_heartbeat_timeout=self.rank_heartbeat_timeout,
         )
@@ -155,6 +154,7 @@ class NsysPlugin(run.Plugin):
     end_step: int
     ranks: Optional[list[int]] = None
     nsys_trace: Optional[list[str]] = None
+    gen_shape: bool = False
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         if isinstance(task, run.Partial):
@@ -163,6 +163,7 @@ class NsysPlugin(run.Plugin):
                 start_step=self.start_step,
                 end_step=self.end_step,
                 ranks=self.ranks or [0],
+                gen_shape=self.gen_shape,
             )
             callbacks: list[run.Config[Callback]] = [nsys_callback]  # type: ignore
             _merge_callbacks(task, callbacks=callbacks)
@@ -170,6 +171,34 @@ class NsysPlugin(run.Plugin):
         launcher = executor.get_launcher()
         launcher.nsys_profile = True
         launcher.nsys_trace = self.nsys_trace or ["nvtx", "cuda"]
+
+
+@dataclass(kw_only=True)
+class MemoryProfilePlugin(run.Plugin):
+    """
+    A plugin for memory profiling.
+
+    The MemoryProfilePlugin allows you to profile a timeline of memory allocations during you run.
+    The memory profiling plugin creates snapshots during the entire training. You can specify which ranks to run the profiling.
+
+    Args:
+        dir (str): Directory to store the memory profile dump .pickle files
+        ranks (Optional[list[int]]): The ranks on which to run the memory profiling. If not specified,
+            profiling will be run on rank 0.
+    """
+
+    dir: str
+    ranks: Optional[list[int]] = None
+
+    def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+        if isinstance(task, run.Partial):
+            memprof_callback = run.Config(
+                MemoryProfileCallback,
+                dir=self.dir,
+                ranks=self.ranks or [0],
+            )
+            callbacks: list[run.Config[Callback]] = [memprof_callback]  # type: ignore
+            _merge_callbacks(task, callbacks=callbacks)
 
 
 @dataclass(kw_only=True)
@@ -314,7 +343,7 @@ class PerfEnvPlugin(run.Plugin):
     enable_layernorm_sm_margin: bool = True
     layernorm_sm_margin: int = 16
     enable_vboost: bool = False
-    nccl_pp_comm_chunksize: int = None
+    nccl_pp_comm_chunksize: Optional[int] = None
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
         "Create the vboost `sudo nvidia-smi boost-slider --vboost 1` command"
@@ -361,7 +390,7 @@ class PerfEnvPlugin(run.Plugin):
 
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):
-            vboost_cmd = self.get_vboost_srun_cmd(executor.nodes, executor.job_dir)
+            vboost_cmd = self.get_vboost_srun_cmd(executor.nodes, executor.tunnel.job_dir)
             executor.setup_lines = (
                 executor.setup_lines + vboost_cmd
                 if (executor.setup_lines and len(executor.setup_lines) > 0)

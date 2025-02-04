@@ -16,9 +16,12 @@ from typing import Callable, Optional, Union
 
 import torch.utils.data
 from lhotse import CutSet
+from lhotse.cut import MixedCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
+from nemo.collections.common.data import apply_prompt_format_fn
+from nemo.collections.common.prompts import CanaryPromptFormatter, PromptFormatter
 from nemo.collections.common.tokenizers import TokenizerSpec
 
 
@@ -63,28 +66,27 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         tokenizer: TokenizerSpec,
-        prompt_format_fn: Callable[
-            [CutSet, TokenizerSpec], tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]
-        ],
+        prompt: PromptFormatter,
     ):
         super().__init__()
         self.tokenizer = tokenizer
         self.load_audio = AudioSamples(fault_tolerant=True)
-        self.padding_value = self.tokenizer.pad
-        self.prompt_format_fn = prompt_format_fn
+        self.padding_value = self.tokenizer.pad_id
+        self.prompt = prompt
 
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
         # Fast-path: the tokenization and prompt formatting was already done before sampling.
-        attrs = ("tokenized_prompt", "tokenized_transcript", "tokenized_prompted_transcript")
+        attrs = ("input_ids", "context_ids", "answer_ids")
         pre_formatted = all(hasattr(c, a) for c in cuts for a in attrs)
         if pre_formatted:
-            prompts_with_answers, prompts, answers = zip(
-                *((c.tokenized_prompted_transcript, c.tokenized_prompt, c.tokenized_transcript) for c in cuts)
-            )
+            prompts_with_answers, prompts, answers = zip(*((c.input_ids, c.context_ids, c.answer_ids) for c in cuts))
         else:
-            prompts_with_answers, prompts, answers = self.prompt_format_fn(cuts, self.tokenizer)
+            formatted = [apply_prompt_format_fn(cut, self.prompt) for cut in cuts]
+            prompts_with_answers = [ex["input_ids"] for ex in formatted]
+            prompts = [ex["context_ids"] for ex in formatted]
+            answers = [ex["answer_ids"] for ex in formatted]
 
         transcript, transcript_lens = self._collate_tokens(answers)
         prompts_with_answers, prompts_with_answers_lens = self._collate_tokens(prompts_with_answers)
@@ -99,7 +101,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             prompt_lens=prompt_lens,
             prompted_transcript=prompts_with_answers,
             prompted_transcript_lens=prompts_with_answers_lens,
-            cuts=cuts.drop_in_memory_data(),
+            cuts=_drop_in_memory_data(cuts),
         )
 
     def _collate_tokens(self, tokens: list[Union[list[int], torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
@@ -111,3 +113,24 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
 
 class ProbablyIncorrectLanguageKeyError(RuntimeError):
     pass
+
+
+def _drop_in_memory_data(
+    cuts: CutSet,
+    _fields=frozenset(MixedCut.__dataclass_fields__.keys()),
+) -> CutSet:
+    """Workaround for an edge case in cuts.drop_in_memory_data() on MixedCut with Lhotse<1.29.0"""
+    ans = []
+    for c in cuts:
+        # Not a mixed cut or a mixed cut that wasn't assigned any extra attributes.
+        if not isinstance(c, MixedCut) or _fields.issuperset(c.__dict__.keys()):
+            ans.append(c.drop_in_memory_data())
+        else:
+            extra_attrs = {k: v for k, v in c.__dict__.items() if k not in _fields}
+            for k in extra_attrs:
+                delattr(c, k)
+            ans.append(c.drop_in_memory_data())
+            for k, v in extra_attrs.items():
+                setattr(ans[-1], k, v)
+                setattr(c, k, v)
+    return CutSet(ans)

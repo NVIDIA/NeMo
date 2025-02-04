@@ -868,10 +868,15 @@ class ASRPredictionWriter(BasePredictionWriter):
                 sample = sample_id
                 if isinstance(sample, lhotse.cut.MixedCut):
                     sample = sample.first_non_padding_cut
-                item["audio_filepath"] = sample.recording.sources[0].source
+                if sample.recording.sources[0].source != '':
+                    item["audio_filepath"] = sample.recording.sources[0].source
+                else:
+                    item["audio_filepath"] = sample.id
                 item["offset"] = sample.start
                 item["duration"] = sample.duration
-                item["text"] = sample.supervisions[0].text
+                item["text"] = sample.supervisions[0].text or ''
+                if hasattr(sample, 'shard_id'):
+                    item["shard_id"] = sample.shard_id
                 item["pred_text"] = transcribed_text
                 self.outf.write(json.dumps(item) + "\n")
                 self.samples_num += 1

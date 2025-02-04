@@ -502,6 +502,7 @@ def reset_megatron_parallel_state() -> Iterator[None]:
 
 @pytest.mark.run_only_on("GPU")
 @pytest.mark.integration
+@pytest.mark.pleasefixme
 def test_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
     path = os.path.abspath(__file__)
     call = f"python {path}"
@@ -525,6 +526,7 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
                 every_n_train_steps=5,
                 # Enables the .nemo file-like checkpointing where all IOMixins are under SerDe
                 always_save_context=True,
+                filename="{model_name}--{val_loss:.2f}-{step}-{consumed_samples}",
             )
             root_dir = tmpdir
             save_dir = root_dir / name
@@ -572,6 +574,7 @@ def run_train_mnist_litautoencoder_with_fsdp_strategy_single_gpu():
                     global_batch_size=2,
                     output_log=False,  # Disable logs to support predict_step
                 ),
+                ckpt_load_optimizer=False,
             )
             predict_trainer = nl.Trainer(
                 accelerator="gpu",

@@ -51,6 +51,13 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
 from typing_extensions import override
 
+try:
+    from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
+
+    HAVE_CUSTOM_FSDP = True
+except ImportError:
+    HAVE_CUSTOM_FSDP = False
+
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
 T = TypeVar('T')
@@ -520,7 +527,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
 
         for model_module in self:
-            if not self._cpu:
+            if not self._cpu and (not HAVE_CUSTOM_FSDP or not self.ddp_config.use_custom_fsdp):
+                # If Megatron FSDP is enabled, we don't need to move the model to GPU here to avoid GPU OOM.
                 model_module.cuda(torch.cuda.current_device())
 
             for param in model_module.parameters():
@@ -584,17 +592,27 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
 
             with init_ddp_context():
-                ddp = DDP(
-                    module.config,
-                    self.ddp_config,
-                    module,
-                    data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
-                    disable_bucketing=disable_bucketing,
-                )
-
-            model_chunk.module = ddp
-            model_chunk.buffers = ddp.buffers  # We need to do this explicitly since this is a attr pytorch uses
+                if HAVE_CUSTOM_FSDP and self.ddp_config.use_custom_fsdp:
+                    FSDP = FullyShardedDataParallel
+                    dist_module = FSDP(
+                        module.config,
+                        self.ddp_config,
+                        module,
+                        disable_bucketing=disable_bucketing,
+                    )
+                else:
+                    dist_module = DDP(
+                        module.config,
+                        self.ddp_config,
+                        module,
+                        data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                        expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                        disable_bucketing=disable_bucketing,
+                    )
+            model_chunk.module = dist_module
+            model_chunk.buffers = (
+                dist_module.buffers
+            )  # We need to do this explicitly since this is a attr pytorch uses
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
@@ -652,6 +670,24 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return self._module_sharded_state_dict(module.module, *args, prefix=prefix, **kwargs)
 
         raise ValueError("Could not find sharded state dict")
+
+    def enable_forward_pre_hook(self):
+        for model in self:
+            model_chunk = model.module
+            assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
+            model_chunk.enable_forward_pre_hook()
+
+    def disable_forward_pre_hook(self):
+        for model in self:
+            model_chunk = model.module
+            assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
+            model_chunk.disable_forward_pre_hook()
+
+    def force_param_sync(self):
+        for model in self:
+            model_chunk = model.module
+            assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
+            model_chunk.start_param_sync(force_sync=True)
 
     @property
     def pipeline(self) -> Union[ModelT, List[ModelT]]:
@@ -1125,12 +1161,15 @@ class MegatronStep(Generic[ModelT, DataT]):
         if self.micro_batch_size is None:
             raise ValueError("micro_batch_size is not set")
 
+        data_iterator, seq_length = self.get_data_iterator_and_seq_length()
+        seq_length = seq_length or self.seq_length
+
         return self.forward_backward_func(
             forward_step_func=self.forward_step_func,
-            data_iterator=self.data_iterator,
+            data_iterator=data_iterator,
             model=self.model,
             num_microbatches=self.num_microbatches,
-            seq_length=self.seq_length,
+            seq_length=seq_length,
             micro_batch_size=self.micro_batch_size,
             forward_only=self.forward_only,
             decoder_seq_length=self.decoder_seq_length,
@@ -1277,13 +1316,12 @@ class MegatronStep(Generic[ModelT, DataT]):
 
         return get_forward_backward_func()
 
-    @functools.cached_property
-    def data_iterator(self) -> List[Iterator[DataT]]:
+    def get_data_iterator_and_seq_length(self) -> Tuple[List[Iterator[DataT]], Optional[int]]:
         """
-        Cached property that converts the provided data into a list of iterators.
+        Converts the provided data into a list of iterators.
 
-        This property ensures that the data is converted to the required format
-        only once and then cached for subsequent uses.
+        For finetuning, where sequence length is different for each step, this function also outputs the
+        sequence length of the current batch.
 
         Returns:
             List[Iterator[DataT]]: A list of iterators created from the input data.
@@ -1292,12 +1330,16 @@ class MegatronStep(Generic[ModelT, DataT]):
             batch = next(self.data)
             if isinstance(batch, tuple) and len(batch) == 3:
                 batch = batch[0]
+            # finetuning can have dynamic sequence lengths
+            seq_length = batch['tokens'].size(1) if 'tokens' in batch else None
             from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 
             data = get_iterator_k_split(batch, self.num_microbatches, True)
         else:
             data = self.data
-        return self.to_data_iterator_list(data)
+            # for pretraining (fixed sequence length), we use seq_length inferred from the data sampler.
+            seq_length = None
+        return self.to_data_iterator_list(data), seq_length
 
     @functools.cached_property
     def has_global_batch_sampler(self) -> bool:
@@ -1689,7 +1731,10 @@ def masked_token_loss(tensor: Tensor, mask: Tensor):
     """
     losses = tensor.float()
     loss_mask = mask.view(-1).float()
-    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+    num_valid_tokens = loss_mask.sum()
+    if num_valid_tokens < 0.5:  # no valid tokens
+        num_valid_tokens += 1.0
+    loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens  # sequence level nll
 
     return loss
 
@@ -1702,6 +1747,10 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
 
     losses = tensor.float()
     loss_mask = mask.view(-1).float()
+    if num_valid_tokens_in_ub is None:
+        num_valid_tokens_in_ub = loss_mask.sum()
+    if num_valid_tokens_in_ub < 0.5:  # no valid tokens
+        num_valid_tokens_in_ub += 1.0
     loss = torch.sum(losses.view(-1) * loss_mask) / num_valid_tokens_in_ub  # sequence level nll
     torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
 

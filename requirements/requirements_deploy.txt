@@ -1,0 +1,6 @@
+fastapi
+nvidia-pytriton
+pydantic-settings
+tensorstore
+uvicorn
+zarr>=2.18.2,<3.0.0

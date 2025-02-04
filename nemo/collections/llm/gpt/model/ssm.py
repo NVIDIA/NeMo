@@ -120,7 +120,7 @@ class PyTorchSSMImporter(io.ModelConnector["GPTModel", GPTModel]):
 
     def apply(self, output_path: Path) -> Path:
 
-        source = torch.load(str(self), map_location='cpu')
+        source = torch.load(str(self), map_location='cpu', weights_only=False)
         if 'model' in source:
             source = source['model']
 
@@ -290,6 +290,7 @@ class BaseMambaConfig2_7B(SSMConfig):
 @dataclass
 class NVIDIAMambaConfig8B(SSMConfig):
     hybrid_override_pattern: str = "M" * 56
+    num_attention_heads: int = 32
     num_layers: int = 56
     seq_length: int = 4096
     hidden_size: int = 4096
