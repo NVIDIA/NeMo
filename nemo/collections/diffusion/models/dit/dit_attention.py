@@ -13,11 +13,13 @@ try:
     from megatron.core.transformer.custom_layers.transformer_engine import SplitAlongDim
 except ImportError:
     from nemo.utils import logging
+
     logging.warning(
         "Failed to import Transformer Engine dependencies. "
         "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
         "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
     )
+
 
 @dataclass
 class JointSelfAttentionSubmodules:

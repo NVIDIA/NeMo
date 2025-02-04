@@ -28,6 +28,7 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 
 NAME = "flux-535m"
 
+
 @run.cli.factory(name=NAME)
 def model(flux_params=FluxModelParams) -> run.Config[pl.LightningModule]:
     """
@@ -50,7 +51,6 @@ def model(flux_params=FluxModelParams) -> run.Config[pl.LightningModule]:
     flux_params.flux_config.num_single_layers = 1
     flux_params.flux_config.num_joint_layers = 1
     return MegatronFluxModel(flux_params=flux_params)
-
 
 
 @run.cli.factory(target=llm.train, name=NAME)
