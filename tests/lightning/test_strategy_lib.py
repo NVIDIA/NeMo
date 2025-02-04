@@ -78,6 +78,7 @@ def test_init_parallel_ranks() -> None:
     mock_parallel_config.virtual_pipeline_model_parallel_size = 4
     mock_parallel_config.context_parallel_size = 2
     mock_parallel_config.expert_model_parallel_size = 2
+    mock_parallel_config.expert_tensor_parallel_size = None
     mock_parallel_config.encoder_tensor_model_parallel_size = 0
     mock_parallel_config.encoder_pipeline_model_parallel_size = 0
     mock_parallel_config.tp_comm_overlap = False
@@ -128,6 +129,8 @@ def test_init_model_parallel(mock_mpu, *args):
     app_state.pipeline_model_parallel_split_rank = None
     app_state.context_parallel_size = 2
     app_state.expert_model_parallel_size = 2
+    app_state.expert_tensor_parallel_size = 1
+    app_state.expert_tensor_parallel_rank = 0
     app_state.init_mpi_proc_group = False
     app_state.tensor_model_parallel_rank = 2
     app_state.pipeline_model_parallel_rank = 0
@@ -144,6 +147,7 @@ def test_init_model_parallel(mock_mpu, *args):
         encoder_tensor_model_parallel_size=None,
         context_parallel_size=2,
         expert_model_parallel_size=2,
+        expert_tensor_parallel_size=1,
     )
 
 
@@ -281,3 +285,4 @@ def _mpu_tp_2(mock_mpu) -> None:
     mock_mpu.get_pipeline_model_parallel_world_size.return_value = 1
     mock_mpu.get_pipeline_model_parallel_group.return_value = 0
     mock_mpu.get_tensor_model_parallel_group.return_value = 1
+    mock_mpu.get_expert_tensor_parallel_rank.return_value = 0

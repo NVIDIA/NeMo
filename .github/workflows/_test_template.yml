@@ -26,6 +26,11 @@ on:
         description: Failure will cancel all other tests if set to true
         required: false
         default: false
+      SAVE_COVERAGE_REPORT:
+        type: boolean
+        description: Upload .coverage file
+        required: false
+        default: false
     outputs:
       conclusion:
         description: Conclusion of main test step
@@ -36,6 +41,9 @@ on:
       potential_infra_failure:
         description: Boolean flag when infra-related keyword spotted in logs.
         value: ${{ jobs.main.outputs.potential_infra_failure }}
+      coverage_report:
+        description: Key of coverage_report artifact
+        value: ${{ jobs.main.outputs.coverage_report }}
 jobs:
   
   main:
@@ -44,22 +52,32 @@ jobs:
       conclusion: ${{ steps.main.conclusion }}
       log: ${{ steps.main.outputs.log }}
       potential_infra_failure: ${{ steps.main.outputs.potential_infra_failure }}
+      coverage_report: ${{ steps.main.outputs.coverage_report }}
+    env:
+      DIR: ${{ github.run_id }}
     steps:
         - name: Docker system cleanup
           run: |
-            docker system prune -a --filter "until=48h" --force || true
+            docker system prune -af --filter "until=24h" --force || true
 
         - name: Docker pull image
           run: |
             docker pull nemoci.azurecr.io/nemo_container:${{ github.run_id }}
 
         - name: Start container
+          env:
+            DIR: ${{ github.run_id }}
           run: |
+            mkdir -p $DIR
+
             ARG=("")
             if [[ "${{ inputs.RUNNER }}" != *cpu* ]]; then
               ARG=("--runtime=nvidia --gpus all")
             fi
 
+            cmd=$(cat <<RUN_TEST_EOF
+            #!/bin/bash
+            docker container rm -f nemo_container_${{ github.run_id }} || true
             docker run \
               --rm \
               -d \
@@ -70,29 +88,91 @@ jobs:
               --env HF_HOME=/home/TestData/HF_HOME \
               --volume /mnt/datadrive/TestData:/home/TestData nemoci.azurecr.io/nemo_container:${{ github.run_id }} \
               bash -c "sleep $(( ${{ inputs.TIMEOUT }} * 60 + 60 ))"
-
-        - id: main
-          name: Run main script
-          timeout-minutes: ${{ inputs.TIMEOUT }}
+            RUN_TEST_EOF
+            )
+            
+            echo "$cmd" | tee "$DIR/retry_job.sh"
+            bash $DIR/retry_job.sh
+        
+        - name: Create run-script
+          env:
+            DIR: ${{ github.run_id }}
+            SCRIPT: ${{ inputs.SCRIPT }}
+          id: create
           run: |
-            mkdir -p ${{ github.run_id }}
-            cd ${{ github.run_id }}/
-            set +e 
-            (  
+            SCRIPT=$(echo "$SCRIPT" | grep -v '^#')
+            SCRIPT=$(perl -pe 'chomp if eof' <<< "$SCRIPT")
+            
+            mkdir -p $DIR
+            rm $DIR/.coverage || true
+            rm $DIR/err.log || true
+
+            cmd=$(cat <<RUN_TEST_EOF
+            #!/bin/bash
+              
+            (
               set -e
 
-              docker exec nemo_container_${{ github.run_id }} bash -c '${{ inputs.SCRIPT }}'
-            ) 2> >(tee err.log)
+              docker exec nemo_container_${{ github.run_id }} bash -c '$SCRIPT && echo "Finished successfully." || echo "Did not finish."'
+            ) 2>&1 | tee $DIR/err.log
 
-            EXIT_CODE=$?
+            RUN_TEST_EOF
+            )
+
+            echo "timeout_in_seconds=$(( ${{ inputs.TIMEOUT }} * 60 ))" | tee -a "$GITHUB_OUTPUT"
+            echo "$cmd" | tee "$DIR/job.sh"
+
+        - name: Run main script
+          uses: nick-fields/retry@v3
+          with:
+            timeout_seconds: ${{ steps.create.outputs.timeout_in_seconds }}
+            max_attempts: 3
+            shell: bash
+            retry_on: timeout
+            command: /bin/bash ${{ github.run_id }}/job.sh 
+            on_retry_command: /bin/bash ${{ github.run_id }}/retry_job.sh 
+        
+        - name: Check result
+          id: check
+          env:
+            SAVE_COVERAGE_REPORT: ${{ inputs.SAVE_COVERAGE_REPORT }}
+          run: |
+            cat $DIR/err.log
             
-            echo "log=$(tail -c 2000 err.log |  base64 -w 0)" >> "$GITHUB_OUTPUT"
-            
-            potential_infra_failure=$(cat err.log | grep -Eqiw "device" && echo true || echo false)
+            log=$(tail -c 2000 $DIR/err.log |  base64 -w 0)
+            echo "log=$log" >> "$GITHUB_OUTPUT"
+
+            potential_infra_failure=$(cat $DIR/err.log | grep -Eqiw "device" && echo true || echo false)
             echo "potential_infra_failure=$potential_infra_failure" >> "$GITHUB_OUTPUT"
 
+            coverage_report=coverage-${{ github.run_id }}-$(uuidgen)
+            echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"
+
+            if [[ "$SAVE_COVERAGE_REPORT" == "true" ]]; then
+              docker cp nemo_container_${{ github.run_id }}:/workspace/.coverage $DIR/.coverage 
+              docker cp nemo_container_${{ github.run_id }}:/workspace/coverage.xml $DIR/coverage.xml
+
+            fi
+
+            IS_SUCCESS=$(tail -n 1 $DIR/err.log | grep -q "Finished successfully." && echo "true" || echo "false")
+
+            if [[ "$IS_SUCCESS" == "false" ]]; then
+              echo Test did not finish successfully.
+              exit 1
+            fi
+
             exit $EXIT_CODE
-            
+
+        - name: Upload artifacts
+          uses: actions/upload-artifact@v4
+          if: inputs.SAVE_COVERAGE_REPORT == true
+          with:
+            name: ${{ steps.check.outputs.coverage_report }}
+            path: |
+              ${{ github.run_id }}/coverage.xml
+              ${{ github.run_id }}/.coverage
+            include-hidden-files: true
+
         - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
           if: failure() && inputs.IS_OPTIONAL == false && !contains(github.event.pull_request.labels.*.name, 'no-fail-fast')
         - name: after_script
@@ -103,5 +183,4 @@ jobs:
         - name: Container shutdown
           if: always()
           run: |
-            docker container stop nemo_container_${{ github.run_id }} || true
-            docker container rm nemo_container_${{ github.run_id }} || true
+            docker container rm -f nemo_container_${{ github.run_id }} || true
