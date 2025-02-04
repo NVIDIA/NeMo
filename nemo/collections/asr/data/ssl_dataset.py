@@ -152,7 +152,7 @@ def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = 
     return output
 
 
-def load_noise_manifest(noise_manifest: Union[str ,ListConfig, None]):
+def load_noise_manifest(noise_manifest: Union[str, ListConfig, None]):
     """
     load noise manifest from a single or a list of manifest files
     """
