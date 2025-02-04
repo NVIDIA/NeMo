@@ -511,7 +511,7 @@ class GPT(nn.Module):
             block.mlp_c_proj.weight.data.copy_(justnorm_fp32(block.mlp_c_proj.weight.data, 0))  # n_embd, n_proj
 
 
-class NGPTHead(nn.Module):
+class NGPTHead(NeuralModule):
     def __init__(
         self,
         feat_in: int,
