@@ -47,9 +47,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-TERowParallelLinear, _ = safe_import_from(
-    "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
-)
+TERowParallelLinear, _ = safe_import_from("megatron.core.extensions.transformer_engine", "TERowParallelLinear")
 
 
 def gemma2_layer_spec(config: "GPTConfig") -> ModuleSpec:

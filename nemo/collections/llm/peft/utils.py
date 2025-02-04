@@ -44,9 +44,7 @@ TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
 )
 HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
-MixedFusedLayerNorm, HAVE_APEX = safe_import_from(
-    "apex.normalization.fused_layer_norm", "MixedFusedLayerNorm"
-)
+MixedFusedLayerNorm, HAVE_APEX = safe_import_from("apex.normalization.fused_layer_norm", "MixedFusedLayerNorm")
 
 
 def get_adapter_attributes_from_linear(m: nn.Module):
