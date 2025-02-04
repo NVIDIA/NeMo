@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 import torch
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.fusions.fused_softmax import FusedScaleMaskSoftmax
+from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import ColumnParallelLinear
 from megatron.core.transformer import (
@@ -31,7 +32,10 @@ from megatron.core.transformer import (
 )
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.utils import attention_mask_func
+from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.utils import divide
+    
 from torch import Tensor, nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
@@ -49,13 +53,16 @@ if TYPE_CHECKING:
 
 TERowParallelLinear, _ = safe_import_from("megatron.core.extensions.transformer_engine", "TERowParallelLinear")
 
+TENorm, _ = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TENorm"
+)
+
+TELayerNormColumnParallelLinear, _ = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TELayerNormColumnParallelLinear"
+)
+
 
 def gemma2_layer_spec(config: "GPTConfig") -> ModuleSpec:
-
-    from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear
-    from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-    from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-    from megatron.core.transformer.mlp import MLP, MLPSubmodules
 
     return ModuleSpec(
         module=TransformerLayer,
@@ -524,8 +531,6 @@ class TERowParallelLinearLayerNorm(TERowParallelLinear):
         is_expert: bool,
         tp_comm_buffer_name: str = None,
     ):
-        from megatron.core.extensions.transformer_engine import TENorm
-
         super().__init__(
             input_size,
             output_size,
