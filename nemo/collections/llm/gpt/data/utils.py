@@ -38,6 +38,9 @@ TYPE_INSTRUCTION = {
     'VALUE_TO_TEXT': '',
 }
 
+__idx_version__ = "0.2"  # index file version
+__idx_suffix__ = "idx"  # index file suffix
+
 
 def build_index_from_memdata(fn, newline_int):
     """
