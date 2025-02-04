@@ -25,21 +25,22 @@ mcore() {
     export CAUSAL_CONV_TAG=v1.2.2.post1
 
     cd /opt
-    DIR="Megatron-LM"
+    DIR="causal-conv1d"
 
     if [ ! -d "$DIR/.git" ]; then
       rm -rf "$DIR" &&
-        git clone ${MLM_REPO} 
+        git clone https://github.com/Dao-AILab/causal-conv1d.git 
     fi
 
     pushd $DIR &&
-      git checkout -f $MLM_TAG
+      git checkout -f $CAUSAL_CONV_TAG
         
     if [[ "$mode" == "build" ]]; then
-        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore . && \
+        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore/ . && \
         ls -al
     else
         pip install /tmp/wheels/mcore/*.whl
+        pip install -e .
     fi
 
     DIR="mamba"
@@ -57,24 +58,27 @@ mcore() {
         ls -al
     else
         pip install /tmp/wheels/mcore/*.whl
+        pip install -e .
     fi
 
-    DIR="causal-conv1d"
+    DIR="Megatron-LM"
 
     if [ ! -d "$DIR/.git" ]; then
       rm -rf "$DIR" &&
-        git clone https://github.com/Dao-AILab/causal-conv1d.git 
+        git clone ${MLM_REPO} 
     fi
 
     pushd $DIR &&
-      git checkout -f $CAUSAL_CONV_TAG
+      git checkout -f $MLM_TAG
         
     if [[ "$mode" == "build" ]]; then
-        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore/ . && \
+        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore . && \
         ls -al
     else
         pip install /tmp/wheels/mcore/*.whl
+        pip install -e .
     fi
+    
 }
 
 te() {
@@ -92,10 +96,11 @@ te() {
         
     if [[ "$mode" == "build" ]]; then
        git submodule init && git submodule update && \
-        NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip wheel --no-deps --wheel-dir /tmp/wheels/te/ . && \
+        pip wheel --no-deps --wheel-dir /tmp/wheels/te/ . && \
         ls -al
     else
         pip install /tmp/wheels/te/*.whl
+        pip install -e .
     fi
 }
 
@@ -117,6 +122,7 @@ apex() {
         ls -al
     else
         pip install /tmp/wheels/apex/*.whl
+        pip install -e .
     fi
 }
 
