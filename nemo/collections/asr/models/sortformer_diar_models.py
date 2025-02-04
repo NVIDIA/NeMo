@@ -272,7 +272,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         """
         encoder_mask = self.sortformer_modules.length_to_mask(emb_seq_length, emb_seq.shape[1])
         trans_emb_seq = self.transformer_encoder(encoder_states=emb_seq, encoder_mask=encoder_mask)
-        preds = self.sortformer_modules.forward_speaker_sigmoids(trans_emb_seq)
+        _preds = self.sortformer_modules.forward_speaker_sigmoids(trans_emb_seq)
+        preds = _preds * encoder_mask.unsqueeze(-1)
         return preds
 
     def _diarize_forward(self, batch: Any):
