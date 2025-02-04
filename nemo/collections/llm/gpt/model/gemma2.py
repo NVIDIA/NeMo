@@ -39,6 +39,7 @@ from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
+from nemo.utils.import_utils import safe_import_from
 
 if TYPE_CHECKING:
     from transformers import GemmaForCausalLM
@@ -46,12 +47,9 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-try:
-    from megatron.core.extensions.transformer_engine import TERowParallelLinear
-except ModuleNotFoundError:
-    from abc import ABC
-
-    TERowParallelLinear = ABC
+TERowParallelLinear, _ = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
+)
 
 
 def gemma2_layer_spec(config: "GPTConfig") -> ModuleSpec:

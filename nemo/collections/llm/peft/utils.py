@@ -44,14 +44,9 @@ TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
 )
 HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
-try:
-    from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
+MixedFusedLayerNorm, HAVE_APEX = safe_import_from(
+    "apex.normalization.fused_layer_norm", "MixedFusedLayerNorm"
+)
 
 
 def get_adapter_attributes_from_linear(m: nn.Module):
@@ -160,9 +155,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         **kwargs,
     ):
         super().__init__()
-        if not HAVE_MEGATRON_CORE:
-            logging.info("Megatron-core is required to use ParallelLinearAdapters.")
-            raise RuntimeError("ParallelLinearAdapter can not run without Megatron-core.")
+
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
         self.dim = dim
