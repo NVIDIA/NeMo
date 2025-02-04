@@ -353,7 +353,7 @@ target_label_n, "offset": offset_in_sec_n}
         return f, fl, t, tl
 
 
-# Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
+# Ported from Ported from Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq data/speech2text/speech_commands.py
 class AudioToClassificationLabelDataset(_AudioLabelDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
