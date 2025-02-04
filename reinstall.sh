@@ -36,7 +36,7 @@ mcore() {
       git checkout -f $MLM_TAG
         
     if [[ "$mode" == "build" ]]; then
-        pip wheel --wheel-dir /tmp/wheels/mcore . && \
+        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore . && \
         ls -al
     else
         pip install /tmp/wheels/mcore/*.whl
@@ -53,7 +53,7 @@ mcore() {
       git checkout -f $MAMBA_TAG
         
     if [[ "$mode" == "build" ]]; then
-        pip wheel --wheel-dir /tmp/wheels/mcore . && \
+        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore . && \
         ls -al
     else
         pip install /tmp/wheels/mcore/*.whl
@@ -70,7 +70,7 @@ mcore() {
       git checkout -f $CAUSAL_CONV_TAG
         
     if [[ "$mode" == "build" ]]; then
-        pip wheel --wheel-dir /tmp/wheels/mcore/ . && \
+        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore/ . && \
         ls -al
     else
         pip install /tmp/wheels/mcore/*.whl
@@ -92,7 +92,7 @@ te() {
         
     if [[ "$mode" == "build" ]]; then
        git submodule init && git submodule update && \
-        NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip wheel --wheel-dir /tmp/wheels/te/ . && \
+        NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip wheel --no-deps --wheel-dir /tmp/wheels/te/ . && \
         ls -al
     else
         pip install /tmp/wheels/te/*.whl
@@ -113,7 +113,7 @@ apex() {
       git checkout -f $APEX_TAG
         
     if [[ "$mode" == "build" ]]; then
-       pip wheel --no-build-isolation --wheel-dir /tmp/wheels/apex/ . && \
+       pip wheel --no-deps --no-build-isolation --wheel-dir /tmp/wheels/apex/ . && \
         ls -al
     else
         pip install /tmp/wheels/apex/*.whl
@@ -134,7 +134,7 @@ nemo() {
       git checkout -f $NEMO_TAG
         
     if [[ "$mode" == "build" ]]; then
-       pip wheel --wheel-dir /tmp/wheels/nemo/ . && \
+       pip wheel --no-deps --wheel-dir /tmp/wheels/nemo/ . && \
         ls -al
     else
         ${PIP} install --no-cache-dir virtualenv &&
