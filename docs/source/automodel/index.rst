@@ -2,8 +2,8 @@ NeMo AutoModel
 ==============
 
 
-NVIDIA NeMo AutoModel supports training and finetuning of models available via 🤗 Transformers' ``AutoModel`` classes,
-in particular it supports models available via:
+NeMo AutoModel enables the training and fine-tuning of models accessible through the Hugging Face Transformer AutoModel classes.
+Specifically, it supports models such as:
 
 - AutoModelForCausalLM
 - AutoModelForImageTextToText
