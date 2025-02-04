@@ -50,6 +50,7 @@ from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core import Timers
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from torch import nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.checkpoint.utils import CheckpointException
@@ -305,6 +306,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @property
     def pipeline_dtype(self):
+        """ """
         if self._pipeline_dtype is None:
             dtype_config = getattr(self._precision_plugin, "dtype_config", None)
             if dtype_config is not None:
@@ -335,7 +337,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             model.config = update_config_with_dtype_overrides(dtype_config, model.config)
 
-        ## add megatron timer to config
+        # add megatron timer to config
         if hasattr(model, "config"):
             model.config.timers = self.timers
 
@@ -425,7 +427,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             assert self.model is not None
             _sync_module_states(self.model)
 
-        ## add AsyncFinalizerCallback if using async
+        # add AsyncFinalizerCallback if using async
         if self.async_save:
             have_async_callback = False
             for callback in self.trainer.callbacks:
@@ -435,7 +437,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if not have_async_callback:
                 self.trainer.callbacks.append(AsyncFinalizerCallback())
 
-        ## Restore model weights and optimizer states if needed
+        # Restore model weights and optimizer states if needed
         if self.restore_config and not self.trainer.ckpt_path:
             self.selective_restore()
 
@@ -751,9 +753,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}
 
-            ## replace unsharded optimizer_states with sharded dict.
-            ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
-            ## the checkpoint will contain only model weights. Optimizer states will be omitted.
+            # replace unsharded optimizer_states with sharded dict.
+            # note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
+            # the checkpoint will contain only model weights. Optimizer states will be omitted.
             if self.ckpt_save_optimizer:
                 checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
