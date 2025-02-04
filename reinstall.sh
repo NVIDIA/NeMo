@@ -123,7 +123,6 @@ apex() {
         ls -al
     else
         pip install --no-build-isolation /tmp/wheels/apex/*.whl
-        pip install -e .
     fi
 }
 
