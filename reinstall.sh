@@ -40,7 +40,6 @@ mcore() {
         ls -al
     else
         pip install /tmp/wheels/mcore/*.whl
-        pip install -e .
     fi
 
     cd /opt
@@ -59,7 +58,6 @@ mcore() {
         ls -al
     else
         pip install /tmp/wheels/mcore/*.whl
-        pip install -e .
     fi
 
     cd /opt
@@ -78,7 +76,6 @@ mcore() {
         ls -al
     else
         pip install /tmp/wheels/mcore/*.whl
-        pip install -e .
     fi
     
 }
