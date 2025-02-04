@@ -21,7 +21,17 @@ import torch
 import torch.distributed
 import torch.nn.functional as F
 from megatron.core.enums import ModelType
-from megatron.core.extensions.transformer_engine import TENorm
+try:
+    from megatron.core.extensions.transformer_engine import TENorm
+except ImportError:
+    from nemo.utils import logging
+
+    logging.warning(
+        "Failed to import Transformer Engine dependencies. "
+        "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
+        "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
+    )
+
 from megatron.core.models.gpt import GPTModel as MCoreGPTModel
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.optimizer import OptimizerConfig
