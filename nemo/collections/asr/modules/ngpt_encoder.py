@@ -203,7 +203,9 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
         return x, length
 
     def normalize_matrices(self):
-        return self.ngpt.normalize_matrices()
+        if hasattr(self.pre_encode, "normalize_matrices"):
+            self.pre_encode.normalize_matrices()
+        self.ngpt.normalize_matrices()
 
 
 def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
@@ -454,7 +456,7 @@ class GPT(nn.Module):
 
     def forward(self, x, mask=None):
 
-        for block in self.transformer.h:
+        for idx, block in enumerate(self.transformer.h):
             x = block(x, mask=mask)
 
         if self.config.use_nGPT == 0:
@@ -569,6 +571,7 @@ class NGPTStackingSubsampling(torch.nn.Module):
         self.subsampling_factor = subsampling_factor
         self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out, bias=use_bias)
         self.silu = nn.SiLU()
+        self.pad_frame = nn.Parameter(torch.ones(feat_in, dtype=torch.float32))
 
     def _init_weights(self):
         torch.nn.init.normal_(self.proj_out.weight, mean=0.0, std=self.config.base_scale)
@@ -583,7 +586,11 @@ class NGPTStackingSubsampling(torch.nn.Module):
         pad_size = (self.subsampling_factor - (t % self.subsampling_factor)) % self.subsampling_factor
         lengths = torch.div(lengths + pad_size, self.subsampling_factor, rounding_mode='floor')
 
+        # Pad and fill padding frames (all-zero) with a learnable padding 'embedding'
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
+        x[(x == 0).all(dim=-1)] = self.pad_frame
+
+        x = justnorm(x)
         _, t, _ = x.size()
         x = torch.reshape(x, (b, t // self.subsampling_factor, h * self.subsampling_factor))
         x = self.proj_out(x)

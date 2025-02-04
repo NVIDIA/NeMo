@@ -74,6 +74,8 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         targets = targets.long()
         # here we transpose because we expect [B, T, D] while PyTorch assumes [T, B, D]
         log_probs = log_probs.transpose(1, 0)
+        if log_probs.dtype == torch.bfloat16:
+            log_probs = log_probs.float()
         loss = super().forward(
             log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
         )
