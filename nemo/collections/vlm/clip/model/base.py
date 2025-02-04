@@ -21,6 +21,7 @@ import torch
 import torch.distributed
 import torch.nn.functional as F
 from megatron.core.enums import ModelType
+
 try:
     from megatron.core.extensions.transformer_engine import TENorm
 except ImportError:
