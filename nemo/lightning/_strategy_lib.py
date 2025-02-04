@@ -22,8 +22,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Mapping, Optio
 import torch
 from torch import nn
 
-from nemo.utils import logging
 from nemo.lightning.megatron_init import initialize_model_parallel_for_nemo
+from nemo.utils import logging
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 
 class SharedStateDictProtocol(Protocol):
     """ """
+
     def sharded_state_dict(self, prefix=""):
         """ """
         ...
@@ -646,6 +647,7 @@ def setup_megatron_optimizer(
 
     class McoreOpt(McoreDistributedOptimizer):
         """ """
+
         def sharded_state_dict(
             self,
             model_sharded_state_dict,
