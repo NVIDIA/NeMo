@@ -56,7 +56,7 @@ class MistralConfig7B(GPTConfig):
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
-    cp_comm_type: str = "a2a" 
+    cp_comm_type: str = "a2a"
 
 
 @dataclass
