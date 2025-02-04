@@ -143,7 +143,7 @@ nemo() {
           virtualenv /opt/venv &&
           /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
             -r /workspace/requirements/requirements_vllm.txt \
-            -r /workspace/requirements/requirements_infer.txt
+            -r /workspace/requirements/requirements_deploy.txt
 
         pip install --no-cache-dir /tmp/wheels/nemo/*.whl "llama-index==0.10.43" "unstructured==0.14.9" "triton==3.1.0"
     fi
