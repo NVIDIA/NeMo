@@ -124,7 +124,7 @@ def parse_cli_args():
         "-tp",
         "--tensor_parallel_size",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
+        help="Intra-layer model parallelism. Splits tensors across GPU ranks.",
         required=False,
         default=None,
     )
@@ -132,7 +132,7 @@ def parse_cli_args():
         "-pp",
         "--pipeline_parallel_size",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
+        help="Inter-layer model parallelism. Splits transformer layers across GPU ranks.",
         required=False,
         default=None,
     )
@@ -140,7 +140,7 @@ def parse_cli_args():
         "-cp",
         "--context_parallel_size",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
+        help="Splits network input along sequence dimension across GPU ranks.",
         required=False,
         default=None,
     )
@@ -148,7 +148,7 @@ def parse_cli_args():
         "-vp",
         "--virtual_pipeline_parallel_size",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
+        help="Number of virtual blocks per pipeline model parallel rank is the virtual model parallel size.",
         required=False,
         default=None,
     )
@@ -156,7 +156,15 @@ def parse_cli_args():
         "-ep",
         "--expert_parallel_size",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
+        help="Distributes Moe Experts across sub data parallel dimension.",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-et",
+        "--expert_tensor_parallel_size",
+        type=int,
+        help="Intra-layer tensor model parallelsm for expert layer. Splits tensors across GPU ranks.",
         required=False,
         default=None,
     )
@@ -164,7 +172,6 @@ def parse_cli_args():
         "-mb",
         "--micro_batch_size",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
         required=False,
         default=None,
     )
@@ -172,7 +179,6 @@ def parse_cli_args():
         "-gb",
         "--global_batch_size",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
         required=False,
         default=None,
     )
@@ -180,7 +186,7 @@ def parse_cli_args():
         "-g",
         "--gpu",
         type=str,
-        help="If true, prints sbatch script to terminal without launching experiment.",
+        help="Target gpu type. Defaults to 'h100'.",
         required=False,
         default="h100",
     )
@@ -188,7 +194,7 @@ def parse_cli_args():
         "-ng",
         "--num_gpus",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
+        help="Number of gpus.",
         required=False,
         default=None,
     )
@@ -196,7 +202,7 @@ def parse_cli_args():
         "-gn",
         "--gpus_per_node",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
+        help="Number of gpus per node. Defaults to 8",
         required=False,
         default=8,
     )
@@ -204,7 +210,7 @@ def parse_cli_args():
         "-ms",
         "--max_steps",
         type=int,
-        help="If true, prints sbatch script to terminal without launching experiment.",
+        help="Number of train steps. Defaults to 100",
         required=False,
         default=100,
     )

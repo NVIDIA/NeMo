@@ -127,50 +127,43 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         use_fast=True,
     )
 
-
-@dataclass
-class ModelConfig:
-
-    num_nodes: int
-    mbs: int
-    gbs: int
-    tp_size: int
-    pp_size: int
-    cp_size: int
-    vp_size: int
-    ep_size: int
-
-
 def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
     script_dir = str(Path(__file__).parent.absolute())
     recommended_configs_csv = os.path.join(script_dir, "recommended_model_configs", f"model_configs_{gpu}.csv")
     logging.info(f"Using {recommended_configs_csv} for loading default recommended model configs")
-    df = pd.read_csv(recommended_configs_csv)
-    config_df = df[
-        (df["task"] == task)
-        & (df["model"] == model_name)
-        & (df["size"] == model_size)
-        & (df["dtype"] == args.compute_dtype)
-    ]
-    logging.info(f"Found model configs for {task}-{model_name}-{model_size}-{args.compute_dtype}\n{config_df}")
-    config = config_df.to_dict(orient='records')[0]
+    config_df = pd.DataFrame()
+    if os.path.isfile(recommended_configs_csv):
+        df = pd.read_csv(recommended_configs_csv)
+        config_df = df[
+            (df["task"] == task)
+            & (df["model"] == model_name)
+            & (df["size"] == model_size)
+            & (df["dtype"] == args.compute_dtype)
+        ]
+        if len(config_df) == 0:
+            logging.warning(f"Missing performance configs for {task}-{model_name}-{model_size}-{args.compute_dtype}")
+            logging.warning("Make sure you provide all necessary arguments in the command line")
 
-    num_gpus = args.num_gpus or int(config["num_gpus"])
-    num_nodes = -(num_gpus // -args.gpus_per_node)  # ceil division
+    logging.info(f"Found recommended configs for {task}-{model_name}-{model_size}-{args.compute_dtype}\n{config_df}")
+    config = config_df.to_dict(orient='records')[0] if len(config_df) > 0 else {}
 
-    mbs = args.micro_batch_size or int(config["mbs"])
-    gbs = args.global_batch_size or int(config["gbs"])
+    num_gpus = args.num_gpus if args.num_gpus is not None else int(config.get("num_gpus"))
+    num_nodes = -(num_gpus // -args.gpus_per_node) # ceil division
+    mbs = args.micro_batch_size if args.micro_batch_size is not None else int(config.get("mbs"))
+    gbs = args.global_batch_size if args.global_batch_size is not None else int(config.get("gbs"))
+    tp_size = args.tensor_parallel_size if args.tensor_parallel_size is not None else int(config.get("tp_size"))
+    pp_size = args.pipeline_parallel_size if args.pipeline_parallel_size is not None else int(config.get("pp_size"))
+    cp_size = args.context_parallel_size if args.context_parallel_size is not None else int(config.get("cp_size"))
+    vp_size = args.virtual_pipeline_parallel_size
+    vp_size = vp_size if vp_size is not None else int(config.get("vp_size"))
+    ep_size = args.expert_parallel_size if args.expert_parallel_size is not None else int(config.get("ep_size"))
+    etp_size = args.expert_tensor_parallel_size
+    etp_size = etp_size if etp_size is not None else config.get("etp_size")
 
-    tp_size = args.tensor_parallel_size or int(config["tp_size"])
-    pp_size = args.pipeline_parallel_size or int(config["pp_size"])
-    cp_size = args.context_parallel_size or int(config["cp_size"])
-    vp_size = args.virtual_pipeline_parallel_size or int(config["vp_size"])
-    ep_size = args.expert_parallel_size or int(config["ep_size"])
-
-    return num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size
+    return num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
 
 
-def set_recipe_primary_configs(
+def set_primary_perf_configs(
     recipe,
     num_nodes: int,
     num_gpus_per_node: int,
@@ -199,6 +192,15 @@ def set_recipe_primary_configs(
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = vp_size
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
+
+    # callback configs
+    comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
+    dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
+    if comm_overlap_callback_idx is not None:
+        # WARNING: If True, checkpointing (if enabled) might not work
+        recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
+            dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
+        )
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None

@@ -17,10 +17,9 @@ from os.path import basename, splitext
 import nemo_run as run
 from argument_parser import parse_cli_args
 from utils import (
-    get_comm_overlap_callback_idx,
     get_user_configs,
     hf_tokenizer,
-    set_recipe_primary_configs,
+    set_primary_perf_configs,
     slurm_executor,
 )
 
@@ -29,7 +28,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 
-def set_recipe_configs(
+def override_recipe_configs(
     args: str,
     num_nodes: int,
     mbs: int,
@@ -47,7 +46,7 @@ def set_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     recipe = pretrain_recipe(performance_mode=True)
-    recipe = set_recipe_primary_configs(
+    recipe = set_primary_perf_configs(
         recipe, num_nodes, args.gpus_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
     )
 
@@ -55,19 +54,9 @@ def set_recipe_configs(
     recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-8B")
 
-    comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
-
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
-
-    # callback configs
-    dp_size = (num_nodes * args.gpus_per_node) / (tp_size * pp_size * cp_size)
-    if comm_overlap_callback_idx is not None:
-        # WARNING: If True, checkpointing (if enabled) might not work
-        recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
-            dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
-        )
 
     if not args.tensorboard:  # tensorboard adds performance overhead.
         recipe.log.tensorboard = None
@@ -84,12 +73,11 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama3", "8b", args)
-    assert all(cfg is not None for cfg in kwargs), "Some values are None"
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size = kwargs
 
-    recipe = set_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
+    recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
@@ -106,17 +94,17 @@ if __name__ == "__main__":
         nemo_home=args.nemo_home,
     )
 
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-        )
-    ]
+    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None),]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
-    with run.Experiment(splitext(basename(__file__))) as exp:
-        exp.add(recipe, executor=executor, name=exp_name, plugins=plugins)
+    with run.Experiment(exp_name) as exp:
+        exp.add(
+            recipe, 
+            executor=executor, 
+            name=exp_name, 
+            plugins=plugins,
+        )
 
         if not args.dryrun:
             exp.run(sequential=True, detach=True)
