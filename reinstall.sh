@@ -131,6 +131,8 @@ nemo() {
     fi
 
     pushd $DIR &&
+      git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge' &&
+      git fetch origin $NEMO_TAG && 
       git checkout -f $NEMO_TAG
         
     if [[ "$mode" == "build" ]]; then
