@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# CLIP
+from nemo.collections.vlm.clip.data import ClipMockDataModule
+from nemo.collections.vlm.clip.model import ClipConfigB32, ClipConfigL14, CLIPModel
+
 # HF
 from nemo.collections.vlm.hf.data.hf_dataset import HFDatasetDataModule
 from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import HFAutoModelForImageTextToText
@@ -49,10 +53,6 @@ from nemo.collections.vlm.neva.data import (
 )
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
 from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
-
-# CLIP
-from nemo.collections.vlm.clip.data import ClipMockDataModule
-from nemo.collections.vlm.clip.model import ClipConfigB32, ClipConfigL14, CLIPModel
 
 # PEFT
 from nemo.collections.vlm.peft import LoRA
