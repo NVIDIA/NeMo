@@ -23,7 +23,7 @@ export NEMO_RUN_TAG=main
 export CAUSAL_CONV_TAG=v1.2.2.post1
 export MAMBA_TAG=v2.2.0
 export MCORE_TAG=0e85db539cf16816ffced6e7dac644d91ffadc04
-export NV_RESILIENCY_EXT_TAG=97aad77609d2e25ed38ac5c99f0c13f93c48464e
+export NV_RESILIENCY_EXT_TAG=98ebc4266a6b19203086c286f38b11b4fe38f4f1
 
 
 ${PIP} install setuptools
