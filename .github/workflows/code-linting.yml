@@ -71,7 +71,7 @@ jobs:
 
           pip install pylint
           set +e
-          pylint $ADDITIONAL_PYLINT_ARGS --output "pylintrc.$DOMAIN.txt" --rcfile ".pylintrc.$DOMAIN" ${CHANGED_FILES[@]}
+          pylint --ignore-long-lines '^\s*(# )?<?https?://\S+>?$' $ADDITIONAL_PYLINT_ARGS --output "pylintrc.$DOMAIN.txt" --rcfile ".pylintrc.$DOMAIN" ${CHANGED_FILES[@]}
           echo "exit-code=$?" | tee -a "$GITHUB_OUTPUT"
 
       - name: Run flake8
