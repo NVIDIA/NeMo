@@ -32,6 +32,7 @@ from nemo.collections.tts.losses.audio_codec_loss import (
     SISDRLoss,
     TimeDomainLoss,
 )
+from nemo.collections.tts.modules.audio_codec_modules import PhonemeASR, ResNetSpeakerEncoder
 from nemo.collections.tts.modules.common import GaussianDropout
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
@@ -42,8 +43,14 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
-from nemo.collections.tts.modules.audio_codec_modules import ResNetSpeakerEncoder, PhonemeASR
-from nemo.collections.tts.modules.common import torchaudio_functional_resample
+
+try:
+    import torchaudio
+
+    HAVE_TORCHAUDIO = True
+except ModuleNotFoundError:
+    HAVE_TORCHAUDIO = False
+
 
 @experimental
 class AudioCodecModel(ModelPT):
@@ -159,7 +166,9 @@ class AudioCodecModel(ModelPT):
             self.speaker_encoder = ResNetSpeakerEncoder()
             # load pretrained model
             # self.speaker_encoder.load_checkpoint("https://github.com/coqui-ai/TTS/releases/download/speaker_encoder_model/model_se.pth.tar")
-            self.speaker_encoder.load_checkpoint("https://huggingface.co/Edresson/Speaker_Encoder_H_ASP/resolve/main/pytorch_model.bin", strict=False)
+            self.speaker_encoder.load_checkpoint(
+                "https://huggingface.co/Edresson/Speaker_Encoder_H_ASP/resolve/main/pytorch_model.bin", strict=False
+            )
             # freeze the pretrained speaker encoder
             self.speaker_encoder.freeze()
             print("Speaker encoder loaded and frozen !!")
@@ -179,18 +188,50 @@ class AudioCodecModel(ModelPT):
         self.lr_schedule_interval = None
         self.automatic_optimization = False
 
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        if hasattr(self, '_no_state_dict') and self._no_state_dict:
+            return {}
+        # Don't save the speaker verification and codec model in the state dict
+        state_dict = super().state_dict(destination, prefix, keep_vars)
+        for key in list(state_dict.keys()):
+            if self.use_scl_loss and "speaker_encoder." in key:
+                del state_dict[key]
+            if "discriminator" in key and ".slm_model.ssl_model." in key:
+                del state_dict[key]
+        return state_dict
+
+    def load_state_dict(self, state_dict, strict=True):
+        # Override to load all the keys except .speaker_encoder. and WavLM model
+        for key in list(state_dict.keys()):
+            if self.use_scl_loss and "speaker_encoder." in key:
+                del state_dict[key]
+            if "discriminator" in key and ".slm_model.ssl_model." in key:
+                del state_dict[key]
+
+        super().load_state_dict(state_dict, strict=False)
 
     def get_speaker_embedding(self, audio, requires_grad=False):
         if not requires_grad:
             with torch.no_grad():
-                audio_resampled = torchaudio_functional_resample(audio, self.sample_rate, self.speaker_encoder.audio_config["sample_rate"])
+                if HAVE_TORCHAUDIO:
+                    audio_resampled = torchaudio.functional.resample(
+                        audio, self.sample_rate, self.speaker_encoder.audio_config["sample_rate"]
+                    )
+                else:
+                    logging.error('Could not import torchaudio!')
+                    raise ModuleNotFoundError(f"torchaudio is not installed but is necessary to audio resample !!")
                 g = self.speaker_encoder(audio_resampled, l2_norm=True).unsqueeze(-1)
         else:
-            audio_resampled = torchaudio_functional_resample(audio, self.sample_rate, self.speaker_encoder.audio_config["sample_rate"])
+            if HAVE_TORCHAUDIO:
+                audio_resampled = torchaudio.functional.resample(
+                    audio, self.sample_rate, self.speaker_encoder.audio_config["sample_rate"]
+                )
+            else:
+                logging.error('Could not import torchaudio!')
+                raise ModuleNotFoundError(f"torchaudio is not installed but is necessary to audio resample !!")
             g = self.speaker_encoder(audio_resampled, l2_norm=True).unsqueeze(-1)
 
         return g
-
 
     @typecheck(
         input_types={
@@ -525,7 +566,7 @@ class AudioCodecModel(ModelPT):
             audios_batch = torch.cat((audio.squeeze(1), audio_gen.squeeze(1)), dim=0)
 
             logits, _ = self.phoneme_asr_model(audios_batch)
-            
+
             logits_gt, logits_pred = torch.chunk(logits, 2, dim=0)
             # labels_gt, labels_pred = torch.chunk(labels, 2, dim=0)
 
@@ -684,7 +725,9 @@ class AudioCodecModel(ModelPT):
         asr_ph_params = self.phoneme_asr_model.parameters() if self.use_asr_consitency_loss else []
         se_params = self.speaker_encoder.parameters() if self.use_scl_loss else []
         vq_params = self.vector_quantizer.parameters() if self.vector_quantizer else []
-        gen_params = itertools.chain(self.audio_encoder.parameters(), self.audio_decoder.parameters(), vq_params, asr_ph_params, se_params)
+        gen_params = itertools.chain(
+            self.audio_encoder.parameters(), self.audio_decoder.parameters(), vq_params, asr_ph_params, se_params
+        )
         optim_g = instantiate(optim_config, params=gen_params)
 
         disc_params = self.discriminator.parameters()

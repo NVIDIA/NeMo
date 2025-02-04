@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+import os
 from abc import ABC, abstractmethod
 from typing import Iterable, List, Optional, Tuple
 
-import math
-import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -38,10 +38,6 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-
-from nemo.collections.tts.modules.common import TorchAudioResample
-
-
 
 try:
     import torchaudio
@@ -112,15 +108,19 @@ class SLMDiscriminator(NeuralModule):
     ):
         super().__init__()
 
-        self.resample = TorchAudioResample(input_sr, slm_sr)
+        if HAVE_TORCHAUDIO:
+            self.resample = torchaudio.transforms.Resample(input_sr, slm_sr)
+        else:
+            self.resample = None
 
         self.slm_model = SSLModel(slm_model_name)
 
         # Freeze slm model
         self.slm_model.freeze()
 
-
-        norm_f = torch.nn.utils.weight_norm if use_spectral_norm == False else torch.nn.utils.spectral_norm
+        norm_f = (
+            torch.nn.utils.parametrizations.weight_norm if use_spectral_norm == False else torch.nn.utils.spectral_norm
+        )
         self.pre = norm_f(nn.Conv1d(slm_hidden * slm_layers, initial_channel, 1, 1, padding=0))
 
         self.convs = nn.ModuleList(
@@ -179,7 +179,9 @@ def zero_mean_unit_var_norm(input_values):
     """
     Normalized to have zero mean and unit variance
     """
-    normed_input_values = (input_values - input_values.mean(dim=1).unsqueeze(-1)) / torch.sqrt(input_values.var(dim=1).unsqueeze(-1) + 1e-7)
+    normed_input_values = (input_values - input_values.mean(dim=1).unsqueeze(-1)) / torch.sqrt(
+        input_values.var(dim=1).unsqueeze(-1) + 1e-7
+    )
     return normed_input_values
 
 
@@ -188,7 +190,10 @@ class PhonemeASR(NeuralModule):
         super().__init__()
         # self.processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-lv-60-espeak-cv-ft") # processor are not grad friendly
         self.model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-lv-60-espeak-cv-ft")
-        self.resample = TorchAudioResample(input_sr, model_sr)
+        if HAVE_TORCHAUDIO:
+            self.resample = torchaudio.transforms.Resample(input_sr, model_sr)
+        else:
+            self.resample = None
 
     def forward(self, audio):
         audio = self.resample(audio)
@@ -206,11 +211,7 @@ class PhonemeASR(NeuralModule):
 ##############
 # Speaker encoder #
 ##############
-def load_fsspec(
-    path: str,
-    map_location: str = None,
-    **kwargs
-):
+def load_fsspec(path: str, map_location: str = None, **kwargs):
     """Like torch.load but can load from other locations (e.g. s3:// , gs://).
 
     Args:
@@ -231,9 +232,8 @@ def load_fsspec(
                 return torch.load(f, map_location=map_location, **kwargs)
         else:
             logging.error('Could not import fsspec. Loading a checkpoint link is not supported!')
-            raise ModuleNotFoundError(
-                f"fsspec is not installed but is necessary to download remote checkpoints !!"
-            )
+            raise ModuleNotFoundError(f"fsspec is not installed but is necessary to download remote checkpoints !!")
+
 
 class PreEmphasis(NeuralModule):
     def __init__(self, coefficient=0.97):
@@ -246,6 +246,7 @@ class PreEmphasis(NeuralModule):
 
         x = torch.nn.functional.pad(x.unsqueeze(1), (1, 0), "reflect")
         return torch.nn.functional.conv1d(x, self.filter).squeeze(1)
+
 
 class SELayer(NeuralModule):
     def __init__(self, channel, reduction=8):
@@ -340,7 +341,7 @@ class ResNetSpeakerEncoder(NeuralModule):
             "clip_norm": False,
             "stats_path": None,
             "do_rms_norm": True,
-            "db_level": -27.0
+            "db_level": -27.0,
         },
     ):
         super(ResNetSpeakerEncoder, self).__init__()
@@ -480,11 +481,7 @@ class ResNetSpeakerEncoder(NeuralModule):
             ),
         )
 
-    def load_checkpoint(
-        self,
-        checkpoint_path: str,
-        strict=True
-    ):
+    def load_checkpoint(self, checkpoint_path: str, strict=True):
         state = load_fsspec(checkpoint_path, map_location=torch.device("cpu"))
         self.load_state_dict(state["model"], strict=strict)
 
@@ -532,7 +529,7 @@ class CausalConvTranspose1dNorm(NeuralModule):
         super().__init__()
 
         self.trim_right_ratio = trim_right_ratio
-        
+
         # if groups are None, create a group for each out channel as done in Mini Codec
         groups = out_channels if groups is None else groups
 
@@ -548,10 +545,10 @@ class CausalConvTranspose1dNorm(NeuralModule):
         self.padding_left = padding_total - self.padding_right
 
         # add weight norm
-        self.conv = nn.utils.weight_norm(self.conv)
+        self.conv = nn.utils.parametrizations.weight_norm(self.conv)
 
     def apply_weight_norm(self):
-        weight_norm = nn.utils.weight_norm
+        weight_norm = nn.utils.parametrizations.weight_norm
         if hasattr(nn.utils.parametrizations, "weight_norm"):
             weight_norm = nn.utils.parametrizations.weight_norm
 
@@ -584,7 +581,7 @@ class CausalConv1dNorm(NeuralModule):
         groups: int = 1,
         pad_mode: str = "zeros",
         extra_pad_mode: str = "constant",
-        bias: bool = True
+        bias: bool = True,
     ):
         super().__init__()
         self.extra_pad_mode = extra_pad_mode
@@ -597,7 +594,14 @@ class CausalConv1dNorm(NeuralModule):
             )
 
         self.conv = nn.Conv1d(
-            in_channels, out_channels, kernel_size, stride, dilation=dilation, groups=groups, bias=bias, padding_mode=pad_mode,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+            padding_mode=pad_mode,
         )
 
         kernel_size = self.conv.kernel_size[0]
@@ -612,7 +616,7 @@ class CausalConv1dNorm(NeuralModule):
         self.register_buffer("padding_total", torch.tensor(kernel_size - stride, dtype=torch.int64), persistent=False)
 
         # add weight norm
-        self.conv = nn.utils.weight_norm(self.conv)
+        self.conv = nn.utils.parametrizations.weight_norm(self.conv)
 
     def remove_weight_norm(self):
         nn.utils.remove_weight_norm(self.conv)
@@ -686,7 +690,7 @@ class Conv1dNorm(NeuralModule):
             dilation=dilation,
             padding_mode=pad_mode,
         )
-        self.conv = nn.utils.weight_norm(conv)
+        self.conv = nn.utils.parametrizations.weight_norm(conv)
 
     @property
     def input_types(self):
@@ -723,9 +727,9 @@ class ConvTranspose1dNorm(NeuralModule):
             padding=padding,
             output_padding=output_padding,
             padding_mode="zeros",
-            groups=groups
+            groups=groups,
         )
-        self.conv = nn.utils.weight_norm(conv)
+        self.conv = nn.utils.parametrizations.weight_norm(conv)
 
     @property
     def input_types(self):
@@ -771,7 +775,7 @@ class Conv2dNorm(NeuralModule):
             padding=padding,
             padding_mode="reflect",
         )
-        self.conv = nn.utils.weight_norm(conv)
+        self.conv = nn.utils.parametrizations.weight_norm(conv)
 
     @property
     def input_types(self):
@@ -1511,14 +1515,26 @@ class ResidualBlock(NeuralModule):
         self.dropout = torch.nn.Dropout(dropout_rate)
         if not is_causal:
             self.input_conv = Conv1dNorm(
-                in_channels=channels, out_channels=filters, kernel_size=kernel_size, dilation=dilation, pad_mode=pad_mode
+                in_channels=channels,
+                out_channels=filters,
+                kernel_size=kernel_size,
+                dilation=dilation,
+                pad_mode=pad_mode,
             )
-            self.skip_conv = Conv1dNorm(in_channels=filters, out_channels=channels, kernel_size=kernel_size, pad_mode=pad_mode)
+            self.skip_conv = Conv1dNorm(
+                in_channels=filters, out_channels=channels, kernel_size=kernel_size, pad_mode=pad_mode
+            )
         else:
             self.input_conv = CausalConv1dNorm(
-                in_channels=channels, out_channels=filters, kernel_size=kernel_size, dilation=dilation, pad_mode=pad_mode
+                in_channels=channels,
+                out_channels=filters,
+                kernel_size=kernel_size,
+                dilation=dilation,
+                pad_mode=pad_mode,
             )
-            self.skip_conv = CausalConv1dNorm(in_channels=filters, out_channels=channels, kernel_size=kernel_size, pad_mode=pad_mode)
+            self.skip_conv = CausalConv1dNorm(
+                in_channels=filters, out_channels=channels, kernel_size=kernel_size, pad_mode=pad_mode
+            )
 
     def remove_weight_norm(self):
         self.input_conv.remove_weight_norm()
@@ -1554,7 +1570,15 @@ class HiFiGANResBlock(NeuralModule):
         activation: Activation for the residual blocks.
     """
 
-    def __init__(self, channels: int, kernel_size: int, dilations: Iterable[int], activation: str, is_causal: bool = False, pad_mode: str = "reflect"):
+    def __init__(
+        self,
+        channels: int,
+        kernel_size: int,
+        dilations: Iterable[int],
+        activation: str,
+        is_causal: bool = False,
+        pad_mode: str = "reflect",
+    ):
         super().__init__()
 
         self.res_blocks = nn.ModuleList(
@@ -1608,12 +1632,27 @@ class HiFiGANResLayer(NeuralModule):
 
     """
 
-    def __init__(self, channels: int, kernel_sizes: Iterable[int], dilations: Iterable[int], activation: str, is_causal: bool = False, pad_mode: str = "reflect"):
+    def __init__(
+        self,
+        channels: int,
+        kernel_sizes: Iterable[int],
+        dilations: Iterable[int],
+        activation: str,
+        is_causal: bool = False,
+        pad_mode: str = "reflect",
+    ):
         super().__init__()
 
         self.res_blocks = nn.ModuleList(
             [
-                HiFiGANResBlock(channels=channels, kernel_size=kernel_size, dilations=dilations, activation=activation, is_causal=is_causal, pad_mode=pad_mode)
+                HiFiGANResBlock(
+                    channels=channels,
+                    kernel_size=kernel_size,
+                    dilations=dilations,
+                    activation=activation,
+                    is_causal=is_causal,
+                    pad_mode=pad_mode,
+                )
                 for kernel_size in kernel_sizes
             ]
         )
@@ -1675,7 +1714,9 @@ class CausalHiFiGANEncoder(NeuralModule):
         super().__init__()
 
         self.down_sample_rates = down_sample_rates
-        self.pre_conv = CausalConv1dNorm(in_channels=1, out_channels=base_channels, kernel_size=in_kernel_size, pad_mode=pad_mode)
+        self.pre_conv = CausalConv1dNorm(
+            in_channels=1, out_channels=base_channels, kernel_size=in_kernel_size, pad_mode=pad_mode
+        )
 
         in_channels = base_channels
         self.activations = nn.ModuleList([])
@@ -1710,7 +1751,9 @@ class CausalHiFiGANEncoder(NeuralModule):
             self.down_sample_conv_layers.append(down_sample_conv)
 
         self.post_activation = CodecActivation(activation, channels=in_channels)
-        self.post_conv = CausalConv1dNorm(in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size, pad_mode=pad_mode)
+        self.post_conv = CausalConv1dNorm(
+            in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size, pad_mode=pad_mode
+        )
 
     @property
     def input_types(self):
@@ -1792,7 +1835,9 @@ class HiFiGANEncoder(NeuralModule):
         super().__init__()
 
         self.down_sample_rates = down_sample_rates
-        self.pre_conv = Conv1dNorm(in_channels=1, out_channels=base_channels, kernel_size=in_kernel_size, pad_mode=pad_mode)
+        self.pre_conv = Conv1dNorm(
+            in_channels=1, out_channels=base_channels, kernel_size=in_kernel_size, pad_mode=pad_mode
+        )
 
         in_channels = base_channels
         self.activations = nn.ModuleList([])
@@ -1821,13 +1866,15 @@ class HiFiGANEncoder(NeuralModule):
                 kernel_size=kernel_size,
                 stride=down_sample_rate,
                 padding=padding,
-                pad_mode=pad_mode
+                pad_mode=pad_mode,
             )
             in_channels = out_channels
             self.down_sample_conv_layers.append(down_sample_conv)
 
         self.post_activation = CodecActivation(activation, channels=in_channels)
-        self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size, pad_mode=pad_mode)
+        self.post_conv = Conv1dNorm(
+            in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size, pad_mode=pad_mode
+        )
 
     @property
     def input_types(self):
@@ -1915,7 +1962,9 @@ class CausalHiFiGANDecoder(NeuralModule):
 
         self.up_sample_rates = up_sample_rates
 
-        self.pre_conv = CausalConv1dNorm(in_channels=input_dim, out_channels=base_channels, kernel_size=in_kernel_size, pad_mode=pad_mode)
+        self.pre_conv = CausalConv1dNorm(
+            in_channels=input_dim, out_channels=base_channels, kernel_size=in_kernel_size, pad_mode=pad_mode
+        )
 
         in_channels = base_channels
         self.activations = nn.ModuleList([])
@@ -1929,7 +1978,11 @@ class CausalHiFiGANDecoder(NeuralModule):
             self.activations.append(act)
 
             up_sample_conv = CausalConvTranspose1dNorm(
-                in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=up_sample_rate, groups=out_channels if n_groups_equal_to_out_channels else 1
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=up_sample_rate,
+                groups=out_channels if n_groups_equal_to_out_channels else 1,
             )
             in_channels = out_channels
             self.up_sample_conv_layers.append(up_sample_conv)
@@ -1945,7 +1998,9 @@ class CausalHiFiGANDecoder(NeuralModule):
             self.res_layers.append(res_layer)
 
         self.post_activation = CodecActivation(activation, channels=in_channels)
-        self.post_conv = CausalConv1dNorm(in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size, pad_mode=pad_mode)
+        self.post_conv = CausalConv1dNorm(
+            in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size, pad_mode=pad_mode
+        )
         if output_activation == "tanh":
             self.out_activation = nn.Tanh()
         elif output_activation == "clamp":
@@ -2039,7 +2094,9 @@ class HiFiGANDecoder(NeuralModule):
 
         self.up_sample_rates = up_sample_rates
 
-        self.pre_conv = Conv1dNorm(in_channels=input_dim, out_channels=base_channels, kernel_size=in_kernel_size, pad_mode=pad_mode)
+        self.pre_conv = Conv1dNorm(
+            in_channels=input_dim, out_channels=base_channels, kernel_size=in_kernel_size, pad_mode=pad_mode
+        )
 
         in_channels = base_channels
         self.activations = nn.ModuleList([])
@@ -2053,7 +2110,11 @@ class HiFiGANDecoder(NeuralModule):
             self.activations.append(act)
 
             up_sample_conv = ConvTranspose1dNorm(
-                in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=up_sample_rate, groups=out_channels if n_groups_equal_to_out_channels else 1,
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=up_sample_rate,
+                groups=out_channels if n_groups_equal_to_out_channels else 1,
             )
             in_channels = out_channels
             self.up_sample_conv_layers.append(up_sample_conv)
@@ -2068,7 +2129,9 @@ class HiFiGANDecoder(NeuralModule):
             self.res_layers.append(res_layer)
 
         self.post_activation = CodecActivation(activation, channels=in_channels)
-        self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size, pad_mode=pad_mode)
+        self.post_conv = Conv1dNorm(
+            in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size, pad_mode=pad_mode
+        )
         if output_activation == "tanh":
             self.out_activation = nn.Tanh()
         elif output_activation == "clamp":
@@ -2199,7 +2262,9 @@ class ResNetEncoder(NeuralModule):
     ):
         super(ResNetEncoder, self).__init__()
 
-        self.pre_conv = Conv1dNorm(in_channels=in_channels, out_channels=hidden_channels, kernel_size=kernel_size, pad_mode=pad_mode)
+        self.pre_conv = Conv1dNorm(
+            in_channels=in_channels, out_channels=hidden_channels, kernel_size=kernel_size, pad_mode=pad_mode
+        )
         self.res_layers = nn.ModuleList(
             [
                 ResidualBlock(
@@ -2214,7 +2279,9 @@ class ResNetEncoder(NeuralModule):
             ]
         )
         self.post_activation = CodecActivation(activation, channels=hidden_channels)
-        self.post_conv = Conv1dNorm(in_channels=hidden_channels, out_channels=out_channels, kernel_size=kernel_size, pad_mode=pad_mode)
+        self.post_conv = Conv1dNorm(
+            in_channels=hidden_channels, out_channels=out_channels, kernel_size=kernel_size, pad_mode=pad_mode
+        )
 
     def remove_weight_norm(self):
         self.pre_conv.remove_weight_norm()
