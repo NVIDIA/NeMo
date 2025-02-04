@@ -1,7 +1,6 @@
-NVIDIA NeMo AutoModel Docs
-==========================
+NeMo AutoModel
+==============
 
-NVIDIA NeMo Framework is an end-to-end, cloud-native framework designed to build, customize, and deploy generative AI models anywhere.
 
 NVIDIA NeMo AutoModel supports training and finetuning of models available via 🤗 Transformers' ``AutoModel`` classes,
 in particular it supports models available via:
@@ -10,14 +9,14 @@ in particular it supports models available via:
 - AutoModelForImageTextToText
 - AutoModelForSpeechSeq2Seq
 
-Covering LLM, VLM and ASR domains.
+It covers Large Language Models (LLM), Vision Language Models (VLM), and Automatic Speech Recognition (ASR).
 
 
-For distributed processing NeMo AutoModel offers integration with DDP and FSDP2.
+For distributed processing, the NeMo AutoModel provides integration with Distributed Data Parallel (DDP)
+and Fully Sharded Data Parallel (FSDP2), ensuring efficient and scalable training across multiple GPUs and nodes.
 
 
-For quick guides and tutorials, see the "Getting started" section below.
-
+To access tutorials about NeMo AutoModels, see the "Getting Started" section below.
 
 .. toctree::
    :maxdepth: 2
@@ -30,7 +29,7 @@ For quick guides and tutorials, see the "Getting started" section below.
 
 
 
-For more information, browse the developer docs for your area of interest in the contents section below or on the left sidebar.
+For more information, browse the developer documentation for your area of interest in the contents section below or on the left sidebar.
 
 .. toctree::
    :maxdepth: 1
