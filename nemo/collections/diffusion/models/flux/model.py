@@ -113,9 +113,9 @@ class ClipConfig:
 @dataclass
 class FluxModelParams:
     flux_config: FluxConfig = FluxConfig()
-    vae_config: AutoEncoderConfig = AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
-    clip_params: ClipConfig = ClipConfig()
-    t5_params: T5Config = T5Config()
+    vae_config: Optional[AutoEncoderConfig] = AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
+    clip_params: Optional[ClipConfig] = ClipConfig()
+    t5_params: Optional[T5Config] = T5Config()
     scheduler_steps: int = 1000
     device: str = 'cuda'
 

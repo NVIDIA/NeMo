@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import Optional
 
 import lightning.pytorch as pl
@@ -29,8 +30,19 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 NAME = "flux-535m"
 
 
+@dataclass
+class DummyModelParams(FluxModelParams):
+
+    def __post_init__(self):
+        self.t5_params = None
+        self.clip_params = None
+        self.vae_config = None
+        self.flux_config.num_single_layers = 1
+        self.flux_config.num_joint_layers = 1
+
+
 @run.cli.factory(name=NAME)
-def model(flux_params=FluxModelParams) -> run.Config[pl.LightningModule]:
+def model() -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Flux sample model configuration with only 1 transformer layers.
 
@@ -45,12 +57,14 @@ def model(flux_params=FluxModelParams) -> run.Config[pl.LightningModule]:
             >>> model_config = model(flux_params)
             >>> print(model_config)
     """
-    flux_params.t5_params = None
-    flux_params.clip_params = None
-    flux_params.vae_config = None
-    flux_params.flux_config.num_single_layers = 1
-    flux_params.flux_config.num_joint_layers = 1
-    return MegatronFluxModel(flux_params=flux_params)
+
+
+    return run.Config(
+        MegatronFluxModel,
+        flux_params=run.Config(
+            DummyModelParams,
+        ),
+    )
 
 
 @run.cli.factory(target=llm.train, name=NAME)
@@ -62,7 +76,7 @@ def unit_test_recipe(
 ):
     return run.Partial(
         llm.train,
-        model=model(FluxModelParams),
+        model=model(),
         trainer=run.Config(
             nl.Trainer,
             devices=num_gpus_per_node,
@@ -81,7 +95,10 @@ def unit_test_recipe(
                     grad_reduce_in_fp32=True,
                 ),
             ),
-            plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+            plugins=run.Config(
+                nl.MegatronMixedPrecision,
+                precision="bf16-mixed"
+            ),
             num_sanity_val_steps=0,
             max_steps=10,
             log_every_n_steps=1,
