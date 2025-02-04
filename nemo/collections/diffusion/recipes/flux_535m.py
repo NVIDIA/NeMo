@@ -103,7 +103,13 @@ def unit_test_recipe(
             max_steps=10,
             log_every_n_steps=1,
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=run.Config(
+            nl.NeMoLogger,
+            ckpt=None,
+            name=name,
+            tensorboard=tensorboard_logger(name=name),
+            log_dir=dir,
+        ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
             config=run.Config(

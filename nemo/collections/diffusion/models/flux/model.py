@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -112,10 +112,12 @@ class ClipConfig:
 
 @dataclass
 class FluxModelParams:
-    flux_config: FluxConfig = FluxConfig()
-    vae_config: Optional[AutoEncoderConfig] = AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
-    clip_params: Optional[ClipConfig] = ClipConfig()
-    t5_params: Optional[T5Config] = T5Config()
+    flux_config: FluxConfig = field(default_factory=lambda: FluxConfig())
+    vae_config: Optional[AutoEncoderConfig] = field(
+        default_factory=lambda: AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
+    )
+    clip_params: Optional[ClipConfig] = field(default_factory=lambda: ClipConfig())
+    t5_params: Optional[T5Config] = field(default_factory=lambda: T5Config())
     scheduler_steps: int = 1000
     device: str = 'cuda'
 
@@ -686,7 +688,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
 
 
 @io.model_importer(MegatronFluxModel, "hf")
-class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronFluxModel]):
+class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxModel]):
     '''
     Convert a HF ckpt into NeMo dist-ckpt compatible format.
     '''
