@@ -17,11 +17,15 @@ from dataclasses import dataclass
 
 @dataclass
 class TPOverlapCfg:
+    """Dataclass for linear layer TP overlap config."""
+
     pass
 
 
 @dataclass
 class PipelineOverlapCfg(TPOverlapCfg):
+    """Dataclass for pipeline TP overlap config."""
+
     num_sm: int
     cga_size: int
     num_splits: int
@@ -32,6 +36,8 @@ class PipelineOverlapCfg(TPOverlapCfg):
 
 @dataclass
 class RingExchangeOverlapCfg(TPOverlapCfg):
+    """Dataclass for ring exchange TP overlap config."""
+
     aggregate: bool = False
     method: str = 'ring_exchange'
     num_sm: int = 1
@@ -40,6 +46,8 @@ class RingExchangeOverlapCfg(TPOverlapCfg):
 
 @dataclass
 class BulkOverlapCfg(TPOverlapCfg):
+    """Dataclass for bulk TP overlap config."""
+
     num_sm: int
     cga_size: int
     set_sm_margin: bool
@@ -48,6 +56,8 @@ class BulkOverlapCfg(TPOverlapCfg):
 
 @dataclass
 class TransformerLayerTPOverlapCfg:
+    """Dataclass for transformer layer TP overlap config."""
+
     qkv_dgrad: TPOverlapCfg
     qkv_wgrad: TPOverlapCfg
     fc1_dgrad: TPOverlapCfg

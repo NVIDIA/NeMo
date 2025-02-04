@@ -78,7 +78,8 @@ class MegatronCommOverlapCallback(Callback):
         align_param_gather (bool): Align data parallel parameter gather across virtual pipeline chunks
         bucket_size (int): The DDP bucket size, controls the data parallel overlap granularity
         defer_embedding_wgrad_compute (bool): Overlap wgrads with the pipeline drain bubble for the last pipeline stage
-        wgrad_deferral_limit (int): Limit of how many outstanding wgrads may be overlapped with the pipeline drain bubble
+        wgrad_deferral_limit (int): Limit of how many outstanding wgrads may be overlapped with the pipeline drain
+                                    bubble
 
     Example:
         >>> callback = MegatronCommOverlapCallback(tp_comm_overlap=True)
@@ -230,7 +231,7 @@ class MegatronCommOverlapCallback(Callback):
                 device connection of 8.
                 """
                 os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "32"
-                logging.info(f"Set CUDA_DEVICE_MAX_CONNECTIONS to 32")
+                logging.info("Set CUDA_DEVICE_MAX_CONNECTIONS to 32")
             else:
                 if 'CUDA_DEVICE_MAX_CONNECTIONS' in os.environ:
                     os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
@@ -246,13 +247,14 @@ class MegatronCommOverlapCallback(Callback):
                 kernel so failing to overlap the kernels.
                 """
                 os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = "1"
-                logging.info(f"Set CUDA_DEVICE_MAX_CONNECTIONS to 1")
+                logging.info("Set CUDA_DEVICE_MAX_CONNECTIONS to 1")
             else:
                 if 'CUDA_DEVICE_MAX_CONNECTIONS' in os.environ:
                     os.environ.pop('CUDA_DEVICE_MAX_CONNECTIONS')
                 logging.info("Unset CUDA_DEVICE_MAX_CONNECTIONS")
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
+        """Apply configs set in comm_overlap_cfg on trainer config."""
         assert isinstance(trainer.strategy, MegatronStrategy), "MegatronCommOverlapCallback requires MegatronStrategy"
         parallelism_cfg = trainer.strategy.parallelism
 
@@ -288,7 +290,8 @@ class MegatronCommOverlapCallback(Callback):
 
         if self.tp_comm_overlap_cfg is None:
             logging.warning(
-                "Tensor parallel overlap: No overlap config provided. Initializing TP comm overlap with the default config."
+                "Tensor parallel overlap: No overlap config provided. Initializing TP comm overlap with the default"
+                " config."
             )
         else:
             # ub_cfgs is a dataclass, however TE needs a dict, so convert here
@@ -320,17 +323,21 @@ class MegatronCommOverlapCallback(Callback):
     # _init_te_userbuffers must run once before any stages, however there isnt such a
     # unified callback, so add a hook for every stage
     def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        """Actions before the training stage starts."""
         if self.need_tp_overlap_ub_init:
             self._init_te_userbuffers(trainer.model.config)
 
     def on_validation_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        """Actions before the validation stage starts."""
         if self.need_tp_overlap_ub_init:
             self._init_te_userbuffers(trainer.model.config)
 
     def on_test_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        """Actions before the test stage starts."""
         if self.need_tp_overlap_ub_init:
             self._init_te_userbuffers(trainer.model.config)
 
     def on_predict_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        """Actions before the predict stage starts."""
         if self.need_tp_overlap_ub_init:
             self._init_te_userbuffers(trainer.model.config)
