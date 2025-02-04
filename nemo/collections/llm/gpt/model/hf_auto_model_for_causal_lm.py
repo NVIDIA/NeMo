@@ -70,6 +70,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         mp_policy (MixedPrecisionPolicy): Mixed precision policy for distributed training.
         parallelize_fn (callable, optional): Function for parallelizing the model.
     """
+
     def __init__(
         self,
         model_name='gpt2',

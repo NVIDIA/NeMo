@@ -232,8 +232,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
-        """Applies data-samples to dataloader
-        """
+        """Applies data-samples to dataloader"""
         if self.data_sampler:
             return self.data_sampler.transform_dataloader(dataloader)
 
@@ -254,7 +253,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
-        """ CheckpointIO setter
+        """CheckpointIO setter
 
         Args:
             io (CheckpointIO): the checkpointio to use.
@@ -294,6 +293,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """Converts PyT checkpoints to MCore format and save using MCore dist ckpt library."""
 
         from nemo.lightning.pytorch.strategies.utils import to_cpu
+
         module_names = list(checkpoint["state_dict"].keys())
         for name in module_names:
             param = checkpoint["state_dict"].pop(name)

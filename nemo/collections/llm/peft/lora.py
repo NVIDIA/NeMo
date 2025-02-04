@@ -39,6 +39,7 @@ class LoRALinear(AdapterWrapper):
         adapter_output = self.adapter(layernorm_output.contiguous())
         return linear_output + adapter_output, bias
 
+
 class LinearAdapter(nn.Linear):
     """
     Linear + LoRA, maintains ckpts structrue (i.e. Linear's weight/bias remain at the same FQN)
@@ -139,7 +140,6 @@ class LinearAdapter(nn.Linear):
         assert dropout_position in ['pre', 'post'], dropout_position
         obj.dropout_position = dropout_position
 
-
     def forward(self, x):
         # pylint: disable=C0115,C0116
         # If LinearAdapter is used to monkey-patch a nn.Linear module, we want to use nn.Linear's
@@ -156,6 +156,7 @@ class LinearAdapter(nn.Linear):
         if self.dropout_position == 'post':
             lora_res = self.dropout(lora_res)
         return res + lora_res
+
 
 def patch_linear_module(
     orig_linear,
@@ -206,6 +207,7 @@ def patch_linear_module(
 
     if hasattr(orig_linear.weight.data, '_local_tensor'):
         from torch.distributed._composable.fsdp.fully_shard import fully_shard
+
         fully_shard(orig_linear.lora_a, reshard_after_forward=False)
         fully_shard(orig_linear.lora_b, reshard_after_forward=False)
 

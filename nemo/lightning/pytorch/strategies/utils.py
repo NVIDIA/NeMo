@@ -19,14 +19,13 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 
 import lightning.pytorch as pl
 import torch
-from torch import Tensor
 from lightning.fabric.plugins import ClusterEnvironment
 from lightning.pytorch.callbacks import TQDMProgressBar
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
-from torch import nn
+from torch import Tensor, nn
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from torch.distributed._composable.fsdp.fully_shard import fully_shard
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
@@ -50,6 +49,7 @@ class RestoreConfig:
         load_optim_state (bool): Whether to load optimizer state.
         load_artifacts (bool): Whether to load additional artifacts (e.g., tokenizer).
     """
+
     path: str
     adapter_path: Optional[str] = None
     load_model_state: bool = True
@@ -219,6 +219,7 @@ def mcore_to_pyt_sharded_state_dict(
         Dict[str, Union[TorchShardedTensor, io.BytesIO]]:
             A PyTorch-compatible state dictionary with properly formatted sharded tensors.
     """
+
     def _mcore_to_pyt_dtensor(
         tens: List[torch.Tensor],
         sh_tens: List[ShardedTensor],
@@ -289,6 +290,7 @@ def pyt_to_mcore_state_dict(
         Dict[str, List[ShardedBase]]:
             A Megatron-Core formatted state dictionary with properly sharded tensors.
     """
+
     def _dtensor_to_mcore_sharded_tensor(
         key: str,
         dten: DTensor,
@@ -378,7 +380,7 @@ def pyt_to_mcore_state_dict(
         sharded_offsets: Iterable[Tuple[int, int, int]] = (),
         prefix: str = "",
     ) -> ShardedObject:
-        """ mcore helper"""
+        """mcore helper"""
         replica_id = (
             0,
             0,
@@ -388,7 +390,7 @@ def pyt_to_mcore_state_dict(
         return ShardedObject(f"{prefix}{key}", obj, *_get_extra_state_offsets(sharded_offsets), replica_id)
 
     def _convert(state_dict, k, sh_key, v, prepend_offsets, prefix="", allow_shape_mismatch=False, device_mesh=None):
-        """ mcore helper"""
+        """mcore helper"""
         if isinstance(v, Dict):
             for kk, vv in v.items():
                 _convert(
