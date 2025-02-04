@@ -39,7 +39,7 @@ from nemo.collections.common.data.lhotse.text_adapters import (
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
-def read_cutset_from_config(config: DictConfig | dict) -> Tuple[CutSet, bool]:
+def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bool]:
     """
     Reads NeMo configuration and creates a CutSet either from Lhotse or NeMo manifests.
 
@@ -90,7 +90,7 @@ def get_parser_fn(data_type_name: str):
     return KNOWN_DATA_CONFIG_TYPES[data_type_name]
 
 
-def data_type_parser(name: str | list[str]):
+def data_type_parser(name: Union[str, list[str]]):
     """
     Decorator used to register data type parser functions.
     Parsing function reads a dataloading config and returns a tuple
@@ -429,7 +429,7 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
     return cuts, is_tarred
 
 
-def _resolve_shar_inputs(path: str | Path, only_metadata: bool) -> dict:
+def _resolve_shar_inputs(path: Union[str, Path], only_metadata: bool) -> dict:
     if only_metadata:
         return dict(fields={"cuts": sorted(Path(path).glob("cuts.*"))})
     else:
@@ -597,9 +597,9 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
 
 def mux(
     *cutsets: CutSet,
-    weights: list[int | float],
-    max_open_streams: int | None = None,
-    seed: str | int = "trng",
+    weights: list[Union[int, float]],
+    max_open_streams: Union[int, None] = None,
+    seed: Union[str, int] = "trng",
     force_finite: bool = False,
 ) -> CutSet:
     """
