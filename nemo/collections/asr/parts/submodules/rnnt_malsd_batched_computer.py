@@ -50,7 +50,7 @@ class MALSDState:
     """
 
     INACTIVE_HYPOTHESIS_SCORE=float('-inf')
-
+    
     max_time: int  # maximum length of internal storage for time dimension
     batch_size: int  # (maximum) length of internal storage for batch dimension
     device: torch.device  # device to store preallocated tensors
@@ -131,6 +131,11 @@ class MALSDState:
         self.beam_size = beam_size
         self.max_time = max_time
         self.blank_index = blank_index
+        
+        self.ONE_TENSOR=torch.tensor(1, device=self.device, dtype=torch.long)
+        self.MINUS_ONE_TENSOR=torch.tensor(-1, device=self.device, dtype=torch.long)
+        self.BLANK_TENSOR=torch.tensor(self.blank_index, device=self.device, dtype=torch.long)
+        self.INACTIVE_HYPOTHESIS_SCORE_TENSOR=torch.tensor(self.INACTIVE_HYPOTHESIS_SCORE, device=self.device, dtype=float_dtype)
 
         self.encoder_output_projected = torch.zeros(
             (self.batch_size, self.max_time, encoder_dim),
@@ -969,17 +974,25 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
         # step 2.2 force add final hyps with the same score to the beam
         # final hyps cannot be extended -> mask with minus inf, copy prev scores; label - set to -1
-        hyps_candidates_prob = torch.where(
+        torch.where(
             self.state.active_mask.unsqueeze(-1),
             hyps_candidates_prob,
-            self.state.INACTIVE_HYPOTHESIS_SCORE,
+            self.state.INACTIVE_HYPOTHESIS_SCORE_TENSOR,
+            out=hyps_candidates_prob
         )
-        hyps_candidates_prob[..., 0] = torch.where(
+        torch.where(
             self.state.active_mask,
             hyps_candidates_prob[..., 0],
             hyps_scores,
+            out=hyps_candidates_prob[..., 0]
         )
-        labels_top_k = torch.where(self.state.active_mask.unsqueeze(-1), labels_top_k, -1)
+        
+        torch.where(
+            self.state.active_mask.unsqueeze(-1),
+            labels_top_k,
+            self.state.MINUS_ONE_TENSOR,
+            out=labels_top_k
+        )
     
         # step 2.3: force blank extension with respect to self.max_symbols
         if self.max_symbols is not None:
@@ -987,147 +1000,170 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         else:
             force_blank = torch.full_like(self.state.active_mask, fill_value=False)
         # mask all extensions with -inf
-        hyps_candidates_prob = torch.where(
+        torch.where(
             force_blank.unsqueeze(-1),
-            self.state.INACTIVE_HYPOTHESIS_SCORE,
-            hyps_candidates_prob
+            self.state.INACTIVE_HYPOTHESIS_SCORE_TENSOR,
+            hyps_candidates_prob,
+            out=hyps_candidates_prob
         )
         # first element in beam - score for hyp with forced blank
-        hyps_candidates_prob[..., 0] = torch.where(
-            force_blank, hyps_candidates_prob_forced_blank, hyps_candidates_prob[..., 0]
+        torch.where(
+            force_blank,
+            hyps_candidates_prob_forced_blank,
+            hyps_candidates_prob[..., 0],
+            out=hyps_candidates_prob[..., 0]
         )
-        labels_top_k = torch.where(
-            force_blank.unsqueeze(-1), self._blank_index, labels_top_k
+        torch.where(
+            force_blank.unsqueeze(-1),
+            self.state.BLANK_TENSOR,
+            labels_top_k,
+            out=labels_top_k
         )
 
         # step 2.4: final pruning - get top-k from (top-k x top-k) hyps
         next_hyps_prob, hyps_candidates_indices = torch.topk(
             hyps_candidates_prob.view(self.state.batch_size, -1), k=self.beam_size, largest=True, sorted=True
         )
-        self.state.next_idx.copy_(torch.gather(self.state.beam_indices.reshape(self.state.batch_size, -1), dim=-1, index=hyps_candidates_indices))
-        self.state.next_labels.copy_(torch.gather(labels_top_k.reshape(self.state.batch_size, -1), dim=-1, index=hyps_candidates_indices))
+        torch.gather(
+            self.state.beam_indices.reshape(self.state.batch_size, -1),
+            dim=-1,
+            index=hyps_candidates_indices,
+            out=self.state.next_idx
+        )
+        torch.gather(
+            labels_top_k.reshape(self.state.batch_size, -1),
+            dim=-1,
+            index=hyps_candidates_indices,
+            out=self.state.next_labels
+        )
         self.state.next_scores.copy_(next_hyps_prob)
        
         # step 3: store results
         if self.max_symbols is None:
-            self.state.batched_hyps.add_results_(self.state.next_idx, self.state.next_labels, self.state.next_scores)
+            self.state.batched_hyps.add_results_(
+                self.state.next_idx,
+                self.state.next_labels,
+                self.state.next_scores)
         else:
-            self.state.batched_hyps.add_results_no_checks_(self.state.next_idx, self.state.next_labels, self.state.next_scores)
+            self.state.batched_hyps.add_results_no_checks_(
+                self.state.next_idx,
+                self.state.next_labels,
+                self.state.next_scores)
         if self.allow_recombine_hyps:
             self.state.batched_hyps.self_recombine_hyps_()
 
     def _loop_update_decoder(self):
         # step 4: update decoder state + decoder output (+ lm state/scores)
-        self.state.last_labels_wb.copy_(torch.where(self.state.next_labels >= 0, self.state.next_labels, self._blank_index)) 
+        torch.where(
+            self.state.next_labels >= 0,
+            self.state.next_labels,
+            self.state.BLANK_TENSOR,
+            out=self.state.last_labels_wb
+        ) 
         preserve_state = self.state.last_labels_wb == self._blank_index
 
-        # update decoder + lm state
+         # update decoder + lm state
         # decoder_output: [(B x Beam), 1, Dim]
-        self.state.prev_decoder_output.copy_(torch.gather(
+        torch.gather(
             self.state.decoder_output.view(self.state.batch_size, self.beam_size, 1, -1),
             dim=1,
             index=self.state.next_idx[:, :, None, None].expand(self.state.batch_size, self.beam_size, 1, self.state.decoder_output.shape[-1]),
-        ).view(self.state.batch_size * self.beam_size, 1, -1))
+            out=self.state.prev_decoder_output.view(self.state.batch_size, self.beam_size, 1, -1)
+        )
 
         # TODO: move state aggregation to decoder + support stateless decoder:
-        #  self.decoder.batch_aggregate_states_beam(...)
+        # self.decoder.batch_aggregate_states_beam(...)
         # state: tuple, each is of [Layers, (BxBeam), Dim]
-        self.state.prev_decoder_state[0].copy_(
-            torch.gather(
-                self.state.decoder_state[0].view(
-                    self.state.decoder_state[0].shape[0],
-                    self.state.batch_size,
-                    self.state.beam_size,
-                    -1),
-                dim=2,
-                index=self.state.next_idx[None, :, :, None].expand(
-                    self.state.decoder_state[0].shape[0],
-                    self.state.batch_size,
-                    self.state.beam_size,
-                    self.state.decoder_state[0].shape[-1]
-                )
-            ).view(self.state.decoder_state[0].shape[0],
-                   self.state.batch_size * self.beam_size,
-                   -1)
+        state_indices = self.state.next_idx[None, :, :, None].expand(
+                self.state.decoder_state[0].shape[0],
+                self.state.batch_size,
+                self.state.beam_size,
+                self.state.decoder_state[0].shape[-1]
+            )
+        torch.gather(
+            self.state.decoder_state[0].view(
+                self.state.decoder_state[0].shape[0],
+                self.state.batch_size,
+                self.state.beam_size,
+                -1),
+            dim=2,
+            index=state_indices,
+            out=self.state.prev_decoder_state[0].view(
+                self.state.decoder_state[1].shape[0], 
+                self.state.batch_size,
+                self.beam_size,
+                -1),
         )
-        self.state.prev_decoder_state[1].copy_(
-            torch.gather(
-                self.state.decoder_state[1].view(
-                    self.state.decoder_state[1].shape[0], 
-                    self.state.batch_size,
-                    self.beam_size,
-                    -1),
-                dim=2,
-                index=self.state.next_idx[None, :, :, None].expand(
-                    self.state.decoder_state[1].shape[0],
-                    self.state.batch_size,
-                    self.beam_size,
-                    self.state.decoder_state[1].shape[-1]
-                )
-            ).view(self.state.decoder_state[1].shape[0],
-                   self.state.batch_size * self.beam_size, 
-                   -1),
+        torch.gather(
+            self.state.decoder_state[1].view(
+                self.state.decoder_state[1].shape[0], 
+                self.state.batch_size,
+                self.beam_size,
+                -1),
+            dim=2,
+            index=state_indices,
+            out=self.state.prev_decoder_state[1].view(
+                self.state.decoder_state[1].shape[0], 
+                self.state.batch_size,
+                self.beam_size,
+                -1),
         )
         
-        decoder_output1, decoder_state1, *_ = self.decoder.predict(
+        decoder_output, decoder_state, *_ = self.decoder.predict(
             self.state.last_labels_wb.view(-1, 1),
             self.state.prev_decoder_state,
             add_sos=False,
             batch_size=self.state.batch_size * self.beam_size,
         )
         
-        self.state.decoder_output.copy_(
-            self.joint.project_prednet(decoder_output1)
-        )  # do not recalculate joint projection
         torch.where(
             preserve_state.view(-1)[:, None, None],
-            self.state.prev_decoder_output, self.state.decoder_output,
+            self.state.prev_decoder_output,
+            self.joint.project_prednet(decoder_output),
             out=self.state.decoder_output
-        )
-        self.decoder.batch_replace_states_all(
-            src_states=decoder_state1,
-            dst_states=self.state.decoder_state
         )
         self.decoder.batch_replace_states_mask(
             src_states=self.state.prev_decoder_state, 
             dst_states=self.state.decoder_state,
-            mask=preserve_state.view(-1)
+            mask=preserve_state.view(-1),
+            src_states2=decoder_state
         )
         
         if self.ngram_lm_batch is not None:
             # batch_lm_states: [(BxBeam)]
             # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
-            self.state.batch_lm_states_candidates.copy_(
-                torch.gather(
-                    self.state.batch_lm_states_candidates,
-                    dim=1,
-                    index=self.state.next_idx[:, :, None]
-                    .expand(
-                        self.state.batch_size,
-                        self.beam_size,
-                        self.state.batch_lm_states_candidates.shape[-1]
-                    ),
-                )
+            torch.gather(
+                self.state.batch_lm_states_candidates,
+                dim=1,
+                index=self.state.next_idx[:, :, None]
+                .expand(
+                    self.state.batch_size,
+                    self.beam_size,
+                    self.state.batch_lm_states_candidates.shape[-1]
+                ),
+                out=self.state.batch_lm_states_candidates
             )
-            self.state.batch_lm_states_prev.copy_(
-                torch.gather(
-                    self.state.batch_lm_states, dim=1, index=self.state.next_idx
-                )
+            torch.gather(
+                self.state.batch_lm_states,
+                dim=1,
+                index=self.state.next_idx,
+                out=self.state.batch_lm_states_prev
             )
             last_labels_wb_blank_replaced = torch.where(
                 preserve_state, 0, self.state.last_labels_wb
             )
 
-            self.state.batch_lm_states.copy_(
-                torch.gather(
-                    self.state.batch_lm_states_candidates, dim=-1, index=last_labels_wb_blank_replaced.unsqueeze(-1)
-                ).squeeze(-1)
+            torch.gather(
+                self.state.batch_lm_states_candidates,
+                dim=-1,
+                index=last_labels_wb_blank_replaced.unsqueeze(-1),
+                out=self.state.batch_lm_states.squeeze(-1)
             )
-            self.state.batch_lm_states.copy_(
-                torch.where(
-                    preserve_state,
-                    self.state.batch_lm_states_prev,
-                    self.state.batch_lm_states)
+            torch.where(
+                preserve_state,
+                self.state.batch_lm_states_prev,
+                self.state.batch_lm_states,
+                out=self.state.batch_lm_states
             )
 
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(

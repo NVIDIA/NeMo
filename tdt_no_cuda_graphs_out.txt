@@ -1,0 +1,435 @@
+[NeMo I 2025-02-03 11:50:11 transcribe_speech:213] Hydra config: model_path: /home/lgrigoryan/data/beam_search_paper_data/models/stt_en_fastconformer_tdt_large_ls.nemo
+    pretrained_name: null
+    audio_dir: null
+    dataset_manifest: /home/lgrigoryan/data/en/en/val_test/nsc1/audio_manifest_test_clean_no_pc.json
+    channel_selector: null
+    audio_key: audio_filepath
+    eval_config_yaml: null
+    presort_manifest: true
+    output_filename: evaluation_transcripts.json
+    batch_size: 32
+    num_workers: 0
+    append_pred: false
+    pred_name_postfix: null
+    random_seed: null
+    timestamps: null
+    return_hypotheses: false
+    compute_langs: false
+    cuda: null
+    allow_mps: false
+    amp: false
+    amp_dtype: float16
+    compute_dtype: float32
+    matmul_precision: highest
+    audio_type: wav
+    overwrite_transcripts: true
+    ctc_decoding:
+      strategy: greedy_batch
+      preserve_alignments: null
+      compute_timestamps: null
+      word_seperator: ' '
+      segment_seperators:
+      - .
+      - '!'
+      - '?'
+      segment_gap_threshold: null
+      ctc_timestamp_type: all
+      batch_dim_index: 0
+      greedy:
+        preserve_alignments: false
+        compute_timestamps: false
+        preserve_frame_confidence: false
+        confidence_method_cfg:
+          name: entropy
+          entropy_type: tsallis
+          alpha: 0.33
+          entropy_norm: exp
+          temperature: DEPRECATED
+        ngram_lm_model: null
+        ngram_lm_alpha: 0.0
+      beam:
+        beam_size: 4
+        search_type: default
+        preserve_alignments: false
+        compute_timestamps: false
+        return_best_hypothesis: true
+        beam_alpha: 1.0
+        beam_beta: 0.0
+        kenlm_path: null
+        flashlight_cfg:
+          lexicon_path: null
+          boost_path: null
+          beam_size_token: 16
+          beam_threshold: 20.0
+          unk_weight: -.inf
+          sil_weight: 0.0
+        pyctcdecode_cfg:
+          beam_prune_logp: -10.0
+          token_min_logp: -5.0
+          prune_history: false
+          hotwords: null
+          hotword_weight: 10.0
+      wfst:
+        beam_size: 4
+        search_type: riva
+        return_best_hypothesis: true
+        preserve_alignments: false
+        compute_timestamps: false
+        decoding_mode: nbest
+        open_vocabulary_decoding: false
+        beam_width: 10.0
+        lm_weight: 1.0
+        device: cuda
+        arpa_lm_path: null
+        wfst_lm_path: null
+        riva_decoding_cfg: {}
+        k2_decoding_cfg:
+          search_beam: 20.0
+          output_beam: 10.0
+          min_active_states: 30
+          max_active_states: 10000
+      confidence_cfg:
+        preserve_frame_confidence: false
+        preserve_token_confidence: false
+        preserve_word_confidence: false
+        exclude_blank: true
+        aggregation: min
+        tdt_include_duration: false
+        method_cfg:
+          name: entropy
+          entropy_type: tsallis
+          alpha: 0.33
+          entropy_norm: exp
+          temperature: DEPRECATED
+      temperature: 1.0
+    rnnt_decoding:
+      model_type: rnnt
+      strategy: malsd_batch
+      compute_hypothesis_token_set: false
+      preserve_alignments: null
+      tdt_include_token_duration: null
+      confidence_cfg:
+        preserve_frame_confidence: false
+        preserve_token_confidence: false
+        preserve_word_confidence: false
+        exclude_blank: true
+        aggregation: min
+        tdt_include_duration: false
+        method_cfg:
+          name: entropy
+          entropy_type: tsallis
+          alpha: 0.33
+          entropy_norm: exp
+          temperature: DEPRECATED
+      fused_batch_size: -1
+      compute_timestamps: null
+      compute_langs: false
+      word_seperator: ' '
+      segment_seperators:
+      - .
+      - '!'
+      - '?'
+      segment_gap_threshold: null
+      rnnt_timestamp_type: all
+      greedy:
+        max_symbols_per_step: 10
+        preserve_alignments: false
+        preserve_frame_confidence: false
+        tdt_include_token_duration: false
+        tdt_include_duration_confidence: false
+        confidence_method_cfg:
+          name: entropy
+          entropy_type: tsallis
+          alpha: 0.33
+          entropy_norm: exp
+          temperature: DEPRECATED
+        loop_labels: true
+        use_cuda_graph_decoder: true
+        ngram_lm_model: null
+        ngram_lm_alpha: 0.0
+      beam:
+        beam_size: 12
+        search_type: default
+        score_norm: true
+        return_best_hypothesis: true
+        tsd_max_sym_exp_per_step: 50
+        alsd_max_target_len: 1.0
+        nsc_max_timesteps_expansion: 1
+        nsc_prefix_alpha: 1
+        maes_num_steps: 2
+        maes_prefix_alpha: 1
+        maes_expansion_gamma: 2.3
+        maes_expansion_beta: 2
+        language_model: null
+        softmax_temperature: 1.0
+        preserve_alignments: false
+        max_symbols_per_step: 10
+        ngram_lm_model: null
+        ngram_lm_alpha: 0.0
+        blank_lm_score_mode: null
+        pruning_mode: null
+        hat_subtract_ilm: false
+        hat_ilm_weight: 0.0
+        allow_cuda_graphs: false
+      temperature: 1.0
+      durations: []
+      big_blank_durations: []
+    multitask_decoding:
+      strategy: beam
+      compute_hypothesis_token_set: false
+      preserve_alignments: null
+      confidence_cfg:
+        preserve_frame_confidence: false
+        preserve_token_confidence: false
+        preserve_word_confidence: false
+        exclude_blank: true
+        aggregation: min
+        tdt_include_duration: false
+        method_cfg:
+          name: entropy
+          entropy_type: tsallis
+          alpha: 0.33
+          entropy_norm: exp
+          temperature: DEPRECATED
+      compute_langs: false
+      greedy:
+        temperature: null
+        max_generation_delta: -1
+        preserve_alignments: false
+        preserve_token_confidence: false
+        confidence_method_cfg:
+          name: entropy
+          entropy_type: tsallis
+          alpha: 0.33
+          entropy_norm: exp
+          temperature: DEPRECATED
+        n_samples: 1
+      beam:
+        beam_size: 1
+        search_type: default
+        len_pen: 1.0
+        max_generation_delta: -1
+        return_best_hypothesis: true
+        preserve_alignments: false
+      temperature: 1.0
+    prompt: {}
+    decoder_type: null
+    att_context_size: null
+    model_change:
+      conformer:
+        self_attention_model: null
+        att_context_size: null
+    calculate_wer: true
+    clean_groundtruth_text: false
+    langid: en
+    use_cer: false
+    return_transcriptions: false
+    gt_text_attr_name: text
+    gt_lang_attr_name: lang
+    extract_nbest: false
+    calculate_rtfx: false
+    use_punct_er: false
+    tolerance: null
+    only_score_manifest: false
+    scores_per_sample: false
+    text_processing:
+      punctuation_marks: .,?
+      do_lowercase: false
+      rm_punctuation: false
+      separate_punctuation: false
+    normalize: true
+    
+[NeMo I 2025-02-03 11:50:11 transcribe_speech:260] Inference will be done on device: cuda:0
+[NeMo I 2025-02-03 11:50:11 transcribe_utils:262] Restoring model : EncDecRNNTBPEModel
+[NeMo I 2025-02-03 11:50:12 mixins:180] Tokenizer SentencePieceTokenizer initialized with 1024 tokens
+[NeMo I 2025-02-03 11:50:13 features:305] PADDING: 0
+[NeMo I 2025-02-03 11:50:14 rnnt_models:226] Using RNNT Loss : tdt
+    Loss tdt_kwargs: {'fastemit_lambda': 0.001, 'clamp': -1.0, 'durations': [0, 1, 2, 3, 4], 'sigma': 0.05, 'omega': 0.0}
+[NeMo I 2025-02-03 11:50:14 rnnt_models:226] Using RNNT Loss : tdt
+    Loss tdt_kwargs: {'fastemit_lambda': 0.001, 'clamp': -1.0, 'durations': [0, 1, 2, 3, 4], 'sigma': 0.05, 'omega': 0.0}
+[NeMo I 2025-02-03 11:50:14 rnnt_models:226] Using RNNT Loss : tdt
+    Loss tdt_kwargs: {'fastemit_lambda': 0.001, 'clamp': -1.0, 'durations': [0, 1, 2, 3, 4], 'sigma': 0.05, 'omega': 0.0}
+[NeMo I 2025-02-03 11:50:15 save_restore_connector:275] Model EncDecRNNTBPEModel was successfully restored from /home/lgrigoryan/data/beam_search_paper_data/models/stt_en_fastconformer_tdt_large_ls.nemo.
+[NeMo I 2025-02-03 11:50:15 rnnt_models:226] Using RNNT Loss : tdt
+    Loss tdt_kwargs: {'fastemit_lambda': 0.001, 'clamp': -1.0, 'durations': [0, 1, 2, 3, 4], 'sigma': 0.05, 'omega': 0.0}
+[NeMo I 2025-02-03 11:50:15 rnnt_decoding:854] Joint fused batch size <= 0; Will temporarily disable fused batch step in the Joint.
+[NeMo I 2025-02-03 11:50:15 rnnt_bpe_models:506] Changed decoding strategy to 
+    model_type: rnnt
+    strategy: malsd_batch
+    compute_hypothesis_token_set: false
+    preserve_alignments: null
+    tdt_include_token_duration: null
+    confidence_cfg:
+      preserve_frame_confidence: false
+      preserve_token_confidence: false
+      preserve_word_confidence: false
+      exclude_blank: true
+      aggregation: min
+      tdt_include_duration: false
+      method_cfg:
+        name: entropy
+        entropy_type: tsallis
+        alpha: 0.33
+        entropy_norm: exp
+        temperature: DEPRECATED
+    fused_batch_size: -1
+    compute_timestamps: null
+    compute_langs: false
+    word_seperator: ' '
+    segment_seperators:
+    - .
+    - '!'
+    - '?'
+    segment_gap_threshold: null
+    rnnt_timestamp_type: all
+    greedy:
+      max_symbols_per_step: 10
+      preserve_alignments: false
+      preserve_frame_confidence: false
+      tdt_include_token_duration: false
+      tdt_include_duration_confidence: false
+      confidence_method_cfg:
+        name: entropy
+        entropy_type: tsallis
+        alpha: 0.33
+        entropy_norm: exp
+        temperature: DEPRECATED
+      loop_labels: true
+      use_cuda_graph_decoder: true
+      ngram_lm_model: null
+      ngram_lm_alpha: 0.0
+    beam:
+      beam_size: 12
+      search_type: default
+      score_norm: true
+      return_best_hypothesis: true
+      tsd_max_sym_exp_per_step: 50
+      alsd_max_target_len: 1.0
+      nsc_max_timesteps_expansion: 1
+      nsc_prefix_alpha: 1
+      maes_num_steps: 2
+      maes_prefix_alpha: 1
+      maes_expansion_gamma: 2.3
+      maes_expansion_beta: 2
+      language_model: null
+      softmax_temperature: 1.0
+      preserve_alignments: false
+      max_symbols_per_step: 10
+      ngram_lm_model: null
+      ngram_lm_alpha: 0.0
+      blank_lm_score_mode: null
+      pruning_mode: null
+      hat_subtract_ilm: false
+      hat_ilm_weight: 0.0
+      allow_cuda_graphs: false
+    temperature: 1.0
+    durations:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    big_blank_durations: []
+    
+steps:  71
+steps:  68
+steps:  64
+steps:  65
+steps:  67
+steps:  66
+steps:  68
+steps:  59
+steps:  58
+steps:  60
+steps:  59
+steps:  72
+steps:  62
+steps:  65
+steps:  56
+steps:  63
+steps:  60
+steps:  68
+steps:  59
+steps:  63
+steps:  63
+steps:  55
+steps:  54
+steps:  64
+steps:  63
+steps:  60
+steps:  60
+steps:  57
+steps:  59
+steps:  67
+steps:  59
+steps:  50
+steps:  54
+steps:  61
+steps:  56
+steps:  59
+steps:  59
+steps:  72
+steps:  54
+steps:  57
+steps:  57
+steps:  57
+steps:  62
+steps:  57
+steps:  52
+steps:  57
+steps:  50
+steps:  52
+steps:  62
+steps:  57
+steps:  53
+steps:  57
+steps:  57
+steps:  56
+steps:  60
+steps:  64
+steps:  69
+steps:  64
+steps:  53
+steps:  53
+steps:  57
+steps:  55
+steps:  55
+steps:  60
+steps:  60
+steps:  59
+steps:  53
+steps:  54
+steps:  56
+steps:  56
+steps:  66
+steps:  59
+steps:  62
+steps:  57
+steps:  49
+steps:  62
+steps:  61
+steps:  62
+steps:  57
+steps:  58
+steps:  61
+steps:  55
+steps:  58
+steps:  55
+steps:  55
+steps:  52
+steps:  52
+steps:  64
+steps:  50
+steps:  50
+steps:  55
+steps:  58
+steps:  47
+steps:  54
+steps:  54
+steps:  50
+steps:  54
+steps:  53
+steps:  57
+steps:  56
+steps:  48
+steps:  53

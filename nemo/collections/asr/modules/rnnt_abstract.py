@@ -305,6 +305,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
         mask: torch.Tensor,
+        src_states2: Optional[list[torch.Tensor]],
     ):
         """Replace states in dst_states with states from src_states using the mask, in a way that does not synchronize with the CPU"""
         raise NotImplementedError()

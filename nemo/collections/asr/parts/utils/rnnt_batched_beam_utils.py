@@ -317,8 +317,8 @@ class BatchedBeamHyps:
         return scores.view(self.batch_size, self.beam_size, self.beam_size)
 
     def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
-        transcript = self.transcript_wb.tolist()
-        transcript_wb_prev_ptr = self.transcript_wb_prev_ptr.tolist()
+        transcript = self.transcript_wb[..., :self.current_lengths_wb.max()].tolist()
+        transcript_wb_prev_ptr = self.transcript_wb_prev_ptr[..., :self.current_lengths_wb.max()].tolist()
         if score_norm:
             end_indices = torch.argmax(self.scores / self.current_lengths_nb.to(self.scores.dtype), dim=-1).tolist()
         else:
@@ -362,6 +362,7 @@ class BatchedBeamHypsTDT:
         device: Optional[torch.device] = None,
         float_dtype: Optional[torch.dtype] = None,
     ):
+        self.device=device
         self.INACTIVE_SCORE = -float("inf")
         self.INACTIVE_SCORE_TENSOR = torch.tensor(self.INACTIVE_SCORE, device=device, dtype=torch.float)
         self.INIT_POINTER_VALUE = -1
@@ -449,8 +450,8 @@ class BatchedBeamHypsTDT:
         self.transcript_wb_prev_ptr.scatter_(
             dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1)
         )
-        # self.transcript.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
-        # self.transcript_prev_ptr.scatter_(dim=-1, index=self.current_lengths_nb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1))
+
+
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (next_labels >= 0)
@@ -643,8 +644,9 @@ class BatchedBeamHypsTDT:
         return scores.view(self.batch_size, self.beam_size, self.beam_size)
 
     def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
-        transcript = self.transcript_wb.tolist()
-        transcript_wb_prev_ptr = self.transcript_wb_prev_ptr.tolist()
+        # self.batch_beam_indices=torch.arange(self.beam_size, device=self.device, dtype=torch.long)[None, :].expand(self.batch_size, -1)
+        transcript = self.transcript_wb[..., :self.current_lengths_wb.max()].tolist()
+        transcript_wb_prev_ptr = self.transcript_wb_prev_ptr[..., :self.current_lengths_wb.max()].tolist()
         if score_norm:
             end_indices = torch.argmax(self.scores / self.current_lengths_nb.to(self.scores.dtype), dim=-1).tolist()
         else:

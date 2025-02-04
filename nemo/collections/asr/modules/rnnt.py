@@ -395,8 +395,11 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
         mask: torch.Tensor,
+        src_states2: Optional[list[torch.Tensor]] = None,
     ):
         """Replace states in dst_states with states from src_states using the mask"""
+        if src_states2:
+            torch.where(mask.unsqueeze(-1), src_states[0], src_states2[0], out=dst_states[0])
         # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
         torch.where(mask.unsqueeze(-1), src_states[0], dst_states[0], out=dst_states[0])
 
@@ -1111,13 +1114,17 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         src_states: Tuple[torch.Tensor, torch.Tensor],
         dst_states: Tuple[torch.Tensor, torch.Tensor],
         mask: torch.Tensor,
+        src_states2: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ):
         """Replace states in dst_states with states from src_states using the mask"""
         # same as `dst_states[i][mask] = src_states[i][mask]`, but non-blocking
-        # we need to cast, since LSTM is calculated in fp16 even if autocast to bfloat16 is enabled
+        # we need to cast, since LSTM is calculated in fp16 even if autocast to bfloat16 is enabled 
+        
+        second = src_states2 if src_states2 is not None else dst_states
         dtype = dst_states[0].dtype
-        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), dst_states[0], out=dst_states[0])
-        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), dst_states[1], out=dst_states[1])
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), second[0], out=dst_states[0])
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), second[1], out=dst_states[1])
+
 
     @classmethod
     def batch_replace_states_all(
