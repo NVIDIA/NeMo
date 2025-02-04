@@ -275,8 +275,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.sequence_parallel = sequence_parallel
         self.encoder_tensor_model_parallel_size = encoder_tensor_model_parallel_size
         self.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
-        self.account_for_embedding_in_pipeline_split=account_for_embedding_in_pipeline_split
-        self.account_for_loss_in_pipeline_split=account_for_loss_in_pipeline_split
+        self.account_for_embedding_in_pipeline_split = account_for_embedding_in_pipeline_split
+        self.account_for_loss_in_pipeline_split = account_for_loss_in_pipeline_split
         self.lazy_init = lazy_init
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer

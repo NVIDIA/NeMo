@@ -182,7 +182,10 @@ class MegatronBaseModel(NLPModel):
             if vp_size == 1:
                 vp_size = None
             else:
-                if not(self.cfg.get('account_for_embedding_in_pipeline_split', False) and self.cfg.get('account_for_loss_in_pipeline_split', False)):
+                if not (
+                    self.cfg.get('account_for_embedding_in_pipeline_split', False)
+                    and self.cfg.get('account_for_loss_in_pipeline_split', False)
+                ):
                     assert (
                         self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
                     ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
@@ -1021,7 +1024,10 @@ class MegatronBaseModel(NLPModel):
             if vp_size == 1:
                 self.cfg['virtual_pipeline_model_parallel_size'] = None
             else:
-                if not(self.cfg.get('account_for_embedding_in_pipeline_split', False) and self.cfg.get('account_for_loss_in_pipeline_split', False)):
+                if not (
+                    self.cfg.get('account_for_embedding_in_pipeline_split', False)
+                    and self.cfg.get('account_for_loss_in_pipeline_split', False)
+                ):
                     assert (
                         self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
                     ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
