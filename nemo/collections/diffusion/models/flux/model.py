@@ -699,6 +699,7 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
 
     def apply(self, output_path: Path) -> Path:
         from diffusers import FluxTransformer2DModel
+
         source = FluxTransformer2DModel.from_pretrained(str(self), subfolder="transformer")
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -716,6 +717,7 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
     @property
     def config(self) -> FluxConfig:
         from diffusers import FluxTransformer2DModel
+
         source = FluxTransformer2DModel.from_pretrained(str(self), subfolder="transformer")
         source_config = source.config
         flux_config = FluxConfig(
