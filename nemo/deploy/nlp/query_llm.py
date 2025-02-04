@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import time
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import numpy as np
 
@@ -141,7 +141,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
                     "object": "text_completion",
                     "created": int(time.time()),
                     "model": self.model_name,
-                    "choices": [{"text": str(sentences)}],
+                    "choices": [{"text": sentences}],
                 }
                 if log_probs_output is not None:
                     openai_response["log_probs"] = log_probs_output
@@ -198,6 +198,7 @@ class NemoQueryLLM(NemoQueryLLMBase):
         end_strings=None,
         init_timeout=60.0,
         openai_format_response: bool = False,
+        output_context_logits: bool = False,
         output_generation_logits: bool = False,
     ):
         """
@@ -275,6 +276,9 @@ class NemoQueryLLM(NemoQueryLLMBase):
         if end_strings is not None:
             inputs["end_strings"] = str_list2numpy(end_strings)
 
+        if output_context_logits is not None:
+            inputs["output_context_logits"] = np.full(prompts.shape, output_context_logits, dtype=np.bool_)
+
         if output_generation_logits is not None:
             inputs["output_generation_logits"] = np.full(prompts.shape, output_generation_logits, dtype=np.bool_)
 
@@ -297,10 +301,12 @@ class NemoQueryLLM(NemoQueryLLMBase):
                         "object": "text_completion",
                         "created": int(time.time()),
                         "model": self.model_name,
-                        "choices": [{"text": str(sentences)}],
+                        "choices": [{"text": sentences}],
                     }
                     if output_generation_logits:
                         openai_response["choices"][0]["generation_logits"] = result_dict["generation_logits"]
+                    if output_context_logits:
+                        openai_response["choices"][0]["context_logits"] = result_dict["context_logits"]
                     return openai_response
                 else:
                     return sentences
