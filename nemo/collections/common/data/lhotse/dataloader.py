@@ -209,7 +209,7 @@ def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfi
 
 
 def get_lhotse_dataloader_from_config(
-    config: Union[dict ,DictConfig],
+    config: Union[dict, DictConfig],
     global_rank: int,
     world_size: int,
     dataset: torch.utils.data.Dataset,
