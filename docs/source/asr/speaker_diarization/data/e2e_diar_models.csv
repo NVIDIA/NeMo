@@ -1,2 +1,2 @@
 Model Name,Model Base Class,Model Card
-diar_msdd_telephonic,EncDecDSortformerEncLabelModeliarLabelModel,"https://huggingface.co/nvidia/diar_sortformer_4spk-v1"
+diar_sortformer_4spk,SortformerEncLabelModel,"https://huggingface.co/nvidia/diar_sortformer_4spk-v1"
