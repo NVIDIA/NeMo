@@ -16,7 +16,13 @@ from os.path import basename, splitext
 
 import nemo_run as run
 from argument_parser import parse_cli_args
-from utils import get_comm_overlap_callback_idx, hf_tokenizer, slurm_executor, set_primary_perf_configs, get_user_configs
+from utils import (
+    get_comm_overlap_callback_idx,
+    get_user_configs,
+    hf_tokenizer,
+    set_primary_perf_configs,
+    slurm_executor,
+)
 
 from nemo.collections.llm.recipes.gpt3_175b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed

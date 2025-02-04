@@ -16,11 +16,18 @@ from os.path import basename, splitext
 
 import nemo_run as run
 from argument_parser import parse_cli_args
-from utils import get_comm_overlap_callback_idx, hf_tokenizer, slurm_executor, set_primary_perf_configs, get_user_configs
+from utils import (
+    get_comm_overlap_callback_idx,
+    get_user_configs,
+    hf_tokenizer,
+    set_primary_perf_configs,
+    slurm_executor,
+)
 
 from nemo.collections.llm.recipes.llama3_70b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+
 
 def override_recipe_configs(
     args: str,
@@ -51,7 +58,7 @@ def override_recipe_configs(
     if args.gpu.lower() == "b200":
         pass
         # TODO @malay: add b200 tp overlap configs
-    
+
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
@@ -72,7 +79,7 @@ def override_recipe_configs(
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama3", "70b", args)        
+    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama3", "70b", args)
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size = kwargs
 
     recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
@@ -100,9 +107,9 @@ if __name__ == "__main__":
 
     with run.Experiment(exp_name) as exp:
         exp.add(
-            recipe, 
-            executor=executor, 
-            name=exp_name, 
+            recipe,
+            executor=executor,
+            name=exp_name,
             plugins=plugins,
         )
 

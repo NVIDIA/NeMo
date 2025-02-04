@@ -16,7 +16,7 @@ from os.path import basename, splitext
 
 import nemo_run as run
 from argument_parser import parse_cli_args
-from utils import hf_tokenizer, slurm_executor, get_user_configs, set_primary_perf_configs
+from utils import get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
 
 from nemo.collections.llm.recipes.nemotron3_22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
@@ -47,7 +47,7 @@ def override_recipe_configs(
 
     # data module configs
     recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
-    if args.compute_dtype == "bf16" or args.gpu.lower()=="b200":
+    if args.compute_dtype == "bf16" or args.gpu.lower() == "b200":
         recipe.data.tokenizer = run.Config(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
         )

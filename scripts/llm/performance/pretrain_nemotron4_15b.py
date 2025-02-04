@@ -16,7 +16,7 @@ from os.path import basename, splitext
 
 import nemo_run as run
 from argument_parser import parse_cli_args
-from utils import slurm_executor, get_user_configs, set_primary_perf_configs
+from utils import get_user_configs, set_primary_perf_configs, slurm_executor
 
 from nemo.collections.llm.recipes.nemotron4_15b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
@@ -101,9 +101,9 @@ if __name__ == "__main__":
 
     with run.Experiment(exp_name) as exp:
         exp.add(
-            recipe, 
-            executor=executor, 
-            name=exp_name, 
+            recipe,
+            executor=executor,
+            name=exp_name,
             plugins=plugins,
         )
 

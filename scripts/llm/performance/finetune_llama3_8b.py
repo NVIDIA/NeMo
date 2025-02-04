@@ -17,12 +17,12 @@ from os.path import basename, splitext
 import nemo_run as run
 from argument_parser import parse_cli_args
 from utils import (
+    get_user_configs,
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
+    set_primary_perf_configs,
     slurm_executor,
-    get_user_configs,
-    set_primary_perf_configs
 )
 
 from nemo.collections.llm.gpt.data.squad import SquadDataModule

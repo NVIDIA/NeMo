@@ -127,6 +127,7 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
         use_fast=True,
     )
 
+
 def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
     script_dir = str(Path(__file__).parent.absolute())
     recommended_configs_csv = os.path.join(script_dir, "recommended_model_configs", f"model_configs_{gpu}.csv")
@@ -148,7 +149,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     config = config_df.to_dict(orient='records')[0] if len(config_df) > 0 else {}
 
     num_gpus = args.num_gpus if args.num_gpus is not None else int(config.get("num_gpus"))
-    num_nodes = -(num_gpus // -args.gpus_per_node) # ceil division
+    num_nodes = -(num_gpus // -args.gpus_per_node)  # ceil division
     mbs = args.micro_batch_size if args.micro_batch_size is not None else int(config.get("mbs"))
     gbs = args.global_batch_size if args.global_batch_size is not None else int(config.get("gbs"))
     tp_size = args.tensor_parallel_size if args.tensor_parallel_size is not None else int(config.get("tp_size"))
