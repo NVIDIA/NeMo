@@ -71,7 +71,7 @@ class TestPEFT:
             for key, val in linear_adapter.state_dict().items():
                 if key in linear.state_dict():
                     continue
-                assert key in ['lora_a', 'lora_b']
+                assert key in ['lora_a.weight', 'lora_b.weight']
 
     def test_linear_adapter_monkey_patch(self):
         from copy import deepcopy
@@ -89,7 +89,7 @@ class TestPEFT:
         for key, val in linear_adapter.state_dict().items():
             if key in state_init:
                 continue
-            assert key in ['lora_a', 'lora_b']
+            assert key in ['lora_a.weight', 'lora_b.weight']
 
         state_dict = linear_adapter.state_dict()
         for key in ['lora_a', 'lora_b']:
