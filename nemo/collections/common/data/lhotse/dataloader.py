@@ -16,7 +16,7 @@ import random
 import warnings
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -209,7 +209,7 @@ def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfi
 
 
 def get_lhotse_dataloader_from_config(
-    config: dict | DictConfig,
+    config: Union[dict ,DictConfig],
     global_rank: int,
     world_size: int,
     dataset: torch.utils.data.Dataset,
