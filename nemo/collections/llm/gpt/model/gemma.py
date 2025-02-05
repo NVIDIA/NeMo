@@ -104,9 +104,11 @@ class GemmaModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        """ """
         super().__init__(config or GemmaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
     def configure_model(self):
+        """ """
         from nemo.collections.common.parts.utils import extend_instance
         from nemo.collections.llm.gpt.model.gemma2 import EmbeddingScalingMixin
 
@@ -120,6 +122,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
     """ """
 
     def init(self) -> GemmaModel:
+        """ """
         return GemmaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
@@ -154,12 +157,14 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """ """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> GemmaConfig:
+        """ """
         from transformers import GemmaConfig as HFGemmaConfig
 
         source = HFGemmaConfig.from_pretrained(str(self))
@@ -195,6 +200,7 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
     """ """
 
     def init(self) -> "GemmaForCausalLM":
+        """ """
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
@@ -202,6 +208,7 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
             return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
+        """ """
         target = self.init()
         source, _ = self.nemo_load(str(self))
         target = self.convert_state(source, target)
@@ -227,10 +234,12 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
 
     @property
     def tokenizer(self):
+        """ """
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
     def config(self) -> "GemmaConfig":
+        """ """
         source: GemmaConfig = io.load_context(str(self)).model.config
 
         from transformers import GemmaConfig as HFGemmaConfig
@@ -331,6 +340,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
+    """ """
     return torch.cat((down, gate), axis=0)
 
 
