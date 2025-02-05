@@ -26,7 +26,7 @@ from nemo.collections.llm.gpt.data import MLPerfGovReportDataModule
 
 from nemo import lightning as nl
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from utils import (

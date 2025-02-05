@@ -267,6 +267,10 @@ class MLPerfLoRALlamaModel(LlamaModel):
     ):
         super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
+        from nemo.utils.import_utils import safe_import
+        _, HAVE_TE = safe_import("transformer_engine")
+        assert HAVE_TE, "TransformerEngine is required for MLPerfLoRALlamaModel."
+
     def configure_model(self):
         # Apply context managers to reduce memory by (1) avoiding unnecessary gradients
         # and (2) requesting that TE initialize params as FP8.

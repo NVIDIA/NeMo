@@ -14,18 +14,13 @@
 
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from datasets import DatasetDict, load_dataset
 import numpy as np
 
-import torch
-from torch import nn
-
 from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
-from nemo.collections.llm.utils import Config
-from nemo.lightning import OptimizerModule
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
 
