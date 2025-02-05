@@ -21,6 +21,7 @@ from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from torch import nn
 
 from nemo.collections.llm.peft.lora import LinearAdapter, LoRALinear
+from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear, wildcard_match
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
@@ -103,7 +104,7 @@ class LoRALinearSplitFC1UpGate(AdapterWrapper):
 
 
 @dataclass
-class CanonicalLoRA(PEFT):
+class CanonicalLoRA(PEFT, ModuleMatcher):
     """
     Implements the LoRA (Low-Rank Adaptation) module for parameter-efficient fine-tuning.
     Canonical LoRA applies LoRA on Q, K, V projection matrices separately, as well as Up and Gate projection
@@ -183,7 +184,6 @@ class CanonicalLoRA(PEFT):
         }
 
         """
-        self.canonical_mapping: Dict[str, Set] = defaultdict(set)
         for target in self.target_modules:
             assert not target.endswith("linear_qkv"), (
                 "Canonical LoRA does not support target 'linear_qkv'. Either use 'linear_qkv' with LoRA() or "
@@ -220,22 +220,7 @@ class CanonicalLoRA(PEFT):
             nn.Module: The modified module with LoRA applied, or the original module if not a target.
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
-
-        full_name = f"{prefix}.{name}" if prefix else name
-
-        """
-        Find the element in canonical_mapping which 
-        1) matches the current `name` exactly, OR
-        2) matches the current `full_name` with regex
-        match is None if current module name doesn't match the specified targets.
-        """
-        match = None
-        for pattern in self.canonical_mapping:
-            if name == pattern or wildcard_match(pattern, full_name):
-                match = pattern
-                break
-
-        if match is not None:
+        if (match := self.match(m, name, prefix)) is not None:
             if isinstance(m, nn.Linear):
                 return LinearAdapter(
                     m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method

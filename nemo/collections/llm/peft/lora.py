@@ -20,6 +20,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear, wildcard_match
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
@@ -215,7 +216,7 @@ def patch_linear_module(
 
 
 @dataclass
-class LoRA(PEFT):
+class LoRA(PEFT, ModuleMatcher):
     """
     Implements the LoRA (Low-Rank Adaptation) module for parameter-efficient fine-tuning.
 
@@ -239,7 +240,7 @@ class LoRA(PEFT):
         dropout_position (Literal['pre', 'post'], optional): Position for applying dropout.
             Can be 'pre' (before the low-rank projection) or 'post' (after). Defaults to 'pre'.
         a2a_experimental (bool): Enables the experimental All-to-All (A2A) communication strategy. Defaults to False.
-        lora_drype (torch.dtype): Parameter data type for LoRA weights. Default None (will use model's dtype).
+        lora_dtype (torch.dtype): Parameter data type for LoRA weights. Default None (will use model's dtype).
 
     Example:
     --------
@@ -257,10 +258,6 @@ class LoRA(PEFT):
 
     )
     """
-
-    target_modules: List[str] = field(
-        default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
-    )
     dim: int = 32
     alpha: int = 32
     dropout: float = 0.0
@@ -284,8 +281,7 @@ class LoRA(PEFT):
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 
-        full_name = f"{prefix}.{name}" if prefix else name
-        if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
+        if self.match(m, name, prefix) is not None:
             if isinstance(m, nn.Linear):
                 # Will use the `patch_linear_module` function if:
                 # - is FSDP v1
