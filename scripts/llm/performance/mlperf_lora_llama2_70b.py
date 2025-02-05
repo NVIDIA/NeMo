@@ -13,33 +13,25 @@
 # limitations under the License.
 
 import nemo_run as run
-
 import torch
-
 from megatron.core.optimizer import OptimizerConfig
-
-from nemo.collections import llm
-from nemo.collections.llm.gpt.model.llama import *
-from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
-from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.data import MLPerfGovReportDataModule
+from utils import import_ckpt_experiment, parse_cli_args, slurm_executor
 
 from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
+from nemo.collections.llm.gpt.data import MLPerfGovReportDataModule
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+from nemo.collections.llm.gpt.model.llama import *
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-
-from utils import (
-    import_ckpt_experiment,
-    parse_cli_args,
-    slurm_executor,
-)
 
 NUM_NODES = 1
 NUM_GPUS_PER_NODE = 8
 MICRO_BATCH_SIZE = 1
 GLOBAL_BATCH_SIZE = 8
-TP_SIZE = 4 # tp_comm_overlap_cfg may need to be re-tuned if altering
+TP_SIZE = 4  # tp_comm_overlap_cfg may need to be re-tuned if altering
 PP_SIZE = 1
 CP_SIZE = 1
 MAX_STEPS = 100
@@ -84,7 +76,7 @@ def mlperf_lora_llama2_70b_recipe(
         packed_sequence_specs=packed_sequence_specs,
         dataset_kwargs={
             "return_cu_seqlen": False,
-        }
+        },
     )
 
     optimizer_config = run.Config(
@@ -138,6 +130,7 @@ def mlperf_lora_llama2_70b_recipe(
     resume = llm.recipes.finetune_default.nemo_resume(HF_MODEL_URI)
 
     from megatron.core.distributed import DistributedDataParallelConfig
+
     strategy = run.Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tp_size,
@@ -172,16 +165,26 @@ def mlperf_lora_llama2_70b_recipe(
 
     # Communication overlap settings
     tp_comm_overlap_cfg = None
-    ub_tp_comm_overlap = (tp_size > 1)
+    ub_tp_comm_overlap = tp_size > 1
     if ub_tp_comm_overlap:
-        from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import PipelineOverlapCfg, RingExchangeOverlapCfg, BulkOverlapCfg, TransformerLayerTPOverlapCfg
+        from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
+            BulkOverlapCfg,
+            PipelineOverlapCfg,
+            RingExchangeOverlapCfg,
+            TransformerLayerTPOverlapCfg,
+        )
+
         tp_comm_overlap_cfg = TransformerLayerTPOverlapCfg(
             qkv_fprop=RingExchangeOverlapCfg(),
             fc1_fprop=RingExchangeOverlapCfg(),
             proj_dgrad=RingExchangeOverlapCfg(),
             fc2_dgrad=RingExchangeOverlapCfg(),
-            proj_fprop=PipelineOverlapCfg(num_sm=32, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=True),
-            fc2_fprop=PipelineOverlapCfg(num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=False),
+            proj_fprop=PipelineOverlapCfg(
+                num_sm=32, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=True
+            ),
+            fc2_fprop=PipelineOverlapCfg(
+                num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=False
+            ),
             qkv_dgrad=BulkOverlapCfg(num_sm=4, cga_size=2, set_sm_margin=False),
             fc1_dgrad=RingExchangeOverlapCfg(cga_size=2, set_sm_margin=True),
             qkv_wgrad=None,
@@ -198,6 +201,7 @@ def mlperf_lora_llama2_70b_recipe(
 
     # Disable garbage collection
     from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+
     gc_callback = run.Config(
         GarbageCollectionCallback,
         max_steps + 1,
@@ -206,6 +210,7 @@ def mlperf_lora_llama2_70b_recipe(
 
     # Log step times
     from nemo.utils.exp_manager import TimingCallback
+
     timing_callback = run.Config(TimingCallback)
 
     trainer = run.Config(
@@ -229,6 +234,7 @@ def mlperf_lora_llama2_70b_recipe(
     )
 
     from nemo.collections.llm.recipes.log.default import tensorboard_logger
+
     recipe = run.Partial(
         llm.finetune,
         model=model,
@@ -246,7 +252,9 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
     if args.finetuning.lower() != "lora" or args.compute_dtype != "fp8":
-        raise ValueError(f"This example assumes LoRA and fp8; instead got --finetuning={args.finetuning} --compute_dtype={args.compute_dtype}")
+        raise ValueError(
+            f"This example assumes LoRA and fp8; instead got --finetuning={args.finetuning} --compute_dtype={args.compute_dtype}"
+        )
 
     exp_name = "_".join(
         [
@@ -310,7 +318,11 @@ if __name__ == "__main__":
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
-            exp.add(*import_ckpt_experiment(executor, run.Config(LlamaModel, config=run.Config(Llama2Config70B)), source=f"hf://{HF_MODEL_URI}"))
+            exp.add(
+                *import_ckpt_experiment(
+                    executor, run.Config(LlamaModel, config=run.Config(Llama2Config70B)), source=f"hf://{HF_MODEL_URI}"
+                )
+            )
         exp.add(
             recipe,
             executor=executor,
@@ -322,4 +334,3 @@ if __name__ == "__main__":
             exp.run(sequential=True, detach=True)
         else:
             exp.dryrun()
-

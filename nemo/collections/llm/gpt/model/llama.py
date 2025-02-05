@@ -258,6 +258,7 @@ class MLPerfLoRALlamaModel(LlamaModel):
 
     Changes made here are experimental, proceed with caution.
     """
+
     def __init__(
         self,
         config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
@@ -268,6 +269,7 @@ class MLPerfLoRALlamaModel(LlamaModel):
         super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
         from nemo.utils.import_utils import safe_import
+
         _, HAVE_TE = safe_import("transformer_engine")
         assert HAVE_TE, "TransformerEngine is required for MLPerfLoRALlamaModel."
 
@@ -276,6 +278,7 @@ class MLPerfLoRALlamaModel(LlamaModel):
         # and (2) requesting that TE initialize params as FP8.
         # See https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/pytorch.html#transformer_engine.pytorch.fp8_model_init
         import transformer_engine.pytorch as te
+
         with torch.no_grad(), te.fp8_model_init():
             super().configure_model()
 

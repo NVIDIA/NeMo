@@ -16,8 +16,8 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from datasets import DatasetDict, load_dataset
 import numpy as np
+from datasets import DatasetDict, load_dataset
 
 from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
@@ -27,6 +27,7 @@ from nemo.utils import logging
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+
 
 class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
     """
@@ -39,6 +40,7 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
         delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing. Defaults to True.
         See FineTuningDataModule for the other args
     """
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -76,7 +78,9 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
         )
 
         if self.packed_sequence_size != self.seq_length:
-            raise ValueError(f"{self.__class__.__name__} requires `packed_sequence_specs.packed_sequence_size` to be nonzero and equal to `seq_length`.  Instead got packed_sequence_size = {self.packed_sequence_size} and seq_length = {self.seq_length}")
+            raise ValueError(
+                f"{self.__class__.__name__} requires `packed_sequence_specs.packed_sequence_size` to be nonzero and equal to `seq_length`.  Instead got packed_sequence_size = {self.packed_sequence_size} and seq_length = {self.seq_length}"
+            )
 
     def prepare_data(self) -> None:
         # if train file is specified, no need to do anything
@@ -123,11 +127,14 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
 
         for split_name, dataset in save_splits.items():
             output_file = self.dataset_root / f"{split_name}.npy"
-            processed_data = [{
-                "input_ids": example["input_ids"],
-                "loss_mask": [int(x != -100) for x in example["labels"]],
-                "seq_start_id": [0],
-                } for example in dataset]
+            processed_data = [
+                {
+                    "input_ids": example["input_ids"],
+                    "loss_mask": [int(x != -100) for x in example["labels"]],
+                    "seq_start_id": [0],
+                }
+                for example in dataset
+            ]
             np.save(output_file, processed_data)
 
             logging.info(f"{split_name} split saved to {output_file}")
