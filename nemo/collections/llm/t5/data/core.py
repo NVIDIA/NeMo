@@ -50,7 +50,7 @@ def create_sft_dataset(
     **kwargs,
 ) -> "T5SFTDataset":
     """ """
-    
+
     return T5SFTDataset(
         file_path=str(path),
         src_tokenizer=tokenizer,
