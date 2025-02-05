@@ -23,6 +23,8 @@ from megatron.core.tensor_parallel.mappings import (
     gather_from_sequence_parallel_region,
     scatter_to_sequence_parallel_region,
 )
+
+import torch
 from torch import nn
 
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
@@ -116,6 +118,7 @@ def init_method_normal(sigma):
 
 
 def init_method_kaiming_uniform(val):
+    """ """
     def init_(tensor):
         return nn.init.kaiming_uniform_(tensor, a=val)
 
@@ -123,13 +126,74 @@ def init_method_kaiming_uniform(val):
 
 
 def init_method_const(val):
+    """ """
     def init_(tensor):
         return nn.init.constant_(tensor, val)
 
     return init_
 
 
+def pad_seq_to_mult(x, mult):
+    """ """
+    import torch.nn.functional as F
+
+    if x.shape[0] % mult == 0:
+        return x, 0
+    pad_len = mult - (x.shape[0] % mult)
+    with torch.no_grad():
+        # pad at the tail
+        x = nn.functional.pad(x, (0, 0, 0, pad_len))
+    return x, pad_len
+
+
+def unpad_seq_to_mult(x, pad_len):
+    """ """
+    if pad_len <= 0:
+        return x
+    with torch.no_grad():
+        # prune tail padding
+        return x[:-pad_len, :]
+
+
+class _All2AllHp2Sp(torch.autograd.Function):
+    """
+    All-2-All from Hidden Parallel to Sequence Parallel
+    This is a temporary workaround and can be updated in the future
+    TODO: Move the functionality to MCore
+    """
+
+    @staticmethod
+    def forward(ctx, input_):
+        world_size = get_tensor_model_parallel_world_size()
+        group = get_tensor_model_parallel_group()
+        send_list = list(input_.chunk(world_size, dim=0))
+        send_list = [tensor.contiguous() for tensor in send_list]
+        receive_list = [torch.empty_like(send_list[0]) for _ in range(world_size)]
+        torch.distributed.all_to_all(receive_list, send_list, group=group)
+        x = torch.cat(receive_list, dim=-1)
+
+        return x
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        world_size = get_tensor_model_parallel_world_size()
+        group = get_tensor_model_parallel_group()
+        send_list = list(grad_output.chunk(world_size, dim=-1))
+        send_list = [tensor.contiguous() for tensor in send_list]
+        receive_list = [torch.empty_like(send_list[0]) for _ in range(world_size)]
+        torch.distributed.all_to_all(receive_list, send_list, group=group)
+        x = torch.cat(receive_list, dim=0)
+        
+        return x
+
+
+def all2all_hp2sp(input_):
+    """ """
+    return _All2AllHp2Sp.apply(input_)
+
+
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
+    """ """
     def __init__(
         self,
         in_features: int,

@@ -36,15 +36,13 @@ from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.utils.import_utils import safe_import
 
-HAVE_TE = True
-try:
-    import transformer_engine
-except (ImportError, ModuleNotFoundError):
-    HAVE_TE = False
+_, HAVE_TE = safe_import("transformer_engine")
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -425,7 +423,6 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
     @property
     def tokenizer(self) -> "AutoTokenizer":
         """Retrieve Tokenizer from HF"""
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         # Set special tokens to match HF
         bos_token = "<pad>"
@@ -595,7 +592,6 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
     """Exporter Connector for converting NeMo T5 Model to HF"""
 
     def init(self) -> "T5ForConditionalGeneration":
-        from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):

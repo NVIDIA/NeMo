@@ -14,9 +14,12 @@
 
 import copy
 import datetime
+import subprocess
 import multiprocessing as mp
+import sys
 import os
 import time
+import pickle
 from functools import partial
 from typing import Any
 
@@ -24,6 +27,7 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils import logging
 
 PREFIX_STR = (
@@ -218,7 +222,7 @@ def get_samples_mapping(
         # First compile and then import.
         try:
             if is_global_rank_zero():
-                compile_helper()
+                _compile_helper()
             from nemo.collections.llm.gpt.data import helpers
         except ImportError:
             raise ImportError(
@@ -263,7 +267,7 @@ def get_samples_mapping(
 
     # Deallocate temporary numpy arrays that were created for `get_samples_mapping()` when needed
     if hasattr(indexed_dataset, 'doc_idx') and hasattr(indexed_dataset, 'sizes'):
-        deallocate_indexed_dataset_memory(indexed_dataset)
+        _deallocate_indexed_dataset_memory(indexed_dataset)
 
     return samples_mapping
 
@@ -615,3 +619,26 @@ def _index_file_exists(idx_fn):
         return True
     else:
         return False
+
+
+def _compile_helper():
+    """Compile helper function ar runtime. Make sure this
+    is invoked on a single process."""
+
+    path = os.path.abspath(os.path.dirname(__file__))
+    ret = subprocess.run(['make', '-C', path])
+    if ret.returncode != 0:
+        logging.error("Making C++ dataset helpers module failed, exiting.")
+        import sys
+
+        sys.exit(1)
+
+
+def _deallocate_indexed_dataset_memory(indexed_dataset):
+    """Deallocate memory of an IndexedDataset."""
+    if isinstance(indexed_dataset):
+        # for MMapIndexedDataset we cannot release any memory of sizes
+        indexed_dataset._index._doc_idx = None
+    else:
+        indexed_dataset.sizes = None
+        indexed_dataset.doc_idx = None

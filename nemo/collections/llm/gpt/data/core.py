@@ -20,7 +20,7 @@ import re
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Mapping, Optional, Type
+from typing import Callable, List, Mapping, Optional, Type
 
 import datasets
 import numpy as np
@@ -44,6 +44,10 @@ from nemo.utils import AppState, logging
 
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
+
+PREFIX_STR = (
+    "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
+)
 
 __idx_version__ = "0.2"  # index file version
 __idx_suffix__ = "idx"  # index file suffix
@@ -755,7 +759,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             # pad to the nearest multiple of 16 for FP8 training
             # for many datasets in practice, all packed sequence lengths are very close to the
             # target length (2048, 4096, 8192), so there is very minimal padding
-            max_length = max(len(l) for l in input_ids)
+            max_length = max(len(length) for length in input_ids)
             max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, self.pad_seq_length_to_mult))
         assert max_length <= self.max_seq_length
 
@@ -767,10 +771,10 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             cu_seqlens.append([0])
             cu_seqlens_unpadded.append([0])
             seqlens = np.array(item['seq_boundaries'][1:]) - np.array(item['seq_boundaries'][:-1])
-            for l in seqlens:
+            for length in seqlens:
                 # length minus 1 because input_ids is truncated by 1 for labels
-                position_ids[-1].extend(list(range(l - 1)))
-                cu_seqlens[-1].append(cu_seqlens[-1][-1] + l - 1)
+                position_ids[-1].extend(list(range(length - 1)))
+                cu_seqlens[-1].append(cu_seqlens[-1][-1] + length - 1)
 
             # the last seq needs to be the max seq len because rope and attn kernels expect no padding
             assert cu_seqlens[-1][-1] <= max_length
@@ -821,9 +825,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         }
 
         if self.return_cu_seqlen:
-            cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(l) for l in cu_seqlens) + 1, pad_id=-1)
+            cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(length) for length in cu_seqlens) + 1, pad_id=-1)
             cu_seqlens_unpadded = self._collate_item(
-                cu_seqlens_unpadded, max_length=max(len(l) for l in cu_seqlens_unpadded) + 1, pad_id=-1
+                cu_seqlens_unpadded, max_length=max(len(length) for length in cu_seqlens_unpadded) + 1, pad_id=-1
             )
             # Pre-generate `cu_seqlens_argmin` and `max_seqlen` as CPU tensor to avoid device-to-host copies.
             cu_seqlens = torch.IntTensor(cu_seqlens)
@@ -1015,7 +1019,7 @@ class TextMemMapDataset(Dataset):
         if sort_dataset_paths:
             self._files_list = sorted(self._files_list)
 
-        logging.info(f"Building data files")
+        logging.info("Building data files")
         # load all files into memmap
         is_distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
 
@@ -1057,7 +1061,7 @@ class TextMemMapDataset(Dataset):
         if is_distributed and not lightning_prepare_data():
             torch.distributed.barrier()
 
-        logging.info(f"Loading data files")
+        logging.info("Loading data files")
         start_time = time.time()
         mdata_midx_list = [self.load_file(fn, index_mapping_dir) for fn in self._files_list]
         logging.info(

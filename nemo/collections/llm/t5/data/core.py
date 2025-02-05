@@ -14,7 +14,7 @@
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 import numpy as np
 import torch
