@@ -136,7 +136,6 @@ def init_method_const(val):
 
 def pad_seq_to_mult(x, mult):
     """ """
-    import torch.nn.functional as F
 
     if x.shape[0] % mult == 0:
         return x, 0
@@ -165,8 +164,8 @@ class _All2AllHp2Sp(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input_):
-        world_size = get_tensor_model_parallel_world_size()
-        group = get_tensor_model_parallel_group()
+        world_size = parallel_state.get_tensor_model_parallel_world_size()
+        group = parallel_state.get_tensor_model_parallel_group()
         send_list = list(input_.chunk(world_size, dim=0))
         send_list = [tensor.contiguous() for tensor in send_list]
         receive_list = [torch.empty_like(send_list[0]) for _ in range(world_size)]
@@ -177,8 +176,8 @@ class _All2AllHp2Sp(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        world_size = get_tensor_model_parallel_world_size()
-        group = get_tensor_model_parallel_group()
+        world_size = parallel_state.get_tensor_model_parallel_world_size()
+        group = parallel_state.get_tensor_model_parallel_group()
         send_list = list(grad_output.chunk(world_size, dim=-1))
         send_list = [tensor.contiguous() for tensor in send_list]
         receive_list = [torch.empty_like(send_list[0]) for _ in range(world_size)]
