@@ -172,11 +172,10 @@ DEPS=(
 )
 
 echo 'Installing dependencies of nemo'
-# ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
+${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
 echo 'Installing nemo'
 cd $CURR
-
 
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
   echo "Running in dev mode"
