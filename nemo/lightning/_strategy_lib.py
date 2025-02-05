@@ -602,14 +602,18 @@ def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False)
         if not broadcast:
             group = parallel_state.get_pipeline_model_parallel_group()
             if isinstance(group, list):
-                group = group[-1]
-            pp_ranks = torch.distributed.get_process_group_ranks(group)
+                pp_ranks = []
+                for g in group:
+                    pp_ranks.append(torch.distributed.get_process_group_ranks(g))
+            else:
+                pp_ranks = torch.distributed.get_process_group_ranks(group)
 
             for src_rank_idx in src_rank:
-                if torch.distributed.get_rank() == src_rank_idx and 0 in pp_ranks:
-                    torch.distributed.send(value, 0)
-                elif torch.distributed.get_rank() == 0:
+                if torch.distributed.get_rank() == 0:
                     torch.distributed.recv(value, src_rank_idx)
+                elif torch.distributed.get_rank() == src_rank_idx and 0 in pp_ranks:
+                    torch.distributed.send(value, 0)
+
         else:
             torch.distributed.broadcast(
                 value,
