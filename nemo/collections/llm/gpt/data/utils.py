@@ -18,7 +18,6 @@ import multiprocessing as mp
 import os
 import pickle
 import subprocess
-import sys
 import time
 from functools import partial
 from typing import Any
