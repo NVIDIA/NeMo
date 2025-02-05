@@ -14,8 +14,8 @@
 
 import nemo_run as run
 import torch
-from megatron.core.optimizer import OptimizerConfig
 from argument_parser import parse_cli_args
+from megatron.core.optimizer import OptimizerConfig
 from utils import import_ckpt_experiment, slurm_executor
 
 from nemo import lightning as nl
@@ -262,7 +262,7 @@ if __name__ == "__main__":
         )
 
     num_gpus_per_node = NUM_GPUS_PER_NODE if args.gpus_per_node is None else args.gpus_per_node
-    num_gpus = NUM_NODES*num_gpus_per_node if args.num_gpus is None else args.num_gpus
+    num_gpus = NUM_NODES * num_gpus_per_node if args.num_gpus is None else args.num_gpus
     num_nodes = -(num_gpus // -num_gpus_per_node)
 
     mbs = MICRO_BATCH_SIZE if args.micro_batch_size is None else args.micro_batch_size
