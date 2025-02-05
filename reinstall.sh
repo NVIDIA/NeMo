@@ -18,139 +18,133 @@ PIP=pip
 ${PIP} install -U ${PIP}
 
 mcore() {
-    return
+  local mode="$1"
+  export MAMBA_FORCE_BUILD=TRUE
+  export MAMBA_TAG=v2.2.0
+  export CAUSAL_CONV1D_FORCE_BUILD=TRUE
+  export CAUSAL_CONV_TAG=v1.2.2.post1
 
-    local mode="$1"
-    export MAMBA_FORCE_BUILD=TRUE
-    export MAMBA_TAG=v2.2.0
-    export CAUSAL_CONV1D_FORCE_BUILD=TRUE
-    export CAUSAL_CONV_TAG=v1.2.2.post1
+  cd /opt
+  DIR="causal-conv1d"
 
-    cd /opt
-    DIR="causal-conv1d"
+  if [ ! -d "$DIR/.git" ]; then
+    rm -rf "$DIR" &&
+      git clone https://github.com/Dao-AILab/causal-conv1d.git 
+  fi
 
-    if [ ! -d "$DIR/.git" ]; then
-      rm -rf "$DIR" &&
-        git clone https://github.com/Dao-AILab/causal-conv1d.git 
-    fi
+  pushd $DIR &&
+    git checkout -f $CAUSAL_CONV_TAG
+      
+  if [[ "$mode" == "build" ]]; then
+      pip wheel --no-deps --wheel-dir /tmp/wheels/mcore/ . && \
+      ls -al
+  else
+      pip install /tmp/wheels/mcore/*.whl
+  fi
 
-    pushd $DIR &&
-      git checkout -f $CAUSAL_CONV_TAG
-        
-    if [[ "$mode" == "build" ]]; then
-        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore/ . && \
-        ls -al
-    else
-        pip install /tmp/wheels/mcore/*.whl
-    fi
+  cd /opt
+  DIR="mamba"
 
-    cd /opt
-    DIR="mamba"
+  if [ ! -d "$DIR/.git" ]; then
+    rm -rf "$DIR" &&
+      git clone https://github.com/state-spaces/mamba.git 
+  fi
 
-    if [ ! -d "$DIR/.git" ]; then
-      rm -rf "$DIR" &&
-        git clone https://github.com/state-spaces/mamba.git 
-    fi
+  pushd $DIR &&
+    git checkout -f $MAMBA_TAG
+      
+  if [[ "$mode" == "build" ]]; then
+      pip wheel --no-deps --wheel-dir /tmp/wheels/mcore . && \
+      ls -al
+  else
+      pip install /tmp/wheels/mcore/*.whl
+  fi
 
-    pushd $DIR &&
-      git checkout -f $MAMBA_TAG
-        
-    if [[ "$mode" == "build" ]]; then
-        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore . && \
-        ls -al
-    else
-        pip install /tmp/wheels/mcore/*.whl
-    fi
+  cd /opt
+  DIR="Megatron-LM"
 
-    cd /opt
-    DIR="Megatron-LM"
+  if [ ! -d "$DIR/.git" ]; then
+    rm -rf "$DIR" &&
+      git clone ${MLM_REPO} 
+  fi
 
-    if [ ! -d "$DIR/.git" ]; then
-      rm -rf "$DIR" &&
-        git clone ${MLM_REPO} 
-    fi
-
-    pushd $DIR &&
-      git checkout -f $MLM_TAG
-        
-    if [[ "$mode" == "build" ]]; then
-        pip wheel --no-deps --wheel-dir /tmp/wheels/mcore . && \
-        ls -al
-    else
-        pip install /tmp/wheels/mcore/*.whl
-    fi
+  pushd $DIR &&
+    git checkout -f $MLM_TAG
+      
+  if [[ "$mode" == "build" ]]; then
+      pip wheel --no-deps --wheel-dir /tmp/wheels/mcore . && \
+      ls -al
+  else
+      pip install /tmp/wheels/mcore/*.whl
+  fi
     
 }
 
 te() {
-    local mode="$1"
-    cd /opt
-    DIR="TransformerEngine"
+  local mode="$1"
+  cd /opt
+  DIR="TransformerEngine"
 
-    if [ ! -d "$DIR/.git" ]; then
-      rm -rf "$DIR" &&
-        git clone ${TE_REPO} 
-    fi
+  if [ ! -d "$DIR/.git" ]; then
+    rm -rf "$DIR" &&
+      git clone ${TE_REPO} 
+  fi
 
-    pushd $DIR &&
-      git checkout -f $TE_TAG
-        
-    if [[ "$mode" == "build" ]]; then
-       git submodule init && git submodule update && \
-        NVTE_FRAMEWORK=pytorch NVTE_WITH_USERBUFFERS=1 MPI_HOME=/usr/local/mpi pip wheel --wheel-dir /tmp/wheels/te/ . && \
-        ls -al
-    else
-        pip install --no-build-isolation /tmp/wheels/te/transformer_engine*
-    fi
+  pushd $DIR &&
+    git checkout -f $TE_TAG
+      
+  if [[ "$mode" == "build" ]]; then
+      git submodule init && git submodule update && \
+      pip wheel --wheel-dir /tmp/wheels/te/ . && \
+      ls -al
+  else
+      pip install /tmp/wheels/te/transformer_engine*
+  fi
 }
 
 apex() {
-    return
-    
-    local mode="$1"
-    cd /opt
-    DIR="Apex"
+  local mode="$1"
+  cd /opt
+  DIR="Apex"
 
-    if [ ! -d "$DIR/.git" ]; then
-      rm -rf "$DIR" &&
-        git clone ${APEX_REPO} 
-    fi
+  if [ ! -d "$DIR/.git" ]; then
+    rm -rf "$DIR" &&
+      git clone ${APEX_REPO} 
+  fi
 
-    pushd $DIR &&
-      git checkout -f $APEX_TAG
-        
-    if [[ "$mode" == "build" ]]; then
-       pip wheel --no-deps --no-build-isolation --wheel-dir /tmp/wheels/apex/ . && \
-        ls -al
-    else
-        pip install --no-build-isolation /tmp/wheels/apex/*.whl
-    fi
+  pushd $DIR &&
+    git checkout -f $APEX_TAG
+      
+  if [[ "$mode" == "build" ]]; then
+      pip wheel --no-deps --no-build-isolation --wheel-dir /tmp/wheels/apex/ . && \
+      ls -al
+  else
+      pip install --no-build-isolation /tmp/wheels/apex/*.whl
+  fi
 }
 
 nemo() {
-  return
-    
-    local mode="$1"
-    cd /opt
-    DIR="NeMo"
+  local mode="$1"
+  cd /opt
+  DIR="NeMo"
 
-    if [ ! -d "$DIR/.git" ]; then
-      rm -rf "$DIR" &&
-        git clone ${NEMO_REPO} 
-    fi
+  if [ ! -d "$DIR/.git" ]; then
+    rm -rf "$DIR" &&
+      git clone ${NEMO_REPO} 
+  fi
 
-    pushd $DIR &&
-      git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge' &&
-      git fetch origin $NEMO_TAG && 
-      git checkout -f $NEMO_TAG
-        
-    ${PIP} install --no-cache-dir virtualenv &&
-      virtualenv /opt/venv &&
-      /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
-        -r requirements/requirements_vllm.txt \
-        -r requirements/requirements_deploy.txt
+  pushd $DIR &&
+    git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge' &&
+    git fetch origin $NEMO_TAG && 
+    git checkout -f $NEMO_TAG
+      
+  ${PIP} install --no-cache-dir virtualenv &&
+    virtualenv /opt/venv &&
+    /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
+      -r requirements/requirements_vllm.txt \
+      -r requirements/requirements_deploy.txt
 
-    pip install --no-cache-dir . "llama-index==0.10.43" "unstructured==0.14.9" "triton==3.1.0"
+  pip install --no-cache-dir . "llama-index==0.10.43" "unstructured==0.14.9" "triton==3.1.0"
 }
 
 echo 'Uninstalling stuff'
