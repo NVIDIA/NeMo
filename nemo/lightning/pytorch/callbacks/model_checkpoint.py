@@ -142,6 +142,10 @@ class ModelCheckpoint(PTLModelCheckpoint):
         from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 
         app_state = AppState()
+
+        torch.distributed.broadcast_object_list([app_state.log_dir, app_state.version], src=0)
+        self._setup_file_logging(app_state.log_dir, app_state)
+
         if self.save_top_k != -1 and app_state.restore:
             logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
@@ -198,6 +202,25 @@ class ModelCheckpoint(PTLModelCheckpoint):
             torch.distributed.barrier()
 
         super().on_train_start(trainer, pl_module)
+
+    def _setup_file_logging(self, log_dir, app_state):
+        """Set up file logging based on rank settings."""
+        from nemo.constants import NEMO_ENV_VARNAME_TESTING
+        from nemo.utils.env_var_parsing import get_envbool
+        from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
+
+        # This is set if the env var NEMO_TESTING is set to True.
+        nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
+        log_file = log_dir / f"nemo_log_globalrank-{app_state.global_rank}_localrank-{app_state.local_rank}.txt"
+
+        if app_state.log_local_rank_0_only and not nemo_testing and app_state.local_rank == 0:
+            logging.add_file_handler(log_file)
+        elif app_state.log_global_rank_0_only and not nemo_testing and app_state.global_rank == 0:
+            logging.add_file_handler(log_file)
+        elif not (app_state.log_local_rank_0_only or app_state.log_global_rank_0_only):
+            logging.add_file_handler(log_file)
+
+        add_handlers_to_mcore_logger()
 
     def nemo_topk_check_previous_run(self):
         """

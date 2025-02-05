@@ -140,6 +140,8 @@ class NeMoLogger(IOMixin):
         app_state.name = self.name
         app_state.version = version
         app_state.cmd_args = sys.argv
+        app_state.log_local_rank_0_only = self.log_local_rank_0_only
+        app_state.log_global_rank_0_only = self.log_global_rank_0_only
 
         os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
         logging.info(f"Experiments will be logged at {log_dir}")
@@ -152,7 +154,6 @@ class NeMoLogger(IOMixin):
             self._setup_trainer_model_checkpoint(trainer, log_dir=log_dir, ckpt=self.ckpt)
 
         self._setup_files_to_move(log_dir, app_state)
-        self._setup_file_logging(log_dir)
 
         return app_state
 
@@ -233,25 +234,6 @@ class NeMoLogger(IOMixin):
                 f.write(task_json)
         except Exception as e:
             logging.warning(f"Saving task config failed: {e}. Skipping saving")
-
-    def _setup_file_logging(self, log_dir):
-        """Set up file logging based on rank settings."""
-        from nemo.constants import NEMO_ENV_VARNAME_TESTING
-        from nemo.utils.env_var_parsing import get_envbool
-        from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
-
-        # This is set if the env var NEMO_TESTING is set to True.
-        nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
-        log_file = log_dir / f"nemo_log_globalrank-{self.global_rank}_localrank-{self.local_rank}.txt"
-
-        if self.log_local_rank_0_only and not nemo_testing and self.local_rank == 0:
-            logging.add_file_handler(log_file)
-        elif self.log_global_rank_0_only and not nemo_testing and self.global_rank == 0:
-            logging.add_file_handler(log_file)
-        elif not (self.log_local_rank_0_only or self.log_global_rank_0_only):
-            logging.add_file_handler(log_file)
-
-        add_handlers_to_mcore_logger()
 
     def _setup_files_to_move(self, log_dir, app_state):
         files_to_move = []

@@ -76,6 +76,8 @@ class AppState(metaclass=Singleton):
         self._version = None
         self._create_checkpoint_callback = None
         self._checkpoint_callback_params = None
+        self._log_global_rank_0_only = None
+        self._log_local_rank_0_only = None
 
         # Save and Restore (.nemo)
         self._tmpdir_name = None
@@ -775,3 +777,19 @@ class AppState(metaclass=Singleton):
     @restore.setter
     def restore(self, restore: bool):
         self._restore = restore
+
+    @property
+    def log_local_rank_0_only(self) -> bool:
+        return self._log_local_rank_0_only
+
+    @log_local_rank_0_only.setter
+    def log_local_rank_0_only(self, log_local_rank_0_only: bool):
+        self._log_local_rank_0_only = log_local_rank_0_only
+
+    @property
+    def log_global_rank_0_only(self) -> bool:
+        return self._log_global_rank_0_only
+
+    @log_global_rank_0_only.setter
+    def log_global_rank_0_only(self, log_global_rank_0_only: bool):
+        self._log_global_rank_0_only = log_global_rank_0_only
