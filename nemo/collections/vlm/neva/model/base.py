@@ -41,6 +41,7 @@ try:
     )
 except ImportError:
     from nemo.utils import logging
+
     # These Defaults are needed to make sure the code compiles
     TEColumnParallelLinear = None
     TENorm = None
