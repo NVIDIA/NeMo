@@ -90,7 +90,7 @@ class CodeGemmaConfig2B(GemmaConfig2B):
 
 class CodeGemmaConfig7B(GemmaConfig7B):
     """Code Gemma 7B config"""
-    
+
     pass
 
 
@@ -198,6 +198,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
 @io.model_exporter(GemmaModel, "hf")
 class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
     """ """
+
     def init(self) -> "GemmaForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
