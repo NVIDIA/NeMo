@@ -220,7 +220,7 @@ def set_primary_perf_configs(
         recipe.trainer.logger = False
     else:
         # default path is NOT intuitive- `<log_dir>/code/nemo_experiments/tb_logs/default/<tfevents_file>`
-        recipe.log.log_dir = "/nemo_run/lightning_logs" # saves file at- `<log_dir>/lightning_logs/tb_logs
+        recipe.log.log_dir = "/nemo_run/lightning_logs"  # saves file at- `<log_dir>/lightning_logs/tb_logs
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None

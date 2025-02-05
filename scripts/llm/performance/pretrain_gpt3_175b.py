@@ -47,7 +47,18 @@ def override_recipe_configs(
     """
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
-        recipe, args.tensorboard, num_nodes, args.gpus_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
+        recipe,
+        args.tensorboard,
+        num_nodes,
+        args.gpus_per_node,
+        mbs,
+        gbs,
+        args.max_steps,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
     )
 
     # data module configs

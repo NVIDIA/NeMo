@@ -41,7 +41,18 @@ def override_recipe_configs(
     """
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
-        recipe, args.tensorboard, num_nodes, args.gpus_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
+        recipe,
+        args.tensorboard,
+        num_nodes,
+        args.gpus_per_node,
+        mbs,
+        gbs,
+        args.max_steps,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
     )
 
     # data module configs
@@ -51,7 +62,7 @@ def override_recipe_configs(
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
-    
+
     enable_cuda_graph = bool(args.gpu.lower() in ["b200"])
     recipe.model.config.enable_cuda_graph = enable_cuda_graph
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
