@@ -90,7 +90,7 @@ class CodeGemmaConfig2B(GemmaConfig2B):
 
 class CodeGemmaConfig7B(GemmaConfig7B):
     """Code Gemma 7B config"""
-
+    
     pass
 
 
@@ -198,9 +198,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
 @io.model_exporter(GemmaModel, "hf")
 class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
     """ """
-
     def init(self) -> "GemmaForCausalLM":
-        """ """
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
@@ -274,7 +272,6 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
     head_size = megatron_config.kv_channels
-
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
     new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
