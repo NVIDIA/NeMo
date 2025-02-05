@@ -32,13 +32,19 @@ except ImportError:
     _T = TypeVar("_T")
 
     class Config(Generic[_T]):
+        """ """
+
         pass
 
     class Partial(Generic[_T]):
+        """ """
+
         pass
 
 
 def task(*args: Any, **kwargs: Any) -> Callable[[T], T]:
+    """ """
+
     try:
         import nemo_run as run
 
@@ -60,6 +66,8 @@ def factory(*args: Any, **kwargs: Any) -> Callable[[T], T]: ...
 
 
 def factory(*args: Any, **kwargs: Any) -> Union[Callable[[T], T], T]:
+    """ """
+    
     try:
         import nemo_run as run
 
