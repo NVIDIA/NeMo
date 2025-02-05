@@ -101,5 +101,5 @@ class ModuleMatcher:
             if not name in self.exclude_modules \
                 and not any(wildcard_match(pattern, full_name) for pattern in self.target_modules) \
                 and isinstance(m, nn.Linear):
-                return None
-            return name
+                return name
+            return None
