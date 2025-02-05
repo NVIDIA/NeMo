@@ -385,14 +385,22 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
         mapping = {
             "shared.weight": "embedding.word_embeddings.weight",
             "lm_head.weight": "lm_head.output_layer.weight",
-            "encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight": "encoder_relative_pos_emb.relative_attention_bias.weight",
-            "decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight": "decoder_relative_pos_emb.relative_attention_bias.weight",
-            "encoder.block.*.layer.0.layer_norm.weight": "encoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight": (
+                "encoder_relative_pos_emb.relative_attention_bias.weight"
+            ),
+            "decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight": (
+                "decoder_relative_pos_emb.relative_attention_bias.weight"
+            ),
+            "encoder.block.*.layer.0.layer_norm.weight": (
+                "encoder.layers.*.self_attention.linear_qkv.layer_norm_weight"
+            ),
             "encoder.block.*.layer.0.SelfAttention.o.weight": "encoder.layers.*.self_attention.linear_proj.weight",
             "encoder.block.*.layer.1.layer_norm.weight": "encoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "encoder.block.*.layer.1.DenseReluDense.wo.weight": "encoder.layers.*.mlp.linear_fc2.weight",
             "encoder.final_layer_norm.weight": "encoder.final_layernorm.weight",
-            "decoder.block.*.layer.0.layer_norm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "decoder.block.*.layer.0.layer_norm.weight": (
+                "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight"
+            ),
             "decoder.block.*.layer.0.SelfAttention.o.weight": "decoder.layers.*.self_attention.linear_proj.weight",
             "decoder.block.*.layer.1.layer_norm.weight": "decoder.layers.*.pre_cross_attn_layernorm.weight",
             "decoder.block.*.layer.1.EncDecAttention.q.weight": "decoder.layers.*.cross_attention.linear_q.weight",
@@ -611,14 +619,22 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
         mapping = {
             "embedding.word_embeddings.weight": "shared.weight",
             "lm_head.output_layer.weight": "lm_head.weight",
-            "encoder_relative_pos_emb.relative_attention_bias.weight": "encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight",
-            "decoder_relative_pos_emb.relative_attention_bias.weight": "decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight",
-            "encoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "encoder.block.*.layer.0.layer_norm.weight",
+            "encoder_relative_pos_emb.relative_attention_bias.weight": (
+                "encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight"
+            ),
+            "decoder_relative_pos_emb.relative_attention_bias.weight": (
+                "decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight"
+            ),
+            "encoder.layers.*.self_attention.linear_qkv.layer_norm_weight": (
+                "encoder.block.*.layer.0.layer_norm.weight"
+            ),
             "encoder.layers.*.self_attention.linear_proj.weight": "encoder.block.*.layer.0.SelfAttention.o.weight",
             "encoder.layers.*.mlp.linear_fc1.layer_norm_weight": "encoder.block.*.layer.1.layer_norm.weight",
             "encoder.layers.*.mlp.linear_fc2.weight": "encoder.block.*.layer.1.DenseReluDense.wo.weight",
             "encoder.final_layernorm.weight": "encoder.final_layer_norm.weight",
-            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "decoder.block.*.layer.0.layer_norm.weight",
+            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": (
+                "decoder.block.*.layer.0.layer_norm.weight"
+            ),
             "decoder.layers.*.self_attention.linear_proj.weight": "decoder.block.*.layer.0.SelfAttention.o.weight",
             "decoder.layers.*.pre_cross_attn_layernorm.weight": "decoder.block.*.layer.1.layer_norm.weight",
             "decoder.layers.*.cross_attention.linear_q.weight": "decoder.block.*.layer.1.EncDecAttention.q.weight",

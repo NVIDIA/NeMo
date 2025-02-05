@@ -27,6 +27,8 @@ from nemo.lightning.base import NEMO_DATASETS_CACHE
 
 
 def get_dataset_root(name: str) -> Path:
+    """ """
+
     output = Path(NEMO_DATASETS_CACHE) / name
     output.mkdir(parents=True, exist_ok=True)
 
@@ -47,7 +49,8 @@ def create_sft_dataset(
     hf_dataset: bool = False,
     **kwargs,
 ) -> "T5SFTDataset":
-
+    """ """
+    
     return T5SFTDataset(
         file_path=str(path),
         src_tokenizer=tokenizer,
@@ -83,8 +86,10 @@ class T5SFTDataset(Dataset):
         hf_dataset: bool = False,
     ):
         """
-        index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
-        hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
+        index_mapping_dir: Directory to save the index mapping to.
+            If None, will write to the same folder as the dataset.
+        hf_dataset: Whether to load the json file with the HuggingFace dataset.
+            Otherwise, will load the jsonl file with the JSONLMemMapDataset.
         """
         super().__init__()
         self.file_path = file_path
