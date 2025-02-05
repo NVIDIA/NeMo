@@ -415,7 +415,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
     ) -> ShardedStateDict:
         """ """
-        
+
         sharded_state_dict = {}
         sharded_state_dict.update(self.linear_in.sharded_state_dict(f"{prefix}linear_in.", sharded_offsets, metadata))
         sharded_state_dict.update(
