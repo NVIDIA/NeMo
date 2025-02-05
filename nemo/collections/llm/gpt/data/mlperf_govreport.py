@@ -83,9 +83,9 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
 
         if self.packed_sequence_size != self.seq_length:
             raise ValueError(
-                f"{self.__class__.__name__} requires `packed_sequence_specs.packed_sequence_size` to be nonzero
-                and equal to `seq_length`.  Instead got packed_sequence_size = {self.packed_sequence_size}
-                and seq_length = {self.seq_length}"
+                f"{self.__class__.__name__} requires `packed_sequence_specs.packed_sequence_size` to be nonzero "
+                f"and equal to `seq_length`.  Instead got packed_sequence_size = {self.packed_sequence_size} "
+                f"and seq_length = {self.seq_length}"
             )
 
     def prepare_data(self) -> None:
