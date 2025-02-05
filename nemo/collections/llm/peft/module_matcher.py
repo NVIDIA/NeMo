@@ -85,19 +85,19 @@ class ModuleMatcher:
             2) matches the current `full_name` with regex
             match is None if current module name doesn't match the specified targets.
             """
-            assert len(exclude_modules) == 0
+            assert len(self.exclude_modules) == 0
             for pattern in self.canonical_mapping:
                 if name == pattern or wildcard_match(pattern, full_name):
                     return pattern
         elif len(self.target_modules) > 0:
-            assert len(exclude_modules) == 0
+            assert len(self.exclude_modules) == 0
             for pattern in self.target_modules:
                 if name == pattern or wildcard_match(pattern, full_name):
                     return pattern
         else:
-            assert len(exclude_modules) > 0
+            assert len(self.exclude_modules) > 0
             if not name in self.exclude_modules \
-                and not any(wildcard_match(pattern, full_name) for pattern in self.target_modules) \
+                and not any(wildcard_match(pattern, full_name) for pattern in self.exclude_modules) \
                 and isinstance(m, nn.Linear):
                 return name
 
