@@ -46,7 +46,6 @@ def override_recipe_configs(
     recipe = set_primary_perf_configs(
         recipe,
         args.tensorboard,
-        args.tensorboard,
         num_nodes,
         args.gpus_per_node,
         mbs,
