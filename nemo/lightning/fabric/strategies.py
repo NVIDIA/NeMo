@@ -92,6 +92,7 @@ class FabricMegatronStrategy(DDPStrategy):
         output_data_idx: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         init_model_parallel: bool = True,
+        use_tp_pp_dp_mapping: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -121,7 +122,7 @@ class FabricMegatronStrategy(DDPStrategy):
         self.sequence_parallel = sequence_parallel
         self.pipeline_dtype = pipeline_dtype
         self._init_model_parallel = init_model_parallel
-
+        self.use_tp_pp_dp_mapping = use_tp_pp_dp_mapping
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
         if megatron_callbacks:
@@ -418,6 +419,7 @@ class FabricMegatronStrategy(DDPStrategy):
             expert_model_parallel_size=self.expert_model_parallel_size,
             moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
+            use_tp_pp_dp_mapping=self.use_tp_pp_dp_mapping,
         )
 
 
@@ -499,6 +501,7 @@ def convert_megatron_strategy(strategy: MegatronStrategy) -> FabricMegatronStrat
         expert_model_parallel_size=strategy.expert_model_parallel_size,
         moe_extended_tp=strategy.moe_extended_tp,
         pipeline_dtype=strategy.pipeline_dtype,
+        use_tp_pp_dp_mapping=strategy.use_tp_pp_dp_mapping,
         ddp=strategy._ddp,
         process_group_backend=strategy.process_group_backend,
         timeout=strategy._timeout,
