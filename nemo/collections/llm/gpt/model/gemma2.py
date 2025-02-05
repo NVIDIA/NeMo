@@ -270,6 +270,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
 @io.model_exporter(Gemma2Model, "hf")
 class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
     """ """
+
     def init(self) -> "GemmaForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
@@ -313,7 +314,7 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
     @property
     def tokenizer(self):
         """ """
-        
+
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
