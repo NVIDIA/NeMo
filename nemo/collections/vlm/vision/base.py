@@ -36,6 +36,7 @@ from nemo.lightning import io
 
 
 def set_input_tensor(self, tensor):
+    """Sets input tensor func place holder"""
     pass
 
 
@@ -65,6 +66,7 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
     num_attention_heads: int = 8  # placeholder, NOT used!
 
     def configure_model(self) -> "MCoreMultimodalProjector":
+        # pylint: disable=C0115,C0116
         if self.projector_type.startswith("mcore") and self.layer_spec is None:
             if self.projector_type == "mcore_mlp":
                 self.projector_type = "mlp"  # strip "mcore_" for mcore init
@@ -120,6 +122,7 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
 
     def __post_init__(self, *args, **kwargs) -> None:
+        # pylint: disable=C0115,C0116
         CLIPVisionConfig.__init__(self, *args, **kwargs, hidden_size=self.hidden_size)
         if self.pretrained_model_name_or_path is not None:
             config = CLIPVisionConfig.from_pretrained(self.pretrained_model_name_or_path)
@@ -134,6 +137,7 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
         )
 
     def configure_model(self) -> "CLIPVisionModel":
+        # pylint: disable=C0115,C0116
         # Monkey patch the method to the vision encoder
         CLIPVisionModel.set_input_tensor = set_input_tensor
 
@@ -146,6 +150,7 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
 
 @dataclass
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
+    """MCore CLIP ViT Config"""
     ln_pre_impl: Union[ModuleSpec, type] = TENorm
     ln_post_impl: Union[ModuleSpec, type] = TENorm
     add_class_token: bool = True
@@ -161,6 +166,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
     num_attention_heads: int = 8  # Placeholder, NOT used!
 
     def __post_init__(self):
+        # pylint: disable=C0115,C0116
         if self.vision_model_type == "siglip":
             self.add_class_token = False
             self.class_token_len = 0
@@ -173,6 +179,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
         )
 
     def configure_model(self) -> "BaseCLIPViTModel":
+        # pylint: disable=C0115,C0116
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
@@ -198,6 +205,7 @@ class BaseCLIPViTModel(MCoreCLIPViTModel):
     def forward(
         self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
     ) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         if num_unused_layers > 0:
             unused_layers = self.decoder.layers[-num_unused_layers:]
             self.decoder.layers = self.decoder.layers[:-num_unused_layers]

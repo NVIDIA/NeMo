@@ -56,21 +56,28 @@ class SigLIPViT400M_14_384_Config(CLIPViTConfig):
 
 
 class SigLIPViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
+    """SigLIP ViT NeMo Wrapper"""
+
     def __init__(self, config):
+        # pylint: disable=C0115,C0116
         super().__init__()
         self.config = config
 
     def configure_model(self) -> None:
+        # pylint: disable=C0115,C0116
         if not hasattr(self, "module"):
             self.module = self.config.configure_model()
 
 
 @io.model_importer(SigLIPViTModel, "hf")
 class SigLIPViTImporter(io.ModelConnector["SigLIPVisionModel", SigLIPViTModel]):
+    """HF SigLIP ViT Importer"""
     def init(self) -> SigLIPViTModel:
+        # pylint: disable=C0115,C0116
         return SigLIPViTModel(self.config)
 
     def apply(self, output_path: Path) -> Path:
+        # pylint: disable=C0115,C0116
         from transformers import AutoModel
 
         source = AutoModel.from_pretrained(str(self), trust_remote_code=True)
@@ -89,6 +96,7 @@ class SigLIPViTImporter(io.ModelConnector["SigLIPVisionModel", SigLIPViTModel]):
 
     @property
     def config(self) -> CLIPViTConfig:
+        # pylint: disable=C0115,C0116
         from transformers import AutoConfig
 
         source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
@@ -108,6 +116,7 @@ class SigLIPViTImporter(io.ModelConnector["SigLIPVisionModel", SigLIPViTModel]):
         return output
 
     def convert_state(self, source, target):
+        # pylint: disable=C0115,C0116
         mapping = {}
         mapping.update(
             {
@@ -141,6 +150,7 @@ class SigLIPViTImporter(io.ModelConnector["SigLIPVisionModel", SigLIPViTModel]):
 
 
 def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+    # pylint: disable=C0115,C0116
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
     new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
@@ -174,6 +184,7 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
     target_key="decoder.layers.*.self_attention.linear_qkv.bias",
 )
 def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
+    # pylint: disable=C0115,C0116
     megatron_config = ctx.target.config
     return import_qkv(
         q_bias.unsqueeze(-1),
@@ -196,6 +207,7 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
     target_key="decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
+    # pylint: disable=C0115,C0116
     megatron_config = ctx.target.config
     return import_qkv(
         q,
