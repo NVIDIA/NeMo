@@ -104,9 +104,7 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
          const int add_extra_token = 1) {
     /* Sample index (sample_idx) is used for gpt2 like dataset for which
        the documents are flattened and the samples are built based on this
-       1D flatten array. It is a 2D array with sizes [number_of_samples + 1, 2]
-       where [..., 0] contains the index into `doc_idx` and [..., 1] is the
-       starting offset in that document.*/
+       1D flatten array. */
 
     // Consistency checks.
     assert(seq_length > 1);
