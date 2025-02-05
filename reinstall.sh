@@ -5,9 +5,9 @@ set -ex
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
     "te"
-    "apex"
-    "mcore"
-    "nemo"
+    # "apex"
+    # "mcore"
+    # "nemo"
 )
 
 INSTALL_OPTION=${1:-dev}
