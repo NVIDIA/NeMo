@@ -143,7 +143,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
         app_state = AppState()
 
-        torch.distributed.broadcast_object_list([app_state.log_dir, app_state.version], src=0)
+        bcast_list = [app_state.log_dir, app_state.version]
+        torch.distributed.broadcast_object_list(bcast_list, src=0)
+        app_state.log_dir, app_state.version = bcast_list
         self._setup_file_logging(app_state.log_dir, app_state)
 
         if self.save_top_k != -1 and app_state.restore:
