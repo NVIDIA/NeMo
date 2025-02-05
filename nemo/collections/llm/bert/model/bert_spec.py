@@ -87,6 +87,7 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
+        **kwargs,
     ):
         """Copy from megatron/core/transformer/transformer_layer.py with modification of applying
         extra post layer norm if needed."""
