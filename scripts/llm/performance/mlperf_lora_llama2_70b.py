@@ -268,17 +268,16 @@ if __name__ == "__main__":
     )
 
     env_vars = {
-        "LORA_A2A": "1",
-        "CUDA_DEVICE_MAX_CONNECTIONS": "1",
-        "CUBLAS_FORCE_XMMA_KERNEL_INIT": "DEVICE",
-        "CUDNN_FRONTEND_ATTN_DP_WORKSPACE_LIMIT": "0",
-        "NVTE_FP8_DPA_BWD": "1",
-        "NVTE_RS_STRIDED_ATOMIC": "2",
-        "NCCL_MIN_CTAS": "32",
-        "NCCL_MIN_P2P_NCHANNELS": "32",
-        "NCCL_NCHANNELS_PER_NET_PEER": "32",
-        "NCCL_NVLS_ENABLE": "0",
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
+        "CUDA_DEVICE_MAX_CONNECTIONS": "1", # Limit GPUs to one compute stream so that kernels will be executed in consistent order, for best performance with communication overlap configs
+        "CUBLAS_FORCE_XMMA_KERNEL_INIT": "DEVICE", # Use a device kernel instead of memset for matrix multiply initialization, which can help reduce CPU-side overhead
+        "CUDNN_FRONTEND_ATTN_DP_WORKSPACE_LIMIT": "0", # Reduce memory used by cuDNN attention
+        "NVTE_FP8_DPA_BWD": "1", # Enable TransformerEngine FP8 attention for bprop
+        "NVTE_RS_STRIDED_ATOMIC": "2", # Reduce-scatter communication will be done as a single kernel (with userbuffer TP communication overlap)
+        "NCCL_MIN_CTAS": "32", # Increase CTA resources available to NCCL to improve communication perf
+        "NCCL_MIN_P2P_NCHANNELS": "32", # Likewise, increase P2P channels availabe to NCCL
+        "NCCL_NCHANNELS_PER_NET_PEER": "32", # Likewise, increase per-peer P2P channel limit
+        "NCCL_NVLS_ENABLE": "0", # Disable NVLink SHARP to save memory
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1", # Disable caching NCCL communication buffer memory
     }
 
     executor = slurm_executor(
