@@ -156,10 +156,10 @@ class GPTSFTDataset(Dataset):
         sanity_check_dist_workers: bool = True,
     ):
         """
-        file_path: Path to a JSONL GPT supervised fine-tuning dataset. 
+        file_path: Path to a JSONL GPT supervised fine-tuning dataset.
             Data is formatted as multiple JSON lines with each line formatted as follows:
             {
-                'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 
+                'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?',
                 'output': 'smoothed the shock transition without sacrificing basic physics'
             }
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: SentencePiece).
@@ -172,7 +172,7 @@ class GPTSFTDataset(Dataset):
         add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
         tokens_to_generate (int): (inference only) Number of tokens to generate during inference
         seed: Random seed for data shuffling.
-        max_num_samples: Maximum number of samples to load. 
+        max_num_samples: Maximum number of samples to load.
             This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
         label_key: Key to use for the label in your JSONL file
         answer_only_loss: If True, will compute the loss only on the answer part of the input.

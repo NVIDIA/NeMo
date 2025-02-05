@@ -73,6 +73,7 @@ def create_sft_dataset(
 
 class BertEmbeddingDataset(Dataset):
     """ """
+
     def __init__(
         self,
         file_path: str,
@@ -106,12 +107,12 @@ class BertEmbeddingDataset(Dataset):
         index_mapping_dir: Directory to save the index mapping to.
             If None, will write to the same folder as the dataset.
         truncation_method: Truncation from which position. Options: ['left', 'right']
-        special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. 
+        special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}.
             Default: {
-                        'system_turn_start': '<extra_id_0>', 
-                        'turn_start': '<extra_id_1>', 
-                        'label_start': '<extra_id_2>', 
-                        'end_of_turn': '\n', 
+                        'system_turn_start': '<extra_id_0>',
+                        'turn_start': '<extra_id_1>',
+                        'label_start': '<extra_id_2>',
+                        'end_of_turn': '\n',
                         'end_of_name": '\n'
                     }
         """
