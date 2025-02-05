@@ -20,10 +20,9 @@ from utils import get_comm_overlap_callback_idx, hf_tokenizer, parse_cli_args, s
 
 from nemo.collections.llm.recipes.mixtral_8x22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
-NUM_NODES = 128
+NUM_NODES = 32
 NUM_GPUS_PER_NODE = 8
 MICRO_BATCH_SIZE = 1
 GLOBAL_BATCH_SIZE = 256
@@ -32,6 +31,7 @@ PP_SIZE = 4
 CP_SIZE = 8
 VP_SIZE = 14
 EP_SIZE = 8
+ETP_SIZE = 1
 MAX_STEPS = 100
 
 
@@ -46,6 +46,7 @@ def mixtral_8x22b_performance_recipe(
     cp_size: int,
     vp_size: Optional[int],
     ep_size: int,
+    etp_size: int,
     max_steps: int,
 ):
     """
@@ -71,6 +72,7 @@ def mixtral_8x22b_performance_recipe(
     recipe.trainer.strategy.context_parallel_size = cp_size
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = vp_size
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
+    recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
@@ -78,19 +80,8 @@ def mixtral_8x22b_performance_recipe(
     # compute dtype configs
     if compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
-    recipe.trainer.plugins.grad_reduce_in_fp32 = False  # bf16 grad dtype
 
     # callback configs
-    garbage_collection_callback = run.Config(
-        GarbageCollectionCallback,
-        gc_interval_train=100,
-        gc_interval_val=100,
-    )
-    recipe.trainer.callbacks.extend(
-        [
-            garbage_collection_callback,
-        ]
-    )
     dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
     if comm_overlap_callback_idx is not None:
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
@@ -144,6 +135,7 @@ if __name__ == "__main__":
         CP_SIZE,
         VP_SIZE,
         EP_SIZE,
+        ETP_SIZE,
         MAX_STEPS,
     )
 
