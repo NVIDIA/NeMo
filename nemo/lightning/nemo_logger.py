@@ -244,21 +244,12 @@ class NeMoLogger(IOMixin):
         nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
         log_file = log_dir / f"nemo_log_globalrank-{self.global_rank}_localrank-{self.local_rank}.txt"
 
-        def add_handler_after_wait_for_rank0():
-            # Need rank 0 to finish _setup_files_to_move() before creating new log files
-            rank0_log_file = log_dir / f"nemo_log_globalrank-0_localrank-0.txt"
-            if not self.global_rank == 0:
-                while not os.path.exists(rank0_log_file):
-                    pass
-
-            logging.add_file_handler(log_file)
-
         if self.log_local_rank_0_only and not nemo_testing and self.local_rank == 0:
-            add_handler_after_wait_for_rank0()
+            logging.add_file_handler(log_file)
         elif self.log_global_rank_0_only and not nemo_testing and self.global_rank == 0:
-            add_handler_after_wait_for_rank0()
+            logging.add_file_handler(log_file)
         elif not (self.log_local_rank_0_only or self.log_global_rank_0_only):
-            add_handler_after_wait_for_rank0()
+            logging.add_file_handler(log_file)
 
         add_handlers_to_mcore_logger()
 
