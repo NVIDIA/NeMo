@@ -544,8 +544,8 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
         #   i.e., NeMo concatenated dataset
         #   Assume it's [path1, path2, ...] (while tarred_audio_filepaths in the same format).
         logging.info(
-            f"Initializing Lhotse CutSet from multiple tarred NeMo manifest sources with a weighted multiplexer. "
-            f"We found the following sources and weights: "
+            "Initializing Lhotse CutSet from multiple tarred NeMo manifest sources with a weighted multiplexer. " \
+            "We found the following sources and weights: "
         )
         cutsets = []
         weights = []
