@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 @dataclass
 class LlavaConfig(NevaConfig):
     """Llava Model Base Config"""
+
     drop_vision_class_token: bool = True
     freeze_vision_model: bool = True
 
@@ -47,6 +48,7 @@ class LlavaConfig(NevaConfig):
 @dataclass
 class Llava15Config7B(LlavaConfig):
     """Llava v1.5 Config 7B"""
+
     from transformers import PretrainedConfig
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config7B())
@@ -61,6 +63,7 @@ class Llava15Config7B(LlavaConfig):
 @dataclass
 class Llava15Config13B(LlavaConfig):
     """Llava v1.5 Config 13B"""
+
     from transformers import PretrainedConfig
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config13B())
@@ -74,6 +77,7 @@ class Llava15Config13B(LlavaConfig):
 
 class LlavaModel(NevaModel):
     """Llava Model NeMo Wrapper"""
+
     def __init__(
         self,
         config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
@@ -87,6 +91,7 @@ class LlavaModel(NevaModel):
 @io.model_importer(LlavaModel, "hf")
 class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaModel]):
     """Llava Model HF Importer"""
+
     def init(self) -> LlavaModel:
         # pylint: disable=C0115,C0116
         return LlavaModel(self.config, tokenizer=self.tokenizer)
