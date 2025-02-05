@@ -293,6 +293,9 @@ class CLIPConfig(TransformerConfig, io.IOMixin):
     num_attention_heads: int = 8  # Placeholder, NOT used!
     hidden_size: int = 768  # Placeholder, NOT used!
 
+    # seq_length is needed for Nemo CI. It is not used anywhere
+    seq_length: int = 80
+
     def configure_model(self, tokenizer, pre_process=True, post_process=True):
         # pylint: disable=C0116
         print(self.kv_channels)
