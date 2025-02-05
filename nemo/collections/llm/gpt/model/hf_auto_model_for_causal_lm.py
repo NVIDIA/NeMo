@@ -316,7 +316,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         loss = self.loss_fn(logits, labels, loss_mask)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
 
-    def save_pretrained(self, path):
+    def save_pretrained(self, path, state_dict):
         """
         Save the pretrained model and tokenizer to a specified path.
 
@@ -332,21 +332,21 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         assert self.model is not None, "Model has to be created first."
         import torch.distributed as dist
-        from nemo.lightning.pytorch.strategies.utils import to_cpu
 
         is_dist = dist.is_initialized()
         rank = dist.get_rank() if is_dist else 0
         is_rank0 = not is_dist or (is_dist and rank == 0)
 
-        if is_rank0 or type(self.model).__name__.startswith('FSDP'):
-            cpu_state_dict = {k: to_cpu(v) for k, v in self.model.state_dict().items()}
-
         if is_rank0:
-            self.model.save_pretrained(path, state_dict=cpu_state_dict)
+            self.model.save_pretrained(path, state_dict=state_dict)
             if self._tokenizer is not None:
                 self._tokenizer.save_pretrained(path)
             else:
                 logging.warning("A tokenizer wasn't created before to save.")
+
+    def make_checkpoint_io(self, save_adapter_only=False):
+        from nemo.lightning.io.pl import HuggingFaceCheckpointIO
+        return HuggingFaceCheckpointIO(model=self, save_adapter_only=save_adapter_only)
 
     def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
         """Remove extra keys from batch that are not kwargs in model's forward

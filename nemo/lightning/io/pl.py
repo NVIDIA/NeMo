@@ -88,7 +88,8 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
             ValueError: If the trainer or its LightningModule does not extend `IOMixin`.
         """
         if not hasattr(trainer, "__io__"):
-            raise ValueError(f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo.")
+            raise ValueError(
+                f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo.")
         if not hasattr(trainer.lightning_module, "__io__"):
             raise ValueError("LightningModule must extend IOMixin.")
 
@@ -116,7 +117,7 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
 
 def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving) -> Path:
     """Given an input checkpoint filepath, clean it using `ckpt_to_dir`
-    and then return the weights subdirectory, if it exists."""
+       and then return the weights subdirectory, if it exists."""
     filepath = ckpt_to_dir(filepath=filepath)
     base_dir = filepath
     assert isinstance(base_dir, Path)
@@ -194,7 +195,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         fs = get_filesystem(checkpoint_dir)
         fs.makedirs(checkpoint_dir, exist_ok=True)
 
-        validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
+        validate_sharding_integrity = not (
+            self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
 
         return dist_checkpointing.save(
@@ -231,14 +233,16 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         from megatron.core.dist_checkpointing.validation import StrictHandling
 
         if map_location is not None:
-            raise ValueError("`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`.")
+            raise ValueError(
+                "`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`.")
 
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
         fs = get_filesystem(path)
         if not fs.exists(path):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
         if not fs.isdir(path):
-            raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
+            raise ValueError(
+                f"Distributed checkpoints should be a directory. Found: {path}.")
 
         # Load from ckpt_path/weights (new format) if it exists
         path = ckpt_to_weights_subdir(path, is_saving=False)
@@ -248,7 +252,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
             from megatron.core.dist_checkpointing.strategies.tensorstore import TensorStoreLoadShardedStrategy
 
-            sharded_strategy = TensorStoreLoadShardedStrategy(load_directly_on_device=True)
+            sharded_strategy = TensorStoreLoadShardedStrategy(
+                load_directly_on_device=True)
         else:
             sharded_strategy = None
 
@@ -256,7 +261,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             if sharded_strategy is None:
                 sharded_strategy = get_default_load_sharded_strategy(path)
             sharded_strategy = FullyParallelLoadStrategyWrapper(
-                sharded_strategy, get_data_parallel_group(with_context_parallel=True)
+                sharded_strategy, get_data_parallel_group(
+                    with_context_parallel=True)
             )
 
         if sharded_strategy is not None:
@@ -266,7 +272,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             # For backward-compatibility reasons and a bug in MCore (strict check not applied to factories)
             # we must apply a simple strict check here.
             if not strict:
-                sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
+                sharded_state_dict = self.adjust_non_strict_load(
+                    path, sharded_state_dict)
             strict = StrictHandling.ASSUME_OK_UNEXPECTED if strict else StrictHandling.LOG_ALL
         if strict is None:
             # Default behavior
@@ -310,13 +317,17 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             )
 
         if self.async_save and self.save_ckpt_format != 'torch_dist':
-            raise ValueError('Async dist-ckpt save supported only for torch_dist format')
+            raise ValueError(
+                'Async dist-ckpt save supported only for torch_dist format')
 
-        torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
+        torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(
+            thread_count=self.torch_dist_multiproc)
         if self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
-            save_strategy = TorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
+            save_strategy = TorchDistSaveShardedStrategy(
+                self.save_ckpt_format, 1, **torch_dist_kwargs)
         else:
-            save_strategy = get_default_save_sharded_strategy(self.save_ckpt_format, 1)
+            save_strategy = get_default_save_sharded_strategy(
+                self.save_ckpt_format, 1)
 
         # MCore v0.8 introduces `use_cached_ckpt_structure` attribute
         if hasattr(save_strategy, 'use_cached_ckpt_structure'):
@@ -324,7 +335,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         if self.parallel_save:
             parallelization_group = (
-                get_data_parallel_group(with_context_parallel=True) if self.parallel_save_within_dp else None
+                get_data_parallel_group(
+                    with_context_parallel=True) if self.parallel_save_within_dp else None
             )
             save_strategy = FullyParallelSaveStrategyWrapper(
                 save_strategy, parallelization_group, self.assume_constant_structure
@@ -345,8 +357,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         """
         Adjusts the loading of a non-strict sharded checkpoint by filtering out missing keys.
 
-        This function loads the checkpoint's metadata and removes any `ShardedBase` keys from
-        `sharded_state_dict` that do not exist in the checkpoint. It also logs unexpected keys
+        This function loads the checkpoint's metadata and removes any `ShardedBase` keys from 
+        `sharded_state_dict` that do not exist in the checkpoint. It also logs unexpected keys 
         that were not found in the checkpoint.
 
         Args:
@@ -361,7 +373,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             are considered "unexpected" and are logged.
             - Missing keys are not computed yet. To fully determine missing keys:
             1. Perform an `all_gather_object` operation on `loaded_keys`.
-            2. Compute `missing_keys` as the difference between `ckpt_sharded_metadata.keys()`
+            2. Compute `missing_keys` as the difference between `ckpt_sharded_metadata.keys()` 
                 and `loaded_keys`.
         """
         from megatron.core import dist_checkpointing
@@ -391,8 +403,10 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
                     return True
             return False
 
-        _, sharded_state_dict = extract_matching_values(sharded_state_dict, should_remove_missing_sharded_base)
-        logging.info(f'The following keys are not in the checkpoint and will not be loaded: {unexpected_keys}')
+        _, sharded_state_dict = extract_matching_values(
+            sharded_state_dict, should_remove_missing_sharded_base)
+        logging.info(
+            f'The following keys are not in the checkpoint and will not be loaded: {unexpected_keys}')
 
         # TODO: compute missing_keys by:
         #  1. all_gather_object of loaded_keys
@@ -408,9 +422,10 @@ class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
 
     """
 
-    def __init__(self, lora=False):
+    def __init__(self, model=None, save_adapter_only=False):
         super().__init__()
-        self.lora = lora
+        self.save_adapter_only = save_adapter_only
+        self.model = model
 
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
@@ -427,24 +442,30 @@ class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
                 If ``storage_options`` arg is passed in
 
         """
-        if self.lora:
-            from safetensors.torch import save_file
+        if self.save_adapter_only:
+            return self._save_adapter_weights_only(checkpoint, path, storage_options)
+        elif getattr(self.model, 'save_pretrained', None) is not None:
+            self.model.save_pretrained(path, state_dict=checkpoint.pop('state_dict'))
+        else:
+            super().save_checkpoint(checkpoint, path, storage_options)
 
-            state_dict = {}
-            module_names = list(checkpoint["state_dict"].keys())
-            for name in module_names:
-                param = checkpoint["state_dict"].pop(name)
-                name = (
-                    name.replace("model.model", "base_model.model")
-                    .replace("lora_a.weight", "lora_A.weight")
-                    .replace("lora_b.weight", "lora_B.weight")
-                )
-                state_dict[name] = param
+    def _save_adapter_weights_only(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+        from safetensors.torch import save_file
 
-            checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
-            fs = get_filesystem(checkpoint_dir)
-            fs.makedirs(checkpoint_dir, exist_ok=True)
-            save_file(state_dict, checkpoint_dir / "adapter_model.safetensors")
+        state_dict = {}
+        module_names = list(checkpoint["state_dict"].keys())
+        for name in module_names:
+            param = checkpoint["state_dict"].pop(name)
+            name = name\
+                .replace("model.model", "base_model.model")\
+                .replace("lora_a.weight", "lora_A.weight")\
+                .replace("lora_b.weight", "lora_B.weight")
+            state_dict[name] = param
+
+        checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
+        fs = get_filesystem(checkpoint_dir)
+        fs.makedirs(checkpoint_dir, exist_ok=True)
+        save_file(state_dict, checkpoint_dir / "adapter_model.safetensors")
 
     @override
     def load_checkpoint(
@@ -474,7 +495,8 @@ class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
         if not fs.exists(path):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
         if not fs.isdir(path):
-            raise ValueError(f"Checkpoints should be a directory. Found: {path}.")
+            raise ValueError(
+                f"Checkpoints should be a directory. Found: {path}.")
 
         state_dict = None
         if (path / "adaptor_config.json").exists():
@@ -503,7 +525,8 @@ class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
 
 def _fix_tensors_device(ckpt: Dict) -> Dict:
     """Ensure checkpoint tensors are on the correct device."""
-    assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
+    assert torch.cuda.is_initialized(), (torch.cuda.is_available(),
+                                         torch.cuda.is_initialized())
     cur_dev = torch.device("cuda", index=torch.cuda.current_device())
     from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
 
@@ -533,4 +556,5 @@ def is_distributed_ckpt(path) -> bool:
 
     checkpoint_dir = ckpt_to_dir(path)
     fs = get_filesystem(checkpoint_dir)
-    return fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir)
+    return fs.isdir(checkpoint_dir) \
+        and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir)

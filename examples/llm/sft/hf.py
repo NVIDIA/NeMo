@@ -111,8 +111,21 @@ def main():
     if args.strategy == 'fsdp2':
         args.strategy = nl.FSDP2Strategy(data_parallel_size=args.devices * args.num_nodes, tensor_parallel_size=1)
 
+    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
+    if args.strategy == 'ddp':
+        args.strategy = pl.strategies.DDPStrategy(
+            parallel_devices=args.devices * args.num_nodes,
+            checkpoint_io=model.make_checkpoint_io(save_adapter_only=False),
+        )
+    elif args.strategy == 'fsdp2':
+        args.strategy = nl.FSDP2Strategy(
+            data_parallel_size=args.devices * args.num_nodes,
+            tensor_parallel_size=1,
+            checkpoint_io=model.make_checkpoint_io(save_adapter_only=False),
+        )
+
     llm.api.finetune(
-        model=llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator),
+        model=model,
         data=squad(llm.HFAutoModelForCausalLM.configure_tokenizer(args.model), gbs=args.devices),
         trainer=nl.Trainer(
             devices=args.devices,

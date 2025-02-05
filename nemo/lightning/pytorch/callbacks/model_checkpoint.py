@@ -566,10 +566,6 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ValueError: (mcore) async_save with EMA not supported
             ValueError: (mcore) Async save requires async compatible CheckpointIO
         """
-        # if it's an HF model -> use HF's save_pretrained function.
-        if (mod := get_automodel_from_trainer(trainer)) is not None:
-            mod.save_pretrained(filepath)
-            return
 
         from nemo.utils.get_rank import is_global_rank_zero
 

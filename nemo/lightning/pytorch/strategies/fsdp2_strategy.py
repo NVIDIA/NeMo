@@ -309,20 +309,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             param = checkpoint["state_dict"].pop(name)
             checkpoint["state_dict"][name] = to_cpu(param)
 
-        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
-            # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
-            # Ideally, the optimizer state dicts should not be generated in this case
-            checkpoint["optimizer_states"] = {}
-
-            # replace unsharded optimizer_states with sharded dict.
-            # note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
-            # the checkpoint will contain only model weights. Optimizer states will be omitted.
-            if self.ckpt_save_optimizer:
-                checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
-                pyt_to_mcore_state_dict(
-                    checkpoint['optimizer']['state'], prefix="optimizer.state.", device_mesh=self.device_mesh
-                )
-
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     @override

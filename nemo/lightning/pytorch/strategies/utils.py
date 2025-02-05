@@ -182,7 +182,7 @@ def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
     if model_library == "huggingface":
         from nemo.lightning.io.pl import HuggingFaceCheckpointIO
 
-        checkpoint_io = HuggingFaceCheckpointIO(lora=kwargs["lora"])
+        checkpoint_io = HuggingFaceCheckpointIO(lora=kwargs.get("lora", False))
     else:
         from nemo.lightning.io.pl import MegatronCheckpointIO
 
