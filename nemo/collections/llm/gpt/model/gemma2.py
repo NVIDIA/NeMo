@@ -60,6 +60,7 @@ TELayerNormColumnParallelLinear, _ = safe_import_from(
 
 
 def gemma2_layer_spec(config: "GPTConfig") -> ModuleSpec:
+    """ """
 
     return ModuleSpec(
         module=TransformerLayer,
@@ -91,6 +92,8 @@ def gemma2_layer_spec(config: "GPTConfig") -> ModuleSpec:
 # your own needs, in particular: seq_length and rotary_base.
 @dataclass
 class Gemma2Config(GPTConfig):
+    """Gemma2 basic config"""
+
     # configs that are common across model sizes
     normalization: str = "RMSNorm"
     activation_func: Callable = openai_gelu
@@ -118,6 +121,8 @@ class Gemma2Config(GPTConfig):
 
 @dataclass
 class Gemma2Config2B(Gemma2Config):
+    """Gemma2 2B config"""
+
     num_layers: int = 26
     hidden_size: int = 2304
     num_attention_heads: int = 8
@@ -128,6 +133,8 @@ class Gemma2Config2B(Gemma2Config):
 
 @dataclass
 class Gemma2Config9B(Gemma2Config):
+    """Gemma2 9B config"""
+
     num_layers: int = 42
     hidden_size: int = 3584
     num_attention_heads: int = 16
@@ -138,6 +145,8 @@ class Gemma2Config9B(Gemma2Config):
 
 @dataclass
 class Gemma2Config27B(Gemma2Config):
+    """Gemma2 27B config"""
+
     num_layers: int = 46
     hidden_size: int = 4608
     num_attention_heads: int = 32
@@ -147,6 +156,7 @@ class Gemma2Config27B(Gemma2Config):
 
 
 class Gemma2Model(GPTModel):
+    """ """
     def __init__(
         self,
         config: Annotated[Optional[Gemma2Config], Config[Gemma2Config]] = None,
@@ -170,6 +180,7 @@ class Gemma2Model(GPTModel):
 
 @io.model_importer(Gemma2Model, "hf")
 class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
+    """ """
     def init(self) -> Gemma2Model:
         return Gemma2Model(self.config, tokenizer=self.tokenizer)
 
@@ -197,8 +208,12 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
             "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
             "model.layers.*.pre_feedforward_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-            "model.layers.*.post_feedforward_layernorm.weight": "decoder.layers.*.mlp.linear_fc2.post_layernorm.weight",
-            "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.self_attention.linear_proj.post_layernorm.weight",
+            "model.layers.*.post_feedforward_layernorm.weight": (
+                "decoder.layers.*.mlp.linear_fc2.post_layernorm.weight"
+            ),
+            "model.layers.*.post_attention_layernorm.weight": (
+                "decoder.layers.*.self_attention.linear_proj.post_layernorm.weight"
+            ),
             "model.norm.weight": "decoder.final_layernorm.weight",
         }
 
@@ -274,8 +289,12 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
-            "decoder.layers.*.mlp.linear_fc2.post_layernorm.weight": "model.layers.*.post_feedforward_layernorm.weight",
-            "decoder.layers.*.self_attention.linear_proj.post_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
+            "decoder.layers.*.mlp.linear_fc2.post_layernorm.weight": (
+                "model.layers.*.post_feedforward_layernorm.weight"
+            ),
+            "decoder.layers.*.self_attention.linear_proj.post_layernorm.weight": (
+                "model.layers.*.post_attention_layernorm.weight"
+            ),
             "decoder.final_layernorm.weight": "model.norm.weight",
         }
 
