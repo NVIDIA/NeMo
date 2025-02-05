@@ -242,9 +242,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         Args:
             data (Union[DataT, Iterator[DataT], List[Iterator[DataT]]]): The input data for the model.
             forward_only (bool, optional): If True, only perform the forward pass. Defaults to True.
-            data_step (Optional[Callable[[Iterator[DataT]], DataT]], optional): Function to process the data. Defaults to None.
-            forward_step (Optional[Callable[[nn.Module, DataT], Tensor]], optional): Function to perform the forward pass. Defaults to None.
-            loss_reduction (Optional[MegatronLossReduction[DataT, Any]], optional): Function to reduce the loss. Defaults to None.
+            data_step (Optional[Callable[[Iterator[DataT]], DataT]], optional): Function to process the data. Defaults
+            to None.
+            forward_step (Optional[Callable[[nn.Module, DataT], Tensor]], optional): Function to perform the forward
+            pass. Defaults to None.
+            loss_reduction (Optional[MegatronLossReduction[DataT, Any]], optional): Function to reduce the loss.
+            Defaults to None.
             seq_length (Optional[int], optional): Sequence length for the model. Defaults to None.
             micro_batch_size (Optional[int], optional): Size of the micro batch. Defaults to None.
             num_microbatches (Optional[int], optional): Number of microbatches. Defaults to None.
@@ -551,14 +554,16 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
                 msg = (
                     f" > number of parameters on (tensor, pipeline) model parallel rank "
-                    f"({parallel_state.get_tensor_model_parallel_rank()}, {parallel_state.get_pipeline_model_parallel_rank()}): "
+                    f"({parallel_state.get_tensor_model_parallel_rank()},
+                     {parallel_state.get_pipeline_model_parallel_rank()}): "
                     f"{num_params}"
                 )
                 logging.info(msg)
 
                 if num_params != num_trainable_params:
                     logging.info(
-                        f" > number of trainable parameters: {num_trainable_params} ({num_trainable_params / num_params:.2%} of total)"
+                        f" > number of trainable parameters: {num_trainable_params}
+                         ({num_trainable_params / num_params:.2%} of total)"
                     )
 
         if self.convert_module_fn:
@@ -848,8 +853,8 @@ class CallbackConnector:
 
     Each of these methods corresponds to a specific stage in the model's operation.
     You can define these methods in your callback functions to perform specific actions at these stages.
-    There is no need for the class to be a subclass of a specific parent class. As long as the class contains the methods outlined above,
-    it can be used as a callback.
+    There is no need for the class to be a subclass of a specific parent class. As long as the class contains the
+    methods outlined above, it can be used as a callback.
     """
 
     def __init__(self, callbacks=None) -> None:
@@ -1651,7 +1656,8 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         self, batch: Dict[str, torch.Tensor], forward_out: torch.Tensor
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """Taken from:
-        https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 .
+        https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/
+        megatron_gpt_model.py#L951-L976 .
         """
         from megatron.core import parallel_state
 
@@ -1690,7 +1696,8 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         return loss_for_ub * cp_size, {"avg": reduced_loss}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
-        """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""
+        """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/
+        megatron_gpt_model.py#L535-L552 ."""
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
                 loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
