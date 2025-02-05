@@ -157,6 +157,7 @@ class Gemma2Config27B(Gemma2Config):
 
 class Gemma2Model(GPTModel):
     """ """
+
     def __init__(
         self,
         config: Annotated[Optional[Gemma2Config], Config[Gemma2Config]] = None,
@@ -181,6 +182,7 @@ class Gemma2Model(GPTModel):
 @io.model_importer(Gemma2Model, "hf")
 class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
     """ """
+
     def init(self) -> Gemma2Model:
         return Gemma2Model(self.config, tokenizer=self.tokenizer)
 
