@@ -219,7 +219,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         try:
             self._configure_model(attn_implementation=self.attn_implementation)
         except ValueError as e:
-            if 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention' in str(e):
+            if (
+                'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
+                in str(e)
+            ):
                 self._configure_model(attn_implementation="eager")
 
         # Apply FSDP2 and TP to the model
