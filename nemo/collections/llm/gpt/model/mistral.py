@@ -171,9 +171,10 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
                 base //= 2
             return base
 
-        window_size = None
+        window_size, cp_comm_type = (None, None)
         if getattr(source, 'sliding_window', None) is not None:
             window_size = [source.sliding_window, 0]
+            cp_comm_type = 'a2a'
         output = MistralConfig7B(
             seq_length=source.sliding_window,
             num_layers=source.num_hidden_layers,
@@ -189,7 +190,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             window_size=window_size,
-            cp_comm_type=source.cp_comm_type,
+            cp_comm_type=cp_comm_type,
             share_embeddings_and_output_weights=False,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
