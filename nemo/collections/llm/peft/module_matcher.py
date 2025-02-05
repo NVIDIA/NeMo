@@ -46,7 +46,7 @@ class ModuleMatcher:
     )
     canonical_mapping: Dict[str, Set] = defaultdict(set)
 
-    def match(selself, m: nn.Module, name=None, prefix=None):
+    def match(self, m: nn.Module, name=None, prefix=None):
         """
         Determines whether a given module matches specified target patterns.
 
