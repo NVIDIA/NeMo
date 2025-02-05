@@ -164,6 +164,8 @@ class _All2AllHp2Sp(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input_):
+        """ """
+
         world_size = parallel_state.get_tensor_model_parallel_world_size()
         group = parallel_state.get_tensor_model_parallel_group()
         send_list = list(input_.chunk(world_size, dim=0))
@@ -176,6 +178,8 @@ class _All2AllHp2Sp(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
+        """ """
+
         world_size = parallel_state.get_tensor_model_parallel_world_size()
         group = parallel_state.get_tensor_model_parallel_group()
         send_list = list(grad_output.chunk(world_size, dim=-1))
@@ -203,15 +207,19 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         activation: str = 'swish',
         norm_position: Optional[str] = 'post',
         norm_type: Optional[str] = 'mixedfusedlayernorm',
-        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
-        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
+        column_init_method: str = 'xavier',
+        # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = 'zero',
+        # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
-        input_is_parallel: bool = False,  # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
+        input_is_parallel: bool = False,
+        # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
         dropout_position: str = 'post',
-        a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
+        a2a_experimental: bool = False,
+        # TODO: should rename this or make it a default feature
         is_expert: bool = False,
         **kwargs,
     ):
@@ -265,8 +273,10 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 skip_bias_add=True,
             )
         else:
-            # (@adithyare) we use this option to mirror the behavior a column parallel layer with two low-rank column parallel layers
-            # if the original column parallel layer uses gather_output=False, then we will use the self.liner_out layer defined below.
+            # (@adithyare) we use this option to mirror the behavior
+            # a column parallel layer with two low-rank column parallel layers
+            # if the original column parallel layer uses gather_output=False,
+            # then we will use the self.liner_out layer defined below.
             lin_out_gather_output = True if input_is_parallel else False
             if self.use_a2a and input_is_parallel and self._sequence_parallel:
                 lin_out_gather_output = False
@@ -347,6 +357,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         super().adapter_unfreeze()
 
     def forward(self, x):
+        """ """
+
         if self.dropout is not None and self.dropout_position == 'pre':
             x = self.dropout(x)
 
@@ -402,6 +414,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
     ) -> ShardedStateDict:
+        """ """
+        
         sharded_state_dict = {}
         sharded_state_dict.update(self.linear_in.sharded_state_dict(f"{prefix}linear_in.", sharded_offsets, metadata))
         sharded_state_dict.update(
