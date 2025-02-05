@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 # your own needs, in particular: seq_length and rotary_base.
 @dataclass
 class GemmaConfig(GPTConfig):
+    """Gemma basic config"""
     # configs that are common across model sizes
     normalization: str = "RMSNorm"
     activation_func: Callable = openai_gelu
@@ -60,6 +61,7 @@ class GemmaConfig(GPTConfig):
 
 @dataclass
 class GemmaConfig2B(GemmaConfig):
+    """Gemma 2B config"""
     num_layers: int = 18
     hidden_size: int = 2048
     num_attention_heads: int = 8
@@ -69,6 +71,7 @@ class GemmaConfig2B(GemmaConfig):
 
 @dataclass
 class GemmaConfig7B(GemmaConfig):
+    """Gemma 7B config"""
     num_layers: int = 28
     hidden_size: int = 3072
     num_attention_heads: int = 16
@@ -77,14 +80,17 @@ class GemmaConfig7B(GemmaConfig):
 
 
 class CodeGemmaConfig2B(GemmaConfig2B):
+    """Code Gemma 2B config"""
     pass
 
 
 class CodeGemmaConfig7B(GemmaConfig7B):
+    """Code Gemma 7B config"""
     pass
 
 
 class GemmaModel(GPTModel):
+    """ """
     def __init__(
         self,
         config: Annotated[Optional[GemmaConfig], Config[GemmaConfig]] = None,
@@ -105,10 +111,12 @@ class GemmaModel(GPTModel):
 
 @io.model_importer(GemmaModel, "hf")
 class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
+    """ """
     def init(self) -> GemmaModel:
         return GemmaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        """ """
         from transformers import GemmaForCausalLM
 
         source = GemmaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
@@ -125,6 +133,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
         return output_path
 
     def convert_state(self, source, target):
+        """ """
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
@@ -176,6 +185,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
 
 @io.model_exporter(GemmaModel, "hf")
 class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
+    """ """
     def init(self) -> "GemmaForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
@@ -195,6 +205,7 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
         return output_path
 
     def convert_state(self, source, target):
+        """ """
         mapping = {
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
@@ -238,6 +249,7 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
     target_key="decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_qkv(ctx: io.TransformCTX, q, k, v):
+    """ """
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
@@ -279,6 +291,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     ),
 )
 def _export_qkv(ctx: io.TransformCTX, linear_qkv):
+    """ """
     megatron_config = ctx.source.config
 
     head_num = megatron_config.num_attention_heads
@@ -318,6 +331,7 @@ def _import_linear_fc1(down, gate):
     target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
 )
 def _export_linear_fc1(linear_fc1):
+    """ """
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
