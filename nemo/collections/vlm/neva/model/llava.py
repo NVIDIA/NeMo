@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=line-too-long
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,12 +41,14 @@ if TYPE_CHECKING:
 
 @dataclass
 class LlavaConfig(NevaConfig):
+    """Llava Model Base Config"""
     drop_vision_class_token: bool = True
     freeze_vision_model: bool = True
 
 
 @dataclass
 class Llava15Config7B(LlavaConfig):
+    """Llava v1.5 Config 7B"""
     from transformers import PretrainedConfig
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config7B())
@@ -59,6 +62,7 @@ class Llava15Config7B(LlavaConfig):
 
 @dataclass
 class Llava15Config13B(LlavaConfig):
+    """Llava v1.5 Config 13B"""
     from transformers import PretrainedConfig
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config13B())
@@ -71,6 +75,7 @@ class Llava15Config13B(LlavaConfig):
 
 
 class LlavaModel(NevaModel):
+    """Llava Model NeMo Wrapper"""
     def __init__(
         self,
         config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
@@ -83,10 +88,13 @@ class LlavaModel(NevaModel):
 
 @io.model_importer(LlavaModel, "hf")
 class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaModel]):
+    """Llava Model HF Importer"""
     def init(self) -> LlavaModel:
+        # pylint: disable=C0115,C0116
         return LlavaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        # pylint: disable=C0115,C0116
         from transformers import LlavaForConditionalGeneration
 
         source = LlavaForConditionalGeneration.from_pretrained(str(self))
@@ -105,6 +113,7 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         return output_path
 
     def convert_state(self, source, target, image_newline=False):
+        # pylint: disable=C0115,C0116
         mapping = {
             "language_model.model.embed_tokens.weight": "language_model.embedding.word_embeddings.weight",
             "language_model.model.layers.*.self_attn.o_proj.weight": "language_model.decoder.layers.*.self_attention.linear_proj.weight",
@@ -180,18 +189,21 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        # pylint: disable=C0115,C0116
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(str(self))
 
     @property
     def config(self) -> LlavaConfig:
+        # pylint: disable=C0115,C0116
         from transformers import LlavaConfig as HFLlavaConfig
 
         source = HFLlavaConfig.from_pretrained(str(self))
         text_conifg = source.text_config
 
         def make_vocab_size_divisible_by(vocab_size):
+            # pylint: disable=C0115,C0116
             base = 128
             while vocab_size % base != 0:
                 base //= 2
@@ -226,6 +238,7 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
 
 
 def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+    # pylint: disable=C0115,C0116
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
     new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
@@ -259,6 +272,7 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
     target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
+    # pylint: disable=C0115,C0116
     megatron_config = ctx.target.config.language_transformer_config
     return import_qkv(
         q,
@@ -281,6 +295,7 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
+    # pylint: disable=C0115,C0116
     megatron_config = ctx.target.config.vision_transformer_config
     return import_qkv(
         q,
@@ -303,6 +318,7 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
 )
 def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
+    # pylint: disable=C0115,C0116
     megatron_config = ctx.target.config.vision_transformer_config
     return import_qkv(
         q_bias.unsqueeze(-1),
@@ -321,6 +337,7 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
     target_key="vision_model.class_token",
 )
 def _import_cls_token(ctx: io.TransformCTX, cls_token):
+    # pylint: disable=C0115,C0116
     return cls_token.reshape(1, 1, -1)
 
 
@@ -332,4 +349,5 @@ def _import_cls_token(ctx: io.TransformCTX, cls_token):
     target_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
+    # pylint: disable=C0115,C0116
     return torch.cat((down, gate), axis=0)

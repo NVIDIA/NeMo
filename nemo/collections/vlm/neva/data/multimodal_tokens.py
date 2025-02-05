@@ -31,6 +31,7 @@ class MultiModalToken:
 
 @dataclass
 class ImageToken(MultiModalToken):
+    """Image Token class"""
     token_str: str = "<image>"
     token_index: int = -200
     media_type: str = "image"
@@ -39,6 +40,7 @@ class ImageToken(MultiModalToken):
 
 @dataclass
 class VideoToken(MultiModalToken):
+    """Video Token class"""
     token_str: str = "<video>"
     token_index: int = -300
     media_type: str = "video"

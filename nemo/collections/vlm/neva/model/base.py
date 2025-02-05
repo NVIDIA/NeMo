@@ -26,13 +26,11 @@ from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVA
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
-
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
@@ -99,6 +97,7 @@ def restore_model_weights(model, checkpoint_path, strict=False):
 
 
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+    """Neva Data Step """
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
@@ -150,6 +149,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 
 def neva_forward_step(model, batch) -> torch.Tensor:
+    """Neva Forward Step"""
     forward_args = {
         "images": batch["media"],
         "input_ids": batch["tokens"],
@@ -167,6 +167,7 @@ def neva_forward_step(model, batch) -> torch.Tensor:
 
 @dataclass
 class NevaConfig(TransformerConfig, io.IOMixin):
+    """Neva Model Base Config"""
     language_transformer_config: Optional[TransformerConfig] = None
     vision_transformer_config: Optional[TransformerConfig] = None
     vision_projection_config: Optional[TransformerConfig] = None
@@ -193,11 +194,13 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = neva_data_step
 
     def __post_init__(self):
+        # pylint: disable=C0115,C0116
         if self.language_transformer_config is not None:
             for attr in MODEL_CONFIG_ATTR:
                 setattr(self, attr, getattr(self.language_transformer_config, attr))
 
     def configure_model(self, tokenizer) -> "MCoreNevaModel":
+        # pylint: disable=C0115,C0116
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
@@ -242,6 +245,7 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
     @staticmethod
     # def forward(ctx, decoder_embeddings, labels, loss_mask, packed_seq_params):
     def forward(ctx, batch, packed_seq_params):
+        # pylint: disable=C0115,C0116
         cp_size = ps.get_context_parallel_world_size()
         if cp_size > 1:
             try:
@@ -266,6 +270,7 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_out, grad_label, grad_loss):
+        # pylint: disable=C0115,C0116
         seqlen = ctx.decoder_emb_seqlen
         index = ctx.decoder_emb_index
         assert grad_out.size(1) == index.size(
@@ -285,6 +290,7 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
 
 
 class MCoreNevaModel(MCoreLLaVAModel):
+    """Neva Model Base Model Class"""
     def __init__(
         self,
         config: NevaConfig,
@@ -295,6 +301,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         add_decoder: bool = True,
         drop_vision_class_token: bool = True,
     ) -> None:
+        # pylint: disable=C0115,C0116
         super(MCoreLLaVAModel, self).__init__(config=config)
 
         language_transformer_config = config.language_transformer_config
@@ -375,6 +382,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         image_token_mask: Optional[torch.Tensor] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
+        # pylint: disable=C0301
         """Forward function of the LLaVA model.
 
         Args:
@@ -842,6 +850,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+    """Lightning Wrapper for Neva Model"""
     def __init__(
         self,
         config: NevaConfig,
@@ -859,6 +868,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self._validation_loss_reduction = None
 
     def configure_model(self) -> None:
+        # pylint: disable=C0115,C0116
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
 
@@ -877,6 +887,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         image_token_mask: Optional[torch.Tensor] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         output_tensor = self.module(
             images=images,
             input_ids=input_ids,
@@ -895,22 +906,27 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return output_tensor
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
+        # pylint: disable=C0115,C0116
         return self.config.data_step_fn(dataloader_iter)
 
     def forward_step(self, batch) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         return self.config.forward_step_fn(self, batch)
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
 
         return self.forward_step(batch)
 
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
+        # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
             self._training_loss_reduction = MaskedTokenLossReductionWithLossMask()
 
@@ -918,6 +934,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     @property
     def validation_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
+        # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
 

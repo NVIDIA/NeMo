@@ -62,7 +62,6 @@ from nemo.collections.vlm.recipes import *
 
 # VISION
 from nemo.collections.vlm.vision import (
-    BaseCLIPViTModel,
     CLIPViTConfig,
     CLIPViTL_14_336_Config,
     HFCLIPVisionConfig,

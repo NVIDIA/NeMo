@@ -45,7 +45,7 @@ from nemo.lightning import io, teardown
 
 
 class InternViTRMSNorm(torch.nn.Module):
-
+    """Customized Version of RMSNorm"""
     def __init__(
         self,
         config,
@@ -291,6 +291,7 @@ def get_internvit_layer_spec(use_te, add_qk_norm=True, norm_type="RMSNorm") -> M
 
 @dataclass
 class InternViTConfig(CLIPViTConfig):
+    """Intern ViT Base Config"""
     vision_model_type: str = "internvit"
     patch_dim: int = 14
     img_h: int = 448
@@ -320,11 +321,13 @@ class InternViTConfig(CLIPViTConfig):
 
 @dataclass
 class InternViT_6B_448px_Config(InternViTConfig):
+    """Intern ViT 6B Config for >= v1.5"""
     vision_model_type: str = "internvit"
 
 
 @dataclass
 class InternViT_300M_448px_Config(InternViTConfig):
+    """Intern ViT 300M Config for >= v1.5"""
     vision_model_type: str = "internvit"
     num_layers: int = 24
     num_attention_heads: int = 16
