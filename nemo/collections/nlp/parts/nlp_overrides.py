@@ -182,8 +182,9 @@ def init_model_parallel(
             app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
             if app_state.init_mpi_proc_group:
-                import packaging
                 from importlib.metadata import version
+
+                import packaging
 
                 te_version = packaging.version.Version(version('transformer_engine'))
                 if te_version < packaging.version.Version("1.9"):
