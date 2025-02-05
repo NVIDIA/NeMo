@@ -88,8 +88,8 @@ EOF
 
 WORKDIR /workspace
 COPY --from=te-wheel /tmp/wheels/te/ /tmp/wheels/te/
-COPY --from=mlm-wheel /tmp/wheels/mcore/ /tmp/wheels/mcore/
-COPY --from=apex-wheel /tmp/wheels/apex /tmp/wheels/apex/ 
+# COPY --from=mlm-wheel /tmp/wheels/mcore/ /tmp/wheels/mcore/
+# COPY --from=apex-wheel /tmp/wheels/apex /tmp/wheels/apex/ 
 
 RUN \
     --mount=type=bind,source=requirements,target=requirements \
