@@ -276,7 +276,8 @@ class MLPerfLoRALlamaModel(LlamaModel):
     def configure_model(self):
         # Apply context managers to reduce memory by (1) avoiding unnecessary gradients
         # and (2) requesting that TE initialize params as FP8.
-        # See https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/pytorch.html#transformer_engine.pytorch.fp8_model_init
+        # See https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/pytorch.html
+            #transformer_engine.pytorch.fp8_model_init
         import transformer_engine.pytorch as te
 
         with torch.no_grad(), te.fp8_model_init():
@@ -467,8 +468,10 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
 
         mapping = {
             # linear_proj for both canonical and performant lora
-            f"{pn}*.self_attention.linear_proj.adapter.linear_in.weight": f"{ph}*.self_attn.o_proj.lora_A.default.weight",
-            f"{pn}*.self_attention.linear_proj.adapter.linear_out.weight": f"{ph}*.self_attn.o_proj.lora_B.default.weight",
+            f"{pn}*.self_attention.linear_proj.adapter.linear_in.weight":
+                f"{ph}*.self_attn.o_proj.lora_A.default.weight",
+            f"{pn}*.self_attention.linear_proj.adapter.linear_out.weight":
+                f"{ph}*.self_attn.o_proj.lora_B.default.weight",
             # linear_fc2 for both canonical and performant lora
             f"{pn}*.mlp.linear_fc2.adapter.linear_in.weight": f"{ph}*.mlp.down_proj.lora_A.default.weight",
             f"{pn}*.mlp.linear_fc2.adapter.linear_out.weight": f"{ph}*.mlp.down_proj.lora_B.default.weight",
@@ -479,17 +482,27 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
             mapping.update(
                 {
                     # linear_qkv for canonical lora
-                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_q.linear_in.weight": f"{ph}*.self_attn.q_proj.lora_A.default.weight",
-                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_q.linear_out.weight": f"{ph}*.self_attn.q_proj.lora_B.default.weight",
-                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_k.linear_in.weight": f"{ph}*.self_attn.k_proj.lora_A.default.weight",
-                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_k.linear_out.weight": f"{ph}*.self_attn.k_proj.lora_B.default.weight",
-                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_v.linear_in.weight": f"{ph}*.self_attn.v_proj.lora_A.default.weight",
-                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_v.linear_out.weight": f"{ph}*.self_attn.v_proj.lora_B.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_q.linear_in.weight":
+                        f"{ph}*.self_attn.q_proj.lora_A.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_q.linear_out.weight":
+                        f"{ph}*.self_attn.q_proj.lora_B.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_k.linear_in.weight":
+                        f"{ph}*.self_attn.k_proj.lora_A.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_k.linear_out.weight":
+                        f"{ph}*.self_attn.k_proj.lora_B.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_v.linear_in.weight":
+                        f"{ph}*.self_attn.v_proj.lora_A.default.weight",
+                    f"{pn}*.self_attention.linear_qkv.adapter.adapter_v.linear_out.weight":
+                        f"{ph}*.self_attn.v_proj.lora_B.default.weight",
                     # linear_fc1 for canonical lora
-                    f"{pn}*.mlp.linear_fc1.adapter.adapter_up.linear_in.weight": f"{ph}*.mlp.up_proj.lora_A.default.weight",
-                    f"{pn}*.mlp.linear_fc1.adapter.adapter_up.linear_out.weight": f"{ph}*.mlp.up_proj.lora_B.default.weight",
-                    f"{pn}*.mlp.linear_fc1.adapter.adapter_gate.linear_in.weight": f"{ph}*.mlp.gate_proj.lora_A.default.weight",
-                    f"{pn}*.mlp.linear_fc1.adapter.adapter_gate.linear_out.weight": f"{ph}*.mlp.gate_proj.lora_B.default.weight",
+                    f"{pn}*.mlp.linear_fc1.adapter.adapter_up.linear_in.weight":
+                        f"{ph}*.mlp.up_proj.lora_A.default.weight",
+                    f"{pn}*.mlp.linear_fc1.adapter.adapter_up.linear_out.weight":
+                        f"{ph}*.mlp.up_proj.lora_B.default.weight",
+                    f"{pn}*.mlp.linear_fc1.adapter.adapter_gate.linear_in.weight":
+                        f"{ph}*.mlp.gate_proj.lora_A.default.weight",
+                    f"{pn}*.mlp.linear_fc1.adapter.adapter_gate.linear_out.weight":
+                        f"{ph}*.mlp.gate_proj.lora_B.default.weight",
                 }
             )
         else:

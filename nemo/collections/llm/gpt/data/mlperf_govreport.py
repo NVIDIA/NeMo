@@ -31,13 +31,17 @@ if TYPE_CHECKING:
 
 class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
     """
-    A data module for fine-tuning on the govreport dataset as preprocessed for MLPerf; see https://huggingface.co/datasets/regisss/scrolls_gov_report_preprocessed_mlperf_2
+    A data module for fine-tuning on the govreport dataset as preprocessed for MLPerf;
+    see https://huggingface.co/datasets/regisss/scrolls_gov_report_preprocessed_mlperf_2
 
-    Inherits from `FineTuningDataModule` and handles data download, splitting, and saving in a format ready for training.
+    Inherits from `FineTuningDataModule` and handles data download, splitting, and
+    saving in a format ready for training.
 
     Args:
-        force_redownload (bool, optional): Whether to force re-download the dataset even if it exists locally. Defaults to False.
-        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after preprocessing. Defaults to True.
+        force_redownload (bool, optional): Whether to force re-download the dataset even
+            if it exists locally. Defaults to False.
+        delete_raw (bool, optional): Whether to delete the raw downloaded dataset after
+            preprocessing. Defaults to True.
         See FineTuningDataModule for the other args
     """
 
@@ -79,7 +83,9 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
 
         if self.packed_sequence_size != self.seq_length:
             raise ValueError(
-                f"{self.__class__.__name__} requires `packed_sequence_specs.packed_sequence_size` to be nonzero and equal to `seq_length`.  Instead got packed_sequence_size = {self.packed_sequence_size} and seq_length = {self.seq_length}"
+                f"{self.__class__.__name__} requires `packed_sequence_specs.packed_sequence_size` to be nonzero
+                and equal to `seq_length`.  Instead got packed_sequence_size = {self.packed_sequence_size}
+                and seq_length = {self.seq_length}"
             )
 
     def prepare_data(self) -> None:
@@ -106,7 +112,8 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
             dset (DatasetDict): The downloaded dataset object.
             split_val_from_train (bool, optional): Whether to split the validation set from the training set.
                 If False, the validation set is split from the test set. Defaults to True.
-            val_proportion (float, optional): The proportion of the training or test set to be used for the validation split.
+            val_proportion (float, optional): The proportion of the training or test set to be used for
+                the validation split.
                 Defaults to 0.05.
         """
         logging.info(f"Preprocessing {self.__class__.__name__} to npy format and splitting...")
