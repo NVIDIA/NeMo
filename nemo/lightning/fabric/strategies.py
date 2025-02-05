@@ -180,7 +180,10 @@ class FabricMegatronStrategy(DDPStrategy):
         if self.data_sampler:
             dataloader = self.data_sampler.transform_dataloader(dataloader)
 
-        # Code taken from: https://github.com/Lightning-AI/pytorch-lightning/blob/6cbe9ceb560d798892bdae9186291acf9bf5d2e3/src/lightning/pytorch/loops/fit_loop.py#L258-L260
+        # Code taken from:
+        # https://github.com/Lightning-AI/pytorch-lightning
+        # /blob/6cbe9ceb560d798892bdae9186291acf9bf5d2e3/src/lightning/pytorch/loops/fit_loop.py
+        # L258-L260
         output = _MegatronDataLoaderIterDataFetcher(output_data_idx=self.output_data_idx)
         output.setup(CombinedLoader(dataloader, "max_size_cycle"))
         iter(output)

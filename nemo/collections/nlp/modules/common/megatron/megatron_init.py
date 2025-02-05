@@ -265,9 +265,11 @@ def fake_initialize_model_parallel(
     use_tp_pp_dp_mapping=False,
 ):
     """
-    Fake initialize model data parallel groups so that we can instantiate model parallel models before DDP is initialized.
-    This is needed because PTL execution flow is init model, init trainer -> call trainer.fit(model). DDP is initialized during .fit.
-    This function is taken from megatron.core.parallel_state and modified so that the distributed groups are not created.
+    Fake initialize model data parallel groups so that we can instantiate model parallel
+    models before DDP is initialized. This is needed because PTL execution flow is init
+    model, init trainer -> call trainer.fit(model). DDP is initialized during .fit.
+    This function is taken from megatron.core.parallel_state and modified so that the
+    distributed groups are not created.
     We only need the tensor parallel and pipeline parallel ranks to instantiate the model.
 
     Arguments:
@@ -370,7 +372,8 @@ def fake_initialize_model_parallel(
     expert_data_parallel_size = decoder_world_size // expert_tensor_model_pipeline_parallel_size
     if decoder_world_size % expert_tensor_model_pipeline_parallel_size != 0:
         raise RuntimeError(
-            f"decoder world_size ({decoder_world_size}) is not divisible by expert_tensor_model_pipeline_parallel size ({expert_tensor_model_pipeline_parallel_size})"
+            f"decoder world_size ({decoder_world_size}) is not divisible by "
+            f"expert_tensor_model_pipeline_parallel size ({expert_tensor_model_pipeline_parallel_size})"
         )
 
     # TODO: support expert specific ordering
