@@ -63,6 +63,7 @@ def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bo
 
 class IncompleteConfigError(RuntimeError):
     """Placeholder for an error raised."""
+
     pass
 
 
@@ -634,7 +635,7 @@ def guess_parse_cutset(inp: Union[str, dict, omegaconf.DictConfig]) -> CutSet:
     * a string path to YAML input spec (see :func:`read_dataset_config` for details)
     * a string path to Lhotse non-tarred JSONL manifest
     * a string path to NeMo non-tarred JSON manifest
-    * a dictionary specifying inputs with keys available in 
+    * a dictionary specifying inputs with keys available in
         :class:`nemo.collections.common.data.lhotse.dataloader.LhotseDataLoadingConfig`
 
     It's intended to be used in a generic context where we are not sure which way the user will specify the inputs.
