@@ -15,7 +15,8 @@
 import nemo_run as run
 import torch
 from megatron.core.optimizer import OptimizerConfig
-from utils import import_ckpt_experiment, parse_cli_args, slurm_executor
+from argument_parser import parse_cli_args
+from utils import import_ckpt_experiment, slurm_executor
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -54,7 +55,7 @@ def mlperf_lora_llama2_70b_recipe(
     """
     A recipe for llama2 70B LoRA training based on performance optimizations used in NVIDIA's MLPerf submissions.
     Some optimizations are experimental; use caution.
-    Last updated for the 4.1 submission.
+    Last updated for the 4.1 submission. Designed for 8x H100, tp4pp1cp1.
     """
     tokenizer = run.Config(
         AutoTokenizer,
@@ -255,15 +256,29 @@ if __name__ == "__main__":
         raise ValueError(
             f"This example assumes LoRA and fp8; instead got --finetuning={args.finetuning} --compute_dtype={args.compute_dtype}"
         )
+    if args.virtual_pipeline_parallel_size or args.expert_parallel_size:
+        raise ValueError(
+            f"This example does not support virtual pipeline parallel or expert parallel; got --virtual_pipeline_parallel_size={args.virtual_pipeline_parallel_size} --expert_parallel_size={args.expert_parallel_size}"
+        )
+
+    num_gpus_per_node = NUM_GPUS_PER_NODE if args.gpus_per_node is None else args.gpus_per_node
+    num_gpus = NUM_NODES*num_gpus_per_node if args.num_gpus is None else args.num_gpus
+    num_nodes = -(num_gpus // -num_gpus_per_node)
+
+    mbs = MICRO_BATCH_SIZE if args.micro_batch_size is None else args.micro_batch_size
+    gbs = GLOBAL_BATCH_SIZE if args.global_batch_size is None else args.global_batch_size
+    tp_size = TP_SIZE if args.tensor_parallel_size is None else args.tensor_parallel_size
+    pp_size = PP_SIZE if args.pipeline_parallel_size is None else args.pipeline_parallel_size
+    cp_size = CP_SIZE if args.context_parallel_size is None else args.context_parallel_size
 
     exp_name = "_".join(
         [
             args.finetuning.lower(),
             "llama2_70b",
             args.compute_dtype,
-            f"{NUM_NODES}nodes",
-            f"tp{TP_SIZE}_pp{PP_SIZE}_cp{CP_SIZE}",
-            f"{MICRO_BATCH_SIZE}mbs_{GLOBAL_BATCH_SIZE}gbs",
+            f"{num_nodes}nodes",
+            f"tp{tp_size}_pp{pp_size}_cp{cp_size}",
+            f"{mbs}mbs_{gbs}gbs",
         ]
     )
 
@@ -284,8 +299,8 @@ if __name__ == "__main__":
         args.account,
         args.partition,
         args.log_dir,
-        NUM_NODES,
-        NUM_GPUS_PER_NODE,
+        num_nodes,
+        num_gpus_per_node,
         args.time_limit,
         args.container_image,
         custom_mounts=[],
@@ -295,14 +310,14 @@ if __name__ == "__main__":
     )
 
     recipe = mlperf_lora_llama2_70b_recipe(
-        NUM_NODES,
-        NUM_GPUS_PER_NODE,
-        MICRO_BATCH_SIZE,
-        GLOBAL_BATCH_SIZE,
-        TP_SIZE,
-        PP_SIZE,
-        CP_SIZE,
-        MAX_STEPS,
+        num_nodes,
+        num_gpus_per_node,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        args.max_steps,
     )
 
     if not args.tensorboard:
@@ -312,7 +327,7 @@ if __name__ == "__main__":
         recipe.log.log_dir = "/nemo_run/lightning_logs"
 
     plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if PP_SIZE > 1 else None)]
-    if args.enable_profiling:
+    if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
     with run.Experiment(exp_name) as exp:
