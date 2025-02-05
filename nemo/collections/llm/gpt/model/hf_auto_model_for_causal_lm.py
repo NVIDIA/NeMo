@@ -181,6 +181,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             return AutoTokenizer(model_name, use_fast=not use_fast, trust_remote_code=trust_remote_code)
 
     def _configure_model(self, attn_implementation):
+        """helper method; see also configure_model."""
         # create all your layers here
         if self.load_pretrained_weights:
             self.model = AutoModelForCausalLM.from_pretrained(
