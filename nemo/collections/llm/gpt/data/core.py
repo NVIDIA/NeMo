@@ -163,7 +163,8 @@ class GPTSFTDataset(Dataset):
         file_path: Path to a JSONL GPT supervised fine-tuning dataset.
             Data is formatted as multiple JSON lines with each line formatted as follows:
             {
-                'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?',
+                'input': 'John von Neumann\nVon Neumann made fundamental contributions ...
+                    Q: What did the math of artificial viscosity do?',
                 'output': 'smoothed the shock transition without sacrificing basic physics'
             }
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: SentencePiece).
@@ -275,7 +276,8 @@ class GPTSFTDataset(Dataset):
         assert (
             self.prompt_template is not None
         ), f'we need prompt_template to combine contexts and label {self.label_key}'
-        # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
+        # When providing things like newlines in the prompt template via the CLI, they are escaped.
+        # This line unescapes them.
         self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         self.prompt_template_keys = re.findall(r'{(.*?)}', self.prompt_template)
 
@@ -284,7 +286,8 @@ class GPTSFTDataset(Dataset):
             self.prompt_template[-len(label_placeholder) :] == label_placeholder
         ), f'{label_placeholder} must be at the end of prompt_template.'
 
-        # Legacy checkpoints has self.truncation_fields = ['context'] and self.prompt_template_keys = ['input', 'output']
+        # Legacy checkpoints has self.truncation_fields = ['context']
+        # and self.prompt_template_keys = ['input', 'output']
         if len(self.truncation_fields) > 0:
             if self.prompt_template_keys[0] == 'input' and self.truncation_fields[0] == 'context':
                 self.truncation_fields[0] = self.prompt_template_keys[0]
@@ -354,10 +357,12 @@ class GPTSFTDataset(Dataset):
         Combine contexts and label based on prompt_template into a list of strings and a list of keys.
 
         Args:
-            prompt_template_values (List[str]): the list of context and label strings extrated from jsonl file with prompt_template_keys.
+            prompt_template_values (List[str]): the list of context and label strings
+                extrated from jsonl file with prompt_template_keys.
 
         Returns:
-            template_strings (List[str]): separated prompt_template with contexts/label placeholder filled with corresponding strings
+            template_strings (List[str]): separated prompt_template with contexts/label
+                placeholder filled with corresponding strings
             template_strings_keys (List[str]): strings point to placeholder keys or <template>
 
         Examples:
@@ -382,13 +387,19 @@ class GPTSFTDataset(Dataset):
         # separate prompt_template based on '<space>{placeholder}'
         # examples:
         #   self.prompt_template = "Context:{context}  Passage: {passage}\n\nQuestion:{question} {label}"
-        #   template_with_placeholder_separated = ['Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}']
+        #   template_with_placeholder_separated = [
+        #       'Context:', '{context}', '  Passage:', ' {passage}', '\n\nQuestion:', '{question}', ' {label}'
+        #   ]
         template_with_placeholder_separated = re.split('( *?{.+?})', self.prompt_template)
         template_with_placeholder_separated = [s for s in template_with_placeholder_separated if len(s) > 0]
 
         # remove space if we have leading space and tokenizer is not space_sensitive
-        # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B')
-        # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B')
+        # space_sensitive = True : tokenizer.text_to_tokens('A{num_spaces}B') = (
+        #   tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces}B'
+        # )
+        # space_sensitive = False: tokenizer.text_to_tokens('A{num_spaces}B') = (
+        # tokenizer.text_to_tokens('A') + tokenizer.text_to_tokens('{num_spaces-1}B'
+        # )
         space_sensitive = getattr(self.tokenizer, 'space_sensitive', False)
         template_with_space_reduced = [
             s[1:] if not space_sensitive and s[0] == ' ' else s for s in template_with_placeholder_separated
@@ -410,7 +421,8 @@ class GPTSFTDataset(Dataset):
 
         Args:
             template_ids (List[List[int]]): the list of separate prompt_template ids.
-            template_ids_keys (List[str]): the list of placeholder keys or <template> (used to check key in truncation_fields).
+            template_ids_keys (List[str]): the list of placeholder keys or <template>
+                (used to check key in truncation_fields).
 
         Returns:
             context_ids (List[int]): all context ids.
@@ -499,7 +511,8 @@ class GPTSFTDataset(Dataset):
                 prompt_template_values.append(example[c].strip(' '))
             except KeyError as e:
                 if c == self.label_key and self.is_test:
-                    # allow missing label during testing, if user only wants to do inference without calculating metrics
+                    # allow missing label during testing,
+                    # if user only wants to do inference without calculating metrics
                     prompt_template_values.append("")
                 else:
                     raise e
@@ -787,7 +800,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             for i in range(len(item['seq_boundaries']) - 1):
                 current_seq = item['input_ids'][item['seq_boundaries'][i] : item['seq_boundaries'][i + 1] - 1]
 
-                # since the data could be prepadded with tokenizer's eos_id, we can find out the index of all the eos_id
+                # since the data could be prepadded with tokenizer's eos_id,
+                # we can find out the index of all the eos_id
                 eos_idx = np.where(np.array(current_seq) == self.tokenizer.eos_id)
 
                 # The second eos_id index marks the length of the original unpadded sequence if the sequence is
@@ -1067,7 +1081,8 @@ class TextMemMapDataset(Dataset):
         start_time = time.time()
         mdata_midx_list = [self.load_file(fn, index_mapping_dir) for fn in self._files_list]
         logging.info(
-            f"Time loading {len(mdata_midx_list)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}"
+            f"Time loading {len(mdata_midx_list)} "
+            f"mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}"
         )
 
         logging.info("Computing global indices")
@@ -1121,7 +1136,7 @@ class TextMemMapDataset(Dataset):
             data = self._build_data_from_text(sample)
         except Exception as e:
             logging.error(
-                f"Error while building data from text, possible issue with sample expected format (see offending sample below): {e}"
+                f"Error while building data from text, possible issue with sample expected format: {e}"
             )
             logging.error(f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
             raise e
@@ -1129,7 +1144,11 @@ class TextMemMapDataset(Dataset):
         return data
 
     def _fetch_sample_from_memmap(self, mdata, i, j):
-        """Fetchs the text sample. Can be overriden by child-classes to support loading of partial samples and alternative decode methods"""
+        """
+        Fetchs the text sample. 
+        Can be overriden by child-classes to support loading of partial samples and alternative decode methods.
+        """
+
         # load text sample by slicing memmap data[i:j]
         text = mdata[i:j].tobytes().decode("utf-8")
 
@@ -1182,7 +1201,8 @@ class TextMemMapDataset(Dataset):
             idx_version = idx_info_dict.get("version", "0.0")
             if __idx_version__ != idx_version:
                 raise RuntimeError(
-                    f"Version mismatch: Please delete existing '.{__idx_suffix__}' files. Expected version = {__idx_version__}, but file version = {idx_version}. File path = {idx_fn}"
+                    f"Version mismatch: Please delete existing '.{__idx_suffix__}' files. "
+                    f"Expected version = {__idx_version__}, but file version = {idx_version}. File path = {idx_fn}"
                 )
         else:
             raise ValueError(
@@ -1268,7 +1288,7 @@ class OnlineSampleMapping:
             cache_maxsize (int): Maximum size of the blocks cache for the get_sample_block function.
             seed (int): Seed for the random number generator used for shuffling.
             shuffle (bool): Whether to shuffle the samples.
-            truncate_to_block_boundary (bool): Whether to truncate the last block to the block boundary (could drop samples).
+            truncate_to_block_boundary (bool): Whether to truncate the last block to the block boundary.
         """
         self.dataset_size = dataset_size
         self.num_samples = num_samples
@@ -1322,8 +1342,12 @@ class OnlineSampleMapping:
         self.get_sample_block = lru_cache(maxsize=cache_maxsize, typed=False)(self.get_sample_block)
 
     def __str__(self):
-        return f"OnlineSampleMapping(dataset_size={self.dataset_size}, num_samples={self.num_samples}, block_size={self.block_size}, cache_maxsize={self.cache_maxsize}, seed={self.seed}, shuffle={self.shuffle}, truncate_to_block_boundary={self.truncate_to_block_boundary})"
-
+        return (
+            f"OnlineSampleMapping(dataset_size={self.dataset_size}, num_samples={self.num_samples}, "
+            f"block_size={self.block_size}, cache_maxsize={self.cache_maxsize}, seed={self.seed}, "
+            f"shuffle={self.shuffle}, truncate_to_block_boundary={self.truncate_to_block_boundary})"
+        )
+        
     def __getitem__(self, idx: int) -> int:
         # handle slices
         if isinstance(idx, slice):
