@@ -183,6 +183,7 @@ def init_model_parallel(
 
             if app_state.init_mpi_proc_group:
                 import packaging
+                from importlib.metadata import version
 
                 te_version = packaging.version.Version(version('transformer_engine'))
                 if te_version < packaging.version.Version("1.9"):
@@ -285,7 +286,7 @@ class NLPDDPStrategy(DDPStrategy):
 
             if app_state.model_parallel_size is not None:
 
-                logging.info(f"Configuring DDP for model parallelism.")
+                logging.info("Configuring DDP for model parallelism.")
 
                 # With model parallelism, multiple GPUs form a large "logical GPU"
                 # this means that data parallel groups span multiple GPUs
@@ -373,7 +374,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         optimizer_state_dict['fp32_from_fp16_params'] = [
             [
-                make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix=f'optimizer.state.fp32_param')
+                make_sharded_optimizer_tensor(get_safe(param_id), fp32_param, prefix='optimizer.state.fp32_param')
                 for param_id, fp32_param in zip(state_group['params'], fp32_group)
             ]
             for fp32_group, state_group in zip(
@@ -1250,13 +1251,13 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 if 'extra_state' in key:
                     continue
 
-                ### LayerNormLinear
+                # LayerNormLinear
                 # norm_to_q.layer_norm_{weight|bias} -> norm.{weight|bias}
                 # norm_to_q.weight -> to_q.weight
                 new_key = key.replace('norm_to_q.layer_norm_', 'norm.')
                 new_key = new_key.replace('norm_to_q.weight', 'to_q.weight')
 
-                ### LayerNormMLP
+                # LayerNormMLP
                 # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
                 # ff.net.fc1_{weight|bias} -> ff.net.1.proj.{weight|bias}
                 # ff.net.fc2_{weight|bias} -> ff.net.3.{weight|bias}
@@ -1457,7 +1458,7 @@ class FSDPMixedPrecisionPlugin(FSDPPrecision):
     def __init__(
         self,
         precision: Literal['16-mixed', 'bf16-mixed', '16', 'bf16', 16],
-        scaler: Optional['ShardedGradScaler'] = None,
+        scaler: Optional['GradScaler'] = None,
     ) -> None:
         if precision in ['16-mixed', '16', 16]:
             plugin_precision = '16-mixed'

@@ -58,8 +58,6 @@ from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.strategies import MegatronStrategy
 
 if TYPE_CHECKING:
-    from megatron.core.model_parallel_config import ModelParallelConfig
-
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
 
 
