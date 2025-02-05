@@ -22,6 +22,7 @@ from nemo.collections.llm.recipes.mixtral_8x22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
+ETP_SIZE = 1
 
 def override_recipe_configs(
     args: str,
@@ -42,7 +43,7 @@ def override_recipe_configs(
     """
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
-        recipe, num_nodes, args.gpus_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
+        recipe, args.tensorboard, args.tensorboard, num_nodes, args.gpus_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
     )
 
     # data module configs
@@ -55,22 +56,16 @@ def override_recipe_configs(
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
 
-    if not args.tensorboard:  # tensorboard adds performance overhead.
-        recipe.log.tensorboard = None
-        recipe.trainer.logger = False
-    else:
-        # default path is NOT intuitive- `<log_dir>/code/nemo_experiments/tb_logs/default/<tfevents_file>`
-        # following line ensures file is at- `<log_dir>/lightning_logs/tb_logs/default/<tfevents_file>`
-        recipe.log.log_dir = "/nemo_run/lightning_logs"
-
     return recipe
 
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
+    etp_size = ETP_SIZE if args.expert_tensor_parallel_size is None else args.expert_tensor_parallel_size
+
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "mixtral", "8x22b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
 
     recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size)
 

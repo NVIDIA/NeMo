@@ -47,7 +47,7 @@ def override_recipe_configs(
     """
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
-        recipe, num_nodes, args.gpus_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
+        recipe, args.tensorboard, num_nodes, args.gpus_per_node, mbs, gbs, args.max_steps, tp_size, pp_size, cp_size, vp_size, ep_size
     )
 
     # data module configs
@@ -65,14 +65,6 @@ def override_recipe_configs(
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.proj_fprop.fp8_buf = True
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.fc2_fprop.fp8_buf = True
 
-    if not args.tensorboard:  # tensorboard adds performance overhead.
-        recipe.log.tensorboard = None
-        recipe.trainer.logger = False
-    else:
-        # default path is NOT intuitive- `<log_dir>/code/nemo_experiments/tb_logs/default/<tfevents_file>`
-        # following line ensures file is at- `<log_dir>/lightning_logs/tb_logs/default/<tfevents_file>`
-        recipe.log.log_dir = "/nemo_run/lightning_logs"
-
     return recipe
 
 
@@ -80,7 +72,7 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama31", "405b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
 
     recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
 

@@ -14,7 +14,6 @@
 
 import os
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
@@ -129,9 +128,22 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
 
 
 def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
+    """
+    Choose recommended configs tuned for performance from a csv file if available.
+    User (command line) provided args override the recommended configs.
+
+    NOTE: pre-train and PEFT recommended configs available for H100 and B200.
+
+    Args:
+        gpu (str): target GPU machine for experiment. Options- ['h100', 'b200']
+        task (str): experiment task. Options- ['pre_train', 'sft', 'lora']
+        model_name (str): target model for experiment. E.g.: 'llama3', 'mixtral'
+        model_size (str): size of target model. E.g.: '8b' (for llama3)
+    """
     script_dir = str(Path(__file__).parent.absolute())
     recommended_configs_csv = os.path.join(script_dir, "recommended_model_configs", f"model_configs_{gpu}.csv")
     logging.info(f"Using {recommended_configs_csv} for loading default recommended model configs")
+
     config_df = pd.DataFrame()
     if os.path.isfile(recommended_configs_csv):
         df = pd.read_csv(recommended_configs_csv)
@@ -158,14 +170,13 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     vp_size = args.virtual_pipeline_parallel_size
     vp_size = vp_size if vp_size is not None else int(config.get("vp_size"))
     ep_size = args.expert_parallel_size if args.expert_parallel_size is not None else int(config.get("ep_size"))
-    etp_size = args.expert_tensor_parallel_size
-    etp_size = etp_size if etp_size is not None else config.get("etp_size")
 
-    return num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
+    return num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size
 
 
 def set_primary_perf_configs(
     recipe,
+    enable_tb: bool,
     num_nodes: int,
     num_gpus_per_node: int,
     mbs: int,
@@ -177,6 +188,7 @@ def set_primary_perf_configs(
     vp_size: int,
     ep_size: int,
 ):
+    """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
     recipe.trainer.num_nodes = num_nodes
     recipe.trainer.devices = num_gpus_per_node
@@ -190,7 +202,7 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.tensor_model_parallel_size = tp_size
     recipe.trainer.strategy.pipeline_model_parallel_size = pp_size
     recipe.trainer.strategy.context_parallel_size = cp_size
-    recipe.trainer.strategy.virtual_pipeline_model_parallel_size = vp_size
+    recipe.trainer.strategy.virtual_pipeline_model_parallel_size = None if vp_size == 1 else vp_size
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
 
@@ -202,6 +214,13 @@ def set_primary_perf_configs(
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
+
+    if not enable_tb:  # tensorboard adds performance overhead.
+        recipe.log.tensorboard = None
+        recipe.trainer.logger = False
+    else:
+        # default path is NOT intuitive- `<log_dir>/code/nemo_experiments/tb_logs/default/<tfevents_file>`
+        recipe.log.log_dir = "/nemo_run/lightning_logs" # saves file at- `<log_dir>/lightning_logs/tb_logs
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
