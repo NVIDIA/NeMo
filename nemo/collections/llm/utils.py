@@ -67,7 +67,7 @@ def factory(*args: Any, **kwargs: Any) -> Callable[[T], T]: ...
 
 def factory(*args: Any, **kwargs: Any) -> Union[Callable[[T], T], T]:
     """ """
-    
+
     try:
         import nemo_run as run
 
