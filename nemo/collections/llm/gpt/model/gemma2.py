@@ -204,6 +204,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
         return output_path
 
     def convert_state(self, source, target):
+        """ """
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
@@ -223,12 +224,14 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """ """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> Gemma2Config:
+        """ """
         from transformers import GemmaConfig as HFGemmaConfig
 
         source = HFGemmaConfig.from_pretrained(str(self))
@@ -266,6 +269,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
 
 @io.model_exporter(Gemma2Model, "hf")
 class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
+    """ """
     def init(self) -> "GemmaForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
@@ -274,6 +278,8 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
             return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
+        """ """
+
         target = self.init()
         source, _ = self.nemo_load(str(self))
         target = self.convert_state(source, target)
@@ -285,6 +291,8 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
         return output_path
 
     def convert_state(self, source, target):
+        """ """
+
         mapping = {
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
@@ -304,10 +312,14 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
 
     @property
     def tokenizer(self):
+        """ """
+        
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
     def config(self) -> "Gemma2Config":
+        """ """
+
         source: Gemma2Config = io.load_context(str(self)).model.config
 
         from transformers import Gemma2Config as HFGemmaConfig
