@@ -156,27 +156,47 @@ class GPTSFTDataset(Dataset):
         sanity_check_dist_workers: bool = True,
     ):
         """
-        file_path: Path to a JSONL GPT supervised fine-tuning dataset. Data is formatted as multiple JSON lines with each line formatted as follows. {'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 'output': 'smoothed the shock transition without sacrificing basic physics'}
+        file_path: Path to a JSONL GPT supervised fine-tuning dataset. 
+            Data is formatted as multiple JSON lines with each line formatted as follows:
+            {
+                'input': 'John von Neumann\nVon Neumann made fundamental contributions .... Q: What did the math of artificial viscosity do?', 
+                'output': 'smoothed the shock transition without sacrificing basic physics'
+            }
         tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: SentencePiece).
-        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
+        max_seq_length (int): maximum sequence length for each dataset examples.
+            Examples will either be truncated to fit this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset.
+            Data examples will be dropped if they do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         add_sep (bool): Whether to add a separation token to each data example (goes between prompt and answer)
         tokens_to_generate (int): (inference only) Number of tokens to generate during inference
         seed: Random seed for data shuffling.
-        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
-        seed: int = 1234,
+        max_num_samples: Maximum number of samples to load. 
+            This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
         label_key: Key to use for the label in your JSONL file
-        answer_only_loss: If True, will compute the loss only on the answer part of the input. If False, will compute the loss on the entire input.
-        truncation_field: Field to use for truncation. (Options: keys in prompt_template). Field to be used for truncation if the combined length exceeds the max sequence length.
-        pad_to_max_length: Whether to pad the input to the max sequence length. If False, will pad to the max length of the current batch.
-        index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
-        prompt_template: Prompt template to inject via an fstring. Formatted like Q: {context_key}\n\nA: {label_key}
-        hf_dataset: Whether to load the json file with the HuggingFace dataset. otherwise, will load the jsonl file with the JSONLMemMapDataset.
+        answer_only_loss: If True, will compute the loss only on the answer part of the input.
+            If False, will compute the loss on the entire input.
+        truncation_field: Field to use for truncation. (Options: keys in prompt_template).
+            Field to be used for truncation if the combined length exceeds the max sequence length.
+        pad_to_max_length: Whether to pad the input to the max sequence length.
+            If False, will pad to the max length of the current batch.
+        index_mapping_dir: Directory to save the index mapping to.
+            If None, will write to the same folder as the dataset.
+        prompt_template: Prompt template to inject via an fstring.
+            Formatted like Q: {context_key}\n\nA: {label_key}
+        hf_dataset: Whether to load the json file with the HuggingFace dataset.
+            Otherwise, will load the jsonl file with the JSONLMemMapDataset.
         global_sample_mapping: Whether to shuffle all data together, or shuffle the dataset within each epoch
         truncation_method: Truncation from which position. Options: ['left', 'right']
-        special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+        special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}.
+            Default: {
+                'system_turn_start': '<extra_id_0>',
+                'turn_start': '<extra_id_1>',
+                'label_start': '<extra_id_2>',
+                'end_of_turn': '\n',
+                'end_of_name': '\n'
+            }
         is_test: Whether this dataset is the test split.
         output_original_text (bool): if true, will keep the original text in the output alongside the tokenized ids.
         sanity_check_dist_workers (bool): if true, will run sanity check across workers when making mapping.

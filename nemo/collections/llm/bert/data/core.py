@@ -72,6 +72,7 @@ def create_sft_dataset(
 
 
 class BertEmbeddingDataset(Dataset):
+    """ """
     def __init__(
         self,
         file_path: str,
@@ -92,16 +93,27 @@ class BertEmbeddingDataset(Dataset):
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
-        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
-        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
+        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec.
+        max_seq_length (int): maximum sequence length for each dataset examples.
+            Examples will either be truncated to fit this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset.
+            Data examples will be dropped if they do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         seed: Random seed for data shuffling.
-        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
-        index_mapping_dir: Directory to save the index mapping to. If None, will write to the same folder as the dataset.
+        max_num_samples: Maximum number of samples to load.
+            This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        index_mapping_dir: Directory to save the index mapping to.
+            If None, will write to the same folder as the dataset.
         truncation_method: Truncation from which position. Options: ['left', 'right']
-        special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. Default: {'system_turn_start': '<extra_id_0>', 'turn_start': '<extra_id_1>', 'label_start': '<extra_id_2>', 'end_of_turn': '\n', "end_of_name": "\n"}
+        special_tokens: special tokens for the chat prompts, a dictionary of {token_type: token}. 
+            Default: {
+                        'system_turn_start': '<extra_id_0>', 
+                        'turn_start': '<extra_id_1>', 
+                        'label_start': '<extra_id_2>', 
+                        'end_of_turn': '\n', 
+                        'end_of_name": '\n'
+                    }
         """
         # TODO: lot of copy-paste from GPTSFDDataset, should refactor both to use a common base class (@adithyare)
         self.tokenizer = tokenizer
