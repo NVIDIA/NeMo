@@ -54,6 +54,7 @@ class CLIPViTL_14_336_Config(CLIPViTConfig):
 
 class CLIPViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
     """CLIP ViT Model Wrapper"""
+
     def __init__(self, config):
         # pylint: disable=C0115,C0116
         super().__init__()
@@ -68,6 +69,7 @@ class CLIPViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
 @io.model_importer(CLIPViTModel, "hf")
 class CLIPViTImporter(io.ModelConnector["CLIPVisionModel", CLIPViTModel]):
     """CLIP HF Importer"""
+
     def init(self) -> CLIPViTModel:
         # pylint: disable=C0115,C0116
         return CLIPViTModel(self.config)
