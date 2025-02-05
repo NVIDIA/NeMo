@@ -102,9 +102,6 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
 			   const int64_t tokens_per_epoch,
          const bool drop_last = true,
          const int add_extra_token = 1) {
-    /* Sample index (sample_idx) is used for gpt2 like dataset for which
-       the documents are flattened and the samples are built based on this
-       1D flatten array. */
 
     // Consistency checks.
     assert(seq_length > 1);
