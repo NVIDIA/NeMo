@@ -23,7 +23,6 @@ from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, So
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     PromptFormatterTextProcessing,
     build_loss_mask,
-    ceil_to_nearest,
 )
 
 

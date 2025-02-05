@@ -633,7 +633,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             raise NotImplementedError(f"stream_step does not support {type(self)}!")
 
         if not isinstance(self.encoder, StreamingEncoder):
-            raise NotImplementedError(f"Encoder of this model does not support streaming!")
+            raise NotImplementedError("Encoder of this model does not support streaming!")
 
         if isinstance(self, asr_models.EncDecRNNTModel) and return_transcription is False:
             logging.info(
@@ -761,7 +761,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             raise NotImplementedError(f"simulate streaming does not support {type(self)}!")
 
         if not isinstance(self.encoder, StreamingEncoder):
-            raise NotImplementedError(f"Encoder of this model does not support streaming!")
+            raise NotImplementedError("Encoder of this model does not support streaming!")
 
         data_loader = self._setup_streaming_transcribe_dataloader(paths2audio_files, batch_size, online_normalization)
 

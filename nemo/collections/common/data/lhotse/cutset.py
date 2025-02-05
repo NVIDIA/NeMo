@@ -62,6 +62,7 @@ def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bo
 
 
 class IncompleteConfigError(RuntimeError):
+    """Placeholder for an error raised."""
     pass
 
 
@@ -201,6 +202,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
 
 
 def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
+    """Parse a group configuration, potentially combining multiple datasets."""
     assert grp_cfg.type in get_known_config_data_types(), f"Unknown item type in dataset config list: {grp_cfg.type=}"
 
     # Note: Text data types will return is_tarred=True.
@@ -222,6 +224,7 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
 
 @data_type_parser("txt")
 def read_txt_paths(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read paths to text files and create a CutSet."""
     cuts = CutSet(
         LhotseTextAdapter(
             paths=config.paths,
@@ -237,6 +240,7 @@ def read_txt_paths(config: DictConfig) -> tuple[CutSet, bool]:
 
 @data_type_parser("txt_pair")
 def read_txt_pair_paths(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read paths to source and target text files and create a CutSet."""
     cuts = CutSet(
         LhotseTextPairAdapter(
             source_paths=config.source_paths,
@@ -256,6 +260,7 @@ def read_txt_pair_paths(config: DictConfig) -> tuple[CutSet, bool]:
 
 @data_type_parser("nemo_sft_jsonl")
 def read_nemo_sft_jsonl(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read paths to Nemo SFT JSONL files and create a CutSet."""
     cuts = CutSet(
         NeMoSFTJsonlAdapter(
             paths=config.paths,
@@ -271,6 +276,7 @@ def read_nemo_sft_jsonl(config: DictConfig) -> tuple[CutSet, bool]:
 
 @data_type_parser("multimodal_conversation")
 def read_multimodal_conversation_jsonl(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read paths to multimodal conversation JSONL files and create a CutSet."""
     cuts = CutSet(
         NeMoMultimodalConversationJsonlAdapter(
             manifest_filepath=config.manifest_filepath,
@@ -287,6 +293,7 @@ def read_multimodal_conversation_jsonl(config: DictConfig) -> tuple[CutSet, bool
 
 
 def attach_tags(cut, tags: dict):
+    """Attach extra tags to a cut dynamically."""
     for key, val in tags.items():
         setattr(cut, key, val)
     return cut
@@ -296,6 +303,7 @@ def attach_tags(cut, tags: dict):
 def parse_and_combine_datasets(
     config_list: Union[list[DictConfig], ListConfig], propagate_attrs: dict
 ) -> tuple[CutSet, bool]:
+    """Parse a list of dataset configurations, potentially combining multiple datasets."""
     cuts = []
     weights = []
     tarred_status = []
@@ -340,6 +348,7 @@ def parse_and_combine_datasets(
 
 @data_type_parser(["lhotse", "lhotse_shar"])
 def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
+    """Read paths to Lhotse manifest files and create a CutSet."""
     is_tarred = config.get("shar_path") is not None
     if is_tarred:
         # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
@@ -437,6 +446,7 @@ def _resolve_shar_inputs(path: Union[str, Path], only_metadata: bool) -> dict:
 
 
 def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
+    """Resolve relative paths in a Cut object to their full paths."""
     if isinstance(cut, PaddingCut):
         return cut
 
@@ -486,6 +496,7 @@ def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
 
 @data_type_parser(["nemo", "nemo_tarred"])
 def read_nemo_manifest(config) -> tuple[CutSet, bool]:
+    """Read NeMo manifest and return a Lhotse CutSet."""
     common_kwargs = {
         "text_field": config.text_field,
         "lang_field": config.lang_field,
@@ -623,7 +634,8 @@ def guess_parse_cutset(inp: Union[str, dict, omegaconf.DictConfig]) -> CutSet:
     * a string path to YAML input spec (see :func:`read_dataset_config` for details)
     * a string path to Lhotse non-tarred JSONL manifest
     * a string path to NeMo non-tarred JSON manifest
-    * a dictionary specifying inputs with keys available in :class:`nemo.collections.common.data.lhotse.dataloader.LhotseDataLoadingConfig`
+    * a dictionary specifying inputs with keys available in 
+        :class:`nemo.collections.common.data.lhotse.dataloader.LhotseDataLoadingConfig`
 
     It's intended to be used in a generic context where we are not sure which way the user will specify the inputs.
     """
