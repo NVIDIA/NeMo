@@ -81,9 +81,9 @@ def slurm_executor(
         mounts.extend(custom_mounts)
 
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",            # Enable online downloads from HuggingFace
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1", # Disable caching NCCL communication buffer memory
-        "NCCL_NVLS_ENABLE": "0",                # Disable NVLink SHARP to save memory
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -116,10 +116,10 @@ def slurm_executor(
 
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",            # Enable online downloads from HuggingFace
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1", # Disable caching NCCL communication buffer memory
-        "NCCL_NVLS_ENABLE": "0",                # Disable NVLink SHARP to save memory
-        "NVTE_FUSED_ATTN": "0",                 # Disable cuDNN fused attention
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FUSED_ATTN": "0",  # Disable cuDNN fused attention
     }
 
     executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
