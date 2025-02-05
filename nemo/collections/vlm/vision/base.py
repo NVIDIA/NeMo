@@ -151,6 +151,7 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
 @dataclass
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
     """MCore CLIP ViT Config"""
+
     ln_pre_impl: Union[ModuleSpec, type] = TENorm
     ln_post_impl: Union[ModuleSpec, type] = TENorm
     add_class_token: bool = True

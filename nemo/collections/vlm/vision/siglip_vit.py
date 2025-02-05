@@ -73,6 +73,7 @@ class SigLIPViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
 @io.model_importer(SigLIPViTModel, "hf")
 class SigLIPViTImporter(io.ModelConnector["SigLIPVisionModel", SigLIPViTModel]):
     """HF SigLIP ViT Importer"""
+
     def init(self) -> SigLIPViTModel:
         # pylint: disable=C0115,C0116
         return SigLIPViTModel(self.config)

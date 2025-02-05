@@ -183,6 +183,7 @@ def get_bias_dropout_add_internvit(ls, training, fused):
 
 class InternViTTransformerLayer(TransformerLayer):
     """Add InternViT specialties to our default TransformerLayer."""
+
     def __init__(self, *args, **kwargs):
         # pylint: disable=C0115,C0116
         super().__init__(*args, **kwargs)
@@ -195,6 +196,7 @@ class InternViTTransformerLayer(TransformerLayer):
 
 class InternViTSelfAttention(SelfAttention):
     """Override a few things that are special in InternViT and not supported by the SelfAttention class."""
+
     def __init__(self, config: TransformerConfig, submodules: SelfAttentionSubmodules, *args, **kwargs):
         # pylint: disable=C0115,C0116
         super().__init__(config=config, submodules=submodules, *args, **kwargs)
@@ -349,6 +351,7 @@ class InternViT_300M_448px_Config(InternViTConfig):
 
 class InternViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
     """InternViT NeMo Wrapper"""
+
     def __init__(self, config):
         # pylint: disable=C0115,C0116
         super().__init__()
@@ -363,6 +366,7 @@ class InternViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
 @io.model_importer(InternViTModel, "hf")
 class HFInternViTImporter(io.ModelConnector["InternVisionModel", InternViTModel]):
     """HF InternViT Importer"""
+
     def init(self) -> InternViTModel:
         # pylint: disable=C0115,C0116
         return InternViTModel(self.config)
