@@ -279,7 +279,7 @@ class CLIPTextModel(MCoreGPTModel):
 
 
 @dataclass
-class ClipConfig(TransformerConfig, io.IOMixin):
+class CLIPConfig(TransformerConfig, io.IOMixin):
     """Clip model config"""
 
     text_transformer_config: Optional[CLIPTextModelConfig] = None
@@ -307,7 +307,7 @@ class ClipConfig(TransformerConfig, io.IOMixin):
 class MCoreClipModel(MegatronModule):
     """Clip model"""
 
-    def __init__(self, config: ClipConfig, tokenizer, pre_process=True, post_process=True) -> None:
+    def __init__(self, config: CLIPConfig, tokenizer, pre_process=True, post_process=True) -> None:
         # pylint: disable=C0116
         super().__init__(config=config)
         self.pre_process = pre_process
@@ -357,7 +357,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def __init__(
         self,
-        config: ClipConfig,
+        config: CLIPConfig,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         imagenet_val: Optional[str] = None,
