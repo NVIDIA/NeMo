@@ -25,7 +25,7 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel
-from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
+from nemo.collections.llm.recipes.log.default import default_resume, tensorboard_logger
 
 NAME = "flux-535m"
 
