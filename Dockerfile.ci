@@ -65,14 +65,6 @@ RUN bash /opt/NeMo/reinstall.sh --library apex --mode build && \
 
 FROM ${BASE_IMAGE}
 ARG IMAGE_LABEL
-ARG MLM_REPO
-ARG MLM_TAG
-ARG TE_REPO
-ARG TE_TAG
-ARG APEX_REPO
-ARG APEX_TAG
-ARG NEMO_REPO
-ARG NEMO_TAG
 LABEL "nemo.library"=${IMAGE_LABEL}
 
 ENV TRANSFORMERS_OFFLINE=0
@@ -90,7 +82,9 @@ WORKDIR /workspace
 COPY --from=te-wheel /opt/TransformerEngine/ /opt/TransformerEngine/
 COPY --from=mlm-wheel /opt/Megatron-LM/ /opt/Megatron-LM/
 COPY --from=apex-wheel /opt/Apex /opt/Apex/
-
+ARG MLM_TAG
+ARG TE_TAG
+ARG APEX_TAG
 RUN \
     --mount=type=bind,from=te-wheel,source=/tmp/wheels/te/,target=/tmp/wheels/te/ \
     --mount=type=bind,from=mlm-wheel,source=/tmp/wheels/mcore/,target=/tmp/wheels/mcore/ \
@@ -101,18 +95,19 @@ RUN \
     --mount=type=bind,source=setup.py,target=setup.py \
     --mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
     --mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex
-  ls -al /tmp/wheels/
-  ls -al /tmp/wheels/te/
-  bash reinstall.sh --library all --mode install
+    bash reinstall.sh --library apex --mode install
+    bash reinstall.sh --library te --mode install
+    bash reinstall.sh --library mcore --mode install
 
   # Megatron Core installation
   # cp -r /opt/Megatron-LM /workspace
 EOF
 
 # Copy over NeMo code
-COPY ./ ./
+ARG NEMO_REPO
+ARG NEMO_TAG
 RUN <<"EOF" bash -ex
-pip install --no-cache-dir --no-build-isolation ".[all]"
+bash reinstall.sh --library all --mode install
 
 # set permission
 chmod 777 -R /workspace
