@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
-from typing import List, Literal, Optional
+from dataclasses import dataclass
+from typing import Literal, Optional
 
 import torch
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -22,7 +22,7 @@ from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_shar
 from torch import nn
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
-from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, wildcard_match
+from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
