@@ -5,9 +5,9 @@ set -ex
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
     "te"
-    # "apex"
-    # "mcore"
-    # "nemo"
+    "apex"
+    "mcore"
+    "nemo"
 )
 
 INSTALL_OPTION=${1:-dev}
@@ -18,6 +18,8 @@ PIP=pip
 ${PIP} install -U ${PIP}
 
 mcore() {
+    return
+
     local mode="$1"
     export MAMBA_FORCE_BUILD=TRUE
     export MAMBA_TAG=v2.2.0
@@ -103,6 +105,8 @@ te() {
 }
 
 apex() {
+    return
+    
     local mode="$1"
     cd /opt
     DIR="Apex"
@@ -124,7 +128,9 @@ apex() {
 }
 
 nemo() {
-  local mode="$1"
+  return
+    
+    local mode="$1"
     cd /opt
     DIR="NeMo"
 
