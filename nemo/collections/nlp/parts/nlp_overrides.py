@@ -1083,8 +1083,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                         mp_model_weights = os.path.join(
                             dir_name,
                             f'tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_'
-                            f'{app_state.pipeline_model_parallel_rank:03d}_'
-                            + self.model_weights_ckpt,
+                            f'{app_state.pipeline_model_parallel_rank:03d}_' + self.model_weights_ckpt,
                         )
 
                     self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
