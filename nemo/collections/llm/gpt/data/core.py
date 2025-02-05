@@ -1135,9 +1135,7 @@ class TextMemMapDataset(Dataset):
         try:
             data = self._build_data_from_text(sample)
         except Exception as e:
-            logging.error(
-                f"Error while building data from text, possible issue with sample expected format: {e}"
-            )
+            logging.error(f"Error while building data from text, possible issue with sample expected format: {e}")
             logging.error(f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
             raise e
 
@@ -1145,7 +1143,7 @@ class TextMemMapDataset(Dataset):
 
     def _fetch_sample_from_memmap(self, mdata, i, j):
         """
-        Fetchs the text sample. 
+        Fetchs the text sample.
         Can be overriden by child-classes to support loading of partial samples and alternative decode methods.
         """
 
@@ -1347,7 +1345,7 @@ class OnlineSampleMapping:
             f"block_size={self.block_size}, cache_maxsize={self.cache_maxsize}, seed={self.seed}, "
             f"shuffle={self.shuffle}, truncate_to_block_boundary={self.truncate_to_block_boundary})"
         )
-        
+
     def __getitem__(self, idx: int) -> int:
         # handle slices
         if isinstance(idx, slice):
