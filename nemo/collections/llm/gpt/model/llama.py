@@ -33,7 +33,7 @@ from nemo.utils import logging
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-    from peft import PeftConfig
+    from peft import AutoPeftModelForCausalLM, PeftConfig
     from transformers import LlamaConfig as HFLlamaConfig
     from transformers import LlamaForCausalLM
 
@@ -275,9 +275,8 @@ class MLPerfLoRALlamaModel(LlamaModel):
 
     def configure_model(self):
         # Apply context managers to reduce memory by (1) avoiding unnecessary gradients
-        # and (2) requesting that TE initialize params as FP8.
-        # See https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/pytorch.html
-        # transformer_engine.pytorch.fp8_model_init
+        # and (2) requesting that TE initialize params as FP8. See:
+        # https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/pytorch.html#transformer_engine.pytorch.fp8_model_init
         import transformer_engine.pytorch as te
 
         with torch.no_grad(), te.fp8_model_init():
