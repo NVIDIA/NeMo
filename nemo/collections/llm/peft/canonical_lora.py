@@ -219,6 +219,7 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
             nn.Module: The modified module with LoRA applied, or the original module if not a target.
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
+
         if (ans := self.match(m, name, prefix)) is not None:
             (match, full_name) = ans
             if isinstance(m, nn.Linear):

@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
 from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import Dict, List, Set
-from nemo.collections.llm.peft.utils import wildcard_match
+
 import torch.nn as nn
+
+from nemo.collections.llm.peft.utils import wildcard_match
+
 
 @dataclass
 class ModuleMatcher:
@@ -38,6 +41,7 @@ class ModuleMatcher:
                 target_modules=['*.layers.0.*.linear_qkv', '*.layers.1.*.linear_qkv'] to add LoRA to only linear_qkv
                 on the first two layers.
     """
+
     target_modules: List[str] = field(
         default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
     )
@@ -94,9 +98,11 @@ class ModuleMatcher:
                     return (pattern, full_name)
         else:
             assert len(self.exclude_modules) > 0
-            if not name in self.exclude_modules \
-                and not any(wildcard_match(pattern, full_name) for pattern in self.exclude_modules) \
-                and isinstance(m, nn.Linear):
+            if (
+                not name in self.exclude_modules
+                and not any(wildcard_match(pattern, full_name) for pattern in self.exclude_modules)
+                and isinstance(m, nn.Linear)
+            ):
                 return (name, full_name)
 
         return None
