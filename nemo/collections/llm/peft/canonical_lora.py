@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional, Set, Tuple
+from typing import List, Literal, Optional, Tuple
 
 import torch
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -22,7 +21,7 @@ from torch import nn
 
 from nemo.collections.llm.peft.lora import LinearAdapter, LoRALinear
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
-from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear, wildcard_match
+from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
@@ -220,7 +219,8 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
             nn.Module: The modified module with LoRA applied, or the original module if not a target.
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
-        if (match := self.match(m, name, prefix)) is not None:
+        if (ans := self.match(m, name, prefix)) is not None:
+            (match, full_name) = ans
             if isinstance(m, nn.Linear):
                 return LinearAdapter(
                     m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method

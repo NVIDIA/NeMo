@@ -176,7 +176,8 @@ class DoRA(PEFT, ModuleMatcher):
         Returns:
             nn.Module: The modified module with DoRA applied, or the original module if not a target.
         """
-        if self.match(m, name, prefix) is not None:
+        if (ans := self.match(m, name, prefix)) is not None:
+            (match, full_name) = ans
             input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
             logging.info(f"Adding DoRA to: {full_name}")
             adapter = ParallelLinearDoRAAdapter(

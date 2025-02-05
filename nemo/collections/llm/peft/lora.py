@@ -281,7 +281,8 @@ class LoRA(PEFT, ModuleMatcher):
         """
         from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
 
-        if self.match(m, name, prefix) is not None:
+        if (ans := self.match(m, name, prefix)) is not None:
+            (match, full_name) = ans
             if isinstance(m, nn.Linear):
                 # Will use the `patch_linear_module` function if:
                 # - is FSDP v1
