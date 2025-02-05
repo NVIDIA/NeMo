@@ -22,7 +22,6 @@ from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import Attention
@@ -41,11 +40,12 @@ from torch import Tensor, nn
 from nemo.utils import logging
 
 try:
-    from megatron.core.transformer.custom_layers.transformer_engine import TEDelayedScaling, TENorm
     from megatron.core.transformer.custom_layers.transformer_engine import (
         TEColumnParallelLinear,
+        TEDelayedScaling,
         TEDotProductAttention,
         TELayerNormColumnParallelLinear,
+        TENorm,
         TERowParallelLinear,
     )
 
@@ -53,6 +53,7 @@ try:
     LayerNormImpl = TENorm
 except ImportError:
     from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
+
     # These Defaults are needed to make sure the code compiles
     TEColumnParallelLinear = None
     TEDotProductAttention = None
