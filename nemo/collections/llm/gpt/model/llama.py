@@ -465,7 +465,7 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         pn = "decoder.layers."
         ph = "base_model.model.model.layers."
 
-        #pylint: disable = line-too-long
+        # pylint: disable = line-too-long
         mapping = {
             # linear_proj for both canonical and performant lora
             f"{pn}*.self_attention.linear_proj.adapter.linear_in.weight": f"{ph}*.self_attn.o_proj.lora_A.default.weight",
