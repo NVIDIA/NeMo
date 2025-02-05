@@ -26,7 +26,8 @@ try:
     from megatron.core.extensions.transformer_engine import TENorm
 except ImportError:
     from nemo.utils import logging
-
+    # These Defaults are needed to make sure the code compiles
+    TENorm = None
     logging.warning(
         "Failed to import Transformer Engine dependencies. "
         "`from megatron.core.extensions.transformer_engine import TENorm`"

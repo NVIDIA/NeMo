@@ -34,7 +34,10 @@ try:
     )
 except ImportError:
     from nemo.utils import logging
-
+    # These Defaults are needed to make sure the code compiles
+    TEColumnParallelLinear = None
+    TENorm = None
+    TERowParallelLinear = None
     logging.warning(
         "Failed to import Transformer Engine dependencies. "
         "`from megatron.core.transformer.custom_layers.transformer_engine import *`"

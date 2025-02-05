@@ -32,6 +32,7 @@ from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 
+HAVE_TE = True
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
         TEColumnParallelLinear,
@@ -40,7 +41,10 @@ try:
     )
 except ImportError:
     from nemo.utils import logging
-
+    # These Defaults are needed to make sure the code compiles
+    TEColumnParallelLinear = None
+    TENorm = None
+    TERowParallelLinear = None
     logging.warning(
         "Failed to import Transformer Engine dependencies. "
         "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
