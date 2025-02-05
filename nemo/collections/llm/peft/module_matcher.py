@@ -41,10 +41,8 @@ class ModuleMatcher:
     target_modules: List[str] = field(
         default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
     )
-    exclude_modules: List[str] = field(
-        default_factory=lambda: []
-    )
-    canonical_mapping: Dict[str, Set] = defaultdict(set)
+    exclude_modules: List[str] = field(default_factory=list)
+    canonical_mapping: Dict[str, Set] = field(default_factory=lambda: defaultdict(set))
 
     def match(self, m: nn.Module, name=None, prefix=None):
         """
