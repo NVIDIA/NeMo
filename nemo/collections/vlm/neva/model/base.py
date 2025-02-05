@@ -97,7 +97,7 @@ def restore_model_weights(model, checkpoint_path, strict=False):
 
 
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
-    """Neva Data Step """
+    """Neva Data Step"""
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
@@ -168,6 +168,7 @@ def neva_forward_step(model, batch) -> torch.Tensor:
 @dataclass
 class NevaConfig(TransformerConfig, io.IOMixin):
     """Neva Model Base Config"""
+
     language_transformer_config: Optional[TransformerConfig] = None
     vision_transformer_config: Optional[TransformerConfig] = None
     vision_projection_config: Optional[TransformerConfig] = None
@@ -291,6 +292,7 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
 
 class MCoreNevaModel(MCoreLLaVAModel):
     """Neva Model Base Model Class"""
+
     def __init__(
         self,
         config: NevaConfig,
@@ -851,6 +853,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     """Lightning Wrapper for Neva Model"""
+
     def __init__(
         self,
         config: NevaConfig,
