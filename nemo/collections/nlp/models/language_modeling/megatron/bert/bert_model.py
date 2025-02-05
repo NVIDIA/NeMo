@@ -211,7 +211,7 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
-        sequence_len_offset=None,
+        **kwargs,
     ):
         # hidden_states: [s, b, h]
 

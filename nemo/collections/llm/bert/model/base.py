@@ -386,7 +386,7 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         rotary_pos_emb=None,
         inference_params=None,
         packed_seq_params=None,
-        sequence_len_offset=None,
+        **kwargs,
     ):
         """
         Perform a forward pass through the transformer layer.
