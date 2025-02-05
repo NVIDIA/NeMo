@@ -129,6 +129,7 @@ def create_sft_dataset(
 
 class GPTSFTDataset(Dataset):
     """ """
+
     def __init__(
         self,
         file_path: str,
@@ -653,6 +654,7 @@ class GPTSFTDataset(Dataset):
 
 class GPTSFTPackedDataset(GPTSFTDataset):
     """ """
+
     def __init__(
         self,
         file_path: str,
@@ -890,6 +892,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
 class GPTSFTChatDataset(GPTSFTDataset):
     """ """
+
     def _maybe_validate_prompt_template(self):
         pass
 

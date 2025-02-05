@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 @dataclass
 class GemmaConfig(GPTConfig):
     """Gemma basic config"""
+
     # configs that are common across model sizes
     normalization: str = "RMSNorm"
     activation_func: Callable = openai_gelu
@@ -62,6 +63,7 @@ class GemmaConfig(GPTConfig):
 @dataclass
 class GemmaConfig2B(GemmaConfig):
     """Gemma 2B config"""
+
     num_layers: int = 18
     hidden_size: int = 2048
     num_attention_heads: int = 8
@@ -72,6 +74,7 @@ class GemmaConfig2B(GemmaConfig):
 @dataclass
 class GemmaConfig7B(GemmaConfig):
     """Gemma 7B config"""
+
     num_layers: int = 28
     hidden_size: int = 3072
     num_attention_heads: int = 16
@@ -81,16 +84,19 @@ class GemmaConfig7B(GemmaConfig):
 
 class CodeGemmaConfig2B(GemmaConfig2B):
     """Code Gemma 2B config"""
+
     pass
 
 
 class CodeGemmaConfig7B(GemmaConfig7B):
     """Code Gemma 7B config"""
+
     pass
 
 
 class GemmaModel(GPTModel):
     """ """
+
     def __init__(
         self,
         config: Annotated[Optional[GemmaConfig], Config[GemmaConfig]] = None,
@@ -112,6 +118,7 @@ class GemmaModel(GPTModel):
 @io.model_importer(GemmaModel, "hf")
 class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
     """ """
+
     def init(self) -> GemmaModel:
         return GemmaModel(self.config, tokenizer=self.tokenizer)
 
@@ -186,6 +193,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
 @io.model_exporter(GemmaModel, "hf")
 class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
     """ """
+
     def init(self) -> "GemmaForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
