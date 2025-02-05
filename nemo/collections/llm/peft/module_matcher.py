@@ -88,17 +88,17 @@ class ModuleMatcher:
             assert len(self.exclude_modules) == 0
             for pattern in self.canonical_mapping:
                 if name == pattern or wildcard_match(pattern, full_name):
-                    return pattern
+                    return (pattern, full_name)
         elif len(self.target_modules) > 0:
             assert len(self.exclude_modules) == 0
             for pattern in self.target_modules:
                 if name == pattern or wildcard_match(pattern, full_name):
-                    return pattern
+                    return (pattern, full_name)
         else:
             assert len(self.exclude_modules) > 0
             if not name in self.exclude_modules \
                 and not any(wildcard_match(pattern, full_name) for pattern in self.exclude_modules) \
                 and isinstance(m, nn.Linear):
-                return name
+                return (name, full_name)
 
         return None
