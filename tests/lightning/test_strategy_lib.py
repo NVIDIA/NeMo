@@ -151,6 +151,7 @@ def test_init_model_parallel(mock_mpu, *args):
         order="tp-cp-ep-dp-pp",
     )
 
+
 @patch('torch.distributed.is_initialized', return_value=True)
 @patch('megatron.core.parallel_state')
 def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
