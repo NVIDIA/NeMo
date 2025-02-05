@@ -28,8 +28,6 @@ from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProje
 from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
-    from transformers import LlavaConfig as HFLlavaConfig
-    from transformers import LlavaForConditionalGeneration
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec

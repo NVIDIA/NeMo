@@ -660,7 +660,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     # Pad to multiple of tp size for sequence parallelism
                     tp_world_size = ps.get_tensor_model_parallel_world_size()
                     padded_seq_len = int((max_seq_len + (tp_world_size - 1)) // tp_world_size * tp_world_size)
-                sp_padding_needed = padded_seq_len - max_seq_len
                 max_seq_len = padded_seq_len
             batch_indices, non_image_indices = torch.where(input_ids != image_token_index)
 
@@ -808,7 +807,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
                 assert (
                     combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
-                ), f"TP Comm overlap either requires Vision+Text token length \
+                ), "TP Comm overlap either requires Vision+Text token length \
                 == language_max_sequence_length"
 
         if self.context_parallel_lm > 1:
