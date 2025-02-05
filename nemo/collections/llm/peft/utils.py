@@ -16,6 +16,7 @@ import math
 import re
 from typing import Optional
 
+import torch
 from megatron.core import ModelParallelConfig, parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
@@ -23,8 +24,6 @@ from megatron.core.tensor_parallel.mappings import (
     gather_from_sequence_parallel_region,
     scatter_to_sequence_parallel_region,
 )
-
-import torch
 from torch import nn
 
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
@@ -119,6 +118,7 @@ def init_method_normal(sigma):
 
 def init_method_kaiming_uniform(val):
     """ """
+
     def init_(tensor):
         return nn.init.kaiming_uniform_(tensor, a=val)
 
@@ -127,6 +127,7 @@ def init_method_kaiming_uniform(val):
 
 def init_method_const(val):
     """ """
+
     def init_(tensor):
         return nn.init.constant_(tensor, val)
 
@@ -183,7 +184,7 @@ class _All2AllHp2Sp(torch.autograd.Function):
         receive_list = [torch.empty_like(send_list[0]) for _ in range(world_size)]
         torch.distributed.all_to_all(receive_list, send_list, group=group)
         x = torch.cat(receive_list, dim=0)
-        
+
         return x
 
 
@@ -194,6 +195,7 @@ def all2all_hp2sp(input_):
 
 class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
     """ """
+
     def __init__(
         self,
         in_features: int,

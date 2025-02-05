@@ -825,7 +825,9 @@ class GPTSFTPackedDataset(GPTSFTDataset):
         }
 
         if self.return_cu_seqlen:
-            cu_seqlens = self._collate_item(cu_seqlens, max_length=max(len(length) for length in cu_seqlens) + 1, pad_id=-1)
+            cu_seqlens = self._collate_item(
+                cu_seqlens, max_length=max(len(length) for length in cu_seqlens) + 1, pad_id=-1
+            )
             cu_seqlens_unpadded = self._collate_item(
                 cu_seqlens_unpadded, max_length=max(len(length) for length in cu_seqlens_unpadded) + 1, pad_id=-1
             )

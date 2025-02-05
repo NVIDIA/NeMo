@@ -22,13 +22,11 @@ import torch
 import torch.distributed
 import torch.nn.functional as F
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
-
 from megatron.core.models.T5.t5_model import T5Model as MCoreT5Model
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
-
 from transformers import T5Config as HFT5Config
 from transformers import T5ForConditionalGeneration
 
@@ -41,8 +39,8 @@ from nemo.utils.import_utils import safe_import
 _, HAVE_TE = safe_import("transformer_engine")
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
