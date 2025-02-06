@@ -298,7 +298,7 @@ class GPTSFTDataset(Dataset):
                 if not self.global_sample_mapping
                 else None
             )
-            self.samples_mapping = get_samples_mapping(
+            self.samples_mapping = _get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
                 num_epochs=None,
@@ -911,7 +911,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         Truncation is carried out when needed, but it is performed only on the prompt side.
         BOS, EOS, and SEP, are added if specified.
         """
-        result = preprocess(
+        result = _preprocess(
             example,
             self.tokenizer,
             self.name_end_token_ids,

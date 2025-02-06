@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import copy
 import datetime
 import multiprocessing as mp
@@ -45,6 +46,36 @@ TYPE_INSTRUCTION = {
 __idx_version__ = "0.2"  # index file version
 __idx_suffix__ = "idx"  # index file suffix
 
+
+def build_index_from_memdata(fn, newline_int):
+    """
+    Build index of delimiter positions between samples in memmap.
+    Can be provided externally.
+
+    Returns a 1D array of ints.
+    """
+    # use memmap to read file
+    mdata = np.memmap(fn, dtype=np.uint8, mode="r")
+    # find newline positions
+    midx = np.where(mdata == newline_int)[0]
+    midx_dtype = midx.dtype
+    # make sure to account for all data
+    midx = midx.tolist()
+    # add last item in case there is no new-line at the end of the file
+    if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
+        midx = midx + [len(mdata) + 1]
+
+    # remove empty lines from end of file
+    while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
+        midx.pop(-1)
+    midx = np.asarray(midx, dtype=midx_dtype)
+
+    # free memmap
+    mdata._mmap.close()
+    del mdata
+
+    return midx
+ 
 
 class _TextMemMapDataset(Dataset):
     """
@@ -495,36 +526,6 @@ class _OnlineSampleMapping:
         sample_block = sample_block % self.dataset_size
 
         return sample_block
-
-
-def build_index_from_memdata(fn, newline_int):
-    """
-    Build index of delimiter positions between samples in memmap.
-    Can be provided externally.
-
-    Returns a 1D array of ints.
-    """
-    # use memmap to read file
-    mdata = np.memmap(fn, dtype=np.uint8, mode="r")
-    # find newline positions
-    midx = np.where(mdata == newline_int)[0]
-    midx_dtype = midx.dtype
-    # make sure to account for all data
-    midx = midx.tolist()
-    # add last item in case there is no new-line at the end of the file
-    if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
-        midx = midx + [len(mdata) + 1]
-
-    # remove empty lines from end of file
-    while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
-        midx.pop(-1)
-    midx = np.asarray(midx, dtype=midx_dtype)
-
-    # free memmap
-    mdata._mmap.close()
-    del mdata
-
-    return midx
 
 
 def build_index_files(
