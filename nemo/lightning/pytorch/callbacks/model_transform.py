@@ -63,7 +63,7 @@ class ModelTransform(pl.Callback):
         self.model_transform: Optional[Callable[[nn.Module], nn.Module]] = None
 
     def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
-        """ Setups model transform """
+        """Setups model transform"""
         logging.info(f"Setting up ModelTransform for stage: {stage}")
 
         if hasattr(pl_module, 'model_transform'):
@@ -75,32 +75,30 @@ class ModelTransform(pl.Callback):
             logging.info("No model_transform attribute found on pl_module")
 
     def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        """ event hook """
+        """event hook"""
         self._maybe_apply_transform(trainer)
 
     def on_validation_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        """ event hook """
+        """event hook"""
         self._maybe_apply_transform(trainer)
 
     def _maybe_apply_transform(self, trainer):
-        """ Applies transform if haven't already """
+        """Applies transform if haven't already"""
         if self._needs_to_call:
             self.apply_transform(trainer)
 
     def apply_transform(self, trainer):
-        """ Applies a model transform e.g., PeFT """
+        """Applies a model transform e.g., PeFT"""
         self.model_transform(trainer.model)
         from lightning.pytorch.utilities import model_summary
 
         summary = str(model_summary.summarize(trainer.lightning_module, max_depth=1))
         summary = "\n\r".join(summary.split("\n"))
-        logging.info(
-            f"After applying model_transform:\n\n\r{summary}"
-        )
+        logging.info(f"After applying model_transform:\n\n\r{summary}")
 
     @property
     def _needs_to_call(self) -> bool:
-        """ boolean var to indicate whether need to run transform based on call counter """
+        """boolean var to indicate whether need to run transform based on call counter"""
         return self.model_transform and self.model_transform.__num_calls__ == 0
 
 
