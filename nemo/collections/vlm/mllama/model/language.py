@@ -346,7 +346,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                                 full_text_row_masked_out_mask=full_text_row_masked_out_mask,
                                 rotary_pos_emb=rotary_pos_emb,
                                 cross_attention_bias=cross_attention_bias,
-                                inference_params=inference_params,
+                                inference_params=None,  # Skip inference_params for xattn
                                 packed_seq_params=packed_seq_params,
                             )
                             hidden_states, context = layer(
@@ -390,7 +390,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         layer_prefix = f'{prefix}layers.'
         num_layers = self.config.num_layers
         for layer in self.layers:
-            offset = layer._get_layer_offset()
+            offset = layer._get_layer_offset(layer.config)
             global_layer_offset = layer.layer_number - 1  # self.layer_number starts at 1
             state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
             sharded_prefix = layer_prefix
@@ -403,7 +403,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         for xlayer in self.xattn_layers:
             if isinstance(xlayer, DummyCrossAttentionTransformerLayer):
                 continue
-            offset = xlayer._get_layer_offset()
+            offset = xlayer._get_layer_offset(xlayer.config)
             global_layer_offset = xlayer.layer_number - 1
             state_dict_prefix = f'{xlayer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
             sharded_prefix = f'{xlayer_prefix}{global_layer_offset}.'

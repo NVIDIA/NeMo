@@ -18,6 +18,7 @@ from pathlib import Path
 
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig as McoreDDPConfig
+from megatron.core.transformer.enums import AttnBackend
 
 from nemo.collections.llm import MixtralConfig8x3B, MixtralModel, PreTrainingDataModule
 from nemo.collections.llm.api import train
@@ -117,6 +118,7 @@ def main(args):
         bf16=True,
         params_dtype=torch.bfloat16,
         pipeline_dtype=torch.bfloat16,
+        attention_backend=AttnBackend.unfused,
     )
     mixtral_config.overlap_param_gather_with_optimizer_step = True
 
@@ -335,7 +337,15 @@ def main(args):
     for key, (shape, dtype, device) in expected_ckpt.items():
         assert key in ckpt, f"Expected {key} to be in ckpt"
         assert isinstance(ckpt[key], torch.Tensor), f"Expected {key} to be a tensor"
-        assert ckpt[key].shape == shape, f"Expected {key} shapes to match {ckpt[key].shape} & {shape}"
+
+        if len(shape) == 1 and key.startswith('optimizer.state'):
+            assert ckpt[key].shape == (
+                1,
+                shape[0],
+            ), f"Expected {key} shapes to match {ckpt[key].shape} & (1, {shape[0]})"
+        else:
+            assert ckpt[key].shape == shape, f"Expected {key} shapes to match {ckpt[key].shape} & {shape}"
+
         assert ckpt[key].dtype == dtype, f"Expected {key} dtype to match {ckpt[key].dtype} & {dtype}"
         assert str(ckpt[key].device) == device, f"Expected {key} device to match {ckpt[key].device} & {device}"
 

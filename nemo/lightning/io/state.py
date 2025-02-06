@@ -20,7 +20,9 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar,
 import numpy as np
 import torch
 from torch import nn
+
 from nemo.lightning.pytorch.utils import extract_dtypes
+from nemo.utils import logging
 
 SourceModuleT = TypeVar("SourceModuleT", bound=nn.Module)
 TargetModuleT = TypeVar("TargetModuleT", bound=nn.Module)
@@ -43,6 +45,7 @@ def apply_transforms(
     target: TargetModuleT,
     mapping: Dict[str, str],
     transforms: Optional[List[Callable[[TransformCTX], TransformCTX]]] = [],
+    state_dict_ignored_entries: List = [],
 ) -> TargetModuleT:
     """
     Applies a series of transformations to adapt the state dictionary of a source module to
@@ -60,6 +63,11 @@ def apply_transforms(
         transforms (Optional[List[Callable[[TransformCTX], TransformCTX]]]): A list of functions
             that modify the `TransformCTX` object. If None, no transformations beyond key renaming
             are applied. Defaults to None.
+        state_dict_ignored_entries: List of entries to ignore in _target.state_dict(). There are cases
+            where multiple entries in model's state_dict point to one entry in model's named_parameter.
+            E.g., model has multiple pointers pointing to one shared parameters (`encoder.embed_tokens.weight`,
+            `decoder.embed_tokens.weight` and `shared.weight` all points to `shared.weight
+            in T5 Huggingface implementation.). In these cases, ignore redundant entries.
 
     Returns
     -------
@@ -121,9 +129,11 @@ def apply_transforms(
     )
 
     for key, val in mapping.items():
+        logging.debug(f"Mapping {key} -> {val}")
         ctx = StateDictTransform(key, val)(ctx)
 
     for transform in transforms:
+        logging.debug(f"Transforming {transform.source_key} -> {transform.target_key}")
         ctx = transform(ctx)
 
     _params: Dict[str, nn.Parameter] = {}
@@ -131,7 +141,10 @@ def apply_transforms(
         if name in target_state:
             target_param = target_state[name]
             if param.data.shape != target_param.shape:
-                raise ValueError(f"Shape mismatch for parameter {name}: {param.shape} vs {target_param.shape}")
+                raise ValueError(
+                    f"Shape mismatch for parameter {name}: target shape {param.shape} vs "
+                    f"converted source shape {target_param.shape}"
+                )
 
             _params[name] = nn.Parameter(target_param, requires_grad=param.requires_grad)
             target_state.pop(name)
@@ -166,6 +179,7 @@ def apply_transforms(
         _module.register_buffer(_key, val)
 
     keys = list(filter(lambda x: x is not None and not x.endswith("_extra_state"), target_state.keys()))
+    keys = [key for key in keys if key not in state_dict_ignored_entries]
     if len(keys) != 0:
         raise RuntimeError(f"Additional keys: {keys} in checkpoint but not in model.")
 
@@ -176,6 +190,16 @@ def apply_transforms(
 
     """finally:
         cls._set_model_restore_state(is_being_restored=False)"""
+
+    meta_tensor_keys = []
+    for name, param in target.named_parameters():
+        if param.is_meta:
+            meta_tensor_keys.append(name)
+
+    assert not meta_tensor_keys, (
+        f"{meta_tensor_keys}\nThere are meta tensors in the model after conversion."
+        f"Did you forget to include these parameters in the mapping or transforms in `convert_state`?"
+    )
 
     assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
         f"dtype mismatch between source and target state dicts. "
@@ -288,6 +312,7 @@ class StateDictTransform(Generic[F]):
                     if accepts_var_args:
                         source_values = [source_dict[k] for k in source_match]
                         target_dict[target_match] = self.call_transform(ctx, *source_values)
+                        logging.debug(f"Matched (1)! {target_match=} {source_match=}")
                     else:
                         _source_match_list = [source_match] if isinstance(source_match, str) else list(source_match)
                         if len(fn_params) != len(_source_match_list):
@@ -297,6 +322,7 @@ class StateDictTransform(Generic[F]):
 
                         kwargs = {param: source_dict[k] for param, k in zip(fn_params, _source_match_list)}
                         target_dict[target_match] = self.call_transform(ctx, **kwargs)
+                        logging.debug(f"Matched (2)! {target_match=} {source_match=}")
             else:
                 if source_matches.ndim == 0:
                     source_matches_list = [source_matches.item()]
@@ -309,7 +335,7 @@ class StateDictTransform(Generic[F]):
                         source_matches_list = [source_matches_list]
                     else:
                         raise ValueError(
-                            "Mismatch between source and target keys: {source_matches} vs {target_matches}"
+                            f"Mismatch between source and target keys: {source_matches} vs {target_matches}"
                         )
 
                 for source_index, source_match in enumerate(source_matches_list):
@@ -330,6 +356,7 @@ class StateDictTransform(Generic[F]):
                     else:
                         for i, t in enumerate(outputs):
                             target_dict[target_match[i]] = t
+                    logging.debug(f"Matched (3)! {target_match=} {source_match=}")
 
         return ctx
 
@@ -459,3 +486,81 @@ def state_transform(
         return wrapper
 
     return wrapper(fn)
+
+
+class TransformFns:
+    """
+    A collection of common functions used in state dict transformation.
+    """
+
+    @staticmethod
+    def split_qkv(ctx: TransformCTX, linear_qkv: torch.Tensor):
+        """
+        Split interleave-concatenated qkv to q, k, v
+
+        Example: export layer linear_qkv to HF {q|k|v}_proj
+        """
+        megatron_config = ctx.source.config
+
+        head_num = megatron_config.num_attention_heads
+        num_query_groups = megatron_config.num_query_groups
+        heads_per_group = head_num // num_query_groups
+        # hidden_size = megatron_config.hidden_size
+        head_size = megatron_config.kv_channels
+        qkv_total_dim = head_num + 2 * num_query_groups
+
+        linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, -1])
+        # when converting base model (linear_qkv), hidden size = megatron_config.hidden_size
+        # when converting lora (linear_qkv.adapter.linear_out), hidden size = lora_r
+        hidden_size = linear_qkv.size(-1)
+        q_slice = torch.cat(
+            [
+                torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+                for i in range(num_query_groups)
+            ]
+        )
+        k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+        v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+        q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+        k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+        v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+        return q_proj, k_proj, v_proj
+
+    @staticmethod
+    def merge_fc1(gate: torch.Tensor, up: torch.Tensor):
+        """
+        Merge gate and up proj into concatenated fc1
+
+        Example: import HF {gate|up}_proj to layer linear_fc1
+        """
+        return torch.cat((gate, up), dim=0)
+
+    @staticmethod
+    def split_fc1(linear_fc1: torch.Tensor):
+        """
+        Split concatenated fc1 to gate and up proj
+
+        Example: export layer linear_fc1 to HF {gate|up}_proj
+        """
+        gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
+        return gate_proj, up_proj
+
+    @staticmethod
+    def duplicate2(param: torch.Tensor):
+        """
+        Duplicate the source parameter to two target parameters
+
+        Example: export Performant LoRA linear_fc1.adapter.linear_in to HF {gate|up}_proj.lora_A
+        """
+        return param, param
+
+    @staticmethod
+    def duplicate3(param: torch.Tensor):
+        """
+        Duplicate the source parameter to three target parameters
+
+        Example: export Performant LoRA linear_qkv.adapter.linear_in to HF {q|k|v}_proj.lora_A
+        """
+        return param, param, param

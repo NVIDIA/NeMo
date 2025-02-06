@@ -71,6 +71,12 @@ class MixtralConfig(GPTConfig):
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
 
+    # fusions
+    apply_rope_fusion = True
+    bias_activation_fusion = True
+    bias_dropout_fusion = True
+    masked_softmax_fusion = False
+
 
 @dataclass
 class MixtralConfig8x3B(MixtralConfig):
@@ -112,8 +118,8 @@ class MixtralConfig8x22B(MixtralConfig):
     hidden_size: int = 6144
     num_attention_heads: int = 48
     ffn_hidden_size: int = 16384
-    max_position_embeddings: int = 4096
-    seq_length: int = 4096
+    max_position_embeddings: int = 65536
+    seq_length: int = 65536
 
 
 class MixtralModel(GPTModel):

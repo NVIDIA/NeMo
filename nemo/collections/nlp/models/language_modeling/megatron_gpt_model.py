@@ -102,6 +102,7 @@ try:
         drain_embedding_wgrad_compute,
         get_model_config,
         init_method_normal,
+        is_te_min_version,
         scaled_init_method_normal,
     )
 
@@ -199,7 +200,13 @@ def mcore_model_customize(cfg, model):
     if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
         extend_instance(model.embedding, EmbeddingScalingMixin)
     if cfg.get("scale_positional_embedding", False):
-        model.rotary_pos_emb.inv_freq = apply_rope_scaling(model.rotary_pos_emb.inv_freq)
+        model.rotary_pos_emb.inv_freq = apply_rope_scaling(
+            model.rotary_pos_emb.inv_freq,
+            scale_factor=cfg.get('scale_factor', 8),
+            low_freq_factor=cfg.get('low_freq_factor', 1),
+            high_freq_factor=cfg.get('high_freq_factor', 4),
+            old_context_len=cfg.get('old_context_len', 8192),
+        )
     if cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
         from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
 
@@ -587,6 +594,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             ddp_config = DistributedDataParallelConfig(
                 grad_reduce_in_fp32=(self.cfg.optim.get('grad_sync_dtype', 'fp32') == 'fp32'),
                 overlap_grad_reduce=self.cfg.optim.get('overlap_grad_sync', False),
+                num_distributed_optimizer_instances=self.cfg.optim.get('num_distributed_optimizer_instances', 1),
                 use_distributed_optimizer=True,
                 check_for_nan_in_grad=self.cfg.optim.get('check_for_nan_in_grad', False),
                 # mcore bucket_size is based on num of parameters, therefore not
@@ -1359,7 +1367,17 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                             'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
                             'labels': batch['labels'] if 'labels' in batch else None,
                         }
+                    else:
+                        from packaging.version import Version as PkgVersion
 
+                        if (
+                            self.transformer_config.num_query_groups != self.transformer_config.num_attention_heads
+                            and not is_te_min_version("1.13", check_equality=False)
+                            and PkgVersion(os.getenv("CUDNN_VERSION", "9.5")) < PkgVersion("9.6")
+                        ):
+                            # cu_seqlens_unpadded != cu_seqlens when CP=1 is not supported in TE 1.13 or earlier
+                            # and im CUDNN 9.5 or earlier when using GQA.
+                            cu_seqlens_unpadded = cu_seqlens
                     forward_args['packed_seq_params'] = PackedSeqParams(
                         cu_seqlens_q=cu_seqlens_unpadded,
                         cu_seqlens_kv=cu_seqlens_unpadded,
@@ -1489,6 +1507,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 and isinstance(model.module, MCoreGPTModel)
             ):
                 attention_mask = None
+
             output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             # Advance inference sequence offset.
@@ -1978,7 +1997,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         key.replace('model.', ''): checkpoint_state_dict.pop(key)
                         for key in list(checkpoint_state_dict.keys())
                     }
-                    module.load_state_dict(checkpoint_state_dict, strict=True)
+                    try:
+                        module.load_state_dict(checkpoint_state_dict, strict=True)
+                    except RuntimeError as e:
+                        missing_keys, expected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
+                        if all(s.endswith('_extra_state') for s in missing_keys):
+                            logging.warning(
+                                f'Loding checkpoint created with Transformer Engine version lower than 1.13. Missing layers {missing_keys} will be ignored.'
+                            )
+                        else:
+                            raise e
             else:
                 # when restoring a distributed checkpoint from a ptl checkpoint we need to defer loading the state_dict
                 # see NLPModel.on_load_checkpoint
