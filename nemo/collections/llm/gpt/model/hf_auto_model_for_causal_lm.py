@@ -24,7 +24,6 @@ from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 from nemo.utils import logging
 
-
 def masked_cross_entropy(logits, targets, mask=None):
     """
     Compute the masked cross-entropy loss between logits and targets.
@@ -43,10 +42,10 @@ def masked_cross_entropy(logits, targets, mask=None):
     """
     if mask is not None:
         loss = F.cross_entropy(logits, targets, reduction='none')
-        return torch.mean(loss * mask.view(-1))
+        loss = torch.mean(loss * mask.view(-1))
     else:
-        return F.cross_entropy(logits, targets)
-
+        loss = F.cross_entropy(logits, targets)
+    return loss
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
@@ -281,7 +280,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
     @torch.no_grad
