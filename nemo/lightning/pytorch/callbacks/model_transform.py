@@ -87,8 +87,10 @@ class ModelTransform(pl.Callback):
         self.model_transform(trainer.model)
         from lightning.pytorch.utilities import model_summary
 
+        summary = str(model_summary.summarize(trainer.lightning_module, max_depth=1))
+        summary = "\n\r".join(summary.split("\n"))
         logging.info(
-            f"After applying model_transform:\n" f"{model_summary.summarize(trainer.lightning_module, max_depth=1)}"
+            f"After applying model_transform:\n\n\r{summary}"
         )
 
     @property
