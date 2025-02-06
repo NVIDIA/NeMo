@@ -1,4 +1,4 @@
-# ChipNeMo - Custom tokenization + Domain Adaptive Pre-training on Llama 2 70b with NeMo Framework
+# ChipNeMo - Custom tokenization + Domain Adaptive Pre-training on Llama 2 7b with NeMo Framework
 
 [ChipNeMo](https://arxiv.org/pdf/2311.00176) is a chip design domain-adapted Large Language Model (LLM). Instead of directly deploying off-the-shelf commercial or open-source LLMs, the paper adopts the following domain adaptation techniques: domain-adaptive tokenization, domain-adaptive continued pre-training, model alignment with domain-specific instructions, and domain-adapted retrieval models. Specifically, Llama 2 foundation models are continually pre-trained with more than 20 billion tokens on domain-specific chip design data, including code and documents. They are then fine-tuned with instruction datasets from design data as well as external sources. Evaluations on the resultant domain-adapted ChipNeMo model demonstrate that domain-adaptive pre-training of language models can lead to superior performance in domain-related downstream tasks compared to their base Llama 2 counterparts, without degradations in generic capabilities.
 
