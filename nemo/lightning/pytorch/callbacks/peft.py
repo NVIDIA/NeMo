@@ -35,7 +35,7 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.utils import is_trainer_attached
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
-
+from nemo.lightning.pytorch.utils import get_automodel_from_trainer
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 
@@ -221,10 +221,12 @@ class PEFT(IOMixin, ABC, ModelTransform):
                 cb.on_fit_start(trainer, trainer.lightning_module)
                 break
         else:
-            logging.warning(
-                "MegatronOptimizerModule not found in trainer callbacks. finalize_model_grads is not "
-                "properly set up for PEFT."
-            )
+            # i.e., this is an mcore model; elif not supported here.
+            if get_automodel_from_trainer(trainer) is None:
+                logging.warning(
+                    "MegatronOptimizerModule not found in trainer callbacks. finalize_model_grads is not "
+                    "properly set up for PEFT."
+                )
 
     def adapter_key_filter(self, key: str) -> bool:
         """
