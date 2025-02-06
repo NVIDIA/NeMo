@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from typing import Literal, Optional
+from dataclasses import dataclass, field
+from typing import Literal, List, Optional
 
 import torch
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict

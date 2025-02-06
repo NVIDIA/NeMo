@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import math
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Literal, List
 
 import torch
 import torch.nn.functional as F
