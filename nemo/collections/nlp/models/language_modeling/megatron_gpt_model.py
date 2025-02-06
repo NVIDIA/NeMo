@@ -94,11 +94,7 @@ try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.utils import (
-        drain_embedding_wgrad_compute,
-        get_model_config,
-        is_te_min_version,
-    )
+    from megatron.core.utils import drain_embedding_wgrad_compute, get_model_config, is_te_min_version
 
     HAVE_MEGATRON_CORE = True
 
@@ -175,6 +171,7 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
 
 def drop_layers(model, layers_to_drop: List[int]):
     """Disable model layers"""
+
     def noop_forward_patch(
         hidden_states,
         attention_mask,
@@ -1979,7 +1976,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         When using pipeline parallelism, we need the global batch to remain on the CPU,
         since the memory overhead will be too high when using a large number of microbatches.
         Microbatches are transferred from CPU to GPU inside the pipeline.
-        """ # pylint: disable=line-too-long
+        """  # pylint: disable=line-too-long
         return batch
 
     def _validate_trainer(self):
