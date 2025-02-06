@@ -106,8 +106,7 @@ RUN \
 EOF
 
 # Copy over NeMo code
-ARG NEMO_REPO
-ARG NEMO_TAG
+COPY --from=nemo-bump /opt/NeMo /opt/NeMo/
 RUN <<"EOF" bash -ex
 bash reinstall.sh --library all --mode install
 
