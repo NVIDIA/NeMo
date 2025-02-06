@@ -85,13 +85,13 @@ def main():
     if args.strategy == 'ddp':
         args.strategy = pl.strategies.DDPStrategy(
             parallel_devices=args.devices * args.num_nodes,
-            checkpoint_io=model.make_checkpoint_io(save_adapter_only=False),
+            checkpoint_io=model.make_checkpoint_io(save_adapter_only=True),
         )
     elif args.strategy == 'fsdp2':
         args.strategy = nl.FSDP2Strategy(
             data_parallel_size=args.devices * args.num_nodes,
             tensor_parallel_size=1,
-            checkpoint_io=model.make_checkpoint_io(save_adapter_only=False),
+            checkpoint_io=model.make_checkpoint_io(save_adapter_only=True),
         )
 
     llm.api.finetune(
