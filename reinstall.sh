@@ -79,7 +79,7 @@ te() {
     popd
 
   if [[ "$mode" == "build" ]]; then
-    git submodule init && git submodule update &&
+    cd $TE_DIR && git submodule init && git submodule update &&
       pip wheel --wheel-dir $WHEELS_DIR/te/ $TE_DIR
   else
     pip install --no-cache-dir $WHEELS_DIR/te/
