@@ -29,9 +29,9 @@ from utils import (
 from nemo.collections.llm.recipes.llama3_70b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-    userbuffers_bf16_b200_h8192_tp4_mbs1_seqlen8192,
+    userbuffers_bf16_b200_h8192_tp2_mbs1_seqlen8192,
     userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
-    userbuffers_fp8_b200_h8192_tp4_mbs1_seqlen8192,
+    userbuffers_fp8_b200_h8192_tp2_mbs1_seqlen8192,
     userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192,
 )
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
@@ -84,8 +84,8 @@ def override_recipe_configs(
             "fp8": userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192,
         },
         "b200": {
-            "bf16": userbuffers_bf16_b200_h8192_tp4_mbs1_seqlen8192,
-            "fp8": userbuffers_fp8_b200_h8192_tp4_mbs1_seqlen8192,
+            "bf16": userbuffers_bf16_b200_h8192_tp2_mbs1_seqlen8192,
+            "fp8": userbuffers_fp8_b200_h8192_tp2_mbs1_seqlen8192,
         },
     }
 
