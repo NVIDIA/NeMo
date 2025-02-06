@@ -61,6 +61,7 @@ mcore() {
     pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $MLM_DIR
   else
     pip install --no-cache-dir $WHEELS_DIR/mcore/
+    pip install --no-cache-dir -e $MLM_DIR
   fi
 }
 

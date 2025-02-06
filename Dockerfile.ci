@@ -100,7 +100,7 @@ RUN \
     bash reinstall.sh --library mcore --mode install
 
   # Megatron Core installation
-  # cp -r /opt/Megatron-LM /workspace
+  cp -r /opt/Megatron-LM /workspace
 EOF
 
 # Copy over NeMo code
