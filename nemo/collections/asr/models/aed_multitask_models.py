@@ -457,7 +457,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         self,
         audio: Union[str, List[str], np.ndarray, DataLoader],
         batch_size: int = 4,
-        return_hypotheses: bool = False,
+        return_all_hypotheses: bool = False,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
@@ -506,7 +506,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         if override_config is None:
             trcfg = MultiTaskTranscriptionConfig(
                 batch_size=batch_size,
-                return_hypotheses=return_hypotheses,
+                return_all_hypotheses=return_all_hypotheses,
                 num_workers=num_workers,
                 channel_selector=channel_selector,
                 augmentor=augmentor,
@@ -955,7 +955,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             decoder_input_ids=decoder_input_ids,
-            return_hypotheses=trcfg.return_hypotheses,
+            return_all_hypotheses=trcfg.return_hypotheses,
         )
 
         del enc_states, enc_mask, decoder_input_ids
@@ -1086,7 +1086,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             decoder_input_ids=batch.prompt,
-            return_hypotheses=False,
+            return_all_hypotheses=False,
         )
         if batch.cuts:
             return list(zip(batch.cuts, text))

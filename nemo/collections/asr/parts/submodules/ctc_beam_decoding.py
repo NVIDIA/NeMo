@@ -72,7 +72,7 @@ def pack_wfst_hypotheses(
                 y_sequence=[],
                 score=cand.score,
                 text=" ".join(cand.words),
-                timestep=list(cand.timesteps),
+                timestamp=list(cand.timesteps),
                 alignments=list(cand.alignment),
             )
             cand_hyp.y_sequence = y_sequence
@@ -387,7 +387,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             hypotheses = []
             for candidate_idx, candidate in enumerate(beams):
                 hypothesis = rnnt_utils.Hypothesis(
-                    score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None
+                    score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
                 )
 
                 # For subword encoding, NeMo will double encode the subword (multiple tokens) into a
@@ -477,7 +477,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             for candidate_idx, candidate in enumerate(beams):
                 # Candidate = (text, last_lm_state, text_frames, logit_score, lm_score)
                 hypothesis = rnnt_utils.Hypothesis(
-                    score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None
+                    score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
                 )
 
                 # TODO: Requires token ids to be returned rather than text.
@@ -498,7 +498,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 hypothesis.score = candidate[4]  # score
 
                 # Inject word level timestamps
-                hypothesis.timestep = candidate[2]  # text_frames
+                hypothesis.timestamp = candidate[2]  # text_frames
 
                 if self.preserve_alignments:
                     hypothesis.alignments = torch.from_numpy(x[beams_idx][: out_len[beams_idx]])
@@ -575,7 +575,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             hypotheses = []
             for candidate_idx, candidate in enumerate(beams):
                 hypothesis = rnnt_utils.Hypothesis(
-                    score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None
+                    score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
                 )
 
                 # We preserve the token ids and the score for this hypothesis

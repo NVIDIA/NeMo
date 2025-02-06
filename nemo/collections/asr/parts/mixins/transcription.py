@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
+from nemo.utils.decorators import deprecated
 
 import numpy as np
 import torch
@@ -56,7 +57,7 @@ class InternalTranscribeConfig:
 @dataclass
 class TranscribeConfig:
     batch_size: int = 4
-    return_hypotheses: bool = False
+    return_all_hypotheses: bool = False
     num_workers: Optional[int] = None
     channel_selector: ChannelSelectorType = None
     augmentor: Optional[DictConfig] = None
@@ -67,6 +68,14 @@ class TranscribeConfig:
     partial_hypothesis: Optional[List[Any]] = None
 
     _internal: Optional[InternalTranscribeConfig] = None
+
+    @property
+    def return_hypotheses(self):
+        return self.return_all_hypotheses
+
+    @return_hypotheses.setter
+    def return_hypotheses(self, value):
+        self.return_all_hypotheses = value
 
 
 def get_value_from_transcription_config(trcfg, key, default):
@@ -229,7 +238,6 @@ class TranscriptionMixin(ABC):
         if override_config is None:
             transcribe_cfg = TranscribeConfig(
                 batch_size=batch_size,
-                return_hypotheses=return_hypotheses,
                 num_workers=num_workers,
                 channel_selector=channel_selector,
                 augmentor=augmentor,
@@ -237,6 +245,7 @@ class TranscriptionMixin(ABC):
                 timestamps=timestamps,
                 **config_kwargs,
             )
+            transcribe_cfg.return_hypotheses = return_hypotheses
         else:
             if not hasattr(override_config, '_internal'):
                 raise ValueError(

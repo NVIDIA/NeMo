@@ -211,7 +211,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         hypotheses = self.ctc_decoding.ctc_decoder_predictions_tensor(
             logits,
             encoded_len,
-            return_hypotheses=trcfg.return_hypotheses,
+            return_all_hypotheses=trcfg.return_hypotheses,
         )
         logits = logits.cpu()
 
@@ -504,7 +504,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         del signal
 
         best_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
-            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
+            encoder_output=encoded, encoded_lengths=encoded_len, return_all_hypotheses=False
         )
         if isinstance(sample_id, torch.Tensor):
             sample_id = sample_id.cpu().detach().numpy()

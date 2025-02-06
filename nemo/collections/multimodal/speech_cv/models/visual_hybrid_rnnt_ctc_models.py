@@ -178,7 +178,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
                     best_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
                         logits,
                         encoded_len,
-                        return_hypotheses=return_hypotheses,
+                        return_all_hypotheses=return_hypotheses,
                     )
                     if return_hypotheses:
                         # dump log probs per file
@@ -468,7 +468,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         del signal
 
         best_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
-            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
+            encoder_output=encoded, encoded_lengths=encoded_len, return_all_hypotheses=False
         )
 
         sample_id = sample_id.cpu().detach().numpy()

@@ -616,7 +616,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         transcribed_texts = self.wer.decoding.ctc_decoder_predictions_tensor(
             decoder_outputs=log_probs,
             decoder_lengths=encoded_len,
-            return_hypotheses=False,
+            return_all_hypotheses=False,
         )
 
         if isinstance(sample_id, torch.Tensor):
@@ -711,7 +711,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         hypotheses = self.decoding.ctc_decoder_predictions_tensor(
             logits,
             decoder_lengths=logits_len,
-            return_hypotheses=trcfg.return_hypotheses,
+            return_all_hypotheses=trcfg.return_hypotheses,
         )
         if trcfg.return_hypotheses:
             if logits.is_cuda:

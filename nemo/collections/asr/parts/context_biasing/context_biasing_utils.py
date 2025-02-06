@@ -75,7 +75,7 @@ def merge_alignment_with_ws_hyps(
                 if idx + 1 < len(tokens) and not tokens[idx + 1].startswith(bow):
                     tokens[idx + 1] = bow + tokens[idx + 1]
                     continue
-            alignment_tokens.append([candidate.timestep[idx].item(), token])
+            alignment_tokens.append([candidate.timestamp[idx].item(), token])
     else:
         raise ValueError(f"decoder_type {decoder_type} is not supported")
 

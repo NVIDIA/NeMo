@@ -209,7 +209,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                         current_hypotheses = self.decoding.ctc_decoder_predictions_tensor(
                             logits,
                             decoder_lengths=logits_len,
-                            return_hypotheses=return_hypotheses,
+                            return_all_hypotheses=return_hypotheses,
                         )
 
                         if return_hypotheses:

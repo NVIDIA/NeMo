@@ -360,7 +360,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         decoder_outputs: torch.Tensor,
         decoder_lengths: torch.Tensor = None,
         fold_consecutive: bool = True,
-        return_hypotheses: bool = False,
+        return_all_hypotheses: bool = False,
     ) -> Union[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
         # TODO: [Sofia Kostandian] change output types and docstring
         """
@@ -429,7 +429,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
                     all_hypotheses.append(decoded_hyps)
 
-            if return_hypotheses:
+            if return_all_hypotheses:
                 return all_hypotheses  # type: list[list[Hypothesis]]
 
             # alaptev: The line below might contain a bug. Do we really want all_hyp_text to be flat?
@@ -447,7 +447,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 # If computing timestamps
                 if self.compute_timestamps is True:
                     # greedy decoding, can get high-level confidence scores
-                    if return_hypotheses and (self.preserve_word_confidence or self.preserve_token_confidence):
+                    if return_all_hypotheses and (self.preserve_word_confidence or self.preserve_token_confidence):
                         hypotheses = self.compute_confidence(hypotheses)
                     else:
                         # remove unused token_repetitions from Hypothesis.text
@@ -457,7 +457,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                     for hyp_idx in range(len(hypotheses)):
                         hypotheses[hyp_idx] = self.compute_ctc_timestamps(hypotheses[hyp_idx], timestamp_type)
 
-            if return_hypotheses:
+            if return_all_hypotheses:
                 return hypotheses
 
             return [Hypothesis(h.score, h.y_sequence, h.text) for h in hypotheses]
@@ -683,25 +683,25 @@ class AbstractCTCDecoding(ConfidenceMixin):
             )
 
         # attach results
-        if len(hypothesis.timestep) > 0:
-            timestep_info = hypothesis.timestep
+        if len(hypothesis.timestamp) > 0:
+            timestep_info = hypothesis.timestamp
         else:
             timestep_info = []
 
         # Setup defaults
-        hypothesis.timestep = {"timestep": timestep_info}
+        hypothesis.timestamp = {"timestep": timestep_info}
 
         # Add char / subword time stamps
         if char_offsets is not None and timestamp_type in ['char', 'all']:
-            hypothesis.timestep['char'] = char_offsets
+            hypothesis.timestamp['char'] = char_offsets
 
         # Add word time stamps
         if word_offsets is not None and timestamp_type in ['word', 'all']:
-            hypothesis.timestep['word'] = word_offsets
+            hypothesis.timestamp['word'] = word_offsets
 
         # Add segment time stamps
         if segment_offsets is not None and timestamp_type in ['segment', 'all']:
-            hypothesis.timestep['segment'] = segment_offsets
+            hypothesis.timestamp['segment'] = segment_offsets
 
         # Convert the token indices to text
         hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
@@ -728,8 +728,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
         # If the exact timestep information is available, utilize the 1st non-ctc blank token timestep
         # as the start index.
-        if hypothesis.timestep is not None and len(hypothesis.timestep) > 0:
-            start_index = max(0, hypothesis.timestep[0] - 1)
+        if hypothesis.timestamp is not None and len(hypothesis.timestamp) > 0:
+            start_index = max(0, hypothesis.timestamp[0] - 1)
 
         # Construct the start and end indices brackets
         end_indices = np.asarray(token_lengths).cumsum()

@@ -492,7 +492,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self,
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
-        return_hypotheses: bool = False,
+        return_all_hypotheses: bool = False,
         partial_hypotheses: Optional[List[Hypothesis]] = None,
     ) -> Tuple[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
         # TODO: [Sofia Kostandian] change output types and docstring
@@ -547,7 +547,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 hypotheses.append(decoded_hyps[0])  # best hypothesis
                 all_hypotheses.append(decoded_hyps)
 
-            if return_hypotheses:
+            if return_all_hypotheses:
                 return all_hypotheses  # type: list[list[Hypothesis]]
 
             # alaptev: The line below might contain a bug. Do we really want all_hyp_text to be flat?
@@ -563,7 +563,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 for hyp_idx in range(len(hypotheses)):
                     hypotheses[hyp_idx] = self.compute_rnnt_timestamps(hypotheses[hyp_idx], timestamp_type)
 
-            if return_hypotheses:
+            if return_all_hypotheses:
                 # greedy decoding, can get high-level confidence scores
                 if self.preserve_frame_confidence and (
                     self.preserve_word_confidence or self.preserve_token_confidence
@@ -682,7 +682,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     hyp.token_confidence = hyp.non_blank_frame_confidence
             else:
                 for hyp in hypotheses_list:
-                    timestep = hyp.timestep.tolist() if isinstance(hyp.timestep, torch.Tensor) else hyp.timestep
+                    timestep = hyp.timestamp.tolist() if isinstance(hyp.timestamp, torch.Tensor) else hyp.timestamp
                     offset = 0
                     token_confidence = []
                     if len(timestep) > 0:
@@ -895,25 +895,25 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             )
 
         # attach results
-        if len(hypothesis.timestep) > 0:
-            timestep_info = hypothesis.timestep
+        if len(hypothesis.timestamp) > 0:
+            timestep_info = hypothesis.timestamp
         else:
             timestep_info = []
 
         # Setup defaults
-        hypothesis.timestep = {"timestep": timestep_info}
+        hypothesis.timestamp = {"timestep": timestep_info}
 
         # Add char / subword time stamps
         if char_offsets is not None and timestamp_type in ['char', 'all']:
-            hypothesis.timestep['char'] = char_offsets
+            hypothesis.timestamp['char'] = char_offsets
 
         # Add word time stamps
         if word_offsets is not None and timestamp_type in ['word', 'all']:
-            hypothesis.timestep['word'] = word_offsets
+            hypothesis.timestamp['word'] = word_offsets
 
         # Add segment time stamps
         if segment_offsets is not None and timestamp_type in ['segment', 'all']:
-            hypothesis.timestep['segment'] = segment_offsets
+            hypothesis.timestamp['segment'] = segment_offsets
 
         # Convert the flattened token indices to text
         hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
@@ -940,8 +940,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         # If the exact timestep information is available, utilize the 1st non-rnnt blank token timestep
         # as the start index.
-        if hypothesis.timestep is not None and len(hypothesis.timestep) > 0:
-            first_timestep = hypothesis.timestep[0]
+        if hypothesis.timestamp is not None and len(hypothesis.timestamp) > 0:
+            first_timestep = hypothesis.timestamp[0]
             first_timestep = first_timestep if isinstance(first_timestep, int) else first_timestep.item()
             start_index = max(0, first_timestep - 1)
 
@@ -981,7 +981,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         # Merge the results per token into a list of dictionaries
         offsets = [
             {"char": [t, -1], "start_offset": int(s), "end_offset": int(s + d)}
-            for t, s, d in zip(hypothesis.text[0], hypothesis.timestep, hypothesis.token_duration)
+            for t, s, d in zip(hypothesis.text[0], hypothesis.timestamp, hypothesis.token_duration)
         ]
         return offsets
 

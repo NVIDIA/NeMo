@@ -420,7 +420,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
-        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
 
         if partial_hypotheses is not None:
             hypothesis.last_token = partial_hypotheses.last_token
@@ -492,7 +492,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                     # Append token to label set, update RNN state.
                     hypothesis.y_sequence.append(k)
                     hypothesis.score += float(v)
-                    hypothesis.timestep.append(time_idx)
+                    hypothesis.timestamp.append(time_idx)
                     hypothesis.dec_state = hidden_prime
                     hypothesis.last_token = k
 
@@ -787,7 +787,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             # Initialize list of Hypothesis
             batchsize = x.shape[0]
             hypotheses = [
-                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], token_duration=[], dec_state=None)
+                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestamp=[], token_duration=[], dec_state=None)
                 for _ in range(batchsize)
             ]
 
@@ -924,7 +924,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                         for kidx, ki in enumerate(k):
                             if blank_mask[kidx] == 0:
                                 hypotheses[kidx].y_sequence.append(ki)
-                                hypotheses[kidx].timestep.append(time_idx)
+                                hypotheses[kidx].timestamp.append(time_idx)
                                 hypotheses[kidx].score += float(v[kidx])
                         symbols_added += 1
 
@@ -986,7 +986,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         # Initialize state
         batchsize = x.shape[0]
         hypotheses = [
-            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestamp=[], dec_state=None) for _ in range(batchsize)
         ]
 
         # Initialize Hidden state matrix (shared by entire batch)
@@ -1135,7 +1135,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                         for kidx, ki in enumerate(k):
                             if blank_mask[kidx] == 0:
                                 hypotheses[kidx].y_sequence.append(ki)
-                                hypotheses[kidx].timestep.append(time_idx)
+                                hypotheses[kidx].timestamp.append(time_idx)
                                 hypotheses[kidx].score += float(v[kidx])
 
                     symbols_added += 1
@@ -1731,7 +1731,7 @@ class GreedyMultiblankRNNTInfer(GreedyRNNTInfer):
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
-        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
 
         if partial_hypotheses is not None:
             hypothesis.last_token = partial_hypotheses.last_token
@@ -1816,7 +1816,7 @@ class GreedyMultiblankRNNTInfer(GreedyRNNTInfer):
                     # Append token to label set, update RNN state.
                     hypothesis.y_sequence.append(k)
                     hypothesis.score += float(v)
-                    hypothesis.timestep.append(time_idx)
+                    hypothesis.timestamp.append(time_idx)
                     hypothesis.dec_state = hidden_prime
                     hypothesis.last_token = k
 
@@ -1952,7 +1952,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
             # Initialize list of Hypothesis
             batchsize = x.shape[0]
             hypotheses = [
-                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestamp=[], dec_state=None) for _ in range(batchsize)
             ]
 
             # Initialize Hidden state matrix (shared by entire batch)
@@ -2112,7 +2112,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
                         for kidx, ki in enumerate(k):
                             if blank_mask[kidx] == 0:
                                 hypotheses[kidx].y_sequence.append(ki)
-                                hypotheses[kidx].timestep.append(time_idx)
+                                hypotheses[kidx].timestamp.append(time_idx)
                                 hypotheses[kidx].score += float(v[kidx])
 
                         symbols_added += 1
@@ -2188,7 +2188,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
         # Initialize state
         batchsize = x.shape[0]
         hypotheses = [
-            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestamp=[], dec_state=None) for _ in range(batchsize)
         ]
 
         # Initialize Hidden state matrix (shared by entire batch)
@@ -2330,7 +2330,7 @@ class GreedyBatchedMultiblankRNNTInfer(GreedyBatchedRNNTInfer):
                         for kidx, ki in enumerate(k):
                             if blank_mask[kidx] == 0:
                                 hypotheses[kidx].y_sequence.append(ki)
-                                hypotheses[kidx].timestep.append(time_idx)
+                                hypotheses[kidx].timestamp.append(time_idx)
                                 hypotheses[kidx].score += float(v[kidx])
 
                     symbols_added += 1
@@ -2564,7 +2564,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
 
         # Initialize blank state and empty label set in Hypothesis
         hypothesis = rnnt_utils.Hypothesis(
-            score=0.0, y_sequence=[], dec_state=None, timestep=[], token_duration=[], last_token=None
+            score=0.0, y_sequence=[], dec_state=None, timestamp=[], token_duration=[], last_token=None
         )
 
         if partial_hypotheses is not None:
@@ -2650,7 +2650,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
                     # Append token to label set, update RNN state.
                     hypothesis.y_sequence.append(k)
                     hypothesis.score += float(v)
-                    hypothesis.timestep.append(time_idx)
+                    hypothesis.timestamp.append(time_idx)
                     hypothesis.dec_state = hidden_prime
                     hypothesis.last_token = k
                     if self.include_duration:

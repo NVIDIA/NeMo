@@ -816,7 +816,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         del signal
 
         best_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
-            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
+            encoder_output=encoded, encoded_lengths=encoded_len, return_all_hypotheses=False
         )
 
         if isinstance(sample_id, torch.Tensor):
@@ -946,7 +946,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         hyp = self.decoding.rnnt_decoder_predictions_tensor(
             encoded,
             encoded_len,
-            return_hypotheses=trcfg.return_hypotheses,
+            return_all_hypotheses=trcfg.return_hypotheses,
             partial_hypotheses=trcfg.partial_hypothesis,
         )
         # cleanup memory

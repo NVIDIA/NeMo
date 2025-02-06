@@ -46,10 +46,10 @@ class TestBatchedHyps:
     @pytest.mark.parametrize("device", DEVICES)
     def test_instantiate(self, device: torch.device):
         hyps = BatchedHyps(batch_size=2, init_length=3, device=device)
-        assert torch.is_tensor(hyps.timesteps)
+        assert torch.is_tensor(hyps.timestamps)
         # device: for mps device we need to use `type`, not directly compare
-        assert hyps.timesteps.device.type == device.type
-        assert hyps.timesteps.shape == (2, 3)
+        assert hyps.timestamps.device.type == device.type
+        assert hyps.timestamps.shape == (2, 3)
 
     @pytest.mark.unit
     @pytest.mark.parametrize("batch_size", [-1, 0])
@@ -76,10 +76,10 @@ class TestBatchedHyps:
         )
         assert hyps.current_lengths.tolist() == [1, 0]
         assert hyps.transcript.tolist()[0][:1] == [5]
-        assert hyps.timesteps.tolist()[0][:1] == [1]
+        assert hyps.timestamps.tolist()[0][:1] == [1]
         assert hyps.scores.tolist() == pytest.approx([0.5, 0.0])
-        assert hyps.last_timestep.tolist() == [1, -1]
-        assert hyps.last_timestep_lasts.tolist() == [1, 0]
+        assert hyps.last_timestamp.tolist() == [1, -1]
+        assert hyps.last_timestamp_lasts.tolist() == [1, 0]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -101,11 +101,11 @@ class TestBatchedHyps:
         assert hyps.current_lengths.tolist() == [2, 1]
         assert hyps.transcript.tolist()[0][:2] == [5, 2]
         assert hyps.transcript.tolist()[1][:1] == [4]
-        assert hyps.timesteps.tolist()[0][:2] == [1, 1]
-        assert hyps.timesteps.tolist()[1][:1] == [2]
+        assert hyps.timestamps.tolist()[0][:2] == [1, 1]
+        assert hyps.timestamps.tolist()[1][:1] == [2]
         assert hyps.scores.tolist() == pytest.approx([1.5, 1.0])
-        assert hyps.last_timestep.tolist() == [1, 2]
-        assert hyps.last_timestep_lasts.tolist() == [2, 1]
+        assert hyps.last_timestamp.tolist() == [1, 2]
+        assert hyps.last_timestamp_lasts.tolist() == [2, 1]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -121,10 +121,10 @@ class TestBatchedHyps:
         )
         assert hyps.current_lengths.tolist() == [1, 0]
         assert hyps.transcript.tolist()[0][:1] == [5]
-        assert hyps.timesteps.tolist()[0][:1] == [1]
+        assert hyps.timestamps.tolist()[0][:1] == [1]
         assert hyps.scores.tolist() == pytest.approx([0.5, 0.0])  # last score should be ignored!
-        assert hyps.last_timestep.tolist() == [1, -1]
-        assert hyps.last_timestep_lasts.tolist() == [1, 0]
+        assert hyps.last_timestamp.tolist() == [1, -1]
+        assert hyps.last_timestamp_lasts.tolist() == [1, 0]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -142,10 +142,10 @@ class TestBatchedHyps:
             )
         assert hyps.current_lengths.tolist() == [1, 0]
         assert hyps.transcript.tolist()[0][:1] == [5]
-        assert hyps.timesteps.tolist()[0][:1] == [1]
+        assert hyps.timestamps.tolist()[0][:1] == [1]
         assert hyps.scores.tolist() == pytest.approx([0.5, 0.0])  # last score should be ignored!
-        assert hyps.last_timestep.tolist() == [1, -1]
-        assert hyps.last_timestep_lasts.tolist() == [1, 0]
+        assert hyps.last_timestamp.tolist() == [1, -1]
+        assert hyps.last_timestamp_lasts.tolist() == [1, 0]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -167,11 +167,11 @@ class TestBatchedHyps:
         assert hyps.current_lengths.tolist() == [2, 1]
         assert hyps.transcript.tolist()[0][:2] == [5, 2]
         assert hyps.transcript.tolist()[1][:1] == [4]
-        assert hyps.timesteps.tolist()[0][:2] == [1, 1]
-        assert hyps.timesteps.tolist()[1][:1] == [2]
+        assert hyps.timestamps.tolist()[0][:2] == [1, 1]
+        assert hyps.timestamps.tolist()[1][:1] == [2]
         assert hyps.scores.tolist() == pytest.approx([1.5, 1.0])
-        assert hyps.last_timestep.tolist() == [1, 2]
-        assert hyps.last_timestep_lasts.tolist() == [2, 1]
+        assert hyps.last_timestamp.tolist() == [1, 2]
+        assert hyps.last_timestamp_lasts.tolist() == [2, 1]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -252,7 +252,7 @@ class TestBatchedAlignments:
         )
         assert alignments.current_lengths.tolist() == [1, 1]
         assert torch.allclose(alignments.logits[:, 0], sample_logits[:, 0])
-        assert alignments.timesteps[:, 0].tolist() == [0, 0]
+        assert alignments.timestamps[:, 0].tolist() == [0, 0]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -294,7 +294,7 @@ class TestBatchedAlignments:
         )
         assert alignments.current_lengths.tolist() == [1, 1]
         assert torch.allclose(alignments.logits[:, 0], sample_logits[:, 0])
-        assert alignments.timesteps[:, 0].tolist() == [0, 0]
+        assert alignments.timestamps[:, 0].tolist() == [0, 0]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -313,7 +313,7 @@ class TestBatchedAlignments:
             )
         assert alignments.current_lengths.tolist() == [1, 1]
         assert torch.allclose(alignments.logits[:, 0], sample_logits[:, 0])
-        assert alignments.timesteps[:, 0].tolist() == [0, 0]
+        assert alignments.timestamps[:, 0].tolist() == [0, 0]
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -382,8 +382,8 @@ class TestConvertToHypotheses:
         assert (hypotheses[1].y_sequence == torch.tensor([4], device=device)).all()
         assert hypotheses[0].score == pytest.approx(1.5)
         assert hypotheses[1].score == pytest.approx(1.0)
-        assert (hypotheses[0].timestep == torch.tensor([1, 1], device=device)).all()
-        assert (hypotheses[1].timestep == torch.tensor([2], device=device)).all()
+        assert (hypotheses[0].timestamp == torch.tensor([1, 1], device=device)).all()
+        assert (hypotheses[1].timestamp == torch.tensor([2], device=device)).all()
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -442,8 +442,8 @@ class TestConvertToHypotheses:
         assert (hypotheses[1].y_sequence == torch.tensor([4], device=device)).all()
         assert hypotheses[0].score == pytest.approx(1.5)
         assert hypotheses[1].score == pytest.approx(1.0)
-        assert (hypotheses[0].timestep == torch.tensor([0, 1], device=device)).all()
-        assert (hypotheses[1].timestep == torch.tensor([1], device=device)).all()
+        assert (hypotheses[0].timestamp == torch.tensor([0, 1], device=device)).all()
+        assert (hypotheses[1].timestamp == torch.tensor([1], device=device)).all()
 
         etalon = [
             [
@@ -462,7 +462,7 @@ class TestConvertToHypotheses:
             ],
         ]
         for batch_i in range(batch_size):
-            for t, group_for_timestep in enumerate(etalon[batch_i]):
-                for step, (label, current_logits) in enumerate(group_for_timestep):
+            for t, group_for_timestamp in enumerate(etalon[batch_i]):
+                for step, (label, current_logits) in enumerate(group_for_timestamp):
                     assert torch.allclose(hypotheses[batch_i].alignments[t][step][0], current_logits)
                     assert hypotheses[batch_i].alignments[t][step][1] == label

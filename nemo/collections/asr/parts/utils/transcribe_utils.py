@@ -452,7 +452,7 @@ def write_transcription(
                     item = {'audio_filepath': filepaths[idx], pred_text_attr_name: transcription.text}
 
                     if timestamps:
-                        timestamps = transcription.timestep
+                        timestamps = transcription.timestamp
                         if timestamps is not None and isinstance(timestamps, dict):
                             timestamps.pop(
                                 'timestep', None
@@ -480,7 +480,7 @@ def write_transcription(
                         item[pred_text_attr_name] = best_hyps[idx].text
 
                         if timestamps:
-                            timestamps = best_hyps[idx].timestep
+                            timestamps = best_hyps[idx].timestamp
                             if timestamps is not None and isinstance(timestamps, dict):
                                 timestamps.pop(
                                     'timestep', None
@@ -636,13 +636,13 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
                 f"Expected Hypothesis object to have 'timestep' attribute, when compute_timestamps is \
                     enabled but got {hyp}"
             )
-        timestep = hyp.timestep
+        timestep = hyp.timestamp
         if 'word' in timestep:
-            outputs[idx].timestep['word'] = process_timestamp(timestep['word'], subsampling_factor, window_stride)
+            outputs[idx].timestamp['word'] = process_timestamp(timestep['word'], subsampling_factor, window_stride)
         if 'char' in timestep:
-            outputs[idx].timestep['char'] = process_timestamp(timestep['char'], subsampling_factor, window_stride)
+            outputs[idx].timestamp['char'] = process_timestamp(timestep['char'], subsampling_factor, window_stride)
         if 'segment' in timestep:
-            outputs[idx].timestep['segment'] = process_timestamp(
+            outputs[idx].timestamp['segment'] = process_timestamp(
                 timestep['segment'], subsampling_factor, window_stride
             )
     return outputs
