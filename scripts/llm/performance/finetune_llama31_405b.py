@@ -75,6 +75,11 @@ def override_recipe_configs(
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
+    
+    enable_cuda_graph = bool(args.gpu.lower() in ["b200"])
+    recipe.model.config.enable_cuda_graph = enable_cuda_graph
+    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
+    recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graph
 
     return recipe
 

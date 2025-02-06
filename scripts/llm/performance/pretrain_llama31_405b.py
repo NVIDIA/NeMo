@@ -60,13 +60,14 @@ def override_recipe_configs(
         vp_size,
         ep_size,
     )
+    gpu_type = args.gpu.lower()
 
     # data module configs
     recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("meta-llama/Llama-3.1-405B")
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
-    if args.gpu.lower() == "b200":
+    if gpu_type == "b200":
         pass
         # TODO @malay: add b200 tp overlap configs
 
@@ -75,6 +76,10 @@ def override_recipe_configs(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.proj_fprop.fp8_buf = True
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.fc2_fprop.fp8_buf = True
+
+    enable_cuda_graph = bool(gpu_type in ["b200"])
+    recipe.model.config.enable_cuda_graph = enable_cuda_graph
+    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
 
     return recipe
 

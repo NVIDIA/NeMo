@@ -72,6 +72,7 @@ def parse_cli_args():
         "-c",
         "--compute_dtype",
         type=str,
+        choices=["bf16", "fp8"],
         help="Compute precision. Options- bf16 or fp8. Defaults to bf16",
         required=False,
         default="bf16",
@@ -91,7 +92,8 @@ def parse_cli_args():
     parser.add_argument(
         "-f",
         "--finetuning",
-        help="Finetuning scheme to use. Options- 'sft', 'lora'. Defaults is 'lora'",
+        choices=["sft", "lora"],
+        help="Finetuning scheme to use. Defaults to 'lora'",
         default='lora',
     )
     parser.add_argument(
