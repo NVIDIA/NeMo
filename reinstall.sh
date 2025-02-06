@@ -100,8 +100,7 @@ apex() {
     popd
 
   if [[ "$mode" == "build" ]]; then
-    git submodule init && git submodule update &&
-      pip wheel --no-deps --no-build-isolation --wheel-dir $WHEELS_DIR/apex/ $APEX_DIR
+    cd $APEX_DIR && pip wheel --no-deps --no-build-isolation --wheel-dir $WHEELS_DIR/apex/ $APEX_DIR
   else
     pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/apex/
   fi
