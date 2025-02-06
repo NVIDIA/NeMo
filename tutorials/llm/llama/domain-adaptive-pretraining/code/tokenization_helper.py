@@ -23,7 +23,8 @@ from tokenizers import (
     processors,
     trainers,
 )
-from transformers import PreTrainedTokenizerFast  
+from transformers import PreTrainedTokenizerFast
+
 
 def check_parent_directory_exists(directory_path):
     parent_directory = os.path.dirname(directory_path)
@@ -238,7 +239,7 @@ def extend_tokenizer_llama(
 
     print(f'New model pieces: {len(m.pieces)}')
     print(m.trainer_spec)
-    
+
     check_parent_directory_exists(new_vocab_path)
     with open(new_vocab_path, "w", encoding="utf8") as fp:
         json.dump(record, fp)
@@ -311,8 +312,8 @@ def extend_tokenizer_llama(
             ed = (i + 1) * split_vocab_size
             save_name = prefix + f"{i}" + ".pt"
             temp = {}
-            temp['word_embeddings'] = word_embedding[:, start:end]   # split word_embedding
-            temp['output_layer'] = output_layer[st:ed, :]            # split output_layer 
+            temp['word_embeddings'] = word_embedding[:, start:end]  # split word_embedding
+            temp['output_layer'] = output_layer[st:ed, :]  # split output_layer
             check_parent_directory_exists(save_name)
             torch.save(temp, save_name)
     else:
@@ -335,7 +336,7 @@ def analyze_token_usage(data_root, tokenizer_path, batchsize, keys, save_path):
            None, saves frequency analysis results to the provided path
 
     """
-    extra_id = 32000  
+    extra_id = 32000
     sp = spm.SentencePieceProcessor()
     sp.load(tokenizer_path)
 

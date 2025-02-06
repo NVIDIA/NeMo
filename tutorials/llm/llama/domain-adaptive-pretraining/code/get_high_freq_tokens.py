@@ -1,9 +1,9 @@
 import json
 import sys
+from bisect import bisect_left
 
 import matplotlib.pyplot as plt
 import numpy as np
-from bisect import bisect_left
 
 
 # +
@@ -28,7 +28,8 @@ def binary_search(arr, low, high, bar=0.98):
                 return binary_search(arr, low, mid - 1, bar)
     else:
         return low
-    
+
+
 def binary_search2(arr, low, high, bar=0.98):
     arr_csum = np.cumsum(arr)
     total = arr.sum()
@@ -42,6 +43,7 @@ def binary_search2(arr, low, high, bar=0.98):
 
 
 # -
+
 
 def get_high_freq_tokens(token_usage_path, high_freq_tokens_path, p_th=0.98):
     """

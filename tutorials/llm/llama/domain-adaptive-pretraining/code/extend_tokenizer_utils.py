@@ -247,7 +247,7 @@ def extend_tokenizer_high_freq_tokens(
         save_name = prefix + f"{i}" + ".pt"
         temp = {}
         temp['word_embeddings'] = word_embedding[:, start:end]  # split word_embedding
-        temp['output_layer'] = output_layer[st:ed, :]           # split output_layer
+        temp['output_layer'] = output_layer[st:ed, :]  # split output_layer
         torch.save(temp, save_name)
 
     print("Completed saving new embeddings")

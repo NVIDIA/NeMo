@@ -22,8 +22,8 @@ def check_directory_exists(directory):
         print(f"Directory '{directory}' exists")
     else:
         raise FileNotFoundError(f"The directory '{directory}' does not exist. Please create it.")
-    
-    
+
+
 def load_weights(load_path, save_path):
     """
     This function loads llama2 weights (hugging face) and converts it to a Dict format suitable for NeMo
