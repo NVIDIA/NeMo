@@ -78,7 +78,7 @@ def make_strategy(strategy, model, devices, num_nodes, save_adapter_only=False):
             checkpoint_io=model.make_checkpoint_io(save_adapter_only=save_adapter_only),
         )
     else:
-        raise NotImplemented("Encountered unknown strategy")
+        raise NotImplementedError("Encountered unknown strategy")
 
 
 def main():
@@ -120,11 +120,12 @@ def main():
         callbacks = [JitTransform(jit_config)]
 
     callbacks.append(
-        nl.ModelCheckpoint(
-            every_n_train_steps=args.max_steps // 2,
+        pl.callbacks.ModelCheckpoint(
             dirpath=args.ckpt_folder,
+            every_n_train_steps=args.max_steps // 2,
         )
     )
+    callbacks[-1].FILE_EXTENSION = ''
 
     model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
