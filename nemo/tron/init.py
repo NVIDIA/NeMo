@@ -5,6 +5,7 @@ import time
 import torch
 import torch.distributed
 from megatron.core import parallel_state, tensor_parallel
+from megatron.core.num_microbatches_calculator import init_num_microbatches_calculator
 
 from nemo.tron.config import FlatConfig
 
@@ -58,9 +59,14 @@ def initialize_megatron(
     #     assert args.load is not None, "--use-checkpoint-args requires --load argument"
     #     load_args_from_checkpoint(args)
 
-    # set global args, build tokenizer, and set adlr-autoresume,
-    # tensorboard-writer, and timers.
-    set_global_variables()  # TODO (maanug): implement
+    init_num_microbatches_calculator(
+        get_rank_safe(),
+        cfg.rampup_batch_size,
+        cfg.global_batch_size,
+        cfg.micro_batch_size,
+        cfg.data_parallel_size,
+        cfg.decrease_batch_size_if_needed,
+    )
 
     # init rerun global state
     _init_rerun_state(cfg)
