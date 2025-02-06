@@ -70,6 +70,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         data_sampler=None,
+        checkpoint_io=None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -83,7 +84,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             **kwargs: Additional arguments for base class initialization.
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
-
+        self._checkpoint_io = checkpoint_io
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
@@ -256,7 +257,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Returns:
             CheckpointIO: _description_
         """
-        if not self._checkpoint_io:
+        if self._checkpoint_io is None:
             self._checkpoint_io = create_checkpoint_io()
 
         return self._checkpoint_io
