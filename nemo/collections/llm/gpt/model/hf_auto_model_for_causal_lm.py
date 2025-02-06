@@ -331,18 +331,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             AssertionError: If the model has not been created prior to saving.
         """
         assert self.model is not None, "Model has to be created first."
-        import torch.distributed as dist
-
-        is_dist = dist.is_initialized()
-        rank = dist.get_rank() if is_dist else 0
-        is_rank0 = not is_dist or (is_dist and rank == 0)
-
-        if is_rank0:
-            self.model.save_pretrained(path, state_dict=state_dict)
-            if self._tokenizer is not None:
-                self._tokenizer.save_pretrained(path)
-            else:
-                logging.warning("A tokenizer wasn't created before to save.")
+        self.model.save_pretrained(path, state_dict=state_dict)
+        if self._tokenizer is not None:
+            self._tokenizer.save_pretrained(path)
+        else:
+            logging.warning("A tokenizer wasn't created before to save.")
 
     def make_checkpoint_io(self, save_adapter_only=False):
         from nemo.lightning.io.hf import HFCheckpointIO

@@ -45,7 +45,6 @@ from nemo.lightning.pytorch.strategies.utils import (
     setup_parallel_ranks,
 )
 
-
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning implementing FSDP 2.
 
@@ -310,7 +309,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             param = checkpoint["state_dict"].pop(name)
             checkpoint["state_dict"][name] = to_cpu(param)
 
-        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        if self.global_rank == 0:
+            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     @override
     def load_checkpoint(self, checkpoint_path: str | Path) -> Dict[str, Any]:
