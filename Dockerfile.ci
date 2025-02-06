@@ -108,7 +108,7 @@ EOF
 # Copy over NeMo code
 COPY --from=nemo-bump /opt/NeMo /opt/NeMo/
 RUN <<"EOF" bash -ex
-bash reinstall.sh --library all --mode install
+bash /opt/NeMo/reinstall.sh --library all --mode install
 
 # set permission
 chmod 777 -R /workspace
