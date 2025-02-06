@@ -300,7 +300,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
-        """Converts PyT checkpoints to MCore format and save using MCore dist ckpt library."""
+        """
+        Unshards FSDP2 checkpoint and passes it to checkpoint_io for saving to a file.
+        """
 
         from nemo.lightning.pytorch.strategies.utils import to_cpu
 
@@ -309,7 +311,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             param = checkpoint["state_dict"].pop(name)
             checkpoint["state_dict"][name] = to_cpu(param)
 
-        if self.global_rank == 0:
+        if self.is_global_zero:
             self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     @override
