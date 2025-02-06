@@ -11,7 +11,7 @@ NeMo also supports partial transformer layer recomputation, which is beneficial 
 
 The recomputation config can be enabled via the transformer config `TransformerConfig <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_config.py#L15>`_.
 
-Transformer layer recomputation is enabled by setting ``recompute_granularity=full``.
+Transformer layer recomputation is enabled by setting ``recompute_method=full``.
 The number of transformer layers to recompute can be set using ``recompute_num_layers`` along with ``recompute_method=block``.
 If you set ``recompute_num_layers`` as the total number of layers, the inputs of all transformer layers are checkpointed and recomputed.
 When training with the pipeline parallelism, ``recompute_num_layers`` indicates the layers per pipeline stage.
@@ -41,7 +41,7 @@ This is because the input sizes of softmax, dropout, and qkv dot-product attenti
 However, their recomputation cost is relatively smaller than the other linear projection layers that are linear with the hidden size square.
 
 Self-attention recomputation is hard-enabled when using FlashAttention, which is supported in Transformer Engine.
-Also, you can use the self-attention recomputation without FlashAttention by setting ``recompute_granularity=selective``.
+Also, you can use the self-attention recomputation without FlashAttention by setting ``recompute_method=selective``.
 
    .. code-block:: python
 
