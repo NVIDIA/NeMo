@@ -186,15 +186,17 @@ class AutocastTransformerLayer(TransformerLayer):
             )
 
 
-class TETransformerLayerAutocast(AutocastTransformerLayer, MegatronModule, BaseTransformerLayer):
+class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):
     """
-    A wrapper of the AutocastTransformerLayer.
+    A MegatronModule that wraps the AutocastTransformerLayer.
     """
 
     def __init__(self, config, layer_number=1, hidden_dropout=None):
         assert (
             HAVE_MEGATRON_CORE and HAVE_TE
         ), "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
+
+        super().__init__(config=config)
 
         self.config = config
         self.is_first_microbatch = True
@@ -248,7 +250,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, MegatronModule, BaseT
             transformer_layer_args["ub_split_rs"] = config.tp_comm_split_rs
             transformer_layer_args["ub_atomic_gemm_ag"] = config.tp_comm_atomic_ag
             transformer_layer_args["ub_atomic_gemm_rs"] = config.tp_comm_atomic_rs
-        super().__init__(**transformer_layer_args)
+        self.transformer_layer = AutocastTransformerLayer(**transformer_layer_args)
 
         if self.config.enable_cuda_graph and self.training:
             assert not config.cpu_offloading and config.recompute_granularity is None, "Cudagraphs not supported"
@@ -271,8 +273,9 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, MegatronModule, BaseT
         packed_seq_params=None,  # TODO: handle this
         sequence_len_offset=None,  # TODO: handle this
     ):
+        """Forward function of TETransformerLayerAutocast. Called by MCore's TransformerBlock.forward."""
         # Use is_first_microbatch argument during CUDA graph capture. Use self.is_first_microbatch otherwise.
-        hidden_states = super().forward(
+        hidden_states = self.transformer_layer.forward(
             hidden_states,
             attention_mask=attention_mask,
             encoder_output=context,
@@ -344,7 +347,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, MegatronModule, BaseT
     def __call__(self, *args, **kwargs):
         if hasattr(self, 'cudagraph_manager'):
             return self.cudagraph_manager(self, args, kwargs)
-        return super().__call__(*args, **kwargs)
+        return self.transformer_layer(*args, **kwargs)
 
 
 # Use this spec to use the full Transformer layer from Transformer Engine
