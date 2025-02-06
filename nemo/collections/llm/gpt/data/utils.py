@@ -222,13 +222,13 @@ def get_samples_mapping(
         try:
             if is_global_rank_zero():
                 _compile_helper()
-            from nemo.collections.llm.gpt.data import helpers
+            from megatron.core.datasets import helpers_cpp
         except ImportError:
             raise ImportError(
                 'Could not compile megatron dataset C++ helper functions '
                 'and therefore cannot import helpers python file.'
             )
-        samples_mapping = helpers.build_mapping(
+        samples_mapping = helpers_cpp.build_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,
             num_epochs,
