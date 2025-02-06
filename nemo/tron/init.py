@@ -1,7 +1,9 @@
+import datetime
 import os
 import time
 
 import torch
+import torch.distributed
 from megatron.core import parallel_state, tensor_parallel
 
 from nemo.tron.config import FlatConfig
@@ -70,7 +72,7 @@ def initialize_megatron(
 def _torch_dist_init(cfg: FlatConfig, get_embedding_ranks, get_position_embedding_ranks, skip_mpu_initialization):
     def finish_mpu_init():
         # Pytorch distributed.
-        _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)  # TODO (maanug): implement
+        _initialize_distributed(cfg, get_embedding_ranks, get_position_embedding_ranks)
 
         # Random seeds for reproducibility.
         if get_rank_safe() == 0:
@@ -101,6 +103,78 @@ def _torch_dist_init(cfg: FlatConfig, get_embedding_ranks, get_position_embeddin
 
         # No continuation function
         return None
+
+
+def _initialize_distributed(cfg: FlatConfig, get_embedding_ranks, get_position_embedding_ranks):
+    """Initialize torch.distributed and core model parallel."""
+
+    # NOTE (maanug): After this function is called,
+    # can use torch.distributed.get_rank() instead of args.rank
+    # can use torch.distributed.get_world_size() instead of args.world_size
+
+    device_count = torch.cuda.device_count()
+    if torch.distributed.is_initialized():
+        if get_rank_safe() == 0:
+            print(
+                "torch distributed is already initialized, " "skipping initialization ...",
+                flush=True,
+            )
+
+    else:
+        if get_rank_safe() == 0:
+            print("> initializing torch distributed ...", flush=True)
+
+        # Manually set the device ids.
+        if device_count > 0:
+            torch.cuda.set_device(get_local_rank_preinit())
+            device_id = torch.device(f'cuda:{get_local_rank_preinit()}')
+        else:
+            device_id = None
+
+        # Call the init process
+        init_process_group_kwargs = {
+            'backend': cfg.distributed_backend,
+            'world_size': get_world_size_safe(),
+            'rank': get_rank_safe(),
+            'timeout': datetime.timedelta(minutes=cfg.distributed_timeout_minutes),
+        }
+
+        torch.distributed.init_process_group(**init_process_group_kwargs)
+
+    # Set the tensor model-parallel, pipeline model-parallel, and
+    # data-parallel communicators.
+    if device_count > 0:
+        if parallel_state.model_parallel_is_initialized():
+            print("model parallel is already initialized")
+        else:
+            # TODO (maanug): finish extracting args
+            parallel_state.initialize_model_parallel(
+                cfg.tensor_model_parallel_size,
+                cfg.pipeline_model_parallel_size,
+                cfg.virtual_pipeline_model_parallel_size,
+                cfg.pipeline_model_parallel_split_rank,
+                context_parallel_size=cfg.context_parallel_size,
+                hierarchical_context_parallel_sizes=cfg.hierarchical_context_parallel_sizes,
+                expert_model_parallel_size=cfg.expert_model_parallel_size,
+                num_distributed_optimizer_instances=cfg.num_distributed_optimizer_instances,
+                expert_tensor_parallel_size=cfg.expert_tensor_parallel_size,
+                distributed_timeout_minutes=cfg.distributed_timeout_minutes,
+                nccl_communicator_config_path=cfg.nccl_communicator_config_path,
+                order='tp-cp-ep-dp-pp' if not cfg.use_tp_pp_dp_mapping else 'tp-pp-dp',
+                encoder_tensor_model_parallel_size=cfg.encoder_tensor_model_parallel_size,
+                encoder_pipeline_model_parallel_size=cfg.encoder_pipeline_model_parallel_size,
+                get_embedding_ranks=get_embedding_ranks,
+                get_position_embedding_ranks=get_position_embedding_ranks,
+            )
+            if get_rank_safe() == 0:
+                print(
+                    f"> initialized tensor model parallel with size "
+                    f"{parallel_state.get_tensor_model_parallel_world_size()}"
+                )
+                print(
+                    f"> initialized pipeline model parallel with size "
+                    f"{parallel_state.get_pipeline_model_parallel_world_size()}"
+                )
 
 
 def _init_rerun_state(cfg: FlatConfig):
