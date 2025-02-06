@@ -15,8 +15,8 @@
 from os.path import basename, splitext
 
 import nemo_run as run
-from nemo_run.core.serialization.zlib_json import ZlibJSONSerializer
 from argument_parser import parse_cli_args
+from nemo_run.core.serialization.zlib_json import ZlibJSONSerializer
 from utils import (
     get_comm_overlap_callback_idx,
     get_user_configs,
@@ -27,13 +27,14 @@ from utils import (
 
 from nemo.collections.llm.recipes.llama3_70b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
+    userbuffers_bf16_b200_h8192_tp4_mbs1_seqlen8192,
     userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
-    userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192, 
-    userbuffers_bf16_b200_h8192_tp4_mbs1_seqlen8192, 
     userbuffers_fp8_b200_h8192_tp4_mbs1_seqlen8192,
+    userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192,
 )
+from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+
 
 def override_recipe_configs(
     args: str,
@@ -84,7 +85,7 @@ def override_recipe_configs(
         "b200": {
             "bf16": run.Config(userbuffers_bf16_b200_h8192_tp4_mbs1_seqlen8192),
             "fp8": run.Config(userbuffers_fp8_b200_h8192_tp4_mbs1_seqlen8192),
-        }
+        },
     }
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
@@ -95,7 +96,7 @@ def override_recipe_configs(
     recipe.model.config.enable_cuda_graph = enable_cuda_graph
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
 
-     # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
+    # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
     ZlibJSONSerializer().serialize(recipe)
 
     return recipe
