@@ -1326,12 +1326,14 @@ class MegatronStep(Generic[ModelT, DataT]):
         Returns:
             List[Iterator[DataT]]: A list of iterators created from the input data.
         """
+        has_dataloader_idx = False
         if self.has_global_batch_sampler:
             batch_data = next(self.data)
             if isinstance(batch_data, tuple) and len(batch_data) == 3:
                 batch, batch_idx, dataloader_idx = batch_data
+                has_dataloader_idx = True
             else:
-                batch, batch_idx, dataloader_idx = batch_data, None, None
+                batch, batch_idx, dataloader_idx = batch_data[0], None, None
 
             # finetuning can have dynamic sequence lengths
             seq_length = batch['tokens'].size(1) if 'tokens' in batch else None
@@ -1339,14 +1341,17 @@ class MegatronStep(Generic[ModelT, DataT]):
 
             data = get_iterator_k_split(batch, self.num_microbatches, True)
 
-            if batch_idx is not None and dataloader_idx is not None:
+            if has_dataloader_idx:
                 packed_data = [(d, batch_idx, dataloader_idx) for d in data]
-                return [itertools.chain(packed_data)], seq_length
+                data = [itertools.chain(packed_data)]
         else:
             data = self.data
             # for pretraining (fixed sequence length), we use seq_length inferred from the data sampler.
             seq_length = None
-        return self.to_data_iterator_list(data), seq_length
+
+        if not has_dataloader_idx:
+            data = self.to_data_iterator_list(data)
+        return data, seq_length
 
     @functools.cached_property
     def has_global_batch_sampler(self) -> bool:
