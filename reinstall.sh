@@ -60,7 +60,7 @@ mcore() {
     pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $CAUSAL_CONV1D_DIR
     pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $MLM_DIR
   else
-    pip install --no-cache-dir $WHEELS_DIR/mcore/
+    pip install --no-cache-dir $WHEELS_DIR/mcore/.*whl
     pip install --no-cache-dir -e $MLM_DIR
   fi
 }
@@ -82,7 +82,7 @@ te() {
     cd $TE_DIR && git submodule init && git submodule update &&
       pip wheel --wheel-dir $WHEELS_DIR/te/ $TE_DIR
   else
-    pip install --no-cache-dir $WHEELS_DIR/te/
+    pip install --no-cache-dir $WHEELS_DIR/te/.*whl
   fi
 }
 
@@ -102,7 +102,7 @@ apex() {
   if [[ "$mode" == "build" ]]; then
     cd $APEX_DIR && pip wheel --no-deps --no-build-isolation --wheel-dir $WHEELS_DIR/apex/ $APEX_DIR
   else
-    pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/apex/
+    pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/apex/.*whl
   fi
 
 }
