@@ -31,6 +31,7 @@ try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
     from megatron.core.transformer.cuda_graphs import CudaGraphManager
+    from megatron.core.transformer.module import MegatronModule
     from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, get_num_layers_to_build
     from megatron.core.transformer.transformer_layer import BaseTransformerLayer
@@ -40,7 +41,7 @@ try:
 
 except (ImportError, ModuleNotFoundError) as e:
 
-    ModuleSpec = BaseTransformerLayer = ApexGuardDefaults
+    MegatronModule = ModuleSpec = BaseTransformerLayer = ApexGuardDefaults
 
     HAVE_MEGATRON_CORE = False
     IMPORT_ERROR = e
@@ -176,7 +177,7 @@ class AutocastTransformerLayer(TransformerLayer):
             )
 
 
-class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer):
+class TETransformerLayerAutocast(AutocastTransformerLayer, MegatronModule, BaseTransformerLayer):
     def __init__(self, config, layer_number=1, hidden_dropout=None):
         assert (
             HAVE_MEGATRON_CORE and HAVE_TE
@@ -238,7 +239,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
 
         if self.config.enable_cuda_graph and self.training:
             assert not config.cpu_offloading and config.recompute_granularity is None, "Cudagraphs not supported"
-            self.add_module('cudagraph_manager', CudaGraphManager())
+            self.add_module('cudagraph_manager', CudaGraphManager(config))
 
     # Called by MCore's TransformerBlock.forward
     # megatron/core/transformer/transformer_block.py
