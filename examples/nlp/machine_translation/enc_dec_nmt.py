@@ -96,7 +96,9 @@ class MTEncDecConfig(NemoConfig):
     do_testing: bool = False
     model: MTEncDecModelConfig = field(default_factory=lambda: MTEncDecModelConfig())
     trainer: Optional[TrainerConfig] = field(default_factory=lambda: TrainerConfig())
-    exp_manager: Optional[ExpManagerConfig] = field(default_factory=lambda: ExpManagerConfig(name='MTEncDec', files_to_copy=[]))
+    exp_manager: Optional[ExpManagerConfig] = field(
+        default_factory=lambda: ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+    )
 
 
 @hydra_runner(config_path="conf", config_name="aayn_base")
