@@ -20,7 +20,16 @@ from typing import Iterable, List, Optional, Union
 import numpy
 import wrapt
 from vllm import RequestOutput, SamplingParams
-from vllm.config import CacheConfig, DeviceConfig, LoadConfig, LoadFormat, LoRAConfig, ParallelConfig, SchedulerConfig, VllmConfig
+from vllm.config import (
+    CacheConfig,
+    DeviceConfig,
+    LoadConfig,
+    LoadFormat,
+    LoRAConfig,
+    ParallelConfig,
+    SchedulerConfig,
+    VllmConfig,
+)
 from vllm.executor.ray_utils import initialize_ray_cluster
 from vllm.lora.request import LoRARequest
 
@@ -242,16 +251,19 @@ class vLLMExporter(ITritonDeployable):
         if parallel_config.distributed_executor_backend == "ray":
             initialize_ray_cluster(parallel_config)
             from vllm.executor.ray_distributed_executor import RayDistributedExecutor
+
             executor_class = RayDistributedExecutor
 
         elif parallel_config.distributed_executor_backend == "mp":
             from vllm.executor.mp_distributed_executor import MultiprocessingDistributedExecutor
+
             executor_class = MultiprocessingDistributedExecutor
-        
+
         else:
             assert parallel_config.distributed_executor_backend == "uni" or parallel_config.world_size == 1
 
             from vllm.executor.uniproc_executor import UniProcExecutor
+
             executor_class = UniProcExecutor
 
         # Initialize the engine
@@ -269,7 +281,7 @@ class vLLMExporter(ITritonDeployable):
                 observability_config=None,
                 prompt_adapter_config=None,
             ),
-            executor_class=executor_class,           
+            executor_class=executor_class,
             log_stats=log_stats,
         )
 
