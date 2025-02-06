@@ -107,11 +107,15 @@ EOF
 
 # Copy over NeMo code
 COPY --from=nemo-bump /opt/NeMo /opt/NeMo/
-RUN <<"EOF" bash -ex
-bash /opt/NeMo/reinstall.sh --library all --mode install
+RUN \
+    --mount=type=bind,from=te-wheel,source=/tmp/wheels/te/,target=/tmp/wheels/te/ \
+    --mount=type=bind,from=mlm-wheel,source=/tmp/wheels/mcore/,target=/tmp/wheels/mcore/ \
+    --mount=type=bind,from=apex-wheel,source=/tmp/wheels/apex/,target=/tmp/wheels/apex/ <<"EOF" 
+    bash -ex
+    bash /opt/NeMo/reinstall.sh --library all --mode install
 
-# set permission
-chmod 777 -R /workspace
+    # set permission
+    chmod 777 -R /workspace
 EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
