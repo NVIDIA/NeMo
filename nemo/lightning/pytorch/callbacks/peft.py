@@ -32,10 +32,10 @@ from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.lightning.pytorch.utils import is_trainer_attached
+from nemo.lightning.pytorch.utils import get_automodel_from_trainer, is_trainer_attached
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
-from nemo.lightning.pytorch.utils import get_automodel_from_trainer
+
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 
@@ -433,6 +433,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
 
     def _create_lora_hf_config(self):
         from peft import LoraConfig
+
         from nemo.collections.llm.peft import DoRA
 
         lora_config = LoraConfig(
