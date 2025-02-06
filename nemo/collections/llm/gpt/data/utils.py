@@ -19,15 +19,17 @@ import os
 import pickle
 import subprocess
 import time
-from functools import partial
-from typing import Any
+from functools import partial, lru_cache
+from typing import Any, Callable, List, Optional, Type
 
 import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.core.classes import Dataset
+
 
 PREFIX_STR = (
     "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
@@ -43,6 +45,457 @@ TYPE_INSTRUCTION = {
 
 __idx_version__ = "0.2"  # index file version
 __idx_suffix__ = "idx"  # index file suffix
+
+
+class _TextMemMapDataset(Dataset):
+    """
+    Allow per-line lazy access to multiple text files using numpy memmap.
+    """
+
+    def __init__(
+        self,
+        dataset_paths: List[str],
+        newline_int: Optional[int] = 10,
+        header_lines: Optional[int] = 0,
+        workers: Optional[int] = None,
+        tokenizer: Optional[Type["TokenizerSpec"]] = None,
+        build_index_fn: Optional[Callable[[str, Optional[int]], bool]] = build_index_from_memdata,
+        sort_dataset_paths: Optional[bool] = True,
+        index_mapping_dir: Optional[str] = None,
+    ):
+        """
+        Args:
+            dataset_paths: list of JSONL file paths.
+            newline_int: ASCII code to use to interpret newlines in file.
+            header_lines: number of header lines in JSON files.
+            workers: number of workers to use for creating index files.
+            tokenizer: tokenizer to use to convert text to tokens.
+            build_index_fn: a callable build_index_fn(fn, newline_int) -> midx [np.array]
+                that returns the index of newlines in a file fn must be pickleable
+                (to be used in multiprocessing.Pool.map).
+            sort_dataset_paths: whether to sort datasets by paths.
+            index_mapping_dir: directory to save the index mapping to.
+                If None, will write to the same folder as the dataset.
+        """
+        super().__init__()
+        self.mdata_midx_list = []
+
+        # Make a single string into a list
+        if isinstance(dataset_paths, str):
+            dataset_paths = [dataset_paths]
+
+        if len(dataset_paths) < 1:
+            raise ValueError("files_list must contain at leat one file name")
+
+        self._newline_int = newline_int
+        # skip first N lines
+        self._header_lines = header_lines
+        self._files_list = dataset_paths
+        self._worker = workers
+        self.tokenizer = tokenizer
+        self._sort_dataset_paths = sort_dataset_paths
+
+        if sort_dataset_paths:
+            self._files_list = sorted(self._files_list)
+
+        logging.info("Building data files")
+        # load all files into memmap
+        is_distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
+
+        if not is_distributed or (is_distributed and torch.distributed.get_rank() == 0):
+            # Create index files on global rank 0.
+            build_index_files(
+                dataset_paths,
+                newline_int,
+                workers=self._worker,
+                build_index_fn=build_index_fn,
+                index_mapping_dir=index_mapping_dir,
+            )
+
+        if is_distributed and not lightning_prepare_data():
+            torch.distributed.barrier()
+
+        if is_distributed and AppState().local_rank == 0:
+            # If we are in a distributed multi-node set-up and index files are not stored on
+            # a shared filesystem, then the index files created on global rank 0 are only
+            # accessible to the workers on that node.
+            #
+            # Two cases may occur here:
+            #
+            # 1. case of a shared filesystem, or global_rank==0: the index files are present in
+            #    the locally available filesystem, calling build_index_files() again is a no-op.
+            # 2. case of a non-shared filesystem, and global_rank>0: the index files are not
+            #    present in the locally available filesystem, calling build_index_files() again
+            #    will create them.
+            #
+            # Outcome in all cases: all nodes have access to the index files in their filesystem.
+            build_index_files(
+                dataset_paths,
+                newline_int,
+                workers=self._worker,
+                build_index_fn=build_index_fn,
+                index_mapping_dir=index_mapping_dir,
+            )
+
+        if is_distributed and not lightning_prepare_data():
+            torch.distributed.barrier()
+
+        logging.info("Loading data files")
+        start_time = time.time()
+        mdata_midx_list = [self.load_file(fn, index_mapping_dir) for fn in self._files_list]
+        logging.info(
+            f"Time loading {len(mdata_midx_list)} "
+            f"mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}"
+        )
+
+        logging.info("Computing global indices")
+        midx_bins = np.cumsum([(len(midx) - header_lines) for _, midx in mdata_midx_list])
+
+        self.midx_bins = midx_bins
+        self.mdata_midx_list = mdata_midx_list
+
+        # figure out size of the dataset
+        self._size = self.midx_bins[-1]
+
+    def __del__(self):
+        if self.mdata_midx_list:
+            for mdata, midx in self.mdata_midx_list:
+                mdata._mmap.close()
+
+    def __len__(self):
+        return self._size
+
+    def __getitem__(self, idx):
+        """
+        Return a string from binary memmap
+        """
+        if (idx >= len(self)) or (idx < 0):
+            raise IndexError(f"Index {idx} if out of dataset range with {len(self)} samples")
+
+        # Identify the file containing the record
+        file_id = np.digitize(idx, self.midx_bins, right=False)
+        base_idx = self.midx_bins[file_id - 1] if file_id > 0 else 0
+        file_idx = idx - base_idx + self._header_lines
+        mdata, midx = self.mdata_midx_list[file_id]
+        # load sample
+        if file_idx == 0:
+            i = 0
+            j = midx[0]
+        else:
+            i = midx[file_idx - 1] + 1  # ignore newline
+            j = midx[file_idx]
+
+        # fetch sample from memmap
+
+        try:
+            sample = self._fetch_sample_from_memmap(mdata, i, j)
+        except Exception as e:
+            logging.error(f"Error while fetching sample from memmap: {e}")
+            logging.error(f"file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
+            raise e
+
+        # parse raw text (e.g., tokenize)
+        try:
+            data = self._build_data_from_text(sample)
+        except Exception as e:
+            logging.error(f"Error while building data from text, possible issue with sample expected format: {e}")
+            logging.error(f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
+            raise e
+
+        return data
+
+    def _fetch_sample_from_memmap(self, mdata, i, j):
+        """
+        Fetchs the text sample.
+        Can be overriden by child-classes to support loading of partial samples and alternative decode methods.
+        """
+
+        # load text sample by slicing memmap data[i:j]
+        text = mdata[i:j].tobytes().decode("utf-8")
+
+        return text
+
+    def _build_data_from_text(self, text):
+        """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
+        # tokenize text if tokenizer is given
+        if self.tokenizer is not None:
+            data = self.tokenizer.text_to_ids(text)
+        else:
+            data = text
+
+        return data
+
+    def load_file(self, fn, index_mapping_dir: Optional[str] = None):
+        """
+        Loads a text file as np.int8.
+
+        Returns:
+            mdata - memorymap of np.int8
+            midx - indices pointing to the end-of-line (or end of file) position
+            size - number of lines in file
+        """
+        logging.info(f"Loading {fn}")
+        idx_fn = _index_fn(fn, index_mapping_dir)
+
+        # create data map
+        mdata = np.memmap(fn, dtype=np.uint8, mode="r")
+
+        if _index_file_exists(idx_fn):
+            # load index file into memory map
+            midx = np.load(idx_fn + ".npy", allow_pickle=True, mmap_mode="r")
+            # test for header
+            if len(midx) < self._header_lines:
+                raise RuntimeError(f"Missing header, expected {self._header_lines} header lines")
+
+            # load meta info
+            with open(idx_fn + ".info", "rb") as fp:
+                idx_info_dict = pickle.load(fp)
+            # test for mismatch in expected newline_int
+            if "newline_int" in idx_info_dict:
+                newline_int = idx_info_dict["newline_int"]
+                if self._newline_int != newline_int:
+                    logging.warning(
+                        f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}"
+                    )
+
+            # test for version mismatch (useful to force recreation of index files)
+            idx_version = idx_info_dict.get("version", "0.0")
+            if __idx_version__ != idx_version:
+                raise RuntimeError(
+                    f"Version mismatch: Please delete existing '.{__idx_suffix__}' files. "
+                    f"Expected version = {__idx_version__}, but file version = {idx_version}. File path = {idx_fn}"
+                )
+        else:
+            raise ValueError(
+                f"Memory Map for {fn} is not found, missing one or more of files: {idx_fn}.{{.npy,.info}}"
+            )
+
+        return (mdata, midx)
+
+
+class _JSONLMemMapDataset(_TextMemMapDataset):
+    """
+    Memory-mapped iteration over a JSONL file.
+    """
+
+    def __init__(
+        self,
+        dataset_paths: List[str],
+        newline_int: Optional[int] = 10,
+        header_lines: Optional[int] = 0,
+        workers: Optional[int] = None,
+        tokenizer: Optional[Type["TokenizerSpec"]] = None,
+        sort_dataset_paths: Optional[bool] = True,
+        index_mapping_dir: Optional[str] = None,
+    ):
+        """
+        Args:
+            dataset_paths: list of JSONL file paths.
+            newline_int: ASCII code to use to interpret newlines in file.
+            header_lines: number of header lines in JSON files.
+            workers: number of workers to use for creating index files.
+            tokenizer: tokenizer to use to convert text to tokens.
+            sort_dataset_paths: whether to sort datasets by paths.
+            index_mapping_dir: directory to save the index mapping to.
+                If None, will write to the same folder as the dataset.
+        """
+        super().__init__(
+            dataset_paths=dataset_paths,
+            newline_int=newline_int,
+            header_lines=header_lines,
+            workers=workers,
+            tokenizer=tokenizer,
+            sort_dataset_paths=sort_dataset_paths,
+            index_mapping_dir=index_mapping_dir,
+        )
+
+    def _build_data_from_text(self, text):
+        """Return a dictionary of data based on a single JSON line."""
+        try:
+            record = json.loads(text)
+        except Exception as e:
+            logging.error(f"Exception: {e}")
+            logging.error(f"datapoint: {text}")
+            raise e
+        return record
+
+
+class _OnlineSampleMapping:
+    """
+    This class replaces NeMo's get_samples_mapping function which pre-computes.
+    It is used to create a sample mapping for certain number of samples, including
+    pseudo-random shuffling.
+    The sampler allows to down, or upsample a given dataset.
+    Shuffling leads to pseudo-random shuffling, where blocks are shuffled,
+    and each block is internally shuffled.
+    """
+
+    def __init__(
+        self,
+        dataset_size: int,
+        num_samples: int,
+        block_size: int = 1000000,
+        cache_maxsize: int = 2,
+        seed: int = 1,
+        shuffle: bool = True,
+        truncate_to_block_boundary: bool = False,
+    ):
+        """
+        Args:
+            dataset_size (int): Size of the dataset.
+            num_samples (int): Number of samples the dataset should contain.
+            block_size (int): Size of each sample block. This is used to shuffle the samples.
+                              None will be replaced with dataset size.
+            cache_maxsize (int): Maximum size of the blocks cache for the get_sample_block function.
+            seed (int): Seed for the random number generator used for shuffling.
+            shuffle (bool): Whether to shuffle the samples.
+            truncate_to_block_boundary (bool): Whether to truncate the last block to the block boundary.
+        """
+        self.dataset_size = dataset_size
+        self.num_samples = num_samples
+        self.block_size = block_size if block_size is not None else self.dataset_size
+        self.cache_maxsize = cache_maxsize
+        self.seed = seed
+        self.shuffle = shuffle
+        self.truncate_to_block_boundary = truncate_to_block_boundary
+
+        # we need at least num_samples (up-sampling) or dataset_size samples (correct down-sampling)
+        self.required_samples = max(self.num_samples, self.dataset_size)
+        # block size cannot be larger than dataset size
+        self.block_size = min(self.block_size, self.dataset_size)
+        # reduce the last block if needed, to match the required number of samples
+        last_block_size = self.required_samples % self.block_size
+        # store required blocks to cover num_samples samples and dataset_size samples
+        self.num_blocks = int(np.ceil(self.required_samples / self.block_size))
+
+        # if required, truncate the last block to the block boundary
+        if self.truncate_to_block_boundary and last_block_size:
+            # update num_samples to account for truncated last block only if needed
+            if self.required_samples == self.num_samples:
+                self.num_samples -= last_block_size
+
+            # apdate num_blocks to account for truncated last block
+            self.num_blocks -= 1
+            self.required_samples -= last_block_size
+            last_block_size = 0
+
+        # create a list of blocks (should cover the entire dataset for correct down sampling)
+        block_idx_list = np.arange(self.num_blocks)
+        # compute the size of each block
+        block_size_list = np.full(self.num_blocks, self.block_size)
+        if last_block_size:
+            block_size_list[-1] = last_block_size
+            self.use_digitize = True
+        else:
+            self.use_digitize = False
+        if shuffle:
+            local_rng = np.random.RandomState(seed=self.seed)
+            idx = local_rng.permutation(np.arange(self.num_blocks))
+            block_idx_list = block_idx_list[idx]
+            block_size_list = block_size_list[idx]
+
+        # store only required number of blocks
+        self.block_idx_list = block_idx_list
+        self.block_size_list = block_size_list
+        self.block_bins = np.cumsum(block_size_list)
+
+        # NOTE: MAKE get_sample_block A CACHED FUNCTION!!!
+        self.get_sample_block = lru_cache(maxsize=cache_maxsize, typed=False)(self.get_sample_block)
+
+    def __str__(self):
+        return (
+            f"OnlineSampleMapping(dataset_size={self.dataset_size}, num_samples={self.num_samples}, "
+            f"block_size={self.block_size}, cache_maxsize={self.cache_maxsize}, seed={self.seed}, "
+            f"shuffle={self.shuffle}, truncate_to_block_boundary={self.truncate_to_block_boundary})"
+        )
+
+    def __getitem__(self, idx: int) -> int:
+        # handle slices
+        if isinstance(idx, slice):
+            slc = idx
+            start, stop, step = slc.start, slc.stop, slc.step
+
+            # Handle None values
+            start = handle_index(self, start if start is not None else 0)
+            if start >= self.num_samples:
+                start = self.num_samples
+            stop = handle_index(self, stop if stop is not None else self.num_samples)
+            if stop >= self.num_samples:
+                stop = self.num_samples
+            step = step if step is not None else 1
+            sample_slice = [self[idx] for idx in range(start, stop, step)]
+            return sample_slice
+        # handle indices
+        else:
+            # If the index is out of range, raise IndexError
+            if idx >= self.num_samples:
+                raise IndexError("Index out of range")
+
+            # support negative indices
+            if idx < 0:
+                idx += self.num_samples
+
+                if idx < 0:
+                    raise IndexError("Index out of range")
+
+            # fetch the block sample index
+            if self.use_digitize:
+                block_idx = np.digitize(idx, self.block_bins)
+            else:
+                block_idx = idx // self.block_size
+            sample_block = self.get_sample_block(block_idx)
+
+            # use the local index to fetch the sample
+            local_idx = idx - self.block_bins[block_idx]
+            sample_idx = sample_block[local_idx]
+
+            return sample_idx, None, None  # for comtability with NeMo's get_samples_mapping
+
+    def __len__(self) -> int:
+        return self.num_samples
+
+    def __reduce__(self):
+        """Add support for pickling. Needed due to functools.lru_cache."""
+        # Return a tuple with a callable and arguments to recreate the object
+        return (
+            self.__class__,
+            (
+                self.dataset_size,
+                self.num_samples,
+                self.block_size,
+                self.cache_maxsize,
+                self.seed,
+                self.shuffle,
+                self.truncate_to_block_boundary,
+            ),
+        )
+
+    def __reduce_ex__(self, protocol):
+        # Optional method that defines the protocol version
+        return self.__reduce__()
+
+    def get_sample_block(self, block_idx: int) -> np.ndarray:
+        """
+        Returns a block of samples of size self.block_size, shuffled if needed.
+        NOTE: This method will be cached using functools.lru_cache for efficiency during construction.
+        """
+        if block_idx >= self.num_blocks:
+            raise IndexError(f"block_idx {block_idx} is out of range. Maximum block_idx is {self.num_blocks-1}")
+
+        # recover index of original block (before shuffling)
+        start_idx = self.block_idx_list[block_idx] * self.block_size
+        end_idx = start_idx + self.block_size_list[block_idx]
+        sample_block = np.arange(start_idx, end_idx)
+
+        # shuffle if needed
+        if self.shuffle:
+            local_rng = np.random.RandomState(seed=self.seed + block_idx)
+            sample_block = local_rng.permutation(sample_block)
+
+        # project indices to the dataset size
+        sample_block = sample_block % self.dataset_size
+
+        return sample_block
 
 
 def build_index_from_memdata(fn, newline_int):
@@ -159,7 +612,7 @@ def lightning_prepare_data():
     )
 
 
-def get_samples_mapping(
+def _get_samples_mapping(
     indexed_dataset,
     data_prefix,
     num_epochs,
@@ -282,7 +735,7 @@ def _make_indexed_dataset_compatibility(dataset):
     return dataset
 
 
-def preprocess(
+def _preprocess(
     source: dict,
     tokenizer: TokenizerSpec,
     name_end_token_ids: int,
