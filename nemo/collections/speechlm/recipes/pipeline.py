@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import Optional
+
 from omegaconf import DictConfig, OmegaConf
 
 from nemo import lightning as nl
@@ -24,13 +26,24 @@ from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
 from nemo.collections.speechlm.utils import SpeechToTextLLMPEFT, get_object_list_from_config
 from nemo.core.classes.common import Serialization, typecheck
+from nemo.lightning import AutoResume
 from nemo.lightning.pytorch.callbacks import PreemptionCallback
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, TimingCallback
 
 
-def speech_to_text_llm_train(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None):
-    """Train the model using provided config."""
+@dataclass
+class PipelineComponents:
+    model: Optional[SpeechToTextLLM] = None
+    data: Optional[AudioToTextDataModule] = None
+    trainer: Optional[nl.Trainer] = None
+    optim: Optional[nl.MegatronOptimizerModule] = None
+    peft: Optional[SpeechToTextLLMPEFT] = None
+    resume: Optional[AutoResume] = None
+    logger: Optional[nl.NeMoLogger] = None
+
+
+def build_components(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None) -> PipelineComponents:
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
 
@@ -100,92 +113,62 @@ def speech_to_text_llm_train(cfg: DictConfig, tokenizer: Optional[AutoTokenizer]
     resume = Serialization.from_config_dict(cfg['resume'])
     logger = Serialization.from_config_dict(cfg['logger'])
 
-    # 7. train the model
-    finetune(
+    return PipelineComponents(
         model=model,
         data=data,
         trainer=trainer,
         optim=optim,
-        log=logger,
         peft=peft,
         resume=resume,
+        logger=logger,
     )
-    return logger.log_dir
+
+
+def speech_to_text_llm_train(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None):
+    """Train the model using provided config."""
+
+    components = build_components(cfg, tokenizer)
+
+    finetune(
+        model=components.model,
+        data=components.data,
+        trainer=components.trainer,
+        optim=components.optim,
+        log=components.logger,
+        peft=components.peft,
+        resume=components.resume,
+    )
+    return components.logger.log_dir
 
 
 def speech_to_text_llm_validate(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None):
-    """Validate the model using provided config, groundtruth required."""
-    typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
-    cfg = OmegaConf.to_container(cfg, resolve=True)
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    """
+    Validate the model using provided config, groundtruth required.
 
-    if tokenizer is not None:
-        logging.info(f"Using provided tokenizer: {tokenizer}")
-    elif 'pretrained_model' in cfg['model']['llm']:
-        logging.info(f"Using tokenizer from pretrained model: {cfg['model']['llm']['pretrained_model']}")
-        tokenizer = AutoTokenizer(cfg['model']['llm']['pretrained_model'])
-    else:
-        raise ValueError(
-            "Tokenizer is not provided, please pass `tokenizer` to `speech_to_text_llm_train`",
-            "or specify `pretrained_model` in the config.",
-        )
+    NOTE: Can use dummy groundtruth (e.g., answer='-') for inference
+    when speech_to_text_llm_generate is not implemented yet.
+    """
 
-    # 1. build the model
-    tokenizer = AutoTokenizer(cfg['model']['llm']['pretrained_model'])
-    model_config = SpeechToTextLLMConfig(
-        language_model_class=cfg['model']['llm']['_target_'],
-        language_model_config=Serialization.from_config_dict(cfg['model']['llm']['config']),
-        speech_model_config=ASRModuleConfig(**cfg['model']['speech_encoder']),
-        modality_adapter_config=ModalityAdapterConfig(**cfg['model']['modality_adapter']),
-        language_model_from_pretrained=cfg['model']['llm'].get('pretrained_model', None),
-        freeze_language_model=cfg['model']['freeze_language_model'],
-        freeze_speech_model=cfg['model']['freeze_speech_model'],
-        freeze_modality_adapter=cfg['model']['freeze_modality_adapter'],
-    )
-
-    model = SpeechToTextLLM(config=model_config, tokenizer=tokenizer)
-
-    # 2. build dataset
-    data = AudioToTextDataModule(cfg['data'], tokenizer=tokenizer)
-
-    # 3. setup the optimizer
-    optim = Serialization.from_config_dict(cfg['optim'])
-
-    # 4. setup trainer
-    trainer = nl.Trainer(
-        strategy=Serialization.from_config_dict(cfg['strategy']),
-        plugins=get_object_list_from_config(cfg['plugins']),
-        callbacks=get_object_list_from_config(cfg['callbacks']),
-        **cfg['trainer'],
-    )
-
-    # 5. setup PEFT
-    peft = None
-    if cfg['model'].get('peft', None):
-        peft = SpeechToTextLLMPEFT(peft=Serialization.from_config_dict(cfg['model']['peft']))
-
-    # 6. setup logger and auto-resume
-    resume = Serialization.from_config_dict(cfg['resume'])
-    logger = Serialization.from_config_dict(cfg['logger'])
+    components = build_components(cfg, tokenizer)
 
     # 7. run the inference
     app_state = _setup(
-        model=model,
-        data=data,
-        trainer=trainer,
-        log=logger,
-        resume=resume,
-        optim=optim,
+        model=components.model,
+        data=components.data,
+        trainer=components.trainer,
+        log=components.logger,
+        resume=components.resume,
+        optim=components.optim,
         tokenizer=tokenizer,
-        model_transform=peft,
+        model_transform=components.peft,
     )
 
-    trainer.validate(model, datamodule=data)
+    components.trainer.validate(components.model, datamodule=components.data)
 
     return app_state.log_dir
 
 
-def speech_to_text_llm_generate(cfg: DictConfig):
+def speech_to_text_llm_generate(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None):
     """Running inference using provided config without groundtruth."""
     # TODO: implement this based on llm.generate()
     raise NotImplementedError("This function is not implemented yet.")
