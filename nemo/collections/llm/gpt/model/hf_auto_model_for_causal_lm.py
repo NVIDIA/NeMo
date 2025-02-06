@@ -345,8 +345,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 logging.warning("A tokenizer wasn't created before to save.")
 
     def make_checkpoint_io(self, save_adapter_only=False):
-        from nemo.lightning.io.pl import HuggingFaceCheckpointIO
-        return HuggingFaceCheckpointIO(model=self, save_adapter_only=save_adapter_only)
+        from nemo.lightning.io.hf import HFCheckpointIO
+        return HFCheckpointIO(model=self, save_adapter_only=save_adapter_only)
 
     def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
         """Remove extra keys from batch that are not kwargs in model's forward

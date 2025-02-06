@@ -5,6 +5,7 @@ from nemo.lightning.io.connector import Connector, ModelConnector
 from nemo.lightning.io.mixin import ConnectorMixin, IOMixin, drop_unexpected_params, track_io
 from nemo.lightning.io.pl import TrainerContext, is_distributed_ckpt
 from nemo.lightning.io.state import TransformCTX, apply_transforms, state_transform
+from nemo.lightning.io.hf import HFCheckpointIO
 
 __all__ = [
     "apply_transforms",
@@ -25,4 +26,5 @@ __all__ = [
     "state_transform",
     "TrainerContext",
     "TransformCTX",
+    "HFCheckpointIO",
 ]

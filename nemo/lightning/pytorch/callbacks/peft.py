@@ -418,9 +418,9 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
             base_dir = ckpt_to_weights_subdir(path, is_saving=True)
             base_dir.mkdir(parents=True, exist_ok=True)
 
-            from nemo.lightning.io.pl import HuggingFaceCheckpointIO
+            from nemo.lightning.io.hf import HFCheckpointIO
 
-            if isinstance(self.checkpoint_io, HuggingFaceCheckpointIO):
+            if isinstance(self.checkpoint_io, HFCheckpointIO):
                 metadata = self._create_lora_hf_config()
                 adapter_meta_path = base_dir / "adapter_config.json"
             else:
