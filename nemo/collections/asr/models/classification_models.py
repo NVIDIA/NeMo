@@ -648,7 +648,7 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
         )
         results.append(model)
         return results
-    
+
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.
@@ -670,8 +670,7 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
-    
-    
+
     def _setup_dataloader_from_config(self, config: DictConfig):
 
         OmegaConf.set_struct(config, False)
@@ -753,7 +752,6 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
             num_workers=config.get('num_workers', 0),
             pin_memory=config.get('pin_memory', False),
         )
-
 
     @torch.no_grad()
     def transcribe(
