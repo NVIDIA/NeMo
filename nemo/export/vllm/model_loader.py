@@ -23,7 +23,7 @@ import numpy
 import safetensors.torch
 
 # needed to register 'bfloat16' dtype with numpy for zarr compatibility
-import tensorstore  # pylint: disable=unused-import
+import tensorstore  # noqa: F401
 import torch
 import zarr
 from vllm.config import ModelConfig
