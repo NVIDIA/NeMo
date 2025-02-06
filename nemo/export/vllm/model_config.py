@@ -86,6 +86,14 @@ class NemoModelConfig(ModelConfig):
         self.mm_processor_kwargs = {}
         self.use_async_output_proc = use_async_output_proc
 
+
+        self.generation_config = None
+        self.task = "generate"
+        self.enable_sleep_mode = False
+        self.is_hybrid = False
+        self.encoder_config = self._get_encoder_config()
+
+
         self.model_converter = get_model_converter(model_type)
         if self.model_converter is None:
             raise RuntimeError(f'Unknown model type "{model_type}"')
@@ -134,7 +142,7 @@ class NemoModelConfig(ModelConfig):
         self.has_inner_state = self._init_has_inner_state()
 
         self._verify_tokenizer_mode()
-        self._verify_embedding_mode()
+        # self._verify_embedding_mode()
         self._verify_quantization()
         self._verify_cuda_graph()
 

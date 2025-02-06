@@ -31,6 +31,8 @@ from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
 
+from vllm.config import VllmConfig
+
 LOGGER = logging.getLogger("NeMo")
 
 
@@ -258,24 +260,26 @@ class vLLMExporter(ITritonDeployable):
             executor_class = MultiprocessingGPUExecutor
         else:
             assert parallel_config.world_size == 1, "Ray is required if parallel_config.world_size > 1."
-            from vllm.executor.gpu_executor import GPUExecutor
+            from vllm.executor.uniproc_executor import UniProcExecutor
 
-            executor_class = GPUExecutor
+            executor_class = UniProcExecutor
 
         # Initialize the engine
         self.engine = NemoLLMEngine(
-            model_config=model_config,
-            cache_config=cache_config,
-            parallel_config=parallel_config,
-            scheduler_config=scheduler_config,
-            device_config=device_config,
-            load_config=load_config,
-            lora_config=lora_config,
-            speculative_config=None,
-            decoding_config=None,
-            observability_config=None,
-            prompt_adapter_config=None,
-            executor_class=executor_class,
+            vllm_config=VllmConfig(
+                model_config=model_config,
+                cache_config=cache_config,
+                parallel_config=parallel_config,
+                scheduler_config=scheduler_config,
+                device_config=device_config,
+                load_config=load_config,
+                lora_config=lora_config,
+                speculative_config=None,
+                decoding_config=None,
+                observability_config=None,
+                prompt_adapter_config=None,
+            ),
+            executor_class=executor_class,           
             log_stats=log_stats,
         )
 
