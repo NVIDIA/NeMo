@@ -679,7 +679,10 @@ def batched_hyps_to_hypotheses(
             for timestamp_cnt in grouped_counts.tolist():
                 if alignments.with_alignments:
                     hypotheses[i].alignments.append(
-                        [(alignment_logits[i, start + j], alignment_labels[i, start + j]) for j in range(timestamp_cnt)]
+                        [
+                            (alignment_logits[i, start + j], alignment_labels[i, start + j])
+                            for j in range(timestamp_cnt)
+                        ]
                     )
                 if alignments.with_frame_confidence:
                     hypotheses[i].frame_confidence.append(

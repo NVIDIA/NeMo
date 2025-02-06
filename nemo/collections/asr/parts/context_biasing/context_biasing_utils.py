@@ -86,7 +86,13 @@ def merge_alignment_with_ws_hyps(
     # step 2: get word-level alignment [word, start_frame, end_frame]
     word_alignment = []
     word = ""
-    l, r, = None, None
+    (
+        l,
+        r,
+    ) = (
+        None,
+        None,
+    )
     for item in alignment_tokens:
         if not word:
             word = item[1][1:]

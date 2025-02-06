@@ -19,7 +19,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
-from nemo.utils.decorators import deprecated
 
 import numpy as np
 import torch
@@ -32,6 +31,7 @@ from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, Chann
 from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.utils import logging, logging_mode
+from nemo.utils.decorators import deprecated
 
 TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
 GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
