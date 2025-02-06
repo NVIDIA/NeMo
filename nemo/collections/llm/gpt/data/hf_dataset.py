@@ -146,7 +146,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
-            logging.info(f"Loading HF dataset from {path_or_dataset}")
+            logging.info(f"Loading HF dataset from {path_or_dataset}, this may take a moment.")
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
         elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
