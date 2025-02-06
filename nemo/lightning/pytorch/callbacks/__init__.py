@@ -25,6 +25,7 @@ from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.lightning.pytorch.callbacks.preemption import PreemptionCallback
 from nemo.lightning.pytorch.callbacks.progress_bar import MegatronProgressBar
 from nemo.lightning.pytorch.callbacks.progress_printer import ProgressPrinter
+from nemo.lightning.pytorch.callbacks.tensor_inspection import TensorInspectCallback, TensorInspectConfig
 
 __all__ = [
     "MemoryProfileCallback",
@@ -41,4 +42,6 @@ __all__ = [
     "ModelCallback",
     "JitTransform",
     "JitConfig",
+    "TensorInspectCallback",
+    "TensorInspectConfig",
 ]
