@@ -95,6 +95,8 @@ RUN \
     --mount=type=bind,source=setup.py,target=setup.py \
     --mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
     --mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex
+    ls -al /tmp/wheels
+    ls -al /tmp/wheels/apex
     bash reinstall.sh --library apex --mode install
     bash reinstall.sh --library te --mode install
     bash reinstall.sh --library mcore --mode install
