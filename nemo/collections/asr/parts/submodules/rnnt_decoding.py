@@ -494,9 +494,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         encoded_lengths: torch.Tensor,
         return_all_hypotheses: bool = False,
         partial_hypotheses: Optional[List[Hypothesis]] = None,
-    ) -> Tuple[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
-        # TODO: [Sofia Kostandian] change output types and docstring
-
+    ) -> Union[List[Hypothesis], List[List[Hypothesis]]]:
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
 
@@ -506,18 +504,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             return_hypotheses: bool. If set to True it will return list of Hypothesis or NBestHypotheses
 
         Returns:
-            If `return_best_hypothesis` is set:
-                A tuple (hypotheses, None):
-                hypotheses - list of Hypothesis (best hypothesis per sample).
+            If `return_all_hypothesis` is set:
+                A list[list[Hypothesis]].
                     Look at rnnt_utils.Hypothesis for more information.
 
-            If `return_best_hypothesis` is not set:
-                A tuple(hypotheses, all_hypotheses)
-                hypotheses - list of Hypothesis (best hypothesis per sample).
+            If `return_all_hypothesis` is not set:
+                A list[Hypothesis].
+                List of best hypotheses
                     Look at rnnt_utils.Hypothesis for more information.
-                all_hypotheses - list of NBestHypotheses. Each NBestHypotheses further contains a sorted
-                    list of all the hypotheses of the model per sample.
-                    Look at rnnt_utils.NBestHypotheses for more information.
         """
         # Compute hypotheses
         with torch.inference_mode():
@@ -550,7 +544,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             if return_all_hypotheses:
                 return all_hypotheses  # type: list[list[Hypothesis]]
 
-            # alaptev: The line below might contain a bug. Do we really want all_hyp_text to be flat?
             all_hyp = [[Hypothesis(h.score, h.y_sequence, h.text) for h in hh] for hh in all_hypotheses]
             return all_hyp
 

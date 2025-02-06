@@ -289,8 +289,6 @@ class TestCTCDecoding:
                 input_signal, length, fold_consecutive=True, return_all_hypotheses=True
             )
 
-            raise Exception("Debug")
-
             batched_hyps = batched_decoding.ctc_decoder_predictions_tensor(
                 input_signal, length, fold_consecutive=True, return_all_hypotheses=True
             )

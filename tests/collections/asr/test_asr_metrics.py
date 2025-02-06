@@ -465,7 +465,7 @@ class TestWordErrorRate:
 
         # Cannot compute alignments from labels
         with pytest.raises(ValueError):
-            hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_all_hypotheses=True)
+            _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_all_hypotheses=True)
 
         # Preserve timestamps
         decoding_cfg = CTCDecodingConfig(preserve_alignments=False, compute_timestamps=True)
@@ -535,7 +535,7 @@ class TestWordErrorRate:
 
         # Cannot compute alignments from labels
         with pytest.raises(ValueError):
-            hyp = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_all_hypotheses=True)
+            _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_all_hypotheses=True)
 
         # Preserve timestamps
         decoding_cfg = CTCBPEDecodingConfig(preserve_alignments=False, compute_timestamps=True)

@@ -711,7 +711,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
         hypotheses = self.decoding.ctc_decoder_predictions_tensor(
             logits,
             decoder_lengths=logits_len,
-            return_all_hypotheses=trcfg.return_hypotheses,
+            return_all_hypotheses=trcfg.return_all_hypotheses,
         )
         if trcfg.return_hypotheses:
             if logits.is_cuda:
@@ -744,7 +744,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
 
         return hypotheses
 
-    def get_best_hyptheses(all_hypothesis: list[list[Hypothesis]]):
+    def get_best_hyptheses(self, all_hypothesis: list[list[Hypothesis]]):
         return [hyp[0] for hyp in all_hypothesis]
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':

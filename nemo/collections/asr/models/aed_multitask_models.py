@@ -955,7 +955,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             decoder_input_ids=decoder_input_ids,
-            return_all_hypotheses=trcfg.return_hypotheses,
+            return_all_hypotheses=trcfg.return_all_hypotheses,
         )
 
         del enc_states, enc_mask, decoder_input_ids

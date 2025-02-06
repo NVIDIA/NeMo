@@ -354,15 +354,13 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 f"but was provided {self.cfg.strategy}"
             )
 
-    # TODO: [Sofia Kostandian] update docstring and add information about nbestyp->all_hyp
     def ctc_decoder_predictions_tensor(
         self,
         decoder_outputs: torch.Tensor,
         decoder_lengths: torch.Tensor = None,
         fold_consecutive: bool = True,
         return_all_hypotheses: bool = False,
-    ) -> Union[List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]]:
-        # TODO: [Sofia Kostandian] change output types and docstring
+    ) -> Union[List[Hypothesis], List[List[Hypothesis]]]:
         """
         Decodes a sequence of labels to words
 
@@ -374,15 +372,14 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 of the sequence in the padded `predictions` tensor.
             fold_consecutive: Bool, determine whether to perform "ctc collapse", folding consecutive tokens
                 into a single token.
-            return_hypotheses: Bool flag whether to return just the decoding predictions of the model
+            return_all_hypotheses: Bool flag whether to return just the decoding predictions of the model
                 or a Hypothesis object that holds information such as the decoded `text`,
                 the `alignment` of emited by the CTC Model, and the `length` of the sequence (if available).
                 May also contain the log-probabilities of the decoder (if this method is called via
                 transcribe())
 
         Returns:
-            Either a list of str which represent the CTC decoded strings per sample,
-            or a list of Hypothesis objects containing additional information.
+            A list of Hypothesis objects containing additional information.
         """
 
         if isinstance(decoder_outputs, torch.Tensor):

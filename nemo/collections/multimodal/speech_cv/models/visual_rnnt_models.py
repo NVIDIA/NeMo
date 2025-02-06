@@ -239,7 +239,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
         Returns:
-            Returns a list of greedy transcript texts / Hypothesis.
+            Returns a list of greedy transcript Hypothesis or list of all Hypothesis
         """
         if paths2video_files is None or len(paths2video_files) == 0:
             return {}

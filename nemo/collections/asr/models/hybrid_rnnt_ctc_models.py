@@ -16,7 +16,7 @@ import copy
 import json
 import os
 import tempfile
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Union
 
 import torch
 from lightning.pytorch import Trainer
@@ -211,7 +211,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):
         hypotheses = self.ctc_decoding.ctc_decoder_predictions_tensor(
             logits,
             encoded_len,
-            return_all_hypotheses=trcfg.return_hypotheses,
+            return_all_hypotheses=trcfg.return_all_hypotheses,
         )
         logits = logits.cpu()
 

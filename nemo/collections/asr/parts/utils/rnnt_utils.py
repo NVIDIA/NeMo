@@ -118,7 +118,7 @@ class Hypothesis:
         """
         non_blank_frame_confidence = []
         # self.timestamp can be a dict for RNNT
-        timestamp = self.timestamp['timestamp'] if isinstance(self.timestamp, dict) else self.timestamp
+        timestamp = self.timestamp['timestep'] if isinstance(self.timestamp, dict) else self.timestamp
         if len(timestamp) != 0 and self.frame_confidence is not None:
             if any(isinstance(i, list) for i in self.frame_confidence):  # rnnt
                 t_prev = -1

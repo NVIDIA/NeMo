@@ -16,7 +16,7 @@ import copy
 import json
 import os
 import tempfile
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
 from lightning.pytorch import Trainer
@@ -100,7 +100,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         partial_hypothesis: Optional[List['Hypothesis']] = None,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
-    ) -> (List[str], Optional[List['Hypothesis']]):
+    ) -> Union[List['Hypothesis'], Optional[List['Hypothesis']]]:
         """
         Uses greedy decoding to transcribe video files. Use this method for debugging and prototyping.
 
@@ -115,7 +115,7 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
 
         Returns:
-            Returns a list of greedy transcript texts / Hypothesis
+            Returns a list of greedy transcript Hypothesis or list of all Hypothesis
         """
         if self.use_rnnt_decoder:
             return super().transcribe(

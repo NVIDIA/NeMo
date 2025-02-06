@@ -40,7 +40,7 @@ from nemo.collections.asr.parts.mixins import (
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import process_timestamp_outputs
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
@@ -946,7 +946,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         hyp = self.decoding.rnnt_decoder_predictions_tensor(
             encoded,
             encoded_len,
-            return_all_hypotheses=trcfg.return_hypotheses,
+            return_all_hypotheses=trcfg.return_all_hypotheses,
             partial_hypotheses=trcfg.partial_hypothesis,
         )
         # cleanup memory
