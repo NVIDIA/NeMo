@@ -93,9 +93,9 @@ from nemo.utils.get_rank import is_global_rank_zero
 @dataclass
 class ParallelTranscriptionConfig:
     model: Optional[str] = None  # name
-    predict_ds: ASRDatasetConfig = field(default_factory=lambda: ASRDatasetConfig(
-        return_sample_id=True, num_workers=4, min_duration=0, max_duration=40
-    ))
+    predict_ds: ASRDatasetConfig = field(
+        default_factory=lambda: ASRDatasetConfig(return_sample_id=True, num_workers=4, min_duration=0, max_duration=40)
+    )
     output_path: str = MISSING
 
     # when return_predictions is enabled, the prediction call would keep all the predictions in memory and return them when prediction is done
@@ -111,7 +111,9 @@ class ParallelTranscriptionConfig:
     # att_context_size can be set for cache-aware streaming models with multiple look-aheads
     att_context_size: Optional[list] = None
 
-    trainer: TrainerConfig = field(default_factory=lambda: TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp"))
+    trainer: TrainerConfig = field(
+        default_factory=lambda: TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
+    )
 
 
 def match_train_config(predict_ds, train_ds):
