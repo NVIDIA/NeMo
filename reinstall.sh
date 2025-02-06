@@ -29,23 +29,23 @@ mcore() {
     if [ ! -d "$CAUSAL_CONV1D_DIR/.git" ]; then
       rm -rf "$CAUSAL_CONV1D_DIR" &&
         cd $(dirname "$CAUSAL_CONV1D_DIR") &&
-        git clone https://github.com/Dao-AILab/$CAUSAL_CONV1D_DIR.git
+        git clone https://github.com/Dao-AILab/$(basename $CAUSAL_CONV1D_DIR).git
     fi &&
     pushd $CAUSAL_CONV1D_DIR &&
     git checkout -f $CAUSAL_CONV_TAG &&
     popd
 
-  MAMBA_DIR="mamba" &&
+  MAMBA_DIR="/optmamba" &&
     if [ ! -d "$MAMBA_DIR/.git" ]; then
       rm -rf "$MAMBA_DIR" &&
         cd $(dirname "$MAMBA_DIR") &&
-        git clone https://github.com/state-spaces/$MAMBA_DIR.git
+        git clone https://github.com/state-spaces/$(basename $MAMBA_DIR).git
     fi &&
     pushd $MAMBA_DIR &&
     git checkout -f $MAMBA_TAG &&
     popd
 
-  MLM_DIR="Megatron-LM" &&
+  MLM_DIR="/opt/Megatron-LM" &&
     if [ ! -d "$MLM_DIR/.git" ]; then
       rm -rf "$MLM_DIR" &&
         cd $(dirname "$MLM_DIR") &&
