@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
-
 import nemo_run as run
 from argument_parser import parse_cli_args
 from utils import (
@@ -28,13 +28,14 @@ from utils import (
 
 from nemo.collections.llm.recipes.gpt3_175b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-    userbuffers_bf16_h100_h12288_tp4_mbs1_seqlen2048, 
-    userbuffers_fp8_h100_h12288_tp4_mbs1_seqlen2048, 
-    userbuffers_bf16_b200_h12288_tp4_mbs1_seqlen2048, 
-    userbuffers_fp8_b200_h12288_tp4_mbs1_seqlen2048
+    userbuffers_bf16_b200_h12288_tp4_mbs1_seqlen2048,
+    userbuffers_bf16_h100_h12288_tp4_mbs1_seqlen2048,
+    userbuffers_fp8_b200_h12288_tp4_mbs1_seqlen2048,
+    userbuffers_fp8_h100_h12288_tp4_mbs1_seqlen2048,
 )
+from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+
 
 def override_recipe_configs(
     args: str,
@@ -85,12 +86,12 @@ def override_recipe_configs(
         "b200": {
             "bf16": userbuffers_bf16_b200_h12288_tp4_mbs1_seqlen2048,
             "fp8": userbuffers_fp8_b200_h12288_tp4_mbs1_seqlen2048,
-        }
+        },
     }
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
-    
+
     tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
     # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
     tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))

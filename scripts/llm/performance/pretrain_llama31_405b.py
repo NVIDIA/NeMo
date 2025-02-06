@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
-
 import nemo_run as run
 from argument_parser import parse_cli_args
 from utils import (
@@ -28,13 +28,14 @@ from utils import (
 
 from nemo.collections.llm.recipes.llama31_405b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
-    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192,
     userbuffers_bf16_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
     userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192,
 )
+from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+
 
 def override_recipe_configs(
     args: str,
@@ -85,7 +86,7 @@ def override_recipe_configs(
         "b200": {
             "bf16": userbuffers_bf16_b200_h16384_tp4_cp2_mbs1_seqlen8192,
             "fp8": userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
-        }
+        },
     }
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
