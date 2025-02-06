@@ -5,6 +5,8 @@ from typing import List, Literal, Optional
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer import TransformerConfig
+from megatron.core.transformer.enums import AttnBackend
+from nemo.tron.init import get_world_size_safe
 
 
 @dataclass
@@ -915,4 +917,22 @@ class FlatConfig(
     MegatronLMConfig,
     DistributedDataParallelConfig,
 ):
-    pass
+    def __post_init__(self):
+        """Validate, copy values, and create inferred values."""
+        world_size = get_world_size_safe()
+
+        encoder_model_size = (
+            self.encoder_tensor_model_parallel_size
+            * self.encoder_pipeline_model_parallel_size
+            * self.context_parallel_size
+        )
+        decoder_model_size = (
+            self.tensor_model_parallel_size * self.pipeline_model_parallel_size * self.context_parallel_size
+        )
+        total_model_size = encoder_model_size + decoder_model_size
+
+        # Total model size.
+        assert (
+            world_size % total_model_size == 0
+        ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
+        self.data_parallel_size = world_size // total_model_size
