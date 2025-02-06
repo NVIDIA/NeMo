@@ -39,7 +39,7 @@ def get_vocab_size(
     vocab_size: int,
     make_vocab_size_divisible_by: int = 128,
 ) -> int:
-    """ returns `vocab size + padding` to make sure sum is dividable by `make_vocab_size_divisible_by`"""
+    """returns `vocab size + padding` to make sure sum is dividable by `make_vocab_size_divisible_by`"""
     from nemo.utils import logging
 
     after = vocab_size
@@ -53,7 +53,7 @@ def get_vocab_size(
 
 
 def teardown(trainer: Trainer, model: Optional[nn.Module] = None) -> None:
-    """ Destroys distributed environment and cleans up cache / collects garbage """
+    """Destroys distributed environment and cleans up cache / collects garbage"""
     # Destroy torch distributed
     if torch.distributed.is_initialized():
         from megatron.core import parallel_state
