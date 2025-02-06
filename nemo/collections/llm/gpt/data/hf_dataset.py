@@ -78,7 +78,7 @@ def make_dataset_splits(dataset, split, split_aliases):
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = split
     elif isinstance(split, list):
-        logging.info(f"Loaded HF dataset will use " + str(split) + " splits.")
+        logging.info(f"Loaded HF dataset will use {str(split)} splits.")
         assert isinstance(dataset, list)
         for i, alias_split_name in enumerate(map(clean_split, split)):
             split_name = alias_to_split[alias_split_name]
