@@ -13,7 +13,7 @@ ALL_LIBRARIES=(
 INSTALL_OPTION=${1:-dev}
 HEAVY_DEPS=${HEAVY_DEPS:-false}
 CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-WHEELS_DIR=${WHEELS_DIR:-'$WHEELS_DIR/'}
+WHEELS_DIR=${WHEELS_DIR:-'/tmp/wheels'}
 
 PIP=pip
 ${PIP} install -U ${PIP}
