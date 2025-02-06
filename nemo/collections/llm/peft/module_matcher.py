@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,21 @@ from typing import Dict, List, Set
 import torch.nn as nn
 
 from nemo.collections.llm.peft.utils import wildcard_match
+from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
+from torch import nn
+
+from nemo.utils.import_utils import safe_import_from
+TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TEColumnParallelLinear"
+)
+TELayerNormColumnParallelLinear, HAVE_TE_LN_COL_LINEAR = safe_import_from(
+    "megatron.core.extensions.transformer_engine",
+    "TELayerNormColumnParallelLinear",
+)
+TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
+)
+HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
 
 
 @dataclass
@@ -97,11 +112,20 @@ class ModuleMatcher:
                 if name == pattern or wildcard_match(pattern, full_name):
                     return (pattern, full_name)
         else:
+            linear_types = [ColumnParallelLinear, RowParallelLinear, nn.Linear]
+            if HAVE_TE_COL_LINEAR:
+                linear_types.append(TEColumnParallelLinear)
+            if HAVE_TE_LN_COL_LINEAR:
+                linear_types.append(TELayerNormColumnParallelLinear)
+            if HAVE_TE_ROW_LINEAR:
+                linear_types.append(TERowParallelLinear)
+            linear_types = tuple(linear_types)
+
             assert len(self.exclude_modules) > 0
             if (
                 not name in self.exclude_modules
                 and not any(wildcard_match(pattern, full_name) for pattern in self.exclude_modules)
-                and isinstance(m, nn.Linear)
+                and isinstance(m, linear_types)
             ):
                 return (name, full_name)
 
