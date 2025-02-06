@@ -25,9 +25,9 @@ from datasets import load_dataset
 
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.utils import (
+    _get_samples_mapping,
     _JSONLMemMapDataset,
     _OnlineSampleMapping,
-    _get_samples_mapping,
     _preprocess,
 )
 from nemo.core.classes import Dataset
