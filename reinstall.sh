@@ -60,7 +60,7 @@ mcore() {
     pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $CAUSAL_CONV1D_DIR
     pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $MLM_DIR
   else
-    pip install --no-cache-dir "$WHEELS_DIR/mcore/*.whl"
+    pip install --no-cache-dir $WHEELS_DIR/mcore/*.whl
     pip install --no-cache-dir -e $MLM_DIR
   fi
 }
