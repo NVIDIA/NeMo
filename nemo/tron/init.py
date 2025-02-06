@@ -153,7 +153,6 @@ def _initialize_distributed(cfg: FlatConfig, get_embedding_ranks, get_position_e
         if parallel_state.model_parallel_is_initialized():
             print("model parallel is already initialized")
         else:
-            # TODO (maanug): finish extracting args
             parallel_state.initialize_model_parallel(
                 cfg.tensor_model_parallel_size,
                 cfg.pipeline_model_parallel_size,
