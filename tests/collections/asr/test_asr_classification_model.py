@@ -188,36 +188,36 @@ class TestEncDecClassificationModel:
 
     #     model = speech_classification_model.eval()
 
-        # Test Top 1 classification transcription
-        # results = model.transcribe(audio_paths, batch_size=2)
-        # assert len(results) == 2
-        # assert results[0].shape == torch.Size([1])
+    # Test Top 1 classification transcription
+    # results = model.transcribe(audio_paths, batch_size=2)
+    # assert len(results) == 2
+    # assert results[0].shape == torch.Size([1])
 
-        # # Test Top 5 classification transcription
-        # model._accuracy.top_k = [5]  # set top k to 5 for accuracy calculation
-        # results = model.transcribe(audio_paths, batch_size=2)
-        # assert len(results) == 2
-        # assert results[0].shape == torch.Size([5])
+    # # Test Top 5 classification transcription
+    # model._accuracy.top_k = [5]  # set top k to 5 for accuracy calculation
+    # results = model.transcribe(audio_paths, batch_size=2)
+    # assert len(results) == 2
+    # assert results[0].shape == torch.Size([5])
 
-        # # Test Top 1 and Top 5 classification transcription
-        # model._accuracy.top_k = [1, 5]
-        # results = model.transcribe(audio_paths, batch_size=2)
-        # assert len(results) == 2
-        # assert results[0].shape == torch.Size([2, 1])
-        # assert results[1].shape == torch.Size([2, 5])
-        # assert model._accuracy.top_k == [1, 5]
+    # # Test Top 1 and Top 5 classification transcription
+    # model._accuracy.top_k = [1, 5]
+    # results = model.transcribe(audio_paths, batch_size=2)
+    # assert len(results) == 2
+    # assert results[0].shape == torch.Size([2, 1])
+    # assert results[1].shape == torch.Size([2, 5])
+    # assert model._accuracy.top_k == [1, 5]
 
-        # # Test log probs extraction
-        # model._accuracy.top_k = [1]
-        # results = model.transcribe(audio_paths, batch_size=2, logprobs=True)
-        # assert len(results) == 2
-        # assert results[0].shape == torch.Size([len(model.cfg.labels)])
+    # # Test log probs extraction
+    # model._accuracy.top_k = [1]
+    # results = model.transcribe(audio_paths, batch_size=2, logprobs=True)
+    # assert len(results) == 2
+    # assert results[0].shape == torch.Size([len(model.cfg.labels)])
 
-        # # Test log probs extraction remains same for any top_k
-        # model._accuracy.top_k = [5]
-        # results = model.transcribe(audio_paths, batch_size=2, logprobs=True)
-        # assert len(results) == 2
-        # assert results[0].shape == torch.Size([len(model.cfg.labels)])
+    # # Test log probs extraction remains same for any top_k
+    # model._accuracy.top_k = [5]
+    # results = model.transcribe(audio_paths, batch_size=2, logprobs=True)
+    # assert len(results) == 2
+    # assert results[0].shape == torch.Size([len(model.cfg.labels)])
 
     @pytest.mark.unit
     def test_EncDecClassificationDatasetConfig_for_AudioToSpeechLabelDataset(self):

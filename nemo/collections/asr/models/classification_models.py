@@ -486,11 +486,11 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
 
 class EncDecClassificationModel(EncDecSpeakerLabelModel):
-    
+
     logging.warning(
-    "Please use the EncDecSpeakerLabelModel instead of this model. EncDecClassificationModel model is kept for backward compatibility with older models."
+        "Please use the EncDecSpeakerLabelModel instead of this model. EncDecClassificationModel model is kept for backward compatibility with older models."
     )
-    
+
     def forward_for_export(self, audio_signal, length):
         encoded, length = self.encoder(audio_signal=audio_signal, length=length)
         logits = self.decoder(encoder_output=encoded, length=length)
@@ -640,7 +640,6 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel):
         results.append(model)
         return results
 
-
     @torch.no_grad()
     def transcribe(
         self,
@@ -734,7 +733,7 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel):
             self._accuracy.top_k = top_ks
 
         return labels
-    
+
     def forward(self, input_signal, input_signal_length):
         logits, _ = super().forward(input_signal, input_signal_length)
         return logits
