@@ -108,9 +108,6 @@ def main():
         )
     )
 
-    if args.strategy == 'fsdp2':
-        args.strategy = nl.FSDP2Strategy(data_parallel_size=args.devices * args.num_nodes, tensor_parallel_size=1)
-
     model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     if args.strategy == 'ddp':
         args.strategy = pl.strategies.DDPStrategy(
