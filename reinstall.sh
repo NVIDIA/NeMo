@@ -35,7 +35,7 @@ mcore() {
     git checkout -f $CAUSAL_CONV_TAG &&
     popd
 
-  MAMBA_DIR="/optmamba" &&
+  MAMBA_DIR="/opt/mamba" &&
     if [ ! -d "$MAMBA_DIR/.git" ]; then
       rm -rf "$MAMBA_DIR" &&
         cd $(dirname "$MAMBA_DIR") &&
