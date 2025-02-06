@@ -17,14 +17,15 @@ import json
 import logging
 import os.path
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy
 import safetensors.torch
-import tensorstore  # needed to register 'bfloat16' dtype with numpy for zarr compatibility
+# needed to register 'bfloat16' dtype with numpy for zarr compatibility
+import tensorstore  # pylint: disable=unused-import
 import torch
 import zarr
-from vllm.config import CacheConfig, DeviceConfig, LoRAConfig, ModelConfig, ParallelConfig, SchedulerConfig
+from vllm.config import ModelConfig
 from vllm.model_executor.model_loader.loader import BaseModelLoader, _initialize_model
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 
