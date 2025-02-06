@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import copy
 import datetime
+import json
 import multiprocessing as mp
 import os
 import pickle
@@ -75,7 +75,7 @@ def build_index_from_memdata(fn, newline_int):
     del mdata
 
     return midx
- 
+
 
 class _TextMemMapDataset(Dataset):
     """
