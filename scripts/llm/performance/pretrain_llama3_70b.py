@@ -13,10 +13,11 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+import fiddle as fdl
+import fiddle._src.experimental.dataclasses as fdl_dc
 
 import nemo_run as run
 from argument_parser import parse_cli_args
-from nemo_run.core.serialization.zlib_json import ZlibJSONSerializer
 from utils import (
     get_comm_overlap_callback_idx,
     get_user_configs,
@@ -79,25 +80,26 @@ def override_recipe_configs(
 
     ub_cfg = {
         "h100": {
-            "bf16": run.Config(userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192),
-            "fp8": run.Config(userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192),
+            "bf16": userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
+            "fp8": userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192,
         },
         "b200": {
-            "bf16": run.Config(userbuffers_bf16_b200_h8192_tp4_mbs1_seqlen8192),
-            "fp8": run.Config(userbuffers_fp8_b200_h8192_tp4_mbs1_seqlen8192),
+            "bf16": userbuffers_bf16_b200_h8192_tp4_mbs1_seqlen8192,
+            "fp8": userbuffers_fp8_b200_h8192_tp4_mbs1_seqlen8192,
         },
     }
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
-    recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
+
+    tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
+    # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
+    tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
+    recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
     enable_cuda_graph = bool(gpu_type in ["b200"])
     recipe.model.config.enable_cuda_graph = enable_cuda_graph
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
-
-    # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
-    ZlibJSONSerializer().serialize(recipe)
 
     return recipe
 

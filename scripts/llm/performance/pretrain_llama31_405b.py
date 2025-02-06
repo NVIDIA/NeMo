@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+import fiddle as fdl
+import fiddle._src.experimental.dataclasses as fdl_dc
 
 import nemo_run as run
 from argument_parser import parse_cli_args
@@ -27,7 +29,12 @@ from utils import (
 from nemo.collections.llm.recipes.llama31_405b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+    userbuffers_bf16_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+    userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+)
 
 def override_recipe_configs(
     args: str,
@@ -66,20 +73,28 @@ def override_recipe_configs(
     recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("meta-llama/Llama-3.1-405B")
 
-    comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
-    if gpu_type == "b200":
-        pass
-        # TODO @malay: add b200 tp overlap configs
-
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.proj_fprop.fp8_buf = True
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg.fc2_fprop.fp8_buf = True
 
-    enable_cuda_graph = bool(gpu_type in ["b200"])
-    recipe.model.config.enable_cuda_graph = enable_cuda_graph
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
+    ub_cfg = {
+        "h100": {
+            "bf16": userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+            "fp8": userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+        },
+        "b200": {
+            "bf16": userbuffers_bf16_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+            "fp8": userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+        }
+    }
+
+    comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
+    assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
+
+    tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
+    # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
+    tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
+    recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
     return recipe
 
