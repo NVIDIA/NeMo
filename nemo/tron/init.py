@@ -1,50 +1,10 @@
 import os
 import time
-from dataclasses import dataclass
-from typing import Literal, Optional
 
 import torch
 from megatron.core import parallel_state, tensor_parallel
 
-
-@dataclass
-class DistInitConfig:
-    tensor_model_parallel_size: int = 1
-
-    tp_comm_overlap: bool = False
-    """Enables the overlap of Tensor parallel communication and GEMM kernels."""
-
-    lazy_mpu_init: Optional[bool] = None
-    """If set to True, initialize_megatron() skips DDP initialization and 
-    returns function to complete it instead. Also turns on
-    --use-cpu-initialization flag. This is for external DDP manager. """
-
-    seed: int = 1234
-    """Random seed used for python, numpy, pytorch, and cuda."""
-
-    data_parallel_random_init: bool = False
-    """Enable random initialization of params across data parallel ranks"""
-
-    te_rng_tracker: bool = False
-    """Use the Transformer Engine version of the random number generator. 
-    Required for CUDA graphs support."""
-
-    inference_rng_tracker: bool = False
-    """Use a random number generator configured for inference."""
-
-
-@dataclass
-class RerunStateMachineConfig:
-    error_injection_rate: int = 0
-    """Rate at which to inject unexpected results, e.g. 1000 means 
-    once every 1000 result validations"""
-
-    error_injection_type: Literal['correct_result', 'transient_error', 'persistent_error'] = 'transient_error'
-    """Type of error to inject. """
-
-    rerun_mode: Literal['disabled', 'validate_results', 'report_stats'] = 'disabled'
-    """Use re-run engine to validate results (default) or to emit stats
-    on variability of computations due to non-deterministic algorithms."""
+from nemo.tron.config import FlatConfig
 
 
 def get_rank_safe() -> int:
@@ -73,8 +33,7 @@ def initialize_megatron(
     # extra_args_provider=None,
     # args_defaults={},
     # ignore_unknown_args=False,
-    rerun_sm_cfg: RerunStateMachineConfig,
-    dist_cfg: DistInitConfig,
+    cfg: FlatConfig,
     allow_no_cuda=False,
     skip_mpu_initialization=False,
     get_embedding_ranks=None,
@@ -102,17 +61,18 @@ def initialize_megatron(
     set_global_variables()  # TODO (maanug): implement
 
     # init rerun global state
-    _init_rerun_state(rerun_sm_cfg)
+    _init_rerun_state(cfg)
 
     # torch.distributed initialization
-    _torch_dist_init(dist_cfg, get_embedding_ranks, get_position_embedding_ranks, skip_mpu_initialization)
+    _torch_dist_init(cfg, get_embedding_ranks, get_position_embedding_ranks, skip_mpu_initialization)
 
 
-def _torch_dist_init(cfg: DistInitConfig, get_embedding_ranks, get_position_embedding_ranks, skip_mpu_initialization):
+def _torch_dist_init(cfg: FlatConfig, get_embedding_ranks, get_position_embedding_ranks, skip_mpu_initialization):
     def finish_mpu_init():
         # Pytorch distributed.
         _initialize_distributed(get_embedding_ranks, get_position_embedding_ranks)  # TODO (maanug): implement
 
+        # Random seeds for reproducibility.
         if get_rank_safe() == 0:
             print("> setting random seeds to {} ...".format(cfg.seed))
         _set_random_seed(cfg.seed, cfg.data_parallel_random_init, cfg.te_rng_tracker, cfg.inference_rng_tracker)
@@ -121,9 +81,7 @@ def _torch_dist_init(cfg: DistInitConfig, get_embedding_ranks, get_position_embe
         return None
 
     if cfg.lazy_mpu_init:
-        # TODO (maanug): determine where this is accessed downstream
-        # args.use_cpu_initialization = True
-
+        cfg.use_cpu_initialization = True
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals
         parallel_state.set_tensor_model_parallel_world_size(cfg.tensor_model_parallel_size)
@@ -145,7 +103,7 @@ def _torch_dist_init(cfg: DistInitConfig, get_embedding_ranks, get_position_embe
         return None
 
 
-def _init_rerun_state(cfg: RerunStateMachineConfig):
+def _init_rerun_state(cfg: FlatConfig):
     from megatron.core.rerun_state_machine import (
         RerunDiagnostic,
         RerunErrorInjector,
