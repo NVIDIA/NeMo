@@ -69,7 +69,6 @@ def make_strategy(strategy, model, devices, num_nodes, save_adapter_only=False):
         )
     elif strategy == 'ddp':
         return pl.strategies.DDPStrategy(
-            parallel_devices=devices * num_nodes,
             checkpoint_io=model.make_checkpoint_io(save_adapter_only=save_adapter_only),
         )
     elif strategy == 'fsdp2':
