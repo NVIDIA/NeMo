@@ -62,6 +62,25 @@ def squad(tokenizer, mbs=1, gbs=2) -> pl.LightningDataModule:
         },
     )
 
+def make_strategy(strategy, model, devices, num_nodes, save_adapter_only=False):
+    if strategy == 'auto':
+        return pl.strategies.SingleDeviceStrategy(
+            checkpoint_io=model.make_checkpoint_io(save_adapter_only=save_adapter_only),
+        )
+    elif strategy == 'ddp':
+        return pl.strategies.DDPStrategy(
+            parallel_devices=devices * num_nodes,
+            checkpoint_io=model.make_checkpoint_io(save_adapter_only=save_adapter_only),
+        )
+    elif strategy == 'fsdp2':
+        return nl.FSDP2Strategy(
+            data_parallel_size=devices * num_nodes,
+            tensor_parallel_size=1,
+            checkpoint_io=model.make_checkpoint_io(save_adapter_only=save_adapter_only),
+        )
+    else:
+        raise NotImplemented("Encountered unknown strategy")
+
 
 def main():
     """Example script to run SFT with a HF transformers-instantiated model on squad."""
@@ -109,17 +128,7 @@ def main():
     )
 
     model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
-    if args.strategy == 'ddp':
-        args.strategy = pl.strategies.DDPStrategy(
-            parallel_devices=args.devices * args.num_nodes,
-            checkpoint_io=model.make_checkpoint_io(save_adapter_only=False),
-        )
-    elif args.strategy == 'fsdp2':
-        args.strategy = nl.FSDP2Strategy(
-            data_parallel_size=args.devices * args.num_nodes,
-            tensor_parallel_size=1,
-            checkpoint_io=model.make_checkpoint_io(save_adapter_only=False),
-        )
+    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
     llm.api.finetune(
         model=model,
@@ -129,7 +138,7 @@ def main():
             num_nodes=args.num_nodes,
             max_steps=args.max_steps,
             accelerator=args.accelerator,
-            strategy=args.strategy,
+            strategy=strategy,
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
