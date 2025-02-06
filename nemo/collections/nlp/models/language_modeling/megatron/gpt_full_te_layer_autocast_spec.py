@@ -50,6 +50,12 @@ except (ImportError, ModuleNotFoundError) as e:
 # Copied from nemo/collections/nlp/modules/common/megatron/transformer.py
 # as the source file is slated to be removed
 class AutocastTransformerLayer(TransformerLayer):
+    """
+    Wrapper of te.pytorch.TransformerLayer: a single transformerlayer
+    that takes input with size [s, b, h] and returns an output of
+    the same size.
+    """
+
     def __init__(
         self,
         hidden_size: int,
@@ -155,6 +161,9 @@ class AutocastTransformerLayer(TransformerLayer):
         is_first_microbatch: Optional[bool] = None,
         checkpoint_core_attention: Optional[bool] = False,
     ) -> torch.Tensor:
+        """
+        Perform a forward pass through the transformer layer.
+        """
         if self.dtype == torch.float32:
             return super().forward(
                 hidden_states,
@@ -178,6 +187,10 @@ class AutocastTransformerLayer(TransformerLayer):
 
 
 class TETransformerLayerAutocast(AutocastTransformerLayer, MegatronModule, BaseTransformerLayer):
+    """
+    A wrapper of the AutocastTransformerLayer.
+    """
+
     def __init__(self, config, layer_number=1, hidden_dropout=None):
         assert (
             HAVE_MEGATRON_CORE and HAVE_TE
@@ -336,6 +349,7 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, MegatronModule, BaseT
 
 # Use this spec to use the full Transformer layer from Transformer Engine
 def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:
+    """Get the ModuleSpec for full Transformer layer from Transformer Engine."""
     assert HAVE_MEGATRON_CORE and HAVE_TE, "Please ensure Megatron Core and Transformer Engine are installed."
     num_layers = get_num_layers_to_build(transformer_config)
     return TransformerBlockSubmodules(
