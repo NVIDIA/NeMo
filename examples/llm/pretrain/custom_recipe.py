@@ -15,7 +15,11 @@
 import nemo_run as run
 
 from nemo.collections import llm
-from nemo.collections.llm.recipes import llama3_8b, llama3_70b
+from nemo.collections.llm.recipes import llama3_8b, llama3_70b, hf_auto_model_for_causal_lm
+
+from nemo.collections.llm.recipes.log.default import default_log
+from data_utils import squad
+from lightning.pytorch.loggers import WandbLogger
 
 
 def custom_llama3_8b():
@@ -41,6 +45,32 @@ def custom_llama3_70b():
 
     return pretrain
 
+def custom_hf_auto_model_for_causal_lm(wandb_project_name = None):
+    model_name = "meta-llama/Llama-3.2-1B"
+    num_gpus_per_node = 2
+    pretrain = hf_auto_model_for_causal_lm.pretrain_recipe(model_name = model_name,num_nodes=1, num_gpus_per_node=2)
+
+    pretrain.trainer.max_steps = 1000
+    pretrain.trainer.val_check_interval = 400
+    pretrain.log.ckpt.save_top_k = -1
+
+    # Add a custom dataset
+    data=squad(llm.HFAutoModelForCausalLM.configure_tokenizer(model_name=model_name), gbs=num_gpus_per_node)
+    pretrain.data = data
+
+    # Add a custom logger
+    wandb_project_name = "nemo2"
+    if wandb_project_name is not None:
+        model = '_'.join(model_name.split('/')[-2:])
+        try:
+            wandb_logger = WandbLogger(
+                project=wandb_project_name,
+                name=f'{model}_dev{num_gpus_per_node}_strat_ddp',
+            )
+            pretrain.log = default_log(wandb_logger=wandb_logger)
+        except Exception as e:
+            print(f"Warning: WandbLogger initialization failed with error: {e}")
+    return pretrain
 
 if __name__ == "__main__":
     # When running this file, it will run the `custom_llama3_8b` recipe
