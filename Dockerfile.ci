@@ -100,9 +100,6 @@ RUN \
     bash reinstall.sh --library apex --mode install
     bash reinstall.sh --library te --mode install
     bash reinstall.sh --library mcore --mode install
-
-    # Megatron Core installation
-    cp -a /opt/Megatron-LM/. /workspace/
 EOF
 
 # Copy over NeMo code
@@ -113,6 +110,8 @@ bash /opt/NeMo/reinstall.sh --library nemo --mode install
 
 # set permission
 chmod 777 -R /workspace
+# Megatron Core installation
+cp -a /opt/Megatron-LM/. /workspace/
 EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
