@@ -1655,6 +1655,9 @@ class S2sModularAudioGPTModel(ModularAudioGPTModel):
                 param.requires_grad = True
             for param in self.model.output_layers.parameters():
                 param.requires_grad = True
+            if hasattr(self.model, "output_proj"):
+                for param in self.model.output_proj.parameters():
+                    param.requires_grad = True
 
 
 class S2sModularAudioGPTModelDepth(S2sModularAudioGPTModel):
