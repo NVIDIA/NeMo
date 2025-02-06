@@ -58,11 +58,11 @@ except Exception as e:
     trt_llm_supported = False
 
 vllm_supported = True
-# try:
-from nemo.export.vllm_exporter import vLLMExporter
-# except Exception as e:
-#     LOGGER.warning(f"Cannot import the vLLM exporter, it will not be available. {type(e).__name__}: {e}")
-#     vllm_supported = False
+try:
+    from nemo.export.vllm_exporter import vLLMExporter
+except Exception as e:
+    LOGGER.warning(f"Cannot import the vLLM exporter, it will not be available. {type(e).__name__}: {e}")
+    vllm_supported = False
 
 
 class UsageError(Exception):

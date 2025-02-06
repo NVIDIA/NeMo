@@ -20,7 +20,7 @@ from typing import Iterable, List, Optional, Union
 import numpy
 import wrapt
 from vllm import RequestOutput, SamplingParams
-from vllm.config import CacheConfig, DeviceConfig, LoadConfig, LoadFormat, LoRAConfig, ParallelConfig, SchedulerConfig
+from vllm.config import CacheConfig, DeviceConfig, LoadConfig, LoadFormat, LoRAConfig, ParallelConfig, SchedulerConfig, VllmConfig
 from vllm.executor.ray_utils import initialize_ray_cluster
 from vllm.lora.request import LoRARequest
 
@@ -30,8 +30,6 @@ from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
 from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
-
-from vllm.config import VllmConfig
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -241,27 +239,19 @@ class vLLMExporter(ITritonDeployable):
         )
 
         # Initialize the cluster and specify the executor class.
-        if device_config.device_type == "neuron":
-            from vllm.executor.neuron_executor import NeuronExecutor
-
-            executor_class = NeuronExecutor
-        elif device_config.device_type == "cpu":
-            from vllm.executor.cpu_executor import CPUExecutor
-
-            executor_class = CPUExecutor
-        elif parallel_config.distributed_executor_backend == "ray":
+        if parallel_config.distributed_executor_backend == "ray":
             initialize_ray_cluster(parallel_config)
-            from vllm.executor.ray_gpu_executor import RayGPUExecutor
+            from vllm.executor.ray_distributed_executor import RayDistributedExecutor
+            executor_class = RayDistributedExecutor
 
-            executor_class = RayGPUExecutor
         elif parallel_config.distributed_executor_backend == "mp":
-            from vllm.executor.multiproc_gpu_executor import MultiprocessingGPUExecutor
-
-            executor_class = MultiprocessingGPUExecutor
+            from vllm.executor.mp_distributed_executor import MultiprocessingDistributedExecutor
+            executor_class = MultiprocessingDistributedExecutor
+        
         else:
-            assert parallel_config.world_size == 1, "Ray is required if parallel_config.world_size > 1."
-            from vllm.executor.uniproc_executor import UniProcExecutor
+            assert parallel_config.distributed_executor_backend == "uni" or parallel_config.world_size == 1
 
+            from vllm.executor.uniproc_executor import UniProcExecutor
             executor_class = UniProcExecutor
 
         # Initialize the engine

@@ -94,9 +94,6 @@ class NemoModelLoader(BaseModelLoader):
         """
         model_config = vllm_config.model_config
         device_config = vllm_config.device_config
-        lora_config = vllm_config.lora_config
-        cache_config = vllm_config.cache_config
-
 
         assert isinstance(model_config, NemoModelConfig)
         state_dict = NemoModelLoader._load_nemo_checkpoint_state(model_config.nemo_checkpoint)
