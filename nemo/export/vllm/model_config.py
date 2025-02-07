@@ -56,6 +56,9 @@ class NemoModelConfig(ModelConfig):
         max_logprobs: int = 5,
         disable_sliding_window: bool = False,
         use_async_output_proc: bool = False,
+        disable_mm_preprocessor_cache: bool = False,
+        logits_processor_pattern: Optional[str] = None,
+        override_pooler_config: Optional["PoolerConfig"] = None,
     ) -> None:
         # Don't call ModelConfig.__init__ because we don't want it to call
         # transformers.AutoConfig.from_pretrained(...)
@@ -87,11 +90,14 @@ class NemoModelConfig(ModelConfig):
         self.multimodal_config = None
         self.mm_processor_kwargs = {}
         self.use_async_output_proc = use_async_output_proc
+        self.disable_mm_preprocessor_cache = disable_mm_preprocessor_cache
+        self.logits_processor_pattern = logits_processor_pattern
         self.generation_config = None
         self.task = "generate"
         self.enable_sleep_mode = False
         self.is_hybrid = False
         self.encoder_config = self._get_encoder_config()
+        self.pooler_config = self._init_pooler_config(override_pooler_config)
 
         self.model_converter = get_model_converter(model_type)
         if self.model_converter is None:
@@ -150,13 +156,17 @@ class NemoModelConfig(ModelConfig):
 
     @staticmethod
     def _change_paths_to_absolute_paths(tokenizer_config, nemo_checkpoint):
-        tokenizer_local_path = nemo_checkpoint / 'context'
+        context_path = nemo_checkpoint / 'context'
         path_keys = ['pretrained_model_name', 'model_path']
 
         for path_key in path_keys:
             if path := tokenizer_config.get(path_key, None):
-                tokenizer_config[path_key] = str((tokenizer_local_path / path).resolve())
+                tokenizer_path = context_path / path
+                if not tokenizer_path.exists():
+                    continue
 
+                tokenizer_config[path_key] = str(tokenizer_path.resolve())
+        
         return tokenizer_config
 
     def _load_hf_arguments(self, nemo_config: Dict[str, Any]) -> Dict[str, Any]:
