@@ -54,6 +54,7 @@ if __name__ == '__main__':
         pipeline_model_parallel_size=args.pp_size,
         # Pipeline dtype is coupled with the bf16 mixed precision plugin
         pipeline_dtype=torch.bfloat16,
+        ckpt_load_strictness="log_all",  # Only for CI tests to use older versions of checkpoint
     )
 
     trainer = nl.Trainer(
