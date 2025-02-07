@@ -197,6 +197,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):
         ), "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
 
         super().__init__(config=config)
+        self.layer_number = layer_number + + self._get_layer_offset()
 
         self.config = config
         self.is_first_microbatch = True
