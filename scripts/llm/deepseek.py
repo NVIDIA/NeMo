@@ -30,9 +30,13 @@ from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
 DATA_PATH = '/lustre/fsw/coreai_dlalgo_llm/boxiangw/data/squad'
 
+
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
-    parser.add_argument('--model', default='/lustre/fsw/coreai_dlalgo_llm/akoumparouli/nemo_bench/nemo_bench/llama33/hf_ckpts/DeepSeek-R1-Distill-Qwen-32B')
+    parser.add_argument(
+        '--model',
+        default='/lustre/fsw/coreai_dlalgo_llm/akoumparouli/nemo_bench/nemo_bench/llama33/hf_ckpts/DeepSeek-R1-Distill-Qwen-32B',
+    )
     parser.add_argument('--nodes', default=2)
     parser.add_argument('--devices', default=8)
     parser.add_argument(
@@ -101,10 +105,10 @@ def slurm_executor(
         ),
         nodes=nodes,
         ntasks_per_node=devices,
-        #gpus_per_node=devices,
+        # gpus_per_node=devices,
         mem="0",
         exclusive=True,
-        #gres="gpu:8",
+        # gres="gpu:8",
         packager=run.GitArchivePackager(),
     )
 
@@ -160,7 +164,9 @@ def main():
         tokenizer=run.Config(AutoTokenizer, pretrained_model_name=args.model),
     )
 
-    recipe.trainer.strategy = run.Config(nl.FSDP2Strategy, data_parallel_size=args.nodes*args.devices, tensor_parallel_size=1)
+    recipe.trainer.strategy = run.Config(
+        nl.FSDP2Strategy, data_parallel_size=args.nodes * args.devices, tensor_parallel_size=1
+    )
     recipe.trainer.plugins = None
 
     executor: run.Executor
@@ -178,7 +184,7 @@ def main():
             custom_mounts=[
                 "/home/boxiangw/NeMo:/opt/NeMo",
                 "/home/boxiangw/megatron-lm:/opt/megatron-lm",
-                "/lustre:/lustre"
+                "/lustre:/lustre",
             ],
         )
     else:
