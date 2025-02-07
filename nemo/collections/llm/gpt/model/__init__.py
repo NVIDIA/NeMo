@@ -113,9 +113,16 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
 
 __all__ = [
     "GPTConfig",
+    "GPTConfig5B",
+    "GPTConfig7B",
+    "GPTConfig20B",
+    "GPTConfig40B",
+    "GPTConfig126M",
+    "GPTConfig175B",
     "GPTModel",
     "MistralConfig7B",
     "MistralModel",
+    "MistralNeMoConfig12B",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
