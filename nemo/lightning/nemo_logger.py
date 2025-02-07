@@ -27,7 +27,6 @@ from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.lightning.pytorch.utils import get_automodel_from_trainer
 
 
 @dataclass
@@ -216,15 +215,16 @@ class NeMoLogger(IOMixin):
                         f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
                     )
 
+        from nemo.lightning import MegatronStrategy
         for callback in trainer.callbacks:
             if isinstance(callback, PTLModelCheckpoint):
                 if callback.dirpath is None:
                     callback.dirpath = Path(log_dir / "checkpoints")
                 if callback.filename is None:
-                    if get_automodel_from_trainer(trainer) is None:
-                        callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{consumed_samples}}"
+                    if isinstance(trainer.strategy, MegatronStrategy):
+                            callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{consumed_samples}}"
                     else:
-                        # For automodel we log global-step
+                        # For automodel we log global_step
                         callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{global_step}}"
                 ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + "-last"
 
