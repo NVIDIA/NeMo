@@ -148,7 +148,6 @@ class NemoModelConfig(ModelConfig):
         self._verify_quantization()
         self._verify_cuda_graph()
 
-
     @staticmethod
     def _change_paths_to_absolute_paths(tokenizer_config, nemo_checkpoint):
         tokenizer_local_path = nemo_checkpoint / 'context'
@@ -157,9 +156,8 @@ class NemoModelConfig(ModelConfig):
         for path_key in path_keys:
             if path := tokenizer_config.get(path_key, None):
                 tokenizer_config[path_key] = str((tokenizer_local_path / path).resolve())
-        
-        return tokenizer_config
 
+        return tokenizer_config
 
     def _load_hf_arguments(self, nemo_config: Dict[str, Any]) -> Dict[str, Any]:
         """
