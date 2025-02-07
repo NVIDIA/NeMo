@@ -641,22 +641,17 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
 
         OmegaConf.set_struct(cfg, True)
 
-    def init(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._update_decoder_config(cfg.labels, cfg.decoder)
         if hasattr(cfg, 'is_regression_task') and cfg.is_regression_task is not None:
             self.is_regression_task = cfg.is_regression_task
         else:
             self.is_regression_task = False
-<<<<<<< Updated upstream
-
-=======
-        super().init(cfg, trainer)
->>>>>>> Stashed changes
+        super().__init__(cfg, trainer)
         if hasattr(cfg, 'crop_or_pad_augment') and cfg.crop_or_pad_augment is not None:
             self.crop_or_pad = ASRModel.from_config_dict(cfg.crop_or_pad_augment)
         else:
             self.crop_or_pad = None
-        super().__init__(cfg, trainer)
 
     def change_labels(self, new_labels: List[str]):
         """
