@@ -19,11 +19,10 @@ ${PIP} uninstall -y nemo_tts
 
 export MAMBA_FORCE_BUILD=TRUE
 export CAUSAL_CONV1D_FORCE_BUILD=TRUE
-export NEMO_RUN_TAG=main
+export NEMO_RUN_TAG=5ed6128f9285e61cfee73d780b663c9d780f20c7
 export CAUSAL_CONV_TAG=v1.2.2.post1
 export MAMBA_TAG=v2.2.0
 export MCORE_TAG=0e85db539cf16816ffced6e7dac644d91ffadc04
-export NV_RESILIENCY_EXT_TAG=98ebc4266a6b19203086c286f38b11b4fe38f4f1
 
 ${PIP} install setuptools
 
@@ -45,7 +44,6 @@ DEPS=(
   "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
   "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG}"
   "git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG}"
-  "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@${NV_RESILIENCY_EXT_TAG}"
   "onnxscript @ git+https://github.com/microsoft/onnxscript"
 )
 
