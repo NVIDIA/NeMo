@@ -181,11 +181,11 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
         virtual_pipeline_model_parallel_size=None,
         pipeline_model_parallel_split_rank=None,
         encoder_pipeline_model_parallel_size=None,
-        encoder_tensor_parallel_size=None,
+        encoder_tensor_model_parallel_size=None,
         context_parallel_size=2,
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
-        order="tp-cp-ep-pp-dp",
+        order="tp-cp-ep-dp-pp",
     )
 
 
