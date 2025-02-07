@@ -526,13 +526,15 @@ class ModelCheckpoint(PTLModelCheckpoint):
         monitor_candidates = super()._monitor_candidates(trainer)
 
         from nemo.lightning._strategy_lib import _sync_from_last_pipeline_stage
+        from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 
         keys = re.findall(r"[\{](.*?)[:\}]", self.filename)
         for loss_name in ['reduced_train_loss']:
             if loss_name in keys or loss_name == self.monitor:
                 if loss_name not in monitor_candidates:
                     monitor_candidates[loss_name] = torch.tensor(0.0, device=torch.cuda.current_device())
-                _sync_from_last_pipeline_stage(monitor_candidates[loss_name], broadcast=True)
+                if isinstance(trainer.strategy, MegatronStrategy):
+                    _sync_from_last_pipeline_stage(monitor_candidates[loss_name], broadcast=True)
 
         return monitor_candidates
 
