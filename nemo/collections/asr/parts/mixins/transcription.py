@@ -31,7 +31,6 @@ from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, Chann
 from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.utils import logging, logging_mode
-from nemo.utils.decorators import deprecated
 
 TranscriptionReturnType = Union[List[str], List['Hypothesis'], Tuple[List[str]], Tuple[List['Hypothesis']]]
 GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
@@ -68,7 +67,6 @@ class TranscribeConfig:
     partial_hypothesis: Optional[List[Any]] = None
 
     _internal: Optional[InternalTranscribeConfig] = None
-
 
 
 def get_value_from_transcription_config(trcfg, key, default):
@@ -231,6 +229,7 @@ class TranscriptionMixin(ABC):
         if override_config is None:
             transcribe_cfg = TranscribeConfig(
                 batch_size=batch_size,
+                return_hypotheses=return_hypotheses,
                 num_workers=num_workers,
                 channel_selector=channel_selector,
                 augmentor=augmentor,
@@ -238,7 +237,6 @@ class TranscriptionMixin(ABC):
                 timestamps=timestamps,
                 **config_kwargs,
             )
-            transcribe_cfg.return_hypotheses = return_hypotheses
         else:
             if not hasattr(override_config, '_internal'):
                 raise ValueError(
