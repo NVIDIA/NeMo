@@ -92,13 +92,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def configure_model(self):
         # create all your layers here
         if self.load_pretrained_weights:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-                torch_dtype='auto',
-                trust_remote_code=self.trust_remote_code,
-                load_in_4bit=self.load_in_4bit,
-                attn_implementation=self.attn_implementation,
-            )
+            with torch.device('cpu'):
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name,
+                    torch_dtype='auto',
+                    trust_remote_code=self.trust_remote_code,
+                    load_in_4bit=self.load_in_4bit,
+                    attn_implementation=self.attn_implementation,
+                )
         else:
             from transformers import AutoConfig
 
@@ -122,6 +123,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model_accelerator(self.model)
 
         self.model.train()
+    
+    def configure_optimizers(self):
+        return torch.optim.AdamW(self.model.parameters(), lr=3e-3, foreach=True)
 
     def forward(self, batch):
         return self.model(**batch)

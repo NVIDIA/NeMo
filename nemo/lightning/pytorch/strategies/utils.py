@@ -388,6 +388,6 @@ def fsdp2_strategy_parallelize(
         # Find transformer layers and apply parallelisms
         parallelize_helper(model, dp_mesh, mp_policy)
 
-        model = fully_shard(model, mesh=dp_mesh, mp_policy=mp_policy)
+        model = fully_shard(model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True)
 
     return model

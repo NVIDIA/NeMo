@@ -15,6 +15,7 @@
 import os
 import shutil
 from collections import OrderedDict
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
 
@@ -171,6 +172,15 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             return self.data_sampler.transform_dataloader(dataloader)
 
         return dataloader
+
+    @contextmanager
+    @override
+    def tensor_init_context(self, empty_init: Optional[bool] = None):
+        """Context manager used for initialization"""
+        # Materializaton happens in `setup()`
+        # @akoumparouli: using Parent's tensor_init_context causes mcore
+        # parameters to be initialized on GPU instead of (assumed) CPU.
+        yield
 
     @property
     @override
