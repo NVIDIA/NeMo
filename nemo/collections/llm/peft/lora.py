@@ -14,7 +14,7 @@
 
 import math
 from dataclasses import dataclass, field
-from typing import Literal, List
+from typing import List, Literal
 
 import torch
 import torch.nn.functional as F

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Literal, List, Optional
+from typing import List, Literal, Optional
 
 import torch
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
