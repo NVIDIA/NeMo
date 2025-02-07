@@ -57,6 +57,7 @@ def custom_hf_auto_model_for_causal_lm(wandb_project_name = None):
     # Add a custom dataset
     data=squad(llm.HFAutoModelForCausalLM.configure_tokenizer(model_name=model_name), gbs=num_gpus_per_node)
     pretrain.data = data
+    pretrain.optim = llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)
 
     # Add a custom logger
     wandb_project_name = "nemo2"

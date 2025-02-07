@@ -86,7 +86,7 @@ def main():
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
-            accumulate_grad_batches=1,
+            accumulate_grad_batches=10,
             gradient_clip_val=args.grad_clip,
             use_distributed_sampler=False,
             logger=wandb,
