@@ -14,7 +14,7 @@
 
 # CLIP
 from nemo.collections.vlm.clip.data import ClipMockDataModule
-from nemo.collections.vlm.clip.model import ClipConfigB32, ClipConfigL14, CLIPModel
+from nemo.collections.vlm.clip.model import CLIPConfigB32, CLIPConfigL14, CLIPModel
 
 # HF
 from nemo.collections.vlm.hf.data.hf_dataset import HFDatasetDataModule
@@ -120,7 +120,7 @@ __all__ = [
     "InternViT_6B_448px_Config",
     "CLIPModel",
     "LoRA",
-    "ClipConfigL14",
-    "ClipConfigB32",
+    "CLIPConfigL14",
+    "CLIPConfigB32",
     "ClipMockDataModule",
 ]
