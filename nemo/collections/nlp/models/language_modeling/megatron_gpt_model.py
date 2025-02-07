@@ -134,14 +134,14 @@ def mcore_supports_moe() -> bool:
     if not HAVE_MEGATRON_CORE:
         return False
     try:
-        from megatron.core.transformer.moe.router import TopKRouter
+        from megatron.core.transformer.moe.router import TopKRouter  # pylint: disable=unused-import
 
         return True
     except ImportError:
         return False
 
 
-## TODO: This function will not work if TE is not installed
+# TODO: This function will not work if TE is not installed
 def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict = None, fp8=False):
     """Get Transformer model specifications"""
     from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import get_gemma2_layer_spec
@@ -1024,7 +1024,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 batch_size=1,
             )
 
-        ## logging
+        # logging
         if self.log_train_loss:
             # When using pipeline parallelism, loss is calculated only in the last pipeline stage and
             # it should be casted to other pipeline stages for logging.
@@ -1763,7 +1763,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             logging.info(f'Length of val dataset: {len(self._validation_ds)}')
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building GPT datasets.')
+        logging.info('Finished building GPT datasets.')
 
         return self._train_ds, self._validation_ds, self._test_ds
 
@@ -1891,7 +1891,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             drop_last = True
             if not self.validation_drop_last:
-                logging.info(f'Drop last in validation dataset is set to False')
+                logging.info('Drop last in validation dataset is set to False')
                 drop_last = False
             pad_samples_to_global_batch_size = False
             if self.cfg.data.get('pad_samples_to_global_batch_size', False):
@@ -1992,7 +1992,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
-                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+                'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
             )
 
     @classmethod
@@ -2281,7 +2281,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         elif self.cfg.get('fp8_hybrid', False):
             fp8 = 'hybrid'
         else:
-            raise ValueError(f"fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
+            raise ValueError("fp8 enabled but fp8_format (fp8_e4m3 | fp8_hybrid) is not set.")
 
         if self.cfg.get('enable_cuda_graph', False):
             assert HAVE_TE, "Transformer Engine is required for cudagraphs."
