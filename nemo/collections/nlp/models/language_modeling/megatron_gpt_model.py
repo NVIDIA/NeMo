@@ -134,7 +134,7 @@ def mcore_supports_moe() -> bool:
     if not HAVE_MEGATRON_CORE:
         return False
     try:
-        from megatron.core.transformer.moe.router import TopKRouter  # pylint: disable=unused-import
+        from megatron.core.transformer.moe.router import TopKRouter  # pylint: disable=unused-import  # noqa: F401
 
         return True
     except ImportError:
