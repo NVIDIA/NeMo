@@ -1,5 +1,6 @@
 # Minimal set of NeMo requirements to run vLLM export & deployment in /opt/venv in a NeMo container
 braceexpand
+datasets
 faiss-cpu
 fiddle
 h5py
@@ -11,6 +12,7 @@ matplotlib>=3.3.2
 omegaconf<=2.3
 onnx>=1.7.0
 OpenCC
+pandas
 pangu
 rouge_score
 sacrebleu
