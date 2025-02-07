@@ -25,10 +25,13 @@ def rope(pos: torch.Tensor, dim: int, theta: int) -> torch.Tensor:
     """
     assert dim % 2 == 0, "The dimension must be even."
 
+    # RoPE should be batch size independent (lifuz)
+    seq = torch.arange(pos.size()[1], device=pos.device, dtype=torch.float64)
+    
     scale = torch.arange(0, dim, 2, dtype=torch.float64, device=pos.device) / dim
     omega = 1.0 / (theta**scale)
 
-    out = torch.einsum("...n,d->...nd", pos, omega)
+    out = torch.einsum("...n,d->...nd", seq, omega).unsqueeze(1)
 
     return out.float()
 
@@ -52,7 +55,7 @@ class EmbedND(nn.Module):
             [rope(ids[..., i], self.axes_dim[i], self.theta) for i in range(n_axes)],
             dim=-1,
         )
-        emb = emb.unsqueeze(1).permute(2, 0, 1, 3)
+        emb = emb.unsqueeze(1)#.permute(2, 0, 1, 3)
         return torch.stack([emb, emb], dim=-1).reshape(*emb.shape[:-1], -1)
 
 

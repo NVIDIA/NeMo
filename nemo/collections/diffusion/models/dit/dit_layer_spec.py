@@ -41,6 +41,7 @@ from megatron.core.transformer.transformer_block import TransformerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 
 from nemo.collections.diffusion.models.dit.dit_attention import (
     FluxSingleAttention,
@@ -97,7 +98,8 @@ class AdaLN(MegatronModule):
             self.ln = norm(config.hidden_size, elementwise_affine=False, eps=self.config.layernorm_epsilon)
         self.n_adaln_chunks = n_adaln_chunks
         self.adaLN_modulation = nn.Sequential(
-            nn.SiLU(), nn.Linear(config.hidden_size, self.n_adaln_chunks * config.hidden_size, bias=modulation_bias)
+            nn.SiLU(), ColumnParallelLinear(config.hidden_size, self.n_adaln_chunks * config.hidden_size,
+                                            config=config, init_method=nn.init.normal_, bias=modulation_bias, gather_output=True)
         )
         self.use_second_norm = use_second_norm
         if self.use_second_norm:
@@ -106,18 +108,21 @@ class AdaLN(MegatronModule):
 
         setattr(self.adaLN_modulation[-1].weight, "sequence_parallel", config.sequence_parallel)
 
+    @jit_fuser
     def forward(self, timestep_emb):
-        return self.adaLN_modulation(timestep_emb).chunk(self.n_adaln_chunks, dim=-1)
+        output,bias=self.adaLN_modulation(timestep_emb)
+        output = output + bias if bias else output
+        return output.chunk(self.n_adaln_chunks, dim=-1)
 
-    # @jit_fuser
+    @jit_fuser
     def modulate(self, x, shift, scale):
         return x * (1 + scale) + shift
 
-    # @jit_fuser
+    @jit_fuser
     def scale_add(self, residual, x, gate):
         return residual + gate * x
 
-    # @jit_fuser
+    @jit_fuser
     def modulated_layernorm(self, x, shift, scale, layernorm_idx=0):
         if self.use_second_norm and layernorm_idx == 1:
             layernorm = self.ln2
@@ -542,7 +547,7 @@ class MMDiTLayer(TransformerLayer):
         hidden_size = config.hidden_size
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
 
-        self.adaln = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
+        self.adaln = AdaLN(config, norm=TENorm, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
 
         self.context_pre_only = context_pre_only
         context_norm_type = "ada_norm_continuous" if context_pre_only else "ada_norm_zero"
@@ -550,7 +555,7 @@ class MMDiTLayer(TransformerLayer):
         if context_norm_type == "ada_norm_continuous":
             self.adaln_context = AdaLNContinuous(config, hidden_size, modulation_bias=True, norm_type="layer_norm")
         elif context_norm_type == "ada_norm_zero":
-            self.adaln_context = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
+            self.adaln_context = AdaLN(config, norm=TENorm, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
         else:
             raise ValueError(
                 f"Unknown context_norm_type: {context_norm_type}, "
@@ -641,7 +646,7 @@ class FluxSingleTransformerBlock(TransformerLayer):
     ):
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
         self.adaln = AdaLN(
-            config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False
+            config=config, norm=TENorm, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False
         )
 
     def forward(
@@ -835,8 +840,8 @@ def get_flux_single_transformer_engine_spec() -> ModuleSpec:
                 submodules=SelfAttentionSubmodules(
                     linear_qkv=TEColumnParallelLinear,
                     core_attention=TEDotProductAttention,
-                    q_layernorm=RMSNorm,
-                    k_layernorm=RMSNorm,
+                    q_layernorm=TENorm,
+                    k_layernorm=TENorm,
                     linear_proj=TERowParallelLinear,
                 ),
             ),
@@ -859,10 +864,10 @@ def get_flux_double_transformer_engine_spec() -> ModuleSpec:
                 module=JointSelfAttention,
                 params={"attn_mask_type": AttnMaskType.no_mask},
                 submodules=JointSelfAttentionSubmodules(
-                    q_layernorm=RMSNorm,
-                    k_layernorm=RMSNorm,
-                    added_q_layernorm=RMSNorm,
-                    added_k_layernorm=RMSNorm,
+                    q_layernorm=TENorm,
+                    k_layernorm=TENorm,
+                    added_q_layernorm=TENorm,
+                    added_k_layernorm=TENorm,
                     linear_qkv=TEColumnParallelLinear,
                     added_linear_qkv=TEColumnParallelLinear,
                     core_attention=TEDotProductAttention,

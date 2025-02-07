@@ -79,7 +79,7 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     patch_size: int = 1
     guidance_embed: bool = False
     vec_in_dim: int = 768
-    rotary_interleaved: bool = True
+    rotary_interleaved: bool = False
     layernorm_epsilon: float = 1e-06
     hidden_dropout: float = 0
     attention_dropout: float = 0
@@ -729,7 +729,7 @@ class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronF
             patch_size=source_config.patch_size,
             guidance_embed=source_config.guidance_embeds,
             vec_in_dim=source_config.pooled_projection_dim,
-            rotary_interleaved=True,
+            rotary_interleaved=False,
             layernorm_epsilon=1e-06,
             hidden_dropout=0,
             attention_dropout=0,
