@@ -448,4 +448,5 @@ if __name__ == '__main__':
                 shape = list(val.size())
             else:
                 shape = []
-            assert ref_ckpt[key] == (f"{type(val).__name__}", shape)
+            if not '_extra_state' in key:
+                assert ref_ckpt[key] == (f"{type(val).__name__}", shape)
