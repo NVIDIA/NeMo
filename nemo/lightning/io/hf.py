@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
 
@@ -27,6 +27,10 @@ from typing_extensions import Self, override
 
 from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir
 from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
+from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir
+
+import os
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +38,9 @@ log = logging.getLogger(__name__)
 LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
+import os
+import torch
+from safetensors.torch import safe_open
 
 class HFCheckpointIO(CheckpointIO, IOMixin):
     """HFCheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
@@ -43,9 +50,9 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
 
     """
 
-    def __init__(self, model=None, save_adapter_only=False):
+    def __init__(self, model=None, adapter_only=False):
         super().__init__()
-        self.save_adapter_only = save_adapter_only
+        self.adapter_only = adapter_only
         self.model = model
 
     @override
@@ -63,30 +70,123 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
                 If ``storage_options`` arg is passed in
 
         """
-        if self.save_adapter_only:
-            return self._save_adapter_weights_only(checkpoint, path, storage_options)
-        elif callable(getattr(self.model, 'save_pretrained', None)):
-            return self.model.save_pretrained(path, state_dict=checkpoint.pop('state_dict'))
-        else:
-            return super().save_checkpoint(checkpoint, path, storage_options)
+        # Determine checkpoint directory & make dir
+        checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
+        fs = get_filesystem(checkpoint_dir)
+        fs.makedirs(checkpoint_dir, exist_ok=True)
 
-    def _save_adapter_weights_only(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+        if self.adapter_only:
+            """
+            In this case the output looks like the following:
+
+            default--None=0.0000-epoch=0-consumed_samples=0
+            ├── trainer.pt
+            └── weights
+                ├── adapter_config.json
+                └── adapter_model.safetensors
+
+            Where the `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
+            The `weights` directory contains the adapter's state dict, in HF format.
+            """
+            self._save_adapter_weights_only(checkpoint.pop('state_dict'), checkpoint_dir, storage_options)
+            torch.save(checkpoint, checkpoint_dir.parent / 'trainer.pt')
+        elif callable(getattr(self.model, 'save_pretrained', None)):
+            """
+            In this case the output looks like the following:
+
+            default--None=0.0000-epoch=0-consumed_samples=0
+            ├── weights
+            │   ├── config.json
+            │   ├── generation_config.json
+            │   ├── model.safetensors
+            │   ├── special_tokens_map.json
+            │   ├── tokenizer.json
+            │   └── tokenizer_config.json
+            └── trainer.pt
+
+            Where the `weights` directory contains the model's state dict, in HF format.
+            The `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
+            """
+            self.model.save_pretrained(checkpoint_dir, state_dict=checkpoint.pop('state_dict'))
+            torch.save(checkpoint, checkpoint_dir.parent / 'trainer.pt')
+        else:
+            super().save_checkpoint(checkpoint, path, storage_options)
+            raise NotImplemented("Checkpoint was saved at: " + str(path))
+
+
+
+    def _save_adapter_weights_only(self, state_dict: Dict[str, Any], path: Union[str, Path], storage_options: Optional[Any] = None) -> None:
+        """
+        Saves only the adapter weights in a safetensors format.
+
+        Args:
+            state_dict (Dict[str, Any]): The state dictionary containing model weights.
+            path (Union[str, Path]): The directory path where the adapter weights should be saved.
+            storage_options (Optional[Any], optional): Additional storage options, if required.
+
+        Raises:
+            OSError: If saving the file fails.
+        """
         from safetensors.torch import save_file
 
-        state_dict = {}
-        module_names = list(checkpoint["state_dict"].keys())
+        # Rename keys in state_dict to match expected format
+        module_names = list(state_dict.keys())
         for name in module_names:
-            param = checkpoint["state_dict"].pop(name)
+            param = state_dict.pop(name)
             name = name\
                 .replace("model.model", "base_model.model")\
                 .replace("lora_a.weight", "lora_A.weight")\
                 .replace("lora_b.weight", "lora_B.weight")
             state_dict[name] = param
 
-        checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
-        fs = get_filesystem(checkpoint_dir)
-        fs.makedirs(checkpoint_dir, exist_ok=True)
-        save_file(state_dict, checkpoint_dir / "adapter_model.safetensors")
+        # Save weights to safetensors format
+        try:
+            save_file(state_dict, path / "adapter_model.safetensors")
+        except OSError as e:
+            raise OSError(f"Failed to save adapter weights: {e}")
+
+
+    def _load_adapter_weights_only(self, path: Union[str, Path]) -> Dict[str, Any]:
+        """
+        Loads only the adapter weights from a safetensors checkpoint.
+
+        Args:
+            path (Union[str, Path]): The directory path where the adapter weights are stored.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the state dictionary of the adapter model.
+
+        Raises:
+            FileNotFoundError: If the checkpoint directory does not exist.
+            ValueError: If the checkpoint path is not a directory.
+            OSError: If loading the weights fails.
+        """
+        fs = get_filesystem(path)
+
+        if not fs.exists(path):
+            raise FileNotFoundError(f"Checkpoint file not found: {path}")
+
+        if not fs.isdir(path):
+            raise ValueError(f"Checkpoints should be a directory. Found: {path}.")
+
+        state_dict = {}
+        adapter_file = Path(path) / "adapter_model.safetensors"
+
+        if (Path(path) / "adaptor_config.json").exists():
+            from safetensors import safe_open
+
+            if not adapter_file.exists():
+                raise FileNotFoundError(f"Adapter weights file not found: {adapter_file}")
+
+            try:
+                with safe_open(adapter_file, framework="pt", device=0) as f:
+                    for k in f.keys():
+                        state_dict[k] = f.get_tensor(k)
+            except OSError as e:
+                raise OSError(f"Failed to load adapter weights: {e}")
+
+        return {'state_dict': state_dict}
+
 
     @override
     def load_checkpoint(
@@ -110,25 +210,20 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             FileNotFoundError: If ``path`` is not found by the ``fsspec`` filesystem
 
         """
+        trainer_state = torch.load(
+            f'{path}/trainer.pt',
+            map_location='cpu',
+            weights_only=False,
+        )
+        if self.adapter_only:
+            trainer_state |= self._load_adapter_weights_only(path)
+        elif callable(getattr(self.model, 'load_pretrained', None)):
+            trainer_state['state_dict'] = self.model.load_pretrained(f'{path}/model/')
+        else:
+            raise ValueError("Badio")
 
-        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
-        fs = get_filesystem(path)
-        if not fs.exists(path):
-            raise FileNotFoundError(f"Checkpoint file not found: {path}")
-        if not fs.isdir(path):
-            raise ValueError(
-                f"Checkpoints should be a directory. Found: {path}.")
+        return trainer_state
 
-        state_dict = None
-        if (path / "adaptor_config.json").exists():
-            from safetensors import safe_open
-
-            state_dict = {}
-            with safe_open("adapter_model.safetensors", framework="pt", device=0) as f:
-                for k in f.keys():
-                    state_dict[k] = f.get_tensor(k)
-
-        return {'state_dict': state_dict}
 
     @override
     def remove_checkpoint(self, path: _PATH) -> None:
