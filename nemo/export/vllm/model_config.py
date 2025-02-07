@@ -105,10 +105,7 @@ class NemoModelConfig(ModelConfig):
             ) == 0:
                 del tokenizer_config['additional_special_tokens']
 
-            tokenizer_local_path = nemo_checkpoint / 'context' / tokenizer_config['pretrained_model_name']
-            if tokenizer_local_path.is_dir():
-                tokenizer_config['pretrained_model_name'] = str(tokenizer_local_path.resolve())
-
+            tokenizer_config = self._change_paths_to_absolute_paths(tokenizer_config, nemo_checkpoint)
             tokenizer = instantiate(tokenizer_config)
 
             with (nemo_checkpoint / "context/model.yaml").open('r') as config_file:
@@ -150,6 +147,19 @@ class NemoModelConfig(ModelConfig):
         self._verify_tokenizer_mode()
         self._verify_quantization()
         self._verify_cuda_graph()
+
+
+    @staticmethod
+    def _change_paths_to_absolute_paths(tokenizer_config, nemo_checkpoint):
+        tokenizer_local_path = nemo_checkpoint / 'context'
+        path_keys = ['pretrained_model_name', 'model_path']
+
+        for path_key in path_keys:
+            if path := tokenizer_config.get(path_key, None):
+                tokenizer_config[path_key] = str((tokenizer_local_path / path).resolve())
+        
+        return tokenizer_config
+
 
     def _load_hf_arguments(self, nemo_config: Dict[str, Any]) -> Dict[str, Any]:
         """
