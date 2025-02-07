@@ -39,30 +39,6 @@ git fetch origin $NEMO_TAG
 git checkout -f $NEMO_TAG
 EOF
 
-FROM ${BASE_IMAGE} as te-wheel
-ARG MAX_JOBS
-ARG TE_TAG
-ARG TE_REPO
-COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
-RUN bash /opt/NeMo/reinstall.sh --library te --mode build && \
-  ls -al /opt/TransformerEngine || true
-
-FROM ${BASE_IMAGE} as mlm-wheel
-ARG MAX_JOBS
-ARG MLM_REPO
-ARG MLM_TAG
-COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
-RUN bash /opt/NeMo/reinstall.sh --library mcore --mode build && \
-  ls -al /opt/Megatron-LM || true
-
-FROM ${BASE_IMAGE} as apex-wheel
-ARG MAX_JOBS
-ARG APEX_REPO
-ARG APEX_TAG
-COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
-RUN bash /opt/NeMo/reinstall.sh --library apex --mode build && \
-  ls -al /opt/Apex || true
-
 FROM ${BASE_IMAGE}
 ARG IMAGE_LABEL
 LABEL "nemo.library"=${IMAGE_LABEL}
@@ -78,17 +54,27 @@ apt-get install -y bc libsox-fmt-all -y
 apt-get clean
 EOF
 
-WORKDIR /workspace
-COPY --from=te-wheel /opt/TransformerEngine/ /opt/TransformerEngine/
-COPY --from=mlm-wheel /opt/Megatron-LM/ /opt/Megatron-LM/
-COPY --from=apex-wheel /opt/Apex /opt/Apex/
-ARG MLM_TAG
+ARG MAX_JOBS
 ARG TE_TAG
+ARG TE_REPO
+RUN --mount=type=bind,source=reinstall.sh,target=/opt/NeMo/reinstall.sh \
+  bash /opt/NeMo/reinstall.sh --library te --mode build && \
+  ls -al /opt/TransformerEngine || true
+
+ARG APEX_REPO
 ARG APEX_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/opt/NeMo/reinstall.sh \
+  bash /opt/NeMo/reinstall.sh --library apex --mode build && \
+  ls -al /opt/Apex || true
+
+ARG MLM_REPO
+ARG MLM_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/opt/NeMo/reinstall.sh \
+  bash /opt/NeMo/reinstall.sh --library mcore --mode build && \
+  ls -al /opt/Megatron-LM || true
+
+WORKDIR /workspace
 RUN \
-  --mount=type=bind,from=te-wheel,source=/tmp/wheels/te/,target=/tmp/wheels/te/ \
-  --mount=type=bind,from=mlm-wheel,source=/tmp/wheels/mcore/,target=/tmp/wheels/mcore/ \
-  --mount=type=bind,from=apex-wheel,source=/tmp/wheels/apex/,target=/tmp/wheels/apex/ \
   --mount=type=bind,source=requirements,target=requirements \
   --mount=type=bind,source=tools/ctc_segmentation/requirements.txt,target=tools/ctc_segmentation/requirements.txt \
   --mount=type=bind,source=reinstall.sh,target=reinstall.sh \
