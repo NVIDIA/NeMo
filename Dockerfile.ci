@@ -111,7 +111,7 @@ bash /opt/NeMo/reinstall.sh --library nemo --mode install
 # set permission
 chmod 777 -R /workspace
 # Megatron Core installation
-cp a /opt/NeMo/. /workspace/
+cp -a /opt/NeMo/. /workspace/
 cp -r /opt/Megatron-LM/ /workspace/
 EOF
 
