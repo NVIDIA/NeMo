@@ -29,7 +29,10 @@ TELayerNormColumnParallelLinear, HAVE_TE_LN_COL_LINEAR = safe_import_from(
 TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
     "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
 )
-HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
+TELinear, HAVE_TE_LINEAR = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TELinear"
+)
+HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR, HAVE_TE_LINEAR))
 
 
 def get_adapter_attributes_from_linear(m: nn.Module):
@@ -52,6 +55,10 @@ def get_adapter_attributes_from_linear(m: nn.Module):
         input_is_parallel = True
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
         in_features = m.in_features * tp_size
+        out_features = m.out_features
+    elif HAVE_TE and isinstance(m, TELinear): # parallel_mode="duplicated"
+        input_is_parallel = False
+        in_features = m.in_features
         out_features = m.out_features
     elif isinstance(m, ColumnParallelLinear):
         input_is_parallel = False
