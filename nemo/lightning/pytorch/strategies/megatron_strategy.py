@@ -856,14 +856,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """loads model state dict"""
         assert self.megatron_parallel is not None
 
-        if "state_dict" not in checkpoint or len(checkpoint["state_dict"]) == 0:
-            logging.info(
-                "No state_dict found in checkpoint, skipping state_dict loading. If this is not intended, please inspect the checkpoint."
-            )
-            strict = False
-        else:
-            strict = strict if self.ckpt_load_strictness is None else self.ckpt_load_strictness
-
+        strict = strict if self.ckpt_load_strictness is None else self.ckpt_load_strictness
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
 
         if not 'optimizer' in checkpoint:

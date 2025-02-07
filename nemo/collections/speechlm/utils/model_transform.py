@@ -19,18 +19,18 @@ from typing import Any, Callable, Dict, Optional
 
 import lightning.pytorch as pl
 from lightning.fabric.utilities.types import _PATH
-from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities import model_summary
 from typing_extensions import override
 
 from nemo.collections.llm.fn import base as fn
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
-from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
+from nemo.lightning.io.pl import ckpt_to_dir
 from nemo.lightning.megatron_parallel import MegatronParallel
-from nemo.lightning.pytorch.callbacks.peft import PEFT
+from nemo.lightning.pytorch.callbacks.peft import PEFT, WrappedAdapterIO
 from nemo.utils import logging
-from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
+
+SPEECHLM_PEFT_RESUME = 'speechlm_peft_resume'
 
 
 class SpeechToTextLLMPEFT(PEFT):
@@ -42,26 +42,31 @@ class SpeechToTextLLMPEFT(PEFT):
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         """PTL callback setup function."""
         from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
+        from nemo.lightning.pytorch.utils import get_automodel_from_trainer
 
         super(PEFT, self).setup(trainer, pl_module, stage=stage)
 
+        self._is_fsdp_v1 = type(trainer.strategy).__name__ == 'FSDPStrategy'
         trainer.strategy.trainer = trainer
-        wrapped_io = partial(WrappedAdapterIO, peft=self)
+        wrapped_io = partial(SpeechLMWrappedAdapterIO, peft=self)
 
-        ckpt_io_kwarg_names = [
-            "save_ckpt_format",
-            "async_save",
-            "torch_dist_multiproc",
-            "assume_constant_structure",
-            "parallel_save",
-            "parallel_save_within_dp",
-            "parallel_load",
-            "load_directly_on_device",
-        ]
-        ckpt_io_kwargs = {
-            arg: getattr(trainer.strategy, arg)
-            for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
-        }
+        if get_automodel_from_trainer(trainer) is not None:
+            ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
+        else:
+            ckpt_io_kwarg_names = [
+                "save_ckpt_format",
+                "async_save",
+                "torch_dist_multiproc",
+                "assume_constant_structure",
+                "parallel_save",
+                "parallel_save_within_dp",
+                "parallel_load",
+                "load_directly_on_device",
+            ]
+            ckpt_io_kwargs = {
+                arg: getattr(trainer.strategy, arg)
+                for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
+            }
         trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
         self.wrapped_io = (
             trainer.strategy._checkpoint_io._checkpoint_io
@@ -74,7 +79,7 @@ class SpeechToTextLLMPEFT(PEFT):
     def __call__(
         self, model: "nemo.collections.slm.model.SpeechToTextLLM"
     ) -> "nemo.collections.slm.model.SpeechToTextLLM":
-        """Apply the PEFT method to the entire model.
+        """Apply the PEFT method to the LLM.
 
         This method freezes the LLM parameters and walks through the model
         structure, applying the transform method to each module.
@@ -113,37 +118,7 @@ class SpeechToTextLLMPEFT(PEFT):
         return self.peft.transform(module, name=name, prefix=prefix)
 
 
-class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
-    peft: Optional[PEFT] = None
-    model_ckpt_path: Optional[Path] = None
-    adapter_ckpt_path: Optional[Path] = None
-
-    def __init__(self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None) -> None:
-        self.peft = peft
-        super().__init__(checkpoint_io)
-
-    @override
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-        assert self.checkpoint_io is not None
-
-        state_key = 'sharded_state_dict'
-        if not state_key in checkpoint:
-            state_key = 'state_dict'
-        checkpoint[state_key] = dict(
-            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint[state_key].items())
-        )
-        request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
-
-        from nemo.utils.get_rank import is_global_rank_zero
-
-        if is_global_rank_zero():
-            metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
-            base_dir = ckpt_to_weights_subdir(path, is_saving=True)
-            base_dir.mkdir(parents=True, exist_ok=True)
-            adapter_meta_path = base_dir / ADAPTER_META_FILENAME
-            with open(adapter_meta_path, "w") as f:
-                json.dump(metadata, f)
-        return request
+class SpeechLMWrappedAdapterIO(WrappedAdapterIO):
 
     @override
     def load_checkpoint(
@@ -154,6 +129,8 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         strict: Optional['StrictHandling'] | bool = None,
     ) -> Dict[str, Any]:
         """
+        Overwrite the load_checkpoint method to handle PEFT resume for SpeechLM.
+
         =====================
         Initial PEFT Training
         =====================
@@ -200,11 +177,13 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
             self.model_ckpt_path = path
 
         # Note: this will include the Trainer-state of the model-checkpoint
-        model_ckpt = self._load_checkpoint(path, sharded_state_dict, map_location, load_base)
+        model_ckpt = self._load_checkpoint(path, sharded_state_dict, map_location, load_base, strict=strict)
 
         if adapter_ckpt is not None:
             ## PEFT Resume, FIRST TIME
             adapter_ckpt['state_dict'].update(model_ckpt['state_dict'])
+            if SPEECHLM_PEFT_RESUME in model_ckpt:
+                adapter_ckpt[SPEECHLM_PEFT_RESUME] = True
             return adapter_ckpt
         return model_ckpt
 
@@ -217,9 +196,9 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         strict: Optional['StrictHandling'] | bool = None,
     ) -> None:
         if load_base:
-            # handle empty state dict in load_model_state_dict() from
-            # nemo/lightning/pytorch/strategies/megatron_strategy.py
-            return {'state_dict': dict()}
+            # Return empty state_dict to skip loading PTL checkpoint in first stage of PEFT
+            # Must use with nemo.collections.speechlm.strategies.megatron_strategy.SpeechLMMegatronStrategy
+            return {'state_dict': dict(), SPEECHLM_PEFT_RESUME: True}
         else:
             model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location, strict)
 
