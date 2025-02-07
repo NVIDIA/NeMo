@@ -121,10 +121,13 @@ class DeepSeekV2Config(DeepSeekConfig):
     moe_shared_expert_intermediate_size: int = 3072  # 1536 * 2 shared experts
     moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0] + [1] * 59)  # first layer is dense
     moe_router_topk: int = 6
-    moe_router_topk_limited_devices: int = 3
+    moe_router_num_groups: int = 8
+    moe_router_group_topk: int = 3
     moe_router_topk_scaling_factor: float = 16.0
     moe_aux_loss_coeff: float = 1e-3
     moe_router_score_function: str = "softmax"
+    mscale: float = 0.707
+    mscale_all_dim: float = 0.707
 
 
 @dataclass
@@ -143,13 +146,16 @@ class DeepSeekV3Config(DeepSeekConfig):
         default_factory=lambda: [0] * 3 + [1] * 58
     )  # first three layers are dense
     moe_router_topk: int = 8
-    moe_router_topk_limited_devices: int = 4
+    moe_router_num_groups: int = 8
+    moe_router_group_topk: int = 4
     moe_router_topk_scaling_factor: float = 2.5
     moe_aux_loss_coeff: float = 1e-4
     make_vocab_size_divisible_by: int = 1280
     moe_router_score_function: str = "sigmoid"
     moe_router_enable_expert_bias: bool = True
     moe_router_bias_update_rate: float = 1e-3
+    mscale: float = 1.0
+    mscale_all_dim: float = 1.0
 
 
 class DeepSeekModel(GPTModel):
@@ -220,8 +226,8 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             "model.layers.*.self_attn.q_b_proj.weight": "decoder.layers.*.self_attention.linear_q_up_proj.weight",
             "model.layers.*.self_attn.kv_a_proj_with_mqa.weight": "decoder.layers.*.self_attention.linear_kv_down_proj.weight",
             "model.layers.*.self_attn.kv_b_proj.weight": "decoder.layers.*.self_attention.linear_kv_up_proj.weight",
-            "model.layers.*.self_attn.q_a_layernorm.weight": "decoder.layers.*.self_attention.q_layernorm.weight",
-            "model.layers.*.self_attn.kv_a_layernorm.weight": "decoder.layers.*.self_attention.kv_layernorm.weight",
+            "model.layers.*.self_attn.q_a_layernorm.weight": "decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight",
+            "model.layers.*.self_attn.kv_a_layernorm.weight": "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight",
             "model.layers.*.dense-post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.pre_mlp_layernorm.weight",
             ## Dense MLP
@@ -304,7 +310,8 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             moe_shared_expert_intermediate_size=source.moe_intermediate_size * source.n_shared_experts,
             moe_layer_freq=[0] * source.first_k_dense_replace + [1] * n_moe_layers,
             moe_router_topk=source.num_experts_per_tok,
-            moe_router_topk_limited_devices=source.topk_group,
+            moe_router_num_groups=source.n_group,
+            moe_router_group_topk=source.topk_group,
             moe_router_topk_scaling_factor=source.routed_scaling_factor,
             moe_aux_loss_coeff=source.aux_loss_alpha,
             make_vocab_size_divisible_by=1280 if is_v3 else 3200,
