@@ -43,7 +43,7 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 
 HAVE_TE = True
 try:
-    import transformer_engine  # pylint: disable=W0611
+    import transformer_engine  # noqa: F401 pylint: disable=W0611
     from megatron.core.models.bert import bert_layer_specs
     from megatron.core.models.bert.bert_model import BertModel as MCoreBert
 except (ImportError, ModuleNotFoundError):

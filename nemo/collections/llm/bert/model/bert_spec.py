@@ -43,7 +43,7 @@ try:
     )
 
     HAVE_TE = True
-except (ImportError, ModuleNotFoundError) as e:
+except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
 
 
