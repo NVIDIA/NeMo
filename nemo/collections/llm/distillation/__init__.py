@@ -12,21 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.clip.model.base import CLIPConfig, CLIPModel, CLIPTextModelConfig, CLIPViTConfig
-from nemo.collections.vlm.clip.model.clip import (
-    CLIPConfigB32,
-    CLIPConfigL14,
-    CLIPTextModelL_14_224_Config,
-    CLIPViTL_14_224_Config,
-)
+from .loss import LogitsKLLoss
+from .model import DistillationGPTModel
 
-__all__ = [
-    "CLIPViTConfig",
-    "CLIPTextModelConfig",
-    "CLIPConfig",
-    "CLIPViTL_14_224_Config",
-    "CLIPTextModelL_14_224_Config",
-    "CLIPConfigL14",
-    "CLIPConfigB32",
-    "CLIPModel",
-]
+__all__ = ["LogitsKLLoss", "DistillationGPTModel"]
