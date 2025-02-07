@@ -45,7 +45,7 @@ DEPS=(
   "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
   "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG}"
   "git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG}"
-  "git+https://github.com/maanug-nv/nvidia-resiliency-ext/@${NV_RESILIENCY_EXT_TAG}"
+  "git+https://github.com/maanug-nv/nvidia-resiliency-ext.git@${NV_RESILIENCY_EXT_TAG}"
   "onnxscript @ git+https://github.com/microsoft/onnxscript"
 )
 
