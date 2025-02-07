@@ -166,7 +166,7 @@ class NemoModelConfig(ModelConfig):
                     continue
 
                 tokenizer_config[path_key] = str(tokenizer_path.resolve())
-        
+
         return tokenizer_config
 
     def _load_hf_arguments(self, nemo_config: Dict[str, Any]) -> Dict[str, Any]:
