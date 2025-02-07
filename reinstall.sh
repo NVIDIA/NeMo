@@ -23,6 +23,7 @@ export NEMO_RUN_TAG=5ed6128f9285e61cfee73d780b663c9d780f20c7
 export CAUSAL_CONV_TAG=v1.2.2.post1
 export MAMBA_TAG=v2.2.0
 export MCORE_TAG=0e85db539cf16816ffced6e7dac644d91ffadc04
+export NV_RESILIENCY_EXT_TAG=0ecd03d6960ce59d9083cfe9e83960cf820ae22f
 
 ${PIP} install setuptools
 
@@ -44,8 +45,11 @@ DEPS=(
   "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
   "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@${NEMO_RUN_TAG}"
   "git+https://github.com/NVIDIA/Megatron-LM.git@${MCORE_TAG}"
+  "git+https://github.com/maanug-nv/nvidia-resiliency-ext/@${NV_RESILIENCY_EXT_TAG}"
   "onnxscript @ git+https://github.com/microsoft/onnxscript"
 )
+
+https://github.com/maanug-nv/nvidia-resiliency-ext/commit/
 
 if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
   ${PIP} install --no-cache-dir virtualenv &&
