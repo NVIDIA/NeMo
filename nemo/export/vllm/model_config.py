@@ -14,11 +14,11 @@
 
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
-from hydra.utils import instantiate
-from omegaconf import OmegaConf
 
 import torch
 import yaml
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
 from transformers import AutoConfig
 from vllm.config import ModelConfig, _get_and_verify_dtype, _get_and_verify_max_len
 from vllm.transformers_utils.config import get_hf_text_config
@@ -100,7 +100,9 @@ class NemoModelConfig(ModelConfig):
         if is_nemo2_checkpoint(nemo_checkpoint):
             nemo_checkpoint: Path = Path(nemo_checkpoint)
             tokenizer_config = OmegaConf.load(nemo_checkpoint / "context/model.yaml").tokenizer
-            if ('additional_special_tokens' in tokenizer_config) and len(tokenizer_config['additional_special_tokens']) == 0:
+            if ('additional_special_tokens' in tokenizer_config) and len(
+                tokenizer_config['additional_special_tokens']
+            ) == 0:
                 del tokenizer_config['additional_special_tokens']
 
             tokenizer_local_path = nemo_checkpoint / 'context' / tokenizer_config['pretrained_model_name']
