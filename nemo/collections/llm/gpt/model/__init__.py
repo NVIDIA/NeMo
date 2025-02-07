@@ -15,6 +15,12 @@
 from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config, Baichuan2Config7B, Baichuan2Model
 from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
+    GPTConfig5B,
+    GPTConfig7B,
+    GPTConfig20B,
+    GPTConfig40B,
+    GPTConfig126M,
+    GPTConfig175B,
     GPTModel,
     MaskedTokenLossReduction,
     gpt_data_step,
@@ -60,7 +66,7 @@ from nemo.collections.llm.gpt.model.llama import (
     MLPerfLoRALlamaModel,
 )
 from nemo.collections.llm.gpt.model.llama_embedding import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
-from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel
+from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
 from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig,
     MixtralConfig8x3B,
