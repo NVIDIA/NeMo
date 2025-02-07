@@ -438,7 +438,7 @@ class TestRNNTDecoding:
             decoding_cfg=cfg, decoder=model.decoder, joint=model.joint, tokenizer=model.tokenizer
         )
 
-        hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_all_hypotheses=True)
+        hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
 
         check_subword_timestamps(hyps[0], decoding)
 
@@ -473,7 +473,7 @@ class TestRNNTDecoding:
 
         decoding = RNNTDecoding(decoding_cfg=cfg, decoder=model.decoder, joint=model.joint, vocabulary=vocab)
 
-        hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_all_hypotheses=True)
+        hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
 
         check_char_timestamps(hyps[0], decoding)
 

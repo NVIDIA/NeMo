@@ -57,7 +57,7 @@ class InternalTranscribeConfig:
 @dataclass
 class TranscribeConfig:
     batch_size: int = 4
-    return_all_hypotheses: bool = False
+    return_hypotheses: bool = False
     num_workers: Optional[int] = None
     channel_selector: ChannelSelectorType = None
     augmentor: Optional[DictConfig] = None
@@ -69,13 +69,6 @@ class TranscribeConfig:
 
     _internal: Optional[InternalTranscribeConfig] = None
 
-    @property
-    def return_hypotheses(self):
-        return self.return_all_hypotheses
-
-    @return_hypotheses.setter
-    def return_hypotheses(self, value):
-        self.return_all_hypotheses = value
 
 
 def get_value_from_transcription_config(trcfg, key, default):

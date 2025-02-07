@@ -116,7 +116,7 @@ class BLEU(SacreBLEUScore):
                 encoder_hidden_states=predictions,
                 encoder_input_mask=predictions_mask,
                 decoder_input_ids=input_ids,
-                return_all_hypotheses=False,
+                return_hypotheses=False,
             )
         else:
             raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")

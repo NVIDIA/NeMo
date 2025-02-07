@@ -289,7 +289,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
                         encoded,
                         encoded_len,
-                        return_all_hypotheses=return_hypotheses,
+                        return_hypotheses=return_hypotheses,
                         partial_hypotheses=partial_hypothesis,
                     )
 
@@ -725,7 +725,7 @@ class VisualEncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         del signal
 
         best_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
-            encoder_output=encoded, encoded_lengths=encoded_len, return_all_hypotheses=False
+            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
         )
 
         sample_id = sample_id.cpu().detach().numpy()

@@ -492,7 +492,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self,
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
-        return_all_hypotheses: bool = False,
+        return_hypotheses: bool = False,
         partial_hypotheses: Optional[List[Hypothesis]] = None,
     ) -> Union[List[Hypothesis], List[List[Hypothesis]]]:
         """
@@ -541,7 +541,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 hypotheses.append(decoded_hyps[0])  # best hypothesis
                 all_hypotheses.append(decoded_hyps)
 
-            if return_all_hypotheses:
+            if return_hypotheses:
                 return all_hypotheses  # type: list[list[Hypothesis]]
 
             all_hyp = [[Hypothesis(h.score, h.y_sequence, h.text) for h in hh] for hh in all_hypotheses]
@@ -556,7 +556,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 for hyp_idx in range(len(hypotheses)):
                     hypotheses[hyp_idx] = self.compute_rnnt_timestamps(hypotheses[hyp_idx], timestamp_type)
 
-            if return_all_hypotheses:
+            if return_hypotheses:
                 # greedy decoding, can get high-level confidence scores
                 if self.preserve_frame_confidence and (
                     self.preserve_word_confidence or self.preserve_token_confidence

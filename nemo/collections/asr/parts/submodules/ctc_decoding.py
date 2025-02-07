@@ -359,7 +359,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         decoder_outputs: torch.Tensor,
         decoder_lengths: torch.Tensor = None,
         fold_consecutive: bool = True,
-        return_all_hypotheses: bool = False,
+        return_hypotheses: bool = False,
     ) -> Union[List[Hypothesis], List[List[Hypothesis]]]:
         """
         Decodes a sequence of labels to words
@@ -372,7 +372,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 of the sequence in the padded `predictions` tensor.
             fold_consecutive: Bool, determine whether to perform "ctc collapse", folding consecutive tokens
                 into a single token.
-            return_all_hypotheses: Bool flag whether to return just the decoding predictions of the model
+            return_hypotheses: Bool flag whether to return just the decoding predictions of the model
                 or a Hypothesis object that holds information such as the decoded `text`,
                 the `alignment` of emited by the CTC Model, and the `length` of the sequence (if available).
                 May also contain the log-probabilities of the decoder (if this method is called via
@@ -426,7 +426,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
 
                     all_hypotheses.append(decoded_hyps)
 
-            if return_all_hypotheses:
+            if return_hypotheses:
                 return all_hypotheses  # type: list[list[Hypothesis]]
 
             # alaptev: The line below might contain a bug. Do we really want all_hyp_text to be flat?
@@ -444,7 +444,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 # If computing timestamps
                 if self.compute_timestamps is True:
                     # greedy decoding, can get high-level confidence scores
-                    if return_all_hypotheses and (self.preserve_word_confidence or self.preserve_token_confidence):
+                    if return_hypotheses and (self.preserve_word_confidence or self.preserve_token_confidence):
                         hypotheses = self.compute_confidence(hypotheses)
                     else:
                         # remove unused token_repetitions from Hypothesis.text
@@ -454,7 +454,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                     for hyp_idx in range(len(hypotheses)):
                         hypotheses[hyp_idx] = self.compute_ctc_timestamps(hypotheses[hyp_idx], timestamp_type)
 
-            if return_all_hypotheses:
+            if return_hypotheses:
                 return hypotheses
 
             return [Hypothesis(h.score, h.y_sequence, h.text) for h in hypotheses]

@@ -705,7 +705,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
                 encoder_output=encoded,
                 encoded_lengths=encoded_len,
-                return_all_hypotheses=True,
+                return_hypotheses=True,
                 partial_hypotheses=previous_hypotheses,
             )
             greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
