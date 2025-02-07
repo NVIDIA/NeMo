@@ -49,8 +49,6 @@ DEPS=(
   "onnxscript @ git+https://github.com/microsoft/onnxscript"
 )
 
-https://github.com/maanug-nv/nvidia-resiliency-ext/commit/
-
 if [[ "$HEAVY_DEPS" == "TRUE" ]]; then
   ${PIP} install --no-cache-dir virtualenv &&
     virtualenv /opt/venv &&
