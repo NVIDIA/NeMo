@@ -16,9 +16,11 @@ from dataclasses import dataclass
 import pytest
 import torch
 
-from nemo.collections.audio.parts.submodules.flow import ConditionalFlowMatchingEulerSampler
+from nemo.collections.audio.parts.submodules.flow import ConditionalFlowMatchingEulerSampler, OptimalTransportFlow
 
 NUM_STEPS = [1, 5, 10, 20, 100]
+TIMES_MIN = [0.0, 1e-8, 1e-2, 0.1, 0.25, 0.4]
+TIMES_MAX = [0.5, 0.7, 0.99, 1.0 - 1e-8, 1.0]
 
 
 @pytest.mark.parametrize("num_steps", NUM_STEPS)
@@ -52,3 +54,28 @@ def test_euler_sampler_nfe(num_steps):
     sampler.forward(state=init_state, estimator_condition=None, state_length=init_state_length)
 
     assert counter_hook.counter == sampler.num_steps
+
+
+@pytest.mark.parametrize('time_min', TIMES_MIN)
+@pytest.mark.parametrize('time_max', TIMES_MAX)
+def test_time_generation_bounds_optimal_transport(time_min, time_max):
+    rng = torch.Generator(device='cpu')
+    rng.manual_seed(0)
+
+    flow = OptimalTransportFlow(time_min=time_min, time_max=time_max)
+    time = flow.generate_time(batch_size=1_000, rng=rng)
+
+    assert torch.all(time >= time_min).item()
+    assert torch.all(time <= time_max).item()
+
+
+@pytest.mark.parametrize('time_min', TIMES_MIN)
+@pytest.mark.parametrize('time_max', TIMES_MAX)
+def test_time_generation_bounds_optimal_transport_negative_examples(time_min, time_max):
+    rng = torch.Generator(device='cpu')
+    rng.manual_seed(0)
+
+    flow = OptimalTransportFlow(time_min=time_min - 0.1, time_max=time_max + 0.1)
+    time = flow.generate_time(batch_size=1_000, rng=rng)
+    assert not torch.all(time >= time_min).item()
+    assert not torch.all(time <= time_max).item()
