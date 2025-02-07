@@ -20,6 +20,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 from megatron.core.jit import jit_fuser
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 from megatron.core.transformer.attention import (
     CrossAttention,
     CrossAttentionSubmodules,
@@ -41,7 +42,6 @@ from megatron.core.transformer.transformer_block import TransformerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 
 from nemo.collections.diffusion.models.dit.dit_attention import (
     FluxSingleAttention,
@@ -98,8 +98,15 @@ class AdaLN(MegatronModule):
             self.ln = norm(config.hidden_size, elementwise_affine=False, eps=self.config.layernorm_epsilon)
         self.n_adaln_chunks = n_adaln_chunks
         self.adaLN_modulation = nn.Sequential(
-            nn.SiLU(), ColumnParallelLinear(config.hidden_size, self.n_adaln_chunks * config.hidden_size,
-                                            config=config, init_method=nn.init.normal_, bias=modulation_bias, gather_output=True)
+            nn.SiLU(),
+            ColumnParallelLinear(
+                config.hidden_size,
+                self.n_adaln_chunks * config.hidden_size,
+                config=config,
+                init_method=nn.init.normal_,
+                bias=modulation_bias,
+                gather_output=True,
+            ),
         )
         self.use_second_norm = use_second_norm
         if self.use_second_norm:
@@ -110,7 +117,7 @@ class AdaLN(MegatronModule):
 
     @jit_fuser
     def forward(self, timestep_emb):
-        output,bias=self.adaLN_modulation(timestep_emb)
+        output, bias = self.adaLN_modulation(timestep_emb)
         output = output + bias if bias else output
         return output.chunk(self.n_adaln_chunks, dim=-1)
 
@@ -555,7 +562,9 @@ class MMDiTLayer(TransformerLayer):
         if context_norm_type == "ada_norm_continuous":
             self.adaln_context = AdaLNContinuous(config, hidden_size, modulation_bias=True, norm_type="layer_norm")
         elif context_norm_type == "ada_norm_zero":
-            self.adaln_context = AdaLN(config, norm=TENorm, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
+            self.adaln_context = AdaLN(
+                config, norm=TENorm, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True
+            )
         else:
             raise ValueError(
                 f"Unknown context_norm_type: {context_norm_type}, "
@@ -646,7 +655,11 @@ class FluxSingleTransformerBlock(TransformerLayer):
     ):
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
         self.adaln = AdaLN(
-            config=config, norm=TENorm, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False
+            config=config,
+            norm=TENorm,
+            n_adaln_chunks=n_adaln_chunks,
+            modulation_bias=modulation_bias,
+            use_second_norm=False,
         )
 
     def forward(
