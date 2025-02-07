@@ -48,9 +48,8 @@ def main(args):
         decoder_seq_length = 8192
 
     # Submodules configurations
-    language_transformer_config = llm.Llama3Config8B(
+    language_transformer_config = llm.Llama2Config7B(
         seq_length=decoder_seq_length,
-        num_layers=4,
     )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
@@ -60,6 +59,8 @@ def main(args):
         input_size=vision_transformer_config.hidden_size,
         hidden_size=language_transformer_config.hidden_size,
         ffn_hidden_size=language_transformer_config.hidden_size,
+        bias=False,
+        bias_activation_fusion=False,
     )
 
     # NEVA model configuration
@@ -71,7 +72,8 @@ def main(args):
         freeze_language_model=False,
         freeze_vision_model=True,
     )
-    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile
+    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile - \
+        int(neva_config.drop_vision_class_token and vision_transformer_config.add_class_token)
 
     seq_length = num_image_embeddings_per_tile
 
@@ -159,17 +161,18 @@ def main(args):
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
-        encoder_tensor_model_parallel_size=1,
+        encoder_tensor_model_parallel_size=args.encoder_tp_size,
         context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=False,
         ddp=DistributedDataParallelConfig(
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
-            overlap_grad_reduce=False,
-            overlap_param_gather=False,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
             average_in_collective=True,
         ),
+        ckpt_load_strictness="log_all",
     )
 
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
@@ -286,6 +289,7 @@ if __name__ == "__main__":
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
+    parser.add_argument("--encoder_tp_size", type=int, required=False, default=0)
     parser.add_argument("--projector_type", type=str, required=False, default="mcore_mlp")
     parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
     parser.add_argument("--peft", type=str, default='none', help="none | lora")
