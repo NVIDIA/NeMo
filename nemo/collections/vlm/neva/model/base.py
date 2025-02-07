@@ -26,36 +26,12 @@ from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVA
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
-
-
-try:
-    from megatron.core.transformer.custom_layers.transformer_engine import (
-        TEColumnParallelLinear,
-        TENorm,
-        TERowParallelLinear,
-    )
-except ImportError:
-    from nemo.utils import logging
-
-    # These Defaults are needed to make sure the code compiles
-    TEColumnParallelLinear = None
-    TENorm = None
-    TERowParallelLinear = None
-    logging.warning(
-        "Failed to import Transformer Engine dependencies. "
-        "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
-        "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
-    )
-
-from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 
-from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
