@@ -99,13 +99,6 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     masked_softmax_fusion = True
     gradient_accumulation_fusion = True
 
-    def __post_init__(self):
-        if self.moe_router_topk_limited_devices is not None:
-            self.moe_router_topk_limited_devices = min(
-                self.moe_router_topk_limited_devices, self.expert_model_parallel_size
-            )
-        super().__post_init__()
-
 
 @dataclass
 class DeepSeekV2Config(DeepSeekConfig):
@@ -125,7 +118,6 @@ class DeepSeekV2Config(DeepSeekConfig):
     moe_router_group_topk: int = 3
     moe_router_topk_scaling_factor: float = 16.0
     moe_aux_loss_coeff: float = 1e-3
-    moe_router_score_function: str = "softmax"
     mscale: float = 0.707
     mscale_all_dim: float = 0.707
 
