@@ -14,6 +14,8 @@
 
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
 
 import torch
 import yaml
@@ -96,15 +98,20 @@ class NemoModelConfig(ModelConfig):
             raise RuntimeError(f'Unknown model type "{model_type}"')
 
         if is_nemo2_checkpoint(nemo_checkpoint):
-            from nemo.lightning.io import load_context
-
             nemo_checkpoint: Path = Path(nemo_checkpoint)
+            tokenizer_config = OmegaConf.load(nemo_checkpoint / "context/model.yaml").tokenizer
+            if ('additional_special_tokens' in tokenizer_config) and len(tokenizer_config['additional_special_tokens']) == 0:
+                del tokenizer_config['additional_special_tokens']
+
+            tokenizer_local_path = nemo_checkpoint / 'context' / tokenizer_config['pretrained_model_name']
+            if tokenizer_local_path.is_dir():
+                tokenizer_config['pretrained_model_name'] = str(tokenizer_local_path.resolve())
+
+            tokenizer = instantiate(tokenizer_config)
 
             with (nemo_checkpoint / "context/model.yaml").open('r') as config_file:
                 self.nemo_model_config: dict = yaml.load(config_file, Loader=yaml.SafeLoader)
-
             hf_args = self._load_hf_arguments(self.nemo_model_config['config'])
-            tokenizer = load_context((nemo_checkpoint / "context"), subpath="model.tokenizer")
 
             if hasattr(tokenizer, 'bos_id'):
                 tokenizer.tokenizer.bos_token_id = tokenizer.bos_id
