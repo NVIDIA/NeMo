@@ -17,14 +17,13 @@ from dataclasses import dataclass
 
 import torch
 from megatron.core.optimizer import OptimizerConfig
-from nemo.collections.llm.gpt.data.core import get_dataset_root
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from tests.collections.llm.common import Llama3ConfigCI
-
 
 ## NOTE: This script is present for github-actions testing only.
 
