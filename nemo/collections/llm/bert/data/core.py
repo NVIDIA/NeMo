@@ -21,8 +21,7 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.llm.gpt.data.core import JSONLMemMapDataset
-from nemo.collections.llm.gpt.data.utils import get_samples_mapping
+from nemo.collections.llm.gpt.data.utils import _JSONLMemMapDataset, _get_samples_mapping
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
 from nemo.utils import logging
