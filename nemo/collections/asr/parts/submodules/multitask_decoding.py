@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import torch
 from omegaconf import OmegaConf

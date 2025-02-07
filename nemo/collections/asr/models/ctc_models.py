@@ -42,7 +42,6 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-from nemo.utils.decorators import deprecated
 
 __all__ = ['EncDecCTCModel']
 

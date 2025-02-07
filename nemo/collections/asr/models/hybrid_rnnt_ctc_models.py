@@ -13,15 +13,11 @@
 # limitations under the License.
 
 import copy
-import json
-import os
-import tempfile
 from typing import Any, List, Optional, Union
 
 import torch
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss

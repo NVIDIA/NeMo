@@ -164,7 +164,7 @@ class BLEU(SacreBLEUScore):
             hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
 
         if self.log_prediction:
-            logging.info(f"\n")
+            logging.info("\n")
             logging.info(f"reference:{references[0]}")
             logging.info(f"predicted:{hypotheses[0]}")
 
