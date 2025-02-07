@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from dataclasses import dataclass
 
 try:
@@ -28,7 +29,7 @@ try:
 
     HAVE_MEGATRON_CORE = True
 
-except (ImportError, ModuleNotFoundError) as e:
+except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 
@@ -60,14 +61,14 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
 
     def __init__(self, *args, **kwargs):
         super(TransformerLayerWithPostLNSupport, self).__init__(*args, **kwargs)
-        ## [Module add: Post attention LN]
+        # [Module add: Post attention LN]
         self.post_att_layernorm = build_module(
             self.submodules_config.post_att_layernorm,
             config=self.config,
             hidden_size=self.config.hidden_size,
             eps=self.config.layernorm_epsilon,
         )
-        ## [Module add: Post MLP LN]
+        # [Module add: Post MLP LN]
         self.post_mlp_layernorm = build_module(
             self.submodules_config.post_mlp_layernorm,
             config=self.config,
