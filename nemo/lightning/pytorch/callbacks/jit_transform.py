@@ -127,29 +127,51 @@ def compile_module(config, module):
     else:
         return False
 
-
 @dataclass
 class JitConfig:
-    """Config POD for Jit transforms (e.g. torch.compile or thunder)
+    """Config POD for torch.compile Jit transform
     Options:
     - module_selector (str): reg-exp to match modules to apply JitTransform to, useful for multi-trunk
       models where you want to apply it on one of them only. If empty will apply transform to root
       module.
-    - use_torch (bool): whether to use torch.compile or not.
-    - torch_kwargs (dict): kwargs to pass to torch.compile.
-    - use_thunder (bool): whether to use thunder or not.
-    - profile_thunder (bool): toggle for thunder's profiler.
     """
 
     module_selector: str = ''
-    use_torch: bool = False
-    torch_kwargs: dict = field(default_factory=dict)
-    use_thunder: bool = False
-    profile_thunder: bool = False
 
-    def __post_init__(self):
-        assert not (self.use_torch and self.use_thunder), "use_torch cannot be used at the same time with use_thunder"
 
+# @dataclass
+# class JitTorchConfig:
+#     """Config POD for torch.compile Jit transform
+#     Options:
+#     - module_selector (str): reg-exp to match modules to apply JitTransform to, useful for multi-trunk
+#       models where you want to apply it on one of them only. If empty will apply transform to root
+#       module.
+#     """
+
+#     module_selector: str = ''
+
+#     compile(
+#         model: Optional[Callable] = None, *,
+#         fullgraph: bool = False,
+#         dynamic: Optional[bool] = None,
+#         backend: Union[str, Callable] = 'inductor',
+#         mode: Optional[str] = None,
+#         options: Optional[Dict[str, Union[str, int, bool]]] = None,
+#         disable: bool = False
+#     )
+
+@dataclass
+class JitThunderConfig:
+    """Config POD for Thunder Jit transform
+    Options:
+    - module_selector (str): reg-exp to match modules to apply JitTransform to, useful for multi-trunk
+      models where you want to apply it on one of them only. If empty will apply transform to root
+      module.
+    - profile (bool): toggle for thunder's profiler.
+    """
+
+    module_selector: str = ''
+    profile: bool = False
 
 class JitTransform(Callback, IOMixin):
     """
