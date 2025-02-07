@@ -49,8 +49,8 @@ def default_log(
 ) -> Config[nl.NeMoLogger]:
     ckpt = Config(
         nl.ModelCheckpoint,
-        save_last=True,
-        save_top_k=10,
+        save_last="link",
+        save_top_k=1,
         train_time_interval=Config(timedelta, minutes=15),
         filename="{model_name}--{val_loss:.2f}-{step}-{consumed_samples}",
     )

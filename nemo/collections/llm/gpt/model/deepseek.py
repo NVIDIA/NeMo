@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from functools import cached_property, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Union
+import re
 
 import torch
 import torch.nn.functional as F
@@ -121,6 +122,15 @@ class DeepSeekV2Config(DeepSeekConfig):
     mscale: float = 0.707
     mscale_all_dim: float = 0.707
 
+@dataclass
+class DeepSeekV2ConfigDebug(DeepSeekV2Config):
+    """
+    DEBUG DeepSeek-V2 Model: https://github.com/deepseek-ai/DeepSeek-V2 # todo delete
+    """
+
+    num_layers: int = 2
+    moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0, 1])  # first layer is dense
+
 
 @dataclass
 class DeepSeekV3Config(DeepSeekConfig):
@@ -149,6 +159,14 @@ class DeepSeekV3Config(DeepSeekConfig):
     mscale: float = 1.0
     mscale_all_dim: float = 1.0
 
+@dataclass
+class DeepSeekV3ConfigDebug(DeepSeekV3Config):
+    """
+    DEBUG DeepSeek-V3 Model: https://github.com/deepseek-ai/DeepSeek-V3 # todo delete
+    """
+
+    num_layers: int = 2
+    moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0, 1])  # first layer is dense
 
 class DeepSeekModel(GPTModel):
     # pylint: disable=C0115,C0116
@@ -170,13 +188,23 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
     def init(self) -> DeepSeekModel:
         return DeepSeekModel(self.config, tokenizer=self.tokenizer)
 
+    def local_path(self, base_path: Optional[Path] = None) -> Path:
+        # TODO: delete this function
+        self.debug = False
+        logging.setLevel(logging.DEBUG)
+
+        output_path = super().local_path(base_path)
+        if self.debug:
+            output_path = Path(str(output_path) + "_debug")
+        return output_path
+
     def apply(self, output_path: Path) -> Path:
         from transformers import AutoModelForCausalLM
 
         source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
         source = self._modify_source_state(source)
         target = self.init()
-        trainer = self.nemo_setup(target)
+        trainer = self.nemo_setup(target, ckpt_torch_dist_multiproc=32, ckpt_async_save=False)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
@@ -197,6 +225,26 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         """
 
         state_dict = source.state_dict()
+
+        to_pop = []
+        if hasattr(self, 'debug') and self.debug:
+            is_v3 = hasattr(self.config, "moe_router_enable_expert_bias") and self.config.moe_router_enable_expert_bias
+
+            for k in state_dict.keys():
+                if match := re.match(r"model\.layers\.(\d+)\.", k):
+                    if is_v3:
+                        if int(match.group(1)) not in [2, 3]:  # 0, 1, 2 dense, 3, 4, ... moe
+                            to_pop.append(k)
+                    else:
+                        if int(match.group(1)) >= self.config.num_layers:
+                            to_pop.append(k)
+                if is_v3 and (match := re.match(r"\.experts.linear_fc(\d).weight(\d+)", k)):
+                    if int(match.group(2)) >= 128:
+                        to_pop.append(k)
+            [state_dict.pop(k) for k in to_pop]
+            keys = list(state_dict.keys())
+            for k in keys:
+                state_dict[k.replace("layers.2", "layers.0").replace("layers.3", "layers.1")] = state_dict.pop(k)
 
         for layer_i, use_moe in enumerate(self.config.moe_layer_freq):
             if use_moe == 0:
@@ -281,6 +329,9 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
     @cached_property
     def config(self) -> DeepSeekConfig:
+        if hasattr(self, 'debug') and self.debug:
+            return self.config_debug
+
         from transformers import AutoConfig as HFAutoConfig
 
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
@@ -311,6 +362,35 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
             **v3_kwargs,
+        )
+
+
+    @cached_property
+    def config_debug(self) -> DeepSeekConfig:
+        # TODO remove
+        from transformers import AutoConfig as HFAutoConfig
+
+        source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
+        is_v3 = source.scoring_func == "sigmoid"
+        return DeepSeekConfig(
+            num_layers=2,
+            hidden_size=source.hidden_size,
+            ffn_hidden_size=source.intermediate_size,
+            num_moe_experts=source.n_routed_experts,
+            moe_ffn_hidden_size=source.moe_intermediate_size,
+            moe_shared_expert_intermediate_size=source.moe_intermediate_size * source.n_shared_experts,
+            moe_layer_freq=[0, 1],
+            moe_router_topk=source.num_experts_per_tok,
+            moe_router_num_groups=source.n_group,
+            moe_router_group_topk=source.topk_group,
+            moe_router_topk_scaling_factor=source.routed_scaling_factor,
+            moe_aux_loss_coeff=source.aux_loss_alpha,
+            moe_router_score_function=source.scoring_func,
+            moe_router_enable_expert_bias=is_v3,
+            make_vocab_size_divisible_by=1280 if is_v3 else 3200,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
 
 

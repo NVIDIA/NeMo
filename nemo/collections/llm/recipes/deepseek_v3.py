@@ -20,7 +20,7 @@ import nemo_run as run
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Config
+from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Config, DeepSeekV3ConfigDebug
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 
@@ -28,7 +28,7 @@ NAME = "deepseek_v3"
 
 
 @run.cli.factory(name=NAME)
-def model() -> run.Config[pl.LightningModule]:
+def model(debug=False) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a DeepSeek-V3 (671B) model configuration.
 
@@ -43,7 +43,7 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    conf = run.Config(DeepSeekV3Config)
+    conf = run.Config(DeepSeekV3ConfigDebug if debug else DeepSeekV3Config)
     return run.Config(DeepSeekModel, config=conf)
 
 
@@ -95,6 +95,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'lora',
     seq_length: Optional[int] = None,
     packed_sequence: Optional[bool] = None,
+    debug=False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for DeepSeek-V3 (671B) model.
@@ -141,7 +142,7 @@ def finetune_recipe(
             num_nodes = 6
 
     recipe = default_finetune_recipe(
-        model(), "deepseek-ai/DeepSeek-V3-Base", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(debug), f"deepseek-ai/DeepSeek-V3-Base{'_debug' if debug else ''}", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.expert_model_parallel_size = 64
@@ -175,5 +176,8 @@ def finetune_recipe(
     if packed_sequence:
         recipe.data.dataset_kwargs = {'pad_to_max_length': True}
         recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
+
+    recipe.trainer.enable_checkpointing = False  # disable ckpt saving
+    recipe.log.ckpt = None  # disable ckpt saving
 
     return recipe

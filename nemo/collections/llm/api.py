@@ -771,37 +771,37 @@ def generate(
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
     )
 
-    dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
-    dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
-    chunk_size = (len(inputs) + dp_size - 1) // dp_size
-    start_idx = dp_rank * chunk_size
-    end_idx = min(start_idx + chunk_size, len(inputs))
-    inputs_on_this_dp_rank = inputs[start_idx:end_idx]
+    # dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
+    # dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
+    # chunk_size = (len(inputs) + dp_size - 1) // dp_size
+    # start_idx = dp_rank * chunk_size
+    # end_idx = min(start_idx + chunk_size, len(inputs))
+    # inputs_on_this_dp_rank = inputs[start_idx:end_idx]
 
-    results_on_this_dp_rank = inference.generate(
+    results = inference.generate(
         model=inference_wrapped_model,
         tokenizer=mcore_tokenizer,
-        prompts=inputs_on_this_dp_rank,
+        prompts=inputs,
         encoder_prompts=encoder_prompts,
         add_BOS=add_BOS,
         max_batch_size=max_batch_size,
         random_seed=random_seed,
         inference_params=inference_params,
     )
-    gathered_results = [None] * dp_size
+    # gathered_results = [None] * dp_size
 
-    all_gather_object(
-        gathered_results,
-        [r.generated_text if text_only else r for r in results_on_this_dp_rank],
-        group=parallel_state.get_data_parallel_group(),
-    )
-    gathered_results = [result for sublist in gathered_results for result in sublist]
+    # all_gather_object(
+    #     gathered_results,
+    #     [r.generated_text if text_only else r for r in results_on_this_dp_rank],
+    #     group=parallel_state.get_data_parallel_group(),
+    # )
+    # gathered_results = [result for sublist in gathered_results for result in sublist]
 
-    assert len(gathered_results) == len(inputs)
+    # assert len(gathered_results) == len(inputs)
 
     if output_path is not None and is_global_rank_zero():
         with open(output_path, "w") as f:
-            for sample, pred in zip(dataset if input_dataset else inputs, gathered_results):
+            for sample, pred in zip(dataset if input_dataset else inputs, results):
                 if type(sample) == dict:
                     sample["label"] = sample.pop("output", None)
                     sample["prediction"] = pred if text_only else pred.generated_text
@@ -810,7 +810,7 @@ def generate(
                 f.write(json.dumps(sample) + "\n")
         logging.info(f"Predictions written to {output_path}")
 
-    return gathered_results
+    return [r.generated_text if text_only else r for r in results]
 
 
 def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType) -> None:

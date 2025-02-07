@@ -467,10 +467,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             convert_module_fn=convert_module_fn,
         )
 
+        # Assign trainer to megatron_parallel before init_model_parallel as its required to check stage of trainer
+        # (TESTING or not) in init_model_parallel.
+        self.megatron_parallel.trainer = trainer
+
         if self._init_model_parallel:
             self.init_model_parallel()
-
-        self.megatron_parallel.trainer = trainer
 
         # check signature-def of self.model.configure_optimizers to check if there's an optional arg: megatron_parallel
         sig = inspect.signature(self.model.configure_optimizers)
@@ -605,8 +607,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 )
                 # Log any MoE losses.
                 # TODO(@akoumparouli): loss_scale depends on the GBS.
-                for loss_name, loss_value in aggregate_moe_loss_stats(loss_scale=1.0).items():
-                    self.lightning_module.log(loss_name, loss_value, prog_bar=True, rank_zero_only=True, batch_size=1)
+
+                # pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+                # print(f"{pp_rank=} before aggregate_moe_loss_stats")
+                # for loss_name, loss_value in aggregate_moe_loss_stats(loss_scale=1.0).items():
+                #     self.lightning_module.log(loss_name, loss_value, prog_bar=True, rank_zero_only=True, batch_size=1)
 
             return out
 

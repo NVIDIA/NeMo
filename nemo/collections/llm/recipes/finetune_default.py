@@ -118,6 +118,7 @@ def default_finetune_trainer(
         context_parallel_size=context_parallelism,
         sequence_parallel=sequence_parallelism,
         gradient_as_bucket_view=True,
+        ckpt_load_strictness="log_all",
     )
 
     trainer = run.Config(

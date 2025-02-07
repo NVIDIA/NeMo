@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar,
 
 import numpy as np
 import torch
+from nemo.utils import logging
 from torch import nn
 from nemo.lightning.pytorch.utils import extract_dtypes
 
@@ -127,9 +128,11 @@ def apply_transforms(
     )
 
     for key, val in mapping.items():
+        logging.debug(f"Mapping {key} -> {val}")
         ctx = StateDictTransform(key, val)(ctx)
 
     for transform in transforms:
+        logging.debug(f"Transforming {transform.source_key} -> {transform.target_key}")
         ctx = transform(ctx)
 
     _params: Dict[str, nn.Parameter] = {}
@@ -137,7 +140,10 @@ def apply_transforms(
         if name in target_state:
             target_param = target_state[name]
             if param.data.shape != target_param.shape:
-                raise ValueError(f"Shape mismatch for parameter {name}: {param.shape} vs {target_param.shape}")
+                raise ValueError(
+                    f"Shape mismatch for parameter {name}: target shape {param.shape} vs "
+                    f"converted source shape {target_param.shape}"
+                )
 
             _params[name] = nn.Parameter(target_param, requires_grad=param.requires_grad)
             target_state.pop(name)
@@ -183,6 +189,14 @@ def apply_transforms(
 
     """finally:
         cls._set_model_restore_state(is_being_restored=False)"""
+
+    meta_tensor_keys = []
+    for name, param in target.named_parameters():
+        if param.is_meta:
+            meta_tensor_keys.append(name)
+
+    assert not meta_tensor_keys, (f"{meta_tensor_keys}\nThere are meta tensors in the model after conversion."
+        f"Did you forget to include these parameters in the mapping or transforms in `convert_state`?")
 
     assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
         f"dtype mismatch between source and target state dicts. "
@@ -295,6 +309,7 @@ class StateDictTransform(Generic[F]):
                     if accepts_var_args:
                         source_values = [source_dict[k] for k in source_match]
                         target_dict[target_match] = self.call_transform(ctx, *source_values)
+                        logging.debug(f"Matched (1)! {target_match=} {source_match=}")
                     else:
                         _source_match_list = [source_match] if isinstance(source_match, str) else list(source_match)
                         if len(fn_params) != len(_source_match_list):
@@ -304,6 +319,7 @@ class StateDictTransform(Generic[F]):
 
                         kwargs = {param: source_dict[k] for param, k in zip(fn_params, _source_match_list)}
                         target_dict[target_match] = self.call_transform(ctx, **kwargs)
+                        logging.debug(f"Matched (2)! {target_match=} {source_match=}")
             else:
                 if source_matches.ndim == 0:
                     source_matches_list = [source_matches.item()]
@@ -316,7 +332,7 @@ class StateDictTransform(Generic[F]):
                         source_matches_list = [source_matches_list]
                     else:
                         raise ValueError(
-                            "Mismatch between source and target keys: {source_matches} vs {target_matches}"
+                            f"Mismatch between source and target keys: {source_matches} vs {target_matches}"
                         )
 
                 for source_index, source_match in enumerate(source_matches_list):
@@ -337,6 +353,7 @@ class StateDictTransform(Generic[F]):
                     else:
                         for i, t in enumerate(outputs):
                             target_dict[target_match[i]] = t
+                    logging.debug(f"Matched (3)! {target_match=} {source_match=}")
 
         return ctx
 

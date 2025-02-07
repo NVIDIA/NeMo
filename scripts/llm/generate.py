@@ -97,15 +97,17 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
+    torch.manual_seed(0)
 
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp,
         pipeline_model_parallel_size=args.pp,
         expert_model_parallel_size=args.ep,
         context_parallel_size=1,
-        sequence_parallel=False,
+        sequence_parallel=False, # args.tp > 1,
         setup_optimizers=False,
         store_optimizer_states=False,
+        ckpt_load_strictness="log_all",  # TODO don't keep this permanent
     )
 
     trainer = nl.Trainer(
@@ -123,8 +125,20 @@ if __name__ == "__main__":
     )
     prompts = [
         "Hello, how are you?",
-        "How many r's are in the word 'strawberry'?",
-        "Which number is bigger? 10.119 or 10.19?",
+        "The color of the sky is blue but sometimes it can also be",
+        "ba ba black sheep, have you any wool?",
+        # "Hello 2",
+        # "Hello 3",
+        # "Hello 4",
+        # "Hello 5",
+        # "Hello, how are you?",
+        # "How many r's are in the word 'strawberry'?",
+        # "Which number is bigger? 10.119 or 10.19?",
+        # "Which number is bigger? 10.119 or 10.19?",
+        # "你是谁，你可以做什么？",
+        "举头望明月 ",
+        # "举头望明月，低头 ",
+        "深度求索是什么？",
     ]
     results = api.generate(
         path=args.model_path,
@@ -136,6 +150,7 @@ if __name__ == "__main__":
             top_k=args.top_k,
             num_tokens_to_generate=args.num_tokens_to_generate,
         ),
+        add_BOS=True,
         text_only=True,
     )
     if torch.distributed.get_rank() == 0:

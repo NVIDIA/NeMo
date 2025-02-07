@@ -42,6 +42,7 @@ from typing import (
 
 import torch
 import torch.distributed
+from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities import move_data_to_device
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
@@ -564,7 +565,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         if self.convert_module_fn:
             self.apply_convert_module_fn()
 
-        self.init_ddp()
+        # Skip init_ddp for inference i.e testing as it can lead to OOM.
+        if not self.trainer.state.fn == TrainerFn.TESTING:
+            self.init_ddp()
 
     def apply_convert_module_fn(self):
         for i in range(len(self)):
