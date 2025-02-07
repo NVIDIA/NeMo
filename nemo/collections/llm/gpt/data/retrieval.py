@@ -126,10 +126,10 @@ class CustomRetrievalDataModule(FineTuningDataModule):
 
         if self.val_ratio + self.test_ratio != 0:
             split_dataset = train_dataset.train_test_split(test_size=self.val_ratio + self.test_ratio, seed=self.seed)
-            save_splits['train'] = split_dataset['train']
+            save_splits['training'] = split_dataset['train']
         else:
             # No split
-            save_splits['train'] = train_dataset
+            save_splits['training'] = train_dataset
 
         split_dataset2 = {}
         if self.val_ratio !=0 and self.test_ratio != 0:
