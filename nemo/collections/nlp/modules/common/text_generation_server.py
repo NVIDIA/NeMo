@@ -14,10 +14,13 @@
 """Utilities for generating text."""
 
 import json
+import os
 import queue
 import threading
 import time
 import uuid
+from functools import lru_cache
+from pathlib import Path
 
 import torch
 from flask import Flask, jsonify, request
@@ -89,9 +92,17 @@ class MegatronGenerate(Resource):
                 choice = torch.cuda.LongTensor([KEEPALIVE_NUM])
                 torch.distributed.broadcast(choice, 0)
 
+    @lru_cache
+    def get_system_prompt(self, system_path):
+        if system_path is None:
+            return ""
+        with Path(system_path).open() as reader:
+            return reader.read().strip()
+
+
     def convert_messages(self, input_list):
         output_dict = {
-            'system': '',
+            'system': self.get_system_prompt(os.getenv("NEMO_SYSTEM_PROMPT_PATH")),
             'conversations': [],
             'mask': 'User',
             'type': 'VALUE_TO_TEXT',
