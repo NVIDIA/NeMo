@@ -442,10 +442,10 @@ if __name__ == '__main__':
             ),
         ),
     )
-
-    for key, val in model.state_dict().items():
-        if isinstance(val, torch.Tensor):
-            shape = list(val.size())
-        else:
-            shape = []
-        assert ref_ckpt[key] == (f"{type(val).__name__}", shape)
+    if args.tp == 2:
+        for key, val in model.state_dict().items():
+            if isinstance(val, torch.Tensor):
+                shape = list(val.size())
+            else:
+                shape = []
+            assert ref_ckpt[key] == (f"{type(val).__name__}", shape)

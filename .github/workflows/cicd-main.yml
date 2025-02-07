@@ -4934,7 +4934,8 @@ jobs:
         python tests/collections/llm/lora_mistralai.py \
         --max-steps 3 \
         --ep 1 \
-        --mbs 2 \
+        --tp 2 \
+        --mbs 1 \
         --model mixtral \
         --use-exclude
 
@@ -5008,7 +5009,8 @@ jobs:
 
         python tests/collections/llm/lora_mistralai.py \
         --max-steps 3 \
-        --tp 1 \
+        --ep 1 \
+        --tp 2 \
         --mbs 1 \
         --model mistral \
         --dist-opt \
