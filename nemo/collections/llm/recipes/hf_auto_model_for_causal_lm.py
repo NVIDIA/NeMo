@@ -54,7 +54,13 @@ def model(model_name, load_pretrained_weights) -> run.Config[pl.LightningModule]
             >>> model_config = model(model_name="mistralai/Mistral-Nemo-Instruct-2407")
             >>> print(model_config)
     """
-    return run.Config(HFAutoModelForCausalLM, model_name=model_name, load_pretrained_weights=load_pretrained_weights, trust_remote_code=True, attn_implementation="eager")
+    return run.Config(
+        HFAutoModelForCausalLM,
+        model_name=model_name,
+        load_pretrained_weights=load_pretrained_weights,
+        trust_remote_code=True,
+        attn_implementation="eager",
+    )
 
 
 def trainer(

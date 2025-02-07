@@ -235,7 +235,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model_accelerator(self.model)
 
         self.model.train()
-    
+
     def configure_optimizers(self):
         return torch.optim.AdamW(self.model.parameters(), lr=3e-3, foreach=True)
 
