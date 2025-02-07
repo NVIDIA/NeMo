@@ -45,7 +45,7 @@ ARG TE_TAG
 ARG TE_REPO
 COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
 RUN bash /opt/NeMo/reinstall.sh --library te --mode build && \
-    ls -al /opt/TransformerEngine || true
+  ls -al /opt/TransformerEngine || true
 
 FROM ${BASE_IMAGE} as mlm-wheel
 ARG MAX_JOBS
@@ -53,7 +53,7 @@ ARG MLM_REPO
 ARG MLM_TAG
 COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
 RUN bash /opt/NeMo/reinstall.sh --library mcore --mode build && \
-    ls -al /opt/Megatron-LM || true
+  ls -al /opt/Megatron-LM || true
 
 FROM ${BASE_IMAGE} as apex-wheel
 ARG MAX_JOBS
@@ -61,7 +61,7 @@ ARG APEX_REPO
 ARG APEX_TAG
 COPY --from=nemo-bump /opt/NeMo/reinstall.sh /opt/NeMo/reinstall.sh 
 RUN bash /opt/NeMo/reinstall.sh --library apex --mode build && \
-    ls -al /opt/Apex || true
+  ls -al /opt/Apex || true
 
 FROM ${BASE_IMAGE}
 ARG IMAGE_LABEL
@@ -86,15 +86,15 @@ ARG MLM_TAG
 ARG TE_TAG
 ARG APEX_TAG
 RUN \
-    --mount=type=bind,from=te-wheel,source=/tmp/wheels/te/,target=/tmp/wheels/te/ \
-    --mount=type=bind,from=mlm-wheel,source=/tmp/wheels/mcore/,target=/tmp/wheels/mcore/ \
-    --mount=type=bind,from=apex-wheel,source=/tmp/wheels/apex/,target=/tmp/wheels/apex/ \
-    --mount=type=bind,source=requirements,target=requirements \
-    --mount=type=bind,source=tools/ctc_segmentation/requirements.txt,target=tools/ctc_segmentation/requirements.txt \
-    --mount=type=bind,source=reinstall.sh,target=reinstall.sh \
-    --mount=type=bind,source=setup.py,target=setup.py \
-    --mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
-    --mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex
+  --mount=type=bind,from=te-wheel,source=/tmp/wheels/te/,target=/tmp/wheels/te/ \
+  --mount=type=bind,from=mlm-wheel,source=/tmp/wheels/mcore/,target=/tmp/wheels/mcore/ \
+  --mount=type=bind,from=apex-wheel,source=/tmp/wheels/apex/,target=/tmp/wheels/apex/ \
+  --mount=type=bind,source=requirements,target=requirements \
+  --mount=type=bind,source=tools/ctc_segmentation/requirements.txt,target=tools/ctc_segmentation/requirements.txt \
+  --mount=type=bind,source=reinstall.sh,target=reinstall.sh \
+  --mount=type=bind,source=setup.py,target=setup.py \
+  --mount=type=bind,source=nemo/package_info.py,target=nemo/package_info.py \
+  --mount=type=bind,source=nemo/__init__.py,target=nemo/__init__.py <<"EOF" bash -ex
     ls -al /tmp/wheels
     ls -al /tmp/wheels/apex
     bash reinstall.sh --library apex --mode install
@@ -111,6 +111,7 @@ bash /opt/NeMo/reinstall.sh --library nemo --mode install
 # set permission
 chmod 777 -R /workspace
 # Megatron Core installation
+cp a /opt/NeMo/. /workspace/
 cp -r /opt/Megatron-LM/ /workspace/
 EOF
 
