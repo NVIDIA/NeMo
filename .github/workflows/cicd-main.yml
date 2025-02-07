@@ -4923,6 +4923,21 @@ jobs:
         --mbs 1 \
         --chat_dataset_path /home/TestData/nemo2_data/chat
 
+  L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude_selector:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude_selector')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/lora_mistralai.py \
+        --max-steps 3 \
+        --ep 1 \
+        --mbs 2 \
+        --model mixtral \
+        --use-exclude
+
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -4981,6 +4996,23 @@ jobs:
         --mbs 1 \
         --model mistral \
         --dist-opt
+
+
+  L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/lora_mistralai.py \
+        --max-steps 3 \
+        --tp 1 \
+        --mbs 1 \
+        --model mistral \
+        --dist-opt \
+        --use-exclude
 
   L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
