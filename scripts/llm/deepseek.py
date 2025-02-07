@@ -18,8 +18,7 @@
 # NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
-from functools import partial
-from typing import Any, Optional
+from typing import Optional
 
 import nemo_run as run
 
@@ -28,17 +27,14 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
-DATA_PATH = '/lustre/fsw/coreai_dlalgo_llm/boxiangw/data/squad'
-
+DATA_PATH = '/lustre/fsw/portfolios/coreai/users/boxiangw/data/squad'
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
-    parser.add_argument(
-        '--model',
-        default='/lustre/fsw/coreai_dlalgo_llm/akoumparouli/nemo_bench/nemo_bench/llama33/hf_ckpts/DeepSeek-R1-Distill-Qwen-32B',
-    )
-    parser.add_argument('--nodes', default=2)
-    parser.add_argument('--devices', default=8)
+    parser.add_argument('--model', default='/lustre/fsw/portfolios/coreai/users/boxiangw/ckpt/deepseek-v3-bf16_2')
+    parser.add_argument('--nodes', type=int, default=2)
+    parser.add_argument('--devices', type=int, default=8)
+    parser.add_argument('--max-steps', type=int, default=200)
     parser.add_argument(
         "--tag",
         type=str,
@@ -69,10 +65,10 @@ def slurm_executor(
     partition: str,
     nodes: int,
     devices: int,
-    time: str = "01:00:00",
+    time: str = "04:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
-    container_image: str = "/lustre/fsw/coreai_dlalgo_llm/akoumparouli/containers/nemo_25_02_rc0.sqsh",
+    container_image: str = "/lustre/fsw/portfolios/coreai/users/boxiangw/container/25_02_rc1.sqsh",
     retries: int = 0,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
@@ -105,10 +101,10 @@ def slurm_executor(
         ),
         nodes=nodes,
         ntasks_per_node=devices,
-        # gpus_per_node=devices,
+        gpus_per_node=devices,
         mem="0",
         exclusive=True,
-        # gres="gpu:8",
+        gres="gpu:8",
         packager=run.GitArchivePackager(),
     )
 
@@ -151,6 +147,9 @@ def main():
         num_gpus_per_node=args.devices,
         peft_scheme='none',
         dir="/nemo_run/checkpoints",
+        max_steps=args.max_steps,
+        trust_remote_code=True,
+        attn_implementation='eager',
     )
 
     recipe.trainer.val_check_interval = 50
@@ -175,8 +174,8 @@ def main():
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
             user="boxiangw",
-            host="login-eos",
-            remote_job_dir="/lustre/fsw/coreai_dlalgo_llm/boxiangw/nemo-experiments",
+            host="cw-dfw-cs-001-login-01.nvidia.com",
+            remote_job_dir="/lustre/fsw/portfolios/coreai/users/boxiangw/nemo-experiments",
             account="coreai_dlalgo_llm",
             partition="batch",
             nodes=recipe.trainer.num_nodes,
