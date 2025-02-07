@@ -491,6 +491,136 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
         "Please use the EncDecSpeakerLabelModel instead of this model. EncDecClassificationModel model is kept for backward compatibility with older models."
     )
 
+    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]], use_feat: bool = False):
+        if 'shuffle' not in test_data_config:
+            test_data_config['shuffle'] = False
+
+        # preserve config
+        self._update_dataset_config(dataset_name='test', config=test_data_config)
+
+        if use_feat and hasattr(self, '_setup_feature_label_dataloader'):
+            self._test_dl = self._setup_feature_label_dataloader(config=DictConfig(test_data_config))
+        else:
+            self._test_dl = self._setup_dataloader_from_config(config=DictConfig(test_data_config))
+
+    def _setup_feature_label_dataloader(self, config: DictConfig) -> torch.utils.data.DataLoader:
+        """
+        setup dataloader for VAD inference with audio features as input
+        """
+
+        OmegaConf.set_struct(config, False)
+        config.is_regression_task = self.is_regression_task
+        OmegaConf.set_struct(config, True)
+
+        if 'augmentor' in config:
+            augmentor = process_augmentations(config['augmentor'])
+        else:
+            augmentor = None
+        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+            logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+            return None
+
+        dataset = feature_to_label_dataset.get_feature_label_dataset(config=config, augmentor=augmentor)
+        if 'vad_stream' in config and config['vad_stream']:
+            collate_func = dataset._vad_segment_collate_fn
+            batch_size = 1
+            shuffle = False
+        else:
+            collate_func = dataset._collate_fn
+            batch_size = config['batch_size']
+            shuffle = config['shuffle']
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            collate_fn=collate_func,
+            drop_last=config.get('drop_last', False),
+            shuffle=shuffle,
+            num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
+        )
+
+    def _setup_dataloader_from_config(self, config: DictConfig):
+        OmegaConf.set_struct(config, False)
+        config.is_regression_task = self.is_regression_task
+        OmegaConf.set_struct(config, True)
+
+        if 'augmentor' in config:
+            augmentor = process_augmentations(config['augmentor'])
+        else:
+            augmentor = None
+
+        featurizer = WaveformFeaturizer(
+            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
+        )
+        shuffle = config['shuffle']
+
+        # Instantiate tarred dataset loader or normal dataset loader
+        if config.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in config and config['manifest_filepath'] is None
+            ):
+                logging.warning(
+                    "Could not load dataset as `manifest_filepath` is None or "
+                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
+                )
+                return None
+
+            if 'vad_stream' in config and config['vad_stream']:
+                logging.warning("VAD inference does not support tarred dataset now")
+                return None
+
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            dataset = audio_to_label_dataset.get_tarred_classification_label_dataset(
+                featurizer=featurizer,
+                config=config,
+                shuffle_n=shuffle_n,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+            )
+            shuffle = False
+            batch_size = config['batch_size']
+            if hasattr(dataset, 'collate_fn'):
+                collate_fn = dataset.collate_fn
+            elif hasattr(dataset.datasets[0], 'collate_fn'):
+                # support datasets that are lists of entries
+                collate_fn = dataset.datasets[0].collate_fn
+            else:
+                # support datasets that are lists of lists
+                collate_fn = dataset.datasets[0].datasets[0].collate_fn
+
+        else:
+            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+                logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+                return None
+
+            if 'vad_stream' in config and config['vad_stream']:
+                logging.info("Perform streaming frame-level VAD")
+                dataset = audio_to_label_dataset.get_speech_label_dataset(featurizer=featurizer, config=config)
+                batch_size = 1
+                collate_fn = dataset.vad_frame_seq_collate_fn
+            else:
+                dataset = audio_to_label_dataset.get_classification_label_dataset(featurizer=featurizer, config=config)
+                batch_size = config['batch_size']
+                if hasattr(dataset, 'collate_fn'):
+                    collate_fn = dataset.collate_fn
+                elif hasattr(dataset.datasets[0], 'collate_fn'):
+                    # support datasets that are lists of entries
+                    collate_fn = dataset.datasets[0].collate_fn
+                else:
+                    # support datasets that are lists of lists
+                    collate_fn = dataset.datasets[0].datasets[0].collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            collate_fn=collate_fn,
+            drop_last=config.get('drop_last', False),
+            shuffle=shuffle,
+            num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
+        )
+
     def forward_for_export(self, audio_signal, length):
         encoded, length = self.encoder(audio_signal=audio_signal, length=length)
         logits = self.decoder(encoder_output=encoded, length=length)
@@ -511,18 +641,22 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
 
         OmegaConf.set_struct(cfg, True)
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def init(self, cfg: DictConfig, trainer: Trainer = None):
         self._update_decoder_config(cfg.labels, cfg.decoder)
-        super().__init__(cfg, trainer)
-        if hasattr(self._cfg, 'is_regression_task') and self._cfg.is_regression_task is not None:
+        if hasattr(cfg, 'is_regression_task') and cfg.is_regression_task is not None:
             self.is_regression_task = cfg.is_regression_task
         else:
             self.is_regression_task = False
+<<<<<<< Updated upstream
 
-        if hasattr(self._cfg, 'crop_or_pad_augment') and self._cfg.crop_or_pad_augment is not None:
-            self.crop_or_pad = ASRModel.from_config_dict(self._cfg.crop_or_pad_augment)
+=======
+        super().init(cfg, trainer)
+>>>>>>> Stashed changes
+        if hasattr(cfg, 'crop_or_pad_augment') and cfg.crop_or_pad_augment is not None:
+            self.crop_or_pad = ASRModel.from_config_dict(cfg.crop_or_pad_augment)
         else:
             self.crop_or_pad = None
+        super().__init__(cfg, trainer)
 
     def change_labels(self, new_labels: List[str]):
         """
@@ -671,88 +805,6 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def _setup_dataloader_from_config(self, config: DictConfig):
-
-        OmegaConf.set_struct(config, False)
-        config.is_regression_task = self.is_regression_task
-        OmegaConf.set_struct(config, True)
-
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
-        else:
-            augmentor = None
-
-        featurizer = WaveformFeaturizer(
-            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
-        )
-        shuffle = config['shuffle']
-
-        # Instantiate tarred dataset loader or normal dataset loader
-        if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
-            ):
-                logging.warning(
-                    "Could not load dataset as `manifest_filepath` is None or "
-                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
-                )
-                return None
-
-            if 'vad_stream' in config and config['vad_stream']:
-                logging.warning("VAD inference does not support tarred dataset now")
-                return None
-
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_label_dataset.get_tarred_classification_label_dataset(
-                featurizer=featurizer,
-                config=config,
-                shuffle_n=shuffle_n,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
-            )
-            shuffle = False
-            batch_size = config['batch_size']
-            if hasattr(dataset, 'collate_fn'):
-                collate_fn = dataset.collate_fn
-            elif hasattr(dataset.datasets[0], 'collate_fn'):
-                # support datasets that are lists of entries
-                collate_fn = dataset.datasets[0].collate_fn
-            else:
-                # support datasets that are lists of lists
-                collate_fn = dataset.datasets[0].datasets[0].collate_fn
-
-        else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
-                return None
-
-            if 'vad_stream' in config and config['vad_stream']:
-                logging.info("Perform streaming frame-level VAD")
-                dataset = audio_to_label_dataset.get_speech_label_dataset(featurizer=featurizer, config=config)
-                batch_size = 1
-                collate_fn = dataset.vad_frame_seq_collate_fn
-            else:
-                dataset = audio_to_label_dataset.get_classification_label_dataset(featurizer=featurizer, config=config)
-                batch_size = config['batch_size']
-                if hasattr(dataset, 'collate_fn'):
-                    collate_fn = dataset.collate_fn
-                elif hasattr(dataset.datasets[0], 'collate_fn'):
-                    # support datasets that are lists of entries
-                    collate_fn = dataset.datasets[0].collate_fn
-                else:
-                    # support datasets that are lists of lists
-                    collate_fn = dataset.datasets[0].datasets[0].collate_fn
-
-        return torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=batch_size,
-            collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
-            shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
-        )
-
     @torch.no_grad()
     def transcribe(
         self,
@@ -871,7 +923,7 @@ class EncDecRegressionModel(_EncDecBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if not cfg.get('is_regression_task', False):
-            raise ValueError(f"EndDecRegressionModel requires the flag is_regression_task to be set as true")
+            raise ValueError("EndDecRegressionModel requires the flag is_regression_task to be set as true")
         super().__init__(cfg=cfg, trainer=trainer)
 
     def _setup_preprocessor(self):
