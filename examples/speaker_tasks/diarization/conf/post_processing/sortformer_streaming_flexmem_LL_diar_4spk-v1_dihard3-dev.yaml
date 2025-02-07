@@ -1,0 +1,23 @@
+# Postprocessing parameters for timestamp outputs from speaker diarization models.
+# This speaker diarization postprocessing scheme is inspired by the postprocessing procedure in the following paper:
+# Medennikov, Ivan, et al. "Target-Speaker Voice Activity Detection: a Novel Approach for Multi-Speaker Diarization in a Dinner Party Scenario." (2020).
+# These parameters were optimized with hybrid-loss trained Sortformer model introduced in https://arxiv.org/pdf/2409.06656.
+# These parameters were optimized on the development split of DIHARD3 dataset (See https://arxiv.org/pdf/2012.01477).
+# Offline: Trial 732 finished with value: 0.12171946949255649 and parameters: {'onset': 0.64, 'offset': 0.74, 'pad_onset': 0.06, 'pad_offset': 0.0, 'min_duration_on': 0.1, 'min_duration_off': 0.15}. Best is trial 732 with value: 0.12171946949255649. 
+# Trial 180 finished with value: 0.1116456494497553 and parameters: {'onset': 0.79, 'offset': 0.83, 'pad_onset': 0.1, 'pad_offset': 0.0, 'min_duration_on': 0.04, 'min_duration_off': 0.11}. Best is trial 180 with value: 0.1116456494497553.
+# Trial 369 finished with value: 0.11089536330395688 and parameters: {'onset': 0.76, 'offset': 0.76, 'pad_onset': 0.1, 'pad_offset': 0.0, 'min_duration_on': 0.05, 'min_duration_off': 0.1}. Best is trial 369 with value: 0.11089536330395688.
+# parameters: 
+#   onset: 0.79  # Onset threshold for detecting the beginning and end of a speech
+#   offset: 0.83  # Offset threshold for detecting the end of a speech
+#   pad_onset: 0.1  # Adding durations before each speech segment
+#   pad_offset: 0.0  # Adding durations after each speech segment
+#   min_duration_on: 0.04  # Threshold for small non-speech deletion
+#   min_duration_off: 0.11  # Threshold for short speech segment deletion
+parameters: 
+  onset: 0.76  # Onset threshold for detecting the beginning and end of a speech
+  offset: 0.76  # Offset threshold for detecting the end of a speech
+  pad_onset: 0.1  # Adding durations before each speech segment
+  pad_offset: 0.0  # Adding durations after each speech segment
+  min_duration_on: 0.05  # Threshold for small non-speech deletion
+  min_duration_off: 0.1  # Threshold for short speech segment deletion
+  
