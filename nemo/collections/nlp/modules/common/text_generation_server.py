@@ -99,7 +99,6 @@ class MegatronGenerate(Resource):
         with Path(system_path).open() as reader:
             return reader.read().strip()
 
-
     def convert_messages(self, input_list):
         output_dict = {
             'system': self.get_system_prompt(os.getenv("NEMO_SYSTEM_PROMPT_PATH")),
