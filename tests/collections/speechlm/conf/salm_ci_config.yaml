@@ -168,7 +168,7 @@ trainer:
   num_sanity_val_steps: 0
 
 strategy:
-  _target_: nemo.lightning.MegatronStrategy
+  _target_: nemo.collections.speechlm.strategies.SpeechLMMegatronStrategy
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   ckpt_async_save: false
