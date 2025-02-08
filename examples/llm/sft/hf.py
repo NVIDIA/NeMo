@@ -62,24 +62,41 @@ def squad(tokenizer, mbs=1, gbs=2) -> pl.LightningDataModule:
         },
     )
 
-def make_strategy(strategy, model, devices, num_nodes, save_adapter_only=False):
+def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
-            checkpoint_io=model.make_checkpoint_io(save_adapter_only=save_adapter_only),
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     elif strategy == 'ddp':
         return pl.strategies.DDPStrategy(
-            checkpoint_io=model.make_checkpoint_io(save_adapter_only=save_adapter_only),
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     elif strategy == 'fsdp2':
         return nl.FSDP2Strategy(
             data_parallel_size=devices * num_nodes,
             tensor_parallel_size=1,
-            checkpoint_io=model.make_checkpoint_io(save_adapter_only=save_adapter_only),
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
 
+def logger(ckpt_folder) -> nl.NeMoLogger:
+    ckpt = nl.ModelCheckpoint(
+        save_last=True,
+        every_n_train_steps=1,
+        monitor="reduced_train_loss",
+        save_top_k=1,
+        save_on_train_epoch_end=True,
+        save_optim_on_train_end=True,
+    )
+
+    return nl.NeMoLogger(
+        name="nemo2_peft",
+        log_dir=ckpt_folder,
+        use_datetime_version=False,  # must be false if using auto resume
+        ckpt=ckpt,
+        wandb=None,
+    )
 
 def main():
     """Example script to run SFT with a HF transformers-instantiated model on squad."""
@@ -119,14 +136,6 @@ def main():
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
-    callbacks.append(
-        pl.callbacks.ModelCheckpoint(
-            dirpath=args.ckpt_folder,
-            every_n_train_steps=args.max_steps // 2,
-        )
-    )
-    callbacks[-1].FILE_EXTENSION = ''
-
     model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
@@ -150,7 +159,8 @@ def main():
             precision="bf16",
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-        log=None,
+        log=logger(args.ckpt_folder),
+        resume=resume,
     )
 
 
