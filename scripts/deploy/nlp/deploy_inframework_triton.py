@@ -48,6 +48,7 @@ def get_args(argv):
     parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
     parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument("-cps", "--context_parallel_size", default=1, type=int, help="Pipeline parallelism size")
+    parser.add_argument("-emps", "--expert_model_parallel_size", default=1, type=int, help="Distributes MoE Experts across sub data parallel dimension.")
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     args = parser.parse_args(argv)
@@ -79,6 +80,7 @@ def nemo_deploy(argv):
         tensor_model_parallel_size=args.tensor_parallelism_size,
         pipeline_model_parallel_size=args.pipeline_parallelism_size,
         context_parallel_size=args.context_parallel_size,
+        expert_model_parallel_size=args.expert_model_parallel_size,
     )
 
     if torch.distributed.is_initialized():
@@ -106,14 +108,13 @@ def nemo_deploy(argv):
                 LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
                 return
 
+            torch.distributed.broadcast(torch.tensor([1], dtype=torch.long, device="cuda"), src=0)
+
             LOGGER.info("Model serving will be stopped.")
             nm.stop()
-
-            torch.distributed.broadcast(torch.tensor([1], dtype=torch.long, device="cuda"), src=0)
         elif torch.distributed.get_rank() > 0:
             model.generate_other_ranks()
 
-        torch.distributed.destroy_process_group()
     else:
         LOGGER.info("Torch distributed wasn't initialized.")
 

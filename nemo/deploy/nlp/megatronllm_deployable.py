@@ -48,6 +48,22 @@ except Exception:
 LOGGER = logging.getLogger("NeMo")
 
 
+def broadcast_list(data, src=0, group=None):
+    """Broadcasts a list of text data to all processes.
+
+    Args:
+        data (list): List of strings to broadcast.
+        src (int, optional): Source rank. Defaults to 0.
+        group (ProcessGroup, optional): The process group to work on. If None, the default process group will be used.
+    """
+    if not torch.distributed.is_initialized():
+        raise RuntimeError("Distributed environment is not initialized.")
+
+    object_list = [data] if torch.distributed.get_rank() == src else [None]
+    torch.distributed.broadcast_object_list(object_list, src=src, group=group)
+    return object_list[0]
+
+
 class MegatronLLMDeploy:
     """
     A factory class for creating deployable instances of Megatron LLM models.
@@ -102,6 +118,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         context_parallel_size: int = 1,
+        expert_model_parallel_size: int = 1,
         params_dtype: torch.dtype = torch.bfloat16,
         inference_batch_times_seqlen_threshold: int = 1000,
     ):
@@ -111,6 +128,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             tensor_model_parallel_size=tensor_model_parallel_size,
             pipeline_model_parallel_size=pipeline_model_parallel_size,
             context_parallel_size=context_parallel_size,
+            expert_model_parallel_size=expert_model_parallel_size,
             sequence_parallel=False,
             setup_optimizers=False,
             store_optimizer_states=False,
@@ -177,23 +195,24 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
 
         while True:
             message = torch.empty(1, dtype=torch.long, device="cuda")
-            torch.distributed.broadcast(message, src=torch.distributed.get_rank())
-            print("**** message: ", message)
-            if message == torch.tensor([1], dtype=torch.long, device="cuda"):
-                break
-            elif message == torch.tensor([0], dtype=torch.long, device="cuda"):
-                print("******** will call generate ...")
-                inference_params = CommonInferenceParams(
-                    temperature=1.0,
-                    top_k=1,
-                    top_p=0.0,
-                    num_tokens_to_generate=5,
-                    return_log_probs=False,
+            torch.distributed.broadcast(message, src=0)
+            if message == 0:
+                prompts = broadcast_list(data=[None], src=0)
+                max_batch_size, random_seed, temperature, top_k, top_p, num_tokens_to_generate, log_probs = (
+                    broadcast_list(data=[None], src=0)
                 )
 
-                self.generate(
-                    prompts=["What is the color of a banana?"], max_batch_size=4, inference_params=inference_params
+                inference_params = CommonInferenceParams(
+                    temperature=temperature,
+                    top_k=top_k,
+                    top_p=top_p,
+                    num_tokens_to_generate=num_tokens_to_generate,
+                    return_log_probs=log_probs,
                 )
+
+                self.generate(prompts, max_batch_size, inference_params, random_seed)
+            else:
+                return
 
     @property
     def get_triton_input(self):
@@ -219,7 +238,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
 
     @batch
     def triton_infer_fn(self, **inputs: np.ndarray):
-        print("******** message received ...")
         output_infer = {}
         try:
             prompts = str_ndarray2list(inputs.pop("prompts"))
@@ -232,6 +250,23 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             log_probs = inputs.pop("compute_logprob")[0][0] if "compute_logprob" in inputs else False
             text_only = True
 
+            if torch.distributed.is_initialized():
+                if torch.distributed.get_world_size() > 1:
+                    torch.distributed.broadcast(torch.tensor([0], dtype=torch.long, device="cuda"), src=0)
+                    broadcast_list(prompts, src=0)
+                    broadcast_list(
+                        data=[
+                            max_batch_size,
+                            random_seed,
+                            temperature,
+                            top_k,
+                            top_p,
+                            num_tokens_to_generate,
+                            log_probs,
+                        ],
+                        src=0,
+                    )
+
             inference_params = CommonInferenceParams(
                 temperature=temperature,
                 top_k=top_k,
@@ -239,10 +274,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 num_tokens_to_generate=num_tokens_to_generate,
                 return_log_probs=log_probs,
             )
-
-            if torch.distributed.is_initialized():
-                if torch.distributed.get_world_size() > 1:
-                    torch.distributed.broadcast(torch.tensor([0], dtype=torch.long, device="cuda"), src=0)
 
             results = self.generate(prompts, max_batch_size, inference_params, random_seed)
 
