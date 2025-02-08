@@ -22,6 +22,7 @@ import torch
 
 from nemo.collections.diffusion.sampler.res.runge_kutta import reg_x0_euler_step, res_x0_rk2_step
 
+
 def order2_fn(
     x_s: torch.Tensor, s: torch.Tensor, t: torch.Tensor, x0_s: torch.Tensor, x0_preds: torch.Tensor
 ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
@@ -43,11 +44,13 @@ MULTISTEP_FNs = {
     "2ab": order2_fn,
 }
 
+
 def get_multi_step_fn(name: str) -> Callable:
     if name in MULTISTEP_FNs:
         return MULTISTEP_FNs[name]
     methods = "\n\t".join(MULTISTEP_FNs.keys())
     raise RuntimeError("Only support multistep method\n" + methods)
+
 
 def is_multi_step_fn_supported(name: str) -> bool:
     """
