@@ -280,7 +280,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         return loss
 
     @torch.no_grad
@@ -336,9 +335,19 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         else:
             logging.warning("A tokenizer wasn't created before to save.")
 
-    def make_checkpoint_io(self, save_adapter_only=False):
+    def load_pretrained(self, path):
+        return AutoModelForCausalLM.from_pretrained(
+                path,
+                torch_dtype='auto',
+                device_map="cpu",
+                trust_remote_code=self.trust_remote_code,
+                load_in_4bit=self.load_in_4bit,
+                attn_implementation=self.attn_implementation,
+            ).state_dict()
+
+    def make_checkpoint_io(self, adapter_only=False):
         from nemo.lightning.io.hf import HFCheckpointIO
-        return HFCheckpointIO(model=self, save_adapter_only=save_adapter_only)
+        return HFCheckpointIO(model=self, adapter_only=adapter_only)
 
     def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
         """Remove extra keys from batch that are not kwargs in model's forward
