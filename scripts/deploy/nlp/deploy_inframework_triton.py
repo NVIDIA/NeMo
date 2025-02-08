@@ -48,7 +48,13 @@ def get_args(argv):
     parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
     parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument("-cps", "--context_parallel_size", default=1, type=int, help="Pipeline parallelism size")
-    parser.add_argument("-emps", "--expert_model_parallel_size", default=1, type=int, help="Distributes MoE Experts across sub data parallel dimension.")
+    parser.add_argument(
+        "-emps",
+        "--expert_model_parallel_size",
+        default=1,
+        type=int,
+        help="Distributes MoE Experts across sub data parallel dimension.",
+    )
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     args = parser.parse_args(argv)
