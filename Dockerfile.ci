@@ -86,6 +86,7 @@ RUN \
     bash reinstall.sh --library apex --mode install
     bash reinstall.sh --library te --mode install
     bash reinstall.sh --library mcore --mode install
+    bash reinstall.sh --library nemo --mode install
 EOF
 
 # Copy over NeMo code
