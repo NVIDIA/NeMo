@@ -17,7 +17,7 @@ WHEELS_DIR=${WHEELS_DIR:-'/tmp/wheels'}
 INSTALL_DIR=${INSTALL_DIR:-'/opt'}
 
 PIP=pip
-${PIP} install -U ${PIP}
+${PIP} install -U ${PIP} setuptools
 
 mcore() {
   local mode="$1"
