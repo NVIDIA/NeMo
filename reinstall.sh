@@ -16,7 +16,7 @@ CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 WHEELS_DIR=${WHEELS_DIR:-'/tmp/wheels'}
 
 PIP=pip
-${PIP} install -U ${PIP}
+${PIP} install -U ${PIP} setuptools
 
 mcore() {
   local mode="$1"
