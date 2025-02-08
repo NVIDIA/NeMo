@@ -375,6 +375,7 @@ jobs:
       - L0_Unit_Tests_GPU_Multimodal
       - L0_Unit_Tests_GPU_NLP
       - L0_Unit_Tests_GPU_TTS
+      - L0_Unit_Tests_GPU_Core
       - L0_Unit_Tests_GPU_Hydra
       - L0_Unit_Tests_GPU_Lightning
       - L0_Unit_Tests_GPU_Others
