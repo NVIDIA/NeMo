@@ -95,7 +95,7 @@ class ModuleMatcher:
         """
 
         full_name = f"{prefix}.{name}" if prefix else name
-        if len(self.canonical_mapping) > 0:
+        if len(self.canonical_mapping or []) > 0:
             """
             Find the element in canonical_mapping which
             1) matches the current `name` exactly, OR
@@ -106,7 +106,7 @@ class ModuleMatcher:
             for pattern in self.canonical_mapping:
                 if name == pattern or wildcard_match(pattern, full_name):
                     return (pattern, full_name)
-        elif len(self.target_modules) > 0:
+        elif len(self.target_modules or []) > 0:
             assert len(self.exclude_modules) == 0
             for pattern in self.target_modules:
                 if name == pattern or wildcard_match(pattern, full_name):

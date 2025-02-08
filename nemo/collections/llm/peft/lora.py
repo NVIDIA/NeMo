@@ -234,6 +234,9 @@ class LoRA(PEFT, ModuleMatcher):
             Target modules can also contain wildcards. For example, you can specify
                 target_modules=['*.layers.0.*.linear_qkv', '*.layers.1.*.linear_qkv'] to add LoRA to only linear_qkv
                 on the first two layers.
+        exclude_modules (List[str], optional): A list of module names not to apply LoRa to. It will
+            match all nn.Linear & nn.Linear-adjacent modules whose name does not match any string in
+            exclude_modules. If used, will require target_modules to be empty list or None.
         dim (int): Dimension of the low-rank projection space. Defaults to 32.
         alpha (int): Weighting factor for the low-rank projection. Defaults to 32.
         dropout (float): Dropout rate for the low-rank projection. Defaults to 0.0.
