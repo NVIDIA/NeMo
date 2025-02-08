@@ -127,7 +127,7 @@ nemo() {
       -r requirements/requirements_vllm.txt \
       -r requirements/requirements_deploy.txt
 
-  pip install --no-cache-dir .[all] "llama-index==0.10.43" "unstructured==0.14.9" "triton==3.1.0"
+  pip install --no-cache-dir --no-build-isolation .[all] "llama-index==0.10.43" "unstructured==0.14.9" "triton==3.1.0"
 }
 
 echo 'Uninstalling stuff'
