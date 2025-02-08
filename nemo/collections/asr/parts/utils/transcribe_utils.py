@@ -60,12 +60,11 @@ def get_buffered_pred_feat_rnnt(
         filepaths = []
         with open(manifest, "r", encoding='utf_8') as mfst_f:
             print("Parsing manifest files...")
-            # pylint: disable=E741
-            for l in mfst_f:
-                l = l.strip()
-                if not l:
+            for L in mfst_f:
+                L = L.strip()
+                if not L:
                     continue
-                row = json.loads(l)
+                row = json.loads(L)
                 audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
                 filepaths.append(audio_file)
                 if 'text' in row:
@@ -146,19 +145,19 @@ def get_buffered_pred_feat(
         raise ValueError("Either filepaths or manifest shoud not be None")
 
     if filepaths:
-        for l in tqdm(filepaths, desc="Sample:"):
+        for L in tqdm(filepaths, desc="Sample:"):
             asr.reset()
-            asr.read_audio_file(l, delay, model_stride_in_secs)
+            asr.read_audio_file(L, delay, model_stride_in_secs)
             hyp = asr.transcribe(tokens_per_chunk, delay)
             hyps.append(hyp)
     else:
         with open(manifest, "r", encoding='utf_8') as mfst_f:
-            for l in tqdm(mfst_f, desc="Sample:"):
+            for L in tqdm(mfst_f, desc="Sample:"):
                 asr.reset()
-                l = l.strip()
-                if not l:
+                L = L.strip()
+                if not L:
                     continue
-                row = json.loads(l)
+                row = json.loads(L)
                 if 'text' in row:
                     refs.append(row['text'])
                 audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)

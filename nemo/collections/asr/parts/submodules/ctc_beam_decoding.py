@@ -20,14 +20,12 @@ from typing import List, Optional, Tuple, Union
 import torch
 
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
-from nemo.collections.asr.parts.submodules.wfst_decoder import RivaDecoderConfig
+from nemo.collections.asr.parts.submodules.wfst_decoder import RivaDecoderConfig, WfstNbestHypothesis
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
-from nemo.collections.asr.parts.submodules.wfst_decoder import WfstNbestHypothesis
-
 
 DEFAULT_TOKEN_OFFSET = 100
 
@@ -446,8 +444,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             import pyctcdecode
         except (ImportError, ModuleNotFoundError):
             raise ImportError(
-                f"Could not load `pyctcdecode` library. Please install it from pip using :\n"
-                f"pip install --upgrade pyctcdecode"
+                "Could not load `pyctcdecode` library. Please install it from pip using :\n"
+                "pip install --upgrade pyctcdecode"
             )
 
         if self.pyctcdecode_beam_scorer is None:
@@ -731,8 +729,8 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                 packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
 
         return (packed_result,)
-    
-    def _prepare_decoding_lm_wfst(self) -> Union[str, 'kaldifst.StdFst', 'k2.Fsa']:
+# pylint: disable=F821
+    def _prepare_decoding_lm_wfst(self) -> Union[str, 'kaldifst.StdFst', 'k2.Fsa']:  
         """TBD"""
         arpa_lm_path_exists = self.arpa_lm_path is not None and os.path.exists(self.arpa_lm_path)
         wfst_lm_path_exists = self.wfst_lm_path is not None and os.path.exists(self.wfst_lm_path)

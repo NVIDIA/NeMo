@@ -90,7 +90,7 @@ def test_cuda_graph_rnnt_greedy_decoder(model_name, batch_size, enable_bfloat16,
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
         fast_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
-    
+
     fast_transcripts = [hyp.text for hyp in fast_hypotheses]
 
     wer = jiwer.wer(actual_transcripts, fast_transcripts)

@@ -444,7 +444,6 @@ class TestRNNTDecoding:
         else:
             check_subword_timestamps(hyps[0], decoding)
 
-
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
         reason='RNNTLoss has not been compiled with appropriate numba version.',

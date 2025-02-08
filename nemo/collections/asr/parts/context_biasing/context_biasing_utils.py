@@ -87,7 +87,7 @@ def merge_alignment_with_ws_hyps(
     word_alignment = []
     word = ""
     (
-        l,
+        L,
         r,
     ) = (
         None,
@@ -96,18 +96,16 @@ def merge_alignment_with_ws_hyps(
     for item in alignment_tokens:
         if not word:
             word = item[1][1:]
-            l = item[0]
-            r = item[0]
+            L = r = item[0]
         else:
             if item[1].startswith(bow):
-                word_alignment.append((word, l, r))
+                word_alignment.append((word, L, r))
                 word = item[1][1:]
-                l = item[0]
-                r = item[0]
+                L = r = item[0]
             else:
                 word += item[1]
                 r = item[0]
-    word_alignment.append((word, l, r))
+    word_alignment.append((word, L, r))
     initial_text_transcript = " ".join([item[0] for item in word_alignment])
     if print_stats:
         logging.info(f"Word alignment: {word_alignment}")
