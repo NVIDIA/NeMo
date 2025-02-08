@@ -94,11 +94,13 @@ RUN <<"EOF"
 bash -ex
 bash /opt/NeMo/reinstall.sh --library nemo --mode install
 
+cp -a /opt/NeMo/. /workspace/
+# Megatron Core installation
+
+cp -r /opt/Megatron-LM/ /workspace/
+
 # set permission
 chmod 777 -R /workspace
-# Megatron Core installation
-cp -a /opt/NeMo/. /workspace/
-cp -r /opt/Megatron-LM/ /workspace/
 EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
