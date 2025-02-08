@@ -185,7 +185,7 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
         context_parallel_size=2,
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
-        order="tp-cp-ep-dp-pp",
+        order="tp-cp-ep-pp-dp",
     )
 
 
