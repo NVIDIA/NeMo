@@ -160,7 +160,6 @@ def main():
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=logger(args.ckpt_folder),
-        resume=resume,
     )
 
 
