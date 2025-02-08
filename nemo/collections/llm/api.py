@@ -420,6 +420,7 @@ def ptq(
 @run.cli.entrypoint(namespace="llm")
 def deploy(
     nemo_checkpoint: AnyPath = None,
+    backend: str = "in-framework",
     model_type: str = "llama",
     triton_model_name: str = "triton_model",
     triton_model_version: Optional[int] = 1,
@@ -427,6 +428,9 @@ def deploy(
     triton_grpc_port: int = 8001,
     triton_http_address: str = "0.0.0.0",
     triton_model_repository: AnyPath = None,
+    start_fastapi_server: bool = True,
+    fastapi_http_address: str = "0.0.0.0",
+    fastapi_port: int = 8080,
     num_gpus: int = 1,
     tensor_parallelism_size: int = 1,
     pipeline_parallelism_size: int = 1,
@@ -438,10 +442,12 @@ def deploy(
     output_generation_logits: bool = True,
 ):
     """
-    Deploys nemo model on a PyTriton server by converting the nemo ckpt to trtllm.
+    Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
+    This deploy method is intended to be used for evaluation.
 
     Args:
         nemo_checkpoint (Path): Path for nemo checkpoint.
+        backend (str):
         model_type (str): Type of the model. Choices: gpt, llama, falcon, starcoder. Default: llama.
         triton_model_name (str): Name for the model that gets deployed on PyTriton. Please ensure that the same model
         name is passed to the evalute method for the model to be accessible while sending evalution requests.
@@ -452,7 +458,10 @@ def deploy(
         triton_http_address (str): HTTP address for the PyTriton server. Default:  "0.0.0.0".
         triton_model_repository (Path): Folder for the trt-llm conversion, trt-llm engine gets saved in this specified
         path. If None, saves it in /tmp dir. Default: None.
-        num_gpus (int): Number of GPUs for export to trtllm and deploy. Default: 1.
+        start_fastapi_server: only supported for in-framework deployment and not with 'trtllm' backend.
+        fastapi_http_address:
+        fastapi_port:
+        num_gpus (int): Number of GPUs per node for export to trtllm and deploy. Default: 1.
         tensor_parallelism_size (int): Tensor parallelism size. Default: 1.
         pipeline_parallelism_size (int): Pipeline parallelism size. Default: 1.
         dtype (str): dtype of the TensorRT-LLM model. Default: "bfloat16".
@@ -468,53 +477,93 @@ def deploy(
         generation_logits are used to compute the logProb of the output token in case of single token prediction
         benchmarks (like MMLU, lambada). Default: True.
     """
+    import uvicorn
+    import os
+
     from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
     unset_environment_variables()
+    if backend == 'in-framework':
+        assert start_fastapi_server is True, 'in-framework deployment exposes OAI API endpoints v1/completions and \
+        v1/chat/completions hence needs fastAPI interface to expose these endpoints to PYtriton. Please set \
+        start_fastapi_server to True'
+        if triton_http_port == fastapi_port:
+            logging.error("FastAPI port and Triton server port cannot use the same port.")
+            return
+        # Store triton ip, port relevant for FastAPI as env vars to be accessible by fastapi_interface_to_pytriton.py
+        os.environ["TRITON_HTTP_ADDRESS"] = triton_http_address
+        os.environ["TRITON_PORT"] = str(triton_http_port)
 
-    triton_deployable = get_trtllm_deployable(
-        nemo_checkpoint,
-        model_type,
-        triton_model_repository,
-        num_gpus,
-        tensor_parallelism_size,
-        pipeline_parallelism_size,
-        max_input_len,
-        max_output_len,
-        max_batch_size,
-        dtype,
-        output_context_logits,
-        output_generation_logits,
-    )
+        try:
+            from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeploy
+        except Exception as e:
+            raise ValueError(f"Unable to import MegatronLLMDeployable, due to: {type(e).__name__}: {e} cannot run "
+                             f"evaluation with in-framework deployment")
 
-    try:
-        nm = DeployPyTriton(
-            model=triton_deployable,
-            triton_model_name=triton_model_name,
-            triton_model_version=triton_model_version,
-            max_batch_size=max_batch_size,
-            http_port=triton_http_port,
-            grpc_port=triton_grpc_port,
-            address=triton_http_address,
+        triton_deployable = MegatronLLMDeploy.get_deployable(
+            nemo_checkpoint_filepath=nemo_checkpoint,
+            num_devices=num_gpus, # TODO is this per node or not ? In case of TRTLLM its per node
+            tensor_model_parallel_size=tensor_parallelism_size,
+            pipeline_model_parallel_size=pipeline_parallelism_size,)
+            # TODO Allow context_parallel_size  for in-framework 
+            # context_parallel_size=args.context_parallel_size,
+
+    elif backend == 'trtllm':
+        triton_deployable = get_trtllm_deployable(
+            nemo_checkpoint,
+            model_type,
+            triton_model_repository,
+            num_gpus,
+            tensor_parallelism_size,
+            pipeline_parallelism_size,
+            max_input_len,
+            max_output_len,
+            max_batch_size,
+            dtype,
+            output_context_logits,
+            output_generation_logits,
         )
+    if torch.distributed.is_initialized() and torch.distributed.get_rank() == 0: ##has been added for in-fw
+        try:
+            nm = DeployPyTriton(
+                model=triton_deployable,
+                triton_model_name=triton_model_name,
+                triton_model_version=triton_model_version,
+                max_batch_size=max_batch_size,
+                http_port=triton_http_port,
+                grpc_port=triton_grpc_port,
+                address=triton_http_address,
+            )
 
-        logging.info("Triton deploy function will be called.")
-        nm.deploy()
-        nm.run()
-    except Exception as error:
-        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
-        return
+            logging.info("Triton deploy function will be called.")
+            nm.deploy()
+            nm.run()
+        except Exception as error:
+            logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+            return
 
-    try:
-        logging.info("Model serving on Triton will be started.")
-        nm.serve()
-    except Exception as error:
-        logging.error("Error message has occurred during deploy function. Error message: " + str(error))
-        return
+        try:
+            if start_fastapi_server:
+                try:
+                    logging.info("REST service will be started.")
+                    uvicorn.run(
+                        'nemo.collections.llm.deploy.fastapi_interface_to_pytriton:app',
+                        host=fastapi_http_address,
+                        port=fastapi_port,
+                        reload=True,
+                    )
+                except Exception as error:
+                    logging.error("Error message has occurred during REST service start. Error message: " + str(error))
+            logging.info("Model serving on Triton will be started.")
+            nm.serve()
+        except Exception as error:
+            logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+            return
 
-    logging.info("Model serving will be stopped.")
-    nm.stop()
+        logging.info("Model serving will be stopped.")
+        nm.stop()
+    #torch.distributed.barrier() ##has been added for in-fw
 
 
 def evaluate(
