@@ -21,6 +21,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
+import lightning.pytorch as pl
 
 
 def make_squad_hf_dataset(tokenizer):
@@ -41,7 +42,7 @@ def make_squad_hf_dataset(tokenizer):
             loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:100]", pad_token_id=tokenizer.eos_id)
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:10]", pad_token_id=tokenizer.eos_id)
     datamodule.map(
         formatting_prompts_func,
         batched=False,
@@ -50,6 +51,42 @@ def make_squad_hf_dataset(tokenizer):
     )
     return datamodule
 
+def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
+    if strategy == 'auto':
+        return pl.strategies.SingleDeviceStrategy(
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+        )
+    elif strategy == 'ddp':
+        return pl.strategies.DDPStrategy(
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+        )
+    elif strategy == 'fsdp2':
+        return nl.FSDP2Strategy(
+            data_parallel_size=devices * num_nodes,
+            tensor_parallel_size=1,
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+        )
+    else:
+        raise NotImplementedError("Encountered unknown strategy")
+
+
+def logger(ckpt_folder) -> nl.NeMoLogger:
+    ckpt = nl.ModelCheckpoint(
+        save_last=True,
+        every_n_train_steps=1,
+        monitor="reduced_train_loss",
+        save_top_k=1,
+        save_on_train_epoch_end=True,
+        save_optim_on_train_end=True,
+    )
+
+    return nl.NeMoLogger(
+        name="nemo2_peft",
+        log_dir=ckpt_folder,
+        use_datetime_version=False,  # must be false if using auto resume
+        ckpt=ckpt,
+        wandb=None,
+    )
 
 def main():
     """Example script to run PEFT with a HF transformers-instantiated model on squad."""
@@ -82,17 +119,7 @@ def main():
         callbacks = [JitTransform(jit_config)]
 
     model = llm.HFAutoModelForCausalLM(model_name=args.model)
-    if args.strategy == 'ddp':
-        args.strategy = pl.strategies.DDPStrategy(
-            parallel_devices=args.devices * args.num_nodes,
-            checkpoint_io=model.make_checkpoint_io(save_adapter_only=True),
-        )
-    elif args.strategy == 'fsdp2':
-        args.strategy = nl.FSDP2Strategy(
-            data_parallel_size=args.devices * args.num_nodes,
-            tensor_parallel_size=1,
-            checkpoint_io=model.make_checkpoint_io(save_adapter_only=True),
-        )
+    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
 
     llm.api.finetune(
         model=model,
@@ -102,7 +129,7 @@ def main():
             num_nodes=args.num_nodes,
             max_steps=args.max_steps,
             accelerator=args.accelerator,
-            strategy=args.strategy,
+            strategy=strategy,
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
@@ -114,7 +141,7 @@ def main():
             precision="bf16",
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-        log=NeMoLogger(log_dir=args.ckpt_folder, use_datetime_version=False),
+        log=logger(args.ckpt_folder),
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],
             dim=8,
