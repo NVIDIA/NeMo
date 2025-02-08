@@ -31,6 +31,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import process_timestamp_
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
 class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin):

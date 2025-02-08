@@ -997,8 +997,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             # alignments is a 3-dimensional dangling list representing B x T x U
             for hyp in hypotheses:
                 hyp.alignments = [[]]
-        else:
-            alignments = None
 
         # If confidence scores need to be preserved, register a danling list to hold the values
         if self.preserve_frame_confidence:
@@ -1403,7 +1401,7 @@ class ONNXGreedyBatchedRNNTInfer(ExportedModelGreedyBatchedRNNTInfer):
             import onnx
             import onnxruntime
         except (ModuleNotFoundError, ImportError):
-            raise ImportError(f"`onnx` or `onnxruntime` could not be imported, please install the libraries.\n")
+            raise ImportError("`onnx` or `onnxruntime` could not be imported, please install the libraries.\n")
 
         if torch.cuda.is_available():
             # Try to use onnxruntime-gpu
@@ -2592,7 +2590,6 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             f = x.narrow(dim=0, start=time_idx, length=1)
 
             # Setup exit flags and counter
-            not_blank = True
             symbols_added = 0
 
             need_loop = True
@@ -2644,9 +2641,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
                 del logp
 
                 # If blank token is predicted, exit inner loop, move onto next timestep t
-                if k == self._blank_index:
-                    not_blank = False
-                else:
+                if k != self._blank_index:
                     # Append token to label set, update RNN state.
                     hypothesis.y_sequence.append(k)
                     hypothesis.score += float(v)

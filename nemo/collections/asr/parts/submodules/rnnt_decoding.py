@@ -985,7 +985,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         supported_punctuation: Optional[Set] = None,
     ) -> List[Dict[str, Union[str, int]]]:
 
-        ## no refinement for rnnt
+        # no refinement for rnnt
 
         return encoded_char_offsets, char_offsets
 

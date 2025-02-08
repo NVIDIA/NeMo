@@ -195,8 +195,8 @@ def check_beam_decoding(test_data_dir, beam_config):
         for idx, hyp_ in enumerate(all_hyps):
             print("Hyp index", idx + 1, "text :", hyp_.text)
 
-            assert len(hyp_.timestep) > 0
-            print("Timesteps", hyp_.timestep)
+            assert len(hyp_.timestamp) > 0
+            print("Timesteps", hyp_.timestamp)
             print()
 
 
@@ -258,7 +258,7 @@ class TestRNNTDecoding:
 
                     t_u.append(int(label))
 
-                print(f"Tokens at timestep {t} = {t_u}")
+                print(f"Tokens at timestamp {t} = {t_u}")
             print()
 
     @pytest.mark.skipif(
@@ -396,15 +396,15 @@ class TestRNNTDecoding:
                     if len(t_u) > 1:
                         assert t_u[-1] == blank_id
 
-                        # No blank token should be present in the current timestep other than at the end
+                        # No blank token should be present in the current timestamp other than at the end
                         for token in t_u[:-1]:
                             assert token != blank_id
 
-                    print(f"Tokens at timestep {t} = {t_u}")
+                    print(f"Tokens at timestamp {t} = {t_u}")
                 print()
 
-                assert len(hyp_.timestep) > 0
-                print("Timesteps", hyp_.timestep)
+                assert len(hyp_.timestamp) > 0
+                print("Timesteps", hyp_.timestamp)
                 print()
 
     @pytest.mark.skipif(
@@ -439,8 +439,11 @@ class TestRNNTDecoding:
         )
 
         hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
+        if isinstance(hyps[0], list):
+            check_subword_timestamps(hyps[0][0], decoding)
+        else:
+            check_subword_timestamps(hyps[0], decoding)
 
-        check_subword_timestamps(hyps[0], decoding)
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
@@ -475,7 +478,10 @@ class TestRNNTDecoding:
 
         hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
 
-        check_char_timestamps(hyps[0], decoding)
+        if isinstance(hyps[0], list):
+            check_char_timestamps(hyps[0][0], decoding)
+        else:
+            check_char_timestamps(hyps[0], decoding)
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,

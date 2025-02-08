@@ -60,6 +60,7 @@ def get_buffered_pred_feat_rnnt(
         filepaths = []
         with open(manifest, "r", encoding='utf_8') as mfst_f:
             print("Parsing manifest files...")
+            # pylint: disable=E741
             for l in mfst_f:
                 l = l.strip()
                 if not l:
@@ -631,19 +632,19 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
         return timestamp
 
     for idx, hyp in enumerate(outputs):
-        if not hasattr(hyp, 'timestep'):
+        if not hasattr(hyp, 'timestamp'):
             raise ValueError(
-                f"Expected Hypothesis object to have 'timestep' attribute, when compute_timestamps is \
+                f"Expected Hypothesis object to have 'timestamp' attribute, when compute_timestamps is \
                     enabled but got {hyp}"
             )
-        timestep = hyp.timestamp
-        if 'word' in timestep:
-            outputs[idx].timestamp['word'] = process_timestamp(timestep['word'], subsampling_factor, window_stride)
-        if 'char' in timestep:
-            outputs[idx].timestamp['char'] = process_timestamp(timestep['char'], subsampling_factor, window_stride)
-        if 'segment' in timestep:
+        timestamp = hyp.timestamp
+        if 'word' in timestamp:
+            outputs[idx].timestamp['word'] = process_timestamp(timestamp['word'], subsampling_factor, window_stride)
+        if 'char' in timestamp:
+            outputs[idx].timestamp['char'] = process_timestamp(timestamp['char'], subsampling_factor, window_stride)
+        if 'segment' in timestamp:
             outputs[idx].timestamp['segment'] = process_timestamp(
-                timestep['segment'], subsampling_factor, window_stride
+                timestamp['segment'], subsampling_factor, window_stride
             )
     return outputs
 

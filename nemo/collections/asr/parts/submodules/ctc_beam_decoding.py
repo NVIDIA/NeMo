@@ -26,6 +26,8 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
+from nemo.collections.asr.parts.submodules.wfst_decoder import WfstNbestHypothesis
+
 
 DEFAULT_TOKEN_OFFSET = 100
 
@@ -240,7 +242,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self.compute_timestamps = compute_timestamps
 
         if self.compute_timestamps:
-            raise ValueError(f"Currently this flag is not supported for beam search algorithms.")
+            raise ValueError("Currently this flag is not supported for beam search algorithms.")
 
         self.vocab = None  # This must be set by specific method by user before calling forward() !
 
@@ -535,7 +537,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             if self.kenlm_path is None or not os.path.exists(self.kenlm_path):
                 raise FileNotFoundError(
                     f"KenLM binary file not found at : {self.kenlm_path}. "
-                    f"Please set a valid path in the decoding config."
+                    "Please set a valid path in the decoding config."
                 )
 
             # perform token offset for subword models
@@ -729,7 +731,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                 packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
 
         return (packed_result,)
-
+    
     def _prepare_decoding_lm_wfst(self) -> Union[str, 'kaldifst.StdFst', 'k2.Fsa']:
         """TBD"""
         arpa_lm_path_exists = self.arpa_lm_path is not None and os.path.exists(self.arpa_lm_path)
