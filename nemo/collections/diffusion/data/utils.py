@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def minimal_crop(tensor, target_divisor):
     """
     Crops the input tensor minimally so that the total number of elements
@@ -54,7 +53,11 @@ def minimal_crop(tensor, target_divisor):
 
                 new_total_elements = new_T * new_H * new_W
                 if new_total_elements % target_divisor == 0:
-                    elements_removed = delta_T * elements_per_T + delta_H * elements_per_H + delta_W * elements_per_W
+                    elements_removed = (
+                        delta_T * elements_per_T +
+                        delta_H * elements_per_H +
+                        delta_W * elements_per_W
+                    )
                     if min_elements_removed is None or elements_removed < min_elements_removed:
                         min_elements_removed = elements_removed
                         optimal_deltas = (delta_T, delta_H, delta_W)
@@ -89,7 +92,6 @@ def test_no_cropping_needed():
     assert cropped_tensor.shape == (C, T, H, W)
     assert (T * H * W) % target_divisor == 0
 
-
 def test_minimal_cropping_T_dimension():
     """Test minimal cropping along the T dimension."""
     C, T, H, W = 3, 9, 7, 6
@@ -99,7 +101,6 @@ def test_minimal_cropping_T_dimension():
     new_T = cropped_tensor.shape[1]
     assert new_T == T - 1, cropped_tensor.shape
     assert (new_T * H * W) % target_divisor == 0
-
 
 def test_minimal_cropping_H_dimension():
     """Test minimal cropping along the H dimension."""
@@ -111,7 +112,6 @@ def test_minimal_cropping_H_dimension():
     assert new_H == H - 1, cropped_tensor.shape
     assert (T * new_H * W) % target_divisor == 0
 
-
 def test_minimal_cropping_W_dimension():
     """Test minimal cropping along the W dimension."""
     C, T, H, W = 3, 4, 3, 9
@@ -121,7 +121,6 @@ def test_minimal_cropping_W_dimension():
     new_W = cropped_tensor.shape[3]
     assert new_W == W - 1, cropped_tensor.shape
     assert (T * H * new_W) % target_divisor == 0
-
 
 def test_cropping_multiple_dimensions():
     """Test when minimal cropping requires adjustments on multiple dimensions."""
@@ -133,7 +132,6 @@ def test_cropping_multiple_dimensions():
     assert new_T <= T and new_H <= H and new_W <= W
     assert (new_T * new_H * new_W) % target_divisor == 0
 
-
 def test_large_tensor_high_divisor():
     """Test with a larger tensor and higher target_divisor."""
     C, T, H, W = 3, 50, 50, 50
@@ -142,7 +140,6 @@ def test_large_tensor_high_divisor():
     cropped_tensor = minimal_crop(tensor, target_divisor)
     total_elements = cropped_tensor.shape[1] * cropped_tensor.shape[2] * cropped_tensor.shape[3]
     assert total_elements % target_divisor == 0
-
 
 def test_impossible_cropping():
     """Test that an error is raised when it's impossible to meet the requirement."""
@@ -154,7 +151,6 @@ def test_impossible_cropping():
     except ValueError as e:
         pass
 
-
 def test_invalid_target_divisor():
     """Test that an error is raised when target_divisor is invalid."""
     C, T, H, W = 3, 8, 8, 8
@@ -163,7 +159,6 @@ def test_invalid_target_divisor():
         minimal_crop(tensor, -1)
     except ValueError as e:
         pass
-
 
 def test_minimal_elements_removed():
     """Test that the minimal number of elements are removed."""
@@ -175,7 +170,6 @@ def test_minimal_elements_removed():
     print(cropped_tensor.shape)
     assert elements_removed > 0
     assert (cropped_tensor.shape[1] * cropped_tensor.shape[2] * cropped_tensor.shape[3]) % target_divisor == 0
-
 
 test_no_cropping_needed()
 test_minimal_elements_removed()

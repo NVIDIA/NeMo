@@ -31,7 +31,6 @@ from nemo.collections.diffusion.sampler.res.runge_kutta import get_runge_kutta_f
 
 COMMON_SOLVER_OPTIONS = Literal["2ab", "2mid", "1euler"]
 
-
 @attrs.define(slots=False)
 class SolverConfig:
     is_multi: bool = False
@@ -44,7 +43,6 @@ class SolverConfig:
     s_t_min: float = 0.05
     s_noise: float = 1.0
 
-
 @attrs.define(slots=False)
 class SolverTimestampConfig:
     nfe: int = 50
@@ -52,7 +50,6 @@ class SolverTimestampConfig:
     t_max: float = 80.0
     order: float = 7.0
     is_forward: bool = False  # whether generate forward or backward timestamps
-
 
 @dataclass
 class SamplerConfig:
@@ -96,7 +93,6 @@ def get_rev_ts(
         return time_steps.flip(dims=(0,))
 
     return time_steps
-
 
 class RESSampler(torch.nn.Module):
     def __init__(self, cfg: Optional[SamplerConfig] = None):
@@ -275,3 +271,4 @@ def differential_equation_solver(
         return x_at_eps
 
     return sample_fn
+

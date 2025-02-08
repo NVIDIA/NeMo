@@ -25,22 +25,20 @@ from torch import Tensor
 
 from nemo.collections.diffusion.sampler.batch_ops import *
 from nemo.collections.diffusion.sampler.conditioner import BaseVideoCondition, DataType, Edify4Condition
-from nemo.collections.diffusion.sampler.context_parallel import cat_outputs_cp, split_inputs_cp
-from nemo.collections.diffusion.sampler.edm.edm import EDMSDE, EDMSampler, EDMScaling
-from nemo.collections.diffusion.sampler.edm.edm_pipeline import EDMPipeline
+from nemo.collections.diffusion.sampler.context_parallel import split_inputs_cp, cat_outputs_cp
 from nemo.collections.diffusion.sampler.res.res_sampler import COMMON_SOLVER_OPTIONS, RESSampler
+from nemo.collections.diffusion.sampler.edm.edm_pipeline import EDMPipeline
+from nemo.collections.diffusion.sampler.edm.edm import EDMSDE, EDMSampler, EDMScaling
 
 # key to check if the video data is normalized or image data is converted to video data
 # to avoid apply normalization or augment image dimension multiple times
 # It is due to we do not have normalization and augment image dimension in the dataloader and move it to the model
 IS_PREPROCESSED_KEY = "is_preprocessed"
 
-
 class CosmosDiffusionPipeline(EDMPipeline):
     """
-    Diffusion pipeline for Cosmos Diffusion model.
+    Diffusion pipeline for Cosmos Diffusion model. 
     """
-
     def __init__(
         self,
         # Video Tokenizer
@@ -54,12 +52,12 @@ class CosmosDiffusionPipeline(EDMPipeline):
         p_std=1.0,
         sigma_max=80,
         sigma_min=0.0002,
-        sampler_type="RES",  # or "EDM"
+        sampler_type="RES", # or "EDM"
         # EDM Scaling Args
         sigma_data=0.5,
         seed=1,
         loss_add_logvar=True,
-    ):
+    ):  
         self.vae = vae
         self.net = net
         self.conditioner = conditioner
@@ -88,7 +86,7 @@ class CosmosDiffusionPipeline(EDMPipeline):
         self.input_image_key = 'images_1024'
         self.tensor_kwargs = {"device": "cuda", "dtype": torch.bfloat16}
         self.loss_reduce = 'mean'
-
+                
         self.loss_add_logvar = loss_add_logvar
         self.loss_scale = 1.0
 
@@ -96,6 +94,7 @@ class CosmosDiffusionPipeline(EDMPipeline):
         self.camera_sample_weight = None
         self.loss_mask_enabled = False
 
+    
     @property
     def noise_level_generator(self):
         return self._noise_level_generator
@@ -117,7 +116,7 @@ class CosmosDiffusionPipeline(EDMPipeline):
         assert (
             is_image != is_video
         ), "Only one of the input_image_key or input_data_key should be present in the data_batch."
-        return is_image
+        return is_image    
 
     @torch.no_grad()
     def encode(self, state: torch.Tensor) -> torch.Tensor:
@@ -126,7 +125,7 @@ class CosmosDiffusionPipeline(EDMPipeline):
     @torch.no_grad()
     def decode(self, latent: torch.Tensor) -> torch.Tensor:
         return self.vae.decode(latent / self.sigma_data)
-
+    
     def training_step(
         self, data_batch: dict[str, torch.Tensor], iteration: int
     ) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
@@ -161,14 +160,14 @@ class CosmosDiffusionPipeline(EDMPipeline):
 
         # Sample pertubation noise levels and N(0, 1) noises
         sigma, epsilon = self.draw_training_sigma_and_epsilon(x0.size(), condition)
-
+        
         if parallel_state.is_pipeline_last_stage():
             output_batch, kendall_loss, pred_mse, edm_loss = self.compute_loss_with_epsilon_and_sigma(
                 data_batch, x0_from_data_batch, x0, condition, epsilon, sigma
             )
             return output_batch, kendall_loss
         else:
-            net_output = self.compute_loss_with_epsilon_and_sigma(
+            net_output =  self.compute_loss_with_epsilon_and_sigma(
                 data_batch, x0_from_data_batch, x0, condition, epsilon, sigma
             )
             return net_output
@@ -186,7 +185,7 @@ class CosmosDiffusionPipeline(EDMPipeline):
             DenoisePrediction: The denoised prediction, it includes clean data predicton (x0), \
                 noise prediction (eps_pred) and optional confidence (logvar).
         """
-
+        
         # Currently only supports video.
         # if self.config.get("use_dummy_temporal_dim", False):
         #     # When using video DiT model for image, we need to use a dummy temporal dimension.
@@ -209,7 +208,7 @@ class CosmosDiffusionPipeline(EDMPipeline):
         if not parallel_state.is_pipeline_last_stage():
             return net_output
 
-        # logvar = self.net.compute_logvar(c_noise)
+        # logvar = self.net.compute_logvar(c_noise)        
 
         x0_pred = batch_mul(c_skip, xt) + batch_mul(c_out, net_output)
 
@@ -283,14 +282,14 @@ class CosmosDiffusionPipeline(EDMPipeline):
                 edm_loss = edm_loss.squeeze(0)
             b, c, t, h, w = edm_loss.shape
             if logvar is not None and self.loss_add_logvar:
-                kendall_loss = batch_mul(edm_loss, torch.exp(-logvar).view(-1)).flatten(start_dim=1) + logvar.view(
-                    -1, 1
-                )
+                kendall_loss = batch_mul(edm_loss, torch.exp(-logvar).view(-1)).flatten(
+                    start_dim=1
+                ) + logvar.view(-1, 1)
             else:
                 kendall_loss = edm_loss.flatten(start_dim=1)
-
+            
             kendall_loss = rearrange(kendall_loss, "b (c t h w) -> b c (t h w)", b=b, c=c, t=t, h=h, w=w)
-
+        
             output_batch = {
                 "x0": x0,
                 "xt": xt,
@@ -379,7 +378,7 @@ class CosmosDiffusionPipeline(EDMPipeline):
         n_sample: int | None = None,
         is_negative_prompt: bool = False,
         num_steps: int = 35,
-        solver_option: COMMON_SOLVER_OPTIONS = "2ab",
+        solver_option: COMMON_SOLVER_OPTIONS = "2ab"
     ) -> Tensor:
         """
         Generate samples from the batch. Based on given batch, it will automatically determine whether to generate image or video samples.
@@ -399,9 +398,9 @@ class CosmosDiffusionPipeline(EDMPipeline):
             self._initialize_generators()
 
         x0_fn = self.get_x0_fn_from_batch(data_batch, guidance, is_negative_prompt=is_negative_prompt)
-
+        
         state_shape = list(state_shape)
-
+        
         np.random.seed(self.seed)
         x_sigma_max = (
             torch.from_numpy(np.random.randn(1, *state_shape).astype(np.float32)).to(
@@ -417,15 +416,14 @@ class CosmosDiffusionPipeline(EDMPipeline):
         if self.sampler_type == "EDM":
             samples = self.sampler(x0_fn, x_sigma_max, num_steps=num_steps, sigma_max=self.sde.sigma_max)
         elif self.sampler_type == "RES":
-            samples = self.sampler(
-                x0_fn, x_sigma_max, sigma_max=self.sde.sigma_max, num_steps=num_steps, solver_option=solver_option
-            )
+            samples = self.sampler(x0_fn, x_sigma_max, sigma_max=self.sde.sigma_max, num_steps=num_steps, solver_option=solver_option)
 
         if cp_enabled:
             cp_group = parallel_state.get_context_parallel_group()
             samples = cat_outputs_cp(samples, seq_dim=2, cp_group=cp_group)
 
         return samples
+
 
     def _normalize_video_databatch_inplace(self, data_batch: dict[str, Tensor]) -> None:
         """
@@ -474,14 +472,14 @@ class CosmosDiffusionPipeline(EDMPipeline):
             else:
                 data_batch[input_key] = rearrange(data_batch[input_key], "b c h w -> b c 1 h w").contiguous()
                 data_batch[IS_PREPROCESSED_KEY] = True
-
+    
     def get_data_and_condition(self, data_batch: dict[str, Tensor]) -> Tuple[Tensor, BaseVideoCondition]:
         """
         Retrieves data and conditioning for model input.
 
         Args:
             data_batch: Batch of input data.
-
+            
         Returns:
             Raw data, latent data, and conditioning information.
         """

@@ -133,7 +133,7 @@ class BasicDiffusionTaskEncoder(DefaultTaskEncoder, IOMixin):
         t5_text_embeddings_seq_length = t5_text_embeddings.shape[0]
 
         if t5_text_embeddings_seq_length > self.text_embedding_padding_size:
-            t5_text_embeddings = t5_text_embeddings[: self.text_embedding_padding_size]
+            t5_text_embeddings = t5_text_embeddings[:self.text_embedding_padding_size]
         else:
             t5_text_embeddings = F.pad(
                 t5_text_embeddings,

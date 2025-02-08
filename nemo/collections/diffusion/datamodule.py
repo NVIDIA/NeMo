@@ -1,8 +1,11 @@
+
+
 import json
 import os
 from dataclasses import dataclass
 from typing import Dict
 
+import random
 import numpy as np
 import torch
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS
@@ -19,23 +22,20 @@ class PosEmb3D:
         self.generate_pos_id()
 
     def generate_pos_id(self):
-        self.grid = torch.stack(
-            torch.meshgrid(
-                torch.arange(self.max_t, device='cpu'),
-                torch.arange(self.max_h, device='cpu'),
-                torch.arange(self.max_w, device='cpu'),
-            ),
-            dim=-1,
-        )
-
+        self.grid = torch.stack(torch.meshgrid(
+            torch.arange(self.max_t, device='cpu'),
+            torch.arange(self.max_h, device='cpu'), 
+            torch.arange(self.max_w, device='cpu'), 
+            ), dim=-1)
+    
     def get_pos_id_3d(self, *, t, h, w):
         if t > self.max_t or h > self.max_h or w > self.max_w:
             self.max_t = max(self.max_t, t)
             self.max_h = max(self.max_h, h)
             self.max_w = max(self.max_w, w)
             self.generate_pos_id()
-        return self.grid[:t, :h, :w]
-
+        return self.grid[ :t, :h, :w]
+    
 
 class VideoFolderDataset(Dataset):
     def __init__(self, root_dir='/lustre/fsw/portfolios/coreai/users/zeeshanp/jensen_cached_7b_data_v2', cache=True):
@@ -61,21 +61,27 @@ class VideoFolderDataset(Dataset):
         # if self._cache is not None and idx in self._cache:
         #     return self._cache[idx]
         prefix = self.sample_prefixes[idx]
-
+        
         # Load JSON info
         with open(os.path.join(self.root_dir, f"{prefix}.info.json"), 'r') as f:
             info = json.load(f)
-
+        
         # Load text embeddings
         text_embedding = torch.load(os.path.join(self.root_dir, f"{prefix}.t5_text_embeddings.pth"))
-
+        
         # Load text mask
         text_mask = torch.load(os.path.join(self.root_dir, f"{prefix}.t5_text_mask.pth"))
-
+        
         # Load video latent
         video_latent = torch.load(os.path.join(self.root_dir, f"{prefix}.video_latent.pth"))
-        video_latent = video_latent[:, :10, ...]
 
+        # Load conditioning latent
+        conditioning_latent_path = os.path.join(self.root_dir, f"{prefix}.conditioning_latent.pth")
+        if os.path.exists(conditioning_latent_path):
+            conditioning_latent = torch.load(conditioning_latent_path, map_location='cpu')
+        else:
+            conditioning_latent = None
+        
         t = info['num_frames']
         h = info['height']
         w = info['width']
@@ -85,7 +91,7 @@ class VideoFolderDataset(Dataset):
         noise_latent = torch.rand_like(video_latent, dtype=torch.bfloat16)
         timesteps = torch.randn(1)
         # pos_emb = self.pos_emb_3d.get_pos_id_3d(t=t, h=h//p, w=w//p)
-
+        
         sample = {
             'video': video_latent,
             'noise_latent': noise_latent,
@@ -98,11 +104,13 @@ class VideoFolderDataset(Dataset):
             "num_frames": torch.tensor([t] * 1, dtype=torch.bfloat16),
             "padding_mask": torch.zeros((1, 1, h, w), dtype=torch.bfloat16),
             "loss_mask": loss_mask,
+            "gt_latent": conditioning_latent,
+            "num_condition_t": random.randint(1, 4)
         }
         # if self._cache is not None:
         #     self._cache[idx] = sample
         return sample
-
+    
     def _collate_fn(self, batch):
         """
         A default implementation of a collation function.
@@ -129,7 +137,6 @@ class VideoFolderDataset(Dataset):
             Collated batch, with or without types.
         """
         return self._collate_fn(batch)
-
 
 class DiTVideoLatentMockDataset(torch.utils.data.Dataset):
     def __init__(self, num_samples, seq_len=21760):
@@ -145,14 +152,14 @@ class DiTVideoLatentMockDataset(torch.utils.data.Dataset):
         h = 34
         w = 40
         p = 1
-        seq_len = t * h * w
+        seq_len = t*h*w
         video_latent = torch.randn(1, 16, t, h, w).to(dtype=torch.uint8)
         loss_mask = torch.ones(seq_len, dtype=torch.bfloat16)
         noise_latent = torch.rand_like(video_latent, dtype=torch.bfloat16)
         timesteps = torch.randn(1)
         text_embedding = torch.randn(512, 1024)
-        pos_emb = self.pos_emb_3d.get_pos_id_3d(t=t, h=h // p, w=w // p)
-
+        pos_emb = self.pos_emb_3d.get_pos_id_3d(t=t, h=h//p, w=w//p)
+        
         return {
             'video': video_latent,
             'noise_latent': noise_latent,
@@ -167,6 +174,7 @@ class DiTVideoLatentMockDataset(torch.utils.data.Dataset):
             "loss_mask": loss_mask,
         }
 
+    
     def _collate_fn(self, batch):
         """
         A default implementation of a collation function.
@@ -193,6 +201,7 @@ class DiTVideoLatentMockDataset(torch.utils.data.Dataset):
             Collated batch, with or without types.
         """
         return self._collate_fn(batch)
+
 
 
 class DiTDataModule(MockDataModule):

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import logging
 import math
 from typing import Dict, Literal, Optional
 
@@ -28,8 +27,9 @@ from megatron.core.models.common.embeddings.rotary_pos_embedding import get_pos_
 from megatron.core.transformer.module import MegatronModule
 from torch import nn
 
-log = logging.getLogger(__name__)
+import logging
 
+log = logging.getLogger(__name__)
 
 class SDXLTimestepEmbedding(nn.Module):
     def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False):
@@ -59,7 +59,6 @@ class SDXLTimestepEmbedding(nn.Module):
 
         return emb_B_D, adaln_lora_B_3D
 
-
 class ParallelSDXLTimestepEmbedding(SDXLTimestepEmbedding):
     def __init__(
         self,
@@ -78,7 +77,7 @@ class ParallelSDXLTimestepEmbedding(SDXLTimestepEmbedding):
                 torch.manual_seed(seed)
                 self.linear_1.reset_parameters()
                 self.linear_2.reset_parameters()
-
+        
         # Check for pipeline model parallelism and set attributes accordingly
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             setattr(self.linear_1.weight, "pipeline_parallel", True)
@@ -119,12 +118,13 @@ class ParallelTimestepEmbedding(TimestepEmbedding):
                 torch.manual_seed(seed)
                 self.linear_1.reset_parameters()
                 self.linear_2.reset_parameters()
-
+            
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             setattr(self.linear_1.weight, "pipeline_parallel", True)
             setattr(self.linear_1.bias, "pipeline_parallel", True)
             setattr(self.linear_2.weight, "pipeline_parallel", True)
             setattr(self.linear_2.bias, "pipeline_parallel", True)
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -157,7 +157,6 @@ def get_pos_emb_on_this_cp_rank(pos_emb, seq_dim):
     pos_emb = pos_emb.index_select(seq_dim, cp_idx)
     pos_emb = pos_emb.view(*pos_emb.shape[:seq_dim], -1, *pos_emb.shape[(seq_dim + 2) :])
     return pos_emb
-
 
 class SinCosPosEmb3D(MegatronModule):
     """
@@ -208,7 +207,6 @@ class SinCosPosEmb3D(MegatronModule):
         pos_id = pos_ids[..., 0] * self.h * self.w + pos_ids[..., 1] * self.w + pos_ids[..., 2]
         return self.pos_embedding(pos_id)
 
-
 class FactorizedLearnable3DEmbedding(MegatronModule):
     def __init__(
         self,
@@ -234,16 +232,16 @@ class FactorizedLearnable3DEmbedding(MegatronModule):
         else:
             if config.perform_initialization:
                 self.customize_init_param()
-
+    
     def customize_init_param(self):
         self.config.init_method(self.emb_t.weight)
         self.config.init_method(self.emb_h.weight)
         self.config.init_method(self.emb_w.weight)
-
+    
     def reset_parameters(self):
         self.emb_t.reset_parameters()
         self.emb_h.reset_parameters()
         self.emb_w.reset_parameters()
-
+    
     def forward(self, pos_ids: torch.Tensor):
         return self.emb_t(pos_ids[..., 0]) + self.emb_h(pos_ids[..., 1]) + self.emb_w(pos_ids[..., 2])

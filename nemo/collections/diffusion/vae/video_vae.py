@@ -376,20 +376,20 @@ class JointImageVideoSharedJITTokenizer(JointImageVideoTokenizer):
 
 
 def video_vae3_512(
-    vae_path: str,
-    enc_fp: str = None,
-    dec_fp: str = None,
-    mean_std_fp: str = None,
-    latent_ch: int = 16,
-    is_bf16: bool = True,
-    video_mean_std_fp=None,
-    image_mean_std_fp=None,
-    spatial_compression_factor: int = 16,
-    temporal_compression_factor: int = 8,
-    pixel_chunk_duration: int = 17,
-    max_enc_batch_size: int = 8,
-    max_dec_batch_size: int = 4,
-    spatial_resolution: str = "720",
+        vae_path: str,
+        enc_fp: str = None,
+        dec_fp: str = None,
+        mean_std_fp: str = None,
+        latent_ch: int = 16,
+        is_bf16: bool = True,
+        video_mean_std_fp=None,
+        image_mean_std_fp=None,
+        spatial_compression_factor: int = 16,
+        temporal_compression_factor: int = 8,
+        pixel_chunk_duration: int = 17,
+        max_enc_batch_size: int = 8,
+        max_dec_batch_size: int = 4,
+        spatial_resolution: str = "720",
 ):
     name = 'cosmos_tokenizer'
     if enc_fp is None:
@@ -407,7 +407,7 @@ def video_vae3_512(
         video_mean_std_fp,
         pixel_chunk_duration=121,
         spatial_compression_factor=8,
-        temporal_compression_factor=8,
+        temporal_compression_factor=8
     )
 
     image_vae = JITVAE(

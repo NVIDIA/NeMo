@@ -18,7 +18,6 @@ import torch
 
 from nemo.collections.diffusion.sampler.batch_ops import batch_mul
 
-
 def phi1(t: torch.Tensor) -> torch.Tensor:
     """
     Compute the first order phi function: (exp(t) - 1) / t.
@@ -47,7 +46,6 @@ def phi2(t: torch.Tensor) -> torch.Tensor:
     input_dtype = t.dtype
     t = t.to(dtype=torch.float64)
     return ((phi1(t) - 1.0) / t).to(dtype=input_dtype)
-
 
 def res_x0_rk2_step(
     x_s: torch.Tensor,
