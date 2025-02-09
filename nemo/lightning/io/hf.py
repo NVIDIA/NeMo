@@ -77,7 +77,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
                 If ``storage_options`` arg is passed in
 
         """
-        assert is_rank_0(), "HFCheckpointIO::save_checkpoint should run only on rank=0"
+        assert is_rank_0(), "Expected to run only on rank=0"
         # Determine checkpoint directory & make dir
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
         fs = get_filesystem(checkpoint_dir)
