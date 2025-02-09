@@ -164,6 +164,7 @@ def get_mistral_expected_ckpt():
         "module.output_layer._extra_state": ("NoneType", []),
     }
 
+
 def get_mixtral_expected_ckpt():
     return {
         "module.embedding.word_embeddings.weight": ("Tensor", [15104, 4096]),
@@ -186,100 +187,292 @@ def get_mixtral_expected_ckpt():
         "module.decoder.layers.0.mlp.router.weight": ("Tensor", [8, 4096]),
         "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.0.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.1.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.2.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.3.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.4.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.5.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.6.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.0.mlp.experts.local_experts.7.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.self_attention.core_attention._extra_state": ("Tensor", [4]),
         "module.decoder.layers.1.self_attention.linear_proj.weight": ("Tensor", [4096, 2048]),
         "module.decoder.layers.1.self_attention.linear_proj._extra_state": ("Tensor", [4]),
@@ -299,105 +492,298 @@ def get_mixtral_expected_ckpt():
         "module.decoder.layers.1.mlp.router.weight": ("Tensor", [8, 4096]),
         "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.0.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.1.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.2.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.3.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.4.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.5.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.6.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1.weight": ("Tensor", [14336, 4096]),
         "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1.adapter.linear_in.weight": ("Tensor", [16, 4096]),
-        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1.adapter.linear_out.weight": ("Tensor", [14336, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1.adapter.linear_in.weight": (
+            "Tensor",
+            [16, 4096],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1.adapter.linear_out.weight": (
+            "Tensor",
+            [14336, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc1.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2.weight": ("Tensor", [4096, 7168]),
         "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2._extra_state": ("Tensor", [4]),
-        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2.adapter.linear_in.weight": ("Tensor", [32, 7168]),
-        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2.adapter.linear_in._extra_state": ("NoneType", []),
-        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2.adapter.linear_out.weight": ("Tensor", [2048, 32]),
-        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2.adapter.linear_out._extra_state": ("NoneType", []),
+        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2.adapter.linear_in.weight": (
+            "Tensor",
+            [32, 7168],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2.adapter.linear_in._extra_state": (
+            "NoneType",
+            [],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2.adapter.linear_out.weight": (
+            "Tensor",
+            [2048, 32],
+        ),
+        "module.decoder.layers.1.mlp.experts.local_experts.7.linear_fc2.adapter.linear_out._extra_state": (
+            "NoneType",
+            [],
+        ),
         "module.decoder.final_layernorm.weight": ("Tensor", [4096]),
         "module.decoder.final_layernorm._extra_state": ("Tensor", [0]),
         "module.output_layer.weight": ("Tensor", [15104, 4096]),
-        "module.output_layer._extra_state": ("NoneType", [])
+        "module.output_layer._extra_state": ("NoneType", []),
     }
+
 
 def mixtral_8x7b() -> pl.LightningModule:
     tokenizer = OrdTokenizer()
@@ -410,11 +796,13 @@ def mistral_7b() -> pl.LightningModule:
     model = llm.MistralModel(llm.MistralConfig7B(num_layers=2), tokenizer=tokenizer)
     return model, get_mistral_expected_ckpt()
 
+
 def make_lora(use_exclude):
     if use_exclude:
         return llm.peft.LoRA(exclude_modules=['output_layer'], target_modules=[])
     else:
         return llm.peft.LoRA()
+
 
 if __name__ == '__main__':
     args = get_args()
