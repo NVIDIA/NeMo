@@ -170,9 +170,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 'step',
                 self.trainer.global_step,
             )
-            self.lightning_module.log(
-                'reduced_train_loss', reduced['avg'], prog_bar=True, rank_zero_only=True, batch_size=1
-            )
 
             # returns unreduced loss for backward
             return loss
