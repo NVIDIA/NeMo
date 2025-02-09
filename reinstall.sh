@@ -112,7 +112,7 @@ nemo() {
   NEMO_DIR=${NEMO_DIR:-"/opt/NeMo"}
 
   if [[ -n "$NEMO_TAG" ]]; then
-    if [ ! -d "$NEMO_DIR/" ]; then
+    if [ ! -d "$NEMO_DIR/.git" ]; then
       rm -rf "$NEMO_DIR" &&
         cd $(dirname "$NEMO_DIR") &&
         git clone ${NEMO_REPO}
