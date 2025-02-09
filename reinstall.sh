@@ -26,7 +26,7 @@ mcore() {
   export CAUSAL_CONV_TAG=v1.2.2.post1
 
   CAUSAL_CONV1D_DIR="/opt/causal-conv1d" &&
-    if [ ! -d "$CAUSAL_CONV1D_DIR" ]; then
+    if [ ! -d "$CAUSAL_CONV1D_DIR/.git" ]; then
       rm -rf "$CAUSAL_CONV1D_DIR" &&
         cd $(dirname "$CAUSAL_CONV1D_DIR") &&
         git clone https://github.com/Dao-AILab/$(basename $CAUSAL_CONV1D_DIR).git
@@ -36,7 +36,7 @@ mcore() {
     popd
 
   MAMBA_DIR="/opt/mamba" &&
-    if [ ! -d "$MAMBA_DIR" ]; then
+    if [ ! -d "$MAMBA_DIR/.git" ]; then
       rm -rf "$MAMBA_DIR" &&
         cd $(dirname "$MAMBA_DIR") &&
         git clone https://github.com/state-spaces/$(basename $MAMBA_DIR).git
@@ -46,7 +46,7 @@ mcore() {
     popd
 
   MLM_DIR="/opt/Megatron-LM" &&
-    if [ ! -d "$MLM_DIR" ]; then
+    if [ ! -d "$MLM_DIR/.git" ]; then
       rm -rf "$MLM_DIR" &&
         cd $(dirname "$MLM_DIR") &&
         git clone ${MLM_REPO}
@@ -69,7 +69,7 @@ te() {
   local mode="$1"
   TE_DIR="/opt/TransformerEngine"
 
-  if [ ! -d "$TE_DIR/" ]; then
+  if [ ! -d "$TE_DIR/.git" ]; then
     rm -rf "$TE_DIR" &&
       cd $(dirname "$TE_DIR") &&
       git clone ${TE_REPO}
@@ -90,7 +90,7 @@ apex() {
   local mode="$1"
   APEX_DIR="/opt/Apex"
 
-  if [ ! -d "$APEX_DIR/" ]; then
+  if [ ! -d "$APEX_DIR/.git" ]; then
     rm -rf "$APEX_DIR" &&
       cd $(dirname "$APEX_DIR") &&
       git clone ${APEX_REPO}
