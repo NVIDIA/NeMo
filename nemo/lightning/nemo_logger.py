@@ -92,7 +92,8 @@ class NeMoLogger(IOMixin):
         self.global_rank = trainer.global_rank
         logging.rank = self.global_rank
 
-        if self.explicit_log_dir and isinstance(trainer, pl.Trainer):  # If explicit log_dir was passed, short circuit
+        # If explicit log_dir was passed, short circuit
+        if self.explicit_log_dir and isinstance(trainer, pl.Trainer):
             if trainer.logger is not None and not self.update_logger_directory:
                 logging.warning(
                     f"nemo logger received explicit_log_dir: {self.explicit_log_dir} and the pytorch lightning trainer "
@@ -105,8 +106,10 @@ class NeMoLogger(IOMixin):
                     f"or version: {self.version}. Please note that dir, name, and version will be ignored."
                 )
             if is_global_rank_zero() and Path(self.explicit_log_dir).exists():
-                logging.warning(f"NeMoLogger is logging to {self.explicit_log_dir}, but it already exists.")
-            log_dir, _dir, self.name, version = Path(self.explicit_log_dir), str(self.explicit_log_dir), "", ""
+                logging.warning(
+                    f"NeMoLogger is logging to {self.explicit_log_dir}, but it already exists.")
+            log_dir, _dir, self.name, version = Path(
+                self.explicit_log_dir), str(self.explicit_log_dir), "", ""
 
         else:
             # Default dir to ./nemo_experiments if None was passed
@@ -117,7 +120,8 @@ class NeMoLogger(IOMixin):
             if not self.name:
                 self.name = "default"
 
-            version = self.version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
+            version = self.version or os.environ.get(
+                NEMO_ENV_VARNAME_VERSION, None)
             if not version:
                 if resume_if_exists:
                     logging.warning(
@@ -131,7 +135,8 @@ class NeMoLogger(IOMixin):
                 if is_global_rank_zero():
                     os.environ[NEMO_ENV_VARNAME_VERSION] = version
 
-            log_dir = Path(_dir) / Path(str(self.name)) / Path("" if version is None else str(version))
+            log_dir = Path(_dir) / Path(str(self.name)) / \
+                Path("" if version is None else str(version))
 
         # update app_state with log_dir, exp_dir, etc
         app_state = AppState()
@@ -141,7 +146,8 @@ class NeMoLogger(IOMixin):
         app_state.version = version
         app_state.cmd_args = sys.argv
 
-        os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
+        # Cannot limit creation to global zero as all ranks write to own log file
+        os.makedirs(log_dir, exist_ok=True)
         logging.info(f"Experiments will be logged at {log_dir}")
 
         if task_config and is_global_rank_zero():
@@ -149,7 +155,8 @@ class NeMoLogger(IOMixin):
 
         if isinstance(trainer, pl.Trainer):
             self._setup_trainer_loggers(trainer, _dir, version)
-            self._setup_trainer_model_checkpoint(trainer, log_dir=log_dir, ckpt=self.ckpt)
+            self._setup_trainer_model_checkpoint(
+                trainer, log_dir=log_dir, ckpt=self.ckpt)
 
         self._setup_files_to_move(log_dir, app_state)
         self._setup_file_logging(log_dir)
@@ -169,7 +176,8 @@ class NeMoLogger(IOMixin):
             for logger in trainer.loggers:
                 if isinstance(logger, TensorBoardLogger):
                     logger._version = version or ""
-                    logger._root_dir = Path(dir) / os.path.relpath(logger.save_dir)
+                    logger._root_dir = Path(
+                        dir) / os.path.relpath(logger.save_dir)
                     logging.warning(
                         f'"update_logger_directory" is True. Overwriting tensorboard logger "save_dir" to {logger._root_dir}'
                     )
@@ -222,7 +230,7 @@ class NeMoLogger(IOMixin):
                     callback.dirpath = Path(log_dir / "checkpoints")
                 if callback.filename is None:
                     if isinstance(trainer.strategy, MegatronStrategy):
-                            callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{consumed_samples}}"
+                        callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{consumed_samples}}"
                     else:
                         # For automodel we log global_step
                         callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{step}}"
@@ -247,7 +255,8 @@ class NeMoLogger(IOMixin):
 
         # This is set if the env var NEMO_TESTING is set to True.
         nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
-        log_file = log_dir / f"nemo_log_globalrank-{self.global_rank}_localrank-{self.local_rank}.txt"
+        log_file = log_dir / \
+            f"nemo_log_globalrank-{self.global_rank}_localrank-{self.local_rank}.txt"
 
         if self.log_local_rank_0_only and not nemo_testing and self.local_rank == 0:
             logging.add_file_handler(log_file)
