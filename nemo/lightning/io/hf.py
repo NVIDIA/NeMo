@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
 import lightning.pytorch as pl
-import torch
+import torch, os
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
@@ -25,7 +25,7 @@ from torch import nn
 from typing_extensions import override
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.io.mixin import IOMixin
-
+import torch.distributed as dist
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +33,11 @@ log = logging.getLogger(__name__)
 LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
+def is_rank_0():
+    """ Checks whether rank=0 accounting for un-inintialized dist-env"""
+    return not dist.is_available() \
+        or not dist.is_initialized() \
+        or dist.get_rank() == 0
 
 class HFCheckpointIO(CheckpointIO, IOMixin):
     """HFCheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load
@@ -56,8 +61,11 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
 
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-        """Save model/training states as a checkpoint file through state-dump and file-write.
+        """
+        Save model/training states to a checkpoint file.
 
+        Note:
+            This function assumes it's only written by RANK=0 if executed inside a dist-env.
         Args:
             checkpoint: dict containing model and trainer state
             path: write-target path
@@ -69,6 +77,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
                 If ``storage_options`` arg is passed in
 
         """
+        assert is_rank_0(), "HFCheckpointIO::save_checkpoint should run only on rank=0"
         # Determine checkpoint directory & make dir
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
         fs = get_filesystem(checkpoint_dir)
@@ -76,7 +85,6 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
 
         if self.adapter_only:
             # In this case the output looks like the following:
-
             # default--reduced_train_loss=0.0112-epoch=2-step=3
             # ├── context
             # │   ├── 0b9ee504-0ab7-4470-911b-cf7fc0223cde
@@ -93,7 +101,6 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             torch.save(checkpoint, checkpoint_dir.parent / 'trainer.pt')
         elif callable(getattr(self.model, 'save_pretrained', None)):
             # In this case the output looks like the following:
-
             # default--reduced_train_loss=0.0112-epoch=2-step=3
             # ├── weights
             # │   ├── config.json
@@ -103,7 +110,6 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             # │   ├── tokenizer.json
             # │   └── tokenizer_config.json
             # └── trainer.pt
-
             # Where the `weights` directory contains the model's state dict, in HF format.
             # The `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
             self.model.save_pretrained(
