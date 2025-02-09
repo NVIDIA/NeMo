@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
 import lightning.pytorch as pl
 import torch
@@ -23,14 +22,10 @@ from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from torch import nn
-from typing_extensions import Self, override
-
-from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir
-from nemo.lightning.io.mixin import IOMixin
+from typing_extensions import override
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
-from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir
+from nemo.lightning.io.mixin import IOMixin
 
-import os
 
 log = logging.getLogger(__name__)
 
@@ -38,19 +33,23 @@ log = logging.getLogger(__name__)
 LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
-import os
-import torch
-from safetensors.torch import safe_open
 
 class HFCheckpointIO(CheckpointIO, IOMixin):
-    """HFCheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
-    common for most use cases.
+    """HFCheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load
+    checkpoints respectively, common for most use cases.
 
     .. warning::  This is an :ref:`experimental <versioning:Experimental API>` feature.
 
     """
 
-    def __init__(self, model=None, adapter_only=False):
+    def __init__(self, model, adapter_only=False):
+        """Initializes HFCheckpointIO
+
+        Args:
+            model (nn.Module): The nn.Module that's used for training.
+                This supplies the save_pretrained function.
+            adapter_only (bool, optional): If true, will only save LoRA adapter weights. Defaults to False.
+        """
         super().__init__()
         self.adapter_only = adapter_only
         self.model = model
@@ -76,47 +75,43 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         fs.makedirs(checkpoint_dir, exist_ok=True)
 
         if self.adapter_only:
-            """
-            In this case the output looks like the following:
+            # In this case the output looks like the following:
 
-            default--reduced_train_loss=0.0112-epoch=2-step=3
-            ├── context
-            │   ├── 0b9ee504-0ab7-4470-911b-cf7fc0223cde
-            │   ├── io.json
-            │   └── model.yaml
-            ├── trainer.pt
-            └── weights
-                ├── adapter_config.json
-                └── adapter_model.safetensors
-            Where the `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
-            The `weights` directory contains the adapter's state dict, in HF format.
-            """
-            self._save_adapter_weights_only(checkpoint.pop('state_dict'), checkpoint_dir, storage_options)
+            # default--reduced_train_loss=0.0112-epoch=2-step=3
+            # ├── context
+            # │   ├── 0b9ee504-0ab7-4470-911b-cf7fc0223cde
+            # │   ├── io.json
+            # │   └── model.yaml
+            # ├── trainer.pt
+            # └── weights
+            #     ├── adapter_config.json
+            #     └── adapter_model.safetensors
+            # Where the `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
+            # The `weights` directory contains the adapter's state dict, in HF format.
+            self._save_adapter_weights_only(checkpoint.pop(
+                'state_dict'), checkpoint_dir, storage_options)
             torch.save(checkpoint, checkpoint_dir.parent / 'trainer.pt')
         elif callable(getattr(self.model, 'save_pretrained', None)):
-            """
-            In this case the output looks like the following:
+            # In this case the output looks like the following:
 
-            default--reduced_train_loss=0.0112-epoch=2-step=3
-            ├── weights
-            │   ├── config.json
-            │   ├── generation_config.json
-            │   ├── model.safetensors
-            │   ├── special_tokens_map.json
-            │   ├── tokenizer.json
-            │   └── tokenizer_config.json
-            └── trainer.pt
+            # default--reduced_train_loss=0.0112-epoch=2-step=3
+            # ├── weights
+            # │   ├── config.json
+            # │   ├── generation_config.json
+            # │   ├── model.safetensors
+            # │   ├── special_tokens_map.json
+            # │   ├── tokenizer.json
+            # │   └── tokenizer_config.json
+            # └── trainer.pt
 
-            Where the `weights` directory contains the model's state dict, in HF format.
-            The `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
-            """
-            self.model.save_pretrained(checkpoint_dir, state_dict=checkpoint.pop('state_dict'))
+            # Where the `weights` directory contains the model's state dict, in HF format.
+            # The `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
+            self.model.save_pretrained(
+                checkpoint_dir, state_dict=checkpoint.pop('state_dict'))
             torch.save(checkpoint, checkpoint_dir.parent / 'trainer.pt')
         else:
             super().save_checkpoint(checkpoint, path, storage_options)
-            raise NotImplemented("Checkpoint was saved at: " + str(path))
-
-
+            raise NotImplementedError("Checkpoint was saved at: " + str(path))
 
     def _save_adapter_weights_only(self, state_dict: Dict[str, Any], path: Union[str, Path], storage_options: Optional[Any] = None) -> None:
         """
@@ -148,8 +143,8 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         except OSError as e:
             raise OSError(f"Failed to save adapter weights: {e}")
 
-
-    def _load_adapter_weights_only(self, path: Union[str, Path]) -> Dict[str, Any]:
+    @staticmethod
+    def _load_adapter_weights_only(path: Union[str, Path]) -> Dict[str, Any]:
         """
         Loads only the adapter weights from a safetensors checkpoint.
 
@@ -170,7 +165,8 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
 
         if not fs.isdir(path):
-            raise ValueError(f"Checkpoints should be a directory. Found: {path}.")
+            raise ValueError(
+                f"Checkpoints should be a directory. Found: {path}.")
 
         state_dict = {}
         adapter_file = Path(path) / "adapter_model.safetensors"
@@ -179,7 +175,8 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             from safetensors import safe_open
 
             if not adapter_file.exists():
-                raise FileNotFoundError(f"Adapter weights file not found: {adapter_file}")
+                raise FileNotFoundError(
+                    f"Adapter weights file not found: {adapter_file}")
 
             try:
                 with safe_open(adapter_file, framework="pt", device=0) as f:
@@ -189,7 +186,6 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
                 raise OSError(f"Failed to load adapter weights: {e}")
 
         return {'state_dict': state_dict}
-
 
     @override
     def load_checkpoint(
@@ -219,14 +215,14 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             weights_only=False,
         )
         if self.adapter_only:
-            trainer_state |= self._load_adapter_weights_only(path)
+            trainer_state |= HFCheckpointIO._load_adapter_weights_only(path)
         elif callable(getattr(self.model, 'load_pretrained', None)):
-            trainer_state['state_dict'] = self.model.load_pretrained(f'{path}/model/')
+            trainer_state['state_dict'] = self.model.load_pretrained(
+                f'{path}/model/')
         else:
             raise ValueError("Badio")
 
         return trainer_state
-
 
     @override
     def remove_checkpoint(self, path: _PATH) -> None:
@@ -239,4 +235,4 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         fs = get_filesystem(path)
         if fs.exists(path):
             fs.rm(path, recursive=True)
-            log.debug(f"Removed checkpoint: {path}")
+            log.debug("Removed checkpoint: %s", path)
