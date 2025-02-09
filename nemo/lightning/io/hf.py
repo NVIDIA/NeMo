@@ -113,7 +113,9 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             super().save_checkpoint(checkpoint, path, storage_options)
             raise NotImplementedError("Checkpoint was saved at: " + str(path))
 
-    def _save_adapter_weights_only(self, state_dict: Dict[str, Any], path: Union[str, Path], storage_options: Optional[Any] = None) -> None:
+    def _save_adapter_weights_only(
+        self, state_dict: Dict[str, Any], path: Union[str, Path], storage_options: Optional[Any] = None
+    ) -> None:
         """
         Saves only the adapter weights in a safetensors format.
 
