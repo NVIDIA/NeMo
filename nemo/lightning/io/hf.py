@@ -79,12 +79,15 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             """
             In this case the output looks like the following:
 
-            default--None=0.0000-epoch=0-consumed_samples=0
+            default--reduced_train_loss=0.0112-epoch=2-step=3
+            ├── context
+            │   ├── 0b9ee504-0ab7-4470-911b-cf7fc0223cde
+            │   ├── io.json
+            │   └── model.yaml
             ├── trainer.pt
             └── weights
                 ├── adapter_config.json
                 └── adapter_model.safetensors
-
             Where the `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
             The `weights` directory contains the adapter's state dict, in HF format.
             """
@@ -94,7 +97,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             """
             In this case the output looks like the following:
 
-            default--None=0.0000-epoch=0-consumed_samples=0
+            default--reduced_train_loss=0.0112-epoch=2-step=3
             ├── weights
             │   ├── config.json
             │   ├── generation_config.json
