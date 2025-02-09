@@ -280,6 +280,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
+        self.log(
+            'reduced_train_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False
+        )
         return loss
 
     @torch.no_grad
