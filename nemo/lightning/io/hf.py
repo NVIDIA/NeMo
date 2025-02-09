@@ -42,11 +42,11 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
 
     """
 
-    def __init__(self, model, adapter_only=False):
+    def __init__(self, model=None, adapter_only=False):
         """Initializes HFCheckpointIO
 
         Args:
-            model (nn.Module): The nn.Module that's used for training.
+            model (nn.Module, optional): The nn.Module that's used for training.
                 This supplies the save_pretrained function.
             adapter_only (bool, optional): If true, will only save LoRA adapter weights. Defaults to False.
         """
