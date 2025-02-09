@@ -121,7 +121,6 @@ class ModuleMatcher:
                 linear_types.append(TERowParallelLinear)
             linear_types = tuple(linear_types)
 
-            assert len(self.exclude_modules) > 0
             if (
                 not name in self.exclude_modules
                 and not any(wildcard_match(pattern, full_name) for pattern in self.exclude_modules)
