@@ -339,6 +339,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             logging.warning("A tokenizer wasn't created before to save.")
 
     def load_pretrained(self, path):
+        """
+        Used from HFcheckpointio to load a checkpoint
+        TODO(@akoumparouli): refactor
+        """
         return AutoModelForCausalLM.from_pretrained(
                 path,
                 torch_dtype='auto',
@@ -349,6 +353,12 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             ).state_dict()
 
     def make_checkpoint_io(self, adapter_only=False):
+        """
+        Creates a checkpoint_io object for this model;
+        the main issue is passing self to the HFCheckpointIO, because it needs
+        to call save_pretrained within.
+        TODO(@akoumparouli): refactor ^
+        """
         from nemo.lightning.io.hf import HFCheckpointIO
         return HFCheckpointIO(model=self, adapter_only=adapter_only)
 
