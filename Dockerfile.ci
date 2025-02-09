@@ -82,8 +82,8 @@ EOF
 ARG NEMO_REPO
 ARG NEMO_TAG
 RUN \
-  --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=reinstall.sh <<"EOF" bash -ex
-    bash reinstall.sh --library all --mode install
+  --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/reinstall.sh <<"EOF" bash -ex
+    bash /tmp/reinstall.sh --library all --mode install
 
     # Copy into workspace
     cp -a /opt/NeMo/. /workspace/
