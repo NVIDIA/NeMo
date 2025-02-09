@@ -301,7 +301,7 @@ To enable ETP, set ``expert_tensor_parallel_size`` to the size you want in the `
        # Set expert tensor parallel size
        recipe.trainer.strategy.expert_tensor_parallel_size = 4
 
-Set expert parallelism directly from CLI:
+Set expert tensor parallelism directly from CLI:
 
     .. code-block:: bash
 
