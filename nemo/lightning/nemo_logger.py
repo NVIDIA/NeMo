@@ -229,7 +229,7 @@ class NeMoLogger(IOMixin):
                     logging.warning(
                         "The checkpoint callback was told to monitor a validation value and " \
                         "trainer's max_steps was set to {}. Please ensure that max_steps will run " \
-                        "for at least {} epochs to ensure that checkpointing will not error out."
+                        "for at least {} epochs to ensure that checkpointing will not error out.",
                         trainer.max_steps, trainer.check_val_every_n_epoch
                     )
 
