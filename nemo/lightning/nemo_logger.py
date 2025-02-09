@@ -225,7 +225,7 @@ class NeMoLogger(IOMixin):
                             callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{consumed_samples}}"
                     else:
                         # For automodel we log global_step
-                        callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{global_step}}"
+                        callback.filename = f"{self.name}--{{{callback.monitor}:.4f}}-{{epoch}}-{{step}}"
                 ModelCheckpoint.CHECKPOINT_NAME_LAST = callback.filename + "-last"
 
     def _handle_task_config(self, task_config, log_dir):
