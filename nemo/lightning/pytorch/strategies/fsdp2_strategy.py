@@ -94,12 +94,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     def _load_optimizer_state_dict(self) -> None:
         """Does the actual optimizer state-dict restoration"""
-        from torch.distributed.checkpoint.state_dict import (
-            StateDictOptions,
-            get_model_state_dict,
-            get_optimizer_state_dict,
-            set_optimizer_state_dict,
-        )
+        from torch.distributed.checkpoint.state_dict import set_optimizer_state_dict
 
         if self.checkpoint is None:
             return
