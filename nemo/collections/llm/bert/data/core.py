@@ -140,7 +140,7 @@ class BertEmbeddingDataset(Dataset):
         self.data_type = data_type
         self.num_hard_negatives = num_hard_negatives
 
-        self.indexed_dataset = JSONLMemMapDataset(
+        self.indexed_dataset = _JSONLMemMapDataset(
             dataset_paths=[file_path],
             tokenizer=None,
             header_lines=0,
@@ -153,7 +153,7 @@ class BertEmbeddingDataset(Dataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
-            self.samples_mapping = get_samples_mapping(
+            self.samples_mapping = _get_samples_mapping(
                 indexed_dataset=self.indexed_dataset,
                 data_prefix=self.file_path,
                 num_epochs=None,
