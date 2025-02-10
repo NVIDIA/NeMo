@@ -20,7 +20,7 @@ import yaml
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from transformers import AutoConfig
-from vllm.config import ModelConfig, _get_and_verify_dtype, _get_and_verify_max_len
+from vllm.config import ModelConfig, _get_and_verify_dtype, _get_and_verify_max_len, ModelImpl
 from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
@@ -59,6 +59,7 @@ class NemoModelConfig(ModelConfig):
         disable_mm_preprocessor_cache: bool = False,
         logits_processor_pattern: Optional[str] = None,
         override_pooler_config: Optional["PoolerConfig"] = None,
+        model_impl: Union[str, ModelImpl] = ModelImpl.AUTO,
     ) -> None:
         # Don't call ModelConfig.__init__ because we don't want it to call
         # transformers.AutoConfig.from_pretrained(...)
@@ -80,6 +81,7 @@ class NemoModelConfig(ModelConfig):
         self.rope_scaling = rope_scaling
         self.rope_theta = rope_theta
         self.tokenizer_revision = tokenizer_revision
+        self.model_impl = model_impl
         self.quantization = quantization
         self.quantization_param_path = quantization_param_path
         self.enforce_eager = enforce_eager

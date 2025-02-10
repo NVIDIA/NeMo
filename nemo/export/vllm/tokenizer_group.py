@@ -45,10 +45,9 @@ class NemoTokenizerGroup(BaseTokenizerGroup):
         prompt: str,
         request_id: Optional[str] = None,
         lora_request: Optional[LoRARequest] = None,
-        add_special_tokens: Optional[bool] = True,
-    ) -> List[int]:
+        add_special_tokens: Optional[bool] = None) -> List[int]:
         ids = self.tokenizer.encode(prompt)
-        if self.add_bos_token and add_special_tokens:
+        if self.add_bos_token:
             ids = [self.tokenizer.bos_token_id] + ids
         return ids
 
