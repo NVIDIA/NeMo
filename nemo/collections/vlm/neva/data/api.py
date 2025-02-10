@@ -19,11 +19,13 @@ from nemo.collections.vlm.neva.data.mock import MockDataModule
 
 
 def mock() -> pl.LightningDataModule:
+    """Mock Neva Data Module"""
     return MockDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
 
 
-def lazy() -> pl.LightningDataModule:
+def preloaded() -> pl.LightningDataModule:
+    """Preloaded Llava-like Data Module"""
     return NevaPreloadedDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
 
 
-__all__ = ["mock", "lazy"]
+__all__ = ["mock", "preloaded"]
