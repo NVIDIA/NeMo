@@ -175,7 +175,10 @@ class NemoModelConfig(ModelConfig):
             dict: Updated tokenizer config.
         """
         context_path = nemo_checkpoint / 'context'
-        path_keys = ['pretrained_model_name', 'model_path']  # huggingface tokenizer case  # sentencepiece tokenizer
+
+        # 'pretrained_model_name' -- huggingface tokenizer case
+        # 'model_path' -- sentencepiece tokenizer
+        path_keys = ['pretrained_model_name', 'model_path']
 
         for path_key in path_keys:
             if path := tokenizer_config.get(path_key, None):
