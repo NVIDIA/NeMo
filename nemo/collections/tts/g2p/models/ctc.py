@@ -356,9 +356,10 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
                     input_len=input_len.to(device),
                 )
 
-                preds_str = self.decoding.ctc_decoder_predictions_tensor(
+                preds_hyps = self.decoding.ctc_decoder_predictions_tensor(
                     log_probs, decoder_lengths=encoded_len, return_hypotheses=False
                 )
+                preds_str = [hyp.text for hyp in preds_hyps]
                 all_preds.extend(preds_str)
 
                 del greedy_predictions
@@ -464,7 +465,6 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         }
         self._output_types = {
             # "preds_str": NeuralType(('B', 'T'), LabelsType()),
-            # pylint: disable=<name-of-rule>
             "log_probs": NeuralType(('B', 'T'), LossType()),
             "encoded_len": NeuralType(('B', 'T'), LengthsType()),
         }

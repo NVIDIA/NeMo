@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import math
 import os
-from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
 
@@ -731,7 +732,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
 
         return (packed_result,)
 
-    def _prepare_decoding_lm_wfst(self) -> Union[str, 'kaldifst.StdFst', 'k2.Fsa']:
+    def _prepare_decoding_lm_wfst(self) -> Union[str, 'kaldifst.StdFst', 'k2.Fsa']:  # noqa: F821
         """TBD"""
         arpa_lm_path_exists = self.arpa_lm_path is not None and os.path.exists(self.arpa_lm_path)
         wfst_lm_path_exists = self.wfst_lm_path is not None and os.path.exists(self.wfst_lm_path)

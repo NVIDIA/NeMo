@@ -332,7 +332,7 @@ class WER(Metric):
 
         for h, r in zip(hypotheses, references):
             if self.use_cer:
-                h_list = list(h)
+                h_list = list(h.text)
                 r_list = list(r)
             else:
                 h_list = h.text.split()
