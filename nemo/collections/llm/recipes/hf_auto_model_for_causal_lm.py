@@ -17,7 +17,6 @@ from typing import Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
-import torch
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo import lightning as nl
@@ -79,12 +78,6 @@ def trainer(
     This function sets up the distributed training strategy and other training parameters.
 
     Args:
-        tensor_parallelism (int): Degree of tensor model parallelism.
-        pipeline_parallelism (int): Degree of pipeline model parallelism.
-        pipeline_parallelism_type (Optional[torch.dtype]): Data type for pipeline parallelism.
-        virtual_pipeline_parallelism (Optional[int]): Size of virtual pipeline parallelism.
-        context_parallelism (int): Degree of context parallelism.
-        sequence_parallelism (bool): Whether to use sequence parallelism.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
@@ -105,7 +98,7 @@ def trainer(
     strategy = str(strategy).lower()
     assert strategy in ['', 'ddp', 'fsdp'], strategy
     if strategy == 'fsdp':
-        # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
+        # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81 # pylint: disable=line-too-long
         gradient_clip_val = None
 
     trainer = run.Config(
@@ -158,7 +151,7 @@ def pretrain_recipe(
             $ nemo llm pretrain --factory 'HFAutoModelForCausalLM(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="auto_pretrain", num_nodes=2, model_name="mistralai/Mistral-Nemo-Instruct-2407")
+            >>> recipe = pretrain_recipe(name="auto_pretrain", num_nodes=2, model_name="mistralai/Mistral-Nemo-Instruct-2407") # pylint: disable=line-too-long
             >>> print(recipe)
     """
     return run.Partial(
@@ -201,7 +194,8 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora', 'none'/None.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
