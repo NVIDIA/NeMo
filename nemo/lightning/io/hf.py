@@ -236,8 +236,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         if self.adapter_only:
             trainer_state |= HFCheckpointIO._load_adapter_weights_only(path)
         elif callable(getattr(self.model, 'load_pretrained', None)):
-            trainer_state['state_dict'] = self.model.load_pretrained(
-                f'{path}/model/')
+            trainer_state['state_dict'] = self.model.load_pretrained(path)
         else:
             raise ValueError("Badio")
 
