@@ -224,7 +224,7 @@ class MLlamaPreloadedDataModule(pl.LightningDataModule):
 
         if tokenizer is None or image_processor is None:
             logging.warning(
-                f"Processor and tokenizer are not provided! Fall back to `meta-llama/Llama-3.2-11B-Vision-Instruct`."
+                "Processor and tokenizer are not provided! Fall back to `meta-llama/Llama-3.2-11B-Vision-Instruct`."
             )
             from transformers import AutoProcessor
 
