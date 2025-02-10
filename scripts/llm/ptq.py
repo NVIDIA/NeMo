@@ -15,6 +15,9 @@
 import argparse
 
 from nemo.collections.llm import quantization
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.lightning.io.pl import TrainerContext
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 def get_args():
@@ -30,7 +33,11 @@ def get_args():
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
     parser.add_argument("-itp", "--inference_tp", "--tensor_parallelism_size", type=int, default=1)
     parser.add_argument("-ipp", "--inference_pp", "--pipeline_parallelism_size", type=int, default=1)
+    parser.add_argument("-nodes", "--num_nodes", type=int, default=1)
     parser.add_argument('-out', '--export_path', '--output_path', type=str, help='Path for the exported engine')
+    parser.add_argument(
+        "--save_as_torch", action="store_true", help="Save `-out` as a Torch checkpoint instead of TRT-LLM"
+    )
     parser.add_argument(
         '-algo',
         '--algorithm',
@@ -68,8 +75,10 @@ def get_args():
     parser.set_defaults(generate_sample=False)
 
     args = parser.parse_args()
+
     if args.export_path is None:
         args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+
     return args
 
 
@@ -88,7 +97,6 @@ def main():
         calibration_batch_size=args.batch_size,
         calibration_seq_len=args.seq_len,
     )
-
     export_config = quantization.ExportConfig(
         path=args.export_path,
         decoder_type=args.decoder_type,
@@ -97,16 +105,27 @@ def main():
         dtype=args.dtype,
         generate_sample=args.generate_sample,
     )
-
     quantizer = quantization.Quantizer(quantization_config, export_config)
-    model = quantization.load_with_modelopt_layer_spec(
-        args.nemo_checkpoint,
-        args.calibration_tp,
-        args.calibration_pp,
+
+    model, trainer = quantization.load_with_modelopt_layer_spec(
+        nemo_checkpoint_path=args.nemo_checkpoint,
+        tensor_model_parallel_size=args.calibration_tp,
+        pipeline_model_parallel_size=args.calibration_pp,
+        num_nodes=args.num_nodes,
         ckpt_load_strictness=args.ckpt_load_strictness,
     )
     model = quantizer.quantize(model)
-    quantizer.export(model, args.nemo_checkpoint)
+
+    if args.save_as_torch:
+        # Standard NeMo 2.0 checkpoint format
+        trainer.save_checkpoint(args.export_path)
+        if is_global_rank_zero():
+            TrainerContext.from_trainer(trainer).io_dump(
+                ckpt_to_context_subdir(args.export_path), yaml_attrs=["model"]
+            )
+    else:
+        # TRT-LLM
+        quantizer.export(model, args.nemo_checkpoint)
 
 
 if __name__ == '__main__':

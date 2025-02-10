@@ -29,8 +29,9 @@ from nemo.collections.llm.utils import torch_dtype_from_precision
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.utils import logging
+from nemo.utils.model_utils import unwrap_model
 
-from .utils import get_modelopt_decoder_type, get_unwrapped_mcore_model
+from .utils import get_modelopt_decoder_type
 
 try:
     import modelopt.torch.quantization as mtq
@@ -184,7 +185,7 @@ class Quantizer:
         logging.info(f"Quantizing model to {algorithm}...")
 
         self._setup(model)
-        unwrapped_model = get_unwrapped_mcore_model(model)
+        unwrapped_model = unwrap_model(model)
         decoder_type = self._get_decoder_type(model)
         quant_cfg = QUANT_CFG_CHOICES[algorithm]
         if "awq" in algorithm:
@@ -292,7 +293,7 @@ class Quantizer:
 
         use_nfs_workspace = model.config.pipeline_model_parallel_size > 1
         export_tensorrt_llm_checkpoint(
-            model=get_unwrapped_mcore_model(model),
+            model=unwrap_model(model),
             decoder_type=self._get_decoder_type(model),
             dtype=self.torch_dtype,
             export_dir=export_dir,
