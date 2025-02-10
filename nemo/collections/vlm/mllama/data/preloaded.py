@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=C0115,C0116
 
 import json
 import logging
@@ -246,7 +247,8 @@ class MLlamaPreloadedDataModule(pl.LightningDataModule):
         else:
             # TODO:
             # rng = torch.Generator().manual_seed(self.seed)
-            # train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size], generator=rng)
+            # train_dataset, val_dataset, test_dataset =
+            # random_split(dataset, [train_size, val_size, test_size], generator=rng)
             self._train_ds = MLlamaDataset(
                 self.paths[0], self.data_config, self.tokenizer, self.image_processor, self.seq_length
             )
