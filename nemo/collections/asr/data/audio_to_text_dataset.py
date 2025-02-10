@@ -19,7 +19,10 @@ from math import isclose
 from typing import Any, List, Optional, Union
 
 import torch
+from lightning.pytorch import LightningModule  
 from lightning.pytorch.callbacks import BasePredictionWriter
+from nemo.collections.asr.parts.preprocessing import AudioAugmentor  
+from nemo.core import TokenizerSpec  
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import ChainDataset
@@ -94,7 +97,7 @@ def get_concat_char_dataset(
         An instance of ConcatDataset containing one or more instances of AudioToCharDataset.
     """
     if 'labels' not in config:
-        logging.warning(f"dataset does not have explicitly defined labels")
+        logging.warning("dataset does not have explicitly defined labels")
 
     manifest_filepaths = config['manifest_filepath']
     datasets = []
@@ -138,7 +141,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         An instance of AudioToCharDataset.
     """
     if 'labels' not in config:
-        logging.warning(f"dataset does not have explicitly defined labels")
+        logging.warning("dataset does not have explicitly defined labels")
 
     dataset = audio_to_text.AudioToCharDataset(
         manifest_filepath=config['manifest_filepath'],
@@ -340,7 +343,7 @@ def get_tarred_dataset(
         )
 
     if 'labels' not in config:
-        logging.warning(f"dataset does not have explicitly defined labels")
+        logging.warning("dataset does not have explicitly defined labels")
 
     if 'max_utts' in config:
         logging.warning('"max_utts" parameter is not supported for tarred datasets')
