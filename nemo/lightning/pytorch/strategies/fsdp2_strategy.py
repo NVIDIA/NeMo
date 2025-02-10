@@ -76,6 +76,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     @property
     @override
     def lightning_restore_optimizer(self) -> bool:
+        """ Optim state restoration is enabled"""
         return True
 
     def load_optimizer_state_dict(self, checkpoint) -> None:
