@@ -165,8 +165,8 @@ def parse_cli_args():
     parser.add_argument(
         "-et",
         "--expert_tensor_parallel_size",
-        type=lambda x: int(x) if x is not None else None, 
-        nargs="?", 
+        type=lambda x: int(x) if x is not None else None,
+        nargs="?",
         const=None,
         help="Intra-layer tensor model parallelsm for expert layer. Splits tensors across GPU ranks.\
             Use -et/--expert_tensor_parallel_size <space> for None or -et/--expert_tensor_parallel_size <int>",

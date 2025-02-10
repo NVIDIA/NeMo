@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+from typing import Optional
 
 import nemo_run as run
 from argument_parser import parse_cli_args
@@ -22,7 +23,6 @@ from nemo.collections.llm.recipes.mixtral_8x7b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
-from typing import Optional
 
 def override_recipe_configs(
     args: str,
@@ -82,7 +82,9 @@ if __name__ == "__main__":
 
     recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size)
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = (
+        f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
+    )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(

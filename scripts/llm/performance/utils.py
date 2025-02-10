@@ -163,10 +163,10 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     num_nodes = -(num_gpus // -args.gpus_per_node)  # ceil division
     mbs = config.get("mbs") if args.micro_batch_size is None else args.micro_batch_size
     gbs = config.get("gbs") if args.global_batch_size is None else args.global_batch_size
-    tp_size =   config.get("tp_size") if args.tensor_parallel_size is None else args.tensor_parallel_size
+    tp_size = config.get("tp_size") if args.tensor_parallel_size is None else args.tensor_parallel_size
     pp_size = config.get("pp_size") if args.pipeline_parallel_size is None else args.pipeline_parallel_size
-    cp_size =  config.get("cp_size") if args.context_parallel_size is None else args.context_parallel_size
-    ep_size =  config.get("ep_size") if args.expert_parallel_size is None else args.expert_parallel_size
+    cp_size = config.get("cp_size") if args.context_parallel_size is None else args.context_parallel_size
+    ep_size = config.get("ep_size") if args.expert_parallel_size is None else args.expert_parallel_size
     vp_size = args.virtual_pipeline_parallel_size
     vp_size = config.get("vp_size") if vp_size is None else vp_size
     etp_size = args.expert_tensor_parallel_size
@@ -176,7 +176,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     kwargs = [int(arg) for arg in kwargs if arg is not None]
     logging.info(f"Using the following args the experiment- {kwargs=}")
 
-    return  kwargs
+    return kwargs
 
 
 def set_primary_perf_configs(
