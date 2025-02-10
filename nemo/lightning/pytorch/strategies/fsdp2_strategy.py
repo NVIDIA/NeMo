@@ -313,45 +313,5 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def load_checkpoint(self, checkpoint_path: str | Path) -> Dict[str, Any]:
-        """PTL method which we override to integrate distributed checkpoints for FSDP models.
-        Different from MegatronStrategy, both model and optimizer states are restore within
-        this method.
-
-        The logic here is slightly more complicated:
-        1. Obtain PyT state dicts (sharded & unflattened) for model and optim -> torch::ShardedTensor
-        2. Convert to MCore state dicts -> mcore::ShardedTensor
-        3. Load from checkpoint using MCore dist ckpt API -> torch::Tensor
-        4. Convert to PyT state dicts (sharded & unflattened) -> torch::ShardedTensor
-        5. Load into model and optim using PyT dist ckpt API
-        6. Return the loaded checkpoint for lightning to load other metadata
-        """
-        path = Path(self.broadcast(checkpoint_path))
-        torch.cuda.empty_cache()
-
-        # TODO: the elegant way to load both state dicts. Need pytorch 2.3.1
-        # msd, osd = get_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
-        sharded_state_dict = {}
-        with _get_sharded_state_dict_context(self.model):
-            msd = self.model.state_dict()
-            pyt_to_mcore_state_dict(msd, device_mesh=self.device_mesh)
-            sharded_state_dict["sharded_state_dict"] = msd
-
-        if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
-            osd = get_optimizer_state_dict(self.model, self.optimizers, options=StateDictOptions(cpu_offload=True))
-            pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.", device_mesh=self.device_mesh)
-            sharded_state_dict["optimizer"] = osd
-
-        checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
-        mcore_to_pyt_sharded_state_dict(checkpoint['sharded_state_dict'], msd)
-
-        if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
-            mcore_to_pyt_sharded_state_dict(checkpoint['optimizer']['state'], osd['state'])
-
-        set_state_dict(
-            self.model,
-            self.optimizers if self.ckpt_load_optimizer else [],
-            model_state_dict=checkpoint['sharded_state_dict'],
-            optim_state_dict=checkpoint['optimizer'] if self.ckpt_load_optimizer else None,
-        )
-
-        return checkpoint
+        """Loads checkpoint with checkpoint_io"""
+        return self.checkpoint_io.load_checkpoint(checkpoint_path)
