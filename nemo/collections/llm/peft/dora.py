@@ -23,7 +23,11 @@ from torch import nn
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter, get_adapter_attributes_from_linear, wildcard_match
+from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
+    ParallelLinearAdapter,
+    get_adapter_attributes_from_linear,
+    wildcard_match,
+)
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
