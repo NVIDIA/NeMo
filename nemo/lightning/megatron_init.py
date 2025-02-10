@@ -498,7 +498,7 @@ def fake_initialize_model_parallel(
     # ETP
     expert_tensor_parallel_rank = 0
     if expert_tensor_parallel_size_ is not None and expert_tensor_parallel_size_ > 1:
-        for ranks in generator_wrapper('tp-ep', is_expert=True):
+        for ranks in generator_wrapper('tp', is_expert=True):
             if rank in ranks:
                 expert_tensor_parallel_rank = list(ranks).index(rank)
 
