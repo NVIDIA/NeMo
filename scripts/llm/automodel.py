@@ -174,18 +174,14 @@ def main():
     if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
-            user="boxiangw",
-            host="cw-dfw-cs-001-login-01.nvidia.com",
-            remote_job_dir="/lustre/fsw/portfolios/coreai/users/boxiangw/nemo-experiments",
-            account="coreai_dlalgo_llm",
-            partition="batch",
+            user="",
+            host="",
+            remote_job_dir="",
+            account="",
+            partition="",
             nodes=recipe.trainer.num_nodes,
             devices=recipe.trainer.devices,
-            custom_mounts=[
-                "/home/boxiangw/NeMo:/opt/NeMo",
-                "/home/boxiangw/megatron-lm:/opt/megatron-lm",
-                "/lustre:/lustre",
-            ],
+            custom_mounts=[],
         )
     else:
         executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
