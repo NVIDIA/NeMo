@@ -32,7 +32,7 @@ from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples, ifnone
 
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.utils import logging, logging_mode
+from nemo.utils import logging
 
 
 class LazyNeMoIterator:
@@ -432,7 +432,6 @@ class LazyNeMoTarredIterator:
             except tarfile.ReadError:
                 logging.warning(
                     f"Skipping tar file due to read errors (unstable storage or bad file?): {tar_path=}",
-                    mode=logging_mode.ONCE,
                 )
 
     def __len__(self) -> int:
