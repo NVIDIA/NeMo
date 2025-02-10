@@ -114,7 +114,8 @@ class VisualEncDecHybridRNNTCTCModel(VisualEncDecRNNTModel, ASRBPEMixin, InterCT
         With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
             channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels 
-            from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
+            from multi-channel audio. If set to `'average'`, it performs averaging across channels.
+            Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
 
         Returns:
             Returns a list of greedy transcript Hypothesis or list of all Hypothesis

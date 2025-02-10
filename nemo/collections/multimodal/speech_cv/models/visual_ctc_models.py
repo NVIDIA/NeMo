@@ -143,11 +143,12 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             return_hypotheses: (bool) Either return hypotheses or text
                 With hypotheses can do some postprocessing like getting timestamp or rescoring
             num_workers: (int) number of workers for DataLoader
-            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels 
-            from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`.
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels
+            from multi-channel audio. If set to `'average'`, it performs averaging across channels.
+            Disabled if set to `None`. Defaults to `None`.
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
         Returns:
-            A list of transcriptions (or raw log probabilities if logprobs is True) 
+            A list of transcriptions (or raw log probabilities if logprobs is True)
             in the same order as paths2video_files
         """
         if paths2video_files is None or len(paths2video_files) == 0:

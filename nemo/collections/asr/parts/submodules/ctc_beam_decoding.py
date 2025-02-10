@@ -14,6 +14,7 @@
 
 import math
 import os
+from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
 
@@ -729,8 +730,8 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                 packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
 
         return (packed_result,)
-# pylint: disable=F821
-    def _prepare_decoding_lm_wfst(self) -> Union[str, 'kaldifst.StdFst', 'k2.Fsa']:  
+
+    def _prepare_decoding_lm_wfst(self) -> Union[str, 'kaldifst.StdFst', 'k2.Fsa']:
         """TBD"""
         arpa_lm_path_exists = self.arpa_lm_path is not None and os.path.exists(self.arpa_lm_path)
         wfst_lm_path_exists = self.wfst_lm_path is not None and os.path.exists(self.wfst_lm_path)
