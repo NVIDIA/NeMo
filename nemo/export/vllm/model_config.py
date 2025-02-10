@@ -103,7 +103,8 @@ class NemoModelConfig(ModelConfig):
         self.pooler_config = self._init_pooler_config(override_pooler_config)
         self.enable_sleep_mode = enable_sleep_mode
 
-        from vllm.platforms import current_platform # vLLM uses local import for current_platform
+        from vllm.platforms import current_platform  # vLLM uses local import for current_platform
+
         if self.enable_sleep_mode and not current_platform.is_cuda():
             raise ValueError("Sleep mode is only supported on CUDA devices.")
 
@@ -174,10 +175,7 @@ class NemoModelConfig(ModelConfig):
             dict: Updated tokenizer config.
         """
         context_path = nemo_checkpoint / 'context'
-        path_keys = [
-            'pretrained_model_name',    # huggingface tokenizer case
-            'model_path'                # sentencepiece tokenizer
-        ]
+        path_keys = ['pretrained_model_name', 'model_path']  # huggingface tokenizer case  # sentencepiece tokenizer
 
         for path_key in path_keys:
             if path := tokenizer_config.get(path_key, None):

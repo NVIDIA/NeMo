@@ -83,7 +83,7 @@ class NemoModelLoader(BaseModelLoader):
 
         return sharded_state_dict
 
-    def download_model(self, model_config: ModelConfig) -> None: # pylint: disable=missing-function-docstring
+    def download_model(self, model_config: ModelConfig) -> None:  # pylint: disable=missing-function-docstring
         raise NotImplementedError
 
     def load_model(

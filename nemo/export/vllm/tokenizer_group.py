@@ -50,14 +50,18 @@ class NemoTokenizerGroup(BaseTokenizerGroup):
         lora_request: Optional[LoRARequest] = None,
         add_special_tokens: Optional[bool] = None,
     ) -> List[int]:
-        """ Tokenizes the prompt. """
+        """Tokenizes the prompt."""
         ids = self.tokenizer.encode(prompt)
         if self.add_bos_token:
             ids = [self.tokenizer.bos_token_id] + ids
         return ids
 
     async def encode_async(
-        self, prompt: str, request_id: Optional[str] = None, lora_request: Optional[LoRARequest] = None, add_special_tokens: Optional[bool] = None,
+        self,
+        prompt: str,
+        request_id: Optional[str] = None,
+        lora_request: Optional[LoRARequest] = None,
+        add_special_tokens: Optional[bool] = None,
     ) -> List[int]:
         """Encode a prompt using the tokenizer group."""
         return self.tokenizer.encode(prompt)  # TODO: not sure how this is supposed to work

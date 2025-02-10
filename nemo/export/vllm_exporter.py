@@ -46,10 +46,12 @@ LOGGER = logging.getLogger("NeMo")
 @wrapt.decorator
 def noop_decorator(func):
     """Used as batch if pytriton is not supported"""
+
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
     return wrapper
+
 
 batch = noop_decorator
 use_pytriton = True
