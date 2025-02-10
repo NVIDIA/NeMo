@@ -66,8 +66,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self,
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
-        ckpt_load_optimizer: bool = True,
-        ckpt_save_optimizer: bool = True,
         data_sampler=None,
         checkpoint_io=None,
         **kwargs,
@@ -77,16 +75,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Args:
             data_parallel_size (Union[Literal["auto"], int]): Number of data-parallel replicas.
             tensor_parallel_size (Union[Literal["auto"], int]): Number of tensor-parallel groups.
-            ckpt_load_optimizer (bool): Whether to load optimizer state from checkpoints.
-            ckpt_save_optimizer (bool): Whether to save optimizer state in checkpoints.
             data_sampler (optional): Custom data sampler to process dataloaders.
             **kwargs: Additional arguments for base class initialization.
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
         self._checkpoint_io = checkpoint_io
         self.data_sampler = data_sampler
-        self.ckpt_load_optimizer = ckpt_load_optimizer
-        self.ckpt_save_optimizer = ckpt_save_optimizer
 
     @override
     def setup_environment(self) -> None:
