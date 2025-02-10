@@ -21,6 +21,7 @@ import nemo_run as run
 import pandas as pd
 from lightning.pytorch.callbacks.callback import Callback
 from nemo_run.config import NEMORUN_HOME
+from numpy import nan
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
@@ -28,7 +29,6 @@ from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.utils import logging
-from numpy import nan
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
