@@ -24,7 +24,7 @@ def trainer():
 
 
 @patch(
-    'nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTDataset.__init__', return_value=None
+    'nemo.collections.llm.gpt.data.core.GPTSFTDataset.__init__', return_value=None
 )
 def test_finetuning_module(mock_gpt_sft_dataset, trainer) -> None:
     from nemo.collections.llm.gpt.data import FineTuningDataModule
@@ -45,7 +45,7 @@ def test_finetuning_module(mock_gpt_sft_dataset, trainer) -> None:
 
 
 @patch(
-    'nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTDataset.__init__', return_value=None
+    'nemo.collections.llm.gpt.data.core.GPTSFTDataset.__init__', return_value=None
 )
 def test_dolly_module(mock_gpt_sft_dataset, trainer) -> None:
     from nemo.collections.llm.gpt.data import DollyDataModule
@@ -64,7 +64,7 @@ def test_dolly_module(mock_gpt_sft_dataset, trainer) -> None:
 
 
 @patch(
-    'nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset.GPTSFTDataset.__init__', return_value=None
+    'nemo.collections.llm.gpt.data.core.GPTSFTDataset.__init__', return_value=None
 )
 def test_squad_module(mock_gpt_sft_dataset, trainer) -> None:
     from nemo.collections.llm.gpt.data import SquadDataModule
