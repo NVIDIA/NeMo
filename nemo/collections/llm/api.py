@@ -394,7 +394,7 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(
+    model, _ = quantization.load_with_modelopt_layer_spec(
         nemo_checkpoint,
         calibration_tp,
         calibration_pp,
