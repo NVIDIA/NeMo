@@ -428,13 +428,34 @@ jobs:
 
           ls -al .
           ls -al coverage-*/
+          mkdir coverage-unit-test
+          mkdir coverage-e2e
+
+          for f in coverage-unit-test-*; do
+            mv "$f" "coverage-unit-test/"
+          done
+
+          for f in coverage-e2e-*; do
+            mv "$f" "coverage-e2e/"
+          done
+
           coverage combine --keep $(ls coverage-*/.coverage)
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          directory: coverage-unit-test/
           verbose: true
+          flags: unittests
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: coverage-e2e/
+          verbose: true
+          flags: e2e
 
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]

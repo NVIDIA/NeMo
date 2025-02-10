@@ -102,7 +102,7 @@ jobs:
               COVERAGE_PREFIX="unit-test"
           else
               COVERAGE_PREFIX="e2e"
-              SCRIPT=$(echo "$SCRIPT" | sed 's|python|coverage run -a --data-file=/workspace/.coverage --source=/workspace|g')
+              SCRIPT=$(echo "$SCRIPT" | sed 's|python|coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace|g')
 
           fi
           echo "coverage-prefix=$COVERAGE_PREFIX" | tee -a "$GITHUB_OUTPUT"
