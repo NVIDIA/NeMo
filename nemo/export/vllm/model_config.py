@@ -20,7 +20,7 @@ import yaml
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from transformers import AutoConfig
-from vllm.config import ModelConfig, _get_and_verify_dtype, _get_and_verify_max_len, ModelImpl
+from vllm.config import ModelConfig, ModelImpl, _get_and_verify_dtype, _get_and_verify_max_len
 from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
