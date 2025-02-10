@@ -28,6 +28,7 @@ from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.utils import logging
+from numpy import nan
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
@@ -153,6 +154,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
             & (df["size"] == model_size)
             & (df["dtype"] == args.compute_dtype)
         ]
+        config_df = config_df.replace({nan: None})
         if len(config_df) == 0:
             logging.warning(f"Missing performance configs for {task}-{model_name}-{model_size}-{args.compute_dtype}")
             logging.warning("Make sure you provide all necessary arguments in the command line")
@@ -173,8 +175,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     etp_size = config.get("etp_size") if etp_size is None else etp_size
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) for arg in kwargs if arg is not None]
-    logging.info(f"Using the following args the experiment- {kwargs=}")
+    kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
 
     return kwargs
 
