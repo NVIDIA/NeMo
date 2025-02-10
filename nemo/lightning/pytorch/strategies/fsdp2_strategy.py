@@ -19,17 +19,9 @@ from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
 
 import lightning.pytorch as pl
-import torch
 from lightning.fabric.plugins import CheckpointIO
-from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
-from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
-    StateDictOptions,
-    get_optimizer_state_dict,
-    set_state_dict,
-)
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
@@ -39,8 +31,6 @@ from nemo.lightning.pytorch.strategies.utils import (
     create_checkpoint_io,
     fix_progress_bar,
     init_model_parallel,
-    mcore_to_pyt_sharded_state_dict,
-    pyt_to_mcore_state_dict,
     setup_data_sampler,
     setup_parallel_ranks,
 )
