@@ -27,7 +27,7 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
-DATA_PATH = '/lustre/fsw/portfolios/coreai/users/boxiangw/data/squad'
+DATA_PATH = ''
 
 
 def get_parser():
