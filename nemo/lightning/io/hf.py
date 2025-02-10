@@ -26,6 +26,7 @@ from typing_extensions import override
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.io.mixin import IOMixin
 import torch.distributed as dist
+from nemo.lightning.ckpt_utils import WEIGHTS_PATH
 
 log = logging.getLogger(__name__)
 
@@ -82,6 +83,9 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
         fs = get_filesystem(checkpoint_dir)
         fs.makedirs(checkpoint_dir, exist_ok=True)
+
+        assert checkpoint_dir.parts[-1] == WEIGHTS_PATH, \
+            "Expected % to end with %".format(checkpoint_dir, WEIGHTS_PATH)
 
         if self.adapter_only:
             # In this case the output looks like the following:
@@ -149,7 +153,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         try:
             save_file(state_dict, path / "adapter_model.safetensors")
         except OSError as e:
-            raise OSError(f"Failed to save adapter weights: {e}")
+            raise OSError("Failed to save adapter weights: %".format(e))
 
     @staticmethod
     def _load_adapter_weights_only(path: Union[str, Path]) -> Dict[str, Any]:
@@ -170,28 +174,26 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         fs = get_filesystem(path)
 
         if not fs.exists(path):
-            raise FileNotFoundError(f"Checkpoint file not found: {path}")
+            raise FileNotFoundError("Checkpoint file not found: %", path)
 
         if not fs.isdir(path):
-            raise ValueError(
-                f"Checkpoints should be a directory. Found: {path}.")
+            raise ValueError("Checkpoints should be a directory. Found: %", path)
 
         state_dict = {}
         adapter_file = Path(path) / "adapter_model.safetensors"
+        if not adapter_file.exists():
+            raise FileNotFoundError("Adapter weights file not found: %", adapter_file)
+        config_file = Path(path) / "adaptor_config.json"
+        if not config_file.exists():
+            raise FileNotFoundError("Adapter config file not found: %", adapter_file)
 
-        if (Path(path) / "adaptor_config.json").exists():
-            from safetensors import safe_open
-
-            if not adapter_file.exists():
-                raise FileNotFoundError(
-                    f"Adapter weights file not found: {adapter_file}")
-
-            try:
-                with safe_open(adapter_file, framework="pt", device=0) as f:
-                    for k in f.keys():
-                        state_dict[k] = f.get_tensor(k)
-            except OSError as e:
-                raise OSError(f"Failed to load adapter weights: {e}")
+        from safetensors import safe_open
+        try:
+            with safe_open(adapter_file, framework="pt", device=0) as f:
+                for k in f.keys():
+                    state_dict[k] = f.get_tensor(k)
+        except OSError as e:
+            raise OSError(f"Failed to load adapter weights: {e}")
 
         return {'state_dict': state_dict}
 
@@ -217,11 +219,20 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             FileNotFoundError: If ``path`` is not found by the ``fsspec`` filesystem
 
         """
-        trainer_state = torch.load(
-            f'{path}/trainer.pt',
-            map_location='cpu',
-            weights_only=False,
-        )
+        path = Path(path)
+        assert path.parts[-1] == WEIGHTS_PATH, "Expected % to end with %".format(path, WEIGHTS_PATH)
+        trainer_state = {}
+
+        if not (path.parent / 'trainer.pt').exists():
+            logging.info("Asked to restore from checkpoint without trainer state at %", path)
+        else:
+            trainer_state = torch.load(
+                path.parent / 'trainer.pt',
+                map_location='cpu',
+                mmap=True,
+                weights_only=False,
+            )
+
         if self.adapter_only:
             trainer_state |= HFCheckpointIO._load_adapter_weights_only(path)
         elif callable(getattr(self.model, 'load_pretrained', None)):
