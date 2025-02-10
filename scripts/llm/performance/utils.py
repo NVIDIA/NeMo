@@ -15,7 +15,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import nemo_run as run
 import pandas as pd
@@ -157,21 +157,26 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
             logging.warning(f"Missing performance configs for {task}-{model_name}-{model_size}-{args.compute_dtype}")
             logging.warning("Make sure you provide all necessary arguments in the command line")
 
-    logging.info(f"Found recommended configs for {task}-{model_name}-{model_size}-{args.compute_dtype}\n{config_df}")
     config = config_df.to_dict(orient='records')[0] if len(config_df) > 0 else {}
 
-    num_gpus = args.num_gpus if args.num_gpus is not None else int(config.get("num_gpus"))
+    num_gpus = config.get("num_gpus") if args.num_gpus is None else args.num_gpus
     num_nodes = -(num_gpus // -args.gpus_per_node)  # ceil division
-    mbs = args.micro_batch_size if args.micro_batch_size is not None else int(config.get("mbs"))
-    gbs = args.global_batch_size if args.global_batch_size is not None else int(config.get("gbs"))
-    tp_size = args.tensor_parallel_size if args.tensor_parallel_size is not None else int(config.get("tp_size"))
-    pp_size = args.pipeline_parallel_size if args.pipeline_parallel_size is not None else int(config.get("pp_size"))
-    cp_size = args.context_parallel_size if args.context_parallel_size is not None else int(config.get("cp_size"))
+    mbs = config.get("mbs") if args.micro_batch_size is None else args.micro_batch_size
+    gbs = config.get("gbs") if args.global_batch_size is None else args.global_batch_size
+    tp_size =   config.get("tp_size") if args.tensor_parallel_size is None else args.tensor_parallel_size
+    pp_size = config.get("pp_size") if args.pipeline_parallel_size is None else args.pipeline_parallel_size
+    cp_size =  config.get("cp_size") if args.context_parallel_size is None else args.context_parallel_size
+    ep_size =  config.get("ep_size") if args.expert_parallel_size is None else args.expert_parallel_size
     vp_size = args.virtual_pipeline_parallel_size
-    vp_size = vp_size if vp_size is not None else int(config.get("vp_size"))
-    ep_size = args.expert_parallel_size if args.expert_parallel_size is not None else int(config.get("ep_size"))
+    vp_size = config.get("vp_size") if vp_size is None else vp_size
+    etp_size = args.expert_tensor_parallel_size
+    etp_size = config.get("etp_size") if etp_size is None else etp_size
 
-    return num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size
+    kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
+    kwargs = [int(arg) for arg in kwargs if arg is not None]
+    logging.info(f"Using the following args the experiment- {kwargs=}")
+
+    return  kwargs
 
 
 def set_primary_perf_configs(
@@ -187,6 +192,7 @@ def set_primary_perf_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    etp_size: Optional[int] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -204,6 +210,8 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.context_parallel_size = cp_size
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = None if vp_size == 1 else vp_size
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
+    recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
+
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
 
     # callback configs

@@ -81,6 +81,7 @@ def override_recipe_configs(
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
@@ -91,7 +92,7 @@ def override_recipe_configs(
         tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
-    enable_cuda_graph = bool(args.gpu.lower() in ["b200"])
+    enable_cuda_graph = bool(args.gpu.lower() in [])
     recipe.model.config.enable_cuda_graph = enable_cuda_graph
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
 

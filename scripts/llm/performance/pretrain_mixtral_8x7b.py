@@ -22,6 +22,7 @@ from nemo.collections.llm.recipes.mixtral_8x7b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
+from typing import Optional
 
 def override_recipe_configs(
     args: str,
@@ -33,6 +34,7 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    etp_size: Optional[int],
 ):
     """
     mixtral 8x7b pre-train recipe aimed at achieving best possible performance.
@@ -53,6 +55,7 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        etp_size,
     )
 
     # data module configs
@@ -62,6 +65,7 @@ def override_recipe_configs(
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     enable_cuda_graph = bool(args.gpu.lower() in ["b200"])
     recipe.model.config.enable_cuda_graph = enable_cuda_graph
@@ -74,11 +78,11 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "mixtral", "8x7b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size = kwargs
 
-    recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
+    recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size)
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(

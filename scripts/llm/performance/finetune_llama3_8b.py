@@ -50,7 +50,12 @@ def override_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
-    recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
+
+    gpu_type = args.gpu.lower()
+    if gpu_type == "b200":
+        recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, seq_length=16384)
+    else:
+        recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
     recipe = set_primary_perf_configs(
         recipe,
         args.tensorboard,
@@ -75,8 +80,9 @@ def override_recipe_configs(
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
-    enable_cuda_graph = bool(args.gpu.lower() in ["b200"])
+    enable_cuda_graph = bool(gpu_type in ["b200"])
     recipe.model.config.enable_cuda_graph = enable_cuda_graph
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
     recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graph
@@ -88,7 +94,7 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
     kwargs = get_user_configs(args.gpu.lower(), args.finetuning, "llama3", "8b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _ = kwargs
 
     recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
 

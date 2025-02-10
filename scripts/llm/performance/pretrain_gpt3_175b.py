@@ -77,6 +77,7 @@ def override_recipe_configs(
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     ub_cfg = {
         "h100": {
@@ -106,7 +107,7 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "gpt3", "175b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _ = kwargs
 
     recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
 

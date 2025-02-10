@@ -22,8 +22,6 @@ from nemo.collections.llm.recipes.mixtral_8x22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
-ETP_SIZE = 1
-
 
 def override_recipe_configs(
     args: str,
@@ -56,17 +54,17 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        etp_size,
     )
 
     # data module configs
     recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
     recipe.data.tokenizer = hf_tokenizer("mistralai/Mixtral-8x22B-v0.1")
 
-    recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
-
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
 
@@ -74,10 +72,8 @@ def override_recipe_configs(
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
 
-    etp_size = ETP_SIZE if args.expert_tensor_parallel_size is None else args.expert_tensor_parallel_size
-
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "mixtral", "8x22b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size = kwargs
 
     recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size)
 
