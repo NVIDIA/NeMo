@@ -112,7 +112,7 @@ class T5SFTDataset(Dataset):
                 'json', data_files=file_path, cache_dir=index_mapping_dir, num_proc=memmap_workers, split='train'
             )
         else:
-            self.indexed_dataset = JSONLMemMapDataset(
+            self.indexed_dataset = _JSONLMemMapDataset(
                 dataset_paths=[file_path],
                 tokenizer=None,
                 header_lines=0,
