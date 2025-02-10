@@ -98,7 +98,7 @@ def override_recipe_configs(
     tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
-    enable_cuda_graph = bool(gpu_type in ["b200"])
+    enable_cuda_graph = bool(gpu_type in [])
     recipe.model.config.enable_cuda_graph = enable_cuda_graph
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graph
 
