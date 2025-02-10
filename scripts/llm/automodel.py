@@ -32,7 +32,7 @@ DATA_PATH = ''
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
-    parser.add_argument('--model', default='/lustre/fsw/portfolios/coreai/users/boxiangw/ckpt/deepseek-v3-bf16_2')
+    parser.add_argument('--model', default='deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B')
     parser.add_argument('--nodes', type=int, default=2)
     parser.add_argument('--devices', type=int, default=8)
     parser.add_argument('--max-steps', type=int, default=200)
