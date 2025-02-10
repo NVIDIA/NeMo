@@ -440,6 +440,9 @@ class vLLMExporter(ITritonDeployable):
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: numpy.ndarray):
+        """
+        This function is used to perform streaming inference.
+        """
         request_ids = []
         num_requests = len(inputs["prompts"])
         for index in range(num_requests):
