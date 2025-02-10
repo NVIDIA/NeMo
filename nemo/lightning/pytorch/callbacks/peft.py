@@ -32,7 +32,7 @@ from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.lightning.pytorch.utils import is_trainer_attached
+from nemo.lightning.pytorch.utils import get_automodel_from_trainer, is_trainer_attached
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
@@ -97,7 +97,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         """
         self.freeze_model(model)
 
-        # apply walk to model(s)
+        # walk model chunks
         if isinstance(model, MegatronParallel) and len(model) > 1:
             for model_chunk in model:
                 model_chunk.walk(self.transform)
@@ -135,6 +135,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         """PTL callback setup function."""
         from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
+        from nemo.lightning.pytorch.utils import get_automodel_from_trainer
 
         super().setup(trainer, pl_module, stage=stage)
 
@@ -142,11 +143,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
 
-        is_hf_model = getattr(trainer.model, "is_hf_model", False)
-        if not type(is_hf_model) == type(True):
-            is_hf_model = False
-
-        if is_hf_model:
+        if get_automodel_from_trainer(trainer) is not None:
             ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
         else:
             ckpt_io_kwarg_names = [
@@ -224,16 +221,20 @@ class PEFT(IOMixin, ABC, ModelTransform):
                 cb.on_fit_start(trainer, trainer.lightning_module)
                 break
         else:
-            logging.warning(
-                "MegatronOptimizerModule not found in trainer callbacks. finalize_model_grads is not "
-                "properly set up for PEFT."
-            )
+            # i.e., this is an mcore model; elif not supported here.
+            if get_automodel_from_trainer(trainer) is None:
+                logging.warning(
+                    "MegatronOptimizerModule not found in trainer callbacks. finalize_model_grads is not "
+                    "properly set up for PEFT."
+                )
 
     def adapter_key_filter(self, key: str) -> bool:
         """
         Given a key in the state dict, return whether the key is an adapter (or base model).
         This function can be subclassed in each PEFT method class.
         """
+        if isinstance(key, tuple):
+            return key[1].requires_grad
         return key in self.trainable_params or ".adapter." in key or key.endswith(".adapters")
 
 
@@ -354,7 +355,7 @@ class AdapterWrapper(nn.Module):
         return sharded_state_dict
 
 
-class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
+class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # noqa: F821
     """
     A wrapper class for checkpoint I/O operations, specifically designed for PEFT (Parameter-Efficient Fine-Tuning).
 
@@ -389,20 +390,26 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
     model_ckpt_path: Optional[Path] = None
     adapter_ckpt_path: Optional[Path] = None
 
-    def __init__(self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None) -> None:
+    def __init__(
+        self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None  # noqa: F821
+    ) -> None:
         self.peft = peft
         super().__init__(checkpoint_io)
 
     @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         assert self.checkpoint_io is not None
+        state_key = None
+        for k in ['sharded_state_dict', 'state_dict']:
+            if k in checkpoint:
+                state_key = k
+                break
+        assert state_key is not None, "Expected checkpoint to contain `sharded_state_dict` or `state_dict`"
 
-        state_key = 'sharded_state_dict'
-        if not state_key in checkpoint:
-            state_key = 'state_dict'
         checkpoint[state_key] = dict(
             filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint[state_key].items())
         )
+
         request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
         from nemo.utils.get_rank import is_global_rank_zero
@@ -426,6 +433,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
 
     def _create_lora_hf_config(self):
         from peft import LoraConfig
+
         from nemo.collections.llm.peft import DoRA
 
         lora_config = LoraConfig(
@@ -447,7 +455,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         path: _PATH,
         sharded_state_dict=None,
         map_location: Optional[Callable] = None,
-        strict: Optional['StrictHandling'] | bool = None,
+        strict: Optional['StrictHandling'] | bool = None,  # noqa: F821
     ) -> Dict[str, Any]:
         """
         =====================
@@ -478,25 +486,25 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):
         adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
         adapter_ckpt = None
         if getattr(path, "base_model_path", None):
-            ## PEFT Resume, FIRST TIME
+            # PEFT Resume, FIRST TIME
             self.adapter_ckpt_path = Path(str(path))
             adapter_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict={})  # Loads only metadata
             # path is adapter path to restore the training metadata, but switch to loading base model here.
             path = self.model_ckpt_path = path.base_model_path
         elif adapter_meta_path.exists():
-            ## PEFT Resume, SECOND TIME
+            # PEFT Resume, SECOND TIME
             with open(adapter_meta_path, "r") as f:
                 metadata = json.load(f)
             self.model_ckpt_path = Path(metadata['model_ckpt_path'])
             self.adapter_ckpt_path = path
         else:
-            ## Initial PEFT Training
+            # Initial PEFT Training
             self.model_ckpt_path = path
 
         # Note: this will include the Trainer-state of the model-checkpoint
         model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location, strict)
         if adapter_ckpt is not None:
-            ## PEFT Resume, FIRST TIME
+            # PEFT Resume, FIRST TIME
             adapter_ckpt['state_dict'].update(model_ckpt['state_dict'])
             return adapter_ckpt
         return model_ckpt
