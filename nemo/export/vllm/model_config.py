@@ -20,7 +20,7 @@ import yaml
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from transformers import AutoConfig
-from vllm.config import ModelConfig, ModelImpl, _get_and_verify_dtype, _get_and_verify_max_len
+from vllm.config import ModelConfig, ModelImpl, PoolerConfig, _get_and_verify_dtype, _get_and_verify_max_len
 from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
@@ -58,7 +58,8 @@ class NemoModelConfig(ModelConfig):
         use_async_output_proc: bool = False,
         disable_mm_preprocessor_cache: bool = False,
         logits_processor_pattern: Optional[str] = None,
-        override_pooler_config: Optional["PoolerConfig"] = None,
+        override_pooler_config: Optional[PoolerConfig] = None,
+        enable_sleep_mode: bool = False,
         model_impl: Union[str, ModelImpl] = ModelImpl.AUTO,
     ) -> None:
         # Don't call ModelConfig.__init__ because we don't want it to call
@@ -95,11 +96,16 @@ class NemoModelConfig(ModelConfig):
         self.disable_mm_preprocessor_cache = disable_mm_preprocessor_cache
         self.logits_processor_pattern = logits_processor_pattern
         self.generation_config = None
-        self.task = "generate"
-        self.enable_sleep_mode = False
-        self.is_hybrid = False
+        self.task = "generate"  # Only the generate task is supported
+        self.is_hybrid = False  # No hybrid models are supported
+
         self.encoder_config = self._get_encoder_config()
         self.pooler_config = self._init_pooler_config(override_pooler_config)
+        self.enable_sleep_mode = enable_sleep_mode
+
+        from vllm.platforms import current_platform # vLLM uses local import for current_platform
+        if self.enable_sleep_mode and not current_platform.is_cuda():
+            raise ValueError("Sleep mode is only supported on CUDA devices.")
 
         self.model_converter = get_model_converter(model_type)
         if self.model_converter is None:
@@ -157,9 +163,21 @@ class NemoModelConfig(ModelConfig):
         self._verify_cuda_graph()
 
     @staticmethod
-    def _change_paths_to_absolute_paths(tokenizer_config, nemo_checkpoint):
+    def _change_paths_to_absolute_paths(tokenizer_config: Dict[Any, Any], nemo_checkpoint: Path) -> Dict[Any, Any]:
+        """
+        Creates absolute path to the local tokenizers. Used for NeMo 2.0.
+
+        Args:
+            tokenizer_config (dict): Parameters for instantiating the tokenizer.
+            nemo_checkpoint (path): Path to the NeMo2 checkpoint.
+        Returns:
+            dict: Updated tokenizer config.
+        """
         context_path = nemo_checkpoint / 'context'
-        path_keys = ['pretrained_model_name', 'model_path']
+        path_keys = [
+            'pretrained_model_name',    # huggingface tokenizer case
+            'model_path'                # sentencepiece tokenizer
+        ]
 
         for path_key in path_keys:
             if path := tokenizer_config.get(path_key, None):

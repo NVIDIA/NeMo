@@ -45,12 +45,13 @@ LOGGER = logging.getLogger("NeMo")
 
 @wrapt.decorator
 def noop_decorator(func):
+    """Used as batch if pytriton is not supported"""
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
     return wrapper
 
-
+batch = noop_decorator
 use_pytriton = True
 try:
     from pytriton.decorators import batch
@@ -420,6 +421,9 @@ class vLLMExporter(ITritonDeployable):
 
     @batch
     def triton_infer_fn(self, **inputs: numpy.ndarray):
+        """
+        This function is used to perform inference on a batch of prompts.
+        """
         request_ids = []
         num_requests = len(inputs["prompts"])
         for index in range(num_requests):
