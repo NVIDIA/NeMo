@@ -108,7 +108,7 @@ def initialize_model_parallel_for_nemo(
     use_tp_pp_dp_mapping=False,
     use_te_rng_tracker=False,
 ):
-
+    """Initialize model parallel groups in NeMo."""
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
         raise ValueError("set_virtual_pipeline_model_parallel_world_size is needed in megatron-core for interleaved.")
 
