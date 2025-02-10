@@ -14,9 +14,5 @@
             "ref": "bcee0521dc886545a6af88a4e268715d99e03143"
         }
     },
-    "pypi-dependencies": {
-        "protobuf": "4.24.4",
-        "pytriton": "0.5.10",
-        "pynvml": "11.5.3"
-    }
+    "pypi-dependencies": {}
 }

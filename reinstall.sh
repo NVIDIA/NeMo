@@ -109,25 +109,41 @@ apex() {
 
 nemo() {
   local mode="$1"
-  NEMO_DIR="/opt/NeMo"
+  NEMO_DIR=${NEMO_DIR:-"/opt/NeMo"}
 
-  if [ ! -d "$NEMO_DIR/.git" ]; then
-    rm -rf "$NEMO_DIR" &&
-      cd $(dirname "$NEMO_DIR") &&
-      git clone ${NEMO_REPO}
-  fi &&
-    pushd $NEMO_DIR &&
-    git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge' &&
-    git fetch origin $NEMO_TAG &&
-    git checkout -f $NEMO_TAG
+  if [[ -n "$NEMO_TAG" ]]; then
+    if [ ! -d "$NEMO_DIR/.git" ]; then
+      rm -rf "$NEMO_DIR" &&
+        cd $(dirname "$NEMO_DIR") &&
+        git clone ${NEMO_REPO}
+    fi &&
+      pushd $NEMO_DIR &&
+      git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge' &&
+      git fetch origin $NEMO_TAG &&
+      git checkout -f $NEMO_TAG
+  fi
 
   ${PIP} install --no-cache-dir virtualenv &&
     virtualenv /opt/venv &&
     /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
-      -r requirements/requirements_vllm.txt \
-      -r requirements/requirements_deploy.txt
+      -r $NEMO_DIR/requirements/requirements_vllm.txt \
+      -r $NEMO_DIR/requirements/requirements_deploy.txt
 
-  pip install --no-cache-dir --no-build-isolation .[all] "llama-index==0.10.43" "unstructured==0.14.9" "triton==3.1.0"
+  DEPS=(
+    "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
+    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
+    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e"
+    "onnxscript @ git+https://github.com/microsoft/onnxscript"
+    "llama-index==0.10.43"
+    "unstructured==0.14.9"
+    "triton==3.1.0"
+  )
+
+  echo 'Installing dependencies of nemo'
+  ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
+
+  echo 'Installing nemo itself'
+  pip install --no-cache-dir --no-build-isolation $NEMO_DIR/.[all]
 }
 
 echo 'Uninstalling stuff'
@@ -146,16 +162,6 @@ else
     conda install -y -c conda-forge numba==${NUMBA_VERSION}
   fi
 fi
-
-DEPS=(
-  "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
-  "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
-  "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e"
-  "onnxscript @ git+https://github.com/microsoft/onnxscript"
-)
-
-echo 'Installing dependencies of nemo'
-${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
 echo 'Installing nemo'
 cd $CURR
