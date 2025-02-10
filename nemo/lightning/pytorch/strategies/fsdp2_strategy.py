@@ -71,6 +71,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
         self._checkpoint_io = checkpoint_io
         self.data_sampler = data_sampler
+        self.checkpoint = None
 
     @property
     @override
