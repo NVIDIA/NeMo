@@ -79,22 +79,32 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         return True
 
     def load_optimizer_state_dict(self, checkpoint) -> None:
-        """Restores the optimizer state-dict.
+        """Stores a reference to the optimizer state-dict for later restoration.
 
-        In practice, it maintains a reference to the checkpoint (= includes optimizer's state-dict)
-        and will restore it in the first train_step.
-
-        In NeMo 2.0 PeFT adapter are added in the first training step, therefore if we try to
-        restore the optimizer state-dict here (no PeFT adapters yet in model), will error out.
+        Instead of immediately restoring the optimizer's state, this method saves the checkpoint
+        reference and defers the restoration until the first training step. This is necessary
+        because, in NeMo 2.0, PeFT adapters are added dynamically just before the first training
+        step. Attempting to restore the optimizer state-dict before the adapters are initialized
+        would result in an error.
 
         Args:
-            checkpoint (dict): the trainer's checkpoint
+            checkpoint (dict): A dictionary containing the trainer's checkpoint,
+                            including the optimizer state-dict.
         """
         # TODO(@akoumparouli): refactor.
         self.checkpoint = checkpoint
 
     def _load_optimizer_state_dict(self) -> None:
-        """Does the actual optimizer state-dict restoration"""
+        """Restores the optimizer state-dict from the stored checkpoint.
+
+        This method applies the optimizer state stored in the checkpoint to the corresponding
+        optimizers. It ensures that the optimizer states are correctly restored after the
+        PeFT adapters have been added in the first training step.
+
+        If no checkpoint is stored, the method exits without performing any restoration.
+
+        Note: This operation runs only once, as the checkpoint reference is cleared after execution.
+        """
         from torch.distributed.checkpoint.state_dict import set_optimizer_state_dict
 
         if self.checkpoint is None:
