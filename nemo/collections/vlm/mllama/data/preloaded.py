@@ -28,7 +28,7 @@ from torch.utils.data import DataLoader, default_collate
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.mllama.model.utils import create_vision_mask_tensor
 from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
-from nemo.collections.vlm.neva.data.lazy import IGNORE_INDEX, LazySupervisedDataset
+from nemo.collections.vlm.neva.data.preloaded import IGNORE_INDEX, LazySupervisedDataset
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
@@ -170,7 +170,7 @@ class MLlamaDataset(LazySupervisedDataset):
         return batch
 
 
-class MLlamaLazyDataModule(pl.LightningDataModule):
+class MLlamaPreloadedDataModule(pl.LightningDataModule):
     def __init__(
         self,
         paths: str | List[str],
