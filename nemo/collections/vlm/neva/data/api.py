@@ -14,8 +14,8 @@
 
 import lightning.pytorch as pl
 
-from nemo.collections.vlm.neva.data.preloaded import NevaPreloadedDataModule
 from nemo.collections.vlm.neva.data.mock import MockDataModule
+from nemo.collections.vlm.neva.data.preloaded import NevaPreloadedDataModule
 
 
 def mock() -> pl.LightningDataModule:
