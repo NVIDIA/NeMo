@@ -71,6 +71,7 @@ async def check_triton_health():
         f"http://{triton_settings.triton_service_ip}:{str(triton_settings.triton_service_port)}/v2/health/ready"
     )
     logging.info(f"Attempting to connect to Triton server at: {triton_url}")
+    print("---triton_url---", triton_url)
     try:
         response = requests.get(triton_url, timeout=5)
         if response.status_code == 200:
@@ -85,7 +86,7 @@ async def check_triton_health():
 def completions_v1(request: CompletionRequest):
     try:
         print("---hello----")
-        url = triton_settings.triton_service_ip + ":" + str(triton_settings.triton_service_port)
+        url = f"http://{triton_settings.triton_service_ip}:{triton_settings.triton_service_port}"
         nq = NemoQueryLLMPyTorch(url=url, model_name=request.model)
         print("---request----", request)
         output = nq.query_llm(
@@ -102,5 +103,5 @@ def completions_v1(request: CompletionRequest):
             "output": output[0][0],
         }
     except Exception as error:
-        logging.error("An exception occurred with the post request to /v1/completions/ endpoint:", error)
+        logging.error(f"An exception occurred with the post request to /v1/completions/ endpoint: {error}")
         return {"error": "An exception occurred"}
