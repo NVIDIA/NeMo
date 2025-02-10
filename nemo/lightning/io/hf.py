@@ -183,9 +183,9 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         adapter_file = Path(path) / "adapter_model.safetensors"
         if not adapter_file.exists():
             raise FileNotFoundError("Adapter weights file not found: %", adapter_file)
-        config_file = Path(path) / "adaptor_config.json"
+        config_file = Path(path) / "adapter_config.json"
         if not config_file.exists():
-            raise FileNotFoundError("Adapter config file not found: %", adapter_file)
+            raise FileNotFoundError("Adapter config file not found: %", config_file)
 
         from safetensors import safe_open
         try:
