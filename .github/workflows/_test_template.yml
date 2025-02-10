@@ -95,7 +95,7 @@ jobs:
           SCRIPT: ${{ inputs.SCRIPT }}
         id: create
         run: |
-          COVERAGE_PREFIX=$([ "$STRING" == *pytest* ]] && echo "unit-test" || echo "e2e")
+          COVERAGE_PREFIX=$([[ "$STRING" == *pytest* ]] && echo "unit-test" || echo "e2e")
           echo "coverage-prefix=$COVERAGE_PREFIX" | tee -a "$GITHUB_OUTPUT"
 
           SCRIPT=$(echo "$SCRIPT" | grep -v '^#')
