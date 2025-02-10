@@ -332,6 +332,21 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             AssertionError: If the model has not been created prior to saving.
         """
         assert self.model is not None, "Model has to be created first."
+        def pop_fqn_prefix(fqn, expected_prefix='model'):
+            """ pops prefix from FQN """
+            parts = fqn.split('.')
+            assert parts[0] == expected_prefix
+            return '.'.join(parts[1:])
+
+        # Remove the "model." prefix from FQNs.
+        # Context: calling state_dict on an HFAutoModelForCausalLM, will prepend "model." in the
+        # state-dict keys. One solution would be to override HFAutoModelForCausalLM's state_dict
+        # and `return self.model.state_dict()`, however FSDP2 uses FQNs to acecss modules, therefore
+        # removing "model." at the state_dict function level will cause issues with FSDP2.
+        keys = list(state_dict.keys())
+        for (key, new_key) in map(lambda x: (x, pop_fqn_prefix(x)), keys):
+            state_dict[new_key] = state_dict.pop(key)
+
         self.model.save_pretrained(path, state_dict=state_dict)
         if self._tokenizer is not None:
             self._tokenizer.save_pretrained(path)
@@ -351,6 +366,32 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 load_in_4bit=self.load_in_4bit,
                 attn_implementation=self.attn_implementation,
             ).state_dict()
+
+    def load_state_dict(self, state_dict, strict=True, assign=False):
+        """ Loads the state-dict directly to self.model, therefore FQNs are expected
+        not to start with "model." -- referring to HFAutoModelForCausalLM's attribute.
+
+        Args:
+            state_dict (dict): a dict containing parameters and
+                persistent buffers.
+            strict (bool, optional): whether to strictly enforce that the keys
+                in :attr:`state_dict` match the keys returned by this module's
+                :meth:`~torch.nn.Module.state_dict` function. Default: ``True``
+            assign (bool, optional): When set to ``False``, the properties of the tensors
+                in the current module are preserved whereas setting it to ``True`` preserves
+                properties of the Tensors in the state dict. The only
+                exception is the ``requires_grad`` field of :class:`~torch.nn.Parameter`s
+                for which the value from the module is preserved.
+                Default: ``False``
+
+        Returns:
+            ``NamedTuple`` with ``missing_keys`` and ``unexpected_keys`` fields:
+                * **missing_keys** is a list of str containing any keys that are expected
+                    by this module but missing from the provided ``state_dict``.
+                * **unexpected_keys** is a list of str containing the keys that are not
+                    expected by this module but present in the provided ``state_dict``.
+        """
+        return self.model.load_state_dict(state_dict, strict=strict, assign=assign)
 
     def make_checkpoint_io(self, adapter_only=False):
         """
