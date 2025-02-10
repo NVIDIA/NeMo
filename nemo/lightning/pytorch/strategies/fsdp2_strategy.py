@@ -331,19 +331,30 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 shutil.rmtree(ckpt)
 
     @override
+    def lightning_module_state_dict(self) -> Dict[str, Any]:
+        """Collects the state dict of the model.
+
+        Only returns a non-empty state dict on rank 0 if ``save_distributed_checkpoint=False``.
+
+        """
+        from nemo.lightning.pytorch.strategies.utils import to_cpu
+
+        assert self.lightning_module is not None
+        state_dict = self.lightning_module.state_dict()
+
+        module_names = list(state_dict.keys())
+        for name in module_names:
+            param = state_dict.pop(name)
+            state_dict[name] = to_cpu(param)
+        return state_dict
+
+    @override
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         """
         Unshards FSDP2 checkpoint and passes it to checkpoint_io for saving to a file.
         """
-
-        from nemo.lightning.pytorch.strategies.utils import to_cpu
-
-        module_names = list(checkpoint["state_dict"].keys())
-        for name in module_names:
-            param = checkpoint["state_dict"].pop(name)
-            checkpoint["state_dict"][name] = to_cpu(param)
 
         if self.is_global_zero:
             self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
