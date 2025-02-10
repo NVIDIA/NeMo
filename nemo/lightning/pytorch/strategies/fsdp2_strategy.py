@@ -72,6 +72,48 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self._checkpoint_io = checkpoint_io
         self.data_sampler = data_sampler
 
+    @property
+    @override
+    def lightning_restore_optimizer(self) -> bool:
+        return True
+
+    def load_optimizer_state_dict(self, checkpoint) -> None:
+        """Restores the optimizer state-dict.
+
+        In practice, it maintains a reference to the checkpoint (= includes optimizer's state-dict)
+        and will restore it in the first train_step.
+
+        In NeMo 2.0 PeFT adapter are added in the first training step, therefore if we try to
+        restore the optimizer state-dict here (no PeFT adapters yet in model), will error out.
+
+        Args:
+            checkpoint (dict): the trainer's checkpoint
+        """
+        # TODO(@akoumparouli): refactor.
+        self.checkpoint = checkpoint
+
+    def _load_optimizer_state_dict(self) -> None:
+        """Does the actual optimizer state-dict restoration"""
+        from torch.distributed.checkpoint.state_dict import (
+            StateDictOptions,
+            get_model_state_dict,
+            get_optimizer_state_dict,
+            set_optimizer_state_dict,
+        )
+
+        if self.checkpoint is None:
+            return
+
+        for optimizer, opt_state in zip(self.optimizers, self.checkpoint["optimizer_states"]):
+            set_optimizer_state_dict(
+                self.lightning_module,
+                optimizer,
+                optim_state_dict=opt_state,
+                options={},
+            )
+        # run this only once
+        self.checkpoint = None
+
     @override
     def setup_environment(self) -> None:
         """Sets up the parallel environment and initializes model parallelism."""
@@ -138,6 +180,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Returns:
             STEP_OUTPUT: The loss for backpropagation.
         """
+        # See load_optimizer_state_dict to understand why we call this here.
+        if self.checkpoint is not None:
+            self._load_optimizer_state_dict()
+
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.train_step_context():
