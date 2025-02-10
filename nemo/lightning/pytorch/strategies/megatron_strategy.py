@@ -823,11 +823,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if HAVE_MODELOPT:
             # If present, first restore and modify the model according to the ModelOpt state.
+            core_model = unwrap_model(self.megatron_parallel)
             restore_sharded_modelopt_state(
-                [unwrap_model(self.megatron_parallel)],
+                [core_model],
                 ckpt_to_weights_subdir(checkpoint_path, is_saving=False),
             )
-            logging.info("Restored Model-Optimizer state from checkpoint.")
+            if ModeloptStateManager.is_converted(core_model):
+                logging.info("Restored Model-Optimizer state from checkpoint.")
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
         sharded_state_dict = {}
