@@ -33,6 +33,7 @@ from nemo.collections.audio.data.audio_to_audio_lhotse import LhotseAudioToTarge
 from nemo.collections.audio.metrics.audio import AudioMetricWrapper
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
 __all__ = ['AudioToAudioModel']
