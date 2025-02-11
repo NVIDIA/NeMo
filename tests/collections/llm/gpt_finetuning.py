@@ -29,6 +29,7 @@ from tests.collections.llm.common import Llama3ConfigCI
 ## CI tests that call this script should set max_steps=3 for initial training
 ## and max_steps=6 for resume testing
 
+
 def get_args():
     parser = argparse.ArgumentParser(description='Finetune a small GPT model using NeMo 2.0')
     parser.add_argument('--restore_path', type=str, help="Path to model to be finetuned")
@@ -146,8 +147,9 @@ if __name__ == '__main__':
         print("Initial Training Succeeded")
     if args.max_steps == 6:
         # assert a resume has happened for CI tests
-        msg = ("Resume did not happen in this resume test.\n"
-               "Hint: Scroll up and see whether 'Initial Training Succeeded' is printed out.\n"
-               "If not, then the issue is not with ckpt resume.")
+        msg = (
+            "Resume did not happen in this resume test.\n"
+            "Hint: Scroll up and see whether 'Initial Training Succeeded' is printed out.\n"
+            "If not, then the issue is not with ckpt resume."
+        )
         assert 'reduced_train_loss=' in str(trainer.ckpt_path), msg
-
