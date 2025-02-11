@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
+from typing import Any, List, Union
 
 import torch.utils.data
 from lhotse.cut import Cut, CutSet
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
-from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import build_loss_mask
-from nemo.collections.speechlm.data.text_processing import TextProcesserWithPromptFormatter
+from nemo.collections.common.data.lhotse.text_adapters import AudioTurn, NeMoMultimodalConversation, TextTurn
+from nemo.collections.speechlm.data.dataset.data_utils import build_loss_mask
+from nemo.collections.speechlm.data.text_processing import MultimodalConversationTextProcessor, TextProcessorOutput
 
 
 def collate_vectors(items, max_length: int, padding_value):
@@ -36,7 +36,7 @@ def collate_vectors(items, max_length: int, padding_value):
     return vectors
 
 
-class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
+class MultimodalConversationDataset(torch.utils.data.Dataset):
     """
     This dataset is based on Lhotse ASR dataset from ``audio_to_text_lhotse.py``
     and ``TarredAudioQuestionAnswerDataset`` from ``audio_text_qa_dataset.py``.
@@ -59,13 +59,14 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        text_processor: TextProcesserWithPromptFormatter,
-        default_context: str,
+        text_processor: MultimodalConversationTextProcessor,
         tokens_to_generate: int,
         pad_to_max_length: bool,
         max_seq_length: int,
+        default_context: str = "listen to the audio",
         context_key: str = "context",
         default_context_key: str = "default_context",
+        answer_only_loss: bool = True,
     ):
         super().__init__()
         self.text_processor = text_processor
@@ -77,114 +78,214 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.default_context = default_context
         self.context_key = context_key
         self.default_context_key = default_context_key
+        self.answer_only_loss = answer_only_loss
 
     def __getitem__(self, all_cuts: CutSet) -> dict[str, Union[torch.Tensor, list[str], dict]]:
-        ans = {}
-        num_audios = []
+        audio_samples = []
+        text_samples = []
+        for sample in all_cuts:
+            audio_data, text_data = self._process_sample(sample)
+            audio_samples.append(audio_data)
+            text_samples.append(text_data)
+
+        audio_batch = collate_audio_data(audio_samples, pad_val=0.0)
+
+        text_batch = collate_text_data(
+            text_samples,
+            self.tokens_to_generate,
+            self.pad_to_max_length,
+            self.max_seq_length,
+            pad_id=self.text_processor.pad_id,
+            answer_only_loss=self.answer_only_loss,
+        )
+
+        sample_ids = list(all_cuts.ids)
+        metadata = self._get_metadata(all_cuts)
+        batch = {
+            "sample_ids": sample_ids,
+            "metadata": metadata,
+            "audio_signal": audio_batch["audio_signal"],
+            "audio_signal_length": audio_batch["audio_length"],
+            "tokens": text_batch["tokens"],
+            "tokens_length": text_batch["tokens_length"],
+            "labels": text_batch["labels"],
+            "loss_mask": text_batch["loss_mask"],
+            "position_ids": text_batch["position_ids"],
+            "contexts": text_batch["contexts"],
+            "context_lengths": text_batch["context_lengths"],
+            "context_start_idx": text_batch["context_start_idx"],
+            "answers": text_batch["answers"],
+            "max_length": text_batch["max_length"],
+            "num_audios": text_batch["num_audios"],
+        }
+
+        return batch
+
+    def _get_metadata(self, all_cuts: CutSet) -> List[dict]:
+        metadata = []
+        for cut in all_cuts:
+            metadata.append({"type": type(cut).__name__, "id": getattr(cut, "id", "n/a")})
+        return metadata
+
+    def _process_sample(self, sample: Any) -> dict:
+        if isinstance(sample, Cut):
+            return self._process_cut(sample)
+        elif isinstance(sample, NeMoMultimodalConversation):
+            return self._process_multimodal_conversation(sample)
+        else:
+            raise ValueError(f"Unsupported input type: {type(sample)}")
+
+    def _convert_cut_sample(self, cut: Cut) -> NeMoMultimodalConversation:
+        """
+        Transform Cut input to as single turn MultiModalConversation for backward compatability.
+        """
+        if hasattr(cut, self.context_key):
+            context = getattr(cut, self.context_key)
+        elif hasattr(cut, self.default_context_key):
+            context = getattr(cut, self.default_context_key)
+        elif hasattr(cut, "context"):
+            context = getattr(cut, "context")
+        elif hasattr(cut, "question"):
+            context = getattr(cut, "question")
+        else:
+            context = self.default_context
+        sample = NeMoMultimodalConversation(
+            id=cut.id,
+            turns=[
+                TextTurn(
+                    role="user",
+                    value=context,
+                ),
+                AudioTurn(
+                    role="user",
+                    audio_locator_tag="[audio]",
+                    cut=cut,
+                ),
+                TextTurn(
+                    role="assistant",
+                    value=cut.supervisions[0].text,
+                ),
+            ],
+        )
+        return sample
+
+    def _process_cut(self, cut: Cut) -> dict:
+        audio_signal = cut.load_audio().reshape(-1)
+        audio_data = {
+            "audio_signal": [audio_signal],
+            "audio_length": [len(audio_signal)],
+        }
+
+        # Process text
+        sample = self._convert_cut_sample(cut)
+        text_data = self.text_processor(sample)
+
+        text = self.text_processor.tokenizer.ids_to_text(text_data.input_ids)
         import pdb
 
         pdb.set_trace()
-        # convert audio cuts to mini-batch
-        cuts = all_cuts.filter(lambda c: isinstance(c, Cut))
-        if cuts:
-            audio, audio_lens, cuts = self.load_audio(cuts)
+        return audio_data, text_data
 
-            return_batch = {}
-            audio_ratio = [1.0] * len(cuts)
-            for _, cut in enumerate(cuts):
-                if hasattr(cut, self.context_key):
-                    cut.context = getattr(cut, self.context_key)
-                elif hasattr(cut, self.default_context_key):
-                    cut.context = getattr(cut, self.default_context_key)
-                else:
-                    cut.context = self.default_context
+    def _process_multimodal_conversation(self, sample: NeMoMultimodalConversation) -> dict:
+        # Load audio
+        audio_turns = [turn for turn in sample.turns if isinstance(turn, AudioTurn)]
+        audio_signal = [turn.cut.load_audio().reshape(-1) for turn in audio_turns]
+        audio_length = [len(audio) for audio in audio_signal]
 
-            metadata = []
-            for id, cut in enumerate(cuts):
-                metadata.append({'audio_filepath': cut.id + '.wav'})
+        audio_data = {
+            "audio_signal": audio_signal,
+            "audio_length": audio_length,
+        }
 
-            collated_text_data = collate_text_data(
-                cuts=cuts,
-                default_context=self.default_context,
-                text_processor=self.text_processor,
-                tokens_to_generate=self.tokens_to_generate,
-                pad_to_max_length=self.pad_to_max_length,
-                max_seq_length=self.max_seq_length,
-            )
-            return_batch.update(
-                {
-                    "sample_ids": list(cuts.ids),
-                    "audio_signal": audio,
-                    "audio_signal_length": audio_lens,
-                    "audio_ratio": torch.FloatTensor(audio_ratio),
-                    "metadata": metadata,
-                    **collated_text_data,
-                }
-            )
-            ans.update(return_batch)
+        # Process text
+        text_data = self.text_processor(sample)
 
-        # convert text examples to tensors
-        text_examples = all_cuts.filter(lambda c: isinstance(c, (SourceTargetTextExample, NeMoSFTExample)))
-        if text_examples:
-            pad_id = self.text_processor.pad_id
-            text_minibatch = dict(
-                text_input_ids=collate_vectors_lhotse([e.input_ids for e in text_examples], padding_value=pad_id),
-                text_input_lens=torch.tensor([len(e.input_ids) for e in text_examples], dtype=torch.int64),
-                text_answer_ids=collate_vectors_lhotse([e.answer_ids for e in text_examples], padding_value=pad_id),
-                text_answer_lens=torch.tensor([len(e.answer_ids) for e in text_examples], dtype=torch.int64),
-                text_context_ids=collate_vectors_lhotse([e.context_ids for e in text_examples], padding_value=pad_id),
-                text_context_lens=torch.tensor([len(e.context_ids) for e in text_examples], dtype=torch.int64),
-                text_masks=collate_vectors_lhotse([e.mask for e in text_examples], padding_value=0),
-            )
-            ans.update(text_minibatch)
+        return audio_data, text_data
 
-        return ans
+
+def collate_audio_data(samples: List[dict], pad_val: int = 0) -> dict:
+    """
+    Collate audio data for all samples in the batch
+    """
+    audio_signal = []
+    audio_length = []
+    for sample in samples:
+        audio_signal.extend(sample["audio_signal"])
+        audio_length.extend(sample["audio_length"])
+
+    if len(audio_signal) == 0:
+        audio_signal = torch.tensor([0.0])
+        audio_length = [0]
+
+    max_audio_length = max(audio_length)
+    audio_signal_tensor = collate_vectors(audio_signal, max_audio_length, pad_val)
+    audio_length_tensor = torch.tensor(audio_length).long()
+    return {
+        "audio_signal": audio_signal_tensor,  # [batch_size, max_audio_length]
+        "audio_length": audio_length_tensor,  # [batch_size]
+    }
 
 
 def collate_text_data(
-    cuts,
-    default_context: str,
-    text_processor: TextProcesserWithPromptFormatter,
+    samples: List[TextProcessorOutput],
     tokens_to_generate: int,
     pad_to_max_length: bool,
     max_seq_length: int,
+    pad_id: int,
+    answer_only_loss: bool = True,
 ) -> dict:
-    """Perform text collation equivalent to nemo/collections/multimodal/data/audio_text_qa_dataset.py:121"""
-    batch_size = len(cuts)
-    pad_id = text_processor.pad_id
-    examples = [{k: torch.as_tensor(v) for k, v in text_processor(cut).items()} for cut in cuts]
-    fields = as_dict(examples)
+    """
+    Perform text collation on results from text processor
+    """
+    batch_size = len(samples)
 
     def get_max_len(input_list):
         return max([len(x) for x in input_list])
 
-    input_id_maxlen = get_max_len(fields["input_ids"])
-    context_id_maxlen = tokens_to_generate + get_max_len(fields["context_ids"])
-    answer_id_maxlen = get_max_len(fields["answer_ids"])
+    input_ids = [sample.input_ids for sample in samples]
+    context_ids = [sample.context_ids for sample in samples]
+    context_lengths = [sample.context_length for sample in samples]
+    answer_ids = [sample.answer_ids for sample in samples]
+    answer_ids = [sample.answer_ids for sample in samples]
+    context_start_idx = [sample.context_start_idx.numpy().tolist() for sample in samples]
+    num_audios = [sample.num_audios for sample in samples]
+    answer_start_idx = [sample.answer_start_idx for sample in samples]
+
+    input_id_maxlen = get_max_len(input_ids)
+    context_id_maxlen = tokens_to_generate + get_max_len(context_ids)
+    answer_id_maxlen = get_max_len(answer_ids)
     if pad_to_max_length:
         input_id_maxlen = max_seq_length
         context_id_maxlen = max_seq_length
         answer_id_maxlen = max_seq_length
 
-    all_tokens = collate_vectors(fields["input_ids"], max_length=input_id_maxlen, padding_value=pad_id)
-    full_lengths = torch.LongTensor([len(item) for item in fields["input_ids"]])
+    all_tokens = collate_vectors(input_ids, max_length=input_id_maxlen, padding_value=pad_id)
+    full_lengths = torch.LongTensor([len(item) for item in input_ids])
 
     assert input_id_maxlen <= max_seq_length, f"{input_id_maxlen=} <= {max_seq_length=}"
 
+    loss_mask = [
+        torch.as_tensor(build_loss_mask(inp_id, ans_idx, answer_only_loss))
+        for inp_id, ans_idx in zip(input_ids, answer_start_idx)
+    ]
     return {
-        "tokens": all_tokens[:, :-1],
-        "tokens_length": full_lengths - 1,
-        "labels": all_tokens[:, 1:],
-        "loss_mask": collate_vectors(
-            [torch.as_tensor(build_loss_mask(item)) for item in examples], max_length=input_id_maxlen, padding_value=0
-        )[:, 1:],
-        "position_ids": torch.arange(input_id_maxlen, dtype=torch.long).repeat(batch_size, 1),
-        "contexts": collate_vectors(fields["context_ids"], max_length=context_id_maxlen, padding_value=pad_id),
-        "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),
-        "answers": collate_vectors(fields["answer_ids"], max_length=answer_id_maxlen, padding_value=pad_id),
-        "max_length": torch.LongTensor([input_id_maxlen] * batch_size),
+        "tokens": all_tokens[:, :-1],  # [batch_size, input_id_maxlen - 1]
+        "tokens_length": full_lengths - 1,  # [batch_size]
+        "labels": all_tokens[:, 1:],  # [batch_size, input_id_maxlen - 1]
+        "loss_mask": collate_vectors(loss_mask, max_length=input_id_maxlen, padding_value=0)[
+            :, 1:
+        ],  # [batch_size, input_id_maxlen - 1]
+        "position_ids": torch.arange(input_id_maxlen, dtype=torch.long).repeat(
+            batch_size, 1
+        ),  # [batch_size, input_id_maxlen]
+        "contexts": collate_vectors(
+            context_ids, max_length=context_id_maxlen, padding_value=pad_id
+        ),  # [batch_size, context_id_maxlen]
+        "context_lengths": torch.LongTensor(context_lengths),  # [batch_size]
+        "answers": collate_vectors(
+            answer_ids, max_length=answer_id_maxlen, padding_value=pad_id
+        ),  # [batch_size, answer_id_maxlen]
+        "max_length": torch.LongTensor([input_id_maxlen] * batch_size),  # [batch_size]
+        "context_start_idx": context_start_idx,  # List[List[int]],
+        "num_audios": torch.stack(num_audios),  # torch.Tensor, shape (batch_size,)
     }
-
-
-def as_dict(arg: list[dict]) -> dict[str, list]:
-    return {k: [item[k] for item in arg] for k in arg[0].keys()}

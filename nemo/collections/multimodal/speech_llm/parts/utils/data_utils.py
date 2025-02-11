@@ -204,7 +204,6 @@ class TextProcessing:
         context_key (str): Key to use for the context in your JSONL file
         answer_key (str): Key to use for the label in your JSONL file
         end_string (Optional[str]): If not None, add this string to the end of the answer.
-        sample_alpha (Optional[float]): For SPE subword sampling
         input_text_mask_ratio (Optional[float]): If not None, will mask the input text at this ratio.
     """
 
@@ -228,7 +227,6 @@ class TextProcessing:
         context_key: str = 'context',
         answer_key: str = 'answer',
         end_string: Optional[str] = None,
-        sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
         add_boa_eoa: Optional[bool] = False,
         boa_string: Optional[str] = "<BOA>",
@@ -251,7 +249,6 @@ class TextProcessing:
         self.add_eos = add_eos
         self.add_sep = add_sep
         self.end_string = end_string
-        self.sample_alpha = sample_alpha
         self.audio_locator = audio_locator
         self.add_boa_eoa = add_boa_eoa
         self.boa_string = boa_string
@@ -405,6 +402,33 @@ class TextProcessing:
         }
 
         return processed_example
+
+
+def get_text_processor_from_cfg(cfg, tokenizer):
+    return TextProcessing(
+        tokenizer=tokenizer,
+        max_seq_length=cfg["max_seq_length"],
+        min_seq_length=cfg["min_seq_length"],
+        add_bos=cfg.get("add_bos", False),
+        add_eos=cfg.get("add_eos", True),
+        add_sep=cfg.get("add_sep", False),
+        sep_id=cfg.get("sep_id", None),
+        seed=cfg.get("seed", 1234),
+        separate_prompt_and_response_with_newline=cfg.get("separate_prompt_and_response_with_newline", False),
+        answer_only_loss=cfg.get("answer_only_loss", True),
+        truncation_field=cfg.get("truncation_field", "answer"),
+        pad_to_max_length=cfg.get("pad_to_max_length", False),
+        prompt_template=cfg.get("prompt_template", None),
+        virtual_tokens=cfg.get("virtual_tokens", 0),
+        tokens_to_generate=cfg.get("tokens_to_generate", 0),
+        context_key=cfg.get("context_key", "context"),
+        answer_key=cfg.get("answer_key", "answer"),
+        end_string=cfg.get("end_string", None),
+        audio_locator=cfg.get("audio_locator", None),
+        add_boa_eoa=cfg.get("add_boa_eoa", False),
+        boa_string=cfg.get("boa_string", "<BOA>"),
+        eoa_string=cfg.get("eoa_string", "<EOA>"),
+    )
 
 
 class PromptFormatterTextProcessing:
