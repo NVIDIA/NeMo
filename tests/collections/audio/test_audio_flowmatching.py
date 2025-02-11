@@ -59,6 +59,9 @@ def test_euler_sampler_nfe(num_steps):
 @pytest.mark.parametrize('time_min', TIMES_MIN)
 @pytest.mark.parametrize('time_max', TIMES_MAX)
 def test_time_generation_bounds_optimal_transport(time_min, time_max):
+    """
+    This test uses a flow with certain time_min and time_max parameters to generate timepoints and checks if timepoints belong in [time_min, time_max] interval.
+    """
     rng = torch.Generator(device='cpu')
     rng.manual_seed(0)
 
@@ -72,6 +75,10 @@ def test_time_generation_bounds_optimal_transport(time_min, time_max):
 @pytest.mark.parametrize('time_min', TIMES_MIN)
 @pytest.mark.parametrize('time_max', TIMES_MAX)
 def test_time_generation_bounds_optimal_transport_negative_examples(time_min, time_max):
+    """
+    This test uses a flow with certain time_min and time_max parameters, widens them, generates timepoints and checks if timepoints belong in [time_min, time_max] interval.
+    Since we widen the interval when initializing the flow, we expect that after taking enough samples some of them will be outside intended interval.
+    """
     rng = torch.Generator(device='cpu')
     rng.manual_seed(0)
 
