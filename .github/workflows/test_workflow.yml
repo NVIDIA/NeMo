@@ -35,8 +35,6 @@ jobs:
             mv "$f" "coverage-e2e/"
           done
 
-          coverage combine --keep $(ls coverage-*/.coverage)
-
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
