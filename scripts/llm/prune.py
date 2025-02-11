@@ -230,8 +230,6 @@ def main(args):
         assert export_config, "No pruning constraints provided"
 
         data_module = get_data_module(args)
-        data_module.setup()
-        forward_loop = create_megatron_forward_loop(args, data_module.train_dataloader())
 
         # NOTE: Ideally we should directly use llm.validate but that moves the model to CPU
         #     after the forward loop causing issues with pruning post-processing in some cases.
@@ -240,6 +238,10 @@ def main(args):
         #     # Overwrite val dataloader to use train dataloader with llm.validate
         #     data_module.val_dataloader = data_module.train_dataloader
         #     llm.validate(model, data_module, trainer)
+
+        data_module.trainer = trainer
+        data_module.setup()
+        forward_loop = create_megatron_forward_loop(args, data_module.train_dataloader())
 
         logging.info("Pruning model...")
         mtp.prune(
@@ -257,7 +259,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Llama Pruning Script")
-    parser.add_argument("--devices", type=int, default=1)
+    parser.add_argument("--devices", type=int, default=1, help="Number of GPUs to use per node")
     parser.add_argument("--num_nodes", type=int, default=1)
     parser.add_argument(
         "--tp_size",
