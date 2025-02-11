@@ -207,6 +207,8 @@ def _download(path: str, url: str):
         os.makedirs(MEGATRON_CACHE, exist_ok=True)
         logging.info(f"Downloading from {url} to {path}")
         downloaded_path = wget.download(url)
+        if not os.path.exists(downloaded_path):
+            raise FileNotFoundError(f"Downloaded file not found: {downloaded_path}")
         shutil.move(downloaded_path, path)
     # wait until the master process downloads the file and writes it to the cache dir
     if torch.distributed.is_initialized():
