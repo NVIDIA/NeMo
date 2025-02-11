@@ -208,7 +208,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         try:
             with safe_open(adapter_file, framework="pt", device=0) as f:
                 for k in f.keys():
-                    state_dict[HFAdapterKeyRenamer.hf_to_nemo(name)] = f.get_tensor(k)
+                    state_dict[HFAdapterKeyRenamer.hf_to_nemo(k)] = f.get_tensor(k)
         except OSError as e:
             raise OSError(f"Failed to load adapter weights: {e}")
 
