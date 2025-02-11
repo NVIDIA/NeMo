@@ -43,8 +43,8 @@ Example usage to prune depth automatically using cosine-similarity based importa
 ```
 
 NOTE: for above usages, `--tp_size` must be 1 because of the current prune API limitation. If you
-do not pass `--data_paths`, the script will use mock data for calibration which will lead to incorrect
-pruning results but helps in testing the pruning pipeline.
+do not pass `--data_paths`, the script will use mock data for calibration which will lead to randomly
+pruned model but helps in testing the pruning pipeline.
 
 Example usage to prune depth by dropping specific model layers (1-indexed):
 ```python
@@ -65,7 +65,9 @@ import shutil
 import modelopt.torch.prune as mtp
 import torch
 from megatron.core import dist_checkpointing
+from megatron.core.pipeline_parallel import get_forward_backward_func
 from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+from tqdm import tqdm
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -76,6 +78,7 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import unwrap_model
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -97,6 +100,7 @@ def get_data_module(args):
     Also overwrites val dataloader to return train dataloader for importance estimation.
     """
     assert args.num_train_samples % args.gbs == 0, "num_train_samples must be divisible by gbs"
+    assert args.gbs % args.mbs == 0, "gbs must be divisible by mbs"
     assert args.seq_length, "Sequence length must be provided for pruning"
 
     data_module_kwargs = {}
@@ -117,10 +121,38 @@ def get_data_module(args):
         **data_module_kwargs,
     )
 
-    # Overwrite val dataloader to use train dataloader with llm.validate
-    data_module.val_dataloader = data_module.train_dataloader
-
     return data_module
+
+
+def create_megatron_forward_loop(args, dataloader):
+    """Create a forward loop for over a given data loader."""
+    forward_backward_func = get_forward_backward_func()
+    data_iterator = iter(dataloader)
+
+    def forward_step_func(data_iterator, model: llm.GPTModel):
+        batch = model.data_step(data_iterator)
+        output_tensor = model.validation_step(batch)
+
+        def _mock_loss_function(tensor):
+            return 0, {}
+
+        return output_tensor, _mock_loss_function
+
+    @torch.no_grad()
+    def forward_loop(model):
+        num_iters = args.num_train_samples // args.gbs
+        for _ in tqdm(range(num_iters), desc="Calibrating model"):
+            forward_backward_func(
+                forward_step_func=forward_step_func,
+                data_iterator=data_iterator,
+                model=model,
+                num_microbatches=args.gbs // args.mbs,
+                seq_length=args.seq_length,
+                micro_batch_size=args.mbs,
+                forward_only=True,
+            )
+
+    return forward_loop
 
 
 def load_model_with_modelopt_spec(restore_path: str, trainer: nl.Trainer) -> llm.GPTModel:
@@ -137,7 +169,7 @@ def load_model_with_modelopt_spec(restore_path: str, trainer: nl.Trainer) -> llm
 def save_pruned_model(model: llm.GPTModel, trainer: nl.Trainer, save_path: str):
     """Save pruned model nemo checkpoint."""
     logging.info(f"Saving pruned model to {save_path}...")
-    if hasattr(model.tokenizer, "save_pretrained"):
+    if hasattr(model.tokenizer, "save_pretrained") and is_global_rank_zero():
         tokenizer_tmp_dir = "/tmp/nemo_tokenizer"
         model.tokenizer.save_pretrained(tokenizer_tmp_dir)
         model.tokenizer = AutoTokenizer(tokenizer_tmp_dir)
@@ -152,7 +184,8 @@ def save_pruned_model(model: llm.GPTModel, trainer: nl.Trainer, save_path: str):
     weight_path.mkdir(parents=True, exist_ok=True)
     dist_checkpointing.save(trainer.strategy.megatron_parallel.sharded_state_dict(), weight_path)
 
-    TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(save_path), yaml_attrs=["model"])
+    if is_global_rank_zero():
+        TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(save_path), yaml_attrs=["model"])
 
     logging.info(f"Pruned model saved to {save_path}\n")
 
@@ -189,15 +222,24 @@ def main(args):
     if args.drop_layers:
         assert not export_config, f"Cannot specify `--drop_layers` with other prune constraints. Recieved: {args}"
 
+        # TODO: We wont need to unwrap model in nvidia-modelopt >= 0.25.0
         unwrapped_model = unwrap_model(model.module, (Float16Module, MCoreFloat16Module))
         mtp.plugins.megatron.drop_mcore_gpt_layers(unwrapped_model, layers_to_drop=args.drop_layers)
     else:
         assert args.tp_size == 1, "Pruning currently only supports --tp_size=1"
+        assert export_config, "No pruning constraints provided"
 
         data_module = get_data_module(args)
+        data_module.setup()
+        forward_loop = create_megatron_forward_loop(args, data_module.train_dataloader())
 
-        def forward_loop(model):
-            llm.validate(model, data_module, trainer)
+        # NOTE: Ideally we should directly use llm.validate but that moves the model to CPU
+        #     after the forward loop causing issues with pruning post-processing in some cases.
+        # def forward_loop(model):
+        #     trainer.strategy.restore_config = None  # Dont restore model weights again
+        #     # Overwrite val dataloader to use train dataloader with llm.validate
+        #     data_module.val_dataloader = data_module.train_dataloader
+        #     llm.validate(model, data_module, trainer)
 
         logging.info("Pruning model...")
         mtp.prune(
@@ -268,12 +310,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prune_num_attention_heads",
         type=int,
-        help="Prune number of attention heads to this value. Must be supplied with " "--prune_num_query_groups",
+        help="Prune number of attention heads to this value. Must be supplied with --prune_num_query_groups",
     )
     parser.add_argument(
         "--prune_num_query_groups",
         type=int,
-        help="Prune number of query groups to this value. Must be supplied with " "--prune_num_attention_heads",
+        help="Prune number of query groups to this value. Must be supplied with --prune_num_attention_heads",
     )
     parser.add_argument(
         "--prune_num_layers",

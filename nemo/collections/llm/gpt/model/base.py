@@ -71,8 +71,7 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         required_host_keys.add('cu_seqlens_argmin')
         required_host_keys.add('max_seqlen')
 
-    if parallel_state.is_pipeline_first_stage():
-        required_device_keys.update(("tokens", "position_ids"))
+    required_device_keys.update(("tokens", "position_ids"))
     if parallel_state.is_pipeline_last_stage():
         required_device_keys.update(("labels", "loss_mask"))
 
