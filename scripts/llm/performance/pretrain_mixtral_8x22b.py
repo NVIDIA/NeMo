@@ -66,6 +66,10 @@ def override_recipe_configs(
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
+    # to mitigate the incorrect gradient_scaling_factor calculation in megatron.core
+    # under scenario average_in_collective=True and etp_size>1, disabling average_in_collective.
+    recipe.trainer.strategy.ddp.average_in_collective = False
+
     return recipe
 
 
