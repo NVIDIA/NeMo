@@ -105,7 +105,7 @@ class TestStateDictTransform:
 
     def test_transform_with_single_source_single_target(self, mock_ctx):
         """
-        Test transformation when multiple source keys are specified.
+        Test transformation when a single source and target key is specified.
         """
         transform = StateDictTransform(
             source_key="model.layers.*.mlp.experts.0.down_proj.weight",
@@ -204,7 +204,7 @@ class TestStateDictTransform:
 
     def test_transform_with_multiple_sources_multiple_wildcards(self, mock_ctx):
         """
-        Test transformation when multiple source keys are specified.
+        Test transformation when multiple source keys are specified, each with more than 1 wildcard.
         """
         transform = StateDictTransform(
             source_key=(
@@ -222,7 +222,7 @@ class TestStateDictTransform:
 
     def test_transform_with_multiple_targets_multiple_wildcards(self, mock_multi_target_ctx):
         """
-        Test transformation when multiple source keys are specified.
+        Test transformation when multiple target keys are specified, each with more than 1 wildcard.
         """
 
         def split_transform(ctx, x):
