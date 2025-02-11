@@ -1408,7 +1408,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         # FIXME: cleanup the following code is here for backwards compatibility with nemo1.
         # The "batch" sampler is a nemo1 sampler. It requires some custom code here to use
         # (if use_global_batch_sampler), by default we shouldn't use this "batch" sampler probably.
-        if getattr(self.trainer, "datamodule", None) is not None:
+        if getattr(self.trainer, "datamodule", None) is not None and hasattr(self.trainer.datamodule, "data_sampler"):
             use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
         elif getattr(self.trainer, "predict_dataloaders", None) is not None:
             from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (  # noqa: I001
