@@ -308,11 +308,12 @@ def distill(
     --------
         >>> from nemo.collections import llm
         >>> from nemo import lightning as nl
-        >>> model = llm.MistralModel()
+        >>> student = "/path/to/student/nemo/ckpt"  # <-- change me
+        >>> teacher = "/path/to/teacher/nemo/ckpt"  # <-- change me
         >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
         >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
         >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
-        >>> llm.train(model, data, trainer, tokenizer="data")
+        >>> llm.distill(student, teacher, data, trainer, tokenizer="model")
         PosixPath('/path/to/log_dir')
     """
     assert student_model_path is not None and teacher_model_path is not None
@@ -458,8 +459,8 @@ def deploy(
         Needs to be True to be able to run evaluation. Default: True.
         openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
         be True while running evaluation. Default: True.
-        output_context_logits (bool): If True builds trtllm engine with gather_context_logits set to True. Default: True.
-        context_logits are used to compute the logProb of the output token in case of multi token prediction benchmarks.
+        output_context_logits (bool): If True builds trtllm engine with 'gather_context_logits=True'. Default: True.
+            context_logits are used to compute the logProb of the output token in multi-token prediction benchmarks.
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token in case of single token prediction
         benchmarks (like MMLU, lambada). Default: True.
@@ -522,7 +523,8 @@ def evaluate(
     (https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
 
     Args:
-        target_cfg (EvaluationTarget): target of the evaluation. Providing nemo_checkpoint_path, model_id and url in EvaluationTarget.api_endpoint is required to run evaluations.
+        target_cfg (EvaluationTarget): target of the evaluation. Providing nemo_checkpoint_path, model_id, and
+            url in EvaluationTarget.api_endpoint is required to run evaluations.
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
     """
 
@@ -651,6 +653,7 @@ def import_ckpt(
 
 
 def load_connector_from_trainer_ckpt(path: AnyPath, target: str) -> io.ModelConnector:
+    # pylint: disable=C0116
     if not isinstance(path, Path):
         path = Path(path)
     return io.load_context(path, subpath="model").exporter(target, path)
@@ -956,7 +959,7 @@ def _validate_config(
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
 ) -> None:
 
-    ## Model validation
+    # Model validation
     if hasattr(model, "config"):
         assert getattr(model.config, "seq_length", 1) > 0
         assert getattr(model.config, "max_position_embeddings", 1) > 0
@@ -971,7 +974,7 @@ def _validate_config(
     else:
         assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
 
-    ## Data validation
+    # Data validation
     assert data.micro_batch_size > 0
     assert data.global_batch_size > 0
     assert data.seq_length > 0
@@ -980,7 +983,7 @@ def _validate_config(
         data.global_batch_size % data.micro_batch_size == 0
     ), "Global batch size must be divisible by micro batch size in data module."
 
-    ## Trainer validation
+    # Trainer validation
 
     # MegatronStrategy validation
     if isinstance(trainer.strategy, nl.MegatronStrategy):
