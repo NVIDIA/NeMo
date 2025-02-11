@@ -332,6 +332,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             model.config.timers = self.timers
 
         has_optim = getattr(model, "optim", None)
+        import pdb; pdb.set_trace()
         if has_optim and self._setup_optimizers:
             opt_config = getattr(model.optim, "config", None)
             if isinstance(opt_config, OptimizerConfig):

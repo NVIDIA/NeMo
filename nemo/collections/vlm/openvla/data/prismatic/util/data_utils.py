@@ -109,7 +109,7 @@ class PaddedCollatorForActionPrediction:
 
         # DEBUGGING (COMPATIBLE WITH NEVA)
         # explicitly calculate loss_mask
-        loss_mask = labels < 0
+        loss_mask = labels > 0
 
         # DEBUGGING
         rank = torch.distributed.get_rank()

@@ -258,7 +258,7 @@ class TimmCLIPVisionConfig(io.IOMixin):
     dtype: Optional[torch.dtype] = torch.bfloat16
 
     def __post_init__(self, *args, **kwargs) -> None:
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         self.num_image_embeddings_per_tile = get_image_sequence_length(
             img_h=self.image_size,
             img_w=self.image_size,
@@ -267,12 +267,6 @@ class TimmCLIPVisionConfig(io.IOMixin):
             class_token_len=1,
         )
 
-
-    def configure_model(self) -> "CLIPVisionModel":
-        # Monkey patch the method to the vision encoder
-        # CLIPVisionModel.set_input_tensor = set_input_tensor
-
-        import pdb; pdb.set_trace()
         self.featurizer = timm.create_model(
             self.pretrained_model_name_or_path,
             pretrained=False,
@@ -280,6 +274,14 @@ class TimmCLIPVisionConfig(io.IOMixin):
             img_size=self.image_size,
             act_layer=self.override_act_layer,
         )
+
+
+    def configure_model(self) -> "CLIPVisionModel":
+        # Monkey patch the method to the vision encoder
+        # CLIPVisionModel.set_input_tensor = set_input_tensor
+
+        # import pdb; pdb.set_trace()
+
 
         self.featurizer.forward = unpack_tuple(
             partial(self.featurizer.get_intermediate_layers, n={len(self.featurizer.blocks) - 2})
@@ -296,7 +298,7 @@ class TimmCLIPVisionConfig(io.IOMixin):
         self.featurizer = self.featurizer.to(dtype=self.dtype)
         self.featurizer.requires_grad_(False)
         self.featurizer = self.featurizer.to("cuda")
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         return self.featurizer
 
 
@@ -615,7 +617,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             # note num_images_in_mbs is not mbs but total images in this mbs which is approximately equal to num_tiles*mbs.
             images = images.to(next(self.vision_model.parameters()).dtype)
 
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
             # Assuming we are getting images in the shape of (mbs, 2*3, h, w)
             img, img_secondary = torch.split(images, [3, 3], dim=1)
             # Img and img_secondary is in shape of (mbs, c, h, w) where c=3
@@ -647,7 +649,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
 
             # TODO(Abhi): Check if the dim is correct. HF concats along dim 2
             image_embeddings = torch.cat([image_embeddings, image_embeddings_secondary], dim=2)
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
             #print(f"image embedding shape: {image_embeddings.shape}")
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
@@ -703,8 +705,14 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
                     input_ids_text = torch.nn.functional.pad(input_ids_text, (0, padded_seq_len))
                     if position_ids is not None:
                         position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
+
+
+            # We shift the position ids for VLA
+            # Shift elements starting from index 2 by 255
+            shifted_position_ids = position_ids.clone()
+            shifted_position_ids[:, 2:] += 255
             language_embeddings = self.language_model.embedding(
-                input_ids=input_ids_text, position_ids=position_ids
+                input_ids=input_ids_text, position_ids=shifted_position_ids
             )  # [text_seq_len, b, h_language]
             if self.sequence_parallel_lm:
                 # Gather the language embeddings back.
@@ -729,7 +737,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
         elif isinstance(num_image_tiles, list):
             num_image_tiles = torch.tensor(num_image_tiles, dtype=torch.int, device=input_ids.device)
 
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         #print(f"image embedding shape Right before: {language_embeddings.shape}")
         # Preprocess input, labels and loss mask.
         torch.cuda.synchronize()
@@ -748,6 +756,8 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             packed_seq_params=packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
         torch.cuda.synchronize()
+        # import pdb;
+        # pdb.set_trace()
         print(f"Time to preprocess data: {time.time() - start}")
         #print(f"combined_embeddings shape: {combined_embeddings.shape}\n"
               # f"final_labels: {final_labels}\n"
@@ -887,7 +897,7 @@ class MCoreOpenVLAModel(MCoreLLaVAModel):
             #print(frameinfo.filename, frameinfo.lineno)
             num_image_tiles_batch = torch.tensor([x.sum() for x in num_image_tiles_batch], device=input_ids.device)
             frameinfo = getframeinfo(currentframe()); #print(frameinfo.filename, frameinfo.lineno)
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
             # Sequence length for each sample is the image sequence length multiplied by
             # the number of tiles for that image, minus image token indices,
             # plus text sequence length.

@@ -1,6 +1,9 @@
 Datasets
 ========
-
+pip install transformers==4.48.0
+pip install "dlimp @ git+https://github.com/moojink/dlimp_openvla"
+pip install "tensorflow_graphics==2021.12.3"
+pip install timm==0.9.10
 Data pipeline overview
 ----------------------
 

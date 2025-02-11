@@ -46,7 +46,7 @@ from nemo.collections.vlm.openvla.data.lazy import OpenVLALazyDataModule
 from nemo.lightning import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
-pdb.set_trace = lambda: 1
+# pdb.set_trace = lambda: 1
 
 
 
@@ -59,7 +59,7 @@ def main(args) -> None:
     # decoder_seq_length = 1024
 
     # Create the data module
-    if False:
+    if True:
         from nemo.collections.vlm.clip.data.mock import MockDataModule as ClipMockDataModule
         # mock dataset
         data = ClipMockDataModule(
@@ -91,11 +91,16 @@ def main(args) -> None:
     )
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=2,
+        tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=False,
         ckpt_load_strictness="log_all",
+        ddp=DistributedDataParallelConfig(
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=False,
+            average_in_collective=True,
+        ),
     )
 
     model = OpenVLAModel(OpenVLAHFConfig(), tokenizer=data.tokenizer)
@@ -174,12 +179,17 @@ def main(args) -> None:
         optimizer='adam',
         lr=2e-5,
         min_lr=2e-5,
-        use_distributed_optimizer=False,
         bf16=True,
+        use_distributed_optimizer=True,
+        use_precision_aware_optimizer=True,
+        main_grads_dtype=torch.bfloat16,
+        main_params_dtype=torch.bfloat16,
+        exp_avg_dtype=torch.bfloat16,
+        exp_avg_sq_dtype=torch.bfloat16,  # exp_avg_sq_dtype
     )
     opt = MegatronOptimizerModule(config=opt_config)
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     nemo_logger = nl.NeMoLogger(
         log_dir=args.log_dir,
         name=args.name,
@@ -216,9 +226,9 @@ if __name__ == "__main__":
     parser.add_argument('--experiment-name', type=str, help="name of experiment")
     parser.add_argument('--wandb-project', type=str, default=None, help="wandb project name")
 
-    parser.add_argument("--mbs", type=int, required=False, default=32, help="Micro batch size")
+    parser.add_argument("--mbs", type=int, required=False, default=1, help="Micro batch size")
     # parser.add_argument("--mbs", type=int, required=False, default=32, help="Micro batch size")
-    parser.add_argument("--gbs", type=int, required=False, default=256, help="Global batch size")
+    parser.add_argument("--gbs", type=int, required=False, default=1, help="Global batch size")
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--num_workers", type=int, required=False, default=8)
     parser.add_argument("mock_data", action="store_true")

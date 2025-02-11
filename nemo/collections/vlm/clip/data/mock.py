@@ -82,7 +82,7 @@ class MockDataModule(pl.LightningDataModule):
         self.tokenizer = tokenizer
         self.image_processor = image_processor
 
-        if tokenizer is None or image_processor is None:
+        if (tokenizer is None or image_processor is None) and False:
             logging.warning(f"Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
             from transformers import AutoProcessor
 
@@ -101,18 +101,18 @@ class MockDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str = "") -> None:
         self._train_ds = _MockClipDataset(
-            self.tokenizer,
-            self.image_processor,
+            None,
+            None,
             "train",
             self.num_train_samples,
             self.seq_length,
             task_encoder=self.task_encoder,
         )
         self._validation_ds = _MockClipDataset(
-            self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length
+            None, None, "valid", self.num_val_samples, self.seq_length
         )
         self._test_ds = _MockClipDataset(
-            self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length
+            None, None, "test", self.num_test_samples, self.seq_length
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -158,8 +158,8 @@ class MockDataModule(pl.LightningDataModule):
 class _MockClipDataset(Dataset):
     def __init__(
         self,
-        tokenizer,
-        image_processor,
+        tokenizer: None,
+        image_processor: None,
         name: str,
         num_samples: int,
         seq_length: int,
@@ -170,10 +170,10 @@ class _MockClipDataset(Dataset):
         self.name = name
         self.seq_length = seq_length
 
-        self.vocab_size = tokenizer.vocab_size
-
-        crop_size = image_processor.crop_size
-        self.image_height, self.image_width = crop_size["height"], crop_size["width"]
+        # self.vocab_size = tokenizer.vocab_size
+        #
+        # crop_size = image_processor.crop_size
+        # self.image_height, self.image_width = crop_size["height"], crop_size["width"]
 
         self.length = num_samples
         self.seed = seed
@@ -184,6 +184,37 @@ class _MockClipDataset(Dataset):
 
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
+        concatenated_pixel_values = torch.randn(6, 224, 224) * 0.9485338926315308 - 0.0002835348423104733
+        input_ids = torch.tensor([1, -200, 512, 29901, 1724, 3158, 881, 278, 19964, 2125,
+                                  304, 5839, 701, 278, 13328, 18002, 29973, 13, 3744, 29901,
+                                  29871, 31999, 31872, 31872, 31872, 31872, 31872, 31744, 2, 0,
+                                  0, 0], dtype=torch.int64)
+        labels = torch.tensor([-100, -100, -100, -100, -100, -100, -100, -100, -100, -100,
+                               -100, -100, -100, -100, -100, -100, -100, -100, -100, -100,
+                               31999, 31872, 31872, 31872, 31872, 31872, 31744, 2, -100, -100,
+                               -100, -100], dtype=torch.int64)
+        loss_mask = torch.tensor([True, True, True, True, True, True, True, True, True, True,
+                                  True, True, True, True, True, True, True, True, True, True,
+                                  False, False, False, False, False, False, False, False, True, True,
+                                  True, True], dtype=torch.bool)
+        attention_mask = torch.tensor([True, True, True, True, True, True, True, True, True, True,
+                                       True, True, True, True, True, True, True, True, True, True,
+                                       True, True, True, True, True, True, True, True, True, False,
+                                       False, False], dtype=torch.bool)
+        position_ids = torch.arange(0, 32)
+        position_ids = position_ids.to(dtype=torch.int64)
+
+        # Construct the output dictionary
+        output = dict(
+            media=concatenated_pixel_values,
+            tokens=input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
+            loss_mask=loss_mask,
+            position_ids=position_ids,
+        )
+        # output = {k: v. for k, v in output.items()}
+        return output
 
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
