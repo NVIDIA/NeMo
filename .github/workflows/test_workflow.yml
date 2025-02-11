@@ -18,7 +18,6 @@ jobs:
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
         if: always()
-        id: total-current-branch
         run: |
           pip install coverage
 
@@ -45,7 +44,6 @@ jobs:
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
         if: always()
-        id: total-current-branch
         run: |
           pip install coverage
 
