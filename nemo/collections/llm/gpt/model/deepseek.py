@@ -122,6 +122,7 @@ class DeepSeekV2Config(DeepSeekConfig):
     mscale: float = 0.707
     mscale_all_dim: float = 0.707
 
+
 @dataclass
 class DeepSeekV2LiteConfig(DeepSeekV2Config):
     """
@@ -143,6 +144,7 @@ class DeepSeekV2LiteConfig(DeepSeekV2Config):
     moe_router_num_groups: int = 1
     moe_router_group_topk: int = 1
     moe_router_topk_scaling_factor: float = 1.0
+
 
 @dataclass
 class DeepSeekV3Config(DeepSeekConfig):
@@ -262,12 +264,17 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             del mapping["model.layers.*.self_attn.q_b_proj.weight"]
             mapping["model.layers.*.self_attn.q_proj.weight"] = "decoder.layers.*.self_attention.linear_q_proj.weight"
         # Account for Mcore local spec
-        if (self.config.q_lora_rank is not None and
-                not isinstance(target.module.decoder.layers[0].self_attention.q_layernorm, IdentityOp)):
-            mapping["model.layers.*.self_attn.q_a_layernorm.weight"] = "decoder.layers.*.self_attention.q_layernorm.weight"
+        if self.config.q_lora_rank is not None and not isinstance(
+            target.module.decoder.layers[0].self_attention.q_layernorm, IdentityOp
+        ):
+            mapping["model.layers.*.self_attn.q_a_layernorm.weight"] = (
+                "decoder.layers.*.self_attention.q_layernorm.weight"
+            )
 
         if not isinstance(target.module.decoder.layers[0].self_attention.kv_layernorm, IdentityOp):
-            mapping["model.layers.*.self_attn.kv_a_layernorm.weight"] = "decoder.layers.*.self_attention.kv_layernorm.weight"
+            mapping["model.layers.*.self_attn.kv_a_layernorm.weight"] = (
+                "decoder.layers.*.self_attention.kv_layernorm.weight"
+            )
 
         if not isinstance(target.module.decoder.layers[0].pre_mlp_layernorm, IdentityOp):
             del mapping["model.layers.*.dense-post_attention_layernorm.weight"]
