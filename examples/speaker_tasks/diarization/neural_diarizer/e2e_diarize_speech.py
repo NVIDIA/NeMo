@@ -292,10 +292,11 @@ def convert_pred_mat_to_segments(
     )
     for sample_idx, (uniq_id, audio_rttm_values) in enumerate(audio_rttm_map_dict.items()):
         speaker_timestamps = total_speaker_timestamps[sample_idx]
-        if audio_rttm_values.get("uniq_id", None) is not None:
-            uniq_id = audio_rttm_values["uniq_id"]
-        else:
-            uniq_id = get_uniqname_from_filepath(audio_rttm_values["audio_filepath"])
+        if uniq_id is None:
+            if audio_rttm_values.get("uniq_id", None) is not None:
+                uniq_id = audio_rttm_values["uniq_id"]
+            else:
+                uniq_id = get_uniqname_from_filepath(audio_rttm_values["audio_filepath"])
         all_hypothesis, all_reference, all_uems = timestamps_to_pyannote_object(
             speaker_timestamps,
             uniq_id,
