@@ -31,9 +31,8 @@ from nemo.collections.llm.gpt.model.llama import HFLlamaImporter, Llama32Config1
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io
 from nemo.lightning.pytorch.utils import dtype_from_hf
-from nemo.utils.import_utils import safe_import
 from nemo.utils import logging
-
+from nemo.utils.import_utils import safe_import
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
