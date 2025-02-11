@@ -144,7 +144,9 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
                     "choices": [{"text": sentences}],
                 }
                 if log_probs_output is not None:
-                    openai_response["logprobs"] = log_probs_output
+                    openai_response["choices"][0]["logprobs"]= {}
+                    openai_response["choices"][0]["logprobs"]["token_logprobs"] = log_probs_output
+                    openai_response["choices"][0]["logprobs"]["top_logprobs"] = log_probs_output
                 return openai_response
             else:
                 return result_dict["sentences"]
