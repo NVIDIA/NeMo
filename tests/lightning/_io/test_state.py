@@ -110,7 +110,7 @@ class TestStateDictTransform:
         transform = StateDictTransform(
             source_key="model.layers.*.mlp.experts.0.down_proj.weight",
             target_key="decoder.layers.*.mlp.experts.linear_fc2.weight",
-            transform=lambda ctx, x: x*100,
+            transform=lambda ctx, x: x * 100,
         )
         transform(mock_ctx)
         assert mock_ctx.target_state["decoder.layers.0.mlp.experts.linear_fc2.weight"] == 800
@@ -127,7 +127,7 @@ class TestStateDictTransform:
                 "model.layers.*.self_attn.v_proj.weight",
             ),
             target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-            transform=lambda ctx, q, k, v: q*100 + k*10 + v,
+            transform=lambda ctx, q, k, v: q * 100 + k * 10 + v,
         )
         transform(mock_ctx)
         assert mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"] == 123
@@ -144,7 +144,7 @@ class TestStateDictTransform:
                 "v": "model.layers.*.self_attn.v_proj.weight",
             },
             target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-            transform=lambda ctx, q, k, v: q*100 + k*10 + v,
+            transform=lambda ctx, q, k, v: q * 100 + k * 10 + v,
         )
         transform(mock_ctx)
         assert mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"] == 123
@@ -212,7 +212,7 @@ class TestStateDictTransform:
                 "model.layers.*.mlp.experts.*.up_proj.weight",
             ),
             target_key="decoder.layers.*.mlp.experts.linear_fc1.weight*",
-            transform=lambda ctx, gate, up: gate*10 + up,
+            transform=lambda ctx, gate, up: gate * 10 + up,
         )
         transform(mock_ctx)
         assert mock_ctx.target_state["decoder.layers.0.mlp.experts.linear_fc1.weight0"] == 45
@@ -220,11 +220,11 @@ class TestStateDictTransform:
         assert mock_ctx.target_state["decoder.layers.1.mlp.experts.linear_fc1.weight0"] == 56
         assert mock_ctx.target_state["decoder.layers.1.mlp.experts.linear_fc1.weight1"] == 78
 
-
     def test_transform_with_multiple_targets_multiple_wildcards(self, mock_multi_target_ctx):
         """
         Test transformation when multiple source keys are specified.
         """
+
         def split_transform(ctx, x):
             return x // 10, x % 10
 
@@ -331,9 +331,7 @@ def single_transform(ctx, x):
 
 @state_transform(
     source_key="model.layers.1.self_attn.*_proj.weight",
-    target_key=(
-        "decoder.layers.1.self_attention.linear_*.weight",
-    ),
+    target_key=("decoder.layers.1.self_attention.linear_*.weight",),
 )
 def multiple_outputs_transform(ctx, *args):
     """
