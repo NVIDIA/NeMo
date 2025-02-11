@@ -1,11 +1,11 @@
 import os
-from dataclasses import dataclass, field
-from typing import List, Literal, Optional
+from dataclasses import dataclass, field, fields
+from typing import List, Literal, Optional, Type
 
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer import TransformerConfig
-from megatron.core.transformer.enums import AttnBackend
+from megatron.core.transformer.enums import AttnBackend, ModelType
 from nemo.tron.init import get_world_size_safe
 
 
@@ -49,6 +49,9 @@ class MegatronLMConfig:
 
     decoder_num_layers: Optional[int] = None
     """Number of decoder transformer layers."""
+
+    model_type: ModelType = ModelType.encoder_or_decoder
+    """Model architecture type."""
 
     group_query_attention: bool = False
     """Use group-query attention."""
@@ -936,3 +939,14 @@ class FlatConfig(
             world_size % total_model_size == 0
         ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
         self.data_parallel_size = world_size // total_model_size
+
+    def to_module_cfg(self, cls: Type):
+        """Extract a modular dataclass"""
+        assert isinstance(self, cls), f"FlatConfig does not contain attributes for {cls}."
+
+        kwargs = {}
+        for f in fields(cls):
+            if hasattr(self, f.name):
+                kwargs[f.name] = getattr(self, f.name)
+
+        return cls(**kwargs)
