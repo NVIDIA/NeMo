@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import argparse
+from pathlib import Path
 
 from nemo.collections.llm import quantization
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.io.pl import TrainerContext
+from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils.get_rank import is_global_rank_zero
 
 
@@ -33,10 +34,11 @@ def get_args():
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
     parser.add_argument("-itp", "--inference_tp", "--tensor_parallelism_size", type=int, default=1)
     parser.add_argument("-ipp", "--inference_pp", "--pipeline_parallelism_size", type=int, default=1)
+    parser.add_argument("-devices", "--num_devices", type=int, default=None, help="Number of devices per node")
     parser.add_argument("-nodes", "--num_nodes", type=int, default=1)
     parser.add_argument('-out', '--export_path', '--output_path', type=str, help='Path for the exported engine')
     parser.add_argument(
-        "--save_as_torch", action="store_true", help="Save `-out` as a Torch checkpoint instead of TRT-LLM"
+        "--export_format", default="trtllm", choices=["trtllm", "nemo"], help="Model format to export as."
     )
     parser.add_argument(
         '-algo',
@@ -77,7 +79,13 @@ def get_args():
     args = parser.parse_args()
 
     if args.export_path is None:
-        args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+        if args.export_format == "trtllm":
+            args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+        else:
+            args.export_path = f"./nemo_{args.algorithm}"
+
+    if args.num_devices is None:
+        args.num_devices = "auto"  # PL Trainer can auto-detect number of devices
 
     return args
 
@@ -111,18 +119,20 @@ def main():
         nemo_checkpoint_path=args.nemo_checkpoint,
         tensor_model_parallel_size=args.calibration_tp,
         pipeline_model_parallel_size=args.calibration_pp,
+        devices_per_node=args.num_devices,
         num_nodes=args.num_nodes,
         ckpt_load_strictness=args.ckpt_load_strictness,
     )
     model = quantizer.quantize(model)
 
-    if args.save_as_torch:
+    if args.export_format == "nemo":
         # Standard NeMo 2.0 checkpoint format
         trainer.save_checkpoint(args.export_path)
         if is_global_rank_zero():
             TrainerContext.from_trainer(trainer).io_dump(
                 ckpt_to_context_subdir(args.export_path), yaml_attrs=["model"]
             )
+            assert (Path(ckpt_to_weights_subdir(args.export_path, False)) / "modelopt_state").exists()
     else:
         # TRT-LLM
         quantizer.export(model, args.nemo_checkpoint)

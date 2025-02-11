@@ -73,6 +73,7 @@ def load_with_modelopt_layer_spec(
     nemo_checkpoint_path: str,
     tensor_model_parallel_size: int = 1,
     pipeline_model_parallel_size: int = 1,
+    devices_per_node: int = 1,
     num_nodes: int = 1,
     inference_only: bool = True,
     ckpt_load_strictness: Optional[str] = None,
@@ -84,6 +85,8 @@ def load_with_modelopt_layer_spec(
         nemo_checkpoint_path (str): Path to the NeMo checkpoint.
         tensor_model_parallel_size (int): Size of the tensor model parallelism.
         pipeline_model_parallel_size (int): Size of the pipeline model parallelism.
+        devices_per_node (int): Number of devices on each node.
+        num_nodes (int): Number of nodes being used.
         inference_only (bool): If True, loads the model for inference only w/o initializing the optimizer.
         ckpt_load_strictness (Optional[str]): Handling of checkpoint loading mismatch for tensor keys.
 
@@ -113,7 +116,7 @@ def load_with_modelopt_layer_spec(
         )
 
     trainer = nl.Trainer(
-        devices=tensor_model_parallel_size * pipeline_model_parallel_size,
+        devices=devices_per_node,
         num_nodes=num_nodes,
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision='bf16', params_dtype=torch.bfloat16, autocast_enabled=True),
