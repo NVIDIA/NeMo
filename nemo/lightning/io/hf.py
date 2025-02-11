@@ -144,9 +144,10 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         for name in module_names:
             param = state_dict.pop(name)
             name = (
-                name.replace("model.model", "base_model.model")
-                .replace("lora_a.weight", "lora_A.weight")
-                .replace("lora_b.weight", "lora_B.weight")
+                name
+                .replace("model.model.", "base_model.model.model.", 1)
+                .replace("lora_a.weight", "lora_A.weight", 1)
+                .replace("lora_b.weight", "lora_B.weight", 1)
             )
             state_dict[name] = param
 
