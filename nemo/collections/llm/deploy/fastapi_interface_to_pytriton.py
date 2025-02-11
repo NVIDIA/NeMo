@@ -10,9 +10,9 @@
 
 import os
 from pathlib import Path
-import requests
-import numpy as np
 
+import numpy as np
+import requests
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings

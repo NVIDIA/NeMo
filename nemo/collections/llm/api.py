@@ -477,15 +477,18 @@ def deploy(
         generation_logits are used to compute the logProb of the output token in case of single token prediction
         benchmarks (like MMLU, lambada). Default: True.
     """
-    import uvicorn
     import os
+
+    import uvicorn
 
     from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
     unset_environment_variables()
     if backend == 'in-framework':
-        assert start_fastapi_server is True, 'in-framework deployment exposes OAI API endpoints v1/completions and \
+        assert (
+            start_fastapi_server is True
+        ), 'in-framework deployment exposes OAI API endpoints v1/completions and \
         v1/chat/completions hence needs fastAPI interface to expose these endpoints to PYtriton. Please set \
         start_fastapi_server to True'
         if triton_http_port == fastapi_port:
@@ -498,16 +501,19 @@ def deploy(
         try:
             from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeploy
         except Exception as e:
-            raise ValueError(f"Unable to import MegatronLLMDeployable, due to: {type(e).__name__}: {e} cannot run "
-                             f"evaluation with in-framework deployment")
+            raise ValueError(
+                f"Unable to import MegatronLLMDeployable, due to: {type(e).__name__}: {e} cannot run "
+                f"evaluation with in-framework deployment"
+            )
 
         triton_deployable = MegatronLLMDeploy.get_deployable(
             nemo_checkpoint_filepath=nemo_checkpoint,
-            num_devices=num_gpus, # TODO is this per node or not ? In case of TRTLLM its per node
+            num_devices=num_gpus,  # TODO is this per node or not ? In case of TRTLLM its per node
             tensor_model_parallel_size=tensor_parallelism_size,
-            pipeline_model_parallel_size=pipeline_parallelism_size,)
-            # TODO Allow context_parallel_size  for in-framework 
-            # context_parallel_size=args.context_parallel_size,
+            pipeline_model_parallel_size=pipeline_parallelism_size,
+        )
+        # TODO Allow context_parallel_size  for in-framework
+        # context_parallel_size=args.context_parallel_size,
 
     elif backend == 'trtllm':
         triton_deployable = get_trtllm_deployable(
@@ -524,7 +530,7 @@ def deploy(
             output_context_logits,
             output_generation_logits,
         )
-    if torch.distributed.is_initialized() and torch.distributed.get_rank() == 0: ##has been added for in-fw
+    if torch.distributed.is_initialized() and torch.distributed.get_rank() == 0:  ##has been added for in-fw
         try:
             nm = DeployPyTriton(
                 model=triton_deployable,
@@ -563,7 +569,7 @@ def deploy(
 
         logging.info("Model serving will be stopped.")
         nm.stop()
-    #torch.distributed.barrier() ##has been added for in-fw
+    # torch.distributed.barrier() ##has been added for in-fw
 
 
 def evaluate(

@@ -293,7 +293,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             output_texts = [r.generated_text if text_only else r for r in results]
             output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
             if log_probs:
-                output_log_probs = [] ## will have 2 np arrays if 2 prompts are sent
+                output_log_probs = []  ## will have 2 np arrays if 2 prompts are sent
                 for r in results:
                     # Convert to torch tensor and then move to cpu as generated_log_probs is a list and cant be moved
                     # to cpu otherwise
