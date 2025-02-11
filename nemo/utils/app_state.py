@@ -476,7 +476,7 @@ class AppState(metaclass=Singleton):
 
     @property
     def pipeline_model_parallel_split_rank(self):
-        """Property returns the rank at which Encoder and Decoder are split into 
+        """Property returns the rank at which Encoder and Decoder are split into
             different pipelines for Megatrron Encoder-Decoder models.
         Returns:
             Pipeline model parallel split rank.
@@ -485,7 +485,7 @@ class AppState(metaclass=Singleton):
 
     @pipeline_model_parallel_split_rank.setter
     def pipeline_model_parallel_split_rank(self, rank):
-        """Property sets the rank at which Encoder and Decoder are split into 
+        """Property sets the rank at which Encoder and Decoder are split into
             different pipelines for Megatrron Encoder-Decoder models.
         Args:
             rank (int): Model parallel split rank.
@@ -781,25 +781,25 @@ class AppState(metaclass=Singleton):
         return metadata
 
     @property
-    def is_model_being_restored(self) -> bool: # pylint: disable=missing-function-docstring
+    def is_model_being_restored(self) -> bool:  # pylint: disable=missing-function-docstring
         return self._is_model_being_restored
 
     @is_model_being_restored.setter
-    def is_model_being_restored(self, is_restored: bool): # pylint: disable=missing-function-docstring
+    def is_model_being_restored(self, is_restored: bool):  # pylint: disable=missing-function-docstring
         self._is_model_being_restored = is_restored
 
     @property
-    def nemo_file_folder(self) -> str: # pylint: disable=missing-function-docstring
+    def nemo_file_folder(self) -> str:  # pylint: disable=missing-function-docstring
         return self._nemo_file_folder
 
     @nemo_file_folder.setter
-    def nemo_file_folder(self, path: str): # pylint: disable=missing-function-docstring
+    def nemo_file_folder(self, path: str):  # pylint: disable=missing-function-docstring
         self._nemo_file_folder = path
 
     @property
-    def restore(self) -> bool: # pylint: disable=missing-function-docstring
+    def restore(self) -> bool:  # pylint: disable=missing-function-docstring
         return self._restore
 
     @restore.setter
-    def restore(self, restore: bool): # pylint: disable=missing-function-docstring
+    def restore(self, restore: bool):  # pylint: disable=missing-function-docstring
         self._restore = restore

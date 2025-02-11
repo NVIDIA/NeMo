@@ -390,7 +390,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         return optimizer_state_dict
 
-    def save_checkpoint( # pylint: disable=missing-function-docstring
+    def save_checkpoint(  # pylint: disable=missing-function-docstring
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         app_state = AppState()
@@ -635,7 +635,7 @@ class NLPDDPStrategy(DDPStrategy):
                 self.checkpoint_io.remove_checkpoint(filepath)
 
     @property
-    def use_distributed_checkpointing(self): # pylint: disable=missing-function-docstring
+    def use_distributed_checkpointing(self):  # pylint: disable=missing-function-docstring
         has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(self.unwrapped_checkpoint_io, DistributedCheckpointIO)
         has_sharded_state_dict = (
             hasattr(self.lightning_module, 'sharded_state_dict')
@@ -654,7 +654,7 @@ class NLPDDPStrategy(DDPStrategy):
         return has_sharded_state_dict
 
     @property
-    def distributed_sampler_kwargs(self): # pylint: disable=missing-function-docstring
+    def distributed_sampler_kwargs(self):  # pylint: disable=missing-function-docstring
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             # When using model parallel, data parallel groups are non-trivial and they
@@ -1017,7 +1017,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         return True
 
 
-class NLPSaveRestoreConnector(SaveRestoreConnector): # pylint: disable=missing-class-docstring
+class NLPSaveRestoreConnector(SaveRestoreConnector):  # pylint: disable=missing-class-docstring
     def __init__(self) -> None:
         if not HAVE_APEX:
             logging.warning(
@@ -1710,7 +1710,7 @@ class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
 
         torch.set_autocast_gpu_dtype(dtype)
 
-    def optimizer_step( # pylint: disable=missing-function-docstring
+    def optimizer_step(  # pylint: disable=missing-function-docstring
         self,
         optimizer: torch.optim.Optimizer,
         model: Union["pl.LightningModule", torch.nn.Module],
@@ -1798,7 +1798,7 @@ class CustomProgressBar(TQDMProgressBar):
         self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
         return self.bar
 
-    def on_train_epoch_start(self, trainer, *_): # pylint: disable=missing-function-docstring
+    def on_train_epoch_start(self, trainer, *_):  # pylint: disable=missing-function-docstring
         # Use trainer.max_steps as the num_training_batches since len(dataloader) aka num_training_batches
         # is returned as the total num of micro batches instead of total num of global batches with this PR:
         # https://github.com/NVIDIA/NeMo/pull/8426
