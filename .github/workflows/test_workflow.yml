@@ -1,0 +1,53 @@
+name: Test
+on:
+  pull_request:
+jobs:
+  L0_Unit_Tests_Coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage reports of current branch
+        uses: actions/download-artifact@v4
+        with:
+          run-id: 13251801418
+
+      - name: Get total coverage of current branch
+        shell: bash -x -e -u -o pipefail {0}
+        if: always()
+        id: total-current-branch
+        run: |
+          pip install coverage
+
+          ls -al .
+          ls -al coverage-*/
+          mkdir coverage-unit-test
+          mkdir coverage-e2e
+
+          for f in coverage-unit-test-*; do
+            mv "$f" "coverage-unit-test/"
+          done
+
+          for f in coverage-e2e-*; do
+            mv "$f" "coverage-e2e/"
+          done
+
+          coverage combine --keep $(ls coverage-*/.coverage)
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: coverage-unit-test/
+          verbose: true
+          flags: unittests
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: coverage-e2e/
+          verbose: true
+          flags: e2e
