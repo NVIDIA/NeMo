@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
+import re, json
 from abc import ABC, abstractmethod
 from functools import partial
 from pathlib import Path
@@ -405,11 +405,13 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
                 state_key = k
                 break
         assert state_key is not None, "Expected checkpoint to contain `sharded_state_dict` or `state_dict`"
+        assert state_key in checkpoint, "Expected state_key to be in checkpoint"
 
+        state_dict = checkpoint.pop(state_key)
         checkpoint[state_key] = dict(
-            filter(lambda item: self.peft.adapter_key_filter(item[0]), checkpoint[state_key].items())
+            filter(lambda item: self.peft.adapter_key_filter(item[0]), state_dict.items())
         )
-
+        ckpt_keys = list(checkpoint[state_key].keys())
         request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
         from nemo.utils.get_rank import is_global_rank_zero
@@ -421,7 +423,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
             from nemo.lightning.io.hf import HFCheckpointIO
 
             if isinstance(self.checkpoint_io, HFCheckpointIO):
-                metadata = self._create_lora_hf_config()
+                metadata = self._create_lora_hf_config(ckpt_keys)
                 adapter_meta_path = base_dir / "adapter_config.json"
             else:
                 metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
@@ -431,14 +433,69 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
                 json.dump(metadata, f)
         return request
 
-    def _create_lora_hf_config(self):
-        from peft import LoraConfig
+    def _create_lora_hf_config(self, ckpt_keys):
+        """ Creates a HF lora config from a NeMo Lora config"""
+        def extract_matched_module_names(ckpt_keys, target_modules):
+            """
+            Extracts module names from a list of checkpoint keys that match the target modules.
 
+            This function processes a list of target module patterns, where each pattern may or may
+            not contain a wildcard (`'*'`). The function matches these patterns against the
+            checkpoint keys, with the following behavior:
+            - Patterns containing '*' will be expanded to match any sequence of characters
+              except a dot (`.`).
+            - Patterns without '*' are matched literally.
+
+            Args:
+                ckpt_keys (list of str): A list of strings representing checkpoint keys to be
+                    searched.
+                target_modules (list of str): A list of target module patterns. Some patterns may
+                    contain wildcards (`'*'`), which match any characters except a dot.
+
+            Returns:
+                list of str: A list of module names from `target_modules` that match any of the
+                `ckpt_keys`. The result is returned as a list of unique module names.
+
+            Example:
+                ckpt_keys = [
+                    "model.model.layers.27.self_attn.k_proj",
+                    "model.model.layers.27.self_attn.v_proj"
+                ]
+                target_modules = ["*proj", "self_attn"]
+
+                extract_matched_module_names(ckpt_keys, target_modules)
+                # Output: ['self_attn', 'k_proj', 'v_proj']
+
+            Notes:
+                - This function uses regular expressions to match the target patterns in the
+                  checkpoint keys.
+                - Wildcards are expanded as `[^.]+` to ensure that the match doesn't cross dot
+                  (`.`) boundaries.
+            """
+            re_target_modules = list(filter(lambda x: '*' in x, target_modules))
+            if len(re_target_modules) == 0:
+                return target_modules
+            non_re_target_modules = list(filter(lambda x: not '*' in x, target_modules))
+            combined_pattern = '|'.join(
+                map(
+                    lambda x: x.replace('*', '[^.]+'),
+                    re_target_modules
+                ),
+            )
+            ans = set(non_re_target_modules)
+            for key in ckpt_keys:
+                ans.update(re.findall(combined_pattern, key))
+            return list(ans)
+
+        from peft import LoraConfig
         from nemo.collections.llm.peft import DoRA
 
+        # Contains all target module names, without any regular expression
+        materialized_module_names = extract_matched_module_names(
+            ckpt_keys, self.peft.target_modules)
         lora_config = LoraConfig(
             r=self.peft.dim,
-            target_modules=self.peft.target_modules,
+            target_modules=materialized_module_names,
             lora_alpha=self.peft.alpha,
             lora_dropout=self.peft.dropout,
             use_dora=isinstance(self.peft, DoRA),
@@ -446,7 +503,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
         lora_config = lora_config.to_dict()
         lora_config["peft_type"] = "LORA"
         lora_config["megatron_core"] = None
-        lora_config["target_modules"] = self.peft.target_modules
+        lora_config["target_modules"] = materialized_module_names
         return lora_config
 
     @override
