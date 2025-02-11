@@ -184,13 +184,14 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
-        """ wraps Dataset's from_dict method """
+        """wraps Dataset's from_dict method"""
         dataset = Dataset.from_dict(dataset_dict)
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
     @staticmethod
     def collate_fn(batch, pad_token_id=0):
-        """ Default batch collator """
+        """Default batch collator"""
+
         def batchify(tensor):
             if tensor.ndim == 1:
                 return tensor.unsqueeze_(0)
@@ -216,7 +217,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         }
 
     def setup(self, stage: str):
-        """ setups sampler """
+        """setups sampler"""
         if not self.use_mcore_sampler:
             return
         self.data_sampler = MegatronDataSampler(
@@ -227,7 +228,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         )
 
     def _make_dataloader(self, dataset, collate_fn=None):
-        """ Dataloader creator """
+        """Dataloader creator"""
         assert dataset is not None
 
         if collate_fn is None:
@@ -244,33 +245,33 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     @property
     def train(self):
-        """ Returns the training partition """
+        """Returns the training partition"""
         return self.dataset_splits['train']
 
     @property
     def val(self):
-        """ Returns the validation partition """
+        """Returns the validation partition"""
         return self.dataset_splits['val']
 
     @property
     def test(self):
-        """ Returns the test partition """
+        """Returns the test partition"""
         return self.dataset_splits['test']
 
     def train_dataloader(self):
-        """ Returns the train dataloader """
+        """Returns the train dataloader"""
         return self._make_dataloader(self.train, self._collate_fn)
 
     def val_dataloader(self):
-        """ Returns the validation dataloader """
+        """Returns the validation dataloader"""
         return self._make_dataloader(self.val, self._collate_fn)
 
     def test_dataloader(self):
-        """ Returns the test dataloader """
+        """Returns the test dataloader"""
         return self._make_dataloader(self.test, self._collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
-        """ Maps a function to the dataset """
+        """Maps a function to the dataset"""
         if isinstance(split_names, str):
             dataset_splits = {split_names: self.dataset_splits[split_names]}
         elif isinstance(split_names, list):
@@ -295,6 +296,7 @@ class SquadHFDataModule(HFDatasetDataModule):
     Attributes:
         tokenizer: A tokenizer instance used to convert text into token IDs.
     """
+
     def __init__(self, tokenizer, **kwargs):
         """
         Initializes the SquadHFDataModule.

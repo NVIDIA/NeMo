@@ -15,13 +15,13 @@
 import tempfile
 
 import fiddle as fdl
+import lightning.pytorch as pl
 from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-import lightning.pytorch as pl
 
 
 def make_squad_hf_dataset(tokenizer):
@@ -50,6 +50,7 @@ def make_squad_hf_dataset(tokenizer):
         remove_columns=["id", "title", "context", "question", 'answers'],
     )
     return datamodule
+
 
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
     if strategy == 'auto':
@@ -88,6 +89,7 @@ def logger(ckpt_folder) -> nl.NeMoLogger:
         wandb=None,
     )
 
+
 def main():
     """Example script to run PEFT with a HF transformers-instantiated model on squad."""
     import argparse
@@ -122,10 +124,14 @@ def main():
     model = llm.HFAutoModelForCausalLM(model_name=args.model)
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
 
-    resume = nl.AutoResume(
-        resume_if_exists=True,
-        resume_ignore_no_checkpoint=False,
-    ) if args.auto_resume else None
+    resume = (
+        nl.AutoResume(
+            resume_if_exists=True,
+            resume_ignore_no_checkpoint=False,
+        )
+        if args.auto_resume
+        else None
+    )
 
     llm.api.finetune(
         model=model,

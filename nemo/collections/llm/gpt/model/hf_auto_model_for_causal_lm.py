@@ -24,6 +24,7 @@ from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 from nemo.utils import logging
 
+
 def masked_cross_entropy(logits, targets, mask=None):
     """
     Compute the masked cross-entropy loss between logits and targets.
@@ -46,6 +47,7 @@ def masked_cross_entropy(logits, targets, mask=None):
     else:
         loss = F.cross_entropy(logits, targets)
     return loss
+
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
@@ -280,9 +282,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log(
-            'reduced_train_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False
-        )
+        self.log('reduced_train_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
         return loss
 
     @torch.no_grad
@@ -332,8 +332,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             AssertionError: If the model has not been created prior to saving.
         """
         assert self.model is not None, "Model has to be created first."
+
         def pop_fqn_prefix(fqn, expected_prefix='model'):
-            """ pops prefix from FQN """
+            """pops prefix from FQN"""
             parts = fqn.split('.')
             assert parts[0] == expected_prefix
             return '.'.join(parts[1:])
@@ -344,7 +345,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # and `return self.model.state_dict()`, however FSDP2 uses FQNs to acecss modules, therefore
         # removing "model." at the state_dict function level will cause issues with FSDP2.
         keys = list(state_dict.keys())
-        for (key, new_key) in map(lambda x: (x, pop_fqn_prefix(x)), keys):
+        for key, new_key in map(lambda x: (x, pop_fqn_prefix(x)), keys):
             state_dict[new_key] = state_dict.pop(key)
 
         self.model.save_pretrained(path, state_dict=state_dict)
@@ -359,16 +360,16 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         TODO(@akoumparouli): refactor
         """
         return AutoModelForCausalLM.from_pretrained(
-                path,
-                torch_dtype='auto',
-                device_map="cpu",
-                trust_remote_code=self.trust_remote_code,
-                load_in_4bit=self.load_in_4bit,
-                attn_implementation=self.attn_implementation,
-            ).state_dict()
+            path,
+            torch_dtype='auto',
+            device_map="cpu",
+            trust_remote_code=self.trust_remote_code,
+            load_in_4bit=self.load_in_4bit,
+            attn_implementation=self.attn_implementation,
+        ).state_dict()
 
     def load_state_dict(self, state_dict, strict=True, assign=False):
-        """ Loads the state-dict directly to self.model, therefore FQNs are expected
+        """Loads the state-dict directly to self.model, therefore FQNs are expected
         not to start with "model." -- referring to HFAutoModelForCausalLM's attribute.
 
         Args:
@@ -401,6 +402,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         TODO(@akoumparouli): refactor ^
         """
         from nemo.lightning.io.hf import HFCheckpointIO
+
         return HFCheckpointIO(model=self, adapter_only=adapter_only)
 
     def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):

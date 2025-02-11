@@ -35,6 +35,7 @@ from nemo.lightning.pytorch.strategies.utils import (
     setup_parallel_ranks,
 )
 
+
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning implementing FSDP 2.
 
@@ -76,7 +77,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     @property
     @override
     def lightning_restore_optimizer(self) -> bool:
-        """ Optim state restoration is enabled"""
+        """Optim state restoration is enabled"""
         return True
 
     def load_optimizer_state_dict(self, checkpoint) -> None:

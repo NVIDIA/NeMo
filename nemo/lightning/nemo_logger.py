@@ -97,22 +97,23 @@ class NeMoLogger(IOMixin):
         if self.explicit_log_dir and isinstance(trainer, pl.Trainer):
             if trainer.logger is not None and not self.update_logger_directory:
                 logging.warning(
-                    "nemo logger received explicit_log_dir: % and the pytorch lightning trainer " \
-                    "that was passed to nemo_logger container a logger, but " \
-                    "update_logger_directory is False. This means that the trainer's logger " \
-                    "directory may not match with the explicit_log_dir.", self.explicit_log_dir
+                    "nemo logger received explicit_log_dir: % and the pytorch lightning trainer "
+                    "that was passed to nemo_logger container a logger, but "
+                    "update_logger_directory is False. This means that the trainer's logger "
+                    "directory may not match with the explicit_log_dir.",
+                    self.explicit_log_dir,
                 )
             if self.log_dir or self.version:
                 logging.error(
-                    "nemo logger received explicit_log_dir: % and at least one of dir: %" \
+                    "nemo logger received explicit_log_dir: % and at least one of dir: %"
                     "or version: %. Please note that dir, name, and version will be ignored.",
-                    self.explicit_log_dir, self.log_dir, self.version
+                    self.explicit_log_dir,
+                    self.log_dir,
+                    self.version,
                 )
             if is_global_rank_zero() and Path(self.explicit_log_dir).exists():
-                logging.warning(
-                    "NeMoLogger is logging to %, but it already exists.", self.explicit_log_dir)
-            log_dir, _dir, self.name, version = Path(
-                self.explicit_log_dir), str(self.explicit_log_dir), "", ""
+                logging.warning("NeMoLogger is logging to %, but it already exists.", self.explicit_log_dir)
+            log_dir, _dir, self.name, version = Path(self.explicit_log_dir), str(self.explicit_log_dir), "", ""
 
         else:
             # Default dir to ./nemo_experiments if None was passed
@@ -123,13 +124,11 @@ class NeMoLogger(IOMixin):
             if not self.name:
                 self.name = "default"
 
-            version = self.version or os.environ.get(
-                NEMO_ENV_VARNAME_VERSION, None)
+            version = self.version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
             if not version:
                 if resume_if_exists:
                     logging.warning(
-                        "No version folders would be created under the log folder as " \
-                        "'resume_if_exists' is enabled."
+                        "No version folders would be created under the log folder as " "'resume_if_exists' is enabled."
                     )
                     version = None
                 elif is_global_rank_zero():
@@ -139,8 +138,7 @@ class NeMoLogger(IOMixin):
                 if is_global_rank_zero():
                     os.environ[NEMO_ENV_VARNAME_VERSION] = version
 
-            log_dir = Path(_dir) / Path(str(self.name)) / \
-                Path("" if version is None else str(version))
+            log_dir = Path(_dir) / Path(str(self.name)) / Path("" if version is None else str(version))
 
         # update app_state with log_dir, exp_dir, etc
         app_state = AppState()
@@ -159,8 +157,7 @@ class NeMoLogger(IOMixin):
 
         if isinstance(trainer, pl.Trainer):
             self._setup_trainer_loggers(trainer, _dir, version)
-            self._setup_trainer_model_checkpoint(
-                trainer, log_dir=log_dir, ckpt=self.ckpt)
+            self._setup_trainer_model_checkpoint(trainer, log_dir=log_dir, ckpt=self.ckpt)
 
         self._setup_files_to_move(log_dir, app_state)
         self._setup_file_logging(log_dir)
@@ -180,19 +177,18 @@ class NeMoLogger(IOMixin):
             for logger in trainer.loggers:
                 if isinstance(logger, TensorBoardLogger):
                     logger._version = version or ""
-                    logger._root_dir = Path(
-                        dir) / os.path.relpath(logger.save_dir)
+                    logger._root_dir = Path(dir) / os.path.relpath(logger.save_dir)
                     logging.warning(
-                        '"update_logger_directory" is True. Overwriting tensorboard' \
-                        ' logger "save_dir" to %', logger._root_dir
+                        '"update_logger_directory" is True. Overwriting tensorboard' ' logger "save_dir" to %',
+                        logger._root_dir,
                     )
                 elif isinstance(logger, WandbLogger):
                     logger._id = version or ""
                     logger._save_dir = Path(dir) / logger.save_dir
                     logger._wandb_init["dir"] = Path(dir) / logger.save_dir
                     logging.warning(
-                        '"update_logger_directory" is True. Overwriting wandb logger ' \
-                        '"save_dir" to %', logger._save_dir
+                        '"update_logger_directory" is True. Overwriting wandb logger ' '"save_dir" to %',
+                        logger._save_dir,
                     )
 
     def _setup_trainer_model_checkpoint(self, trainer, log_dir, ckpt=None):
@@ -201,8 +197,7 @@ class NeMoLogger(IOMixin):
             for i, callback in enumerate(trainer.callbacks):
                 if isinstance(callback, PTLModelCheckpoint):
                     logging.warning(
-                        "The Trainer already contains a ModelCheckpoint callback. "
-                        "This will be overwritten."
+                        "The Trainer already contains a ModelCheckpoint callback. " "This will be overwritten."
                     )
                     _overwrite_i = i
                     break
@@ -218,22 +213,26 @@ class NeMoLogger(IOMixin):
                     and trainer.max_epochs < trainer.check_val_every_n_epoch
                 ):
                     logging.error(
-                        "The checkpoint callback was told to monitor a validation value but " \
-                        "trainer.max_epochs(%) was less than trainer.check_val_every_n_epoch(%)." \
-                        "It is very likely this run will fail with ModelCheckpoint(monitor='%') " \
-                        "not found in the returned metrics. Please ensure that validation is " \
-                        "run within trainer.max_epochs.", trainer.max_epochs,
-                        trainer.check_val_every_n_epoch, ckpt.monitor
+                        "The checkpoint callback was told to monitor a validation value but "
+                        "trainer.max_epochs(%) was less than trainer.check_val_every_n_epoch(%)."
+                        "It is very likely this run will fail with ModelCheckpoint(monitor='%') "
+                        "not found in the returned metrics. Please ensure that validation is "
+                        "run within trainer.max_epochs.",
+                        trainer.max_epochs,
+                        trainer.check_val_every_n_epoch,
+                        ckpt.monitor,
                     )
                 elif trainer.max_steps is not None and trainer.max_steps != -1:
                     logging.warning(
-                        "The checkpoint callback was told to monitor a validation value and " \
-                        "trainer's max_steps was set to {}. Please ensure that max_steps will run " \
+                        "The checkpoint callback was told to monitor a validation value and "
+                        "trainer's max_steps was set to {}. Please ensure that max_steps will run "
                         "for at least {} epochs to ensure that checkpointing will not error out.",
-                        trainer.max_steps, trainer.check_val_every_n_epoch
+                        trainer.max_steps,
+                        trainer.check_val_every_n_epoch,
                     )
 
         from nemo.lightning import MegatronStrategy
+
         for callback in trainer.callbacks:
             if isinstance(callback, PTLModelCheckpoint):
                 if callback.dirpath is None:
@@ -265,8 +264,7 @@ class NeMoLogger(IOMixin):
 
         # This is set if the env var NEMO_TESTING is set to True.
         nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
-        log_file = log_dir / \
-            f"nemo_log_globalrank-{self.global_rank}_localrank-{self.local_rank}.txt"
+        log_file = log_dir / f"nemo_log_globalrank-{self.global_rank}_localrank-{self.local_rank}.txt"
 
         if self.log_local_rank_0_only and not nemo_testing and self.local_rank == 0:
             logging.add_file_handler(log_file)

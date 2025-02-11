@@ -18,15 +18,16 @@ from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
 import lightning.pytorch as pl
 import torch
+import torch.distributed as dist
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from torch import nn
 from typing_extensions import override
-from nemo.lightning.io.pl import ckpt_to_weights_subdir
-from nemo.lightning.io.mixin import IOMixin
-import torch.distributed as dist
+
 from nemo.lightning.ckpt_utils import WEIGHTS_PATH
+from nemo.lightning.io.mixin import IOMixin
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
 log = logging.getLogger(__name__)
 
@@ -34,11 +35,11 @@ log = logging.getLogger(__name__)
 LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
+
 def is_rank_0():
-    """ Checks whether rank=0 accounting for un-inintialized dist-env"""
-    return not dist.is_available() \
-        or not dist.is_initialized() \
-        or dist.get_rank() == 0
+    """Checks whether rank=0 accounting for un-inintialized dist-env"""
+    return not dist.is_available() or not dist.is_initialized() or dist.get_rank() == 0
+
 
 class HFCheckpointIO(CheckpointIO, IOMixin):
     """HFCheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load
@@ -84,8 +85,9 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         fs = get_filesystem(checkpoint_dir)
         fs.makedirs(checkpoint_dir, exist_ok=True)
 
-        assert checkpoint_dir.parts[-1] == WEIGHTS_PATH, \
-            "Expected % to end with %".format(checkpoint_dir, WEIGHTS_PATH)
+        assert checkpoint_dir.parts[-1] == WEIGHTS_PATH, "Expected % to end with %".format(
+            checkpoint_dir, WEIGHTS_PATH
+        )
 
         if self.adapter_only:
             # In this case the output looks like the following:
@@ -100,8 +102,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             #     └── adapter_model.safetensors
             # Where the `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
             # The `weights` directory contains the adapter's state dict, in HF format.
-            self._save_adapter_weights_only(checkpoint.pop(
-                'state_dict'), checkpoint_dir, storage_options)
+            self._save_adapter_weights_only(checkpoint.pop('state_dict'), checkpoint_dir, storage_options)
             torch.save(checkpoint, checkpoint_dir.parent / 'trainer.pt')
         elif callable(getattr(self.model, 'save_pretrained', None)):
             # In this case the output looks like the following:
@@ -116,8 +117,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             # └── trainer.pt
             # Where the `weights` directory contains the model's state dict, in HF format.
             # The `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
-            self.model.save_pretrained(
-                checkpoint_dir, state_dict=checkpoint.pop('state_dict'))
+            self.model.save_pretrained(checkpoint_dir, state_dict=checkpoint.pop('state_dict'))
             torch.save(checkpoint, checkpoint_dir.parent / 'trainer.pt')
         else:
             super().save_checkpoint(checkpoint, path, storage_options)
@@ -143,10 +143,11 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         module_names = list(state_dict.keys())
         for name in module_names:
             param = state_dict.pop(name)
-            name = name\
-                .replace("model.model", "base_model.model")\
-                .replace("lora_a.weight", "lora_A.weight")\
+            name = (
+                name.replace("model.model", "base_model.model")
+                .replace("lora_a.weight", "lora_A.weight")
                 .replace("lora_b.weight", "lora_B.weight")
+            )
             state_dict[name] = param
 
         # Save weights to safetensors format
@@ -188,6 +189,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             raise FileNotFoundError("Adapter config file not found: %", config_file)
 
         from safetensors import safe_open
+
         try:
             with safe_open(adapter_file, framework="pt", device=0) as f:
                 for k in f.keys():

@@ -91,6 +91,7 @@ def logger(ckpt_folder) -> nl.NeMoLogger:
         wandb=None,
     )
 
+
 def main():
     """Example script to run SFT with a HF transformers-instantiated model on squad."""
     import argparse
@@ -133,10 +134,14 @@ def main():
     model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
-    resume = nl.AutoResume(
-        resume_if_exists=True,
-        resume_ignore_no_checkpoint=False,
-    ) if args.auto_resume else None
+    resume = (
+        nl.AutoResume(
+            resume_if_exists=True,
+            resume_ignore_no_checkpoint=False,
+        )
+        if args.auto_resume
+        else None
+    )
 
     llm.api.finetune(
         model=model,
