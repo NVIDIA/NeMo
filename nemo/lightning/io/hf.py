@@ -45,7 +45,6 @@ def is_rank_0():
 class HFAdapterKeyRenamer:
     @staticmethod
     def nemo_to_hf(x):
-        def replace_substrings(x):
         return x.replace("model.model.", "base_model.model.model.", 1) \
                 .replace("lora_a.weight", "lora_A.weight", 1) \
                 .replace("lora_b.weight", "lora_B.weight", 1)
