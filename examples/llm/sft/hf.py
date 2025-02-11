@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import tempfile
 from functools import partial
 
@@ -26,41 +26,33 @@ from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
-class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
-    """Creates a squad dataset with a PT dataloader"""
+def make_squad_hf_dataset(tokenizer):
+    def formatting_prompts_func(example):
+        formatted_text = [
+            f"Context: {example['context']} Question: {example['question']} Answer:",
+            f" {example['answers']['text'][0].strip()}",
+        ]
+        context_ids, answer_ids = list(map(tokenizer.text_to_ids, formatted_text))
+        if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id:
+            context_ids.insert(0, tokenizer.bos_id)
+        if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id:
+            answer_ids.append(tokenizer.eos_id)
 
-    def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
-        return DataLoader(
-            dataset,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
-            persistent_workers=self.persistent_workers,
-            collate_fn=dataset.collate_fn,
-            batch_size=self.micro_batch_size,
-            **kwargs,
+        return dict(
+            labels=(context_ids + answer_ids)[1:],
+            input_ids=(context_ids + answer_ids)[:-1],
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-
-def squad(tokenizer, mbs=1, gbs=2) -> pl.LightningDataModule:
-    """Instantiates a SquadDataModuleWithPthDataloader and return it
-
-    Args:
-        tokenizer (AutoTokenizer): the tokenizer to use
-
-    Returns:
-        pl.LightningDataModule: the dataset to train with.
-    """
-    return SquadDataModuleWithPthDataloader(
-        tokenizer=tokenizer,
-        seq_length=512,
-        micro_batch_size=mbs,
-        global_batch_size=gbs,
-        num_workers=0,
-        dataset_kwargs={
-            "sanity_check_dist_workers": False,
-            "get_attention_mask_from_fusion": True,
-        },
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:10]", pad_token_id=tokenizer.eos_id)
+    datamodule.map(
+        formatting_prompts_func,
+        batched=False,
+        batch_size=2,
+        remove_columns=["id", "title", "context", "question", 'answers'],
     )
+    return datamodule
+
 
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
     if strategy == 'auto':
@@ -80,6 +72,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
     else:
         raise NotImplementedError("Encountered unknown strategy")
 
+
 def logger(ckpt_folder) -> nl.NeMoLogger:
     ckpt = nl.ModelCheckpoint(
         save_last=True,
@@ -91,7 +84,7 @@ def logger(ckpt_folder) -> nl.NeMoLogger:
     )
 
     return nl.NeMoLogger(
-        name="nemo2_peft",
+        name="nemo2_sft",
         log_dir=ckpt_folder,
         use_datetime_version=False,  # must be false if using auto resume
         ckpt=ckpt,
@@ -115,6 +108,7 @@ def main():
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name)
     parser.add_argument('--use-torch-jit', action='store_true')
+    parser.add_argument('--auto-resume', action='store_true')
     args = parser.parse_args()
 
     wandb = None
@@ -139,9 +133,14 @@ def main():
     model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
+    resume = nl.AutoResume(
+        resume_if_exists=True,
+        resume_ignore_no_checkpoint=False,
+    ) if args.auto_resume else None
+
     llm.api.finetune(
         model=model,
-        data=squad(llm.HFAutoModelForCausalLM.configure_tokenizer(args.model), gbs=args.devices),
+        data=make_squad_hf_dataset(llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
@@ -160,6 +159,7 @@ def main():
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=logger(args.ckpt_folder),
+        resume=resume,
     )
 
 
