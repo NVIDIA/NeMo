@@ -11,6 +11,7 @@
 import os
 from pathlib import Path
 import requests
+import numpy as np
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -85,23 +86,33 @@ async def check_triton_health():
 @app.post("/v1/completions/")
 def completions_v1(request: CompletionRequest):
     try:
-        print("---hello----")
         url = f"http://{triton_settings.triton_service_ip}:{triton_settings.triton_service_port}"
         nq = NemoQueryLLMPyTorch(url=url, model_name=request.model)
-        print("---request----", request)
+        if not isinstance(request.prompt, list):
+            prompts = [request.prompt]
         output = nq.query_llm(
-            prompts=[request.prompt],
+            prompts=prompts,
             temperature=request.temperature,
             top_k=request.top_k,
             top_p=request.top_p,
             compute_logprob=request.logProb,
             max_length=request.max_tokens,
         )
-        print("---output----", output)
 
-        return {
-            "output": output[0][0],
-        }
+        # Convert NumPy arrays in output to lists
+        def convert_numpy(obj):
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {k: convert_numpy(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy(i) for i in obj]
+            else:
+                return obj
+
+        output_serializable = convert_numpy(output)
+
+        return output_serializable
     except Exception as error:
         logging.error(f"An exception occurred with the post request to /v1/completions/ endpoint: {error}")
         return {"error": "An exception occurred"}
