@@ -162,11 +162,15 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
     def convert_state(self, source, target):
         """ State-dict converter """
         mapping = {
-            "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
-            "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight", # noqa C0301
-            "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.pre_mlp_layernorm.weight",
+            "model.layers.*.self_attn.o_proj.weight":
+                "decoder.layers.*.self_attention.linear_proj.weight",
+            "model.layers.*.input_layernorm.weight":
+                "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "model.layers.*.post_attention_layernorm.weight":
+                "decoder.layers.*.pre_mlp_layernorm.weight",
             # MoE
-            "model.layers.*.block_sparse_moe.experts.*.w2.weight": "decoder.layers.*.mlp.experts.local_experts.*.linear_fc2.weight", # noqa C0301
+            "model.layers.*.block_sparse_moe.experts.*.w2.weight":
+                "decoder.layers.*.mlp.experts.local_experts.*.linear_fc2.weight",
             "model.layers.*.block_sparse_moe.gate.weight": "decoder.layers.*.mlp.router.weight",
             # lm-head
             "model.norm.weight": "decoder.final_layernorm.weight",
@@ -338,11 +342,15 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
     def convert_state(self, source, target):
         """ convert state """
         mapping = {
-            "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
-            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight", # noqa C0301
-            "decoder.layers.*.pre_mlp_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
+            "decoder.layers.*.self_attention.linear_proj.weight":
+                "model.layers.*.self_attn.o_proj.weight",
+            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight":
+                "model.layers.*.input_layernorm.weight",
+            "decoder.layers.*.pre_mlp_layernorm.weight":
+                "model.layers.*.post_attention_layernorm.weight",
             # MoE
-            "decoder.layers.*.mlp.experts.local_experts.*.linear_fc2.weight": "model.layers.*.block_sparse_moe.experts.*.w2.weight", # noqa C0301
+            "decoder.layers.*.mlp.experts.local_experts.*.linear_fc2.weight":
+                "model.layers.*.block_sparse_moe.experts.*.w2.weight",
             "decoder.layers.*.mlp.router.weight": "model.layers.*.block_sparse_moe.gate.weight",
             # lm-head
             "decoder.final_layernorm.weight": "model.norm.weight",
