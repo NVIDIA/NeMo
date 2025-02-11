@@ -2852,7 +2852,7 @@ jobs:
         trainer.max_steps=20 \
         trainer.val_check_interval=10 \
         model.restore_from_path="/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo" \
-        ++model.dist_ckpt_load_strictness=log_all \        
+        ++model.dist_ckpt_load_strictness=log_all \
         model.peft.lora_tuning.adapter_dim=8 \
         model.data.validation_ds.query_file_names=[/home/TestData/nlp/megatron_ir/test_query.jsonl] \
         model.data.validation_ds.doc_file_names=[/home/TestData/nlp/megatron_ir/test_doc.jsonl] \
@@ -2865,6 +2865,7 @@ jobs:
         trainer.devices=1 \
         trainer.num_nodes=1 \
         model.restore_from_path="/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo" \
+        ++model.dist_ckpt_load_strictness=log_all \
         model.peft.restore_from_path="/tmp/gpt_embedding_workdir/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo" \
         model.global_batch_size=4 \
         model.micro_batch_size=4 \
