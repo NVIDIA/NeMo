@@ -101,8 +101,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             # ├── hf_adapter
             # │   ├── adapter_config.json
             # │   └── adapter_model.safetensors
-            # ├── trainer.pt
-            # └── weights
+            # └── trainer.pt
             # Where the `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
             # The `hf_adapter` directory contains the adapter's state dict, in HF format.
             adapter_path = checkpoint_dir / HF_ADAPTER_PATH
@@ -112,7 +111,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         elif callable(getattr(self.model, 'save_pretrained', None)):
             # In this case the output looks like the following:
             # default--reduced_train_loss=0.0112-epoch=2-step=3/
-            # ├── weights
+            # ├── hf_weights
             # │   ├── config.json
             # │   ├── generation_config.json
             # │   ├── model.safetensors
