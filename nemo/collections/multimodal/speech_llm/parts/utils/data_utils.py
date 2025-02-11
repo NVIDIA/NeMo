@@ -204,8 +204,9 @@ class TextProcessing:
         context_key (str): Key to use for the context in your JSONL file
         answer_key (str): Key to use for the label in your JSONL file
         end_string (Optional[str]): If not None, add this string to the end of the answer.
-        sample_alpha (Optional[float]): For SPE subword sampling
-        input_text_mask_ratio (Optional[float]): If not None, will mask the input text at this ratio.
+        add_boa_eos (Optional[bool]): If true, add special strings before and after audio
+        boa_string (Optional[str]): The string to add before audio
+        eoa_string (Optional[str]): The string to add after audio
     """
 
     def __init__(
@@ -228,7 +229,6 @@ class TextProcessing:
         context_key: str = 'context',
         answer_key: str = 'answer',
         end_string: Optional[str] = None,
-        sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
         add_boa_eoa: Optional[bool] = False,
         boa_string: Optional[str] = "<BOA>",
@@ -251,7 +251,6 @@ class TextProcessing:
         self.add_eos = add_eos
         self.add_sep = add_sep
         self.end_string = end_string
-        self.sample_alpha = sample_alpha
         self.audio_locator = audio_locator
         self.add_boa_eoa = add_boa_eoa
         self.boa_string = boa_string
