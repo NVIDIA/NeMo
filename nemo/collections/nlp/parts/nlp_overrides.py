@@ -257,6 +257,7 @@ class NLPDDPStrategy(DDPStrategy):
             assert self.model is not None
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
+        # pylint: disable=missing-function-docstring
         # call PTL init ddp
         super().setup_distributed()
 
@@ -389,7 +390,7 @@ class NLPDDPStrategy(DDPStrategy):
 
         return optimizer_state_dict
 
-    def save_checkpoint(
+    def save_checkpoint( # pylint: disable=missing-function-docstring
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         app_state = AppState()
@@ -435,6 +436,7 @@ class NLPDDPStrategy(DDPStrategy):
     # PTL 2.2 supports non strict loading of the ckpt with the strict arg
     # (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
+        # pylint: disable=missing-function-docstring
         # if using distributed checkpointing, the state dict logic is at the model level
         if self.use_distributed_checkpointing:
             return
@@ -617,6 +619,7 @@ class NLPDDPStrategy(DDPStrategy):
         return checkpoint
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        # pylint: disable=missing-function-docstring
         # check if filepath is a distributed checkpoint
         if self.use_distributed_checkpointing:
             if self.is_global_zero:
@@ -632,7 +635,7 @@ class NLPDDPStrategy(DDPStrategy):
                 self.checkpoint_io.remove_checkpoint(filepath)
 
     @property
-    def use_distributed_checkpointing(self):
+    def use_distributed_checkpointing(self): # pylint: disable=missing-function-docstring
         has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(self.unwrapped_checkpoint_io, DistributedCheckpointIO)
         has_sharded_state_dict = (
             hasattr(self.lightning_module, 'sharded_state_dict')
@@ -651,7 +654,7 @@ class NLPDDPStrategy(DDPStrategy):
         return has_sharded_state_dict
 
     @property
-    def distributed_sampler_kwargs(self):
+    def distributed_sampler_kwargs(self): # pylint: disable=missing-function-docstring
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             # When using model parallel, data parallel groups are non-trivial and they
@@ -895,6 +898,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         return optim_state_dict
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict=None) -> None:
+        # pylint: disable=missing-function-docstring
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
         # half-precision module wrapper module.
         # TODO: Refactor this to be more generic.
@@ -1013,7 +1017,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         return True
 
 
-class NLPSaveRestoreConnector(SaveRestoreConnector):
+class NLPSaveRestoreConnector(SaveRestoreConnector): # pylint: disable=missing-class-docstring
     def __init__(self) -> None:
         if not HAVE_APEX:
             logging.warning(
@@ -1706,7 +1710,7 @@ class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
 
         torch.set_autocast_gpu_dtype(dtype)
 
-    def optimizer_step(
+    def optimizer_step( # pylint: disable=missing-function-docstring
         self,
         optimizer: torch.optim.Optimizer,
         model: Union["pl.LightningModule", torch.nn.Module],
@@ -1794,7 +1798,7 @@ class CustomProgressBar(TQDMProgressBar):
         self.bar.bar_format = "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]"
         return self.bar
 
-    def on_train_epoch_start(self, trainer, *_):
+    def on_train_epoch_start(self, trainer, *_): # pylint: disable=missing-function-docstring
         # Use trainer.max_steps as the num_training_batches since len(dataloader) aka num_training_batches
         # is returned as the total num of micro batches instead of total num of global batches with this PR:
         # https://github.com/NVIDIA/NeMo/pull/8426

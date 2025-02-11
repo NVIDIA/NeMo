@@ -21,12 +21,14 @@ from nemo.utils.metaclasses import Singleton
 
 @dataclass()
 class ModelMetadataRegistry:
+    # pylint: disable=missing-class-docstring
     guid: str
     gidx: int
     restoration_path: Optional[str] = None
 
 
 class AppState(metaclass=Singleton):
+    # pylint: disable=missing-class-docstring
     def __init__(self):
         # method call lock
         self.__lock = Lock()
@@ -288,10 +290,12 @@ class AppState(metaclass=Singleton):
 
     @property
     def use_tp_pp_dp_mapping(self):
+        # pylint: disable=missing-function-docstring
         return self._use_tp_pp_dp_mapping
 
     @use_tp_pp_dp_mapping.setter
     def use_tp_pp_dp_mapping(self, use_new_mapping):
+        # pylint: disable=missing-function-docstring
         self._use_tp_pp_dp_mapping = use_new_mapping
 
     @property
@@ -472,7 +476,8 @@ class AppState(metaclass=Singleton):
 
     @property
     def pipeline_model_parallel_split_rank(self):
-        """Property returns the rank at which Encoder and Decoder are split into different pipelines for Megatrron Encoder-Decoder models.
+        """Property returns the rank at which Encoder and Decoder are split into 
+            different pipelines for Megatrron Encoder-Decoder models.
         Returns:
             Pipeline model parallel split rank.
         """
@@ -480,7 +485,8 @@ class AppState(metaclass=Singleton):
 
     @pipeline_model_parallel_split_rank.setter
     def pipeline_model_parallel_split_rank(self, rank):
-        """Property sets the rank at which Encoder and Decoder are split into different pipelines for Megatrron Encoder-Decoder models.
+        """Property sets the rank at which Encoder and Decoder are split into 
+            different pipelines for Megatrron Encoder-Decoder models.
         Args:
             rank (int): Model parallel split rank.
         """
@@ -741,16 +747,19 @@ class AppState(metaclass=Singleton):
 
     @property
     def model_restore_path(self):
+        # pylint: disable=missing-function-docstring
         restore_path = self._all_model_restore_paths[-1] if len(self._all_model_restore_paths) > 0 else None
         return restore_path
 
     @model_restore_path.setter
     def model_restore_path(self, path):
+        # pylint: disable=missing-function-docstring
         with self.__lock:
             self._model_restore_path = path
             self._all_model_restore_paths.append(path)
 
     def register_model_guid(self, guid: str, restoration_path: Optional[str] = None):
+        # pylint: disable=missing-function-docstring
         # Maps a guid to its restore path (None or last absolute path)
         with self.__lock:
             if guid in self._model_guid_map:
@@ -760,35 +769,37 @@ class AppState(metaclass=Singleton):
             self._model_guid_map[guid] = ModelMetadataRegistry(guid, idx, restoration_path=restoration_path)
 
     def reset_model_guid_registry(self):
+        # pylint: disable=missing-function-docstring
         # Reset the guid mapping
         with self.__lock:
             self._model_guid_map.clear()
 
     def get_model_metadata_from_guid(self, guid) -> ModelMetadataRegistry:
+        # pylint: disable=missing-function-docstring
         # Returns the global model idx and restoration path
         metadata = self._model_guid_map[guid]
         return metadata
 
     @property
-    def is_model_being_restored(self) -> bool:
+    def is_model_being_restored(self) -> bool: # pylint: disable=missing-function-docstring
         return self._is_model_being_restored
 
     @is_model_being_restored.setter
-    def is_model_being_restored(self, is_restored: bool):
+    def is_model_being_restored(self, is_restored: bool): # pylint: disable=missing-function-docstring
         self._is_model_being_restored = is_restored
 
     @property
-    def nemo_file_folder(self) -> str:
+    def nemo_file_folder(self) -> str: # pylint: disable=missing-function-docstring
         return self._nemo_file_folder
 
     @nemo_file_folder.setter
-    def nemo_file_folder(self, path: str):
+    def nemo_file_folder(self, path: str): # pylint: disable=missing-function-docstring
         self._nemo_file_folder = path
 
     @property
-    def restore(self) -> bool:
+    def restore(self) -> bool: # pylint: disable=missing-function-docstring
         return self._restore
 
     @restore.setter
-    def restore(self, restore: bool):
+    def restore(self, restore: bool): # pylint: disable=missing-function-docstring
         self._restore = restore
