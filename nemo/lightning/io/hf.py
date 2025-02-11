@@ -42,6 +42,18 @@ def is_rank_0():
     return not dist.is_available() or not dist.is_initialized() or dist.get_rank() == 0
 
 
+class HFAdapterKeyRenamer:
+    @staticmethod
+    def nemo_to_hf(x):
+        return x.replace("model.model.", "base_model.model.model.", 1)
+                .replace("lora_a.weight", "lora_A.weight", 1)
+                .replace("lora_b.weight", "lora_B.weight", 1)
+    @staticmethod
+    def hf_to_nemo(x):
+        return x.replace("lora_B.weight", "lora_b.weight", 1)
+                .replace("lora_A.weight", "lora_a.weight", 1)
+                .replace("base_model.model.model.", "model.model.", 1)
+
 class HFCheckpointIO(CheckpointIO, IOMixin):
     """HFCheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load
     checkpoints respectively, common for most use cases.
@@ -148,13 +160,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         module_names = list(state_dict.keys())
         for name in module_names:
             param = state_dict.pop(name)
-            name = (
-                name
-                .replace("model.model.", "base_model.model.model.", 1)
-                .replace("lora_a.weight", "lora_A.weight", 1)
-                .replace("lora_b.weight", "lora_B.weight", 1)
-            )
-            state_dict[name] = param
+            state_dict[HFAdapterKeyRenamer.nemo_to_hf(name)] = param
 
         # Save weights to safetensors format
         try:
@@ -199,7 +205,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         try:
             with safe_open(adapter_file, framework="pt", device=0) as f:
                 for k in f.keys():
-                    state_dict[k] = f.get_tensor(k)
+                    state_dict[HFAdapterKeyRenamer.hf_to_nemo(name)] = f.get_tensor(k)
         except OSError as e:
             raise OSError(f"Failed to load adapter weights: {e}")
 
