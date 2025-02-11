@@ -32,6 +32,8 @@ from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils.import_utils import safe_import
+from nemo.utils import logging
+
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
@@ -271,7 +273,7 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
     Note that NV Embedding LLama uses customized LlamaBidirectionalConfig config.
     """
 
-    def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
+    def init(self, dtype=torch.bfloat16) -> "LlamaBidirectionalModel":
         from transformers.modeling_utils import no_init_weights
 
         from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
