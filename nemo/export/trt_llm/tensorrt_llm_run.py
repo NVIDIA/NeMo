@@ -550,7 +550,6 @@ def maybe_cast_to_trt_dtype(dtype):
     else:
         raise NotImplementedError(f"Expects the type to be a tensorrt.DataType or torch.dtype, but got {type(dtype)=}")
 
-
 def refit(weights_dict: dict):
     """
     Refit TensorRT-LLM by hot-swapping its engine weights.
@@ -601,7 +600,6 @@ def refit(weights_dict: dict):
 
     if not refitter.refit_cuda_engine():
         raise ValueError("Refit failed!")
-
 
 def unload_engine():
     """
