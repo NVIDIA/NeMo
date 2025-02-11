@@ -227,6 +227,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning.io.api import load_context
 
         model = load_context(path, subpath="model")
+        # skip initialization since a checkpoint is loaded in this function
+        model.config.perform_initialization = False
+
         is_peft_ckpt = model.model_transform is not None
         callbacks = []
         if is_peft_ckpt:
