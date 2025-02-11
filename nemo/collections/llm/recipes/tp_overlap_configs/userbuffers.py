@@ -31,6 +31,7 @@ class PipelineOverlapCfg(TPOverlapCfg):
     num_splits: int
     set_sm_margin: bool
     fp8_buf: bool = (False,)
+    atomic_gemm: bool = False
     method: str = 'pipeline'
 
 
@@ -41,7 +42,10 @@ class RingExchangeOverlapCfg(TPOverlapCfg):
     aggregate: bool = False
     method: str = 'ring_exchange'
     num_sm: int = 1
+    cga_size: int = 1
     set_sm_margin: bool = False
+    fp8_buf: bool = False
+    atomic_gemm: bool = False
 
 
 @dataclass
@@ -98,7 +102,7 @@ userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
     fc2_fprop=PipelineOverlapCfg(num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, fp8_buf=True),
 )
 
-userbuffers_bf16_b200_h8192_tp4_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
+userbuffers_bf16_b200_h8192_tp2_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
     qkv_dgrad=BulkOverlapCfg(num_sm=16, cga_size=2, set_sm_margin=False),
     qkv_wgrad=BulkOverlapCfg(num_sm=24, cga_size=2, set_sm_margin=False),
     fc1_dgrad=BulkOverlapCfg(num_sm=2, cga_size=2, set_sm_margin=False),
@@ -111,7 +115,7 @@ userbuffers_bf16_b200_h8192_tp4_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
     fc2_fprop=PipelineOverlapCfg(num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True),
 )
 
-userbuffers_fp8_b200_h8192_tp4_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
+userbuffers_fp8_b200_h8192_tp2_mbs1_seqlen8192 = TransformerLayerTPOverlapCfg(
     qkv_dgrad=BulkOverlapCfg(num_sm=4, cga_size=2, set_sm_margin=False),
     qkv_wgrad=BulkOverlapCfg(num_sm=24, cga_size=2, set_sm_margin=False),
     fc1_dgrad=BulkOverlapCfg(num_sm=2, cga_size=2, set_sm_margin=False),
