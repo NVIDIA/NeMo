@@ -54,7 +54,7 @@ class CompletionRequest(BaseModel):
     temperature: float = 1.0
     top_p: float = 0.0
     top_k: int = 1
-    logProb: bool = True
+    logprobs: int = 1
 
 
 @app.get("/v1/health")
@@ -95,7 +95,7 @@ def completions_v1(request: CompletionRequest):
             temperature=request.temperature,
             top_k=request.top_k,
             top_p=request.top_p,
-            compute_logprob=request.logProb,
+            compute_logprob=True if request.logprobs == 1 else False,
             max_length=request.max_tokens,
         )
 
@@ -111,7 +111,6 @@ def completions_v1(request: CompletionRequest):
                 return obj
 
         output_serializable = convert_numpy(output)
-
         return output_serializable
     except Exception as error:
         logging.error(f"An exception occurred with the post request to /v1/completions/ endpoint: {error}")
