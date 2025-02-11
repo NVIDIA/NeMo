@@ -123,6 +123,7 @@ class MixtralConfig8x22B(MixtralConfig):
 
 
 class MixtralModel(GPTModel):
+    """ Mcore-based MixtralModel """
     def __init__(
         self,
         config: Optional[Union[MixtralConfig8x7B, MixtralConfig8x22B]] = None,
@@ -130,7 +131,7 @@ class MixtralModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        """ Mcore-based MixtralModel """
+        """ Mcore-based MixtralModel ctor """
         super().__init__(
             config or MixtralConfig8x7B(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
         )
@@ -138,6 +139,7 @@ class MixtralModel(GPTModel):
 
 @io.model_importer(MixtralModel, ext="hf")
 class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
+    """ HF to NeMo importer """
     def init(self) -> MixtralModel:
         """ init """
         return MixtralModel(self.config, tokenizer=self.tokenizer)
@@ -308,6 +310,7 @@ def _import_moe_w1_w3(gate_proj, up_proj):
 
 @io.model_exporter(MixtralModel, "hf")
 class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
+    """ NeMo to HF exporter """
     def init(self) -> "MixtralForCausalLM":
         """ HFMixtralExporter initialization """
         from transformers import AutoModelForCausalLM
