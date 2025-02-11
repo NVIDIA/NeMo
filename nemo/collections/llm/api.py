@@ -26,7 +26,9 @@ from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
+from nemo.collections.llm.distillation import DistillationGPTModel
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
+from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
 from nemo.lightning import (
     AutoResume,
@@ -263,6 +265,85 @@ def validate(
     trainer.validate(model, data)
 
     return app_state.exp_dir
+
+
+@run.cli.entrypoint(name="distill", namespace="llm")
+def distill(
+    student_model_path: AnyPath,
+    teacher_model_path: AnyPath,
+    data: pl.LightningDataModule,
+    trainer: Trainer,
+    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
+    optim: Optional[OptimizerModule] = None,
+    tokenizer: Optional[TokenizerType] = None,
+    model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
+) -> Path:
+    """
+    Distills a teacher model into a student model using special Knowledge-Distillation losses.
+
+    Note that this requires an existing NeMo 2.0 checkpoint of the student model as well, as
+    the model class is not known beforehand.
+    This script currently supports instances of ``nemo.collections.llm.GPTModel`` for now.
+
+    Args:
+        student_model_path (Path): Path to student model NeMo checkpoint to be trained.
+        teacher_model_path (Path): Path to teacher model NeMo checkpoint to distill from.
+        data (pl.LightningDataModule): The data module containing training data.
+        trainer (Trainer): The trainer instance configured with a MegatronStrategy.
+        log (NeMoLogger): A nemologger instance.
+        resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
+        optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
+            from the model will be used.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
+            or an instance of TokenizerSpec.
+        export (Optional[str]): Filename to save the exported checkpoint after training.
+        model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
+
+    Returns
+    -------
+        Path: The directory path where training artifacts are saved.
+
+    Examples
+    --------
+        >>> from nemo.collections import llm
+        >>> from nemo import lightning as nl
+        >>> model = llm.MistralModel()
+        >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+        >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
+        >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
+        >>> llm.train(model, data, trainer, tokenizer="data")
+        PosixPath('/path/to/log_dir')
+    """
+    assert student_model_path is not None and teacher_model_path is not None
+
+    _student_model = io.load_context(student_model_path, subpath="model")
+    _teacher_model = io.load_context(teacher_model_path, subpath="model")
+    assert isinstance(_student_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+    assert isinstance(_teacher_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+
+    if tokenizer is None:
+        tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
+        assert tokenizer is not None, "Tokenizer neither provided nor found in models."
+
+    model = DistillationGPTModel(
+        _student_model.config,
+        _teacher_model.config,
+        teacher_ckpt_path=teacher_model_path,
+        tokenizer=tokenizer,
+    )
+    model.__io__ = _student_model.__io__
+
+    return train(
+        model=model,
+        data=data,
+        optim=optim,
+        tokenizer="model",
+        trainer=trainer,
+        log=log,
+        resume=resume,
+        model_transform=model_transform,
+    )
 
 
 @run.cli.entrypoint(name="ptq", namespace="llm")
