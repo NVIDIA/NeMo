@@ -346,7 +346,7 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
     @property
     def config(self) -> "MixtralConfig":
         # Either MixtralConfig8x7B or MixtralConfig8x22B
-        source: MixtralConfig8x7B = io.load_ckpt(str(self)).model.config
+        source: MixtralConfig8x7B = io.load_context(str(self), subpath="model.config")
 
         from transformers import MixtralConfig as HfMixtralConfig
 
