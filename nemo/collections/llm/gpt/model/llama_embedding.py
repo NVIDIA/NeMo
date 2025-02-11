@@ -38,6 +38,8 @@ if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+    from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
+
 _, HAVE_TE = safe_import("transformer_engine")
 
 
