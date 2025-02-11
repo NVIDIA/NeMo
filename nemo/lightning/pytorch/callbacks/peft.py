@@ -462,12 +462,13 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
             Example:
                 ckpt_keys = [
                     "model.model.layers.27.self_attn.k_proj",
-                    "model.model.layers.27.self_attn.v_proj"
+                    "model.model.layers.27.self_attn.v_proj",
+                    "model.model.layers.27.self_attn.mlp"
                 ]
-                target_modules = ["*proj", "self_attn"]
+                target_modules = ["*proj"]
 
                 extract_matched_module_names(ckpt_keys, target_modules)
-                # Output: ['self_attn', 'k_proj', 'v_proj']
+                # Output: ['k_proj', 'v_proj']
 
             Notes:
                 - This function uses regular expressions to match the target patterns in the
