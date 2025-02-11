@@ -5452,6 +5452,9 @@ jobs:
   Coverage:
     runs-on: ubuntu-latest
     needs: [Nemo_CICD_Test]
+    strategy:
+      matrix:
+        flag: [unit-test, e2e]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -5461,52 +5464,21 @@ jobs:
         with:
           run-id: 13251801418
           github-token: ${{ secrets.PAT }}
+          pattern: coverage-${{ matrix.flag }}-*
 
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
         if: always()
-        id: total-current-branch
         run: |
           pip install coverage
 
-          rm -rf coverage-e2e-*
-
-          mv 
           ls -al .
-          ls -al coverage-unit-test-*/
-          coverage combine --keep $(ls coverage-unit-test-*/.coverage)
+          ls -al coverage-*/
+          coverage combine --keep $(ls coverage-*/.coverage)
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
-          flags: unittests
-
-      - name: Download coverage reports of current branch
-        uses: actions/download-artifact@v4
-        with:
-          run-id: 13251801418
-          github-token: ${{ secrets.PAT }}
-
-      - name: Get total coverage of current branch
-        shell: bash -x -e -u -o pipefail {0}
-        if: always()
-        id: total-current-branch
-        run: |
-          pip install coverage
-
-          rm -rf coverage-unit-test-*
-
-          mv 
-          ls -al .
-          ls -al coverage-e2e-*/
-          coverage combine --keep $(ls coverage-e2e-*/.coverage)
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          directory: coverage-e2e/
-          verbose: true
-          flags: e2e
+          flags: ${{ matrix.flag }}
