@@ -69,11 +69,11 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
     LOCK_TIMEOUT = 1200
 
     def init(self) -> TargetT:
-        """ Should be implemented to initialize the target type from the source type. """
+        """Should be implemented to initialize the target type from the source type."""
         raise NotImplementedError()
 
     def apply(self, output_path: Path) -> Path:
-        """ Should be implemented to apply the transformation and save the result at the output path. """
+        """Should be implemented to apply the transformation and save the result at the output path."""
         raise NotImplementedError()
 
     def __new__(cls, *args, **kwargs):
@@ -120,7 +120,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         return _output_path
 
     def local_path(self, base_path: Optional[Path] = None) -> Path:
-        """ Computes the local path for storage based on a base path or a default cache home. """
+        """Computes the local path for storage based on a base path or a default cache home."""
         if base_path:
             _base = base_path
         else:
@@ -131,7 +131,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         return _base / str(self).replace("://", "/")
 
     def is_in_cache(self, base_path: Optional[Path] = None) -> bool:
-        """ Checks if the transformed data is already cached at the specified base path. """
+        """Checks if the transformed data is already cached at the specified base path."""
         return self.local_path(base_path=base_path).exists()
 
 
@@ -294,14 +294,14 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         return _base / str(self).replace("://", "/")
 
     def on_import_ckpt(self, model: pl.LightningModule):
-        """ Called after checkpoint is imported """
+        """Called after checkpoint is imported"""
         if hasattr(self, "tokenizer"):
             model.tokenizer = self.tokenizer
             if hasattr(model, "__io__") and hasattr(self.tokenizer, '__io__'):
                 model.__io__.tokenizer = self.tokenizer.__io__
 
     def save_hf_tokenizer_assets(self, tokenizer_name_or_path, save_path="/tmp/nemo_tokenizer"):
-        """ Save HF tokenizer to the imported NeMo model """
+        """Save HF tokenizer to the imported NeMo model"""
         from transformers import AutoTokenizer
 
         tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path, trust_remote_code=True)
