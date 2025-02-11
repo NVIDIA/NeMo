@@ -189,6 +189,7 @@ class TensorRTLLM(ITritonDeployable):
         gather_context_logits: Optional[bool] = False,
         gather_generation_logits: Optional[bool] = False,
         build_rank: Optional[int] = 0,
+        build_workers: Optional[int] = 1,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -432,16 +433,45 @@ class TensorRTLLM(ITritonDeployable):
                         )
                     )
 
-                    for trtllm_model_weights, trtllm_model_config in zip(
-                        trtllm_model_weights_list, trtllm_model_config_list
-                    ):
-                        trtllm_helper.build_and_save_engine(
+                    if build_workers == 1:
+                        for trtllm_model_weights, trtllm_model_config in zip(
+                            trtllm_model_weights_list, trtllm_model_config_list
+                        ):
+                            trtllm_helper.build_and_save_engine(
+                                max_input_len=max_input_len,
+                                max_output_len=max_output_len,
+                                max_batch_size=max_batch_size,
+                                engine_dir=self.model_dir,
+                                trtllm_model_weights=trtllm_model_weights,
+                                trtllm_model_config=trtllm_model_config,
+                                lora_ckpt_list=self.lora_ckpt_list,
+                                use_lora_plugin=use_lora_plugin,
+                                max_lora_rank=max_lora_rank,
+                                lora_target_modules=lora_target_modules,
+                                max_prompt_embedding_table_size=max_prompt_embedding_table_size,
+                                paged_kv_cache=paged_kv_cache,
+                                remove_input_padding=remove_input_padding,
+                                paged_context_fmha=paged_context_fmha,
+                                use_refit=False,
+                                max_num_tokens=max_num_tokens,
+                                max_seq_len=max_seq_len,
+                                opt_num_tokens=opt_num_tokens,
+                                max_beam_width=1,
+                                tokens_per_block=128,
+                                multiple_profiles=multiple_profiles,
+                                gpt_attention_plugin=gpt_attention_plugin,
+                                gemm_plugin=gemm_plugin,
+                            )
+                    else:
+                        from megatron.core.export.trtllm.engine_builder.trtllm_engine_builder import TRTLLMEngineBuilder
+                        TRTLLMEngineBuilder.parallel_build(
+                            trtllm_model_weights_list,
+                            trtllm_model_config_list,
+                            build_workers,
                             max_input_len=max_input_len,
                             max_output_len=max_output_len,
                             max_batch_size=max_batch_size,
                             engine_dir=self.model_dir,
-                            trtllm_model_weights=trtllm_model_weights,
-                            trtllm_model_config=trtllm_model_config,
                             lora_ckpt_list=self.lora_ckpt_list,
                             use_lora_plugin=use_lora_plugin,
                             max_lora_rank=max_lora_rank,
