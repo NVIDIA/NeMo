@@ -23,7 +23,6 @@ jobs:
 
           rm -rf coverage-e2e-*
 
-          mv 
           ls -al .
           ls -al coverage-unit-test-*/
           coverage combine --keep $(ls coverage-unit-test-*/.coverage)
@@ -49,7 +48,6 @@ jobs:
 
           rm -rf coverage-unit-test-*
 
-          mv 
           ls -al .
           ls -al coverage-e2e-*/
           coverage combine --keep $(ls coverage-e2e-*/.coverage)
