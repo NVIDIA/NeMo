@@ -24,7 +24,7 @@ from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import HAVE_TE, GPTConfig, GPTModel
+from nemo.collections.llm.gpt.model.base import HAVE_TE, GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.lightning.pytorch.optim import OptimizerModule
@@ -361,6 +361,146 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             params_dtype=dtype_from_hf(source),
             **v3_kwargs,
         )
+
+
+@io.model_exporter(DeepSeekModel, "hf")
+class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"]):
+    def init(self, dtype=torch.bfloat16, model_name="deepseek-ai/DeepSeek-V3") -> "AutoModelForCausalLM":
+        from transformers import AutoModelForCausalLM
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights(True):
+            # Since DeepSeek is not importable from transformers, we can only initialize the HF model
+            # from a known checkpoint. The model_name will need to be passed in.
+            return AutoModelForCausalLM.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+                torch_dtype=dtype,
+            )
+
+    def apply(self, output_path: Path) -> Path:
+        logging.info("Loading DeepSeek NeMo checkpoint. This may take a while...")
+        source, _ = self.nemo_load(str(self))
+        logging.info("DeepSeek NeMo checkpoint loaded.")
+
+        if source.config.moe_router_enable_expert_bias:
+            model_name = "deepseek-ai/DeepSeek-V3"
+        elif source.config.q_lora_rank is not None:
+            model_name = "deepseek-ai/DeepSeek-V2"
+        else:
+            model_name = "deepseek-ai/DeepSeek-V2-Lite"
+
+        target = self.init(torch_dtype_from_mcore_config(source.config), model_name=model_name)
+        target = self.convert_state(source, target)
+
+        target = target.cpu()
+        target.save_pretrained(output_path)
+        self.tokenizer.save_pretrained(output_path)
+
+        return output_path
+
+    def convert_state(self, source, target):
+        mapping = {
+            ## Embed
+            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
+            ## Attention
+            "decoder.layers.*.input_layernorm.weight": "model.layers.*.input_layernorm.weight",
+            "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
+            "decoder.layers.*.self_attention.linear_q_down_proj.weight": "model.layers.*.self_attn.q_a_proj.weight",
+            "decoder.layers.*.self_attention.linear_q_up_proj.weight": "model.layers.*.self_attn.q_b_proj.weight",
+            "decoder.layers.*.self_attention.linear_kv_down_proj.weight": "model.layers.*.self_attn.kv_a_proj_with_mqa.weight",
+            "decoder.layers.*.self_attention.linear_kv_up_proj.weight": "model.layers.*.self_attn.kv_b_proj.weight",
+            "decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight": "model.layers.*.self_attn.q_a_layernorm.weight",
+            "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight": "model.layers.*.self_attn.kv_a_layernorm.weight",
+            "decoder.layers.*.pre_mlp_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
+            ## Dense MLP
+            # decoder.layers.*.mlp.linear_fc1.weight: model.layers.*.mlp.{gate|up}_proj.weight
+            "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
+            ## MoE
+            "decoder.layers.*.mlp.router.weight": "model.layers.*.mlp.gate.weight",
+            # decoder.layers.*.mlp.experts.linear_fc1.weight*: model.layers.*.mlp.experts.*.{gate|up}_proj.weight
+            "decoder.layers.*.mlp.experts.linear_fc2.weight*": "model.layers.*.mlp.experts.*.down_proj.weight",
+            # decoder.layers.*.mlp.shared_experts.linear_fc1.weight: model.layers.*.mlp.shared_experts.{gate|up}_proj.weight
+            "decoder.layers.*.mlp.shared_experts.linear_fc2.weight": "model.layers.*.mlp.shared_experts.down_proj.weight",
+            ## LM Head
+            "decoder.final_layernorm.weight": "model.norm.weight",
+            "output_layer.weight": "lm_head.weight",
+        }
+        # For lite model
+        if source.config.q_lora_rank is None:
+            del mapping["decoder.layers.*.self_attention.linear_q_down_proj.weight"]
+            del mapping["decoder.layers.*.self_attention.linear_q_up_proj.weight"]
+            mapping["decoder.layers.*.self_attention.linear_q_proj.weight"] = "model.layers.*.self_attn.q_proj.weight"
+        # Account for Mcore local spec
+        if source.config.q_lora_rank is not None and not isinstance(
+            source.module.decoder.layers[0].self_attention.q_layernorm, IdentityOp
+        ):
+            mapping["decoder.layers.*.self_attention.q_layernorm.weight"] = (
+                mapping.pop("decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight"))
+
+        if not isinstance(source.module.decoder.layers[0].self_attention.kv_layernorm, IdentityOp):
+            mapping["decoder.layers.*.self_attention.kv_layernorm.weight"] = (
+                mapping.pop("decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight"))
+
+        if hasattr(source.config, "moe_router_enable_expert_bias") and source.config.moe_router_enable_expert_bias:
+            mapping.update(
+                {
+                    "decoder.layers.*.mlp.router.expert_bias": "model.layers.*.mlp.gate.e_score_correction_bias",
+                }
+            )
+
+        transforms = [
+            io.state_transform(
+                source_key="decoder.layers.*.mlp.linear_fc1.weight",
+                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                fn=TransformFns.split_fc1,
+            ),
+            io.state_transform(
+                source_key="decoder.layers.*.mlp.experts.linear_fc1.weight*",
+                target_key=(
+                    "model.layers.*.mlp.experts.*.gate_proj.weight",
+                    "model.layers.*.mlp.experts.*.up_proj.weight",
+                ),
+                fn=TransformFns.split_fc1,
+            ),
+            io.state_transform(
+                source_key="decoder.layers.*.mlp.shared_experts.linear_fc1.weight",
+                target_key=(
+                    "model.layers.*.mlp.shared_experts.gate_proj.weight",
+                    "model.layers.*.mlp.shared_experts.up_proj.weight",
+                ),
+                fn=TransformFns.split_fc1,
+            ),
+        ]
+        source = self._modify_source_state(source)
+
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=transforms,
+        )
+
+    def _modify_source_state(self, source: nn.Module) -> _ModelState:
+        """
+        In deepseek, HF weight `model.layers.*.post_attention_layernorm.weight` is mapped to mcore weight
+        a) `decoder.layers.*.mlp.linear_fc1.layer_norm_weight`, if the layer is dense
+        b) `decoder.layers.*.pre_mlp_layernorm.weight`, if the layer is MoE
+
+        We rename decoder.layers.*.mlp.linear_fc1.layer_norm_weight in the first case to unify key names
+        """
+        state_dict = source.module.state_dict()
+        for layer_i in range(source.config.num_layers):
+            if f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict:
+                weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
+                state_dict[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
+        modified_source = _ModelState(state_dict)
+        return modified_source
+
+    @property
+    def tokenizer(self) -> "TokenizerSpec":
+        return io.load_context(str(self), subpath="model").tokenizer
+
 
 
 __all__ = [
