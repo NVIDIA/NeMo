@@ -105,7 +105,7 @@ class MegatronBaseModel(NLPModel):
             )
 
         if trainer is None:
-            raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+            raise ValueError("Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
 
         if cfg.get('use_flash_attention', False) and not HAVE_FLASH_ATTENTION:
             raise ImportError(

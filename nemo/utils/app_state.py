@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 from threading import Lock
-from typing import Dict, Optional
+from typing import Optional
 
 from nemo.utils.metaclasses import Singleton
 
