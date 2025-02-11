@@ -119,7 +119,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             # │   ├── tokenizer.json
             # │   └── tokenizer_config.json
             # └── trainer.pt
-            # Where the `weights` directory contains the model's state dict, in HF format.
+            # Where the `hf_weights` directory contains the model's state dict, in HF format.
             # The `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
             hf_weights_path = checkpoint_dir / HF_WEIGHTS_PATH
             self.model.save_pretrained(hf_weights_path, state_dict=checkpoint.pop('state_dict'))
