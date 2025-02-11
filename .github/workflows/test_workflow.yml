@@ -4,7 +4,7 @@ on:
 jobs:
   L0_Unit_Tests_Coverage:
     runs-on: ubuntu-latest
-
+    environment: main
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -13,6 +13,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           run-id: 13251801418
+          github-token: ${{ secrets.PAT }}
 
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
