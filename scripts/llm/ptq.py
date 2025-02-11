@@ -32,13 +32,27 @@ def get_args():
     parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
     parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
-    parser.add_argument("-itp", "--inference_tp", "--tensor_parallelism_size", type=int, default=1)
-    parser.add_argument("-ipp", "--inference_pp", "--pipeline_parallelism_size", type=int, default=1)
-    parser.add_argument("-devices", "--num_devices", type=int, default=None, help="Number of devices per node")
+    parser.add_argument(
+        "-itp",
+        "--inference_tp",
+        "--tensor_parallelism_size",
+        type=int,
+        default=1,
+        help="TRT-LLM engine TP size. (Only used when `--export_format` is 'ttllm')",
+    )
+    parser.add_argument(
+        "-ipp",
+        "--inference_pp",
+        "--pipeline_parallelism_size",
+        type=int,
+        default=1,
+        help="TRT-LLM engine PP size. (Only used when `--export_format` is 'ttllm')",
+    )
+    parser.add_argument("--devices", type=int, default="auto", help="Number of GPUs to use per node")
     parser.add_argument("-nodes", "--num_nodes", type=int, default=1)
     parser.add_argument('-out', '--export_path', '--output_path', type=str, help='Path for the exported engine')
     parser.add_argument(
-        "--export_format", default="trtllm", choices=["trtllm", "nemo"], help="Model format to export as."
+        "--export_format", default="trtllm", choices=["trtllm", "nemo"], help="Model format to export as"
     )
     parser.add_argument(
         '-algo',
@@ -84,9 +98,6 @@ def get_args():
         else:
             args.export_path = f"./nemo_{args.algorithm}"
 
-    if args.num_devices is None:
-        args.num_devices = "auto"  # PL Trainer can auto-detect number of devices
-
     return args
 
 
@@ -119,7 +130,7 @@ def main():
         nemo_checkpoint_path=args.nemo_checkpoint,
         tensor_model_parallel_size=args.calibration_tp,
         pipeline_model_parallel_size=args.calibration_pp,
-        devices_per_node=args.num_devices,
+        devices=args.devices,
         num_nodes=args.num_nodes,
         ckpt_load_strictness=args.ckpt_load_strictness,
     )
