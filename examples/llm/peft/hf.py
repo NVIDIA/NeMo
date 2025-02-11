@@ -102,6 +102,7 @@ def main():
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument('--wandb-project', type=str, default=None)
     parser.add_argument('--use-torch-jit', action='store_true')
+    parser.add_argument('--auto-resume', action='store_true')
     parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name)
     args = parser.parse_args()
 
@@ -120,6 +121,11 @@ def main():
 
     model = llm.HFAutoModelForCausalLM(model_name=args.model)
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
+
+    resume = nl.AutoResume(
+        resume_if_exists=True,
+        resume_ignore_no_checkpoint=False,
+    ) if args.auto_resume else None
 
     llm.api.finetune(
         model=model,
@@ -146,6 +152,7 @@ def main():
             target_modules=['*_proj'],
             dim=8,
         ),
+        resume=resume,
     )
 
 
