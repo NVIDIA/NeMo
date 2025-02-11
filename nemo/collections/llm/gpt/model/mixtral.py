@@ -341,7 +341,7 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
 
     @property
     def tokenizer(self):
-        return io.load_ckpt(str(self)).model.tokenizer.tokenizer
+        return io.load_context(str(self), subpath="model").tokenizer
 
     @property
     def config(self) -> "MixtralConfig":
