@@ -175,9 +175,7 @@ def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
     Returns:
         Checkpoint IO handler instance.
     """
-    model_library = "megatron"
-    if "model_library" in kwargs.keys():
-        model_library = kwargs["model_library"]
+    model_library = kwargs.get("model_library", "megatron")
 
     if model_library == "huggingface":
         from nemo.lightning.io.hf import HFCheckpointIO
