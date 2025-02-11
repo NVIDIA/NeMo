@@ -632,6 +632,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return
 
         from megatron.core import parallel_state
+        from megatron.core.transformer.module import Float16Module
+
+        from nemo.utils.model_utils import unwrap_model
 
         for model_chunk_idx, model_chunk in enumerate(self):
             module = model_chunk.module
@@ -650,7 +653,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
             with init_ddp_context():
                 # Avoid rewrapping the module if it's already wrapped with FSDP
-                if HAVE_CUSTOM_FSDP and self.ddp_config.use_custom_fsdp and not isinstance(module, FullyShardedDataParallel):
+                unwrapped_module = unwrap_model(module, Float16Module)
+                if HAVE_CUSTOM_FSDP and self.ddp_config.use_custom_fsdp and not isinstance(unwrapped_module, FullyShardedDataParallel):
                     FSDP = FullyShardedDataParallel
                     dist_module = FSDP(
                         module.config,
@@ -658,7 +662,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         module,
                         disable_bucketing=disable_bucketing,
                     )
-                elif not isinstance(module, DDP):
+                elif not isinstance(unwrapped_module, DDP):
                     dist_module = DDP(
                         module.config,
                         self.ddp_config,
@@ -667,6 +671,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                         disable_bucketing=disable_bucketing,
                     )
+                else:
+                    dist_module = unwrapped_module
             model_chunk.module = dist_module
             model_chunk.buffers = (
                 dist_module.buffers
