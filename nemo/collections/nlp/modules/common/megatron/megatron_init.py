@@ -85,7 +85,7 @@ except:
     HAVE_INTERLEAVED = False
 
 
-def initialize_model_parallel_for_nemo(
+def initialize_model_parallel_for_nemo( # pylint: disable=missing-function-docstring
     world_size,
     global_rank,
     local_rank,

@@ -102,7 +102,7 @@ class MegatronBaseModel(NLPModel):
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for"
-                "installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt." 
+                "installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         if trainer is None:
@@ -255,8 +255,8 @@ class MegatronBaseModel(NLPModel):
         """
         for module in self.get_model_module_list():
             """Set TP group
-            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398 
-            """ # pylint: disable=line-too-long
+            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            """  # pylint: disable=line-too-long
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(module.modules()):
                 if index == 0:
@@ -274,7 +274,7 @@ class MegatronBaseModel(NLPModel):
         for module in self.get_model_module_list():
             """Set context parallel running
             Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
-            """ # pylint: disable=line-too-long
+            """  # pylint: disable=line-too-long
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(module.modules()):
                 if index == 0:
@@ -332,7 +332,7 @@ class MegatronBaseModel(NLPModel):
                 self.model = Float16Wrapper(**args)
         args.pop('module')
 
-    def get_model_module_list(self): # pylint: disable=missing-function-docstring
+    def get_model_module_list(self):  # pylint: disable=missing-function-docstring
         def extract_module(model):
             if isinstance(model, (McoreDDP, Float16Module, MCoreFloat16Module)):
                 return extract_module(model.module)
@@ -348,7 +348,7 @@ class MegatronBaseModel(NLPModel):
         """
         Reconfigure trainer.limit_val_batches for pretraining
         """
-        # Override limit_batches in terms of num microbatches and so there are 
+        # Override limit_batches in terms of num microbatches and so there are
         # limit_batches//num_micro_batches num of global batches
         if isinstance(limit_batches, int):
             limit_batches *= get_num_microbatches()
@@ -464,12 +464,12 @@ class MegatronBaseModel(NLPModel):
         super().on_train_start()
         self.init_global_step = self.trainer.global_step
 
-    def on_validation_start(self) -> None: # pylint: disable=missing-function-docstring
+    def on_validation_start(self) -> None:  # pylint: disable=missing-function-docstring
         super().on_validation_start()
         if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
 
-    def on_validation_end(self) -> None: # pylint: disable=missing-function-docstring
+    def on_validation_end(self) -> None:  # pylint: disable=missing-function-docstring
         super().on_validation_end()
         if self.gc_interval > 0 and self.gc_in_validation:
             gc.collect()
@@ -613,7 +613,7 @@ class MegatronBaseModel(NLPModel):
         multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
         after = ((after + multiple - 1) // multiple) * multiple
         logging.info(
-            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.' # pylint: disable=line-too-long
+            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'  # pylint: disable=line-too-long
         )
         return after
 
@@ -669,7 +669,7 @@ class MegatronBaseModel(NLPModel):
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
         Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
-        """ # pylint: disable=line-too-long
+        """  # pylint: disable=line-too-long
         # Bucketize and all-reduce
         buckets = {}
         for param in self.parameters():
@@ -706,7 +706,7 @@ class MegatronBaseModel(NLPModel):
                 params = self._optimizer.parameters()
             self._optimizer.try_grad_sync(params)
 
-    def sync_overlap_parameters(self, params=None): # pylint: disable=missing-function-docstring
+    def sync_overlap_parameters(self, params=None):  # pylint: disable=missing-function-docstring
         if self.with_distributed_adam:
             self._optimizer._try_start_bucket_param_sync(params)
 
@@ -842,7 +842,7 @@ class MegatronBaseModel(NLPModel):
                 contiguous_grad_bucket = False
                 raise ValueError(
                     "fp16 training is not yet supported with O2."
-                    "Please set megatron_amp_O2 to False in the model config." 
+                    "Please set megatron_amp_O2 to False in the model config."
                 )
 
             # if using tensor parallel only, we automatically use async grad all-reduce
@@ -941,7 +941,7 @@ class MegatronBaseModel(NLPModel):
         else:
             return [self._optimizer], [self._scheduler]
 
-    def compute_consumed_samples(self, steps_since_resume=0): # pylint: disable=missing-function-docstring
+    def compute_consumed_samples(self, steps_since_resume=0):  # pylint: disable=missing-function-docstring
         app_state = AppState()
 
         if self.cfg.get('rampup_batch_size', None):
@@ -1047,7 +1047,7 @@ class MegatronBaseModel(NLPModel):
         if self.cfg.get('fsdp', False) and self.cfg.get('fp8', False):
             raise ValueError('Torch FSDP does not support FP8.')
 
-    def is_data_parallel_rank_zero(self): # pylint: disable=missing-function-docstring
+    def is_data_parallel_rank_zero(self):  # pylint: disable=missing-function-docstring
         if is_global_rank_zero():
             return True
         else:
@@ -1118,7 +1118,7 @@ class MegatronBaseModel(NLPModel):
             parallel_state.get_pipeline_model_parallel_rank() == self.cfg.get('pipeline_model_parallel_split_rank', 0)
             or parallel_state.is_pipeline_last_stage()
         ):
-            # If the current rank is the in the decoder first stage (decoder emb) or last rank (output layer), 
+            # If the current rank is the in the decoder first stage (decoder emb) or last rank (output layer),
             # subtract those weights since it is already accounted for in the encoder first stage.
             # TODO: If we support embedding untying with PP > 1, we will need to update this.
             num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])
@@ -1284,7 +1284,7 @@ class MegatronBaseModel(NLPModel):
 
         return steps_per_epoch * self._trainer.max_epochs
 
-    def configure_sharded_model(self): # pylint: disable=missing-function-docstring
+    def configure_sharded_model(self):  # pylint: disable=missing-function-docstring
         def find_frozen_submodules(model):
             frozen_submodules = []
             frozen_submodule_names = []
@@ -1309,22 +1309,22 @@ class MegatronBaseModel(NLPModel):
                 logging.debug(f"Ignoring state {submodule} in FSDP.")
             self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
             # FSDP requires uniform status of require_grads
-            # Diffusion models like SD has frozen parts and 
-            # needs to be added to 'ignored_states' from sharding for FSDP to work 
+            # Diffusion models like SD has frozen parts and
+            # needs to be added to 'ignored_states' from sharding for FSDP to work
             self.model = self.trainer.strategy._setup_model(self.model)
             # Move the CPU-initialized model (with `use_cpu_initialization=True`) to GPU, which is to avoid
             # out-of-memory carash before sharding. In case of GPU-initialized model, this is no-op.
             self.model = self.model.cuda(torch.cuda.current_device())
 
-    def megatron_timer_start(self, name, log_level): # pylint: disable=missing-function-docstring
+    def megatron_timer_start(self, name, log_level):  # pylint: disable=missing-function-docstring
         if self.megatron_timers:
             self.megatron_timers(name, log_level).start(barrier=False)
 
-    def megatron_timer_stop(self, name): # pylint: disable=missing-function-docstring
+    def megatron_timer_stop(self, name):  # pylint: disable=missing-function-docstring
         if self.megatron_timers:
             self.megatron_timers(name).stop()
 
-    def optimizer_step(self, *args, **kwargs): # pylint: disable=missing-function-docstring
+    def optimizer_step(self, *args, **kwargs):  # pylint: disable=missing-function-docstring
         self.megatron_timer_start('optimizer', log_level=1)
         super().optimizer_step(*args, **kwargs)
         self.megatron_timer_stop('optimizer')
