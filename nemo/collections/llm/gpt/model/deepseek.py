@@ -21,6 +21,7 @@ import re
 import torch
 import torch.nn.functional as F
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
+from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
 from torch import nn
 
@@ -131,6 +132,27 @@ class DeepSeekV2ConfigDebug(DeepSeekV2Config):
     num_layers: int = 2
     moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0, 1])  # first layer is dense
 
+@dataclass
+class DeepSeekV2LiteConfig(DeepSeekV2Config):
+    """
+    DeepSeek-V2-Lite Model: https://github.com/deepseek-ai/DeepSeek-V2
+    HuggingFace: https://huggingface.co/deepseek-ai/DeepSeek-V2-Lite
+    """
+
+    num_layers: int = 27
+    hidden_size: int = 2048
+    ffn_hidden_size: int = 10944
+    num_attention_heads: int = 16
+    kv_channels: int = 16
+    q_lora_rank: int = None
+    num_moe_experts: int = 64
+    moe_ffn_hidden_size: int = 1408
+    moe_shared_expert_intermediate_size: int = 2816  # 1408 * 2 shared experts
+    moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0] + [1] * 26)  # first layer is dense
+    moe_router_topk: int = 6
+    moe_router_num_groups: int = 1
+    moe_router_group_topk: int = 1
+    moe_router_topk_scaling_factor: float = 1.0
 
 @dataclass
 class DeepSeekV3Config(DeepSeekConfig):
@@ -202,7 +224,6 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         from transformers import AutoModelForCausalLM
 
         source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
-        source = self._modify_source_state(source)
         target = self.init()
         trainer = self.nemo_setup(target, ckpt_torch_dist_multiproc=32, ckpt_async_save=False)
         self.convert_state(source, target)
@@ -283,6 +304,24 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             "model.norm.weight": "decoder.final_layernorm.weight",
             "lm_head.weight": "output_layer.weight",
         }
+        # For lite model
+        if self.config.q_lora_rank is None:
+            del mapping["model.layers.*.self_attn.q_a_proj.weight"]
+            del mapping["model.layers.*.self_attn.q_b_proj.weight"]
+            mapping["model.layers.*.self_attn.q_proj.weight"] = "decoder.layers.*.self_attention.linear_q_proj.weight"
+        # Account for Mcore local spec
+        if (self.config.q_lora_rank is not None and
+                not isinstance(target.module.decoder.layers[0].self_attention.q_layernorm, IdentityOp)):
+            mapping["model.layers.*.self_attn.q_a_layernorm.weight"] = "decoder.layers.*.self_attention.q_layernorm.weight"
+
+        if not isinstance(target.module.decoder.layers[0].self_attention.kv_layernorm, IdentityOp):
+            mapping["model.layers.*.self_attn.kv_a_layernorm.weight"] = "decoder.layers.*.self_attention.kv_layernorm.weight"
+
+        if not isinstance(target.module.decoder.layers[0].pre_mlp_layernorm, IdentityOp):
+            del mapping["model.layers.*.dense-post_attention_layernorm.weight"]
+        else:
+            source = self._modify_source_state(source)
+
         if hasattr(self.config, "moe_router_enable_expert_bias") and self.config.moe_router_enable_expert_bias:
             mapping.update(
                 {
@@ -348,6 +387,9 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
+            num_attention_heads=source.num_attention_heads,
+            kv_channels=source.num_key_value_heads,
+            q_lora_rank=source.q_lora_rank,
             num_moe_experts=source.n_routed_experts,
             moe_ffn_hidden_size=source.moe_intermediate_size,
             moe_shared_expert_intermediate_size=source.moe_intermediate_size * source.n_shared_experts,
