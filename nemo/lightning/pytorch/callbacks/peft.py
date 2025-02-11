@@ -26,7 +26,8 @@ from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.trainer.states import TrainerFn
 from typing_extensions import override
 
-from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, HF_ADAPTER_PATH, HF_ADAPTER_CONFIG_FILENAME
+
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
@@ -418,14 +419,16 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
 
         if is_global_rank_zero():
             base_dir = ckpt_to_weights_subdir(path, is_saving=True)
-            base_dir.mkdir(parents=True, exist_ok=True)
 
             from nemo.lightning.io.hf import HFCheckpointIO
 
             if isinstance(self.checkpoint_io, HFCheckpointIO):
                 metadata = self._create_lora_hf_config(ckpt_keys)
-                adapter_meta_path = base_dir / "adapter_config.json"
+                hf_adapter_base = base_dir.parent / HF_ADAPTER_PATH
+                hf_adapter_base.mkdir(parents=True, exist_ok=True)
+                adapter_meta_path = hf_adapter_base / HF_ADAPTER_CONFIG_FILENAME
             else:
+                base_dir.mkdir(parents=True, exist_ok=True)
                 metadata = {"model_ckpt_path": str(self.model_ckpt_path)}
                 adapter_meta_path = base_dir / ADAPTER_META_FILENAME
 
@@ -540,20 +543,23 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
 
         assert self.checkpoint_io is not None
 
-        adapter_meta_path = ckpt_to_dir(path) / ADAPTER_META_FILENAME
         adapter_ckpt = None
+        base = ckpt_to_dir(path)
         if getattr(path, "base_model_path", None):
             # PEFT Resume, FIRST TIME
             self.adapter_ckpt_path = Path(str(path))
             adapter_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict={})  # Loads only metadata
             # path is adapter path to restore the training metadata, but switch to loading base model here.
             path = self.model_ckpt_path = path.base_model_path
-        elif adapter_meta_path.exists():
+        elif (adapter_meta_path := base / ADAPTER_META_FILENAME).exists():
             # PEFT Resume, SECOND TIME
             with open(adapter_meta_path, "r") as f:
                 metadata = json.load(f)
             self.model_ckpt_path = Path(metadata['model_ckpt_path'])
             self.adapter_ckpt_path = path
+        elif (hf_adapter_meta_path := base / HF_ADAPTER_CONFIG_FILENAME).exists():
+            raise NotImplementedError()
+            # return self.checkpoint_io.load_checkpoint(base)
         else:
             # Initial PEFT Training
             self.model_ckpt_path = path

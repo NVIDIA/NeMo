@@ -17,10 +17,13 @@ from typing import Union
 
 # NeMo2 checkpoint structure is a checkpoint directory, with a WEIGHTS_PATH and CONTEXT_PATH subdirectory structure.
 #  WEIGHTS_PATH stores the weights while CONTEXT_PATH stores the hyper-parameters.
-WEIGHTS_PATH: str = "weights"
+WEIGHTS_PATH: str = "weight1s"
 CONTEXT_PATH: str = "context"
 ADAPTER_META_FILENAME = "adapter_metadata.json"
 
+HF_WEIGHTS_PATH: str = "hf_weights"
+HF_ADAPTER_PATH: str = "hf_adapter"
+HF_ADAPTER_CONFIG_FILENAME = "adapter_config.json"
 
 def idempotent_path_append(base_dir: Union[str, Path], suffix) -> Path:
     from nemo.lightning.resume import AdapterPath

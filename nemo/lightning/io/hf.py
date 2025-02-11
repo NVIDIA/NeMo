@@ -25,7 +25,8 @@ from lightning.fabric.utilities.types import _PATH
 from torch import nn
 from typing_extensions import override
 
-from nemo.lightning.ckpt_utils import WEIGHTS_PATH
+from nemo.lightning.ckpt_utils import WEIGHTS_PATH, HF_WEIGHTS_PATH, HF_ADAPTER_PATH, HF_ADAPTER_CONFIG_FILENAME
+
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
@@ -82,31 +83,35 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         assert is_rank_0(), "Expected to run only on rank=0"
         # Determine checkpoint directory & make dir
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
-        fs = get_filesystem(checkpoint_dir)
-        fs.makedirs(checkpoint_dir, exist_ok=True)
-
         assert checkpoint_dir.parts[-1] == WEIGHTS_PATH, "Expected % to end with %".format(
             checkpoint_dir, WEIGHTS_PATH
         )
+        # remove the WEIGHTS_PATH suffix
+        checkpoint_dir = checkpoint_dir.parent
+        fs = get_filesystem(checkpoint_dir)
+        fs.makedirs(checkpoint_dir, exist_ok=True)
 
         if self.adapter_only:
             # In this case the output looks like the following:
-            # default--reduced_train_loss=0.0112-epoch=2-step=3
+            # default--reduced_train_loss=0.0112-epoch=2-step=3/
             # ├── context
-            # │   ├── 0b9ee504-0ab7-4470-911b-cf7fc0223cde
+            # │   ├── 10e845ad-f676-482e-b6d1-669e911cfaf8
             # │   ├── io.json
             # │   └── model.yaml
+            # ├── hf_adapter
+            # │   ├── adapter_config.json
+            # │   └── adapter_model.safetensors
             # ├── trainer.pt
             # └── weights
-            #     ├── adapter_config.json
-            #     └── adapter_model.safetensors
             # Where the `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
-            # The `weights` directory contains the adapter's state dict, in HF format.
-            self._save_adapter_weights_only(checkpoint.pop('state_dict'), checkpoint_dir, storage_options)
-            torch.save(checkpoint, checkpoint_dir.parent / 'trainer.pt')
+            # The `hf_adapter` directory contains the adapter's state dict, in HF format.
+            adapter_path = checkpoint_dir / HF_ADAPTER_PATH
+            adapter_path.mkdir(exist_ok=True)
+            self._save_adapter_weights_only(checkpoint.pop('state_dict'), adapter_path, storage_options)
+            torch.save(checkpoint, checkpoint_dir / 'trainer.pt')
         elif callable(getattr(self.model, 'save_pretrained', None)):
             # In this case the output looks like the following:
-            # default--reduced_train_loss=0.0112-epoch=2-step=3
+            # default--reduced_train_loss=0.0112-epoch=2-step=3/
             # ├── weights
             # │   ├── config.json
             # │   ├── generation_config.json
@@ -117,8 +122,9 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             # └── trainer.pt
             # Where the `weights` directory contains the model's state dict, in HF format.
             # The `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
-            self.model.save_pretrained(checkpoint_dir, state_dict=checkpoint.pop('state_dict'))
-            torch.save(checkpoint, checkpoint_dir.parent / 'trainer.pt')
+            hf_weights_path = checkpoint_dir / HF_WEIGHTS_PATH
+            self.model.save_pretrained(hf_weights_path, state_dict=checkpoint.pop('state_dict'))
+            torch.save(checkpoint, checkpoint_dir / 'trainer.pt')
         else:
             super().save_checkpoint(checkpoint, path, storage_options)
             raise NotImplementedError("Checkpoint was saved at: " + str(path))
@@ -185,7 +191,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         adapter_file = Path(path) / "adapter_model.safetensors"
         if not adapter_file.exists():
             raise FileNotFoundError("Adapter weights file not found: %", adapter_file)
-        config_file = Path(path) / "adapter_config.json"
+        config_file = Path(path) / HF_ADAPTER_CONFIG_FILENAME
         if not config_file.exists():
             raise FileNotFoundError("Adapter config file not found: %", config_file)
 
@@ -223,7 +229,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
 
         """
         path = Path(path)
-        assert path.parts[-1] == WEIGHTS_PATH, "Expected % to end with %".format(path, WEIGHTS_PATH)
+        assert path.parts[-1] == HF_WEIGHTS_PATH, "Expected % to end with %".format(path, HF_WEIGHTS_PATH)
         trainer_state = {}
 
         if not (path.parent / 'trainer.pt').exists():
@@ -237,7 +243,8 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             )
 
         if self.adapter_only:
-            trainer_state |= HFCheckpointIO._load_adapter_weights_only(path)
+            adapter_path = path.parent / HF_ADAPTER_PATH
+            trainer_state |= HFCheckpointIO._load_adapter_weights_only(adapter_path)
         elif callable(getattr(self.model, 'load_pretrained', None)):
             trainer_state['state_dict'] = self.model.load_pretrained(path)
         else:
