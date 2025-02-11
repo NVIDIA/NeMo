@@ -3767,7 +3767,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_SFT_FSDP2')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: self-hosted-azure-gpus
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/sft_fsdp2.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
       AFTER_SCRIPT: |
@@ -4959,7 +4959,6 @@ jobs:
         --mbs 1 \
         --model mistral \
         --dist-opt
-
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude:
     needs: [pre-flight, cicd-test-container-build]
