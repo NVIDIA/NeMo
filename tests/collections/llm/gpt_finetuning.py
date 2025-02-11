@@ -26,7 +26,8 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from tests.collections.llm.common import Llama3ConfigCI
 
 ## NOTE: This script is present for github-actions testing only.
-
+## CI tests that call this script should set max_steps=3 for initial training
+## and max_steps=6 for resume testing
 
 def get_args():
     parser = argparse.ArgumentParser(description='Finetune a small GPT model using NeMo 2.0')
@@ -141,6 +142,12 @@ if __name__ == '__main__':
         resume=resume,
     )
 
+    if args.max_steps == 3:
+        print("Initial Training Succeeded")
     if args.max_steps == 6:
         # assert a resume has happened for CI tests
-        assert 'reduced_train_loss=' in str(trainer.ckpt_path), "Resume did not happen in this resume test."
+        msg = ("Resume did not happen in this resume test.\n"
+               "Hint: Scroll up and see whether 'Initial Training Succeeded' is printed out.\n"
+               "If not, then the issue is not with ckpt resume.")
+        assert 'reduced_train_loss=' in str(trainer.ckpt_path), msg
+
