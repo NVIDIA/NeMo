@@ -384,6 +384,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         else:
             v3_kwargs = {}
         return DeepSeekConfig(
+            transformer_layer_spec=partial(get_gpt_decoder_block_spec, use_transformer_engine=False),
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
