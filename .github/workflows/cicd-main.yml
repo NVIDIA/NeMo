@@ -5322,7 +5322,7 @@ jobs:
       - L2_HF_Transformer_PEFT
       - L2_HF_Transformer_PEFT_nemorun
       - L2_HF_Transformer_PEFT_2gpu
-      #- L2_HF_Transformer_PEFT_2gpu_FSDP2
+      - L2_HF_Transformer_PEFT_2gpu_FSDP2
       - L2_HF_Transformer_PEFT_2gpu_nemorun
       - L2_HF_Transformer_SFT
       - L2_HF_Transformer_SFT_nemorun
