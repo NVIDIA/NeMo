@@ -228,26 +228,28 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
 
         """
         path = Path(path)
-        assert path.parts[-1] == HF_WEIGHTS_PATH, "Expected % to end with %".format(path, HF_WEIGHTS_PATH)
+        assert path.parts[-1] != HF_WEIGHTS_PATH, f"Expected {path} not to end with {HF_WEIGHTS_PATH}"
         trainer_state = {}
 
-        if not (path.parent / 'trainer.pt').exists():
+        if not (path / 'trainer.pt').exists():
             logging.info("Asked to restore from checkpoint without trainer state at %", path)
         else:
             trainer_state = torch.load(
-                path.parent / 'trainer.pt',
+                path / 'trainer.pt',
                 map_location='cpu',
                 mmap=True,
                 weights_only=False,
             )
 
         if self.adapter_only:
-            adapter_path = path.parent / HF_ADAPTER_PATH
+            adapter_path = path / HF_ADAPTER_PATH
             trainer_state |= HFCheckpointIO._load_adapter_weights_only(adapter_path)
         elif callable(getattr(self.model, 'load_pretrained', None)):
             trainer_state['state_dict'] = self.model.load_pretrained(path)
         else:
-            raise ValueError("Badio")
+            raise RuntimeError("Checkpoint load has failed: 'load_pretrained' is not defined for "
+            "this model and 'adapter_only' is disabled. Please implement 'load_pretrained' or "
+            "switch to 'adapter_only' mode.")
 
         return trainer_state
 
