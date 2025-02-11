@@ -20,7 +20,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm import distillation as distill
+from nemo.collections.llm import distillation
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
@@ -85,11 +85,13 @@ if __name__ == "__main__":
     ## Load both models and combine into an aggregate module
     _student_model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
     _teacher_model = nl.io.load_context(path=ckpt_to_context_subdir(args.teacher_path), subpath="model")
+    assert isinstance(_student_model, llm.GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+    assert isinstance(_teacher_model, llm.GPTModel), "Only models based on `llm.GPTModel` are supported currently."
 
     tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
     assert tokenizer is not None, "Please provide a model checkpoint with tokenizer included."
 
-    model = distill.DistillationGPTModel(
+    model = distillation.DistillationGPTModel(
         _student_model.config,
         _teacher_model.config,
         teacher_ckpt_path=args.teacher_path,
@@ -110,7 +112,7 @@ if __name__ == "__main__":
     )
 
     ## Set up optimizer
-    opt_config = OptimizerConfig(
+    optim_config = OptimizerConfig(
         optimizer="adam",
         lr=args.lr,
         bf16=("bf16" in args.precision),
@@ -122,7 +124,7 @@ if __name__ == "__main__":
         constant_steps=0,
         min_lr=args.min_lr,
     )
-    opt = nl.MegatronOptimizerModule(opt_config, sched)
+    optim = nl.MegatronOptimizerModule(optim_config, sched)
 
     # Set up checkpointing and logging
     checkpoint_callback = ModelCheckpoint(
@@ -149,7 +151,7 @@ if __name__ == "__main__":
     llm.train(
         model=model,
         data=data,
-        optim=opt,
+        optim=optim,
         tokenizer="model",
         trainer=trainer,
         log=logger,
