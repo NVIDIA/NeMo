@@ -81,7 +81,7 @@ class AsyncCompatibleCheckpointIO(CheckpointIO, ABC):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
     ) -> 'AsyncRequest':
-        """ Interface to implement save_checkpoint and return an AsyncRequest"""
+        """Interface to implement save_checkpoint and return an AsyncRequest"""
         raise NotImplementedError
 
 
@@ -171,15 +171,15 @@ class AsyncFinalizerCallback(Callback):
     """
 
     def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        """ Override hook to finalize pending checkpoint(s) if they exist."""
+        """Override hook to finalize pending checkpoint(s) if they exist."""
         self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
 
     def on_train_epoch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        """ Override hook to finalize pending checkpoint(s) if they exist."""
+        """Override hook to finalize pending checkpoint(s) if they exist."""
         self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
 
     def on_train_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        """ Override hook to finalize pending checkpoint(s) if they exist."""
+        """Override hook to finalize pending checkpoint(s) if they exist."""
         checkpoint_io = self._get_checkpoint_io(trainer)
         if checkpoint_io.async_calls_queue.get_num_unfinalized_calls() > 0:
             logging.info('Pending async checkpoint saves. Finalizing them synchronously now')
@@ -392,7 +392,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         return ret
 
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
-        """ Remove unexpected keys from being loaded into the state dict. """
+        """Remove unexpected keys from being loaded into the state dict."""
         ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
         loaded_keys = []
         unexpected_keys = []
@@ -425,7 +425,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
     @property
     def save_sharded_strategy(self) -> 'SaveShardedStrategy':
-        """ Conditionally initialize and get the sharded strategy to use for saving. """
+        """Conditionally initialize and get the sharded strategy to use for saving."""
         if self._save_sharded_strategy is None:
             self._save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
         return self._save_sharded_strategy
