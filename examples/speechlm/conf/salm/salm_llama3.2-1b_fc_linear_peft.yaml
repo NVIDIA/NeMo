@@ -94,7 +94,7 @@ data:
     write_predictions_to_file: False
     # ASR configs
     sample_rate: ${data.common.sample_rate}
-    audio_locator: ${data.train_ds.audio_locator}
+    audio_locator: ${data.common.audio_locator}
     prompt_format: ${data.common.prompt_format}
 
     log_every_n_steps: 10
