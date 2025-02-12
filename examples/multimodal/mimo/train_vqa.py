@@ -65,7 +65,7 @@ def main(args):
         vocab_size=tokenizer.vocab_size,
         image_special_token_indices=image_special_token_indices,
         image_special_tokens=image_special_tokens,
-        freeze_language_model=False,
+        freeze_language_model=args.freeze_language_model,
         language_model_path=args.language_model_path,
         vision_model_path=args.vision_model_path,
     )
@@ -114,7 +114,7 @@ def main(args):
     # Auto resume setup
     resume = nl.AutoResume(
         resume_if_exists=True,
-        resume_ignore_no_checkpoint=False,
+        resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
         restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
     )
@@ -132,7 +132,7 @@ def main(args):
         max_steps=trainer.max_steps,
         warmup_steps=150,
         constant_steps=0,
-        min_lr=1.0e-07,
+        min_lr=args.min_lr,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
 
@@ -165,10 +165,12 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=16, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-6, help="Learning rate")
+    parser.add_argument("--min_lr", type=float, required=False, default=2.0e-7, help="Learning rate")
 
     parser.add_argument("--data_path", type=str, required=True)
     parser.add_argument("--language_model_path", type=str, required=False, default=None)
     parser.add_argument("--max_steps", type=int, required=False, default=2500)
     parser.add_argument("--vision_model_path", type=str, required=False, default=None)
+    parser.add_argument("--freeze_language_model", type=bool, required=False, default=True)
     args = parser.parse_args()
     main(args)
