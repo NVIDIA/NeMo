@@ -33,7 +33,7 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    etp_size: int,
+    etp_size: Optional[int],
 ):
     """
     mixtral 8x22b pre-train recipe aimed at achieving best possible performance.
@@ -67,8 +67,9 @@ def override_recipe_configs(
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     # to mitigate the incorrect gradient_scaling_factor calculation in megatron.core
-    # under scenario average_in_collective=True and etp_size>1, disabling average_in_collective.
-    recipe.trainer.strategy.ddp.average_in_collective = False
+    # under scenario average_in_collective=True and tp_size != etp_size, disabling average_in_collective.
+    if etp_size is not None and etp_size != tp_size:
+        recipe.trainer.strategy.ddp.average_in_collective = False
 
     return recipe
 

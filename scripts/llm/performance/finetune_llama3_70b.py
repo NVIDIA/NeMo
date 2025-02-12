@@ -50,7 +50,6 @@ def override_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
-    recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
     gpu_type = args.gpu.lower()
     if gpu_type in ["gb200"] and finetuning_scheme == "lora":
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, seq_length=2048)
