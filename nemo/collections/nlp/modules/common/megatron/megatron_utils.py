@@ -99,7 +99,7 @@ MEGATRON_CONFIG_MAP = {
 
 
 def compute_model_parallel_rank(local_rank: int, model_parallel_size: int) -> int:
-    """ Calculates the model_parallel_rank from the local rank and the model parallel size
+    """Calculates the model_parallel_rank from the local rank and the model parallel size
 
     Args:
         local_rank (int): The local rank of the process.
@@ -112,7 +112,7 @@ def compute_model_parallel_rank(local_rank: int, model_parallel_size: int) -> in
 
 
 def get_megatron_pretrained_bert_models() -> List[str]:
-    """ Retrieves the names of all available pretrained Megatron-BERT models.
+    """Retrieves the names of all available pretrained Megatron-BERT models.
 
     This function uses the NeMo MegatronBertModel class to list all available
     pretrained model configurations, extracting each model's name.
