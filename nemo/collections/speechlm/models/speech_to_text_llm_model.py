@@ -722,12 +722,11 @@ class SpeechToTextLLM(SpeechLanguageModel):
         forward_output = self.forward_step(batch)
 
         if isinstance(forward_output, tuple):
-            loss, mask = forward_output
-            loss = loss * mask
+            # reduce validation loss
+            loss = self.validation_loss_reduction.forward(batch=batch, forward_out=forward_output)[1]['avg']
         else:
-            loss = forward_output
-        # reduce loss of shape [B,T] in time dimension
-        loss = loss.mean(dim=-1)
+            # no labels provided, use a dummy loss value
+            loss = 0.0
 
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
         preds_text = []
