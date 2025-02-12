@@ -68,7 +68,9 @@ class MimoLossReduction(MaskedTokenLossReduction):
 
             total_loss = total_loss + gen_loss
             token_loss_info['avg'] = token_loss_info['avg'] + reduced_gen_l2_loss
-        logging.info(f"token_loss: {just_token_loss}, l2_loss: {reduced_l2_loss}, gen_loss: {reduced_gen_l2_loss}")
+            logging.info(f"token_loss: {just_token_loss}, l2_loss: {reduced_l2_loss}, gen_loss: {reduced_gen_l2_loss}")
+        else:
+            logging.info(f"token_loss: {just_token_loss}, l2_loss: {reduced_l2_loss}")
         if self.logger:
             self.logger.log_metrics({'token_loss': just_token_loss})
             self.logger.log_metrics({'l2_loss': l2_loss})
