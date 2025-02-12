@@ -1031,7 +1031,7 @@ class NLPFSDPStrategy(FSDPStrategy):
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
-    """ Custom connector to support saving and restoring states. """
+    """Custom connector to support saving and restoring states."""
 
     def __init__(self) -> None:
         if not HAVE_APEX:
