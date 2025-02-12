@@ -52,6 +52,9 @@ def override_recipe_configs(
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
     gpu_type = args.gpu.lower()
     if gpu_type in ["gb200"] and finetuning_scheme == "lora":
+        # On GB200 for lora task, we need to enable Cuda Graph for optimal performance.
+        # However, Cuda Graph increases memory usage, so in order to avoid OOM, we need
+        # to reduce the sequence length.
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, seq_length=2048)
     else:
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
