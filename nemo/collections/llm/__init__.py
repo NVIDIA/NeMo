@@ -306,14 +306,14 @@ except ImportError as error:
     logging.warning(f"Failed to import nemo.collections.llm.[api,recipes]: {error}")
 
 try:
-    from nemo.collections.llm.api import deploy
+    from nemo.collections.llm.api import deploy  # noqa: F401
 
     __all__.append("deploy")
 except ImportError as error:
     logging.warning(f"The deploy module could not be imported: {error}")
 
 try:
-    from nemo.collections.llm.api import evaluate
+    from nemo.collections.llm.api import evaluate  # noqa: F401
 
     __all__.append("evaluate")
 except ImportError as error:
