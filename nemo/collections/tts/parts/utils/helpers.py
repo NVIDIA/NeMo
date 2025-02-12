@@ -42,6 +42,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import io
 from enum import Enum
 from typing import Optional, Tuple
 
@@ -632,10 +633,15 @@ def plot_gate_outputs_to_numpy(gate_targets, gate_outputs):
 
 
 def save_figure_to_numpy(fig):
+    # buf = io.BytesIO()
+    # plt.savefig(buf, format='png')
+    # plt.close(figure)
+    # buf.seek(0)
     # save it to a numpy array.
-    data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    return data
+    # data = np.fromstring(fig.canvas.buffer_rgba(), dtype=np.uint8, sep='')
+    # data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    img_array = np.array(fig.canvas.renderer.buffer_rgba())
+    return img_array
 
 
 @rank_zero_only
