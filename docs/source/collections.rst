@@ -15,26 +15,6 @@ Documentation for the individual collections
 
 .. toctree::
    :maxdepth: 1
-   :caption: Multimodal Models (MMs)
-   :name: Multimodal
-   :titlesonly:
-
-   multimodal/mllm/intro
-   multimodal/vlm/intro
-   multimodal/text2img/intro
-   multimodal/nerf/intro
-   multimodal/speech_llm/intro
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Vision (CV)
-   :name: vision
-   :titlesonly:
-
-   vision/intro
-
-.. toctree::
-   :maxdepth: 1
    :caption: Speech AI
    :name: Speech AI
    :titlesonly:
