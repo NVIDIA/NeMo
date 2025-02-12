@@ -148,7 +148,7 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
 class CLIPViTConfig(TransformerConfig, io.IOMixin):
     ln_pre_impl: Union[ModuleSpec, type] = TENorm
     ln_post_impl: Union[ModuleSpec, type] = TENorm
-    add_class_token: bool = True
+    add_class_token: bool = False
     class_token_len: int = 1
     patch_dim: int = 14
     img_h: int = 336

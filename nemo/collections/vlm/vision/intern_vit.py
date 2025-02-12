@@ -32,6 +32,7 @@ from megatron.core.parallel_state import (
 )
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
@@ -254,31 +255,31 @@ class InternViTTEDotProductAttention(TEDotProductAttention):
 
 def get_internvit_layer_spec(use_te, add_qk_norm=True, norm_type="RMSNorm") -> ModuleSpec:
     NORM2FN = {
-        'RMSNorm': InternViTRMSNorm,
+        'RMSNorm': TENorm,
         'LayerNorm': TENorm,
     }
 
     mlp = get_mlp_module_spec(use_te)  # no norm
 
     return ModuleSpec(
-        module=InternViTTransformerLayer,
+        module=TransformerLayer,
         submodules=TransformerLayerSubmodules(
-            input_layernorm=NORM2FN[norm_type],
+            input_layernorm=TENorm,
             self_attention=ModuleSpec(
-                module=InternViTSelfAttention,
+                module=SelfAttention,
                 params={"attn_mask_type": AttnMaskType.no_mask},
                 submodules=SelfAttentionSubmodules(
                     linear_qkv=TEColumnParallelLinear if use_te else ColumnParallelLinear,
                     core_attention=TEDotProductAttention if use_te else DotProductAttention,
                     linear_proj=TERowParallelLinear if use_te else RowParallelLinear,
-                    q_layernorm=NORM2FN[norm_type] if add_qk_norm else IdentityOp,
-                    k_layernorm=NORM2FN[norm_type] if add_qk_norm else IdentityOp,
+                    q_layernorm=TENorm if add_qk_norm else IdentityOp,
+                    k_layernorm=TENorm if add_qk_norm else IdentityOp,
                 ),
             ),
-            self_attn_bda=get_bias_dropout_add_internvit,
-            pre_mlp_layernorm=NORM2FN[norm_type],
+            self_attn_bda=get_bias_dropout_add,
+            pre_mlp_layernorm=TENorm,
             mlp=mlp,
-            mlp_bda=get_bias_dropout_add_internvit,
+            mlp_bda=get_bias_dropout_add,
         ),
     )
 
@@ -287,8 +288,8 @@ def get_internvit_layer_spec(use_te, add_qk_norm=True, norm_type="RMSNorm") -> M
 class InternViTConfig(CLIPViTConfig):
     vision_model_type: str = "internvit"
     patch_dim: int = 14
-    img_h: int = 448
-    img_w: int = 448
+    img_h: int = 336
+    img_w: int = 336
     num_layers: int = 45
     num_attention_heads: int = 25
     num_query_groups: int = 25

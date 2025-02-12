@@ -217,11 +217,15 @@ class NevaConfig(TransformerConfig, io.IOMixin):
                 self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
                 self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
+        if self.encoder_pipeline_model_parallel_size == 0:
+            pre_process = ps.is_pipeline_first_stage()
+        else:
+            # assert no vp here #TODO
+            pre_process = ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size
         model = MCoreNevaModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage()
-            or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
+            pre_process=pre_process,
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
             add_decoder=ps.is_pipeline_last_stage()
@@ -262,6 +266,7 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
                     ctx.decoder_emb_index = index
                     ctx.decoder_emb_seqlen = data.size(1)
                 batch[key] = data.index_select(1, index)
+                batch[key].requires_grad = data.requires_grad
 
         return batch
 
@@ -490,17 +495,15 @@ class MCoreNevaModel(MCoreLLaVAModel):
             else:
                 # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
                 image_embeddings = self.vision_model(images, num_unused_layers=-self.config.vision_feature_layer - 1)
-            if self._drop_vision_class_token:
-                class_token_len = getattr(self.vision_model, "class_token_len", 1)
-                image_embeddings = image_embeddings[:, class_token_len:, :]
+            # if self._drop_vision_class_token:
+            #     class_token_len = getattr(self.vision_model, "class_token_len", 1)
+            #     image_embeddings = image_embeddings[:, class_token_len:, :]
 
             # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
             image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
 
             # map vision model output size to language model input size.
-            # print(f"fc1 weight: {self.vision_projection.encoder.linear_fc1.weight} fc2_weight: {self.vision_projection.encoder.linear_fc2.weight}")
             image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
-            # print(f"image_embeddings after projection: {image_embeddings}")
 
             # image_embeddings = PrintGradFunction.apply(image_embeddings)
 
