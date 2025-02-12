@@ -257,6 +257,7 @@ class NLPDDPStrategy(DDPStrategy):
             assert self.model is not None
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
+        """ Set up distributed environment. """
         # call PTL init ddp
         super().setup_distributed()
 
@@ -392,13 +393,13 @@ class NLPDDPStrategy(DDPStrategy):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
-        app_state = AppState()
         """ PTL method which we override to accomodate distributed checkpoints and
             the legacy model parallel checkpoints.
 
             When using megatron core, the distributed checkpointing library expects save functions to be
             called on every rank and internally does the rank checking.
         """
+        app_state = AppState()
         # check if using distributed checkpointing
         if self.use_distributed_checkpointing:
             # Check whether to save optim states
@@ -435,6 +436,7 @@ class NLPDDPStrategy(DDPStrategy):
     # PTL 2.2 supports non strict loading of the ckpt with the strict arg
     # (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
+        """ Load lightning module state dict. """
         # if using distributed checkpointing, the state dict logic is at the model level
         if self.use_distributed_checkpointing:
             return
@@ -598,8 +600,12 @@ class NLPDDPStrategy(DDPStrategy):
             start_time = time.monotonic()
             checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path)
             end_time = time.monotonic()
+            duration = end_time - start_time
             logging.info(
-                f'Global Checkpoint Load: Rank : {app_state.global_rank} : Start time : {start_time} s : Time spent in load_checkpoint: {end_time - start_time} s'
+                f"Global Checkpoint Load : "
+                f"Rank : {app_state.global_rank} : "
+                f"Start time : {start_time:.3f}s : "
+                f"Time spent in load_checkpoint: {duration:.3f}s"
             )
             return checkpoint
 
@@ -624,6 +630,7 @@ class NLPDDPStrategy(DDPStrategy):
         return checkpoint
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        """ Delete checkpoint saved at filepath. """
         # check if filepath is a distributed checkpoint
         if self.use_distributed_checkpointing:
             if self.is_global_zero:
@@ -640,6 +647,7 @@ class NLPDDPStrategy(DDPStrategy):
 
     @property
     def use_distributed_checkpointing(self):
+        """ Whether to use distributed checkpointing from megatron core."""
         has_dist_ckpt_io = HAVE_MEGATRON_CORE and isinstance(self.unwrapped_checkpoint_io, DistributedCheckpointIO)
         has_sharded_state_dict = (
             hasattr(self.lightning_module, 'sharded_state_dict')
@@ -659,6 +667,7 @@ class NLPDDPStrategy(DDPStrategy):
 
     @property
     def distributed_sampler_kwargs(self):
+        """ Provide distributed sampler kwargs. """
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             # When using model parallel, data parallel groups are non-trivial and they
@@ -902,6 +911,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         return optim_state_dict
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict=None) -> None:
+        """ Load lightning module states from checkpoint. """
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
         # half-precision module wrapper module.
         # TODO: Refactor this to be more generic.
@@ -1040,6 +1050,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         super().__init__()
 
     def save_to(self, model, save_path: str):
+        """ Save model to save path."""
         app_state = AppState()
 
         # Check if using distributed checkpointing
@@ -1167,6 +1178,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             return super().save_to(model, save_path)
 
     def modify_state_dict(self, conf, state_dict):
+        """ Remap keys in state dict. """
         if conf.get('megatron_legacy', False):
             new_state_dict = {}
             for key in state_dict.keys():
@@ -1720,6 +1732,7 @@ class MegatronHalfPrecisionPlugin(MixedPrecisionPlugin):
         closure: Callable[[], Any],
         **kwargs: Any,
     ) -> None:
+        """ Run optimizer step and scale gradients, if necessary. """
         assert isinstance(
             optimizer, MainParamsOptimizerWrapper
         ), "MegatronHalfPrecisionPlugin supports only the optimizer with master parameters"
@@ -1802,6 +1815,7 @@ class CustomProgressBar(TQDMProgressBar):
         return self.bar
 
     def on_train_epoch_start(self, trainer, *_):
+        """ Override parent class on_train_epoch_start to initialize the progress bar state. """
         # Use trainer.max_steps as the num_training_batches since len(dataloader) aka num_training_batches
         # is returned as the total num of micro batches instead of total num of global batches with this PR:
         # https://github.com/NVIDIA/NeMo/pull/8426
