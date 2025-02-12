@@ -94,11 +94,7 @@ try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.utils import (
-        drain_embedding_wgrad_compute,
-        get_model_config,
-        is_te_min_version,
-    )
+    from megatron.core.utils import drain_embedding_wgrad_compute, get_model_config, is_te_min_version
 
     HAVE_MEGATRON_CORE = True
 
@@ -137,7 +133,7 @@ def mcore_supports_moe() -> bool:
     if not HAVE_MEGATRON_CORE:
         return False
     try:
-        from megatron.core.transformer.moe.router import TopKRouter # noqa: F401
+        from megatron.core.transformer.moe.router import TopKRouter  # noqa: F401
 
         return True
     except ImportError:
@@ -1042,11 +1038,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.rampup_batch_size:
             self.prev_global_batch_size = current_global_batch_size
             self.prev_consumed_samples = consumed_samples
-            num_microbatch_calculator.update( # noqa: F821
+            num_microbatch_calculator.update(  # noqa: F821
                 consumed_samples=consumed_samples,
                 consistency_check=False,
             )
-            current_global_batch_size = num_microbatch_calculator.current_global_batch_size # noqa: F821
+            current_global_batch_size = num_microbatch_calculator.current_global_batch_size  # noqa: F821
             self.log('global_batch_size', current_global_batch_size, prog_bar=True, rank_zero_only=True, batch_size=1)
             self.if_first_step = 1
 
@@ -1970,7 +1966,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         result.append(
             PretrainedModelInfo(
                 pretrained_model_name="megatron_gpt_345m",
-                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_gpt_345m/versions/1/files/megatron_gpt_345m.nemo", # pylint: disable=line-too-long
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_gpt_345m/versions/1/files/megatron_gpt_345m.nemo",  # pylint: disable=line-too-long
                 description="345M parameter GPT generative Megatron model.",
             )
         )
