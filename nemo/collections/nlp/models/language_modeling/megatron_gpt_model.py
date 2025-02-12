@@ -2195,11 +2195,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
 
-        if self.cfg.num_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
-            raise ValueError(
-                f"num_layers ({self.cfg.num_layers}) should be divisible by "
-                f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})"
-            )
+        # TODO(yifu): add proper check with num_layers_in_first_pipeline_stage and num_layers_in_last_pipeline_stage
+        # if self.cfg.num_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
+        #     raise ValueError(
+        #         f"num_layers ({self.cfg.num_layers}) should be divisible by "
+        #         f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})"
+        #     )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p' or self.cfg.get(
