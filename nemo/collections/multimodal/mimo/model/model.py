@@ -91,18 +91,28 @@ class MimoModel(NevaModel, L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
             image_token_mask=image_token_mask,
         )
 
-        if self.trainer.global_step % 50 == 0 and self.config.stage in ['decoder_alignment']:
+        if torch.distributed.is_initialized():
+            current_rank = torch.distributed.get_rank()
+        else:
+            current_rank = None
+        current_rank = torch.distributed.get_rank()
+        logging_condition = (
+            self.trainer.training
+            and current_rank == 0
+            and self.trainer.global_step % 250 == 0
+            and self.config.stage in ['decoder_alignment']
+        )
+        if logging_condition:
             if self.wandb_logger is not None:
                 image_caption_embeddings = output_tensor['image_caption_embeddings']
                 output_projection_embeddings = output_tensor['output_projection_embeddings']
 
                 with torch.no_grad():
                     image_decoder = self.module.module.image_decoder
-                    actual_images = image_decoder(prompt_embeds=image_caption_embeddings).images
-                    predicted_images = image_decoder(prompt_embeds=output_projection_embeddings).images
 
-                    actual_image = actual_images[0]
-                    predicted_image = predicted_images[0]
+                    actual_image = image_decoder(prompt_embeds=image_caption_embeddings[:1]).images[0]
+                    predicted_image = image_decoder(prompt_embeds=output_projection_embeddings[:1]).images[0]
+
                 self.wandb_logger.log_image(
                     key="images",
                     images=[actual_image, predicted_image],
