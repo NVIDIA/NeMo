@@ -122,8 +122,8 @@ model:
     target_module: "encoder"
     spec_augment_config:
       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-      freq_masks: 2 # set to zero to disable it
-      time_masks: 10 # set to zero to disable it
+      freq_masks: 0 # set to zero to disable it
+      time_masks: 0 # set to zero to disable it
       freq_width: 27
       time_width: 0.05
 

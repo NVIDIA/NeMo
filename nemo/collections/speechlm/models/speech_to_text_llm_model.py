@@ -259,6 +259,33 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         return model
 
 
+def debug_tensor(tensor, name):
+    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo"
+    file_path = os.path.join(root_dir, f"{name}.pt")
+    print(f"{name}: {tensor.shape}")
+    if not os.path.exists(file_path):
+        torch.save(tensor, file_path)
+        return None
+    else:
+        loaded = torch.load(file_path)
+        if not torch.all(torch.eq(tensor, loaded)):
+            logging.error(f"!!!!!!!!!! {name} is not equal")
+        return loaded
+
+
+def debug_state_dict(state_dict, name):
+    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo"
+    file_path = os.path.join(root_dir, f"{name}.pt")
+    if not os.path.exists(file_path):
+        torch.save(state_dict, file_path)
+    else:
+        loaded = torch.load(file_path)
+        for k, v in state_dict.items():
+            if not torch.all(torch.eq(v, loaded[k])):
+                logging.error(f"!!!!!!!!!! {name} is not equal for key {k}")
+    return state_dict
+
+
 class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
     def __init__(
         self,
@@ -458,8 +485,12 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             processed_signal=processed_signal,
             processed_signal_length=processed_signal_length,
         )
+        # debug_tensor(encoded, "perception-encoded")
+        # debug_tensor(encoded_len, "perception-encoded_len")
         encoded, encoded_len = self.modality_adapter(encoded, encoded_len)
-
+        # debug_tensor(encoded, "modality-encoded")
+        # debug_tensor(encoded_len, "modality-encoded_len")
+        # import pdb; pdb.set_trace()
         return encoded, encoded_len
 
     def forward(
@@ -484,9 +515,17 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             processed_signal_length=processed_signal_length,
         )
 
-        import pdb
+        loaded_input_ids = debug_tensor(input_ids, "input_ids")
+        loaded_input_length = debug_tensor(input_length, "input_length")
+        loaded_encoded = debug_tensor(encoded, "encoded")
+        loaded_length = debug_tensor(encoded_len, "encoded_len")
+        if loaded_encoded is not None:
+            encoded = loaded_encoded
+            encoded_len = loaded_length
+            input_ids = loaded_input_ids
+            input_length = loaded_input_length
 
-        pdb.set_trace()
+        print(context_start_idx)
 
         if num_audios is not None:
             # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
@@ -515,6 +554,17 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         else:
             final_loss_mask = None
 
+        debug_tensor(final_loss_mask, "final_loss_mask")
+        debug_tensor(final_labels, "final_labels")
+
+        loaded_combined_embedding = debug_tensor(combined_embeddings, "combined_embeddings")
+        if loaded_combined_embedding is not None:
+            combined_embeddings = loaded_combined_embedding
+
+        loaded_attention_mask = debug_tensor(attention_mask, "attention_mask")
+        if loaded_attention_mask is not None:
+            attention_mask = loaded_attention_mask
+
         output = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -523,6 +573,8 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             labels=final_labels,
             inference_params=inference_params,
         )
+
+        loaded_output = debug_tensor(output, "output")
 
         if labels is None or loss_mask is None:
             return output
@@ -726,12 +778,9 @@ class SpeechToTextLLM(SpeechLanguageModel):
         forward_output = self.forward_step(batch)
 
         if isinstance(forward_output, tuple):
-            loss, mask = forward_output
-            loss = loss * mask
+            loss = self.validation_loss_reduction.forward(batch=batch, forward_out=forward_output)[1]['avg']
         else:
-            loss = forward_output
-        # reduce loss of shape [B,T] in time dimension
-        loss = loss.mean(dim=-1)
+            loss = 0.0
 
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
         preds_text = []

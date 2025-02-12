@@ -30,6 +30,21 @@ from nemo.lightning import io
 from nemo.utils import logging, model_utils
 
 
+def debug_tensor(tensor, name):
+    import os
+
+    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo"
+    file_path = os.path.join(root_dir, f"{name}.pt")
+    print(f"{name}: {tensor.shape}")
+    if not os.path.exists(file_path):
+        torch.save(tensor, file_path)
+    else:
+        loaded = torch.load(file_path)
+        if not torch.all(torch.eq(tensor, loaded)):
+            logging.error(f"!!!!!!!!!! {name} is not equal")
+    return loaded
+
+
 class MCoreASRModule(MegatronModule):
     """
     Wrapper class for ASR encoder from `nemo.collections.asr.models.ASRModel`.
@@ -66,10 +81,16 @@ class MCoreASRModule(MegatronModule):
             )
 
         if not has_processed_signal:
+            # debug_tensor(input_signal, "input_signal")
+            # debug_tensor(input_signal_length, "input_signal_length")
+            # input_signal = torch.ones(2, 16000).cuda()
+            # input_signal_length = torch.tensor([6000, 10000]).cuda()
             processed_signal, processed_signal_length = self.preprocessor(
                 input_signal=input_signal,
                 length=input_signal_length,
             )
+            # loaded_signal = debug_tensor(processed_signal, "processed_signal")
+            # import pdb; pdb.set_trace()
         return processed_signal, processed_signal_length
 
     def forward(
@@ -86,8 +107,10 @@ class MCoreASRModule(MegatronModule):
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
-
+        # debug_tensor(processed_signal, "processed_signal_after_spec_aug")
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        # debug_tensor(encoded, "encoded_after_encoder")
+        # import pdb; pdb.set_trace()
         return encoded, encoded_len
 
 
@@ -128,6 +151,7 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             raise ValueError(f"Model {self._target_} does not have attribute {self.target_module}")
 
         if self.preprocessor_config is not None:
+            # import pdb; pdb.set_trace()
             preprocessor = Serialization.from_config_dict(to_dict_config(self.preprocessor_config))
         elif hasattr(asr_model, "preprocessor"):
             preprocessor = asr_model.preprocessor
