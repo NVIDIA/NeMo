@@ -208,19 +208,19 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
         )
-        end_time =time.time()
+        end_time = time.time()
         log_parts = (
             f"Global Checkpoint Save: Rank: {rank}",
             f"Iteration: {iteration}" if iteration is not None else None,
             f"Start time: {start_time:.3f}s",
-            f"Save duration: {end_time - start_time:.3f}s"
+            f"Save duration: {end_time - start_time:.3f}s",
         )
         log_message = " : ".join(part for part in log_parts if part is not None)
         logging.info(log_message)
 
         def iter_finalize_fn():
             logging.info(f'Successfully saved checkpoint from iteration {int(iteration):7d} to {path}')
-        
+
         if self.async_save:
             assert async_save_request is not None
             async_save_request.add_finalize_fn(iter_finalize_fn)
@@ -294,7 +294,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             # Default behavior
             strict = StrictHandling.ASSUME_OK_UNEXPECTED
 
-        start_time = time.time()        
+        start_time = time.time()
         checkpoint = dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
             checkpoint_dir=str(path),

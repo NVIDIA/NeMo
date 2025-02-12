@@ -19,12 +19,12 @@ from time import time
 from typing import Any, Dict, Optional, Union
 
 import lightning.pytorch as pl
+import torch
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch import Callback
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
-import torch
 
 from nemo.utils import logging
 
@@ -144,7 +144,7 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         """
         if self.async_calls_queue.get_num_unfinalized_calls() == 0:
             return False
-        
+
         start_time = time()
         call_idx_finalized = self.async_calls_queue.maybe_finalize_async_calls(blocking)
         if call_idx_finalized:
@@ -292,14 +292,14 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             f"Global Checkpoint Save: Rank: {rank}",
             f"Iteration: {iteration}" if iteration is not None else None,
             f"Start time: {start_time:.3f}s",
-            f"Save duration: {end_time - start_time:.3f}s"
+            f"Save duration: {end_time - start_time:.3f}s",
         )
         log_message = " : ".join(part for part in log_parts if part is not None)
         logging.info(log_message)
 
         def iter_finalize_fn():
             logging.info(f'Successfully saved checkpoint from iteration {int(iteration):7d} to {path}')
-        
+
         if self.async_save:
             assert async_save_request is not None
             async_save_request.add_finalize_fn(iter_finalize_fn)
@@ -367,7 +367,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         logging.debug(f'Dist ckpt load strictness: {strict}')
 
-        start_time = time()        
+        start_time = time()
         ret = dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
             checkpoint_dir=path,
