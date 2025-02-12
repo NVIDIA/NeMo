@@ -45,7 +45,7 @@ try:
     )
     from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShardedStrategy
     from megatron.core.dist_checkpointing.validation import StrictHandling
-    from megatron.core.parallel_state import get_data_parallel_group, get_tensor_model_parallel_rank, get_tensor_model_parallel_world_size, get_pipeline_model_parallel_rank, get_pipeline_model_parallel_world_size
+    from megatron.core.parallel_state import get_data_parallel_group
 
     HAVE_MEGATRON_CORE = True
 
@@ -459,4 +459,10 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
 
 def _get_iteration_from_checkpoint(checkpoint: Dict[str, Any]) -> Optional[int]:
-    return checkpoint.get("loops", {}).get("fit_loop", {}).get("epoch_loop.batch_progress", {}).get("total", {}).get("completed", None)
+    return (
+        checkpoint.get("loops", {})
+        .get("fit_loop", {})
+        .get("epoch_loop.batch_progress", {})
+        .get("total", {})
+        .get("completed", None)
+    )

@@ -984,7 +984,6 @@ class NLPFSDPStrategy(FSDPStrategy):
         """Load checkpoints"""
         # 1. Load normal or FSDP-sharded checkpoints.
         fs = get_filesystem(checkpoint_path)
-        app_state = AppState()
 
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
         checkpoint_path = inject_model_parallel_rank(checkpoint_path, fsdp_sharded_ckpt=self.sharded_checkpoint)

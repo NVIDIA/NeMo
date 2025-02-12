@@ -463,4 +463,10 @@ def is_distributed_ckpt(path) -> bool:
 
 
 def _get_iteration_from_checkpoint(checkpoint: Dict[str, Any]) -> Optional[int]:
-    return checkpoint.get("loops", {}).get("fit_loop", {}).get("epoch_loop.batch_progress", {}).get("total", {}).get("completed", None)
+    return (
+        checkpoint.get("loops", {})
+        .get("fit_loop", {})
+        .get("epoch_loop.batch_progress", {})
+        .get("total", {})
+        .get("completed", None)
+    )
