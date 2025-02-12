@@ -64,12 +64,13 @@ if TYPE_CHECKING:
 DDPLiteral = Literal["megatron", "pytorch"]
 
 
-class FabricMegatronStrategy(DDPStrategy):
+class FabricMegatronStrategy(DDPStrategy):  # pylint: disable=missing-class-docstring
     def __init__(
         self,
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
+        pipeline_model_parallel_comm_backend: str = 'nccl',
         microbatch_group_size_per_vp_stage: Optional[int] = None,
         context_parallel_size: int = 1,
         sequence_parallel: bool = False,
@@ -108,6 +109,7 @@ class FabricMegatronStrategy(DDPStrategy):
         self.data_sampler: Optional['DataSampler'] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
+        self.pipeline_model_parallel_comm_backend = pipeline_model_parallel_comm_backend
         self.microbatch_group_size_per_vp_stage = (
             microbatch_group_size_per_vp_stage
             if microbatch_group_size_per_vp_stage is not None
@@ -163,6 +165,7 @@ class FabricMegatronStrategy(DDPStrategy):
         _strategy_lib.init_model_parallel()
 
     def process_datamodule(self, datamodule: LightningDataModule) -> LightningDataModule:
+        # pylint: disable=missing-function-docstring
         datamodule.setup()
 
         if not self.data_sampler and hasattr(datamodule, "data_sampler"):
@@ -175,6 +178,7 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> Iterator:
+        # pylint: disable=missing-function-docstring
         if self.data_sampler:
             dataloader = self.data_sampler.transform_dataloader(dataloader)
 
@@ -196,6 +200,7 @@ class FabricMegatronStrategy(DDPStrategy):
         scale_lr_cond: Optional[Callable] = None,
         lr_mult: float = 1.0,
     ) -> Optimizer:
+        # pylint: disable=missing-function-docstring
         if hasattr(self.precision, "convert_config"):
             optimizer_config = self.precision.convert_config(optimizer_config)
 
@@ -220,7 +225,7 @@ class FabricMegatronStrategy(DDPStrategy):
         return optimizer
 
     @override
-    def setup_module(self, module: Module) -> MegatronParallel:
+    def setup_module(self, module: Module) -> MegatronParallel:  # pylint: disable=missing-function-docstring
         from megatron.core.utils import get_model_config
 
         _strategy_lib.set_model_parallel_attributes(module, self.parallelism)
@@ -277,6 +282,7 @@ class FabricMegatronStrategy(DDPStrategy):
         return megatron_parallel
 
     def module_init_context(self, empty_init: Optional[bool] = None) -> ContextManager:
+        # pylint: disable=missing-function-docstring
         precision_init_ctx = self.precision.module_init_context()
         module_sharded_ctx = self.megatron_context()
         stack = ExitStack()
@@ -291,6 +297,7 @@ class FabricMegatronStrategy(DDPStrategy):
         return stack
 
     def module_to_device(self, module: nn.Module) -> None:
+        # pylint: disable=missing-function-docstring
         pass
 
     @override
@@ -316,7 +323,7 @@ class FabricMegatronStrategy(DDPStrategy):
         state = self._convert_stateful_objects_in_state(state, filter=(filter_dict or {}))
         self.checkpoint_io.save_checkpoint(checkpoint=state, path=path, storage_options=storage_options)
 
-    def load_checkpoint(
+    def load_checkpoint(  # pylint: disable=missing-function-docstring
         self,
         path: _PATH,
         state: Optional[Union[Module, Optimizer, Dict[str, Union[Module, Optimizer, Any]]]] = None,
@@ -365,13 +372,13 @@ class FabricMegatronStrategy(DDPStrategy):
         return checkpoint
 
     @override
-    def load_module_state_dict(
+    def load_module_state_dict(  # pylint: disable=missing-function-docstring
         self, module: Module, state_dict: Dict[str, Union[Any, Tensor]], strict: bool = True
     ) -> None:
         _strategy_lib.load_model_state_dict(module, state_dict, strict=strict)
 
     @contextmanager
-    def megatron_context(self) -> Generator[None, None, None]:
+    def megatron_context(self) -> Generator[None, None, None]:  # pylint: disable=missing-function-docstring
         from megatron.core.extensions import transformer_engine as _te
 
         original = _te._get_extra_te_kwargs  # noqa: SLF001
@@ -398,7 +405,7 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @property
     @override
-    def checkpoint_io(self) -> CheckpointIO:
+    def checkpoint_io(self) -> CheckpointIO:  # pylint: disable=missing-function-docstring
         if self._checkpoint_io is None:
             self._checkpoint_io = MegatronCheckpointIO()
         elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
@@ -407,12 +414,13 @@ class FabricMegatronStrategy(DDPStrategy):
         return self._checkpoint_io
 
     @property
-    def parallelism(self):
+    def parallelism(self):  # pylint: disable=missing-function-docstring
         from nemo.lightning.pytorch.strategies.megatron_strategy import ParallelismConfig
 
         return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
+            pipeline_model_parallel_comm_backend=self.pipeline_model_parallel_comm_backend,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
             microbatch_group_size_per_vp_stage=self.microbatch_group_size_per_vp_stage,
             context_parallel_size=self.context_parallel_size,
@@ -443,7 +451,7 @@ class _MegatronDataLoaderIterDataFetcher(_DataFetcher):
             raise StopIteration
         return self.iterator_wrapper
 
-    def reset(self) -> None:
+    def reset(self) -> None:  # pylint: disable=missing-function-docstring
         super().reset()
         self._batch = None
         self._batch_idx = 0
@@ -460,19 +468,19 @@ class _DataFetcherWrapper(Iterator):
         self.output_data_idx = output_data_idx
 
     @property
-    def done(self) -> bool:
+    def done(self) -> bool:  # pylint: disable=missing-function-docstring
         return self.data_fetcher.done
 
     @property
-    def fetched(self) -> int:
+    def fetched(self) -> int:  # pylint: disable=missing-function-docstring
         return self.data_fetcher.fetched
 
     @property
-    def length(self) -> Optional[int]:
+    def length(self) -> Optional[int]:  # pylint: disable=missing-function-docstring
         return self.data_fetcher.length
 
     @property
-    def data_config(self):
+    def data_config(self):  # pylint: disable=missing-function-docstring
         return self.data_fetcher.data_config
 
     def __next__(self):
@@ -493,9 +501,11 @@ class _DataFetcherWrapper(Iterator):
 
 @to_fabric.register(MegatronStrategy)
 def convert_megatron_strategy(strategy: MegatronStrategy) -> FabricMegatronStrategy:
+    # pylint: disable=missing-function-docstring
     return FabricMegatronStrategy(
         tensor_model_parallel_size=strategy.tensor_model_parallel_size,
         pipeline_model_parallel_size=strategy.pipeline_model_parallel_size,
+        pipeline_model_parallel_comm_backend=strategy.pipeline_model_parallel_comm_backend,
         virtual_pipeline_model_parallel_size=strategy.virtual_pipeline_model_parallel_size,
         context_parallel_size=strategy.context_parallel_size,
         sequence_parallel=strategy.sequence_parallel,
