@@ -75,7 +75,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import, safe_import_from
-from nemo.utils.te_utils import is_float8tensor
+from nemo.utils.te_utils import is_float8tensor, te_version
 
 try:
     import megatron.core as core
@@ -401,7 +401,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             build_model_context = nullcontext
             if HAVE_TE and self.cfg.get('fp8', False) and self.cfg.get('fp8_params', False):
-                build_model_context = transformer_engine.pytorch.fp8_model_init
+                if te_version() >= (2, 0):
+                    recipe = transformer_engine.common.recipe.DelayedScaling()
+                    build_model_context = partial(
+                        transformer_engine.pytorch.fp8_model_init,
+                        recipe=recipe,
+                    )
+                else:
+                    build_model_context = transformer_engine.pytorch.fp8_model_init
             with build_model_context():
                 self.model = build_model(
                     model_provider_func=self.model_provider_func,
@@ -1679,7 +1686,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 "mmap_bin_files": self.cfg.data.get("mmap_bin_files", True),
                 "drop_last_partial_validation_sequence": self.cfg.data.get("validation_drop_last", True),
                 "num_dataset_builder_threads": self.cfg.data.get("num_dataset_builder_threads", 1),
-                "renormalize_blend_weights": self.cfg.data.get("renormalize_blend_weights", False),
                 "add_extra_token_to_sequence": add_extra_token,
             }
 
@@ -1998,7 +2004,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                         key.replace('model.', ''): checkpoint_state_dict.pop(key)
                         for key in list(checkpoint_state_dict.keys())
                     }
-                    module.load_state_dict(checkpoint_state_dict, strict=True)
+                    try:
+                        module.load_state_dict(checkpoint_state_dict, strict=True)
+                    except RuntimeError as e:
+                        missing_keys, expected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
+                        if all(s.endswith('_extra_state') for s in missing_keys):
+                            logging.warning(
+                                f'Loding checkpoint created with Transformer Engine version lower than 1.13. Missing layers {missing_keys} will be ignored.'
+                            )
+                        else:
+                            raise e
             else:
                 # when restoring a distributed checkpoint from a ptl checkpoint we need to defer loading the state_dict
                 # see NLPModel.on_load_checkpoint

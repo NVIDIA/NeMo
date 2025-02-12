@@ -12,19 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from typing import Callable
 
 import lightning.pytorch as L
 import torch
-from megatron.core.extensions.transformer_engine import (
-    TEColumnParallelLinear,
-    TEDotProductAttention,
-    TENorm,
-    TERowParallelLinear,
-)
+
+try:
+    from megatron.core.extensions.transformer_engine import (
+        TEColumnParallelLinear,
+        TEDotProductAttention,
+        TENorm,
+        TERowParallelLinear,
+    )
+except ImportError:
+    from nemo.utils import logging
+
+    # These Defaults are needed to make sure the code compiles
+    TEColumnParallelLinear = None
+    TEDotProductAttention = object
+    TENorm = None
+    TERowParallelLinear = None
+
+    logging.warning(
+        "Failed to import Transformer Engine dependencies. "
+        "`from megatron.core.extensions.transformer_engine import *`"
+        "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
+    )
+
 from megatron.core.parallel_state import (
     get_tensor_model_parallel_group,
     get_tensor_model_parallel_rank,
@@ -45,6 +62,7 @@ from nemo.lightning import io, teardown
 
 
 class InternViTRMSNorm(torch.nn.Module):
+    """Customized Version of RMSNorm"""
 
     def __init__(
         self,
@@ -75,6 +93,7 @@ class InternViTRMSNorm(torch.nn.Module):
         setattr(self.weight, 'sequence_parallel', sequence_parallel)
 
     def _norm(self, x, var):
+        """RMSNorm"""
         if var is None:
             var = x.pow(2).mean(-1, keepdim=True)
 
@@ -138,6 +157,7 @@ class InternViTRMSNorm(torch.nn.Module):
 
 
 def get_mlp_module_spec(use_te: bool = True) -> ModuleSpec:
+    # pylint: disable=C0115,C0116
     # Dense MLP w/ or w/o TE modules.
     return ModuleSpec(
         module=MLP,
@@ -150,6 +170,7 @@ def get_mlp_module_spec(use_te: bool = True) -> ModuleSpec:
 
 # Handle InternViT's layer scaling.
 def _bias_dropout_add_func_internvit(ls, x_with_bias, residual, prob, training):
+    """Handle InternViT's layer scaling."""
     x, bias = x_with_bias  # unpack
     residual = residual if residual.dtype == x.dtype else residual.to(x.dtype)
     if bias is not None:
@@ -167,6 +188,7 @@ def bias_dropout_add_unfused_internvit(ls, training):
     """Bias-dropout-add as in Megatron but with added LayerScaling handling."""
 
     def _bias_dropout_add(x_with_bias, residual, prob):
+        #
         return _bias_dropout_add_func_internvit(ls, x_with_bias, residual, prob, training)
 
     return _bias_dropout_add
@@ -180,7 +202,10 @@ def get_bias_dropout_add_internvit(ls, training, fused):
 
 # Add InternViT specialties to our default TransformerLayer.
 class InternViTTransformerLayer(TransformerLayer):
+    """Add InternViT specialties to our default TransformerLayer."""
+
     def __init__(self, *args, **kwargs):
+        # pylint: disable=C0115,C0116
         super().__init__(*args, **kwargs)
         self.ls1 = torch.nn.Parameter(torch.ones(self.config.hidden_size))
         self.ls2 = torch.nn.Parameter(torch.ones(self.config.hidden_size))
@@ -191,7 +216,10 @@ class InternViTTransformerLayer(TransformerLayer):
 
 # Override a few things that are special in InternViT and not supported by the SelfAttention class.
 class InternViTSelfAttention(SelfAttention):
+    """Override a few things that are special in InternViT and not supported by the SelfAttention class."""
+
     def __init__(self, config: TransformerConfig, submodules: SelfAttentionSubmodules, *args, **kwargs):
+        # pylint: disable=C0115,C0116
         super().__init__(config=config, submodules=submodules, *args, **kwargs)
 
         # Need to override linear_qkv, q_layernorm and k_layernorm.
@@ -253,6 +281,7 @@ class InternViTTEDotProductAttention(TEDotProductAttention):
 
 
 def get_internvit_layer_spec(use_te, add_qk_norm=True, norm_type="RMSNorm") -> ModuleSpec:
+    """Get InterViT's MCore layer spec"""
     NORM2FN = {
         'RMSNorm': InternViTRMSNorm,
         'LayerNorm': TENorm,
@@ -285,6 +314,8 @@ def get_internvit_layer_spec(use_te, add_qk_norm=True, norm_type="RMSNorm") -> M
 
 @dataclass
 class InternViTConfig(CLIPViTConfig):
+    """Intern ViT Base Config"""
+
     vision_model_type: str = "internvit"
     patch_dim: int = 14
     img_h: int = 448
@@ -309,16 +340,20 @@ class InternViTConfig(CLIPViTConfig):
     normalization: str = 'RMSNorm'
     layernorm_epsilon: float = 1e-6
     apply_rope_fusion: bool = False
-    transformer_layer_spec: ModuleSpec = get_internvit_layer_spec(use_te=True)
+    transformer_layer_spec: ModuleSpec = field(default_factory=lambda: get_internvit_layer_spec(use_te=True))
 
 
 @dataclass
 class InternViT_6B_448px_Config(InternViTConfig):
+    """Intern ViT 6B Config for >= v1.5"""
+
     vision_model_type: str = "internvit"
 
 
 @dataclass
 class InternViT_300M_448px_Config(InternViTConfig):
+    """Intern ViT 300M Config for >= v1.5"""
+
     vision_model_type: str = "internvit"
     num_layers: int = 24
     num_attention_heads: int = 16
@@ -331,29 +366,39 @@ class InternViT_300M_448px_Config(InternViTConfig):
     attention_dropout: float = 0.0
     ffn_hidden_size: int = 4096
     normalization: str = 'LayerNorm'
-    transformer_layer_spec: ModuleSpec = get_internvit_layer_spec(
-        use_te=True,
-        add_qk_norm=False,
-        norm_type='LayerNorm',
+    transformer_layer_spec: ModuleSpec = field(
+        default_factory=lambda: get_internvit_layer_spec(
+            use_te=True,
+            add_qk_norm=False,
+            norm_type='LayerNorm',
+        )
     )
 
 
 class InternViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
+    """InternViT NeMo Wrapper"""
+
     def __init__(self, config):
+        # pylint: disable=C0115,C0116
         super().__init__()
         self.config = config
 
     def configure_model(self) -> None:
+        # pylint: disable=C0115,C0116
         if not hasattr(self, "module"):
             self.module = self.config.configure_model()
 
 
 @io.model_importer(InternViTModel, "hf")
 class HFInternViTImporter(io.ModelConnector["InternVisionModel", InternViTModel]):
+    """HF InternViT Importer"""
+
     def init(self) -> InternViTModel:
+        # pylint: disable=C0115,C0116
         return InternViTModel(self.config)
 
     def apply(self, output_path: Path) -> Path:
+        # pylint: disable=C0115,C0116
         from transformers import AutoModel
 
         source = AutoModel.from_pretrained(str(self), trust_remote_code=True)
@@ -373,6 +418,7 @@ class HFInternViTImporter(io.ModelConnector["InternVisionModel", InternViTModel]
         return output_path
 
     def convert_state(self, source, target):
+        # pylint: disable=C0115,C0116
         mapping = {
             # Embeddings
             "embeddings.class_embedding": "class_token",
@@ -407,6 +453,7 @@ class HFInternViTImporter(io.ModelConnector["InternVisionModel", InternViTModel]
 
     @property
     def config(self) -> CLIPViTConfig:
+        # pylint: disable=C0115,C0116
         from transformers import AutoConfig
 
         source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
@@ -440,10 +487,12 @@ class HFInternViTImporter(io.ModelConnector["InternVisionModel", InternViTModel]
     target_key="position_embeddings.weight",
 )
 def _import_position_embedding(ctx: io.TransformCTX, pos_emb):
+    # pylint: disable=C0115,C0116
     return pos_emb.squeeze(0)
 
 
 def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+    # pylint: disable=C0115,C0116
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
     new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
@@ -473,6 +522,7 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
     target_key="decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_qkv(ctx: io.TransformCTX, qkv):
+    # pylint: disable=C0115,C0116
     megatron_config = ctx.target.config
     q, k, v = qkv.chunk(3)
     return import_qkv(
@@ -492,6 +542,7 @@ def _import_qkv(ctx: io.TransformCTX, qkv):
     target_key="decoder.layers.*.self_attention.linear_qkv.bias",
 )
 def _import_qkv_bias(ctx: io.TransformCTX, qkv_bias):
+    # pylint: disable=C0115,C0116
     megatron_config = ctx.target.config
     q_bias, k_bias, v_bias = qkv_bias.chunk(3)
     return import_qkv(

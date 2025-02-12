@@ -23,14 +23,28 @@ import torch
 import torch.nn.functional as F
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-from megatron.core.transformer.custom_layers.transformer_engine import (
-    TEColumnParallelLinear,
-    TEDotProductAttention,
-    TERowParallelLinear,
-)
+
+try:
+    from megatron.core.transformer.custom_layers.transformer_engine import (
+        TEColumnParallelLinear,
+        TEDotProductAttention,
+        TERowParallelLinear,
+    )
+except ImportError:
+    from nemo.utils import logging
+
+    # These Defaults are needed to make sure the code compiles
+    TEColumnParallelLinear = None
+    TENorm = None
+    TERowParallelLinear = None
+    logging.warning(
+        "Failed to import Transformer Engine dependencies. "
+        "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
+        "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
+    )
+
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -494,6 +508,7 @@ class ImageTransformerLayer(TransformerLayer):
         attention_bias=None,
         inference_params=None,
         packed_seq_params=None,
+        sequence_len_offset=None,
     ):
         """Forward."""
         # hidden_states: [s, b, h]
@@ -692,14 +707,21 @@ class VisionEncoder(MegatronModule):
         x = self.apply_positional_embedding(x, ar_ids)
 
         x = self.ln_pre(x)
+
+        # Compute the number of tokens to pad (to be consistent with HF)
+        npad = (8 - (x.shape[-2] % 8)) % 8
+        # Compute padding tuple for pad function
+        padding = (0, 0, 0, npad)  # (pad_left, pad_right, pad_left for dim -2, pad_right for dim -2)
+        # Pad the tensor
+        x = F.pad(x, padding, mode="constant", value=0)
+
         x = x.view(bsz * num_concurrent_media, -1, dim)
 
-        npad, attn_mask = 0, None
         attn_bias = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
         x = x.transpose(0, 1).contiguous()
         x, int_x = self.transformer(
             hidden_states=x,
-            attention_mask=attn_mask,
+            attention_mask=None,
             attention_bias=attn_bias,
             return_intermediate=self.return_intermediate,
         )
@@ -719,10 +741,12 @@ class VisionEncoder(MegatronModule):
         )
         x = x.transpose(0, 1)
         x = x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, dim)
+        x = x[:, :, :ntok]
 
         # adding back intermediate layer outputs
         x = x.reshape(bsz, num_concurrent_media, num_chunks, ntok, dim)
         int_x = int_x.reshape(bsz * num_concurrent_media, num_chunks, ntok + npad, -1)
+        int_x = int_x[:, :, :ntok]
         # int_x = contract_num_tokens_from_mult8(int_x, npad)
         int_x = int_x.reshape(bsz, num_concurrent_media, num_chunks, ntok, -1)
         x = torch.cat([x, int_x], dim=-1)

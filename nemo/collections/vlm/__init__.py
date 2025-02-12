@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# CLIP
+from nemo.collections.vlm.clip.data import ClipMockDataModule
+from nemo.collections.vlm.clip.model import CLIPConfigB32, CLIPConfigL14, CLIPModel
+
 # HF
 from nemo.collections.vlm.hf.data.hf_dataset import HFDatasetDataModule
 from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import HFAutoModelForImageTextToText
@@ -22,7 +26,7 @@ from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
 from nemo.collections.vlm.llava_next.model.llava_next import LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel
 
 # MLLAMA
-from nemo.collections.vlm.mllama.data import MLlamaLazyDataModule, MLlamaMockDataModule
+from nemo.collections.vlm.mllama.data import MLlamaMockDataModule, MLlamaPreloadedDataModule
 from nemo.collections.vlm.mllama.model.base import (
     CrossAttentionTextConfig,
     CrossAttentionVisionConfig,
@@ -42,8 +46,8 @@ from nemo.collections.vlm.neva.data import (
     ImageDataConfig,
     ImageToken,
     MultiModalToken,
-    NevaLazyDataModule,
     NevaMockDataModule,
+    NevaPreloadedDataModule,
     VideoDataConfig,
     VideoToken,
 )
@@ -58,7 +62,6 @@ from nemo.collections.vlm.recipes import *
 
 # VISION
 from nemo.collections.vlm.vision import (
-    BaseCLIPViTModel,
     CLIPViTConfig,
     CLIPViTL_14_336_Config,
     HFCLIPVisionConfig,
@@ -74,9 +77,9 @@ __all__ = [
     "HFDatasetDataModule",
     "HFAutoModelForImageTextToText",
     "NevaMockDataModule",
-    "NevaLazyDataModule",
+    "NevaPreloadedDataModule",
     "MLlamaMockDataModule",
-    "MLlamaLazyDataModule",
+    "MLlamaPreloadedDataModule",
     "DataConfig",
     "ImageDataConfig",
     "VideoDataConfig",
@@ -107,6 +110,7 @@ __all__ = [
     "mllama_11b",
     "mllama_90b",
     "llava_next_7b",
+    "LlavaNextConfig",
     "LlavaNextConfig7B",
     "LlavaNextConfig13B",
     "LlavaNextModel",
@@ -114,4 +118,9 @@ __all__ = [
     "InternViTModel",
     "InternViT_300M_448px_Config",
     "InternViT_6B_448px_Config",
+    "CLIPModel",
+    "LoRA",
+    "CLIPConfigL14",
+    "CLIPConfigB32",
+    "ClipMockDataModule",
 ]

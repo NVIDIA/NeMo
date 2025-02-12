@@ -27,22 +27,20 @@ import numpy as np
 import safetensors
 import tensorrt_llm
 import torch
+import torch.nn.functional as F
 import wrapt
 from tensorrt_llm._utils import numpy_to_torch
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
 from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings, model_to_trtllm_ckpt
-from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
-    dist_model_to_trt_llm_ckpt,
-    get_layer_prefix,
-    torch_dtype_from_precision,
-)
+from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt, get_layer_prefix
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
     build_tokenizer,
     get_model_type,
     get_tokenizer,
+    get_weights_dtype,
     is_nemo_file,
     load_nemo_model,
 )
@@ -59,11 +57,12 @@ from nemo.export.trt_llm.tensorrt_llm_run import (
     unload_engine,
 )
 from nemo.export.trt_llm.utils import is_rank
+from nemo.export.utils import torch_dtype_from_precision
 
 use_deploy = True
 try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
-except Exception as e:
+except Exception:
     use_deploy = False
 
 LOGGER = logging.getLogger("NeMo")
@@ -170,7 +169,7 @@ class TensorRTLLM(ITritonDeployable):
         paged_kv_cache: bool = True,
         remove_input_padding: bool = True,
         paged_context_fmha: bool = False,
-        dtype: str = "bfloat16",
+        dtype: Optional[str] = None,
         load_model: bool = True,
         use_lora_plugin: str = None,
         lora_target_modules: List[str] = None,
@@ -208,7 +207,8 @@ class TensorRTLLM(ITritonDeployable):
             paged_kv_cache (bool): if True, uses kv cache feature of the TensorRT-LLM.
             paged_context_fmha (bool): whether to use paged context fmha feature of TRT-LLM or not
             remove_input_padding (bool): enables removing input padding or not.
-            dtype (str): Floating point type for model weights (Supports BFloat16/Float16).
+            dtype (Optional[str]): Floating point type for model weights (supports 'bfloat16', 'float16' or 'float32').
+                If None, try to autodetect the type from model config.
             load_model (bool): load TensorRT-LLM model after the export.
             use_lora_plugin (str): use dynamic lora or not.
             lora_target_modules (List[str]): list of the target lora modules.
@@ -316,12 +316,24 @@ class TensorRTLLM(ITritonDeployable):
                     model_type = get_model_type(nemo_checkpoint_path)
 
                 if model_type is None:
-                    raise Exception("model_type needs to be specified, got None.")
+                    raise ValueError(
+                        "Parameter model_type needs to be provided and cannot be inferred from the checkpoint. "
+                        "Please specify it explicitely."
+                    )
 
                 if model_type not in self.get_supported_models_list:
-                    raise Exception(
-                        "Model {0} is not currently a supported model type. "
-                        "Supported model types are: {1}.".format(model_type, self.get_supported_models_list)
+                    raise ValueError(
+                        f"Model {model_type} is not currently a supported model type. "
+                        f"Supported model types are: {self.get_supported_models_list}."
+                    )
+
+                if dtype is None:
+                    dtype = get_weights_dtype(nemo_checkpoint_path)
+
+                if dtype is None:
+                    raise ValueError(
+                        "Parameter dtype needs to be provided and cannot be inferred from the checkpoint. "
+                        "Please specify it explicitely."
                     )
 
                 model, model_config, self.tokenizer = load_nemo_model(
@@ -663,7 +675,7 @@ class TensorRTLLM(ITritonDeployable):
                 reshard_model = True
             else:
                 raise NotImplementedError(
-                    f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
+                    "NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
                 )
 
         num_layers = model_config["num_layers"]
@@ -764,7 +776,8 @@ class TensorRTLLM(ITritonDeployable):
         elif storage_dtype == torch.float16:
             return DataType.float16
 
-    def get_nemo_to_trtllm_conversion_dict(self, model_state_dict):
+    @staticmethod
+    def get_nemo_to_trtllm_conversion_dict(model_state_dict):
         """MCore export supports some default conversion dictionaries
         All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models sometimes start with "model.decoder.layers.4.blahblah". so we append model prefix. to the keys
         """
@@ -774,8 +787,8 @@ class TensorRTLLM(ITritonDeployable):
 
         nemo_model_conversion_dict = {}
         for key, value in DEFAULT_CONVERSION_DICT.items():
-            if 'layers' in key and model_prefix:
-                nemo_model_conversion_dict[f'{model_prefix}.{key}'] = value
+            if model_prefix:
+                nemo_model_conversion_dict[f'{model_prefix}{key}'] = value
             else:
                 nemo_model_conversion_dict[key] = value
         return nemo_model_conversion_dict
@@ -1106,6 +1119,19 @@ class TensorRTLLM(ITritonDeployable):
                     return
             self._prep_ptuning_table()
 
+    def _pad_logits(self, logits_tensor):
+        """
+        Pads the logits tensor with 0's on the right
+        """
+        padding_len = max([logit_tensor.shape[0] for logit_tensor in logits_tensor])
+        for i, tensor in enumerate(logits_tensor):
+            tensor_len = tensor.shape[0]
+            if tensor_len < padding_len:
+                padding_diff = padding_len - tensor_len
+                # padding_diff num of rows of zeros are added at the bottom
+                logits_tensor[i] = F.pad(tensor, (0, 0, 0, padding_diff), mode='constant', value=0)
+        return logits_tensor
+
     @property
     def get_supported_models_list(self):
         """Supported model list"""
@@ -1189,16 +1215,24 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["output_context_logits"] = inputs.pop("output_context_logits")[0][0]
 
             if generation_logits_available:
+                # generation_logits is a 4d torch tensor of dim [BS,1,#generated_tokens,vocab_size]
                 output_texts, generation_logits = self.forward(**infer_input)
-                # generation_logits is a 4d tensor of dim [1,1,#generated_tokens, vocab_size], return just the 3d tensor
-                # in output dict.
-                output_dict["generation_logits"] = np.array(generation_logits[0].cpu().numpy())
+                # convert generation_logits to numpy array. Note: from my understanding since generation_logits is
+                # returned as a torch tensor it won't have varying number of tokens across multiple sequences,
+                # likely due to TRTLLM taking care of padding hence no addtnl padding is needed.
+                output_dict["generation_logits"] = np.array(
+                    [generation_logit.cpu().numpy() for generation_logit in generation_logits]
+                )
+
             elif context_logits_available:
                 output_texts, context_logits = self.forward(**infer_input)
-                # convert context logits to 3d tensor from list since its avaiable as a list of tensor shaped
-                # [#tokens, vocab_size]
-                context_logits = context_logits[0].unsqueeze(0)
-                output_dict["context_logits"] = np.array(context_logits.cpu().numpy())
+                # context_logits is a list of tensors shaped [#tokens, vocab_size] and the len of the list  is BS
+                # In case of batched inputs (i.e multiple prompts sent as a list) context_logits returned can have
+                # different seq_len. Following code pads them as it can otherwise error while converting to numpy array
+                context_logits = self._pad_logits(context_logits)
+                # Convert context_Logits to numpy array of shape [bS, 1, padding_len, vocab_size],.
+                context_logits = np.array([logit_tensor.unsqueeze(0).cpu().numpy() for logit_tensor in context_logits])
+                output_dict["context_logits"] = context_logits
             else:
                 output_texts = self.forward(**infer_input)
             output_dict["outputs"] = cast_output(output_texts, np.bytes_)
