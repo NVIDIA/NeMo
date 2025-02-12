@@ -17,7 +17,7 @@ from typing import Union
 
 # NeMo2 checkpoint structure is a checkpoint directory, with a WEIGHTS_PATH and CONTEXT_PATH subdirectory structure.
 #  WEIGHTS_PATH stores the weights while CONTEXT_PATH stores the hyper-parameters.
-WEIGHTS_PATH: str = "weight1s"
+WEIGHTS_PATH: str = "weights"
 CONTEXT_PATH: str = "context"
 ADAPTER_META_FILENAME = "adapter_metadata.json"
 
