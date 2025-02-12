@@ -417,12 +417,7 @@ class NLPDDPStrategy(DDPStrategy):
             # remove device state_dict
             checkpoint['state_dict'] = OrderedDict([])
 
-            start_time = time.monotonic()
             self.checkpoint_io.save_checkpoint(checkpoint, ckpt_to_dir(filepath), storage_options=storage_options)
-            end_time = time.monotonic()
-            logging.info(
-                f'Global Checkpoint Save: Rank : {app_state.global_rank} : Start time : {start_time} s : Time spent in save_checkpoint: {end_time - start_time} s'
-            )
 
             if HAVE_MODELOPT and hasattr(self.lightning_module, "get_model_module_list"):
                 save_sharded_modelopt_state(
@@ -435,12 +430,7 @@ class NLPDDPStrategy(DDPStrategy):
             # PTL override to accomodate model parallel checkpoints
             filepath = inject_model_parallel_rank(filepath)
             if self.is_global_zero or app_state.data_parallel_rank == 0:
-                start_time = time.monotonic()
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
-                end_time = time.monotonic()
-                logging.info(
-                    f'Global Checkpoint Save: Rank : {app_state.global_rank} : Start time : {start_time} s : Time spent in save_checkpoint: {end_time - start_time} s'
-                )
 
     # PTL 2.2 supports non strict loading of the ckpt with the strict arg
     # (https://github.com/Lightning-AI/pytorch-lightning/pull/19404)
@@ -986,19 +976,9 @@ class NLPFSDPStrategy(FSDPStrategy):
         filepath = inject_model_parallel_rank(filepath, fsdp_sharded_ckpt=self.sharded_checkpoint)
         if not self.sharded_checkpoint:
             if app_state.data_parallel_rank == 0:
-                start_time = time.monotonic()
                 self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
-                end_time = time.monotonic()
-                logging.info(
-                    f'Global Checkpoint Save: Rank : {app_state.global_rank} : Start time : {start_time} s : Time spent in save_checkpoint: {end_time - start_time} s'
-                )
         else:
-            start_time = time.monotonic()
             self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
-            end_time = time.monotonic()
-            logging.info(
-                f'Global Checkpoint Save: Rank : {app_state.global_rank} : Start time : {start_time} s : Time spent in save_checkpoint: {end_time - start_time} s'
-            )
 
     def load_checkpoint(self, checkpoint_path: Union[str, Path]) -> Dict[str, Any]:
         """Load checkpoints"""
@@ -1015,12 +995,7 @@ class NLPFSDPStrategy(FSDPStrategy):
         from torch.distributed._shard.api import load_with_process_group
 
         with load_with_process_group(process_group=parallel_state.get_data_parallel_group()):
-            start_time = time.monotonic()
             checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path)
-            end_time = time.monotonic()
-            logging.info(
-                f'Global Checkpoint Load: Rank : {app_state.global_rank} : Start time : {start_time} s : Time spent in load_checkpoint: {end_time - start_time} s'
-            )
         return checkpoint
 
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
