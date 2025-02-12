@@ -5058,6 +5058,7 @@ jobs:
           --name nemo2_llama_distill \
           --teacher_path /tmp/nemo2_ckpt \
           --student_path /tmp/nemo2_ckpt \
+          --tokenizer gpt2 \
           --tp_size 1 \
           --cp_size 1 \
           --pp_size 2 \

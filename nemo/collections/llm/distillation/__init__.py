@@ -14,6 +14,5 @@
 
 from .loss import LogitsKLLoss
 from .model import DistillationGPTModel
-from .recipe import distillation_recipe
 
-__all__ = ["LogitsKLLoss", "DistillationGPTModel", "distillation_recipe"]
+__all__ = ["LogitsKLLoss", "DistillationGPTModel"]
