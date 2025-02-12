@@ -14,6 +14,7 @@
 
 import nemo_run as run
 
+from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.recipes import llama3_8b, llama3_70b, hf_auto_model_for_causal_lm
 
@@ -53,6 +54,8 @@ def custom_hf_auto_model_for_causal_lm(wandb_project_name = None):
     pretrain.trainer.max_steps = 1000
     pretrain.trainer.val_check_interval = 400
     pretrain.log.ckpt.save_top_k = -1
+    pretrain.trainer.strategy = nl.FSDP2Strategy(data_parallel_size=2, tensor_parallel_size=1)
+
 
     # Add a custom dataset
     data=squad(llm.HFAutoModelForCausalLM.configure_tokenizer(model_name=model_name), gbs=num_gpus_per_node)
