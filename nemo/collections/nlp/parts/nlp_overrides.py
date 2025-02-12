@@ -1031,8 +1031,9 @@ class NLPFSDPStrategy(FSDPStrategy):
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
+    """ Custom connector to support saving and restoring states. """
+
     def __init__(self) -> None:
-        """Custom connector to support saving and restoring states."""
         if not HAVE_APEX:
             logging.warning(
                 "Apex was not found. Please see the NeMo README for installation instructions: "
