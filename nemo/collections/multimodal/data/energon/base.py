@@ -413,4 +413,3 @@ class SequentialMegatronSampler(MegatronDataSampler):
         DataLoader: The transformed DataLoader.
         """
         return dataloader
-
