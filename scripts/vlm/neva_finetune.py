@@ -74,8 +74,6 @@ def main(args):
         input_size=vision_transformer_config.hidden_size,
         hidden_size=language_transformer_config.hidden_size,
         ffn_hidden_size=language_transformer_config.hidden_size,
-        bias=False,
-        bias_activation_fusion=False,
     )
 
     # NEVA model configuration
@@ -246,9 +244,9 @@ def main(args):
     )
     sched = CosineAnnealingScheduler(
         max_steps=trainer.max_steps,
-        warmup_steps=150,
-        constant_steps=0,
-        min_lr=1.0e-07,
+        warmup_steps=0,
+        constant_steps=10000,
+        min_lr=1.5e-06,
     )
     opt = MegatronOptimizerModule(opt_config, sched)
 
