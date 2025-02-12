@@ -207,6 +207,8 @@ def _download(path: str, url: str):
         os.makedirs(MEGATRON_CACHE, exist_ok=True)
         logging.info(f"Downloading from {url} to {path}")
         downloaded_path = wget.download(url)
+        if not os.path.exists(downloaded_path):
+            raise FileNotFoundError(f"Download failed: {downloaded_path}")
         shutil.move(downloaded_path, path)
     # wait until the master process downloads the file and writes it to the cache dir
     if torch.distributed.is_initialized():
@@ -230,12 +232,12 @@ def is_lower_cased_megatron(pretrained_model_name):
 
 def get_megatron_tokenizer(pretrained_model_name: str):
     """
-    Takes a pretrained_model_name for megatron such as "megatron-bert-cased" and returns the according 
+    Takes a pretrained_model_name for megatron such as "megatron-bert-cased" and returns the according
     tokenizer name for tokenizer instantiating.
 
     Args:
         pretrained_model_name: pretrained_model_name for megatron such as "megatron-bert-cased"
-    Returns: 
+    Returns:
         tokenizer name for tokenizer instantiating
     """
     _check_megatron_name(pretrained_model_name)
