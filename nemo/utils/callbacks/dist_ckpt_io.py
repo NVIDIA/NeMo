@@ -175,8 +175,8 @@ class AsyncFinalizerCallback(Callback):
         self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
 
     def on_train_epoch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-         """ Override hook to finalize pending checkpoint(s) if they exist."""
-       self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
+        """ Override hook to finalize pending checkpoint(s) if they exist."""
+        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
 
     def on_train_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
         """ Override hook to finalize pending checkpoint(s) if they exist."""
