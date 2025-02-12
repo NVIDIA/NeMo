@@ -130,7 +130,7 @@ nemo() {
       -r $NEMO_DIR/requirements/requirements_deploy.txt
 
   DEPS=(
-    "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
+    "nvidia-modelopt[torch]~=0.23.0; sys_platform == 'linux'"
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
     "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e"
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
