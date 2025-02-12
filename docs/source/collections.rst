@@ -12,8 +12,6 @@ Documentation for the individual collections
 
    nlp/nemo_megatron/intro
    nlp/machine_translation/machine_translation
-   nlp/megatron_onnx_export
-   nlp/quantization
 
 .. toctree::
    :maxdepth: 1
