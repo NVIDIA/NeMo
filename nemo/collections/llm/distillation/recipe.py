@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Callable, Optional
+from typing import Optional
 
 import nemo_run as run
 import torch
@@ -21,7 +21,7 @@ from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
-from nemo.collections.llm.api import distill
+from nemo.collections import llm
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
@@ -114,46 +114,49 @@ def trainer(
     return trainer
 
 
-@run.cli.factory(target=distill, name=NAME)
+@run.cli.factory(target=llm.distill, name=NAME)
 def distillation_recipe(
+    student_model_path: str,
+    teacher_model_path: str,
     dir: Optional[str] = None,
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    fn: Callable = distill,
 ) -> run.Partial:
+    # pylint: disable=line-too-long
     """
     Create a generic distillation recipe.
 
-    This function sets up a partially-complete configuration for distillation, including
+    This function sets up a complete configuration for distillation, including
     trainer, data, logging, optimization, and resumption settings.
-    The models, both student and teacher, must be overridden before invoking the target entrypoint.
 
     Args:
+        student_model_path (Path): Path to student model NeMo checkpoint to be trained.
+        teacher_model_path (Path): Path to teacher model NeMo checkpoint to distill from.
         dir (Optional[str]): Directory for saving logs and checkpoints.
         name (str): Name of the distillation run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         performance_mode (bool): If true, enables optimizations for maximum performance.
-        fn (Callable): The distillation function to use.
 
     Returns:
         run.Partial: Partial configuration for pre-training.
 
     Examples:
         CLI usage:
-            (Unsupported due to overrides required)
+            $ nemo llm distill --factory "default(name='my_distillation', student_model_path='/path/to/student/nemo/ckpt/', teacher_model_path='/path/to/teacher/nemo/ckpt/')"
 
         Python API usage:
-            >>> recipe = distillation_recipe(name="llama_distillation", num_nodes=4)
-            >>> recipe.student_model_path = "/path/to/student/nemo/ckpt/"
-            >>> recipe.teacher_model_path = "/path/to/teacher/nemo/ckpt/"
+            >>> recipe = distillation_recipe(
+            ...     student_model_path="/path/to/student/nemo/ckpt/",
+            ...     teacher_model_path="/path/to/teacher/nemo/ckpt/",
+            ... )
             >>> print(recipe)
     """
     recipe = run.Partial(
-        fn,
-        student_model_path=None,  # NOTE: These must be overridden after creating the recipe!
-        teacher_model_path=None,
+        llm.distill,
+        student_model_path=student_model_path,
+        teacher_model_path=teacher_model_path,
         trainer=trainer(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,

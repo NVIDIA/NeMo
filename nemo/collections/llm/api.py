@@ -316,8 +316,6 @@ def distill(
         >>> llm.distill(student, teacher, data, trainer, tokenizer="model")
         PosixPath('/path/to/log_dir')
     """
-    assert student_model_path is not None and teacher_model_path is not None
-
     _student_model = io.load_context(student_model_path, subpath="model")
     _teacher_model = io.load_context(teacher_model_path, subpath="model")
     assert isinstance(_student_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
