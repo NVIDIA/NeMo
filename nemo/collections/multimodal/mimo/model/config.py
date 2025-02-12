@@ -329,7 +329,7 @@ class MimoConfig(TransformerConfig, io.IOMixin):
             )
             loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
 
-            model.vision_model.load_state_dict(loaded_state_dict)
+            model.vision_model.load_state_dict(loaded_state_dict, strict=False)
             logging.info(f"Loaded vision model from {self.vision_model_path}")
             print(f"Loaded vision model from {self.vision_model_path}")
         # initializing the special token embedings to be the average of the original embeddings
