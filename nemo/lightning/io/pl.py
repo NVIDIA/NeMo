@@ -210,7 +210,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         )
         end_time = time.time()
         log_parts = (
-            f"Global Checkpoint Save: Rank: {rank}",
+            "Global Checkpoint Save",
+            f"Rank: {rank}",
             f"Iteration: {iteration}" if iteration is not None else None,
             f"Start time: {start_time:.3f}s",
             f"Save duration: {end_time - start_time:.3f}s",
@@ -304,7 +305,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         checkpoint = _fix_tensors_device(checkpoint)
         end_time = time.time()
         logging.info(
-            f'Global Checkpoint Load: Rank : {torch.distributed.get_rank()} : Start time : {start_time:.3f} s : Time spent in load_checkpoint: {end_time - start_time:.3f} s'
+            f'Global Checkpoint Load : Rank : {torch.distributed.get_rank()} : Start time : {start_time:.3f}s : Load duration: {end_time - start_time:.3f}s'
         )
 
         return checkpoint
