@@ -38,7 +38,7 @@ def get_args():
         "--tensor_parallelism_size",
         type=int,
         default=1,
-        help="TRT-LLM engine TP size. (Only used when `--export_format` is 'ttllm')",
+        help="TRT-LLM engine TP size. (Only used when `--export_format` is 'trtllm')",
     )
     parser.add_argument(
         "-ipp",
@@ -46,9 +46,9 @@ def get_args():
         "--pipeline_parallelism_size",
         type=int,
         default=1,
-        help="TRT-LLM engine PP size. (Only used when `--export_format` is 'ttllm')",
+        help="TRT-LLM engine PP size. (Only used when `--export_format` is 'trtllm')",
     )
-    parser.add_argument("--devices", type=int, default="auto", help="Number of GPUs to use per node")
+    parser.add_argument("--devices", type=int, default=1, help="Number of GPUs to use per node")
     parser.add_argument("-nodes", "--num_nodes", type=int, default=1)
     parser.add_argument('-out', '--export_path', '--output_path', type=str, help='Path for the exported engine')
     parser.add_argument(
