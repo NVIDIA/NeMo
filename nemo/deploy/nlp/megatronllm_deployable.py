@@ -108,7 +108,19 @@ class MegatronLLMDeploy:
 
 
 class MegatronLLMDeployableNemo2(ITritonDeployable):
-    """Triton inference server compatible deploy class for a .nemo model file"""
+    """
+    Triton inference server compatible deploy class for a .nemo model file
+
+    Args:
+        nemo_checkpoint_filepath (str): path for the nemo checkpoint.
+        num_devices (int): number of GPUs.
+        num_nodes (int): number of nodes.
+        tensor_model_parallel_size (int): tensor parallelism.
+        pipeline_parallelism_size (int): pipeline parallelism.
+        context_parallel_size (int): context parallelism.
+        params_dtype (torch.dtype): max input length.
+        inference_batch_times_seqlen_threshold (int): squence threshold.
+    """
 
     def __init__(
         self,
