@@ -50,10 +50,10 @@ class TensorInspectCallback(Callback):
         self.debug_setup_done = False
 
         nvinspect_api.initialize(
-            multi_tensor_stat_collection=self.config.multi_tensor_stat_collection,
-            transformer_engine=self.config.transformer_engine,
-            log_dir=self.config.log_dir,
+            config_file=self.config.features,
             feature_dirs=self.config.feature_dirs,
+            log_dir=self.config.log_dir,
+            statistics_logger=None,
         )
         logging.info("nvinspect_api initialized with Python configuration.")
 
