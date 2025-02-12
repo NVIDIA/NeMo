@@ -918,7 +918,8 @@ def _validate_config(
             (
                 trainer.strategy.tensor_model_parallel_size * trainer.strategy.pipeline_model_parallel_size
                 + encoder_tensor_model_parallel_size * trainer.strategy.encoder_pipeline_model_parallel_size
-            ) * trainer.strategy.context_parallel_size
+            )
+            * trainer.strategy.context_parallel_size
         ) == 0, "Number of GPUs must be divisible by the product of all parallelism sizes for data parallel."
 
         assert (
@@ -930,7 +931,8 @@ def _validate_config(
                     / (
                         (
                             trainer.strategy.tensor_model_parallel_size * trainer.strategy.pipeline_model_parallel_size
-                            + encoder_tensor_model_parallel_size * trainer.strategy.encoder_pipeline_model_parallel_size
+                            + encoder_tensor_model_parallel_size
+                            * trainer.strategy.encoder_pipeline_model_parallel_size
                         )
                         * trainer.strategy.context_parallel_size
                     )

@@ -85,8 +85,9 @@ def main(args):
         freeze_language_model=False,
         freeze_vision_model=True,
     )
-    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile - \
-        int(neva_config.drop_vision_class_token and vision_transformer_config.add_class_token)
+    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile - int(
+        neva_config.drop_vision_class_token and vision_transformer_config.add_class_token
+    )
 
     seq_length = num_image_embeddings_per_tile
 
