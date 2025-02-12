@@ -484,6 +484,10 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             processed_signal_length=processed_signal_length,
         )
 
+        import pdb
+
+        pdb.set_trace()
+
         if num_audios is not None:
             # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
             encoded = encoded.split(num_audios.tolist())

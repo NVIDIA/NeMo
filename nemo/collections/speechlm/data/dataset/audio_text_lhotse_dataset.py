@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, List, Union
+from typing import Any, List, Tuple, Union
 
 import torch.utils.data
 from lhotse.cut import Cut, CutSet
@@ -169,7 +169,7 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
         )
         return sample
 
-    def _process_cut(self, cut: Cut) -> dict:
+    def _process_cut(self, cut: Cut) -> Tuple[dict, TextProcessorOutput]:
         audio_signal = cut.load_audio().reshape(-1)
         audio_data = {
             "audio_signal": [audio_signal],
@@ -180,18 +180,13 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
         sample = self._convert_cut_sample(cut)
         text_data = self.text_processor(sample)
 
-        text = self.text_processor.tokenizer.ids_to_text(text_data.input_ids)
-        import pdb
-
-        pdb.set_trace()
         return audio_data, text_data
 
-    def _process_multimodal_conversation(self, sample: NeMoMultimodalConversation) -> dict:
+    def _process_multimodal_conversation(self, sample: NeMoMultimodalConversation) -> Tuple[dict, TextProcessorOutput]:
         # Load audio
         audio_turns = [turn for turn in sample.turns if isinstance(turn, AudioTurn)]
         audio_signal = [turn.cut.load_audio().reshape(-1) for turn in audio_turns]
         audio_length = [len(audio) for audio in audio_signal]
-
         audio_data = {
             "audio_signal": audio_signal,
             "audio_length": audio_length,
