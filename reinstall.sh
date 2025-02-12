@@ -140,6 +140,7 @@ nemo() {
   )
 
   echo 'Installing dependencies of nemo'
+  ${PIP} uninstall nvidia-resiliency-ext
   ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
   echo 'Installing nemo itself'
