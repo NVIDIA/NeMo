@@ -435,12 +435,14 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
         if source.config.q_lora_rank is not None and not isinstance(
             source.module.decoder.layers[0].self_attention.q_layernorm, IdentityOp
         ):
-            mapping["decoder.layers.*.self_attention.q_layernorm.weight"] = (
-                mapping.pop("decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight"))
+            mapping["decoder.layers.*.self_attention.q_layernorm.weight"] = mapping.pop(
+                "decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight"
+            )
 
         if not isinstance(source.module.decoder.layers[0].self_attention.kv_layernorm, IdentityOp):
-            mapping["decoder.layers.*.self_attention.kv_layernorm.weight"] = (
-                mapping.pop("decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight"))
+            mapping["decoder.layers.*.self_attention.kv_layernorm.weight"] = mapping.pop(
+                "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight"
+            )
 
         if hasattr(source.config, "moe_router_enable_expert_bias") and source.config.moe_router_enable_expert_bias:
             mapping.update(
@@ -500,7 +502,6 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
     @property
     def tokenizer(self) -> "TokenizerSpec":
         return io.load_context(str(self), subpath="model").tokenizer
-
 
 
 __all__ = [
