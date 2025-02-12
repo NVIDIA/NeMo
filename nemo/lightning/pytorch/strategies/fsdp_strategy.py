@@ -227,12 +227,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
                 checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
                 pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
 
-        start_time = time.monotonic()
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
-        end_time = time.monotonic()
-        logging.info(
-            f'Global Checkpoint Save: Rank : {torch.distributed.get_rank()} : Start time : {start_time} s : Time spent in save_checkpoint: {end_time - start_time} s'
-        )
 
     @override
     def load_checkpoint(self, checkpoint_path: str | Path) -> Dict[str, Any]:
@@ -264,12 +259,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             pyt_to_mcore_state_dict(osd['state'], prefix="optimizer.state.")
             sharded_state_dict["optimizer"] = osd
 
-        start_time = time.monotonic()
         checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
-        end_time = time.monotonic()
-        logging.info(
-            f'Global Checkpoint Load: Rank : {torch.distributed.get_rank()} : Start time : {start_time} s : Time spent in load_checkpoint: {end_time - start_time} s'
-        )
         mcore_to_pyt_sharded_state_dict(checkpoint['sharded_state_dict'], msd)
 
         if self.ckpt_load_optimizer and self.trainer.state.fn == TrainerFn.FITTING:
