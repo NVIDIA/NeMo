@@ -53,7 +53,8 @@ except (ImportError, ModuleNotFoundError) as e:
 
     HAVE_MEGATRON_CORE = False
     IMPORT_ERROR = (
-        "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+        "megatron-core was not found. "
+        "Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
         f" Exact error: {e}"
     )
 
@@ -80,6 +81,7 @@ class AsyncCompatibleCheckpointIO(CheckpointIO, ABC):
     def save_checkpoint(
         self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
     ) -> 'AsyncRequest':
+        """ Interface to implement save_checkpoint and return an AsyncRequest"""
         raise NotImplementedError
 
 
@@ -169,12 +171,15 @@ class AsyncFinalizerCallback(Callback):
     """
 
     def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        """ Override hook to finalize pending checkpoint(s) if they exist."""
         self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
 
     def on_train_epoch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
-        self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
+         """ Override hook to finalize pending checkpoint(s) if they exist."""
+       self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=False)
 
     def on_train_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        """ Override hook to finalize pending checkpoint(s) if they exist."""
         checkpoint_io = self._get_checkpoint_io(trainer)
         if checkpoint_io.async_calls_queue.get_num_unfinalized_calls() > 0:
             logging.info('Pending async checkpoint saves. Finalizing them synchronously now')
@@ -377,12 +382,17 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             strict=strict,
         )
         end_time = time()
+        duration = end_time - start_time
         logging.info(
-            f'Global Checkpoint Load : Rank : {torch.distributed.get_rank()} : Start time : {start_time:.3f}s : Load duration: {end_time - start_time:.3f}s'
+            "Global Checkpoint Load : "
+            f"Rank : {torch.distributed.get_rank()} : "
+            f"Start time : {start_time:.3f}s : "
+            f"Time spent in load_checkpoint: {duration:.3f}s"
         )
         return ret
 
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
+        """ Remove unexpected keys from being loaded into the state dict. """
         ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
         loaded_keys = []
         unexpected_keys = []
@@ -415,6 +425,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
     @property
     def save_sharded_strategy(self) -> 'SaveShardedStrategy':
+        """ Conditionally initialize and get the sharded strategy to use for saving. """
         if self._save_sharded_strategy is None:
             self._save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
         return self._save_sharded_strategy
