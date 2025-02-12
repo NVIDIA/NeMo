@@ -254,7 +254,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             adapter_path = path / HF_ADAPTER_PATH
             trainer_state |= HFCheckpointIO._load_adapter_weights_only(adapter_path)
         elif callable(getattr(self.model, 'load_pretrained', None)):
-            trainer_state['state_dict'] = self.model.load_pretrained(path)
+            trainer_state['state_dict'] = self.model.load_pretrained(path / HF_WEIGHTS_PATH)
         else:
             raise RuntimeError("Checkpoint load has failed: 'load_pretrained' is not defined for "
             "this model and 'adapter_only' is disabled. Please implement 'load_pretrained' or "
