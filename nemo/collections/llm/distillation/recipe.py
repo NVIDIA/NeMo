@@ -31,7 +31,7 @@ NAME = "default"
 
 
 def trainer(
-    tensor_parallelism: int = 1,
+    tensor_parallelism: int = 8,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
