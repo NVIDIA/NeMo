@@ -384,7 +384,6 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
         ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
         loaded_keys = []
-        missing_keys = []
         unexpected_keys = []
 
         def should_remove_missing_sharded_base(x: Any):
@@ -428,9 +427,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         """
         if self.save_ckpt_format == 'zarr':
             logging.warning(
-                f'`zarr` distributed checkpoint backend is deprecated.'
-                f' Distributed optimizer checkpoint saving might be extremely slow.'
-                f' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
+                '`zarr` distributed checkpoint backend is deprecated.'
+                ' Distributed optimizer checkpoint saving might be extremely slow.'
+                ' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
             )
 
         if self.async_save and self.save_ckpt_format != 'torch_dist':
