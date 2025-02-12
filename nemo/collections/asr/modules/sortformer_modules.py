@@ -250,9 +250,11 @@ class SortformerModules(NeuralModule, Exportable):
         emb_dim = emb_seq.shape[2]
         mem_len_per_spk = self.mem_len // n_spk
         last_n_sil_per_spk = self.mem_sil_frames_per_spk
+        n_boost_per_spk = (mem_len_per_spk - last_n_sil_per_spk) * 3 // 4
+        n_high_per_spk = (mem_len_per_spk - last_n_sil_per_spk) // 2
 
         #condition for frame being silence
-        is_sil = preds.sum(dim=2) < 0.1 # Shape: (B, n_frames)
+        is_sil = preds.sum(dim=2) < 0.2 # Shape: (B, n_frames)
         is_sil = is_sil.unsqueeze(-1) # Shape: (B, n_frames, 1)
         #get mean silence embedding tensor
         emb_seq_sil = torch.where(is_sil, emb_seq, torch.tensor(0.0)) # Shape: (B, n_frames, emb_dim)
@@ -263,43 +265,50 @@ class SortformerModules(NeuralModule, Exportable):
 
         #get frame importance scores
         scores = preds
-#        logging.info(f"MC scores: {scores[0,:,:]}")
 
-        #normalized scores (non-overlapped frames are more preferable for memory)
-        scores_norm = 2*scores - torch.sum(scores, dim=2).unsqueeze(-1).expand(-1, -1, n_spk)
-#        logging.info(f"MC scores normalized: {scores_norm[0,:,:]}")
-        #cumsum-normalized scores: this is to avoid speakers appearing in memory buffer before their block
-        # as a result, for speaker i={0,1,2,...,n_spk-1}, scores_csnorm_i = 2*scores_i - sum_{j=i}^{n_spk-1}(scores_j)
-#        scores_csnorm = 2*scores - scores.cpu().flip(dims=[2]).cumsum(dim=2).flip(dims=[2]).to(preds.device) #ugly hack to ensure deterministic behavior
-#        logging.info(f"MC scores cumsum-normalized: {scores_csnorm[0,:,:]}")
+        #entropy-like scores
+        log_probs = torch.log(torch.clamp(scores, min=0.25))
+        log_1_probs = torch.log(torch.clamp(1.0-scores, min=0.25))
+        log_1_probs_sum = log_1_probs.sum(dim=2).unsqueeze(-1).expand(-1, -1, n_spk)
+        scores_lp = log_probs - log_1_probs + log_1_probs_sum - math.log(0.5)
+        scores_lp_max, _ = torch.max(scores_lp, dim=1) # (B, n_spk)
 
-        #scores thresholding: set -inf if cumsum-normalized score is less than 0.5.
-        # This exclude non-speech frames and also doesn't allow speakers to appear in memory before their block
-        is_good = scores_norm > 0.5
-        scores = torch.where(is_good, scores_norm, torch.tensor(float('-inf'))) # Shape: (B, n_frames, n_spk)
-        scores[:,self.mem_len:,:] *= 1.05 # to boost newly added frames
+        is_speech = scores > 0.5
+        is_high = scores_lp > 0 #only current speaker is speaking
+        is_high_sum = is_high.sum(dim=1) #number of frames for each speaker with score_ent > 0 #(B, n_spk)
+        is_bad = is_speech * (is_high_sum.unsqueeze(1) >= n_high_per_spk) * (~is_high) #condition for replacing low scores by -inf
 
-        #logging.info(f"MC scores final: {scores[0,:,:]}")
+        #replace scores for non-speech by -inf
+        scores = torch.where(is_speech, scores_lp, torch.tensor(float('-inf'))) # Shape: (B, n_frames, n_spk) 
+        #replace low scores by -inf
+        scores = torch.where(is_bad, torch.tensor(float('-inf')), scores) # Shape: (B, n_frames, n_spk)
 
-        #get mem_len_per_spk most important indices for each speaker
-        topk_values, topk_indices = torch.topk(scores, mem_len_per_spk-last_n_sil_per_spk, dim=1, largest=True, sorted=False) # Shape: (B, mem_len_per_spk-last_n_sil_per_spk, n_spk)
+        if self.log:
+            logging.info(f"is_speech total: {is_speech.sum(dim=1)}")
+            logging.info(f"is_high total: {is_high_sum}")
+            logging.info(f"is_bad total: {is_bad.sum(dim=1)}")
+#            logging.info(f"scores before boosting: {scores[0, 0:188, :]}")
+        scores[:,self.mem_len:,:] += 0.05 # to boost newly added frames
 
+        #get n_boost_per_spk most important indices for each speaker
+        topk_values, topk_indices = torch.topk(scores, n_boost_per_spk, dim=1, largest=True, sorted=False) # Shape: (B, n_boost_per_spk, n_spk)
         batch_indices = torch.arange(B).unsqueeze(1).unsqueeze(2)  # Shape: (B, 1, 1)
         speaker_indices = torch.arange(n_spk).unsqueeze(0).unsqueeze(0)  # Shape: (1, 1, n_spk)
-        scores[batch_indices, topk_indices, speaker_indices] += 10 # boost scores corresponding to topk_indices; but scores for disable frames will remain -inf
+        scores[batch_indices, topk_indices, speaker_indices] -= 2*math.log(0.5) # boost scores corresponding to topk_indices; but scores for disabled frames will remain -inf
 
-        #logging.info(f"MC scores boosted: {scores[0,:,:]}")
+        #get n_boost_per_spk most important indices for each speaker
+        topk_values, topk_indices = torch.topk(scores, n_boost_per_spk*2, dim=1, largest=True, sorted=False) # Shape: (B, 2*n_boost_per_spk, n_spk)
+        batch_indices = torch.arange(B).unsqueeze(1).unsqueeze(2)  # Shape: (B, 1, 1)
+        speaker_indices = torch.arange(n_spk).unsqueeze(0).unsqueeze(0)  # Shape: (1, 1, n_spk)
+        scores[batch_indices, topk_indices, speaker_indices] -= math.log(0.5) # boost scores corresponding to topk_indices; but scores for disabled frames will remain -inf
 
         if last_n_sil_per_spk > 0: #add number of silence frames in the end of each block
             scores = torch.cat([scores, torch.full((B, last_n_sil_per_spk, n_spk), 10, device=topk_indices.device)], dim=1) # Shape: (B, n_frames + last_n_sil_per_spk, n_spk)
 
         scores_flatten = scores.permute(0,2,1).reshape(B, -1)
-#        logging.info(f"MC scores flatten: {scores_flatten[0,:]}")
 
         #get mem_len most important frames, but each speaker will get mem_len_per_spk frames at least
         topk_values, topk_indices = torch.topk(scores_flatten, self.mem_len, dim=1, largest=True, sorted=False) # Shape: (B, mem_len)
-        #logging.info(f"topk scores: {topk_values[0,:]}")
-        #logging.info(f"topk indices: {topk_indices[0,:]}")
 
         valid_topk_mask = topk_values != float('-inf')
         topk_indices = torch.where(valid_topk_mask, topk_indices, torch.tensor(99999))  # Replace invalid indices with 99999
@@ -318,7 +327,6 @@ class SortformerModules(NeuralModule, Exportable):
 
         # get correct indices corresponding to frames
         topk_indices_sorted = torch.remainder(topk_indices_sorted, n_frames + last_n_sil_per_spk) # Shape: (B, mem_len)
-        #logging.info(f"MC topk indices: {topk_indices_sorted[0,:]}")
 
         # expand topk indices to emb_dim in last dimension to use gather
         topk_indices_expanded = topk_indices_sorted.unsqueeze(-1).expand(-1, -1, emb_dim) # Shape: (B, mem_len, emb_dim)
