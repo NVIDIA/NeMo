@@ -47,7 +47,7 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import *
 from nemo.utils import logging
 
@@ -397,7 +397,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             output = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
             if isinstance(output, tuple):
                 logits, _ = output
-            else: 
+            else:
                 logits = output
             loss = self.loss(logits=logits, labels=labels)
 
@@ -419,7 +419,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
         audio_signal, audio_signal_len, labels, _ = batch
         output = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        if isinstance(self.forward, tuple):
+        if isinstance(output, tuple):
             logits, _ = output
         else:
             logits = output
