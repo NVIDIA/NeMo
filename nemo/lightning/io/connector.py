@@ -227,6 +227,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning.io.api import load_context
 
         model = load_context(path, subpath="model")
+        # skip initialization since a checkpoint is loaded in this function
+        model.config.perform_initialization = False
+
         is_peft_ckpt = model.model_transform is not None
         callbacks = []
         if is_peft_ckpt:
@@ -246,6 +249,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             if cpu:
                 # TODO: Make this more generic
                 with _strategy_lib.megatron_cpu_init_context(model.config):
+                    logging.debug(f"Configuring model on CPU...")
                     model.configure_model()
             else:
                 model.configure_model()
@@ -264,6 +268,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             )
             _trainer.strategy.load_model_state_dict(adapter_state, strict=False)
         else:
+            logging.debug(f"Loading checkpoint from {path}...")
             _trainer.strategy.load_checkpoint(path)
 
         return model, _trainer
