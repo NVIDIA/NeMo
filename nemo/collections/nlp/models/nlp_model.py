@@ -184,7 +184,7 @@ class NLPModel(ModelPT, Exportable):
                             f.write(json.dumps(output_config, indent=2, sort_keys=True) + '\n')
                         self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
                     else:
-                        # No defaults as this case can be any possible 
+                        # No defaults as this case can be any possible
                         # hyper-parameter combination of MegatronBert config
                         logging.info(f'For {self.pretrained_model_name}, set the config_file in the YAML file')
                 else:
