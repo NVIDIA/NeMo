@@ -20,7 +20,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List, Literal
 
-import lhotse.serialization
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, MonoCut, Recording, SupervisionSegment
