@@ -3767,7 +3767,9 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --ckpt-folder /tmp/hf_peft_ckpt
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 --ckpt-folder /tmp/hf_peft_ckpt
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3778,7 +3780,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py \
+        --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3790,8 +3793,8 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
-          --model /home/TestData/nlp/hf_gemma/hf_gemma_2b \
-          --max-steps 10 \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
           --devices 2 \
           --strategy ddp \
           --ckpt-folder /tmp/hf_peft_ckpt_ddp
@@ -3806,8 +3809,8 @@ jobs:
   #     RUNNER: self-hosted-azure
   #     SCRIPT: |
   #       TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
-  #        --model /home/TestData/nlp/hf_gemma/hf_gemma_2b \
-  #        --max-steps 10 \
+  #        --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+  #        --max-steps 3 \
   #        --devices 2 \
   #        --strategy fsdp2 \
   #        --ckpt-folder /tmp/hf_peft_ckpt_fsdp2
