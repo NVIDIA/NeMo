@@ -107,7 +107,7 @@ data:
 ############ Model ############
 model:
   freeze_language_model: true
-  freeze_speech_model: true
+  freeze_speech_model: false
   freeze_modality_adapter: false
   
   llm:
@@ -219,6 +219,7 @@ trainer:
   log_every_n_steps: 2 # frequency with which training steps are logged 
   val_check_interval: 1.0 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
   num_sanity_val_steps: 0
+  sync_batchnorm: true # used for convolution modules like FC
 
 strategy:
   _target_: nemo.collections.speechlm.strategies.SpeechLMMegatronStrategy
