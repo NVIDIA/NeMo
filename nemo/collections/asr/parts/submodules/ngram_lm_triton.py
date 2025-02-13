@@ -44,6 +44,7 @@ def _ngram_advance_triton_kernel(
     accumulated_backoff = 0.0
 
     for i in range(max_order):
+        tl.debug_barrier()
         start_idx = tl.load(state_start_arcs_ptr + cur_state)
         end_idx = tl.load(state_end_arcs_ptr + cur_state)
         indices = start_idx + vocab_offsets
@@ -64,7 +65,6 @@ def _ngram_advance_triton_kernel(
         cur_backoff_weight = tl.load(backoff_weights_ptr + cur_state)
         accumulated_backoff += cur_backoff_weight
         cur_state = tl.load(backoff_to_states_ptr + cur_state).to(states_ptr.dtype.element_ty)
-        tl.debug_barrier()
 
 
 @triton.jit
@@ -95,6 +95,7 @@ def _ngram_advance_triton_kernel_v2(
     accumulated_backoff = 0.0
     start_state_not_processed = True
     while start_state_not_processed:
+        tl.debug_barrier()
         start_idx = tl.load(state_start_arcs_ptr + cur_state)
         end_idx = tl.load(state_end_arcs_ptr + cur_state)
         indices = start_idx + vocab_offsets
@@ -117,4 +118,3 @@ def _ngram_advance_triton_kernel_v2(
         cur_backoff_weight = tl.load(backoff_weights_ptr + cur_state)
         accumulated_backoff += cur_backoff_weight
         cur_state = tl.load(backoff_to_states_ptr + cur_state).to(states_ptr.dtype.element_ty)
-        tl.debug_barrier()
