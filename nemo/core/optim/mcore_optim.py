@@ -24,6 +24,19 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
+def _filter_empty_common_step(state_dict):
+    """Filter out 'common_step': None from optimizer state dict"""
+    # MCore may add this empty 'common_step' to the optimizer state dict
+    # if it can't find a 'step' in any params. This would cause an error in TE
+    try:
+        common_step = state_dict['optimizer']['state']['common_step']
+
+        if common_step is None:
+            del state_dict['optimizer']['state']['common_step']
+    except KeyError:
+        pass
+
+
 class McoreDistributedOptimizer(torch.optim.Optimizer):
     """
     A wrapper for Mcore distributed optimizer.
@@ -51,6 +64,7 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         return self.mcore_optimizer.state_dict()
 
     def load_state_dict(self, state_dict):
+        _filter_empty_common_step(state_dict)
         self.mcore_optimizer.load_state_dict(state_dict)
 
     def sharded_state_dict(
