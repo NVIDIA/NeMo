@@ -307,6 +307,7 @@ class NLPModel(ModelPT, Exportable):
 
     @property
     def is_model_parallel_initialized(self):
+        """ """
         app_state = AppState()
         if app_state.model_parallel_group is not None:
             return True
@@ -456,6 +457,7 @@ class NLPModel(ModelPT, Exportable):
         return checkpoint
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
+        """ """
         # starting with trasformers v4.31.0, buffer for position_ids is persistent=False
         if (
             self.bert_model is not None
