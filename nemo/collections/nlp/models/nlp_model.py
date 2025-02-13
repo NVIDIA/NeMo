@@ -67,7 +67,6 @@ class NLPModel(ModelPT, Exportable):
         self.hidden_size = None
         self.bert_model = None
         vocab_file = None
-        nemo_file = None
         config_dict = None
         config_file = None
 
@@ -112,8 +111,6 @@ class NLPModel(ModelPT, Exportable):
         self._save_restore_connector = NLPSaveRestoreConnector()
 
         if cfg.get('language_model') and not no_lm_init:
-            if cfg.get('language_model').get('nemo_file'):
-                nemo_file = self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file)
             if cfg.get('language_model').get('config'):
                 config_dict = OmegaConf.to_container(cfg.language_model.config)
             if cfg.get('language_model').get('config_file'):
