@@ -60,7 +60,6 @@ Example usage to prune depth by dropping specific model layers (1-indexed):
 
 import argparse
 import os
-import shutil
 
 import modelopt.torch.prune as mtp
 import torch
@@ -71,10 +70,10 @@ from tqdm import tqdm
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
@@ -94,7 +93,7 @@ SUPPORTED_PRUNING_HPARAMS = {
 }
 
 
-def get_data_module(args):
+def get_data_module(args, tokenizer):
     """Get data module for running validation loop on.
 
     Also overwrites val dataloader to return train dataloader for importance estimation.
@@ -118,6 +117,7 @@ def get_data_module(args):
         micro_batch_size=args.mbs,
         global_batch_size=args.gbs,
         num_train_samples=args.num_train_samples,
+        tokenizer=tokenizer,
         **data_module_kwargs,
     )
 
@@ -155,13 +155,21 @@ def create_megatron_forward_loop(args, dataloader):
     return forward_loop
 
 
-def load_model_with_modelopt_spec(restore_path: str, trainer: nl.Trainer) -> llm.GPTModel:
+def load_model_with_modelopt_spec(
+    restore_path: str, trainer: nl.Trainer, tokenizer_path: str | None = None
+) -> llm.GPTModel:
     """Load model from nemo checkpoint with modelopt spec."""
     logging.info(f"Loading model from {restore_path}...")
     model = nl.io.load_context(path=ckpt_to_context_subdir(restore_path), subpath="model")
+
+    tokenizer = None
+    if tokenizer_path:
+        logging.info(f"Overriding tokenizer to: {tokenizer_path}")
+        tokenizer = get_tokenizer(tokenizer_path)
+
     model.config.transformer_layer_spec = get_gpt_layer_modelopt_spec()
     del model.optim
-    _setup_trainer_and_restore_model(restore_path, trainer, model)
+    _setup_trainer_and_restore_model(restore_path, trainer, model, tokenizer)
     logging.info(f"Loaded model: {model}\n")
     return model
 
@@ -169,11 +177,6 @@ def load_model_with_modelopt_spec(restore_path: str, trainer: nl.Trainer) -> llm
 def save_pruned_model(model: llm.GPTModel, trainer: nl.Trainer, save_path: str):
     """Save pruned model nemo checkpoint."""
     logging.info(f"Saving pruned model to {save_path}...")
-    if hasattr(model.tokenizer, "save_pretrained") and is_global_rank_zero():
-        tokenizer_tmp_dir = "/tmp/nemo_tokenizer"
-        model.tokenizer.save_pretrained(tokenizer_tmp_dir)
-        model.tokenizer = AutoTokenizer(tokenizer_tmp_dir)
-        shutil.rmtree(tokenizer_tmp_dir)
     if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, "__io__"):
         trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
         # Make sure pruned hparams are saved
@@ -192,7 +195,6 @@ def save_pruned_model(model: llm.GPTModel, trainer: nl.Trainer, save_path: str):
 
 def main(args):
     """Main function for pruning Llama model."""
-    # Training strategy setup
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
@@ -204,7 +206,6 @@ def main(args):
         ddp="pytorch",
     )
 
-    # Trainer setup
     trainer = nl.Trainer(
         num_nodes=args.num_nodes,
         devices=args.devices,
@@ -215,7 +216,8 @@ def main(args):
         limit_val_batches=args.num_train_samples // args.mbs,
     )
 
-    model = load_model_with_modelopt_spec(args.restore_path, trainer)
+    model = load_model_with_modelopt_spec(args.restore_path, trainer, args.tokenizer)
+
     export_config = {
         k: getattr(args, f"prune_{k}") for k in SUPPORTED_PRUNING_HPARAMS if getattr(args, f"prune_{k}") is not None
     }
@@ -229,7 +231,7 @@ def main(args):
         assert args.tp_size == 1, "Pruning currently only supports --tp_size=1"
         assert export_config, "No pruning constraints provided"
 
-        data_module = get_data_module(args)
+        data_module = get_data_module(args, model.tokenizer)
 
         # NOTE: Ideally we should directly use llm.validate but that moves the model to CPU
         #     after the forward loop causing issues with pruning post-processing in some cases.
@@ -275,6 +277,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--restore_path", type=str, required=True, help="Path to restore model checkpoint from")
     parser.add_argument("--save_path", type=str, required=True, help="Path to save pruned model checkpoint to")
+    parser.add_argument(
+        "--tokenizer", type=str, help="Tokenizer to use for data module. If not provided, model tokenizer will be used"
+    )
     # Calibration data parameters
     parser.add_argument(
         "--data_paths",
