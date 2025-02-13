@@ -1,4 +1,5 @@
 [flake8]
+exit-zero = true
 max-line-length = 119
 select = 
     F541, # f-string without any placeholders
@@ -7,4 +8,3 @@ select =
     E741, # ambiguous variable name 'l'
     F821, # undefined name 'x'
     E266, # too many leading '#' for block comment
-exit-zero = true
