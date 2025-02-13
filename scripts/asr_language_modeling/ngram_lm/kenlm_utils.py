@@ -96,8 +96,9 @@ def setup_tokenizer(nemo_model_file):
 
         tokenizer_nemo = model.tokenizer
 
+    # TODO: more reliable way to get the vocabulary size
     if isinstance(model, nemo_asr.models.EncDecCTCModelBPE):
-        full_vocab_size = model.decoding.decoding.blank_index
+        full_vocab_size = model.decoding.decoding.blank_id
     elif isinstance(model, nemo_asr.models.EncDecRNNTBPEModel):
         full_vocab_size = model.decoding.decoding._blank_index
     elif isinstance(model, nemo_asr.models.EncDecMultiTaskModel):
