@@ -184,16 +184,18 @@ class NLPModel(ModelPT, Exportable):
                             f.write(json.dumps(output_config, indent=2, sort_keys=True) + '\n')
                         self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
                     else:
-                        # No defaults as this case can be any possible hyper-parameter combination of MegatronBert config
+                        # No defaults as this case can be any possible 
+                        # hyper-parameter combination of MegatronBert config
                         logging.info(f'For {self.pretrained_model_name}, set the config_file in the YAML file')
                 else:
                     logging.info(
-                        f'Registering MegatronBERT model config for {self.pretrained_model_name} is not yet supported. \
-                        Please override this method if needed.'
+                        f'Registering MegatronBERT model config for {self.pretrained_model_name} \
+                        is not yet supported. Please override this method if needed.'
                     )
             else:
                 logging.info(
-                    f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
+                    f'Registering BERT model config for {self.bert_model} is not yet supported. \
+                    Please override this method if needed.'
                 )
 
     def setup_tokenizer(self, cfg: DictConfig):
@@ -283,7 +285,8 @@ class NLPModel(ModelPT, Exportable):
                 self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
                 logging.info(
-                    f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
+                    f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. \
+                    Please override this method if needed.'
                 )
 
     @staticmethod
@@ -420,7 +423,8 @@ class NLPModel(ModelPT, Exportable):
                 if hasattr(model, 'setup_transformer_engine_tp_groups'):
                     model.setup_transformer_engine_tp_groups()
 
-            # NMT models do not have a `tokenizer` attribute, they instead have an encoder_tokenizer and decoder_tokenizer attribute.
+            # NMT models do not have a `tokenizer` attribute,
+            # they instead have an encoder_tokenizer and decoder_tokenizer attribute.
             if hasattr(cfg, "tokenizer"):
                 if cfg.tokenizer.get("tokenizer_model") is not None:
                     model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.tokenizer_model)
@@ -470,7 +474,8 @@ class NLPModel(ModelPT, Exportable):
             results = super(NLPModel, self).load_state_dict(state_dict, strict=False)
             if all(s.endswith('_extra_state') for s in results.missing_keys):
                 logging.warning(
-                    f'Loding checkpoint created with Transformer Engine version lower than 1.13. Missing layers {results.missing_keys} will be ignored.'
+                    f'Loding checkpoint created with Transformer Engine version lower than 1.13. \
+                    Missing layers {results.missing_keys} will be ignored.'
                 )
             else:
                 raise e
