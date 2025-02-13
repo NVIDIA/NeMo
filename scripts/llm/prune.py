@@ -64,21 +64,16 @@ import os
 import modelopt.torch.prune as mtp
 import torch
 from megatron.core import dist_checkpointing
-from megatron.core.pipeline_parallel import get_forward_backward_func
-from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-from tqdm import tqdm
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.model_utils import unwrap_model
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -114,45 +109,13 @@ def get_data_module(args, tokenizer):
         data_module_cls = llm.MockDataModule
     data_module = data_module_cls(
         seq_length=args.seq_length,
+        tokenizer=tokenizer,
         micro_batch_size=args.mbs,
         global_batch_size=args.gbs,
-        num_train_samples=args.num_train_samples,
-        tokenizer=tokenizer,
         **data_module_kwargs,
     )
 
     return data_module
-
-
-def create_megatron_forward_loop(args, dataloader):
-    """Create a forward loop for over a given data loader."""
-    forward_backward_func = get_forward_backward_func()
-    data_iterator = iter(dataloader)
-
-    def forward_step_func(data_iterator, model: llm.GPTModel):
-        batch = model.data_step(data_iterator)
-        output_tensor = model.validation_step(batch)
-
-        def _mock_loss_function(tensor):
-            return 0, {}
-
-        return output_tensor, _mock_loss_function
-
-    @torch.no_grad()
-    def forward_loop(model):
-        num_iters = args.num_train_samples // args.gbs
-        for _ in tqdm(range(num_iters), desc="Calibrating model"):
-            forward_backward_func(
-                forward_step_func=forward_step_func,
-                data_iterator=data_iterator,
-                model=model,
-                num_microbatches=args.gbs // args.mbs,
-                seq_length=args.seq_length,
-                micro_batch_size=args.mbs,
-                forward_only=True,
-            )
-
-    return forward_loop
 
 
 def load_model_with_modelopt_spec(
@@ -170,6 +133,7 @@ def load_model_with_modelopt_spec(
     model.config.transformer_layer_spec = get_gpt_layer_modelopt_spec()
     del model.optim
     _setup_trainer_and_restore_model(restore_path, trainer, model, tokenizer)
+    trainer.strategy.setup_environment = lambda *args, **kwargs: None  # Dont setup env again
     logging.info(f"Loaded model: {model}\n")
     return model
 
@@ -213,7 +177,8 @@ def main(args):
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", params_dtype=torch.bfloat16, autocast_enabled=True),
         max_steps=args.num_train_samples // args.gbs,
-        limit_val_batches=args.num_train_samples // args.mbs,
+        limit_val_batches=args.num_train_samples // args.gbs,
+        val_check_interval=args.num_train_samples // args.gbs,
     )
 
     model = load_model_with_modelopt_spec(args.restore_path, trainer, args.tokenizer)
@@ -224,26 +189,18 @@ def main(args):
     if args.drop_layers:
         assert not export_config, f"Cannot specify `--drop_layers` with other prune constraints. Recieved: {args}"
 
-        # TODO: We wont need to unwrap model in nvidia-modelopt >= 0.25.0
-        unwrapped_model = unwrap_model(model.module, (Float16Module, MCoreFloat16Module))
-        mtp.plugins.megatron.drop_mcore_gpt_layers(unwrapped_model, layers_to_drop=args.drop_layers)
+        mtp.plugins.megatron.drop_mcore_gpt_layers(model, layers_to_drop=args.drop_layers)
     else:
         assert args.tp_size == 1, "Pruning currently only supports --tp_size=1"
         assert export_config, "No pruning constraints provided"
 
         data_module = get_data_module(args, model.tokenizer)
 
-        # NOTE: Ideally we should directly use llm.validate but that moves the model to CPU
-        #     after the forward loop causing issues with pruning post-processing in some cases.
-        # def forward_loop(model):
-        #     trainer.strategy.restore_config = None  # Dont restore model weights again
-        #     # Overwrite val dataloader to use train dataloader with llm.validate
-        #     data_module.val_dataloader = data_module.train_dataloader
-        #     llm.validate(model, data_module, trainer)
-
-        data_module.trainer = trainer
-        data_module.setup()
-        forward_loop = create_megatron_forward_loop(args, data_module.train_dataloader())
+        def forward_loop(model):
+            trainer.strategy.restore_config = None  # Dont restore model weights again
+            # Overwrite val dataloader to use train dataloader with llm.validate
+            data_module.val_dataloader = data_module.train_dataloader
+            llm.validate(model, data_module, trainer)
 
         logging.info("Pruning model...")
         mtp.prune(
