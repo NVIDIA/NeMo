@@ -12,4 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.export.tensorrt_lazy_compiler import trt_compile
+
+use_tensorrt = True
+try:
+    from nemo.export.tensorrt_lazy_compiler import trt_compile
+except Exception as e:
+    use_tensorrt = False

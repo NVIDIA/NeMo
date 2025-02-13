@@ -15,23 +15,19 @@ import argparse
 import os
 from dataclasses import dataclass
 
+import torch
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from tests.collections.llm.common import Llama3ConfigCI
 
 ## NOTE: This script is present for github-actions testing only.
-
-
-@dataclass
-class Llama3ConfigCI(llm.Llama3Config8B):
-    seq_length: int = 2048
-    num_layers: int = 2
-    hidden_size: int = 768
-    ffn_hidden_size: int = 3072
-    num_attention_heads: int = 8
+## CI tests that call this script should set max_steps=3 for initial training
+## and max_steps=6 for resume testing
 
 
 def get_args():
@@ -45,6 +41,7 @@ def get_args():
     parser.add_argument('--tp_size', type=int, default=1, help="tensor parallel size")
     parser.add_argument('--pp_size', type=int, default=1, help="pipeline parallel size")
     parser.add_argument('--packed', action='store_true', help="use packed sequence dataset")
+    parser.add_argument('--dataset', type=str, default="dolly", choices=['dolly', 'chat'], help="Dataset to use")
 
     return parser.parse_args()
 
@@ -55,6 +52,9 @@ if __name__ == '__main__':
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
+        # Pipeline dtype is coupled with the bf16 mixed precision plugin
+        pipeline_dtype=torch.bfloat16,
+        ckpt_load_strictness="log_all",  # Only for CI tests to use older versions of checkpoint
     )
 
     trainer = nl.Trainer(
@@ -102,13 +102,28 @@ if __name__ == '__main__':
     packed_sequence_specs = (
         PackedSequenceSpecs(packed_sequence_size=2048, tokenizer_model_name="dummy_tokenizer") if args.packed else None
     )
-    dolly = llm.DollyDataModule(
-        seq_length=2048,
-        micro_batch_size=args.mbs,
-        global_batch_size=4,
-        num_workers=0,
-        packed_sequence_specs=packed_sequence_specs,
-    )
+
+    if args.dataset == 'chat':
+        assert not args.packed
+        data = llm.ChatDataModule(
+            dataset_root=get_dataset_root("chat"),
+            seq_length=2048,
+            micro_batch_size=args.mbs,
+            global_batch_size=8,
+            num_workers=0,
+            packed_sequence_specs=packed_sequence_specs,
+        )
+    else:
+        data = llm.DollyDataModule(
+            seq_length=2048,
+            micro_batch_size=args.mbs,
+            global_batch_size=8,
+            num_workers=0,
+            packed_sequence_specs=packed_sequence_specs,
+        )
+
+    # ensure using cached dir
+    assert str(data.dataset_root).startswith(os.environ.get("NEMO_HOME"))
 
     tokenizer = get_nmt_tokenizer(tokenizer_model=os.path.join(args.restore_path, "dummy_tokenizer.model"))
     llama3_8b = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
@@ -120,10 +135,21 @@ if __name__ == '__main__':
 
     llm.finetune(
         model=llama3_8b,
-        data=dolly,
+        data=data,
         trainer=trainer,
         peft=peft,
         log=logger,
         optim=adam,
         resume=resume,
     )
+
+    if args.max_steps == 3:
+        print("Initial Training Succeeded")
+    if args.max_steps == 6:
+        # assert a resume has happened for CI tests
+        msg = (
+            "Resume did not happen in this resume test.\n"
+            "Hint: Scroll up and see whether 'Initial Training Succeeded' is printed out.\n"
+            "If not, then the issue is not with ckpt resume."
+        )
+        assert 'reduced_train_loss=' in str(trainer.ckpt_path), msg

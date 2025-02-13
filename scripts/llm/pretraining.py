@@ -14,7 +14,8 @@
 
 # NOTE: This script is only an example of using NeMo with NeMo-Run's APIs and is subject to change without notice.
 # This script is used for pretraining on local and slurm executors.
-# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
+# It uses NeMo 2.0 recipes (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/) and
+# NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
 from functools import partial
@@ -66,12 +67,13 @@ def slurm_executor(
     time: str = "01:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
-    container_image: str = "nvcr.io/nvidia/nemo:24.09",
+    container_image: str = "nvcr.io/nvidia/nemo:dev",
     retries: int = 0,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
         raise RuntimeError(
-            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this function."
+            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
+            "function.",
         )
 
     mounts = []
@@ -149,9 +151,19 @@ def main():
 
     pretrain.trainer.val_check_interval = 400
     pretrain.log.ckpt.save_top_k = -1
-    pretrain.log.ckpt.every_n_train_steps = 400
 
     pretrain.trainer.max_steps = 1000
+
+    # Change here and add your files to custom_mounts
+    vocab_file = None
+    merges_file = None
+    pretrain.data = MockDataModule(
+        seq_length=pretrain.data.seq_length,
+        global_batch_size=pretrain.data.global_batch_size,
+        micro_batch_size=pretrain.data.micro_batch_size,
+        vocab_file=vocab_file,
+        merges_file=merges_file,
+    )
 
     executor: run.Executor
 
@@ -165,6 +177,7 @@ def main():
             partition="",
             nodes=pretrain.trainer.num_nodes,
             devices=pretrain.trainer.devices,
+            custom_mounts=[],
         )
     else:
         executor = local_executor_torchrun(nodes=pretrain.trainer.num_nodes, devices=pretrain.trainer.devices)

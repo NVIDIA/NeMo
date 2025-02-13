@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import os
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -27,6 +26,7 @@ from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
+from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
 from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
 from nemo.lightning import (
     AutoResume,
@@ -37,10 +37,9 @@ from nemo.lightning import (
     io,
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
-from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
+from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -48,6 +47,7 @@ if TYPE_CHECKING:
 
 
 TokenizerType = Any
+AnyPath = Union[Path, str]
 
 
 @run.cli.entrypoint(namespace="llm")
@@ -272,12 +272,14 @@ def ptq(
     calibration_tp: int = 1,
     calibration_pp: int = 1,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
+    ckpt_load_strictness: Optional[str] = None,
 ) -> Path:
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
     This function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy modules
     or direcly using TensorRT-LLM library.
+
     The function can be used through the NeMo CLI in the following way:
     ```bash
     # Run calibration using tensor parallel set to 8 and export quantized checkpoint with tensor parallel equal 2
@@ -285,17 +287,21 @@ def ptq(
         export_config.path=/models/Llama-3-70B-FP8 \
         calibration_tp=8 \
         export_config.inference_tp=2
+
     # Choose different quantization method, for example, INT8 SmoothQuant
     nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq
     ```
+
     Args:
         nemo_checkpoint (str): The path to model to be quantized.
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
+        ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
+
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
     """
@@ -309,7 +315,12 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(nemo_checkpoint, calibration_tp, calibration_pp)
+    model = quantization.load_with_modelopt_layer_spec(
+        nemo_checkpoint,
+        calibration_tp,
+        calibration_pp,
+        ckpt_load_strictness=ckpt_load_strictness,
+    )
 
     model = quantizer.quantize(model)
 
@@ -323,14 +334,14 @@ def ptq(
 
 @run.cli.entrypoint(namespace="llm")
 def deploy(
-    nemo_checkpoint: Path = None,
+    nemo_checkpoint: AnyPath = None,
     model_type: str = "llama",
-    triton_model_name: str = 'triton_model',
+    triton_model_name: str = "triton_model",
     triton_model_version: Optional[int] = 1,
-    triton_port: int = 8000,
+    triton_http_port: int = 8000,
+    triton_grpc_port: int = 8001,
     triton_http_address: str = "0.0.0.0",
-    triton_request_timeout: int = 60,
-    triton_model_repository: Path = None,
+    triton_model_repository: AnyPath = None,
     num_gpus: int = 1,
     tensor_parallelism_size: int = 1,
     pipeline_parallelism_size: int = 1,
@@ -338,16 +349,11 @@ def deploy(
     max_input_len: int = 256,
     max_output_len: int = 256,
     max_batch_size: int = 8,
-    start_rest_service: bool = True,
-    rest_service_http_address: str = "0.0.0.0",
-    rest_service_port: int = 8080,
-    openai_format_response: bool = True,
+    output_context_logits: bool = True,
     output_generation_logits: bool = True,
 ):
     """
     Deploys nemo model on a PyTriton server by converting the nemo ckpt to trtllm.
-    Also starts rest service that is used to send OpenAI API compatible input request
-    to the PyTiton server.
 
     Args:
         nemo_checkpoint (Path): Path for nemo checkpoint.
@@ -356,9 +362,9 @@ def deploy(
         name is passed to the evalute method for the model to be accessible while sending evalution requests.
         Default: 'triton_model'.
         triton_model_version (Optional[int]): Version for the triton model. Default: 1.
-        triton_port (int): Port for the PyTriton server. Default: 8000.
+        triton_http_port (int): HTTP port for the PyTriton server. Default: 8000.
+        triton_grpc_port (int): gRPC Port for the PyTriton server. Default: 8001.
         triton_http_address (str): HTTP address for the PyTriton server. Default:  "0.0.0.0".
-        triton_request_timeout (int): Timeout in seconds for Triton server. Default: 60.
         triton_model_repository (Path): Folder for the trt-llm conversion, trt-llm engine gets saved in this specified
         path. If None, saves it in /tmp dir. Default: None.
         num_gpus (int): Number of GPUs for export to trtllm and deploy. Default: 1.
@@ -368,31 +374,21 @@ def deploy(
         max_input_len (int): Max input length of the model. Default: 256.
         max_output_len (int): Max output length of the model. Default: 256.
         max_batch_size (int): Max batch size of the model. Default: 8.
-        start_rest_service (bool): Start rest service that is used to send evaluation requests to the PyTriton server.
         Needs to be True to be able to run evaluation. Default: True.
-        rest_service_http_address (str): HTTP address for the rest service. Default: "0.0.0.0".
-        rest_service_port (int): Port for the rest service. Default: 8080.
         openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
         be True while running evaluation. Default: True.
+        output_context_logits (bool): If True builds trtllm engine with gather_context_logits set to True. Default: True.
+        context_logits are used to compute the logProb of the output token in case of multi token prediction benchmarks.
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
-        generation_logits are used to compute the logProb of the output token. Default: True.
+        generation_logits are used to compute the logProb of the output token in case of single token prediction
+        benchmarks (like MMLU, lambada). Default: True.
     """
-    from nemo.collections.llm import deploy
+    from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
-    deploy.unset_environment_variables()
-    if start_rest_service:
-        if triton_port == rest_service_port:
-            logging.error("REST service port and Triton server port cannot use the same port.")
-            return
-        # Store triton ip, port and other args relevant for REST API as env vars to be accessible by rest_model_api.py
-        os.environ['TRITON_HTTP_ADDRESS'] = triton_http_address
-        os.environ['TRITON_PORT'] = str(triton_port)
-        os.environ['TRITON_REQUEST_TIMEOUT'] = str(triton_request_timeout)
-        os.environ['OPENAI_FORMAT_RESPONSE'] = str(openai_format_response)
-        os.environ['OUTPUT_GENERATION_LOGITS'] = str(output_generation_logits)
+    unset_environment_variables()
 
-    triton_deployable = deploy.get_trtllm_deployable(
+    triton_deployable = get_trtllm_deployable(
         nemo_checkpoint,
         model_type,
         triton_model_repository,
@@ -403,6 +399,7 @@ def deploy(
         max_output_len,
         max_batch_size,
         dtype,
+        output_context_logits,
         output_generation_logits,
     )
 
@@ -412,7 +409,8 @@ def deploy(
             triton_model_name=triton_model_name,
             triton_model_version=triton_model_version,
             max_batch_size=max_batch_size,
-            port=triton_port,
+            http_port=triton_http_port,
+            grpc_port=triton_grpc_port,
             address=triton_http_address,
         )
 
@@ -423,26 +421,8 @@ def deploy(
         logging.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
 
-    uvicorn_supported = True
     try:
-        import uvicorn
-    except ImportError as error:
-        logging.warning(f"uvicorn could not be imported: {error}")
-        uvicorn_supported = False
-
-    try:
-        logging.info("Model serving on Triton is will be started.")
-        if start_rest_service and uvicorn_supported:
-            try:
-                logging.info("REST service will be started.")
-                uvicorn.run(
-                    "nemo.deploy.service.rest_model_api:app",
-                    host=rest_service_http_address,
-                    port=rest_service_port,
-                    reload=True,
-                )
-            except Exception as error:
-                logging.error("Error message has occurred during REST service start. Error message: " + str(error))
+        logging.info("Model serving on Triton will be started.")
         nm.serve()
     except Exception as error:
         logging.error("Error message has occurred during deploy function. Error message: " + str(error))
@@ -453,55 +433,21 @@ def deploy(
 
 
 def evaluate(
-    nemo_checkpoint_path: Path,
-    url: str = "http://0.0.0.0:8080/v1",
-    model_name: str = "triton_model",
-    eval_task: str = "gsm8k",
-    num_fewshot: Optional[int] = None,
-    limit: Optional[Union[int, float]] = None,
-    bootstrap_iters: int = 100000,
-    # inference params
-    max_tokens_to_generate: Optional[int] = 256,
-    temperature: Optional[float] = 0.000000001,
-    top_p: Optional[float] = 0.0,
-    top_k: Optional[int] = 1,
-    add_bos: Optional[bool] = False,
+    target_cfg: EvaluationTarget,
+    eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
 ):
     """
     Evaluates nemo model deployed on PyTriton server (via trtllm) using lm-evaluation-harness
     (https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
 
     Args:
-        nemo_checkpoint_path (Path): Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt
-        which is required to tokenize the evaluation input and output prompts.
-        url (str): rest service url and port that were used in the deploy method above in the format:
-        http://{rest_service_http}:{rest_service_port}. Post requests with evaluation input prompts
-        (from lm-eval-harness) are sent to this url which is then passed to the model deployed on PyTriton server.
-        The rest service url and port serve as the entry point to evaluate model deployed on PyTriton server.
-        model_name (str): Name of the model that is deployed on PyTriton server. It should be the same as
-        triton_model_name passed to the deploy method above to be able to launch evaluation. Deafult: "triton_model".
-        eval_task (str): task to be evaluated on. For ex: "gsm8k", "gsm8k_cot", "mmlu", "lambada". Default: "gsm8k".
-        These are the tasks that are supported currently. Any other task of type generate_until or loglikelihood from
-        lm-evaluation-harness can be run, but only the above mentioned ones are tested. Tasks of type
-        loglikelihood_rolling are not supported yet.
-        num_fewshot (int): number of examples in few-shot context. Default: None.
-        limit (Union[int, float]): Limit the number of examples per task. If <1 (i.e float val between 0 and 1), limit
-        is a percentage of the total number of examples. If int say x, then run evaluation only on x number of samples
-        from the eval dataset. Default: None, which means eval is run the entire dataset.
-        bootstrap_iters (int): Number of iterations for bootstrap statistics, used when calculating stderrs. Set to 0
-        for no stderr calculations to be performed. Default: 100000.
-        # inference params
-        max_tokens_to_generate (int): max tokens to generate. Default: 256.
-        temperature: Optional[float]: float value between 0 and 1. temp of 0 indicates greedy decoding, where the token
-        with highest prob is chosen. Temperature can't be set to 0.0 currently, due to a bug with TRTLLM
-        (# TODO to be investigated). Hence using a very samll value as the default. Default: 0.000000001.
-        top_p: Optional[float]: float value between 0 and 1. limits to the top tokens within a certain probability.
-        top_p=0 means the model will only consider the single most likely token for the next prediction. Default: 0.0.
-        top_k: Optional[int]: limits to a certain number (K) of the top tokens to consider. top_k=1 means the model
-        will only consider the single most likely token for the next prediction. Default: 1
-        add_bos: Optional[bool]: whether a special token representing the beginning of a sequence should be added when
-        encoding a string. Default: False since typically for CausalLM its set to False. If needed set add_bos to True.
+        target_cfg (EvaluationTarget): target of the evaluation. Providing nemo_checkpoint_path, model_id and url in EvaluationTarget.api_endpoint is required to run evaluations.
+        eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
     """
+
+    if target_cfg.api_endpoint.nemo_checkpoint_path is None:
+        raise ValueError("Please provide nemo_checkpoint_path in your target_cfg.")
+
     try:
         # lm-evaluation-harness import
         from lm_eval import evaluator
@@ -510,28 +456,47 @@ def evaluate(
             "Please ensure that lm-evaluation-harness is installed in your env as it is required " "to run evaluations"
         )
 
-    from nemo.collections.llm import evaluation
+    from nemo.collections.llm.evaluation.base import NeMoFWLMEval, wait_for_server_ready
 
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
-    tokenizer = io.load_context(nemo_checkpoint_path + '/context', subpath="model").tokenizer
-    # Wait for rest service to be ready before starting evaluation
-    evaluation.wait_for_rest_service(rest_url=f"{url}/v1/health")
-    # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
-    model = evaluation.NeMoFWLMEval(
-        model_name, url, tokenizer, max_tokens_to_generate, temperature, top_p, top_k, add_bos
+    endpoint = target_cfg.api_endpoint
+    tokenizer = io.load_context(endpoint.nemo_checkpoint_path + "/context", subpath="model.tokenizer")
+
+    # Wait for server to be ready before starting evaluation
+    wait_for_server_ready(
+        url=endpoint.url, triton_http_port=endpoint.nemo_triton_http_port, model_name=endpoint.model_id
     )
-    results = evaluator.simple_evaluate(
-        model=model, tasks=eval_task, limit=limit, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+    # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
+    params = eval_cfg.params
+    model = NeMoFWLMEval(
+        model_name=endpoint.model_id,
+        api_url=endpoint.url,
+        tokenizer=tokenizer,
+        batch_size=params.batch_size,
+        max_tokens_to_generate=params.max_new_tokens,
+        temperature=params.temperature,
+        top_p=params.top_p,
+        top_k=params.top_k,
+        add_bos=params.add_bos,
     )
 
-    print("score", results['results'][eval_task])
+    eval_task = eval_cfg.type
+    results = evaluator.simple_evaluate(
+        model=model,
+        tasks=eval_task,
+        limit=params.limit_samples,
+        num_fewshot=params.num_fewshot,
+        bootstrap_iters=params.bootstrap_iters,
+    )
+
+    print("score", results["results"][eval_task])
 
 
 @run.cli.entrypoint(name="import", namespace="llm")
 def import_ckpt(
     model: pl.LightningModule,
     source: str,
-    output_path: Optional[Path] = None,
+    output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
 ) -> Path:
     """
@@ -589,6 +554,9 @@ def import_ckpt(
         ValueError: If the model does not implement ConnectorMixin, indicating a lack of
             necessary importer functionality.
     """
+    if output_path and not isinstance(output_path, Path):
+        output_path = Path(output_path)
+
     output = io.import_ckpt(model=model, source=source, output_path=output_path, overwrite=overwrite)
 
     console = Console()
@@ -601,15 +569,17 @@ def import_ckpt(
     return output
 
 
-def load_connector_from_trainer_ckpt(path: Path, target: str) -> io.ModelConnector:
-    return io.load_context(path).model.exporter(target, path)
+def load_connector_from_trainer_ckpt(path: AnyPath, target: str) -> io.ModelConnector:
+    if not isinstance(path, Path):
+        path = Path(path)
+    return io.load_context(path, subpath="model").exporter(target, path)
 
 
 @run.cli.entrypoint(name="export", namespace="llm")
 def export_ckpt(
-    path: Path,
+    path: AnyPath,
     target: str,
-    output_path: Optional[Path] = None,
+    output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
 ) -> Path:
@@ -660,6 +630,11 @@ def export_ckpt(
         ValueError: If the model does not implement ConnectorMixin, indicating a lack of
             necessary exporter functionality.
     """
+    if not isinstance(path, Path):
+        path = Path(path)
+    if output_path and not isinstance(output_path, Path):
+        output_path = Path(output_path)
+
     output = io.export_ckpt(path, target, output_path, overwrite, load_connector)
 
     console = Console()
@@ -670,7 +645,7 @@ def export_ckpt(
 
 @run.cli.entrypoint(name="generate", namespace="llm")
 def generate(
-    path: Union[Path, str],
+    path: AnyPath,
     trainer: nl.Trainer,
     prompts: Optional[list[str]] = None,
     encoder_prompts: Optional[list[str]] = None,
@@ -682,7 +657,7 @@ def generate(
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
-    output_path: Optional[Union[Path, str]] = None,
+    output_path: Optional[AnyPath] = None,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
@@ -872,7 +847,14 @@ def _setup(
                 trainer.callbacks.append(model_transform)
             else:
                 trainer.callbacks.append(ModelTransform())
-
+    # Move jit callback at the end ensure it's applied on top of any model transformations (peft)
+    jit_cb = None
+    for i, cb in enumerate(trainer.callbacks):
+        if isinstance(cb, JitTransform):
+            assert jit_cb is None
+            jit_cb = trainer.callbacks.pop(i)
+    if jit_cb is not None:
+        trainer.callbacks.append(jit_cb)
     return app_state
 
 
@@ -894,16 +876,19 @@ def _validate_config(
 ) -> None:
 
     ## Model validation
-    assert getattr(model.config, "seq_length", 1) > 0
-    assert getattr(model.config, "max_position_embeddings", 1) > 0
-    assert model.config.num_layers > 0
-    assert model.config.hidden_size > 0
-    assert model.config.num_attention_heads > 0
-    assert model.config.ffn_hidden_size > 0
+    if hasattr(model, "config"):
+        assert getattr(model.config, "seq_length", 1) > 0
+        assert getattr(model.config, "max_position_embeddings", 1) > 0
+        assert model.config.num_layers > 0
+        assert model.config.hidden_size > 0
+        assert model.config.num_attention_heads > 0
+        assert model.config.ffn_hidden_size > 0
 
-    if hasattr(model.config, "seq_length"):
-        if getattr(model.config, "max_position_embeddings", None) is not None:
-            assert model.config.seq_length <= model.config.max_position_embeddings
+        if hasattr(model.config, "seq_length"):
+            if getattr(model.config, "max_position_embeddings", None) is not None:
+                assert model.config.seq_length <= model.config.max_position_embeddings
+    else:
+        assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
 
     ## Data validation
     assert data.micro_batch_size > 0
@@ -967,16 +952,18 @@ def _validate_config(
 
         # CP validation
         if trainer.strategy.context_parallel_size > 1:
-            if model.config.seq_length is not None:
-                assert (
-                    model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
-                ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+            if hasattr(model, "config"):
+                if model.config.seq_length is not None:
+                    assert (
+                        model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
+                    ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:
-            assert (
-                model.config.num_moe_experts is not None
-            ), "num_experts must be non None to use expert model parallelism"
-            assert (
-                model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
-            ), "Number of experts should be a multiple of expert model parallel_size."
+            if hasattr(model, "config"):
+                assert (
+                    model.config.num_moe_experts is not None
+                ), "num_experts must be non None to use expert model parallelism"
+                assert (
+                    model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
+                ), "Number of experts should be a multiple of expert model parallel_size."

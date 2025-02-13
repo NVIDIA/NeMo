@@ -601,7 +601,12 @@ class SaveRestoreConnector:
         # Construct the full path where the member would be extracted
         full_path = os.path.join(extract_to, member_path)
         # Ensure the member would be extracted within the intended directory
-        return os.path.commonprefix([full_path, extract_to]) == extract_to
+        if os.path.commonprefix([full_path, extract_to]) != extract_to:
+            return False
+        # Check if the member is a symbolic link
+        if member.issym() or member.islnk():
+            return False
+        return True
 
     @staticmethod
     def _safe_extract(tar, out_folder: str, members=None):
@@ -679,7 +684,7 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None):
-        return torch.load(model_weights, map_location='cpu')
+        return torch.load(model_weights, map_location='cpu', weights_only=False)
 
     @property
     def model_config_yaml(self) -> str:

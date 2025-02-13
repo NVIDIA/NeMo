@@ -15,17 +15,23 @@
 import argparse
 
 import torch
+from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import WandbLogger
 from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.vlm import ImageDataConfig
-from nemo.collections.vlm.mllama.data.lazy import MLlamaLazyDataModule
+from nemo.collections.vlm.mllama.data.preloaded import MLlamaPreloadedDataModule
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
+
+"""
+Example:
+  torchrun --nproc_per_node=8 scripts/vlm/mllama_finetune.py \
+  --devices=8 --tp=4 --data_type=mock
+"""
 
 
 def main(args):
@@ -57,25 +63,37 @@ def main(args):
     processor = AutoProcessor.from_pretrained(model_id)
     image_processor = processor.image_processor
     tokenizer = processor.tokenizer
+    if args.data_type == "llava":
+        # Data configuration
+        data_config = ImageDataConfig(
+            image_folder=args.image_folder,
+            conv_template="mllama",
+        )
 
-    # Data configuration
-    data_config = ImageDataConfig(
-        image_folder=args.image_folder,
-        conv_template="mllama",
-    )
-
-    # Data module setup
-    data = MLlamaLazyDataModule(
-        paths=args.data_path,
-        data_config=data_config,
-        seq_length=seq_length,
-        decoder_seq_length=decoder_seq_length,
-        global_batch_size=gbs,
-        micro_batch_size=mbs,
-        tokenizer=tokenizer,
-        image_processor=image_processor,
-        num_workers=16,
-    )
+        # Data module setup
+        data = MLlamaPreloadedDataModule(
+            paths=args.data_path,
+            data_config=data_config,
+            seq_length=seq_length,
+            decoder_seq_length=decoder_seq_length,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            tokenizer=tokenizer,
+            image_processor=image_processor,
+            num_workers=16,
+        )
+    elif args.data_type == "mock":
+        data = vlm.MLlamaMockDataModule(
+            seq_length=seq_length,
+            decoder_seq_length=decoder_seq_length,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            tokenizer=tokenizer,
+            image_processor=image_processor,
+            num_workers=4,
+        )
+    else:
+        raise ValueError(f"Data type {args.data_type} not supported")
 
     model_configs = {
         "meta-llama/Llama-3.2-11B-Vision": vlm.MLlamaConfig11B,
@@ -186,8 +204,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
-    parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset")
-    parser.add_argument("--image_folder", type=str, required=True, help="Path to the image folder")
+    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava")
+    parser.add_argument("--data_path", type=str, required=False, help="Path to the dataset")
+    parser.add_argument("--image_folder", type=str, required=False, help="Path to the image folder")
     parser.add_argument(
         "--log_dir",
         type=str,

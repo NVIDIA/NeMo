@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import Optional
 
 import torch
 
@@ -33,10 +34,10 @@ def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
         (llm.LlamaModel, "llama"),
         (llm.MistralModel, "llama"),
         (llm.MixtralModel, "llama"),
-        (llm.NemotronModel, "gptnext"),
+        (llm.NemotronModel, "gpt"),
         (llm.Qwen2Model, "qwen"),
-        (llm.StarcoderModel, "gptnext"),
-        (llm.Starcoder2Model, "gptnext"),
+        (llm.StarcoderModel, "gpt"),
+        (llm.Starcoder2Model, "gpt"),
         (llm.Phi3Model, "phi3"),
     ]
 
@@ -51,16 +52,16 @@ def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
 def quantizable_model_config(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model config for TensorRT-Model-Optimizer quantization"""
 
-    from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import (
-        get_gpt_layer_modelopt_spec,
-    )
+    from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
 
-    model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec()
+    model_cfg.transformer_layer_spec = get_gpt_layer_modelopt_spec(
+        num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True
+    )
     if model_cfg.sequence_parallel:
         logging.warning("Disabling sequence parallelism for quantization...")
         model_cfg.sequence_parallel = False
-    # Only custom ModelOpt spec is supported for Quantization: this custom spec is largely based on local Megatron-LM
-    # layer definitions to avoid Transformer Engine implementations that are currently not supported.
+    # Only custom ModelOpt spec is supported for quantization: this custom spec is largely based on local
+    # Megatron-LM layer definitions to avoid Transformer Engine implementations that are currently not supported.
     # This layer spec also requires RoPE fusion to be disabled for tensor view operations in attention
     # layer implementation from megatron/core/transformer/dot_product_attention.py to be functional.
     model_cfg.name = "modelopt"
@@ -73,8 +74,21 @@ def load_with_modelopt_layer_spec(
     tensor_model_parallel_size: int = 1,
     pipeline_model_parallel_size: int = 1,
     inference_only: bool = True,
-):
-    """Loads a model from a NeMo 2.0 checkpoint using modelopt layer spec."""
+    ckpt_load_strictness: Optional[str] = None,
+) -> llm.GPTModel:
+    """
+    Loads a model from a NeMo 2.0 checkpoint using modelopt layer spec.
+
+    Args:
+        nemo_checkpoint_path (str): Path to the NeMo checkpoint.
+        tensor_model_parallel_size (int): Size of the tensor model parallelism.
+        pipeline_model_parallel_size (int): Size of the pipeline model parallelism.
+        inference_only (bool): If True, loads the model for inference only w/o initializing the optimizer.
+        ckpt_load_strictness (Optional[str]): Handling of checkpoint loading mismatch for tensor keys.
+
+    Returns:
+        llm.GPTModel: The loaded model with the specified configuration.
+    """
     # TODO: setting ddp="pytorch" and deleting model.optim is a hackish way to disable DDP initialization.
     # Needs a systematic solution.
     if inference_only:
@@ -84,6 +98,7 @@ def load_with_modelopt_layer_spec(
             pipeline_dtype=torch.bfloat16,
             ckpt_load_optimizer=False,
             ckpt_parallel_save_optim=False,
+            ckpt_load_strictness=ckpt_load_strictness,
             setup_optimizers=False,
             lazy_init=True,
             ddp="pytorch",
@@ -93,6 +108,7 @@ def load_with_modelopt_layer_spec(
             tensor_model_parallel_size=tensor_model_parallel_size,
             pipeline_model_parallel_size=pipeline_model_parallel_size,
             pipeline_dtype=torch.bfloat16,
+            ckpt_load_strictness=ckpt_load_strictness,
         )
 
     trainer = nl.Trainer(

@@ -17,11 +17,13 @@ from typing import Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
-import torch
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.peft.lora import LoRA
@@ -33,7 +35,9 @@ NAME = "hf_auto_model_for_causal_lm"
 
 
 @run.cli.factory(name=NAME)
-def model(model_name, load_pretrained_weights) -> run.Config[pl.LightningModule]:
+def model(
+    model_name, load_pretrained_weights, trust_remote_code=False, attn_implementation="sdpa"
+) -> run.Config[pl.LightningModule]:
     """
     Factory function to create HFAutoModelForCausalLM model configurations.
 
@@ -51,16 +55,16 @@ def model(model_name, load_pretrained_weights) -> run.Config[pl.LightningModule]
             >>> model_config = model(model_name="mistralai/Mistral-Nemo-Instruct-2407")
             >>> print(model_config)
     """
-    return run.Config(HFAutoModelForCausalLM, model_name=model_name, load_pretrained_weights=load_pretrained_weights)
+    return run.Config(
+        HFAutoModelForCausalLM,
+        model_name=model_name,
+        load_pretrained_weights=load_pretrained_weights,
+        trust_remote_code=trust_remote_code,
+        attn_implementation=attn_implementation,
+    )
 
 
 def trainer(
-    tensor_parallelism: int = 1,
-    pipeline_parallelism: int = 1,
-    pipeline_parallelism_type: Optional[torch.dtype] = None,
-    virtual_pipeline_parallelism: Optional[int] = None,
-    context_parallelism: int = 2,
-    sequence_parallelism: bool = False,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 100,
@@ -74,12 +78,6 @@ def trainer(
     This function sets up the distributed training strategy and other training parameters.
 
     Args:
-        tensor_parallelism (int): Degree of tensor model parallelism.
-        pipeline_parallelism (int): Degree of pipeline model parallelism.
-        pipeline_parallelism_type (Optional[torch.dtype]): Data type for pipeline parallelism.
-        virtual_pipeline_parallelism (Optional[int]): Size of virtual pipeline parallelism.
-        context_parallelism (int): Degree of context parallelism.
-        sequence_parallelism (bool): Whether to use sequence parallelism.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
@@ -100,11 +98,12 @@ def trainer(
     strategy = str(strategy).lower()
     assert strategy in ['', 'ddp', 'fsdp'], strategy
     if strategy == 'fsdp':
-        # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
+        # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81 # pylint: disable=line-too-long
         gradient_clip_val = None
 
     trainer = run.Config(
         nl.Trainer,
+        num_nodes=num_nodes,
         devices=num_gpus_per_node,
         max_steps=max_steps,
         accelerator='gpu',
@@ -129,6 +128,7 @@ def pretrain_recipe(
     num_gpus_per_node: int = 8,
     fn=pretrain,
     model_name: str = '',
+    max_steps: int = 100,
 ) -> run.Partial:
     """
     Create a pre-training recipe for a HFAutoModelForCausalLM model.
@@ -151,7 +151,7 @@ def pretrain_recipe(
             $ nemo llm pretrain --factory 'HFAutoModelForCausalLM(model_name="mistralai/Mistral-Nemo-Instruct-2407")'
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="auto_pretrain", num_nodes=2, model_name="mistralai/Mistral-Nemo-Instruct-2407")
+            >>> recipe = pretrain_recipe(name="auto_pretrain", num_nodes=2, model_name="mistralai/Mistral-Nemo-Instruct-2407") # pylint: disable=line-too-long
             >>> print(recipe)
     """
     return run.Partial(
@@ -161,6 +161,7 @@ def pretrain_recipe(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
+            max_steps=max_steps,
         ),
         data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
@@ -177,6 +178,9 @@ def finetune_recipe(
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'lora',
     model_name: str = '',
+    max_steps: int = 100,
+    trust_remote_code: bool = False,
+    attn_implementation: str = 'sdpa',
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for a HFAutoModelForCausalLM model.
@@ -190,7 +194,8 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora', 'none'/None.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
@@ -208,24 +213,37 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
+    tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(model_name)
     recipe = run.Partial(
         finetune,
-        model=model(model_name, load_pretrained_weights=True),
+        model=model(
+            model_name,
+            load_pretrained_weights=True,
+            trust_remote_code=trust_remote_code,
+            attn_implementation=attn_implementation,
+        ),
         trainer=trainer(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
+            max_steps=max_steps,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(
+            SquadHFDataModule,
+            path_or_dataset="rajpurkar/squad",
+            split="train",
+            pad_token_id=tokenizer.tokenizer.eos_token_id,
+            tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
+        ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=pytorch_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.optim.config.lr = 5e-6
+        recipe.optim.optimizer_fn.lr = 5e-6
     elif peft_scheme.lower() == 'lora':
         recipe.peft = run.Config(LoRA, target_modules=['*_proj'])
-        recipe.optim.config.lr = 1e-4
+        recipe.optim.optimizer_fn.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe
