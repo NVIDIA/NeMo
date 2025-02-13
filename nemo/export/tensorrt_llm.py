@@ -428,6 +428,7 @@ class TensorRTLLM(ITritonDeployable):
                             export_config=export_config,
                             dtype=input_dtype,
                             state_dict_split_by_layer_numbers=True,
+                            gpus_per_node=gpus_per_node,
                             fp8_quantized=fp8_quantized,
                             fp8_kvcache=fp8_kvcache,
                         )
