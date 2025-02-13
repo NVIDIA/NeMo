@@ -438,7 +438,7 @@ class FastNGramLM(ModelPT):
                 None (default) means "auto" (used if available), True means forced mode
                 (will crash if Triton is unavailable)
         """
-        cfg = OmegaConf.merge(OmegaConf.structured(NGramLMConfig), cfg)
+        # cfg = OmegaConf.merge(OmegaConf.structured(NGramLMConfig), cfg)
         super().__init__(cfg=cfg, trainer=trainer)
         cfg = cast(NGramLMConfig, cfg)
         self.use_triton = cfg.use_triton if cfg.use_triton is not None else TRITON_AVAILABLE
