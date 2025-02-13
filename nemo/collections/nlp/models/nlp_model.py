@@ -464,7 +464,17 @@ class NLPModel(ModelPT, Exportable):
             pos_id_keys = [x for x in state_dict.keys() if "position_ids" in x]
             for key in pos_id_keys:
                 del state_dict[key]
-        results = super(NLPModel, self).load_state_dict(state_dict, strict=strict)
+        try:
+            results = super(NLPModel, self).load_state_dict(state_dict, strict=strict)
+        except RuntimeError as e:
+            results = super(NLPModel, self).load_state_dict(state_dict, strict=False)
+            if all(s.endswith('_extra_state') for s in results.missing_keys):
+                logging.warning(
+                    f'Loding checkpoint created with Transformer Engine version lower than 1.13. Missing layers {results.missing_keys} will be ignored.'
+                )
+            else:
+                raise e
+
         return results
 
     @classmethod
