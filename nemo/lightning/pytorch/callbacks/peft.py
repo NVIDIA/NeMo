@@ -146,6 +146,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         if get_automodel_from_trainer(trainer) is not None:
             ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
+            # Due to the workaround used in peft restoration, restoration is non-PTL conforming,
+            # therefore need to short-circuit these two fns.
+            trainer._checkpoint_connector.restore_training_state = lambda: True
+            trainer._checkpoint_connector.restore_model = lambda: True
         else:
             ckpt_io_kwarg_names = [
                 "save_ckpt_format",
@@ -184,6 +188,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
         )
 
         adapter_sharded_state_dict = {}
+        if self.wrapped_io.adapter_ckpt_path is not None \
+            and self.wrapped_io.adapter_ckpt_path.parts[-1] == HF_ADAPTER_PATH:
+            return self.resume_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
+
         if self.wrapped_io.adapter_ckpt_path is not None:
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
             # create sharded state dict for adapter weights only to enable PEFT resume
@@ -228,6 +236,33 @@ class PEFT(IOMixin, ABC, ModelTransform):
                     "MegatronOptimizerModule not found in trainer callbacks. finalize_model_grads is not "
                     "properly set up for PEFT."
                 )
+
+    def resume_automodel(self, trainer, path):
+        adapter_state = self.wrapped_io.load_checkpoint(path)
+        state_dict = trainer.lightning_module.state_dict()
+        # Ensure keys are in state dict.
+        for key in adapter_state['state_dict'].keys():
+            assert key in state_dict
+
+        def pop_fqn_prefix(fqn, prefix='model'):
+            parts = fqn.split('.')
+            assert parts[0] == prefix
+            return '.'.join(parts[1:])
+
+        trainer.lightning_module.load_state_dict({
+            pop_fqn_prefix(k): v for k, v in adapter_state['state_dict'].items()}, strict=False)
+
+        for key, param in trainer.lightning_module.named_parameters():
+            if key in adapter_state['state_dict']:
+                assert param.requires_grad == True
+
+        if trainer.state.fn == TrainerFn.FITTING:
+            # Load optimizer
+            trainer.strategy.load_optimizer_state_dict(adapter_state)
+            # Load lr scheduler
+            if (lr_schedulers := adapter_state.get('lr_schedulers', None)) is not None:
+                for config, lrs_state in zip(trainer.lr_scheduler_configs, lr_schedulers):
+                    config.scheduler.load_state_dict(lrs_state)
 
     def adapter_key_filter(self, key: str) -> bool:
         """
@@ -558,8 +593,8 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
                 metadata = json.load(f)
             self.model_ckpt_path = Path(metadata['model_ckpt_path'])
             self.adapter_ckpt_path = path
-        # elif (hf_adapter_meta_path := base / HF_ADAPTER_CONFIG_FILENAME).exists():
-            # return self.checkpoint_io.load_checkpoint(base)
+        elif (hf_adapter_meta_path := base / HF_ADAPTER_PATH / HF_ADAPTER_CONFIG_FILENAME).exists():
+            self.adapter_ckpt_path = path / HF_ADAPTER_PATH
         else:
             # Initial PEFT Training
             self.model_ckpt_path = path
