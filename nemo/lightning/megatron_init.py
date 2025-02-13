@@ -419,9 +419,7 @@ def fake_initialize_model_parallel(
         if group_type == 'pp':
             # Map 1 encoder tp rank to several decoder tp ranks, because
             # these won't be the same size.
-            rep = len(d_ranks) // len(e_ranks)
-            for i, y in enumerate(d_ranks):
-                x = e_ranks[i // rep]
+            for x, y in zip(cycle(e_ranks), d_ranks):
                 yield x + y
         elif group_type == 'tp-pp':
             # For this group, we can just return the concatenated

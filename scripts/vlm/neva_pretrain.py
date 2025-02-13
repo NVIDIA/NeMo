@@ -15,7 +15,7 @@
 """
 Example usage of NeMo pretraining commands.
 
-    torchrun --nproc_per_node=8 /path/to/NeMo/scripts/vlm/neva_pretrain.py  \
+    torchrun --nproc_per_node=8 /path/to/NeMo/examples/vlm/neva_pretrain.py  \
         --data_path "/path/to/dataset/blip_laion_cc_sbu_558k.json" \
         --image_folder "/path/to/dataset/images" \
         --log_dir "/path/to/experiments/neva_pretrain" \
@@ -52,7 +52,7 @@ def main(args):
     )
 
     # Data module setup
-    data = vlm.NevaPreloadedDataModule(
+    data = vlm.NevaLazyDataModule(
         paths=args.data_path,
         data_config=data_config,
         seq_length=seq_length,
