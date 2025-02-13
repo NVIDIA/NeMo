@@ -96,9 +96,19 @@ def setup_tokenizer(nemo_model_file):
 
         tokenizer_nemo = model.tokenizer
 
+    if isinstance(model, nemo_asr.models.EncDecCTCModelBPE):
+        full_vocab_size = model.decoding.decoding.blank_index
+    elif isinstance(model, nemo_asr.models.EncDecRNNTBPEModel):
+        full_vocab_size = model.decoding.decoding._blank_index
+    elif isinstance(model, nemo_asr.models.EncDecMultiTaskModel):
+        full_vocab_size = model.decoding.decoding.beam_search.num_tokens
+    else:
+        logging.warning(f"Unknown type of model {type(model).__name__}")
+        full_vocab_size = None
+
     del model
 
-    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
+    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer, full_vocab_size
 
 
 def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, verbose):

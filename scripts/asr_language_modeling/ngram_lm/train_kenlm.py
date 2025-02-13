@@ -49,6 +49,7 @@ import kenlm_utils
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 
 """
 NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
@@ -72,6 +73,7 @@ class TrainKenlmConfig:
     kenlm_bin_path: str = MISSING  # The path to the bin folder of KenLM.
 
     preserve_arpa: bool = False  # Whether to preserve the intermediate ARPA file.
+    save_nemo: bool = False
     ngram_prune: List[int] = field(
         default_factory=lambda: [0]
     )  # List of digits to prune Ngram. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation
@@ -86,7 +88,7 @@ def main(args: TrainKenlmConfig):
     if isinstance(args.ngram_prune, str):
         args.ngram_prune = [args.ngram_prune]
 
-    tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(args.nemo_model_file)
+    tokenizer, encoding_level, is_aggregate_tokenizer, full_vocab_size = kenlm_utils.setup_tokenizer(args.nemo_model_file)
 
     if encoding_level == "subword":
         discount_arg = "--discount_fallback"  # --discount_fallback is needed for training KenLM for BPE-based models
@@ -178,6 +180,13 @@ def main(args: TrainKenlmConfig):
 
     if ret.returncode != 0:
         raise RuntimeError("Training KenLM was not successful!")
+
+    if args.save_nemo:
+        if full_vocab_size is None:
+            raise NotImplementedError("Unknown vocab size, cannot convert the model")
+        nemo_model = FastNGramLM.from_arpa(lm_path=arpa_file, vocab_size=full_vocab_size)
+        nemo_model.save_to(f"{args.kenlm_model_file}.nemo")
+
 
     if not args.preserve_arpa:
         os.remove(arpa_file)
