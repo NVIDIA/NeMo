@@ -14,6 +14,7 @@
 
 import os
 import shutil
+import datetime
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
@@ -70,6 +71,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
         data_sampler=None,
+        timeout: int = None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -82,7 +84,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             data_sampler (optional): Custom data sampler to process dataloaders.
             **kwargs: Additional arguments for base class initialization.
         """
-        super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
+        timeout = datetime.timedelta(milliseconds=timeout)
+        print("asdasdå", timeout)
+        super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, timeout=timeout, **kwargs)
 
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
@@ -239,14 +243,14 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         return dataloader
 
-    @contextmanager
-    @override
-    def tensor_init_context(self, empty_init: Optional[bool] = None):
-        """Context manager used for initialization"""
-        # Materializaton happens in `setup()`
-        # @akoumparouli: using Parent's tensor_init_context causes mcore
-        # parameters to be initialized on GPU instead of (assumed) CPU.
-        yield
+    # @contextmanager
+    # @override
+    # def tensor_init_context(self, empty_init: Optional[bool] = None):
+    #     """Context manager used for initialization"""
+    #     # Materializaton happens in `setup()`
+    #     # @akoumparouli: using Parent's tensor_init_context causes mcore
+    #     # parameters to be initialized on GPU instead of (assumed) CPU.
+    #     yield
 
     @property
     @override

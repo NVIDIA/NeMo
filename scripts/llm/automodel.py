@@ -18,6 +18,7 @@
 # NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
+import datetime
 from typing import Optional
 
 import nemo_run as run
@@ -27,15 +28,16 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
-DATA_PATH = ''
+DATA_PATH = '/lustre/fsw/portfolios/coreai/users/boxiangw/data/squad'
 
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
-    parser.add_argument('--model', default='deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B')
+    parser.add_argument('--model', default='/lustre/fsw/portfolios/coreai/users/boxiangw/ckpt/deepseek-v3-bf16')
     parser.add_argument('--nodes', type=int, default=2)
     parser.add_argument('--devices', type=int, default=8)
     parser.add_argument('--max-steps', type=int, default=200)
+    parser.add_argument('--timeout', type=int, default=7200000)#default=1800000)
     parser.add_argument(
         "--tag",
         type=str,
@@ -147,7 +149,6 @@ def main():
         num_nodes=args.nodes,
         num_gpus_per_node=args.devices,
         peft_scheme='none',
-        dir="/nemo_run/checkpoints",
         max_steps=args.max_steps,
         trust_remote_code=True,
         attn_implementation='eager',
@@ -165,7 +166,7 @@ def main():
     )
 
     recipe.trainer.strategy = run.Config(
-        nl.FSDP2Strategy, data_parallel_size=args.nodes * args.devices, tensor_parallel_size=1
+        nl.FSDP2Strategy, data_parallel_size=args.nodes * args.devices, tensor_parallel_size=1, timeout=args.timeout
     )
     recipe.trainer.plugins = None
 
@@ -174,14 +175,18 @@ def main():
     if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
-            user="",
-            host="",
-            remote_job_dir="",
-            account="",
-            partition="",
+            user="boxiangw",
+            host="cw-dfw-cs-001-login-01.nvidia.com",
+            remote_job_dir="/lustre/fsw/portfolios/coreai/users/boxiangw/nemo-experiments",
+            account="coreai_dlalgo_llm",
+            partition="batch",
             nodes=recipe.trainer.num_nodes,
             devices=recipe.trainer.devices,
-            custom_mounts=[],
+            custom_mounts=[
+                "/home/boxiangw/NeMo:/opt/NeMo",
+                "/home/boxiangw/megatron-lm:/opt/megatron-lm",
+                "/lustre:/lustre",
+            ],
         )
     else:
         executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
