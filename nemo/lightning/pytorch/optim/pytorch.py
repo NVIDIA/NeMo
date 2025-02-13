@@ -31,12 +31,14 @@ def _extract_model_params_for_optim(model, weight_decay=0, no_weight_decay_cond=
     params_with_wd, params_without_wd = [], []
     if no_weight_decay_cond is not None:
         for name, param in model.named_parameters():
+            if not param.requires_grad:
+                continue
             if no_weight_decay_cond(name, param):
                 params_without_wd.append(param)
             else:
                 params_with_wd.append(param)
     else:
-        params_with_wd = model.parameters()
+        params_with_wd = list(filter(lambda x: x.requires_grad, model.parameters()))
 
     assert max(map(len, (params_with_wd, params_without_wd))) > 0, "Expected at least one optimizer with params"
 
