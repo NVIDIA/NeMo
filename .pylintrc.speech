@@ -8,5 +8,4 @@ disable=all
 enable=W0611
 # W0611: unused-import
 
-# Only warn of lint issues in speech domain
 exit-zero=true
