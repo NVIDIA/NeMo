@@ -25,6 +25,7 @@ from tqdm import tqdm
 
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
+from nemo.collections.llm.utils import torch_dtype_from_precision
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.utils import logging
@@ -107,7 +108,6 @@ class Quantizer:
 
     def __init__(self, quantization_config: QuantizationConfig, export_config: ExportConfig):
         """Initialize Quantizer with quantization and export configurations."""
-        from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 
         if not HAVE_MODELOPT:
             raise RuntimeError("nvidia-modelopt is needed to use Quantizer") from HAVE_MODELOPT_ERROR
@@ -198,7 +198,7 @@ class Quantizer:
         # TODO: Investigate why enabling FP8 kv cache will cause accuracy regressions for Nemotron.
         enable_quant_kv_cache = self.quantization_config.enable_kv_cache
         if enable_quant_kv_cache is None:
-            enable_quant_kv_cache = "int8" not in algorithm and decoder_type != "gptnext"
+            enable_quant_kv_cache = "int8" not in algorithm and decoder_type != "gpt"
         logging.info(f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization')
         quant_cfg["quant_cfg"]["*output_quantizer"] = {
             "num_bits": 8 if algorithm == "int8_sq" else (4, 3),
@@ -212,7 +212,7 @@ class Quantizer:
 
         unwrapped_model = mtq.quantize(unwrapped_model, quant_cfg, forward_loop)
 
-        if decoder_type == "gptnext":
+        if decoder_type == "gpt":
             # We found squared_relu may have an under-calibration problem.
             # Clamp the scaling_factor with a min threshold to avoid under-calibration.
             match algorithm:

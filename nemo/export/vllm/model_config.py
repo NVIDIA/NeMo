@@ -12,15 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import torch
 import yaml
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
 from transformers import AutoConfig
-from vllm.config import ModelConfig, _get_and_verify_dtype, _get_and_verify_max_len
+from vllm.config import ModelConfig, ModelImpl, PoolerConfig, _get_and_verify_dtype, _get_and_verify_max_len
 from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
+from nemo.export.utils import is_nemo2_checkpoint
 from nemo.export.vllm.model_converters import get_model_converter
 
 
@@ -52,6 +56,11 @@ class NemoModelConfig(ModelConfig):
         max_logprobs: int = 5,
         disable_sliding_window: bool = False,
         use_async_output_proc: bool = False,
+        disable_mm_preprocessor_cache: bool = False,
+        logits_processor_pattern: Optional[str] = None,
+        override_pooler_config: Optional[PoolerConfig] = None,
+        enable_sleep_mode: bool = False,
+        model_impl: Union[str, ModelImpl] = ModelImpl.AUTO,
     ) -> None:
         # Don't call ModelConfig.__init__ because we don't want it to call
         # transformers.AutoConfig.from_pretrained(...)
@@ -73,6 +82,7 @@ class NemoModelConfig(ModelConfig):
         self.rope_scaling = rope_scaling
         self.rope_theta = rope_theta
         self.tokenizer_revision = tokenizer_revision
+        self.model_impl = model_impl
         self.quantization = quantization
         self.quantization_param_path = quantization_param_path
         self.enforce_eager = enforce_eager
@@ -83,44 +93,55 @@ class NemoModelConfig(ModelConfig):
         self.multimodal_config = None
         self.mm_processor_kwargs = {}
         self.use_async_output_proc = use_async_output_proc
+        self.disable_mm_preprocessor_cache = disable_mm_preprocessor_cache
+        self.logits_processor_pattern = logits_processor_pattern
+        self.generation_config = None
+        self.task = "generate"  # Only the generate task is supported
+        self.is_hybrid = False  # No hybrid models are supported
+
+        self.encoder_config = self._get_encoder_config()
+        self.pooler_config = self._init_pooler_config(override_pooler_config)
+        self.enable_sleep_mode = enable_sleep_mode
+
+        from vllm.platforms import current_platform  # vLLM uses local import for current_platform
+
+        if self.enable_sleep_mode and not current_platform.is_cuda():
+            raise ValueError("Sleep mode is only supported on CUDA devices.")
 
         self.model_converter = get_model_converter(model_type)
         if self.model_converter is None:
             raise RuntimeError(f'Unknown model type "{model_type}"')
 
-        hf_to_nemo_dict = {
-            'hidden_size': 'hidden_size',
-            'intermediate_size': 'ffn_hidden_size',
-            'num_hidden_layers': 'num_layers',
-            'num_attention_heads': 'num_attention_heads',
-            'num_key_value_heads': 'num_query_groups',
-            # 'hidden_act': 'activation', ## <- vLLM has good defaults for the models, nemo values are wrong
-            'max_position_embeddings': ['max_position_embeddings', 'encoder_seq_length'],
-            'rms_norm_eps': 'layernorm_epsilon',
-            'attention_dropout': 'attention_dropout',
-            'initializer_range': 'init_method_std',
-            'norm_epsilon': 'layernorm_epsilon',
-            'rope_theta': 'rotary_base',
-            'use_bias': 'bias',
-        }
+        if is_nemo2_checkpoint(nemo_checkpoint):
+            nemo_checkpoint: Path = Path(nemo_checkpoint)
+            tokenizer_config = OmegaConf.load(nemo_checkpoint / "context/model.yaml").tokenizer
+            if ('additional_special_tokens' in tokenizer_config) and len(
+                tokenizer_config['additional_special_tokens']
+            ) == 0:
+                del tokenizer_config['additional_special_tokens']
 
-        with TarPath(nemo_checkpoint) as archive:
-            with (archive / "model_config.yaml").open("r") as model_config_file:
-                self.nemo_model_config = yaml.load(model_config_file, Loader=yaml.SafeLoader)
+            tokenizer_config = self._change_paths_to_absolute_paths(tokenizer_config, nemo_checkpoint)
+            tokenizer = instantiate(tokenizer_config)
 
-                hf_args = {}
-                for hf_arg, nemo_arg in hf_to_nemo_dict.items():
-                    if not isinstance(nemo_arg, list):
-                        nemo_arg = [nemo_arg]
+            with (nemo_checkpoint / "context/model.yaml").open('r') as config_file:
+                self.nemo_model_config: dict = yaml.load(config_file, Loader=yaml.SafeLoader)
+            hf_args = self._load_hf_arguments(self.nemo_model_config['config'])
 
-                    for nemo_arg_option in nemo_arg:
-                        value = self.nemo_model_config.get(nemo_arg_option)
-                        if value is not None:
-                            hf_args[hf_arg] = value
-                            break
+            if hasattr(tokenizer, 'bos_id'):
+                tokenizer.tokenizer.bos_token_id = tokenizer.bos_id
+            if hasattr(tokenizer, 'eos_id'):
+                tokenizer.tokenizer.eos_token_id = tokenizer.eos_id
 
-                self.model_converter.convert_config(self.nemo_model_config, hf_args)
-
+            hf_args['vocab_size'] = tokenizer.original_vocab_size
+            self.model_converter.convert_config(self.nemo_model_config['config'], hf_args)
+            self.hf_config = AutoConfig.for_model(model_type, **hf_args)
+            self.nemo_model_config['tokenizer'] = tokenizer
+        else:
+            with TarPath(nemo_checkpoint) as archive:
+                with (archive / "model_config.yaml").open("r") as model_config_file:
+                    self.nemo_model_config = yaml.load(model_config_file, Loader=yaml.SafeLoader)
+                    hf_args = self._load_hf_arguments(self.nemo_model_config)
+                    self.model_converter.convert_config(self.nemo_model_config, hf_args)
                 self.hf_config = AutoConfig.for_model(model_type, **hf_args)
 
         self.hf_config.architectures = [self.model_converter.get_architecture()]
@@ -139,6 +160,66 @@ class NemoModelConfig(ModelConfig):
         self.has_inner_state = self._init_has_inner_state()
 
         self._verify_tokenizer_mode()
-        self._verify_embedding_mode()
         self._verify_quantization()
         self._verify_cuda_graph()
+
+    @staticmethod
+    def _change_paths_to_absolute_paths(tokenizer_config: Dict[Any, Any], nemo_checkpoint: Path) -> Dict[Any, Any]:
+        """
+        Creates absolute path to the local tokenizers. Used for NeMo 2.0.
+
+        Args:
+            tokenizer_config (dict): Parameters for instantiating the tokenizer.
+            nemo_checkpoint (path): Path to the NeMo2 checkpoint.
+        Returns:
+            dict: Updated tokenizer config.
+        """
+        context_path = nemo_checkpoint / 'context'
+
+        # 'pretrained_model_name' -- huggingface tokenizer case
+        # 'model_path' -- sentencepiece tokenizer
+        path_keys = ['pretrained_model_name', 'model_path']
+
+        for path_key in path_keys:
+            if path := tokenizer_config.get(path_key, None):
+                tokenizer_path = context_path / path
+                if not tokenizer_path.exists():
+                    continue
+
+                tokenizer_config[path_key] = str(tokenizer_path.resolve())
+
+        return tokenizer_config
+
+    def _load_hf_arguments(self, nemo_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Maps argument names used in NeMo to their corresponding names in HF.
+        """
+
+        hf_to_nemo_dict = {
+            'hidden_size': 'hidden_size',
+            'intermediate_size': 'ffn_hidden_size',
+            'num_hidden_layers': 'num_layers',
+            'num_attention_heads': 'num_attention_heads',
+            'num_key_value_heads': 'num_query_groups',
+            # 'hidden_act': 'activation', ## <- vLLM has good defaults for the models, nemo values are wrong
+            'max_position_embeddings': ['max_position_embeddings', 'encoder_seq_length'],
+            'rms_norm_eps': 'layernorm_epsilon',
+            'attention_dropout': 'attention_dropout',
+            'initializer_range': 'init_method_std',
+            'norm_epsilon': 'layernorm_epsilon',
+            'rope_theta': 'rotary_base',
+            'use_bias': ['bias', 'add_bias_linear'],
+        }
+
+        hf_args = {}
+        for hf_arg, nemo_arg in hf_to_nemo_dict.items():
+            if not isinstance(nemo_arg, list):
+                nemo_arg = [nemo_arg]
+
+            for nemo_arg_option in nemo_arg:
+                value = nemo_config.get(nemo_arg_option)
+                if value is not None:
+                    hf_args[hf_arg] = value
+                    break
+
+        return hf_args

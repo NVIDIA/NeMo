@@ -186,9 +186,12 @@ class AutoResume:
         checkpoint = None
 
         # Use <log_dir>/checkpoints/ unless `dirpath` is set
-        checkpoint_dir = (
-            Path(self.resume_from_directory) if self.resume_from_directory else Path(Path(log_dir) / "checkpoints")
-        )
+        if self.resume_from_directory:
+            checkpoint_dir = Path(self.resume_from_directory)
+        elif log_dir is not None:
+            checkpoint_dir = Path(Path(log_dir) / "checkpoints")
+        else:  # ie. if log_dir is None
+            return None
 
         # when using distributed checkpointing, checkpoint_dir is a directory of directories
         # we check for this here

@@ -43,10 +43,10 @@ from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModul
 
 HAVE_TE = True
 try:
-    import transformer_engine  # pylint: disable=W0611
+    import transformer_engine  # noqa: F401 pylint: disable=W0611
     from megatron.core.models.bert import bert_layer_specs
     from megatron.core.models.bert.bert_model import BertModel as MCoreBert
-except (ImportError, ModuleNotFoundError) as e:
+except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
     MCoreBert = TransformerLayer  # Place holder for import checking. BERT requires TE installed.
 
@@ -148,6 +148,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
     bert_binary_head: bool = True
     add_lm_head: bool = True
     num_tokentypes: float = None
+    mask_vocab_padding_tokens: bool = False
 
     def configure_model(self, tokenizer) -> "MCoreBertModelWrapperWithPostLNSupport":
         """Configure the BERT Model.
@@ -169,7 +170,6 @@ class BertConfig(TransformerConfig, io.IOMixin):
         if self.num_tokentypes is None:
             self.num_tokentypes = 2 if self.bert_binary_head else 0
 
-        print(self.num_tokentypes)
         return MCoreBertModelWrapperWithPostLNSupport(
             bert_type=self.bert_type,
             add_pooler=self.add_pooler,
@@ -177,6 +177,7 @@ class BertConfig(TransformerConfig, io.IOMixin):
             num_tokentypes=self.num_tokentypes,
             transformer_layer_spec=transformer_layer_spec,
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            tokenizer=tokenizer if self.mask_vocab_padding_tokens else None,
             max_sequence_length=self.seq_length,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
@@ -199,11 +200,14 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     when bert_type is set to 'huggingface', it will initialize post layer norm BERT model.
     """
 
-    def __init__(self, bert_type='megatron', add_pooler=True, *args, **kwargs):
+    def __init__(
+        self, bert_type='megatron', add_pooler=True, tokenizer: Optional["TokenizerSpec"] = None, *args, **kwargs
+    ):
 
         super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
         self.add_pooler = add_pooler
         self.bert_type = bert_type
+        self.tokenizer = tokenizer
 
         assert (
             self.bert_type == 'megatron' or self.bert_type == 'huggingface'
@@ -264,6 +268,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         lm_labels: Tensor = None,
         loss_mask: Tensor = None,
         inference_params=None,
+        hidden_states_only=False,
     ):
         """Forward function of BERT model
 
@@ -280,7 +285,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         hidden_states = super().forward(input_ids, attention_mask, tokentype_ids, lm_labels, inference_params)
         self.post_process = original_post_process
 
-        if not self.post_process:
+        if not self.post_process or hidden_states_only:
             return hidden_states
 
         if self.return_embeddings:
@@ -317,6 +322,22 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 'loss_mask': loss_mask,
             }
 
+        # mask vocab padding tokens from sum term of softmax
+        if self.tokenizer:
+            from megatron.core.tensor_parallel.utils import VocabUtility
+
+            unpadded_vocab_size = self.tokenizer.vocab_size
+
+            get_vocab_range = VocabUtility.vocab_range_from_per_partition_vocab_size
+            padded_vocab_size = logits.size()[-1]
+            rank = parallel_state.get_tensor_model_parallel_rank()
+            world_size = parallel_state.get_tensor_model_parallel_world_size()
+            vocab_start_index, _ = get_vocab_range(padded_vocab_size, rank, world_size)  # gets range on this tp rank
+
+            # mask tokens past unpadded_vocab_size. must be offset by where each tp rank's vocab range starts
+            mask_start = max(unpadded_vocab_size - vocab_start_index, 0)
+            logits[:, :, mask_start:] = float('-inf')
+
         loss = self.compute_language_model_loss(lm_labels, logits)
 
         return {
@@ -341,14 +362,14 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
 
     def __init__(self, *args, **kwargs):
         super(TransformerLayerWithPostLNSupport, self).__init__(*args, **kwargs)
-        ## [Module add: Post attention LN]
+        # [Module add: Post attention LN]
         self.post_att_layernorm = build_module(
             self.submodules_config.post_att_layernorm,
             config=self.config,
             hidden_size=self.config.hidden_size,
             eps=self.config.layernorm_epsilon,
         )
-        ## [Module add: Post MLP LN]
+        # [Module add: Post MLP LN]
         self.post_mlp_layernorm = build_module(
             self.submodules_config.post_mlp_layernorm,
             config=self.config,
@@ -365,6 +386,7 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         rotary_pos_emb=None,
         inference_params=None,
         packed_seq_params=None,
+        **kwargs,
     ):
         """
         Perform a forward pass through the transformer layer.
