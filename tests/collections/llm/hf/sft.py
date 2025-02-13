@@ -153,6 +153,102 @@ def verify_sft_checkpoint_structure(path):
     for file in context_files:
         assert (ckpt_dir / 'context' / file).exists()
 
+class ValidateCheckpointRestoreCallback(pl.Callback):
+    """ This callback checks that the model weights and optimizer states are exactly restored
+    from the checkpoint on the first training batch.
+    """
+
+    def __init__(self, check_weights: bool = True, check_optimizer: bool = True):
+        super().__init__()
+        self.check_weights = check_weights
+        self.check_optimizer = check_optimizer
+        self.loaded_model_state = None
+        self.loaded_optimizer_states = None
+
+    def on_load_checkpoint(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        checkpoint: dict
+    ) -> None:
+        """
+        Save the loaded model and optimizer states so we can compare them
+        to the actual states after resuming.
+        """
+        self.loaded_model_state = checkpoint["state_dict"]
+        self.loaded_optimizer_states = checkpoint["optimizer_states"]
+
+    def on_train_batch_start(self, trainer: "pl.Trainer", lightning_module, batch, batch_idx) -> None:
+        """
+        Verify that the loaded model weights and optimizer state matches checkpoints'.
+        """
+        # ------------------------------------------------------------------
+        # 1) Check the model weights
+        # ------------------------------------------------------------------
+        if self.check_weights and self.loaded_model_state is not None:
+            for name, current_param in lightning_module.model.named_parameters():
+                # Ensure parameter is in the loaded state dict
+                if name not in self.loaded_model_state:
+                    raise ValueError(f"Parameter '{name}' not found in checkpoint state dict.")
+
+                # Compare current parameter to the checkpointed parameter
+                checkpoint_param = self.loaded_model_state[name]
+                if not torch.allclose(current_param.cpu(), checkpoint_param.cpu(), atol=1e-7):
+                    raise ValueError(
+                        f"Model parameter '{name}' does not match the checkpointed value."
+                    )
+
+        # ------------------------------------------------------------------
+        # 2) Check the optimizer states
+        # ------------------------------------------------------------------
+        if self.check_optimizer and self.loaded_optimizer_states is not None:
+            optimizers = trainer.optimizers
+            if len(optimizers) != len(self.loaded_optimizer_states):
+                raise ValueError(
+                    f"Number of optimizers ({len(optimizers)}) does not match "
+                    f"the checkpoint ({len(self.loaded_optimizer_states)})."
+                )
+
+            for optimizer, loaded_opt_state in zip(optimizers, self.loaded_optimizer_states):
+                current_opt_state = optimizer.state_dict()
+
+                # Compare keys in the optimizer state
+                if current_opt_state.keys() != loaded_opt_state.keys():
+                    raise ValueError(
+                        "Mismatch in optimizer state keys between current state and checkpoint."
+                    )
+
+                # Compare each parameter state group
+                for param_id, param_state in current_opt_state["state"].items():
+                    loaded_param_state = loaded_opt_state["state"][param_id]
+                    for state_key, current_tensor_or_val in param_state.items():
+                        if state_key not in loaded_param_state:
+                            raise ValueError(
+                                f"Key '{state_key}' missing in the loaded optimizer state."
+                            )
+
+                        loaded_tensor_or_val = loaded_param_state[state_key]
+                        # If it's a tensor, compare contents
+                        if isinstance(current_tensor_or_val, torch.Tensor):
+                            if not torch.allclose(current_tensor_or_val.cpu(), loaded_tensor_or_val.cpu(), atol=1e-7):
+                                raise ValueError(
+                                    f"Optimizer state for param_id={param_id}, "
+                                    f"key='{state_key}' does not match the checkpoint."
+                                )
+                        # Otherwise, compare directly (e.g., scalar values)
+                        else:
+                            if current_tensor_or_val != loaded_tensor_or_val:
+                                raise ValueError(
+                                    f"Optimizer state for param_id={param_id}, "
+                                    f"key='{state_key}' differs from checkpoint."
+                                )
+        # After the first batch, we don't need to check again
+        # (Remove if you need ongoing checks)
+        trainer.callbacks.remove(self)
+        print("Weights match")
+        sys.exit(0)
+
+
 def main():
     """Example script to run SFT with a HF transformers-instantiated model on squad."""
     import argparse
@@ -246,7 +342,6 @@ def main():
     del trainer
 
     path = get_latest_checkpoint(args.ckpt_folder)
-    print('paht= ' + str(path))
     verify_sft_checkpoint_structure(path)
 
     ans = AutoModelForCausalLM.from_pretrained(path / "hf_weights", output_loading_info=True)
