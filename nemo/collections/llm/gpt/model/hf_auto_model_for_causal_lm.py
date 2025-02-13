@@ -351,3 +351,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         fwd_signature = inspect.signature(self.model.forward)
         allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
         return {k: batch[k] for k in allowed_keys if k in batch}
+    
+    def configure_optimizers(self):
+        return torch.optim.AdamW(self.model.parameters(), lr=3e-3, foreach=True)
