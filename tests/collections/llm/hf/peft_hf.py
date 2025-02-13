@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tempfile, torch, sys
+import tempfile, torch, sys, re, os
+from pathlib import Path
 
 import fiddle as fdl
 import lightning.pytorch as pl
@@ -22,6 +23,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
+from transformers import AutoModelForCausalLM
 
 
 
@@ -150,7 +152,8 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
                         raise ValueError(
                             f"Model parameter '{name}' does not match the checkpointed value."
                         )
-
+        print("Weights match")
+        sys.exit(0)
         # ------------------------------------------------------------------
         # 2) Check the optimizer states
         # ------------------------------------------------------------------
@@ -202,6 +205,48 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
         sys.exit(0)
 
 
+def get_latest_checkpoint(base_dir):
+    latest_checkpoint = None
+    max_epoch = -1
+    max_step = -1
+
+    pattern = re.compile(r"[a-z0-9_]+--reduced_train_loss=([\d\.]+)-epoch=(\d+)-step=(\d+)-last")
+
+    # Traverse through the base directory
+    for root, dirs, _ in os.walk(base_dir):
+        for dir_name in dirs:
+            match = pattern.match(dir_name)
+            if match:
+                loss, epoch, step = map(float, match.groups())  # Convert to float/int
+                epoch, step = int(epoch), int(step)
+
+                # Update the latest checkpoint based on epoch and step
+                if (epoch > max_epoch) or (epoch == max_epoch and step > max_step):
+                    max_epoch = epoch
+                    max_step = step
+                    latest_checkpoint = os.path.join(root, dir_name)
+
+    return Path(latest_checkpoint)
+
+def verify_peft_checkpoint_structure(path):
+    expected_files = set([
+        'adapter_model.safetensors',
+        'adapter_config.json',
+    ])
+    ckpt_dir = Path(path)
+    hf_weights = (ckpt_dir / "hf_adapter")
+    assert hf_weights.exists(), str(hf_weights)
+    for file in hf_weights.glob('*'):
+        assert file.name in expected_files, file
+        expected_files.remove(file.name)
+    assert len(expected_files) == 0
+
+    assert (ckpt_dir / 'trainer.pt').exists()
+
+    context_files = ['model.yaml', 'io.json']
+    for file in context_files:
+        assert (ckpt_dir / 'context' / file).exists()
+
 def main():
     """Example script to run PEFT with a HF transformers-instantiated model on squad."""
     import argparse
@@ -247,26 +292,27 @@ def main():
         if args.auto_resume
         else None
     )
+    trainer = nl.Trainer(
+        devices=args.devices,
+        num_nodes=args.num_nodes,
+        max_steps=args.max_steps,
+        accelerator=args.accelerator,
+        strategy=strategy,
+        log_every_n_steps=1,
+        limit_val_batches=0.0,
+        num_sanity_val_steps=0,
+        accumulate_grad_batches=1,
+        gradient_clip_val=args.grad_clip,
+        use_distributed_sampler=False,
+        logger=wandb,
+        callbacks=callbacks,
+        precision="bf16",
+    )
 
     llm.api.finetune(
         model=model,
         data=make_squad_hf_dataset(DATA_PATH, llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)),
-        trainer=nl.Trainer(
-            devices=args.devices,
-            num_nodes=args.num_nodes,
-            max_steps=args.max_steps,
-            accelerator=args.accelerator,
-            strategy=strategy,
-            log_every_n_steps=1,
-            limit_val_batches=0.0,
-            num_sanity_val_steps=0,
-            accumulate_grad_batches=10,
-            gradient_clip_val=args.grad_clip,
-            use_distributed_sampler=False,
-            logger=wandb,
-            callbacks=callbacks,
-            precision="bf16",
-        ),
+        trainer=trainer,
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
         log=logger(args.ckpt_folder),
         peft=llm.peft.LoRA(
@@ -275,6 +321,15 @@ def main():
         ),
         resume=resume,
     )
+
+    del model
+    del trainer
+
+    path = get_latest_checkpoint(args.ckpt_folder)
+    verify_peft_checkpoint_structure(path)
+
+    model = AutoModelForCausalLM.from_pretrained(args.model)
+    model.load_adapter(f'{path}/hf_adapter')
 
 
 if __name__ == '__main__':
