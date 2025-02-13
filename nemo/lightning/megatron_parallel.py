@@ -670,7 +670,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             model_chunk.buffers = (
                 dist_module.buffers
             )  # We need to do this explicitly since this is a attr pytorch uses
-            model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
         no_sync_func, grad_sync_func = extract_ddp_funcs(self.ddp_config, self)
@@ -843,18 +842,6 @@ class _ModuleStepFunction:
         return attr
 
 
-def getattr_proxy(self, item: Any) -> Any:
-    try:
-        return super(self.__class__, self).__getattr__(item)
-    except AttributeError as e:
-        if item == 'module':  ## this is a hacky WAR and may cause misleading error messages
-            raise e
-        try:
-            return getattr(self.module, item)
-        except AttributeError:
-            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
-
-
 class DDP(McoreDDP):
     def __init__(
         self,
@@ -879,10 +866,6 @@ class DDP(McoreDDP):
 
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
-
-    def __getattr__(self, item: Any) -> Any:
-        return getattr_proxy(self, item)
-
 
 class CallbackConnector:
     """
