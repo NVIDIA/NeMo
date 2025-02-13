@@ -107,7 +107,7 @@ data:
 ############ Model ############
 model:
   freeze_language_model: true
-  freeze_speech_model: true
+  freeze_speech_model: false
   freeze_modality_adapter: false
   
   llm:
