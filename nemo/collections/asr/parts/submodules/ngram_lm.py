@@ -497,6 +497,7 @@ class FastNGramLM(ModelPT):
             path: path to .nemo checkpoint
         """
         model = FastNGramLM.restore_from(restore_path=str(lm_path), map_location="cpu")
+        model.resolve_final()
         assert model.vocab_size == vocab_size
         model.use_triton = use_triton if use_triton is not None else TRITON_AVAILABLE
         if not model.use_triton:
