@@ -60,6 +60,25 @@ def make_squad_hf_dataset(data_path, tokenizer):
     return datamodule
 
 
+def logger(ckpt_folder) -> nl.NeMoLogger:
+    ckpt = nl.ModelCheckpoint(
+        save_last=True,
+        every_n_train_steps=1,
+        monitor="reduced_train_loss",
+        save_top_k=1,
+        save_on_train_epoch_end=True,
+        save_optim_on_train_end=True,
+    )
+
+    return nl.NeMoLogger(
+        name="nemo2_sft",
+        log_dir=ckpt_folder,
+        use_datetime_version=False,  # must be false if using auto resume
+        ckpt=ckpt,
+        wandb=None,
+    )
+
+
 if __name__ == '__main__':
     import argparse
 
@@ -69,10 +88,11 @@ if __name__ == '__main__':
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
     parser.add_argument('--model-accelerator', default=None, choices=['te'])
-    parser.add_argument('--max-steps', type=int, default=100)
+    parser.add_argument('--max-steps', type=int, default=3)
     parser.add_argument("--fp8-autocast", default=False, action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
-    parser.add_argument('--model-save-path', type=str, default=None)
+    parser.add_argument('--ckpt-folder', type=str, default='/tmp/nemo_automodel_sft')
+
     args = parser.parse_args()
 
     wandb = None
@@ -111,14 +131,14 @@ if __name__ == '__main__':
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
-            accumulate_grad_batches=10,
+            accumulate_grad_batches=1,
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
             callbacks=[],
             logger=wandb,
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-        log=None,
+        log=logger(args.ckpt_folder),
     )
 
     if args.model_accelerator:
@@ -126,6 +146,3 @@ if __name__ == '__main__':
             te_acc = is_te_accelerated(model.model)
             assert te_acc, "Transformer Engine acceleration was unsuccessful"
             print("TE Accelerated: ", te_acc)
-
-    if args.model_save_path is not None:
-        model.save_pretrained(args.model_save_path)
