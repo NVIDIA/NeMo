@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
+import pickle
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import yaml
@@ -87,18 +88,24 @@ def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> D
     Args:
         state_dict (dict): Model state dictionary
     Returns:
-        dict: The same dictionary, with explicitly loaded extra states from BufferIO objects.
+        dict: The same dictionary, with explicitly loaded extra states from bytes.
     """
     scales_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE in k}
     state_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE not in k}
     scales = {}
 
     for key, value in scales_dict.items():
-        if value is None:
+        if value is None or 'core_attention' in key:
             continue
 
-        value.seek(0)
-        extra_state = torch.load(value, weights_only=True)
+        # TransformerEngine shifted from _io.BytesIO to torch.Tensor for bytes storage
+        if isinstance(value, torch.Tensor):
+            value = value.detach().numpy(force=True).tobytes()
+            extra_state = pickle.loads(value)
+        else:
+            value.seek(0)
+            extra_state = torch.load(value, weights_only=True)
+
         if extra_state is not None and 'scale_fwd' in extra_state:
             scales[key + '.scale_fwd'] = extra_state['scale_fwd'].cpu()
 
