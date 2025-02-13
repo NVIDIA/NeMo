@@ -1,11 +1,11 @@
+import math
 from typing import Dict, Optional, Tuple
+
+import numpy as np
 import torch
 import torch.utils.data
 from lhotse.dataset import AudioSamples
-from lhotse.dataset.collation import collate_vectors, collate_matrices
-
-import numpy as np
-import math
+from lhotse.dataset.collation import collate_matrices, collate_vectors
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec

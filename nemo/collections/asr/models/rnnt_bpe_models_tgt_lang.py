@@ -11,37 +11,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
 import tempfile
-import json
-from tqdm import tqdm
 from typing import Dict, List, Optional, Tuple
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from tqdm import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.data.audio_to_text_lhotse_target_language import LhotseSpeechToTextBpeDatasetTgtLangID
-from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.metrics.bleu import BLEU
-from nemo.core.classes.mixins import AccessMixin
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.utils import logging, model_utils
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import (
+    AcousticEncodedRepresentation,
     AudioSignal,
+    LabelsType,
     LengthsType,
     NeuralType,
     SpectrogramType,
-    LabelsType,
-    AcousticEncodedRepresentation,
 )
+from nemo.utils import logging, model_utils
 
 # this is a copy of RNNT model on latest main
 
