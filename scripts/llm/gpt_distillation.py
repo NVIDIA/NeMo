@@ -100,7 +100,6 @@ if __name__ == "__main__":
         _student_model.config,
         _teacher_model.config,
         teacher_ckpt_path=args.teacher_path,
-        tokenizer=tokenizer,
     )
     # TODO(aanoosheh): Replace spec with modelopt one
     model.__io__ = _student_model.__io__  # HACK: model saves and restores as original class
@@ -113,7 +112,6 @@ if __name__ == "__main__":
         micro_batch_size=args.mbs,
         split=args.split,
         index_mapping_dir=args.index_mapping_dir,
-        tokenizer=tokenizer,
     )
 
     ## Set up optimizer
@@ -157,7 +155,7 @@ if __name__ == "__main__":
         model=model,
         data=data,
         optim=optim,
-        tokenizer="model",
+        tokenizer=tokenizer,
         trainer=trainer,
         log=logger,
         resume=resume,

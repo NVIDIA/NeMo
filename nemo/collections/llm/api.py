@@ -329,7 +329,6 @@ def distill(
         _student_model.config,
         _teacher_model.config,
         teacher_ckpt_path=teacher_model_path,
-        tokenizer=tokenizer,
     )
     model.__io__ = _student_model.__io__
 
@@ -337,7 +336,7 @@ def distill(
         model=model,
         data=data,
         optim=optim,
-        tokenizer="model",
+        tokenizer=tokenizer,
         trainer=trainer,
         log=log,
         resume=resume,
