@@ -38,7 +38,7 @@ class TestNsysCallback:
 
         # Set up fixed cudart mock for all tests
         self.fixed_cudart = MagicMock()
-        self.cudart_mock.return_value = self.fixed_cudart
+        torch.cuda.cudart = MagicMock(return_value=self.fixed_cudart)
 
         yield
 
