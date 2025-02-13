@@ -136,50 +136,23 @@ def optuna_suggest_params(postprocessing_cfg: PostProcessingParams, trial: optun
 
     Returns:
         PostProcessingParams: The updated postprocessing configuration with suggested hyperparameters.
+
+    DH3 dev SL best param:
+        onset: 0.76  # Onset threshold for detecting the beginning and end of a speech
+        offset: 0.81  # Offset threshold for detecting the end of a speech
+        pad_onset: 0.1  # Adding durations before each speech segment
+        pad_offset: 0.0  # Adding durations after each speech segment
+        min_duration_on: 0.08  # Threshold for small non-speech deletion
+        min_duration_off: 0.07  # Threshold for short speech segment deletion
     """
-    postprocessing_cfg.onset = trial.suggest_float("onset", 0.4, 0.8, step=0.01)
-    postprocessing_cfg.offset = trial.suggest_float("offset", 0.4, 0.9, step=0.01)
-    postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.1, 0.5, step=0.01)
-    postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.2, step=0.01)
-    postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.0, 0.75, step=0.01)
-    postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.0, 0.75, step=0.01)
+    postprocessing_cfg.onset = trial.suggest_float("onset", 0.56, 0.96, step=0.01)
+    postprocessing_cfg.offset = trial.suggest_float("offset", 0.61, 1.0, step=0.01)
+    postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.0, 0.2, step=0.01)
+    postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.15, step=0.01)
+    postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.0, 0.25, step=0.01) # v2
+    postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.0, 0.23, step=0.01) # v2
     return postprocessing_cfg
 
-def optuna_suggest_window_params(postprocessing_cfg: PostProcessingParams, trial: optuna.Trial) -> PostProcessingParams:
-    """
-    Suggests hyperparameters for postprocessing using Optuna.
-    See the following link for `trial` instance in Optuna framework.
-    https://optuna.readthedocs.io/en/stable/reference/generated/optuna.trial.Trial.html#optuna.trial.Trial
-
-    Args:
-        postprocessing_cfg (PostProcessingParams): The current postprocessing configuration.
-        trial (optuna.Trial): The Optuna trial object used to suggest hyperparameters.
-
-    Returns:
-        PostProcessingParams: The updated postprocessing configuration with suggested hyperparameters.
-    """
-    # diar_model.streaming_mode = cfg.streaming_mode
-    # diar_model.sortformer_modules.step_len = cfg.step_len
-    # diar_model.sortformer_modules.mem_len = cfg.mem_len
-    # diar_model.sortformer_modules.step_left_context = cfg.step_left_context
-    # diar_model.sortformer_modules.step_right_context = cfg.step_right_context
-    # diar_model.sortformer_modules.fifo_len = cfg.fifo_len
-    # diar_model.sortformer_modules.log = cfg.log
-    # diar_model.sortformer_modules.mem_refresh_rate = cfg.mem_refresh_rate
-    
-    # MEM_REFRESH_RATE=5 
-    # FIFO_LEN=72
-    # MEM_LEN=188
-    STEP_LEN=12
-    # STEP_LEFT_CONTEXT=1
-    # STEP_RIGHT_CONTEXT=1
-    postprocessing_cfg.mem_refresh_rate = trial.suggest_int("mem_refresh_rate", 1, 24, step=1)
-    postprocessing_cfg.fifo_len = trial.suggest_int("fifo_len", int(STEP_LEN*postprocessing_cfg.mem_refresh_rate), 300, step=4)
-    postprocessing_cfg.mem_len = trial.suggest_int("mem_len", 64, 384, step=16)
-    # postprocessing_cfg.pad_offset = trial.suggest_int("pad_offset", 0.0, 0.2, step=0.01)
-    # postprocessing_cfg.min_duration_on = trial.suggest_int("min_duration_on", 0.0, 0.75, step=0.01)
-    # postprocessing_cfg.min_duration_off = trial.suggest_int("min_duration_off", 0.0, 0.75, step=0.01)
-    return postprocessing_cfg
 
 def get_tensor_path(cfg: DiarizationConfig) -> str:
     """
@@ -234,8 +207,8 @@ def diarization_objective(
         float: The Diarization Error Rate (DER) for the given set of postprocessing parameters.
     """
     with tempfile.TemporaryDirectory(dir=temp_out_dir, prefix="Diar_PostProcessing_") as local_temp_out_dir:
-        # if trial is not None:
-        #     postprocessing_cfg = optuna_suggest_params(postprocessing_cfg, trial)
+        if trial is not None:
+            postprocessing_cfg = optuna_suggest_params(postprocessing_cfg, trial)
         all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(
             audio_rttm_map_dict=infer_audio_rttm_dict,
             postprocessing_cfg=postprocessing_cfg,
