@@ -101,7 +101,7 @@ def merge_lora(
         accelerator="cpu",
         strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()),
     )
-    
+
     # Load ckpt saved with TE < 1.14
     if legacy_ckpt:
         trainer.strategy.ckpt_load_strictness = False

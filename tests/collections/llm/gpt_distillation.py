@@ -145,7 +145,7 @@ if __name__ == "__main__":
         resume_ignore_no_checkpoint=True,
         restore_config=nl.RestoreConfig(path=args.student_path),
     )
-    
+
     # Load ckpt saved with TE < 1.14
     if args.legacy_ckpt:
         trainer.strategy.ckpt_load_strictness = False
