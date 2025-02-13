@@ -146,8 +146,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         if get_automodel_from_trainer(trainer) is not None:
             ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
-            # Due to the workaround used in peft restoration, restoration is non-PTL conforming,
-            # therefore need to short-circuit these two fns.
+            # Due to the workaround used in peft restoration, it makes restoration non-PTL conforming,
+            # therefore need to short-circuit these two functions.
             trainer._checkpoint_connector.restore_training_state = lambda: True
             trainer._checkpoint_connector.restore_model = lambda: True
         else:
@@ -190,7 +190,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
         adapter_sharded_state_dict = {}
         if self.wrapped_io.adapter_ckpt_path is not None \
             and self.wrapped_io.adapter_ckpt_path.parts[-1] == HF_ADAPTER_PATH:
-            return self.resume_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
+            # Automodel adapter restoration is handled in restore_automodel.
+            return self.restore_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
 
         if self.wrapped_io.adapter_ckpt_path is not None:
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
@@ -237,7 +238,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
                     "properly set up for PEFT."
                 )
 
-    def resume_automodel(self, trainer, path):
+    def restore_automodel(self, trainer, path):
         adapter_state = self.wrapped_io.load_checkpoint(path)
         state_dict = trainer.lightning_module.state_dict()
         # Ensure keys are in state dict.
