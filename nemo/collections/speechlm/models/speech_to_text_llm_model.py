@@ -260,7 +260,8 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
 
 def debug_tensor(tensor, name):
-    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo"
+    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo/debug_tensors"
+    os.makedirs(root_dir, exist_ok=True)
     file_path = os.path.join(root_dir, f"{name}.pt")
     print(f"{name}: {tensor.shape}")
     if not os.path.exists(file_path):
@@ -268,13 +269,14 @@ def debug_tensor(tensor, name):
         return None
     else:
         loaded = torch.load(file_path)
-        if not torch.all(torch.eq(tensor, loaded)):
+        if not torch.allclose(tensor, loaded):
             logging.error(f"!!!!!!!!!! {name} is not equal")
         return loaded
 
 
 def debug_state_dict(state_dict, name):
-    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo"
+    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo/debug_tensors"
+    os.makedirs(root_dir, exist_ok=True)
     file_path = os.path.join(root_dir, f"{name}.pt")
     if not os.path.exists(file_path):
         torch.save(state_dict, file_path)
@@ -479,6 +481,13 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         return text_embeddings
 
     def perception(self, input_signal, input_signal_length, processed_signal, processed_signal_length):
+        # loaded_signal = debug_tensor(input_signal, "perception-input_signal")
+        # loaded_signal_len = debug_tensor(input_signal_length, "perception-input_signal_length")
+
+        # if loaded_signal is not None:
+        #     input_signal = loaded_signal
+        #     input_signal_length = loaded_signal_len
+
         encoded, encoded_len = self.speech_model(
             input_signal=input_signal,
             input_signal_length=input_signal_length,
@@ -487,6 +496,7 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         )
         # debug_tensor(encoded, "perception-encoded")
         # debug_tensor(encoded_len, "perception-encoded_len")
+        # import pdb; pdb.set_trace()
         encoded, encoded_len = self.modality_adapter(encoded, encoded_len)
         # debug_tensor(encoded, "modality-encoded")
         # debug_tensor(encoded_len, "modality-encoded_len")
@@ -515,17 +525,17 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             processed_signal_length=processed_signal_length,
         )
 
-        loaded_input_ids = debug_tensor(input_ids, "input_ids")
-        loaded_input_length = debug_tensor(input_length, "input_length")
-        loaded_encoded = debug_tensor(encoded, "encoded")
-        loaded_length = debug_tensor(encoded_len, "encoded_len")
-        if loaded_encoded is not None:
-            encoded = loaded_encoded
-            encoded_len = loaded_length
-            input_ids = loaded_input_ids
-            input_length = loaded_input_length
+        # loaded_input_ids = debug_tensor(input_ids, "input_ids")
+        # loaded_input_length = debug_tensor(input_length, "input_length")
+        # loaded_encoded = debug_tensor(encoded, "encoded")
+        # loaded_length = debug_tensor(encoded_len, "encoded_len")
+        # if loaded_encoded is not None:
+        #     encoded = loaded_encoded
+        #     encoded_len = loaded_length
+        #     input_ids = loaded_input_ids
+        #     input_length = loaded_input_length
 
-        print(context_start_idx)
+        # print(context_start_idx)
 
         if num_audios is not None:
             # split the encoded and encoded_len by num_audios, used when there're multiple audio files per sample
@@ -554,16 +564,16 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         else:
             final_loss_mask = None
 
-        debug_tensor(final_loss_mask, "final_loss_mask")
-        debug_tensor(final_labels, "final_labels")
+        # debug_tensor(final_loss_mask, "final_loss_mask")
+        # debug_tensor(final_labels, "final_labels")
 
-        loaded_combined_embedding = debug_tensor(combined_embeddings, "combined_embeddings")
-        if loaded_combined_embedding is not None:
-            combined_embeddings = loaded_combined_embedding
+        # loaded_combined_embedding = debug_tensor(combined_embeddings, "combined_embeddings")
+        # if loaded_combined_embedding is not None:
+        #     combined_embeddings = loaded_combined_embedding
 
-        loaded_attention_mask = debug_tensor(attention_mask, "attention_mask")
-        if loaded_attention_mask is not None:
-            attention_mask = loaded_attention_mask
+        # loaded_attention_mask = debug_tensor(attention_mask, "attention_mask")
+        # if loaded_attention_mask is not None:
+        #     attention_mask = loaded_attention_mask
 
         output = self.language_model(
             input_ids=None,
@@ -574,7 +584,10 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             inference_params=inference_params,
         )
 
-        loaded_output = debug_tensor(output, "output")
+        # loaded_output = debug_tensor(output, "output")
+
+        # loss = output * final_loss_mask
+        # import pdb; pdb.set_trace()
 
         if labels is None or loss_mask is None:
             return output

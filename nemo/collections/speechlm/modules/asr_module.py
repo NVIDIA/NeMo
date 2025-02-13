@@ -33,16 +33,35 @@ from nemo.utils import logging, model_utils
 def debug_tensor(tensor, name):
     import os
 
-    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo"
+    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo/debug_tensors"
+    os.makedirs(root_dir, exist_ok=True)
     file_path = os.path.join(root_dir, f"{name}.pt")
     print(f"{name}: {tensor.shape}")
     if not os.path.exists(file_path):
         torch.save(tensor, file_path)
+        return None
     else:
         loaded = torch.load(file_path)
-        if not torch.all(torch.eq(tensor, loaded)):
+        if not torch.allclose(tensor, loaded):
             logging.error(f"!!!!!!!!!! {name} is not equal")
-    return loaded
+        return loaded
+
+
+def debug_state_dict(state_dict, name):
+    import os
+
+    root_dir = "/home/heh/github/NeMo-main/nemo_experiments/multi_convo/debug_tensors"
+    os.makedirs(root_dir, exist_ok=True)
+    file_path = os.path.join(root_dir, f"{name}.pt")
+    if not os.path.exists(file_path):
+        torch.save(state_dict, file_path)
+        return None
+    else:
+        loaded = torch.load(file_path)
+        for k, v in state_dict.items():
+            if not torch.allclose(v, loaded[k]):
+                logging.error(f"!!!!!!!!!! {name} is not equal for key {k}")
+        return loaded
 
 
 class MCoreASRModule(MegatronModule):
@@ -100,16 +119,34 @@ class MCoreASRModule(MegatronModule):
         processed_signal: Optional[torch.Tensor],
         processed_signal_length: Optional[torch.Tensor],
     ):
+        # debug_tensor(input_signal, "input_signal")
+        # debug_tensor(input_signal_length, "input_signal_length")
         processed_signal, processed_signal_length = self.maybe_preprocess_audio(
             input_signal, input_signal_length, processed_signal, processed_signal_length
         )
+        # loaded_processed_signal = debug_tensor(processed_signal, "processed_signal")
+        # loaded_processed_signal_length = debug_tensor(processed_signal_length, "processed_signal_length")
 
+        # if loaded_processed_signal is not None:
+        #     processed_signal = loaded_processed_signal
+        #     processed_signal_length = loaded_processed_signal_length
         # Spec augment is not applied during evaluation/testing
-        if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+        # if self.spec_augmentation is not None and self.training:
+        #     processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
         # debug_tensor(processed_signal, "processed_signal_after_spec_aug")
+
+        # loaded_state_dict = debug_state_dict(self.encoder.state_dict(), "encoder_state_dict")
+        # if loaded_state_dict is not None:
+        #     self.encoder.load_state_dict(loaded_state_dict)
+
+        # dummy_signal = torch.ones(2, 128, 1000, dtype=processed_signal.dtype).cuda()
+        # dummy_signal_length = torch.tensor([400, 1000], dtype=processed_signal.dtype).cuda()
+        # self.encoder = self.encoder.eval()
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
-        # debug_tensor(encoded, "encoded_after_encoder")
+
+        # loaded_encoded = debug_tensor(encoded, "encoded_after_encoder")
+        # if loaded_encoded is not None:
+        #     diff = torch.abs(encoded - loaded_encoded)
         # import pdb; pdb.set_trace()
         return encoded, encoded_len
 
