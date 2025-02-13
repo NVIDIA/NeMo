@@ -17,14 +17,17 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import InitVar, dataclass, field
 from pathlib import Path
-from typing import NamedTuple
+from typing import List, NamedTuple, Optional, cast
 
 import numpy as np
 import torch
 import torch.nn as nn
+from lightning.pytorch import Trainer
+from omegaconf import MISSING, DictConfig, OmegaConf
 from tqdm.auto import tqdm
 
 from nemo.collections.common.parts import NEG_INF
+from nemo.core import ModelPT, PretrainedModelInfo
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
 from nemo.utils import logging
 
@@ -387,7 +390,20 @@ class SuffixTreeStorage:
         assert (self.arcs["ilabel"][: self.num_arcs] >= 0).all()
 
 
-class FastNGramLM(nn.Module):
+@dataclass
+class NGramLMConfig:
+    """
+    N-Gram LM Config
+    """
+
+    num_states: int = MISSING
+    num_arcs: int = MISSING
+    max_order: int = MISSING
+    vocab_size: int = MISSING
+    use_triton: bool | None = None
+
+
+class FastNGramLM(ModelPT):
     """
     N-Gram LM supporting batched queries. Fast implementation for parallel queries for full vocabulary.
     Supports autograd (differentiable weights).
@@ -402,7 +418,10 @@ class FastNGramLM(nn.Module):
     BOS_STATE = 1
 
     def __init__(
-        self, num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton: bool | None = None
+        self,
+        cfg: DictConfig,
+        trainer: Trainer = None,
+        # num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton: bool | None = None
     ):
         """
         Stubs for constructor that does not initialize the structure.
@@ -419,25 +438,27 @@ class FastNGramLM(nn.Module):
                 None (default) means "auto" (used if available), True means forced mode
                 (will crash if Triton is unavailable)
         """
-        super().__init__()
-        self.use_triton = use_triton if use_triton is not None else TRITON_AVAILABLE
+        cfg = OmegaConf.merge(OmegaConf.structured(NGramLMConfig), cfg)
+        super().__init__(cfg=cfg, trainer=trainer)
+        cfg = cast(NGramLMConfig, cfg)
+        self.use_triton = cfg.use_triton if cfg.use_triton is not None else TRITON_AVAILABLE
         if not self.use_triton:
             logging.warning(
                 "Triton is disabled. Version without Triton is not compatible with Cuda graphs; decoding can be slow"
             )
 
-        self.vocab_size = vocab_size
-        self.num_states = num_states
-        self.num_arcs = num_arcs
-        self.max_order = max_order
-        self.num_arcs_extended = num_arcs + self.vocab_size  # + extra padding
+        self.vocab_size = cfg.vocab_size
+        self.num_states = cfg.num_states
+        self.num_arcs = cfg.num_arcs
+        self.max_order = cfg.max_order
+        self.num_arcs_extended = cfg.num_arcs + self.vocab_size  # + extra padding
 
         # parameters: weights (forward/backoff)
         self.arcs_weights = nn.Parameter(torch.zeros([self.num_arcs_extended]))
-        self.backoff_weights = nn.Parameter(torch.zeros([num_states]))
-        self.final_weights = nn.Parameter(torch.zeros([num_states]))
+        self.backoff_weights = nn.Parameter(torch.zeros([self.num_states]))
+        self.final_weights = nn.Parameter(torch.zeros([self.num_states]))
 
-        if max(num_states, self.num_arcs_extended) < torch.iinfo(torch.int32).max:
+        if max(self.num_states, self.num_arcs_extended) < torch.iinfo(torch.int32).max:
             int_dtype = torch.int32
         else:
             int_dtype = torch.int64
@@ -445,11 +466,61 @@ class FastNGramLM(nn.Module):
         self.register_buffer("from_states", torch.zeros([self.num_arcs_extended], dtype=int_dtype))
         self.register_buffer("to_states", torch.zeros([self.num_arcs_extended], dtype=int_dtype))
         self.register_buffer("ilabels", torch.zeros([self.num_arcs_extended], dtype=int_dtype))
-        self.register_buffer("backoff_to_states", torch.zeros([num_states], dtype=int_dtype))
+        self.register_buffer("backoff_to_states", torch.zeros([self.num_states], dtype=int_dtype))
 
-        self.register_buffer("state_start_arcs", torch.zeros([num_states], dtype=int_dtype))
-        self.register_buffer("state_end_arcs", torch.zeros([num_states], dtype=int_dtype))
-        self.register_buffer("state_order", torch.zeros([num_states], dtype=int_dtype))
+        self.register_buffer("state_start_arcs", torch.zeros([self.num_states], dtype=int_dtype))
+        self.register_buffer("state_end_arcs", torch.zeros([self.num_states], dtype=int_dtype))
+        self.register_buffer("state_order", torch.zeros([self.num_states], dtype=int_dtype))
+
+        self._final_resolved = False
+
+    def list_available_models(cls):
+        return []
+
+    def setup_training_data(self, train_data_config: DictConfig | dict):
+        pass
+
+    def setup_validation_data(self, val_data_config: DictConfig | dict):
+        pass
+
+    @classmethod
+    def from_nemo(
+        cls,
+        lm_path: Path | str,
+        vocab_size: int,
+        use_triton: bool | None = None,
+    ) -> "FastNGramLM":
+        """
+        Constructor from Nemo checkpoint (state dict).
+
+        Args:
+            path: path to .nemo checkpoint
+        """
+        model = FastNGramLM.restore_from(restore_path=str(lm_path), map_location="cpu")
+        assert model.vocab_size == vocab_size
+        model.use_triton = use_triton
+        return model
+
+    @classmethod
+    def from_file(
+        cls,
+        lm_path: Path | str,
+        vocab_size: int,
+        normalize_unk: bool = True,
+        token_offset: int = 100,
+        use_triton: bool | None = None,
+    ) -> "FastNGramLM":
+        if not isinstance(lm_path, Path):
+            lm_path = Path(lm_path)
+        if lm_path.suffix == ".nemo":
+            return cls.from_nemo(lm_path=lm_path, vocab_size=vocab_size, use_triton=use_triton)
+        return cls.from_arpa(
+            lm_path=lm_path,
+            vocab_size=vocab_size,
+            normalize_unk=normalize_unk,
+            token_offset=token_offset,
+            use_triton=use_triton,
+        )
 
     @classmethod
     def from_arpa(
@@ -517,13 +588,18 @@ class FastNGramLM(nn.Module):
     @classmethod
     def from_suffix_tree(cls, suffix_tree_np: SuffixTreeStorage, use_triton: bool | None = None) -> "FastNGramLM":
         model = FastNGramLM(
-            num_states=suffix_tree_np.num_states,
-            num_arcs=suffix_tree_np.num_arcs,
-            max_order=suffix_tree_np.max_order,
-            vocab_size=suffix_tree_np.vocab_size,
-            use_triton=use_triton,
+            OmegaConf.structured(
+                NGramLMConfig(
+                    num_states=suffix_tree_np.num_states,
+                    num_arcs=suffix_tree_np.num_arcs,
+                    max_order=suffix_tree_np.max_order,
+                    vocab_size=suffix_tree_np.vocab_size,
+                    use_triton=use_triton,
+                )
+            )
         )
         model._init_from_suffix_tree_np(suffix_tree_np=suffix_tree_np)
+        model.resolve_final()
         return model
 
     @classmethod
@@ -804,7 +880,19 @@ class FastNGramLM(nn.Module):
 
     def get_final(self, states: torch.Tensor) -> torch.Tensor:
         # TODO: add Triton kernel
+        if self._final_resolved:
+            return self.final_weights[states]
+        logging.warning("Final weights are not resolved; using slow implementation")
         return self._get_final_pytorch(states=states)
+
+    def resolve_final(self):
+        if self._final_resolved:
+            return
+        with torch.no_grad():
+            self.final_weights.data.copy_(
+                self._get_final_pytorch(states=torch.arange(self.num_states, device=self.final_weights.device))
+            )
+        self._final_resolved = True
 
     def _get_final_pytorch(self, states: torch.Tensor) -> torch.Tensor:
         cur_states = states.clone().detach()
