@@ -867,6 +867,7 @@ class DDP(McoreDDP):
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
 
+
 class CallbackConnector:
     """
     A connector for managing and invoking callbacks.
