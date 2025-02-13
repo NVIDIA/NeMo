@@ -101,6 +101,13 @@ def setup_tokenizer(nemo_model_file):
         full_vocab_size = model.decoding.decoding.blank_id
     elif isinstance(model, nemo_asr.models.EncDecRNNTBPEModel):
         full_vocab_size = model.decoding.decoding._blank_index
+    elif isinstance(model, nemo_asr.models.EncDecHybridRNNTCTCBPEModel):
+        try:
+            # rnnt head
+            full_vocab_size = model.decoding.decoding._blank_index
+        except AttributeError:
+            # ctc head
+            full_vocab_size = model.decoding.decoding.blank_id
     elif isinstance(model, nemo_asr.models.EncDecMultiTaskModel):
         full_vocab_size = model.decoding.decoding.beam_search.num_tokens
     else:
