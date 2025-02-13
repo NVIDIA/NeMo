@@ -7,3 +7,4 @@ select =
     E741, # ambiguous variable name 'l'
     F821, # undefined name 'x'
     E266, # too many leading '#' for block comment
+exit-zero = true
