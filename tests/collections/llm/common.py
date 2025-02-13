@@ -79,6 +79,20 @@ class StopBeforeEnd(pl.Callback):
                 trainer.limit_val_batches = 0
 
 
+class AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays(pl.Callback):
+    """Sanity test weight decay settings in optimizer param groups."""
+
+    def on_train_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        weight_decays = {}
+        for oi, optim in enumerate(trainer.optimizers):
+            for pi, param_group in enumerate(optim.param_groups):
+                key = f"opt{oi};pg{pi}"
+                weight_decays[key] = param_group['weight_decay']
+        assert (
+            len(set(weight_decays.values())) > 1
+        ), f"All weight decays in optimizer param groups should not be equal. Got: {weight_decays}"
+
+
 class MCoreModelAttributeValidator(pl.Callback):
     """Walk through submodules and verify user-specified attributes like parallelisms."""
 

@@ -21,6 +21,7 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.io.mixin import track_io
+from tests.collections.llm.common import AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays
 
 
 def get_args():
@@ -53,6 +54,7 @@ def trainer(devices, tp, ep, sp, max_steps) -> nl.Trainer:
         limit_val_batches=0,
         val_check_interval=0,
         num_sanity_val_steps=0,
+        callbacks=[AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays()],
     )
 
 

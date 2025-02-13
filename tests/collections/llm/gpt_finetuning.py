@@ -23,7 +23,7 @@ from nemo.collections import llm
 from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from tests.collections.llm.common import Llama3ConfigCI
+from tests.collections.llm.common import AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays, Llama3ConfigCI
 
 ## NOTE: This script is present for github-actions testing only.
 ## CI tests that call this script should set max_steps=3 for initial training
@@ -67,6 +67,7 @@ if __name__ == '__main__':
         limit_val_batches=2,
         val_check_interval=2,
         num_sanity_val_steps=0,
+        callbacks=[AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays()],
     )
 
     ckpt = nl.ModelCheckpoint(
