@@ -37,7 +37,10 @@ if KENLM_AVAILABLE:
 if TRITON_AVAILABLE:
     import triton
 
-    from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_advance_triton_kernel
+    from nemo.collections.asr.parts.submodules.ngram_lm_triton import (
+        _ngram_advance_triton_kernel,
+        _ngram_advance_triton_kernel_v2,
+    )
 
 
 def _log_10_to_e(score):
@@ -864,7 +867,7 @@ class FastNGramLM(ModelPT):
         scores = torch.empty([batch_size, self.vocab_size], device=device, dtype=self.arcs_weights.dtype)
         new_states = torch.empty([batch_size, self.vocab_size], dtype=torch.long, device=device)
 
-        _ngram_advance_triton_kernel[batch_size,](
+        _ngram_advance_triton_kernel_v2[batch_size,](
             vocab_size=self.vocab_size,
             states_ptr=states,
             new_states_ptr=new_states,
