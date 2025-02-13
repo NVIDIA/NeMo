@@ -498,7 +498,11 @@ class FastNGramLM(ModelPT):
         """
         model = FastNGramLM.restore_from(restore_path=str(lm_path), map_location="cpu")
         assert model.vocab_size == vocab_size
-        model.use_triton = use_triton
+        model.use_triton = use_triton if use_triton is not None else TRITON_AVAILABLE
+        if not model.use_triton:
+            logging.warning(
+                "Triton is disabled. Version without Triton is not compatible with Cuda graphs; decoding can be slow"
+            )
         return model
 
     @classmethod
