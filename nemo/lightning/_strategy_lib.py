@@ -23,6 +23,7 @@ import torch
 from torch import nn
 
 from nemo.lightning.megatron_init import initialize_model_parallel_for_nemo
+from nemo.utils import logging
 
 NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE = "NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE"
 
@@ -33,7 +34,11 @@ if TYPE_CHECKING:
 
 
 class SharedStateDictProtocol(Protocol):
-    def sharded_state_dict(self, prefix=""): ...
+    """ """
+
+    def sharded_state_dict(self, prefix=""):
+        """ """
+        ...
 
 
 def init_parallel_ranks(
@@ -81,6 +86,7 @@ def init_parallel_ranks(
         local_rank=init_local_rank,
         tensor_model_parallel_size=parallel_config.tensor_model_parallel_size,
         expert_model_parallel_size=parallel_config.expert_model_parallel_size,
+        expert_tensor_parallel_size=parallel_config.expert_tensor_parallel_size,
         pipeline_model_parallel_size=parallel_config.pipeline_model_parallel_size,
         pipeline_model_parallel_comm_backend=parallel_config.pipeline_model_parallel_comm_backend,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
@@ -93,6 +99,7 @@ def init_parallel_ranks(
         init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False)
         and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
         use_te_rng_tracker=getattr(parallel_config, "use_te_rng_tracker", False),
+        use_tp_pp_dp_mapping=getattr(parallel_config, "use_tp_pp_dp_mapping", False),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -124,6 +131,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
+                order="tp-cp-ep-pp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -143,6 +151,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
 
 
 def set_model_parallel_attributes(model, parallelism):
+    """ """
     # Right now mcore sub-classes ModelParellelConfig, we should remove that
     # Given Lightning's structure it would be better if parallelism is a different object
     # Since then it can be passed to the Strategy
@@ -170,6 +179,7 @@ def set_model_parallel_attributes(model, parallelism):
 
 @contextmanager
 def megatron_lazy_init_context(config) -> Generator[None, None, None]:
+    """ """
     try:
         from megatron.core.extensions import transformer_engine as _te
 
@@ -206,6 +216,7 @@ def megatron_lazy_init_context(config) -> Generator[None, None, None]:
 
 @contextmanager
 def megatron_cpu_init_context(config) -> Generator[None, None, None]:
+    """ """
     _orig_use_cpu_initialization = config.use_cpu_initialization
 
     config.use_cpu_initialization = True
@@ -519,10 +530,11 @@ def optimizer_sharded_state_dict(
 
 
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
+    """ """
     from megatron.core import parallel_state
     from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
 
-    ## convert from StrictHandling to bool for PTL
+    # convert from StrictHandling to bool for PTL
     if strict is not None and not isinstance(strict, bool):
         strict = parse_strict_flag(strict)
         strict_options = [
@@ -579,15 +591,27 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
             module.module.load_state_dict(_state_dict, strict=strict)
             continue
 
-        module.load_state_dict(_state_dict, strict=strict)
+        try:
+            module.load_state_dict(_state_dict, strict=strict)
+        except RuntimeError as e:
+            missing_keys, expected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
+            if all(s.endswith('_extra_state') for s in missing_keys):
+                logging.warning(
+                    f'Loding checkpoint created with Transformer Engine version lower than 1.13. '
+                    f'Missing layers {missing_keys} will be ignored.'
+                )
+            else:
+                raise e
 
 
 def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False):
     """
-    When pipeline parallelism is enabled, casts a tensor defined on the last pipeline stage to other ranks.
+    When pipeline parallelism is enabled,
+    casts a tensor defined on the last pipeline stage to other ranks.
 
         Args:
-            value (torch.Tensor): A tensor to be casted from the final pipeline stage of a pipeline parallelism group (e.g. loss).
+            value (torch.Tensor): A tensor to be casted from the final pipeline stage of
+                a pipeline parallelism group (e.g. loss).
                 Note that this tensor should already be defined on the target rank(s) to fill with received data.
             broadcast (bool): When True, broadcasts value from the final pipeline stage rank to all ranks in its group.
                 When False, only rank zero receives value from the final pipeline stage rank in its group.
@@ -619,6 +643,7 @@ def setup_megatron_optimizer(
     scale_lr_cond: Optional[Callable] = None,
     lr_mult: float = 1.0,
 ):
+    """ """
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 
     from nemo.core.optim import McoreDistributedOptimizer
@@ -626,6 +651,8 @@ def setup_megatron_optimizer(
     assert isinstance(config, OptimizerConfig), f"Expected OptimizerConfig, got {type(config)}"
 
     class McoreOpt(McoreDistributedOptimizer):
+        """ """
+
         def sharded_state_dict(
             self,
             model_sharded_state_dict,
