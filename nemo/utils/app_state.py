@@ -472,7 +472,7 @@ class AppState(metaclass=Singleton):
 
     @property
     def pipeline_model_parallel_split_rank(self):
-        """Property returns the rank at which Encoder and Decoder are split into different pipelines for 
+        """Property returns the rank at which Encoder and Decoder are split into different pipelines for
         Megatrron Encoder-Decoder models.
         Returns:
             Pipeline model parallel split rank.
@@ -481,7 +481,7 @@ class AppState(metaclass=Singleton):
 
     @pipeline_model_parallel_split_rank.setter
     def pipeline_model_parallel_split_rank(self, rank):
-        """Property sets the rank at which Encoder and Decoder are split into different pipelines for 
+        """Property sets the rank at which Encoder and Decoder are split into different pipelines for
         Megatrron Encoder-Decoder models.
         Args:
             rank (int): Model parallel split rank.
