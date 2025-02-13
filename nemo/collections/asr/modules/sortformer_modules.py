@@ -158,7 +158,7 @@ class SortformerModules(NeuralModule, Exportable):
     def init_memory(self, batch_size, d_model=192, device=None):
         return torch.zeros(batch_size, 0, d_model).to(device)
 
-    def update_memory_FIFO(self, mem, mem_preds, fifo, chunk, preds, chunk_left_offset=0, chunk_right_offset=0):
+    def update_memory_FIFO(self, mem, mem_preds, fifo, chunk, preds, spk_perm, chunk_left_offset=0, chunk_right_offset=0):
         """
         update the FIFO queue and memory buffer with the chunk of embeddings and speaker predictions
         Args:
@@ -186,6 +186,10 @@ class SortformerModules(NeuralModule, Exportable):
 
         lc, rc = chunk_left_offset, chunk_right_offset
         mem_len, fifo_len, chunk_len = mem.shape[1], fifo.shape[1], chunk.shape[1] - lc - rc
+        if spk_perm is not None:
+            inv_spk_perm = torch.stack([torch.argsort(spk_perm[b]) for b in range(B)])
+            preds = torch.stack([preds[b, :, inv_spk_perm[b]] for b in range(B)])
+            spk_perm = None
 
 #        mem_preds, fifo_preds = preds[:, :mem_len], preds[:, mem_len:mem_len + fifo_len]
         fifo_preds = preds[:, mem_len:mem_len + fifo_len]
@@ -222,13 +226,13 @@ class SortformerModules(NeuralModule, Exportable):
             if mem.shape[1] > self.mem_len:
                 if mem_preds is None: # if this is a first memory update
                     mem_preds = torch.cat([preds[:, :mem_len], pop_out_preds], dim=1)
-                mem, mem_preds = self._compress_memory(mem, mem_preds)
+                mem, mem_preds, spk_perm = self._compress_memory(mem, mem_preds)
             
         if self.log:
             logging.info(f"MC mem: {mem.shape}, chunk: {chunk.shape}, fifo: {fifo.shape}, chunk_preds: {chunk_preds.shape}")
             #logging.info(f"mem_preds: {mem_preds}")
             
-        return mem, fifo, mem_preds, fifo_preds, chunk_preds
+        return mem, fifo, mem_preds, fifo_preds, chunk_preds, spk_perm
     
     def _compress_memory(self, emb_seq, preds):
         """.
@@ -276,19 +280,37 @@ class SortformerModules(NeuralModule, Exportable):
         is_speech = scores > 0.5
         is_high = scores_lp > 0 #only current speaker is speaking
         is_high_sum = is_high.sum(dim=1) #number of frames for each speaker with score_ent > 0 #(B, n_spk)
+
+        zero_indices = torch.where(is_high_sum == 0)
+        max_perm_index = torch.full((B,), n_spk, dtype=torch.long, device=preds.device)
+        max_perm_index.scatter_reduce_(0, zero_indices[0], zero_indices[1], reduce="amin", include_self=False)
+
         is_bad = is_speech * (is_high_sum.unsqueeze(1) >= n_high_per_spk) * (~is_high) #condition for replacing low scores by -inf
 
         #replace scores for non-speech by -inf
         scores = torch.where(is_speech, scores_lp, torch.tensor(float('-inf'))) # Shape: (B, n_frames, n_spk) 
+
+        #get a minimum of n_high_per_spk scores
+#        top_n_high_per_spk, _ = torch.topk(scores, n_high_per_spk, dim=1, largest=True, sorted=True) # Shape: (B, n_boost_per_spk, n_spk)
+#        min_n_high_per_spk = top_n_high_per_spk[:, -1:, :]
+#        is_bad = is_speech * (scores_lp < min_n_high_per_spk - 0.1) * (~is_high) #condition for replacing low scores by -inf
+#        is_bad = is_speech * (scores_lp < min_n_high_per_spk - 0.01)
+
         #replace low scores by -inf
         scores = torch.where(is_bad, torch.tensor(float('-inf')), scores) # Shape: (B, n_frames, n_spk)
 
         if self.log:
             logging.info(f"is_speech total: {is_speech.sum(dim=1)}")
             logging.info(f"is_high total: {is_high_sum}")
+            logging.info(f"max_perm_index: {max_perm_index}")
             logging.info(f"is_bad total: {is_bad.sum(dim=1)}")
-#            logging.info(f"scores before boosting: {scores[0, 0:188, :]}")
         scores[:,self.mem_len:,:] += 0.05 # to boost newly added frames
+
+        if self.training:
+            spk_perm = torch.stack([torch.cat([torch.randperm(max_perm_index[b].item()), torch.arange(max_perm_index[b].item(), n_spk)]) for b in range(B)]).to(preds.device)
+            scores = torch.stack([scores[b, :, spk_perm[b]] for b in range(B)])
+        else:
+            spk_perm = None
 
         #get n_boost_per_spk most important indices for each speaker
         topk_values, topk_indices = torch.topk(scores, n_boost_per_spk, dim=1, largest=True, sorted=False) # Shape: (B, n_boost_per_spk, n_spk)
@@ -346,7 +368,7 @@ class SortformerModules(NeuralModule, Exportable):
         # replace placeholder preds with zeros
         mem_preds = torch.where(is_inf.unsqueeze(-1), torch.tensor(0.0), preds_gathered)
 
-        return memory_buff, mem_preds
+        return memory_buff, mem_preds, spk_perm
 
     
     def visualize_all_session(self, mem_preds_list, fifo_preds_list, chunk_preds_list, uniq_ids=None, out_dir='./'):
