@@ -28,7 +28,7 @@ class SpeechLMMegatronStrategy(MegatronStrategy):
         """
         cached_ckpt_load_strictness = self.ckpt_load_strictness
         if SPEECHLM_PEFT_RESUME in checkpoint:
-            logging.info(f"Resuming from PEFT jobs, skip PTL checkpoint loading in first stage.")
+            logging.info("Resuming from PEFT jobs, skip PTL checkpoint loading in first stage.")
             strict = False
             self.ckpt_load_strictness = None
         super().load_model_state_dict(checkpoint, strict=strict)

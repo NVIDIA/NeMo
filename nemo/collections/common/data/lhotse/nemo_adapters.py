@@ -20,7 +20,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List, Literal
 
-import lhotse.serialization
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, MonoCut, Recording, SupervisionSegment
@@ -32,7 +31,7 @@ from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples, ifnone
 
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.utils import logging, logging_mode
+from nemo.utils import logging
 
 
 class LazyNeMoIterator:
@@ -432,7 +431,6 @@ class LazyNeMoTarredIterator:
             except tarfile.ReadError:
                 logging.warning(
                     f"Skipping tar file due to read errors (unstable storage or bad file?): {tar_path=}",
-                    mode=logging_mode.ONCE,
                 )
 
     def __len__(self) -> int:
@@ -466,7 +464,7 @@ def make_cut_with_subset_inmemory_recording(
     except Exception as e:
         raise RuntimeError(
             f"Lhotse cut.truncate failed with offset={offset}, duration={duration}, recording={recording}: {e}"
-        )
+        ) from e
 
     audiobytes = BytesIO()
     LibsndfileBackend().save_audio(audiobytes, cut.load_audio(), sampling_rate=cut.sampling_rate, format="wav")
