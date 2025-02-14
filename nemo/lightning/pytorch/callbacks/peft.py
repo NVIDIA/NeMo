@@ -594,7 +594,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
                 metadata = json.load(f)
             self.model_ckpt_path = Path(metadata['model_ckpt_path'])
             self.adapter_ckpt_path = path
-        elif (hf_adapter_meta_path := base / HF_ADAPTER_PATH / HF_ADAPTER_CONFIG_FILENAME).exists():
+        elif (base / HF_ADAPTER_PATH / HF_ADAPTER_CONFIG_FILENAME).exists():
             self.adapter_ckpt_path = path / HF_ADAPTER_PATH
         else:
             # Initial PEFT Training
