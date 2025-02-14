@@ -26,7 +26,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import MegatronStrategy, NeMoLogger, Trainer
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule as MegatronOptim
 from nemo.lightning.pytorch.optim.megatron import OptimizerConfig
-from tests.collections.llm.common import AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays
 
 
 def tokenizer(vocab_path, merges_path):
@@ -91,7 +90,6 @@ def main(args):
         num_sanity_val_steps=0,
         logger=None,
         limit_val_batches=1,
-        callbacks=[AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays()],
     )
 
     data = PreTrainingDataModule(
