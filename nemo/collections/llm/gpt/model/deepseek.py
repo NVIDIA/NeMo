@@ -30,7 +30,6 @@ from nemo.collections.llm.gpt.model.base import (
     GPTConfig,
     GPTModel,
     torch_dtype_from_dict_config,
-    torch_dtype_from_mcore_config,
 )
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
@@ -373,6 +372,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
 @io.model_exporter(DeepSeekModel, "hf")
 class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"]):
+    # pylint: disable=C0115,C0116
     def init(self, dtype=torch.bfloat16, model_name="deepseek-ai/DeepSeek-V3") -> "AutoModelForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
@@ -400,9 +400,10 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             Tuple[Dict, Dict]: The loaded state dict and the yaml config dict.
         """
         model_yaml = path / "context" / "model.yaml"
-        if model_yaml.exists():
-            with open(model_yaml, 'r') as stream:
-                config = yaml.safe_load(stream)
+        if not model_yaml.exists():
+            raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
+        with open(model_yaml, 'r') as stream:
+            config = yaml.safe_load(stream)
 
         dist_ckpt_folder = path / "weights"
         state_dict = {}
@@ -447,6 +448,7 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
         return output_path
 
     def convert_state(self, source, target, source_config):
+        # pylint: disable=C0301
         mapping = {
             ## Embed
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
