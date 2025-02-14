@@ -799,6 +799,11 @@ def clip_grad_value_(parameters, clip_value, norm_type=2):
     return total_norm
 
 
+def convert_pad_shape(pad_shape):
+    pad_shape = [item for sublist in pad_shape[::-1] for item in sublist]
+    return pad_shape
+
+
 def generate_path(duration, mask):
     """
     duration: [b, 1, t_x]
@@ -811,9 +816,7 @@ def generate_path(duration, mask):
     path = get_mask_from_lengths(cum_duration_flat, torch.Tensor(t_y).reshape(1, 1, -1)).to(mask.dtype)
     path = path.view(b, t_x, t_y)
     pad_shape = [[0, 0], [1, 0], [0, 0]]
-    pad_shape = [item for sublist in pad_shape[::-1] for item in sublist]
-    path = path - torch.nn.functional.pad(path, pad_shape)[:, :-1]
-    path = path.unsqueeze(1).transpose(2, 3) * mask
+    path = path - torch.nn.functional.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
     return path
 
 
