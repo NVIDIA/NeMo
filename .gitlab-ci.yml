@@ -1,0 +1,11 @@
+default:
+  tags:
+    - os/linux
+
+stages:
+  - build
+
+build:
+  stage: build
+  script:
+    - echo "I'm building here!"
