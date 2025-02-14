@@ -5003,7 +5003,8 @@ jobs:
 
         python tests/collections/llm/peft/lora_merge.py \
         --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
-        --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }}
+        --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }} \
+        --legacy_ckpt
 
   L2_NEMO_2_LoRA_Export:
     needs: [pre-flight, cicd-test-container-build]
@@ -5032,7 +5033,8 @@ jobs:
           --devices 1 \
           --top_p 0.0 \
           --top_k 1 \
-          --num_tokens_to_generate 3
+          --num_tokens_to_generate 3 \
+          --legacy_ckpt
 
   L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact:
     needs: [pre-flight, cicd-test-container-build]
@@ -5083,7 +5085,8 @@ jobs:
           --warmup_steps 1 \
           --val_check_interval 5 \
           --log_interval 5 \
-          --limit_val_batches 2
+          --limit_val_batches 2 \
+          --legacy_ckpt
 
       AFTER_SCRIPT: |
         rm -rf /tmp/distill_logs
