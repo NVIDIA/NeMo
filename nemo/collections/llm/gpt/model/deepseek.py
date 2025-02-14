@@ -25,12 +25,7 @@ from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import (
-    HAVE_TE,
-    GPTConfig,
-    GPTModel,
-    torch_dtype_from_dict_config,
-)
+from nemo.collections.llm.gpt.model.base import HAVE_TE, GPTConfig, GPTModel, torch_dtype_from_dict_config
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
