@@ -23,11 +23,18 @@ from nemo.utils import logging
 
 
 def collect_precision(tensor: torch.Tensor) -> Dict[str, str]:
-    return {"Precision": str(tensor.dtype)}
-
+    """ Returns tensor's precision """
+    if isinstance(tensor, torch.Tensor):
+        return {"Precision": str(tensor.dtype)}
+    else:
+        return {"Precision": "not-a-tensor"}
 
 def collect_precision_and_shape(tensor: torch.Tensor) -> Dict[str, str]:
-    return {"Shape": str(tensor.shape), "Precision": str(tensor.dtype)}
+    """ Returns tensor's shape & precision """
+    if isinstance(tensor, torch.Tensor):
+        return {"Shape": str(tensor.shape), "Precision": str(tensor.dtype)}
+    else:
+        return {"Shape": "not-a-tensor", "Precision": "not-a-tensor"}
 
 
 class ParameterDebugger(Callback):
@@ -108,7 +115,8 @@ class ParameterDebugger(Callback):
         for hook_name in log_on_hooks:
             assert (
                 hook_name in valid_hooks
-            ), f"Hook {hook_name} supplied to log_on_hooks is not valid or can not be used. Valid hooks are {valid_hooks}"
+            ), ("Hook {} supplied to log_on_hooks is not valid or "
+            "can not be used. Valid hooks are {}").format(hook_name, valid_hooks)
             setattr(self, hook_name, self._apply_user_funcs)
 
     def _apply_user_funcs(self, trainer: pl.Trainer, pl_module: pl.LightningModule,  *args, **kwargs) -> None:
