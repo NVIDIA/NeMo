@@ -634,7 +634,25 @@ class ASRTarredDatasetBuilder:
                 if squashed_filename not in count:
                     count[squashed_filename] = 1
 
-                to_write = base + "_" + str(count[squashed_filename]) + ext
+                entry_offset = str(entry['offset']).split('.')
+                if len(entry_offset) == 1:
+                    entry_offset.append('0')
+                elif len(entry_offset) > 2:
+                    raise ValueError(
+                        f"The offset for the entry with audio_filepath '{entry['audio_filepath']}' is incorrectly provided ({entry['offset']})."
+                    )
+                entry_offset = "_".join(entry_offset)
+
+                entry_duration = str(entry['duration']).split('.')
+                if len(entry_duration) == 1:
+                    entry_duration.append('0')
+                elif len(entry_duration) > 2:
+                    raise ValueError(
+                        f"The duration for the entry with audio_filepath '{entry['audio_filepath']}' is incorrectly provided ({entry['duration']})."
+                    )
+                entry_duration = "_".join(entry_duration)
+
+                to_write = base + "_" + entry_offset + "_" + entry_duration + ext
                 if not dry_run:
                     self._write_to_tar(
                         tar, audio_filepath, to_write, duration=entry['duration'], offset=entry['offset']
