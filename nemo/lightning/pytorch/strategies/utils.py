@@ -17,27 +17,39 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import ClusterEnvironment
+from lightning.fabric.plugins import ClusterEnvironment
+from lightning.pytorch.callbacks import TQDMProgressBar
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
-from pytorch_lightning.callbacks import TQDMProgressBar
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+from torch import Tensor, nn
+from torch.distributed._composable.fsdp import MixedPrecisionPolicy
+from torch.distributed._composable.fsdp.fully_shard import fully_shard
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh
 
 from nemo.lightning import _strategy_lib
-from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 
 
 @dataclass(kw_only=True)
 class RestoreConfig:
+    """
+    Configuration for restoring model state from a checkpoint.
+
+    Attributes:
+        path (str): Path to the checkpoint directory.
+        adapter_path (Optional[str]): Path to adapter checkpoint, if any.
+        load_model_state (bool): Whether to load model weights.
+        load_optim_state (bool): Whether to load optimizer state.
+        load_artifacts (bool): Whether to load additional artifacts (e.g., tokenizer).
+    """
+
     path: str
     adapter_path: Optional[str] = None
     load_model_state: bool = True
@@ -47,6 +59,12 @@ class RestoreConfig:
 
 
 def setup_parallel_ranks(strategy: pl.strategies.Strategy):
+    """
+    Sets up parallel ranks for distributed training.
+
+    Args:
+        strategy (pl.strategies.Strategy): The Lightning strategy being used for training.
+    """
     from megatron.core.model_parallel_config import ModelParallelConfig
 
     env = cast(ClusterEnvironment, strategy.cluster_environment)
@@ -55,6 +73,12 @@ def setup_parallel_ranks(strategy: pl.strategies.Strategy):
 
 
 def init_model_parallel(pl_module: pl.LightningModule):
+    """
+    Initializes model parallelism for distributed training.
+
+    Args:
+        pl_module (pl.LightningModule): The PyTorch Lightning module.
+    """
     from megatron.core import parallel_state
 
     from nemo.utils import AppState
@@ -67,6 +91,12 @@ def init_model_parallel(pl_module: pl.LightningModule):
 
 
 def setup_data_sampler(trainer: pl.Trainer):
+    """
+    Configures the data sampler for distributed training.
+
+    Args:
+        trainer (pl.Trainer): The PyTorch Lightning trainer instance.
+    """
     datamodule = getattr(trainer, "datamodule", None)
     if datamodule is not None:
         if hasattr(trainer.strategy, "data_sampler") and trainer.strategy.data_sampler is not None:
@@ -83,6 +113,14 @@ def setup_data_sampler(trainer: pl.Trainer):
 
 
 def fix_progress_bar(trainer: pl.Trainer, replace_progress_bar: bool = True, progress_interval: int = 1) -> None:
+    """
+    Fixes or replaces the progress bar callback in the PyTorch Lightning trainer.
+
+    Args:
+        trainer (pl.Trainer): The PyTorch Lightning trainer instance.
+        replace_progress_bar (bool): Whether to replace the default progress bar.
+        progress_interval (int): Interval at which to log progress.
+    """
     callbacks: List[pl.Callback] = cast(List[pl.Callback], getattr(trainer, "callbacks"))
     contains_megatron_progress, contains_progress = False, False
     for callback in callbacks:
@@ -108,6 +146,15 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     """PTL considers checkpoints as .ckpt files.
     This method removes the extension and returns a path
     to be used as a directory for distributed checkpoints.
+
+    Converts a checkpoint file path to a directory path by removing the `.ckpt` extension.
+
+    Args:
+        filepath (Union[str, Path]): The checkpoint file path.
+
+    Returns:
+        Path: The directory path where the checkpoint will be stored.
+
     """
     filepath = Path(filepath)
 
@@ -118,7 +165,29 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
 
 
 def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
-    checkpoint_io = MegatronCheckpointIO(**kwargs)
+    """
+    Creates a checkpoint IO handler for saving/loading checkpoints.
+
+    Args:
+        wrapping_ckpt_io: An optional wrapper for checkpoint IO.
+        **kwargs: Additional arguments to configure checkpoint IO.
+
+    Returns:
+        Checkpoint IO handler instance.
+    """
+    model_library = "megatron"
+    if "model_library" in kwargs.keys():
+        model_library = kwargs["model_library"]
+
+    if model_library == "huggingface":
+        from nemo.lightning.io.pl import HuggingFaceCheckpointIO
+
+        checkpoint_io = HuggingFaceCheckpointIO(lora=kwargs["lora"])
+    else:
+        from nemo.lightning.io.pl import MegatronCheckpointIO
+
+        checkpoint_io = MegatronCheckpointIO(**kwargs)
+
     if wrapping_ckpt_io:
         checkpoint_io = wrapping_ckpt_io(checkpoint_io)
     if kwargs.get("async_save", False):
@@ -133,11 +202,30 @@ def mcore_to_pyt_sharded_state_dict(
     dtensor: bool = False,
     device_mesh: DeviceMesh = None,
 ) -> Dict[str, Union[TorchShardedTensor, io.BytesIO]]:
+    """
+    Converts a Megatron-Core sharded state dictionary into a PyTorch-compatible format.
+
+    Args:
+        checkpoint (Dict[str, List[torch.Tensor]]):
+            The Megatron-Core checkpoint containing a list of tensors for each key.
+        sharded_state_dict (Dict[str, Union[List[ShardedTensor], ShardedObject]]):
+            The corresponding PyTorch sharded state dictionary.
+        dtensor (bool, optional):
+            Whether to use DTensor for the conversion. Defaults to False.
+        device_mesh (DeviceMesh, optional):
+            The device mesh configuration for distributed tensors.
+
+    Returns:
+        Dict[str, Union[TorchShardedTensor, io.BytesIO]]:
+            A PyTorch-compatible state dictionary with properly formatted sharded tensors.
+    """
+
     def _mcore_to_pyt_dtensor(
         tens: List[torch.Tensor],
         sh_tens: List[ShardedTensor],
         device_mesh: DeviceMesh,
     ) -> DTensor:
+        """Converts a Megatron-Core tensor into a PyTorch DTensor."""
         assert len(tens) == 1 and len(sh_tens) == 1
 
         dten = DTensor.from_local(
@@ -151,6 +239,7 @@ def mcore_to_pyt_sharded_state_dict(
         return dten
 
     def _mcore_to_pyt_sharded_tensor(tens: List[torch.Tensor], sh_tens: List[ShardedTensor]) -> TorchShardedTensor:
+        """Converts a Megatron-Core tensor into a PyTorch sharded tensor."""
         for ten, sh_ten in zip(tens, sh_tens):
             # remove prepend axes and put in loaded tensor
             sh_ten.global_shape = sh_ten.global_shape[sh_ten.prepend_axis_num :]
@@ -163,6 +252,7 @@ def mcore_to_pyt_sharded_state_dict(
         return sharded_tensor_to_torch_sharded_tensor(sh_tens)
 
     def _convert(checkpoint, sharded_state_dict, k, device_mesh=None):
+        """Recursively converts checkpoint tensors into PyTorch-compatible formats."""
         assert k in sharded_state_dict, f"{k} not in sharded_state_dict"
 
         if isinstance(sharded_state_dict[k], Dict):
@@ -185,6 +275,22 @@ def mcore_to_pyt_sharded_state_dict(
 def pyt_to_mcore_state_dict(
     state_dict: Dict[str, Any], prefix: str = "", device_mesh: DeviceMesh = None
 ) -> Dict[str, List[ShardedBase]]:
+    """
+    Converts a PyTorch state dictionary into a Megatron-Core compatible format.
+
+    Args:
+        state_dict (Dict[str, Any]):
+            The PyTorch state dictionary.
+        prefix (str, optional):
+            A prefix to prepend to all keys. Defaults to "".
+        device_mesh (DeviceMesh, optional):
+            The device mesh configuration for distributed tensors.
+
+    Returns:
+        Dict[str, List[ShardedBase]]:
+            A Megatron-Core formatted state dictionary with properly sharded tensors.
+    """
+
     def _dtensor_to_mcore_sharded_tensor(
         key: str,
         dten: DTensor,
@@ -274,6 +380,7 @@ def pyt_to_mcore_state_dict(
         sharded_offsets: Iterable[Tuple[int, int, int]] = (),
         prefix: str = "",
     ) -> ShardedObject:
+        """mcore helper"""
         replica_id = (
             0,
             0,
@@ -283,6 +390,7 @@ def pyt_to_mcore_state_dict(
         return ShardedObject(f"{prefix}{key}", obj, *_get_extra_state_offsets(sharded_offsets), replica_id)
 
     def _convert(state_dict, k, sh_key, v, prepend_offsets, prefix="", allow_shape_mismatch=False, device_mesh=None):
+        """mcore helper"""
         if isinstance(v, Dict):
             for kk, vv in v.items():
                 _convert(
@@ -329,3 +437,95 @@ def pyt_to_mcore_state_dict(
         _convert(state_dict, k, sh_key, v, prepend_offsets, prefix, allow_shape_mismatch, device_mesh)
 
     return state_dict
+
+
+# Taken and modified from torchtitan
+# https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py
+def fsdp2_strategy_parallelize(
+    model,
+    device_mesh: DeviceMesh = None,
+    mp_policy: MixedPrecisionPolicy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32),
+):
+    """Apply parallelisms and activation checkpointing to the model.
+    NOTE: The passed-in model preferably should be on meta device. Otherwise,
+    the model must fit on GPU or CPU memory.
+    NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
+    because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
+    """
+
+    dp_mesh = device_mesh["data_parallel"]
+    tp_mesh = device_mesh["tensor_parallel"]
+
+    def parallelize_helper(module, mesh, mp_policy):
+        if isinstance(module, nn.ModuleList):
+            for layer_id, transformer_block in enumerate(module):
+                # Apply activation checkpointing
+                # transformer_block = checkpoint_wrapper(transformer_block)
+                # As an optimization, do not reshard after forward for the last
+                # transformer block since FSDP would prefetch it immediately
+                reshard_after_forward = int(layer_id) < len(module) - 1
+                fully_shard(
+                    transformer_block,
+                    mesh=mesh,
+                    mp_policy=mp_policy,
+                    reshard_after_forward=reshard_after_forward,
+                )
+                module[layer_id] = transformer_block
+        else:
+            for name, sub_module in module.named_children():
+                parallelize_helper(sub_module, mesh, mp_policy)
+
+    assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
+
+    if dp_mesh.size() > 1:
+        assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
+
+        # Find transformer layers and apply parallelisms
+        parallelize_helper(model, dp_mesh, mp_policy)
+
+        # reshard_after_forward=True based on
+        # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
+        model = fully_shard(model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True)
+
+    return model
+
+
+def to_cpu(v):
+    """
+    Move a tensor or distributed tensor to the CPU.
+
+    This function takes an input tensor, which can be either a `DTensor` (distributed tensor)
+    or a standard `Tensor`, and ensures that it is moved to the CPU.
+
+    Args:
+        v (DTensor | Tensor | any): The input value, which can be a `DTensor`, `Tensor`, or
+                                    any other object. If `DTensor`, it checks the device and
+                                    moves the tensor accordingly.
+
+    Returns:
+        Tensor | any: The corresponding CPU tensor if `v` is a `DTensor` or `Tensor`,
+                    otherwise returns `v` unchanged.
+
+    Raises:
+        ValueError: If `v` is a `DTensor` but its device is neither 'cuda' nor 'cpu'.
+
+    Example:
+        >>> t = torch.tensor([1, 2, 3], device='cuda')
+        >>> to_cpu(t)  # Moves tensor to CPU
+        tensor([1, 2, 3])
+
+        >>> dt = DTensor(torch.tensor([4, 5, 6], device='cuda'))
+        >>> to_cpu(dt)  # Moves DTensor to CPU
+        tensor([4, 5, 6])
+    """
+    if isinstance(v, DTensor):
+        if v.device.type == 'cuda':
+            return v.full_tensor().cpu()
+        elif v.device.type == 'cpu':
+            return v._local_tensor
+        else:
+            raise ValueError("Unknown device " + str(v.device))
+    elif isinstance(v, Tensor):
+        return v.cpu()
+    else:
+        return v

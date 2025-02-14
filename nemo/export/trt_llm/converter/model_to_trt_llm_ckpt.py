@@ -14,18 +14,16 @@
 
 
 import logging
-import math
 import multiprocessing
 from collections import defaultdict
 from pathlib import Path
 
-import numpy as np
 import torch
-from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch, torch_to_numpy
+from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch
 from tqdm import tqdm
 
-from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.export.trt_llm.converter.utils import save_scaling_factor, save_val, split_and_save_weight, weights_dict
+from nemo.export.utils import torch_dtype_from_precision
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -138,9 +136,6 @@ def convert_model_to_trt_llm_ckpt(
 
     has_position_embedding = get_layer_name("position_embedding", prefix) in model_state_dict
     has_lm_head = get_layer_name("output_layer", prefix) in model_state_dict
-    share_embeddings_and_output = nemo_model_config.get("share_embeddings_and_output_weights", False)
-    embedding_scaling = nemo_model_config.get("apply_embedding_scaling", False)
-    hidden_size = nemo_model_config["hidden_size"]
 
     num_layers = nemo_model_config["num_layers"]
     training_tp_size = 1
@@ -161,7 +156,7 @@ def convert_model_to_trt_llm_ckpt(
         or nemo_model_config.get("layernorm_zero_centered_gamma", False),
         "tp_size": training_tp_size,
         "split_gated_activation": nemo_model_config.get("activation", "gelu")
-        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"]
+        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu", "openai-gelu"]
         and (decoder_type == "gptnext" or is_mcore),
         "num_attention_heads": num_attention_heads,
         "num_kv_heads": num_kv_heads,
@@ -220,7 +215,8 @@ def convert_model_to_trt_llm_ckpt(
                         # Let's rename/map the key to the old layer name previously. You can try printing out
                         # the rename_key output of the old llama checkpoint and compare.
                         rename_key_dist_ckpt(key, 0),
-                        # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                        # Since the state dict value has the full layers,
+                        # let's select the ith layer weights/biases here.
                         [val],
                         storage_type,
                         None,
@@ -238,7 +234,8 @@ def convert_model_to_trt_llm_ckpt(
                             # Let's rename/map the key to the old layer name previously. You can try printing out
                             # the rename_key output of the old llama checkpoint and compare.
                             rename_key_dist_ckpt(key, i),
-                            # Since the state dict value has the full layers, let's select the ith layer weights/biases here.
+                            # Since the state dict value has the full layers,
+                            # let's select the ith layer weights/biases here.
                             [val[i]],
                             storage_type,
                             None,
@@ -322,7 +319,8 @@ def dist_model_to_trt_llm_ckpt(
             reshard_model = True
         else:
             raise NotImplementedError(
-                f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
+                "NeMo currently only supports PP>1 -> PP=1 resharding,"
+                " other types of resharding will come in future releases."
             )
 
     num_layers = nemo_model_config["num_layers"]
@@ -336,7 +334,7 @@ def dist_model_to_trt_llm_ckpt(
         "apply_layernorm_1p": nemo_model_config.get("normalization", "") == "layernorm1p",
         "tp_size": tp_size,
         "split_gated_activation": nemo_model_config.get("activation", "gelu")
-        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu"],
+        in ["swiglu", "geglu", "fast-swiglu", "fast-geglu", "openai-gelu"],
         "num_attention_heads": nemo_model_config["num_attention_heads"],
         "num_kv_heads": nemo_model_config.get('num_query_groups', nemo_model_config['num_attention_heads']),
         "convert_on_device": True,

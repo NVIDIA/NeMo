@@ -17,8 +17,9 @@ import tempfile
 
 import pytest
 import torch
-from lhotse import CutSet, MonoCut
-from lhotse.testing.dummies import DummyManifest
+from lhotse import CutSet, MonoCut, SupervisionSegment
+from lhotse.testing.dummies import DummyManifest, dummy_cut
+from lhotse.testing.random import deterministic_rng
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
@@ -30,6 +31,7 @@ from nemo.collections.asr.parts.submodules import multitask_beam_decoding as bea
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchMultiTaskAED
 from nemo.collections.common.prompts.canary import CanaryPromptFormatter, canary
+from nemo.collections.common.prompts.canary2 import Canary2PromptFormatter, canary2
 from nemo.collections.common.tokenizers import CanaryTokenizer
 
 
@@ -110,6 +112,11 @@ def asr_model(test_data_dir):
         },
     }
 
+    optim = {
+        'name': 'adamw',
+        'lr': 1e-4,
+    }
+
     loss = {
         '_target_': 'nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss',
         'label_smoothing': 0.0,
@@ -129,11 +136,13 @@ def asr_model(test_data_dir):
             'head': DictConfig(head),
             'tokenizer': DictConfig(tokenizer),
             'decoding': DictConfig(decoding),
+            'optim': DictConfig(optim),
             'loss': DictConfig(loss),
         }
     )
 
     model_instance = EncDecMultiTaskModel(cfg=modelConfig)
+    model_instance.configure_optimizers()
     return model_instance
 
 
@@ -191,6 +200,109 @@ class TestEncDecMultiTaskModel:
         assert diff <= 1e-5
         diff = torch.max(torch.abs(logits_instance - logprobs_batch))
         assert diff <= 1e-5
+
+    @pytest.mark.unit
+    def test_training_step(self, deterministic_rng, asr_model):
+        cuts = CutSet(
+            [
+                dummy_cut(
+                    0,
+                    duration=1.0,
+                    with_data=True,
+                    supervisions=[
+                        SupervisionSegment(
+                            id="cut-0", recording_id="cut-0", start=0, duration=1.0, text="short", language="en"
+                        )
+                    ],
+                ),
+                dummy_cut(
+                    1,
+                    duration=5.0,
+                    recording_duration=5.0,
+                    with_data=True,
+                    supervisions=[
+                        SupervisionSegment(
+                            id="cut-1",
+                            recording_id="cut-1",
+                            start=0,
+                            duration=5.0,
+                            text="a very long transcript",
+                            language="en",
+                        )
+                    ],
+                ),
+            ]
+        )
+        for c in cuts:
+            c.source_lang = "en"
+            c.target_lang = "en"
+            c.task = "asr"
+            c.pnc = "no"
+        dataset = PromptedAudioToTextLhotseDataset(
+            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+        )
+        batch = dataset[cuts]
+
+        ans = asr_model.training_step(batch, batch_nb=0)
+        assert list(ans.keys()) == ["loss"]
+        assert torch.is_tensor(ans["loss"])
+
+    @pytest.mark.unit
+    def test_validation_step(self, deterministic_rng, asr_model):
+        cuts = CutSet(
+            [
+                dummy_cut(
+                    0,
+                    duration=1.0,
+                    with_data=True,
+                    supervisions=[
+                        SupervisionSegment(
+                            id="cut-0", recording_id="cut-0", start=0, duration=1.0, text="short", language="en"
+                        )
+                    ],
+                ),
+                dummy_cut(
+                    1,
+                    duration=5.0,
+                    recording_duration=5.0,
+                    with_data=True,
+                    supervisions=[
+                        SupervisionSegment(
+                            id="cut-1",
+                            recording_id="cut-1",
+                            start=0,
+                            duration=5.0,
+                            text="a very long transcript",
+                            language="en",
+                        )
+                    ],
+                ),
+            ]
+        )
+        for c in cuts:
+            c.source_lang = "en"
+            c.target_lang = "en"
+            c.task = "asr"
+            c.pnc = "no"
+        dataset = PromptedAudioToTextLhotseDataset(
+            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+        )
+        batch = dataset[cuts]
+
+        with torch.no_grad():
+            ans = asr_model.validation_pass(batch, batch_idx=0)
+        print(ans)
+        assert list(ans.keys()) == [
+            "val_loss",
+            "val_wer",
+            "val_wer_num",
+            "val_wer_denom",
+            "val_bleu",
+            "val_bleu_pred_len",
+            "val_bleu_target_len",
+            "val_bleu_num",
+            "val_bleu_denom",
+        ]
 
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
@@ -307,7 +419,7 @@ class TestEncDecMultiTaskModel:
         assert isinstance(asr_model.prompt, CanaryPromptFormatter)
 
         class CanaryPromptFormatterSubclass(CanaryPromptFormatter):
-            NAME = "canary2"
+            NAME = "canary-unit-test-stub-format"
 
         # Default change prompt
         asr_model.change_prompt()
@@ -315,9 +427,9 @@ class TestEncDecMultiTaskModel:
 
         prompt_defaults = asr_model.prompt.get_default_dialog_slots()
         prompt_defaults[0]['slots']['pnc'] = 'no'
-        asr_model.change_prompt(prompt_format='canary2', prompt_defaults=prompt_defaults)
+        asr_model.change_prompt(prompt_format='canary-unit-test-stub-format', prompt_defaults=prompt_defaults)
 
-        assert asr_model.cfg.prompt_format == 'canary2'
+        assert asr_model.cfg.prompt_format == 'canary-unit-test-stub-format'
         assert asr_model.cfg.prompt_defaults[0]['slots']['pnc'] == 'no'
         assert isinstance(asr_model.prompt, CanaryPromptFormatterSubclass)
 
@@ -338,7 +450,7 @@ class TestEncDecMultiTaskModel:
         # Numpy array test
         outputs = asr_model.transcribe(audio_file, batch_size=1)
         assert len(outputs) == 1
-        assert isinstance(outputs[0], str)
+        assert isinstance(outputs[0].text, str)
 
     @pytest.mark.unit
     def test_transcribe_single_file_translation(self, asr_model, test_data_dir):
@@ -347,7 +459,7 @@ class TestEncDecMultiTaskModel:
         # Numpy array test
         outputs = asr_model.transcribe(audio_file, batch_size=1, task="ast", source_lang='en', target_lang='de')
         assert len(outputs) == 1
-        assert isinstance(outputs[0], str)
+        assert isinstance(outputs[0].text, str)
 
     @pytest.mark.unit
     def test_transcribe_return_hypothesis(self, asr_model, test_data_dir):
@@ -374,7 +486,7 @@ class TestEncDecMultiTaskModel:
         # Numpy array test
         outputs = asr_model.transcribe(audio, batch_size=1)
         assert len(outputs) == 1
-        assert isinstance(outputs[0], str)
+        assert isinstance(outputs[0].text, str)
 
     @pytest.mark.unit
     def test_build_tokenizer(self, asr_model, test_data_dir):
@@ -404,7 +516,9 @@ class TestEncDecMultiTaskModel:
         c.target_lang = "en"
         c.task = "asr"
         c.pnc = "no"
-        dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+        dataset = PromptedAudioToTextLhotseDataset(
+            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+        )
         batch = dataset[cuts]
 
         # Numpy array test
@@ -413,7 +527,7 @@ class TestEncDecMultiTaskModel:
         assert len(outputs) == 1
         assert len(outputs[0]) == 2
         assert isinstance(outputs[0][0], MonoCut)
-        assert isinstance(outputs[0][1], str)
+        assert isinstance(outputs[0][1].text, str)
 
     @pytest.mark.unit
     def test_FrameBatchMultiTaskAED(self, asr_model, test_data_dir):
@@ -436,7 +550,9 @@ class TestEncDecMultiTaskModel:
 
 @pytest.mark.unit
 def test_prompted_dataset(asr_model):
-    dataset = PromptedAudioToTextLhotseDataset(tokenizer=asr_model.tokenizer, prompt_format_fn=canary)
+    dataset = PromptedAudioToTextLhotseDataset(
+        tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+    )
 
     cuts = DummyManifest(CutSet, begin_id=0, end_id=3, with_data=True)
 
@@ -506,3 +622,160 @@ def test_prompted_dataset(asr_model):
         == '<|startoftranscript|><|en|><|transcribe|><|en|><|pnc|><|endoftext|>' + '<pad>' * 10
     )
     assert batch.prompted_transcript_lens[i] == 6
+
+
+@pytest.fixture()
+def canary2_tokenizer(asr_model, tmp_path):
+    return CanaryTokenizer(
+        {
+            "spl_tokens": CanaryTokenizer.build_special_tokenizer(
+                [
+                    "<|startofcontext|>",
+                    "<|en|>",
+                    "<|de|>",
+                    "<|pnc|>",
+                    "<|nopnc|>",
+                    "<|itn|>",
+                    "<|noitn|>",
+                    "<|diarize|>",
+                    "<|nodiarize|>",
+                    "<|timestamp|>",
+                    "<|notimestamp|>",
+                    "<|emo:undefined|>",
+                    "<|emo:happy|>",
+                ]
+                # Timestamp frame special tokens
+                + [f"<|{i}|>" for i in range(900)],
+                tmp_path,
+                force_rebuild=False,
+            ),
+            "en": asr_model.tokenizer.tokenizers_dict["en"],
+            "de": asr_model.tokenizer.tokenizers_dict["de"],
+        }
+    )
+
+
+@pytest.mark.unit
+def test_prompted_dataset_canary2(canary2_tokenizer):
+    dataset = PromptedAudioToTextLhotseDataset(
+        tokenizer=canary2_tokenizer, prompt=Canary2PromptFormatter(canary2_tokenizer)
+    )
+
+    cuts = DummyManifest(CutSet, begin_id=0, end_id=4, with_data=True)
+
+    # backward compatibility
+    c = cuts[0]
+    c.supervisions[0].language = "en"
+    c.source_lang = "en"
+    c.target_lang = "en"
+
+    # new format
+    c = cuts[1]
+    c.supervisions[0].language = "en"
+    c.supervisions[0].text = "asd"
+    c.source_lang = "en"
+    c.target_lang = "en"
+    c.pnc = "yes"
+    c.itn = "yes"
+    c.diarize = "yes"
+    c.timestamp = "yes"
+    c.emotion = "<|emo:happy|>"
+    c.decodercontext = ""
+
+    # new format with extra context
+    c = cuts[2]
+    c.supervisions[0].language = "en"
+    c.supervisions[0].text = "asd"
+    c.source_lang = "en"
+    c.target_lang = "en"
+    c.pnc = "<|pnc|>"
+    c.itn = "<|noitn|>"
+    c.diarize = "<|diarize|>"
+    c.timestamp = "<|timestamp|>"
+    c.emotion = "<|emo:happy|>"
+    c.decodercontext = "some decoder context"
+
+    # transcript with timestamps
+    c = cuts[3]
+    c.supervisions[0].language = "en"
+    c.supervisions[0].text = "<|0|> hello <|3|> <|4|> world <|5|>"
+    c.source_lang = "en"
+    c.target_lang = "en"
+    c.pnc = "<|pnc|>"
+    c.itn = "<|noitn|>"
+    c.diarize = "<|diarize|>"
+    c.timestamp = "<|timestamp|>"
+    c.emotion = "<|emo:happy|>"
+    c.decodercontext = "some decoder context"
+
+    batch = dataset[cuts]
+
+    assert isinstance(batch, PromptedAudioToTextMiniBatch)
+    assert batch.audio.shape == (4, 16000)
+    assert batch.audio_lens.tolist() == [16000, 16000, 16000, 16000]
+
+    # Test example 0
+    i = 0
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompt[i])
+        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
+    assert batch.prompt_lens[i] == 9
+    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == 'i##r##r##el##e##v##a##nt<pad><pad><pad><pad><pad>'
+    assert batch.transcript_lens[i] == 8
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
+        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|>i##r##r##el##e##v##a##nt<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
+    assert batch.prompted_transcript_lens[i] == 18
+
+    # Test example 1
+    i = 1
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompt[i])
+        == '<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
+    assert batch.prompt_lens[i] == 9
+    assert (
+        canary2_tokenizer.ids_to_text(batch.transcript[i])
+        == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
+    assert batch.transcript_lens[i] == 3
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
+        == '<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|>a##s##d<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
+    assert batch.prompted_transcript_lens[i] == 13
+
+    # Test example 2
+    i = 2
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompt[i])
+        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>'
+    )
+    assert batch.prompt_lens[i] == 25
+    assert (
+        canary2_tokenizer.ids_to_text(batch.transcript[i])
+        == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
+    assert batch.transcript_lens[i] == 3
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
+        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>a##s##d<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+    )
+    assert batch.prompted_transcript_lens[i] == 29
+
+    # Test example 3
+    i = 3
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompt[i])
+        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>'
+    )
+    assert batch.prompt_lens[i] == 25
+    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == '<|0|>h##el##l##o<|3|><|4|>w##o##r##l##d<|5|>'
+    assert batch.transcript_lens[i] == 13
+    assert (
+        canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
+        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|><|0|>h##el##l##o<|3|><|4|>w##o##r##l##d<|5|><|endoftext|>'
+    )
+    assert batch.prompted_transcript_lens[i] == 39

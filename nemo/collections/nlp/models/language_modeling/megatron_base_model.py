@@ -23,12 +23,12 @@ from typing import Any, Dict, Optional, Union
 import omegaconf
 import torch
 import torch.nn as nn
+from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
+from lightning.pytorch.trainer.connectors.logger_connector.fx_validator import _FxValidator
+from lightning.pytorch.trainer.trainer import Trainer
+from lightning.pytorch.utilities.exceptions import MisconfigurationException
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.plugins.precision import MixedPrecisionPlugin
-from pytorch_lightning.trainer.connectors.logger_connector.fx_validator import _FxValidator
-from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities.exceptions import MisconfigurationException
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
@@ -50,6 +50,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 try:
     from megatron.core import ModelParallelConfig, parallel_state
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
+    from megatron.core.transformer.enums import AttnBackend
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
@@ -100,15 +101,17 @@ class MegatronBaseModel(NLPModel):
 
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "megatron-core was not found. Please see the NeMo README for installation instructions: "
+                "https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
         if trainer is None:
-            raise ValueError(f"Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
+            raise ValueError("Trainer cannot be None for Megatron-based models. Please provide a PTL trainer object.")
 
         if cfg.get('use_flash_attention', False) and not HAVE_FLASH_ATTENTION:
             raise ImportError(
-                "flash_attn was not found. Please see the installation instructions: https://github.com/HazyResearch/flash-attention."
+                "flash_attn was not found. Please see the installation instructions: "
+                "https://github.com/HazyResearch/flash-attention."
                 "If you use flash_attn with triton. Please install triton==2.0.0.dev20221202."
             )
 
@@ -181,9 +184,13 @@ class MegatronBaseModel(NLPModel):
             if vp_size == 1:
                 vp_size = None
             else:
-                assert (
-                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
-                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
+                if not (
+                    self.cfg.get('account_for_embedding_in_pipeline_split', False)
+                    and self.cfg.get('account_for_loss_in_pipeline_split', False)
+                ):
+                    assert (
+                        self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                    ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         initialize_model_parallel_for_nemo(
             world_size=init_world_size,
@@ -195,12 +202,14 @@ class MegatronBaseModel(NLPModel):
             virtual_pipeline_model_parallel_size=vp_size,
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
             use_tp_pp_dp_mapping=cfg.get('use_tp_pp_dp_mapping', False),
+            num_distributed_optimizer_instances=self.cfg.optim.get('num_distributed_optimizer_instances', 1),
             context_parallel_size=cfg.get('context_parallel_size', 1),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
             rampup_batch_size=cfg.get('rampup_batch_size', None),
             use_fp8=cfg.get('fp8', False),
-            init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False),
+            init_mpi_proc_group=cfg.get('ub_tp_comm_overlap', False)
+            and cfg.get('ub_tp_comm_bootstrap_backend', 'nccl') == 'mpi',
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
             use_te_rng_tracker=self.cfg.get('use_te_rng_tracker', False),
@@ -249,7 +258,7 @@ class MegatronBaseModel(NLPModel):
         """
         for module in self.get_model_module_list():
             """Set TP group
-            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
+            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398 # pylint: disable=line-too-long
             """
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(module.modules()):
@@ -267,7 +276,7 @@ class MegatronBaseModel(NLPModel):
 
         for module in self.get_model_module_list():
             """Set context parallel running
-            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
+            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py # pylint: disable=line-too-long
             """
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(module.modules()):
@@ -342,7 +351,8 @@ class MegatronBaseModel(NLPModel):
         """
         Reconfigure trainer.limit_val_batches for pretraining
         """
-        # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
+        # Override limit_batches in terms of num microbatches
+        # and so there are limit_batches//num_micro_batches num of global batches
         if isinstance(limit_batches, int):
             limit_batches *= get_num_microbatches()
         else:
@@ -536,6 +546,12 @@ class MegatronBaseModel(NLPModel):
 
         tp_only_amax_red = self.cfg.get('tp_only_amax_red', False)
 
+        account_for_embedding_in_pipeline_split = self.cfg.get('account_for_embedding_in_pipeline_split', False)
+        account_for_loss_in_pipeline_split = self.cfg.get('account_for_loss_in_pipeline_split', False)
+
+        attention_backend = self.cfg.get('attention_backend', "auto")
+        attention_backend = AttnBackend[attention_backend]
+
         # any configs that are not in the nemo model config will be added here
         config_mapping = {
             'apply_query_key_layer_scaling': apply_query_key_layer_scaling,
@@ -560,6 +576,9 @@ class MegatronBaseModel(NLPModel):
             'rotary_interleaved': rotary_interleaved,
             'deallocate_pipeline_outputs': True,
             'tp_only_amax_red': tp_only_amax_red,
+            'account_for_embedding_in_pipeline_split': account_for_embedding_in_pipeline_split,
+            'account_for_loss_in_pipeline_split': account_for_loss_in_pipeline_split,
+            'attention_backend': attention_backend,
         }
 
         # populate the transformer config dict
@@ -602,7 +621,8 @@ class MegatronBaseModel(NLPModel):
         multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
         after = ((after + multiple - 1) // multiple) * multiple
         logging.info(
-            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
+            f"Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, "
+            f"dummy tokens: {after - orig_vocab_size}."
         )
         return after
 
@@ -657,7 +677,7 @@ class MegatronBaseModel(NLPModel):
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
-        Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
+        Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188 # pylint: disable=line-too-long
         """
         # Bucketize and all-reduce
         buckets = {}
@@ -829,7 +849,8 @@ class MegatronBaseModel(NLPModel):
                 # TODO: contiguous grad bucket for fp16 is also planned to be supported
                 contiguous_grad_bucket = False
                 raise ValueError(
-                    "fp16 training is not yet supported with O2. Please set megatron_amp_O2 to False in the model config."
+                    "fp16 training is not yet supported with O2."
+                    "Please set megatron_amp_O2 to False in the model config."
                 )
 
             # if using tensor parallel only, we automatically use async grad all-reduce
@@ -891,7 +912,17 @@ class MegatronBaseModel(NLPModel):
                     ]
                 for bucket in buckets:
                     self._optimizer.init_params_bucket(bucket)
-                self._optimizer.init_params_bucket(self.parameters())
+                try:
+                    # We first attempt to only get the parameters that require grad.
+                    # This is to support multimodal training in child classes
+                    # where some modules might be pretrained and frozen.
+                    params = self.parameters(requires_grad_only=True)
+                except TypeError as e:
+                    if "unexpected keyword argument 'requires_grad_only'" in str(e):
+                        params = self.parameters()
+                    else:
+                        raise
+                self._optimizer.init_params_bucket(params)
             if hasattr(self, 'distributed_adam_buckets'):
                 del self.distributed_adam_buckets
 
@@ -957,7 +988,8 @@ class MegatronBaseModel(NLPModel):
 
         if self.cfg.get('sequence_parallel', False) and self.cfg.get('tensor_model_parallel_size', 1) == 1:
             logging.info(
-                "Sequence parallel should only be used with tensor parallel size > 1. Setting sequence parallel to False"
+                "Sequence parallel should only be used with tensor parallel size > 1. "
+                "Setting sequence parallel to False"
             )
             with open_dict(self.cfg):
                 self.cfg.sequence_parallel = False
@@ -976,7 +1008,8 @@ class MegatronBaseModel(NLPModel):
         if self.cfg.get('gradient_accumulation_fusion', False):
             if data_parallel_size > 1 and pipeline_model_parallel_size == 1 and not distributed_fused_adam:
                 logging.info(
-                    "When not using pipeline model parallel, gradient accumulation fusion can only be used with distributed_fused_adam."
+                    "When not using pipeline model parallel, "
+                    "gradient accumulation fusion can only be used with distributed_fused_adam."
                 )
                 with open_dict(self.cfg):
                     self.cfg.gradient_accumulation_fusion = False
@@ -998,9 +1031,13 @@ class MegatronBaseModel(NLPModel):
             if vp_size == 1:
                 self.cfg['virtual_pipeline_model_parallel_size'] = None
             else:
-                assert (
-                    self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
-                ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
+                if not (
+                    self.cfg.get('account_for_embedding_in_pipeline_split', False)
+                    and self.cfg.get('account_for_loss_in_pipeline_split', False)
+                ):
+                    assert (
+                        self.cfg.num_layers // self.cfg.pipeline_model_parallel_size
+                    ) % vp_size == 0, 'Make sure the number of model chunks is the same across all pipeline stages.'
 
         if self.cfg.get('ub_tp_comm_overlap', False):
             if not self.cfg.get('sequence_parallel', False):
@@ -1093,7 +1130,8 @@ class MegatronBaseModel(NLPModel):
             parallel_state.get_pipeline_model_parallel_rank() == self.cfg.get('pipeline_model_parallel_split_rank', 0)
             or parallel_state.is_pipeline_last_stage()
         ):
-            # If the current rank is the in the decoder first stage (decoder emb) or last rank (output layer), subtract those weights since it is already accounted for in the encoder first stage.
+            # If the current rank is the in the decoder first stage (decoder emb) or last rank (output layer),
+            # subtract those weights since it is already accounted for in the encoder first stage.
             # TODO: If we support embedding untying with PP > 1, we will need to update this.
             num_word_embedding_parameters = sum([p.nelement() for p in model.word_embeddings_weight()])
             num_parameters_on_device -= num_word_embedding_parameters
@@ -1150,7 +1188,7 @@ class MegatronBaseModel(NLPModel):
         config_mapping = {
             "perform_initialization": True,  # initailize weights when constructing the module
             "fp16": self.torch_dtype == torch.float16
-            and megatron_amp_O2,  # NeMo does not currently support fp16 training with megatron amp O2, eval and inference is supported
+            and megatron_amp_O2,  # fp16 training with megatron amp O2 not supported, eval and inference is supported
             "bf16": self.torch_dtype == torch.bfloat16 and megatron_amp_O2,
             "params_dtype": self.params_dtype,
             "timers": self.megatron_timers,
@@ -1173,6 +1211,7 @@ class MegatronBaseModel(NLPModel):
             "grad_sync_func": None,  # set dynamically during training
             "param_sync_func": None,  # set dynamically during training
             "tp_comm_overlap": self.cfg.get('ub_tp_comm_overlap', False),
+            "tp_comm_bootstrap_backend": self.cfg.get('ub_tp_comm_bootstrap_backend', 'nccl'),
         }
 
         # instantitate ModelParallelConfig from this dict
@@ -1198,7 +1237,8 @@ class MegatronBaseModel(NLPModel):
             setattr(model_parallel_config, 'hidden_size', self.cfg.hidden_size)
         except AttributeError:
             logging.warning(
-                f'hidden_size not found in {self.cfg}. Set this in model_parallel_config if using pipeline parallelism.'
+                f'hidden_size not found in {self.cfg}. '
+                'Set this in model_parallel_config if using pipeline parallelism.'
             )
 
         return model_parallel_config
@@ -1281,7 +1321,8 @@ class MegatronBaseModel(NLPModel):
                 logging.debug(f"Ignoring state {submodule} in FSDP.")
             self.trainer.strategy.kwargs['ignored_states'] = frozen_submodules
             # FSDP requires uniform status of require_grads
-            # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states' from sharding for FSDP to work
+            # Diffusion models like SD has frozen parts and needs to be added to 'ignored_states'
+            # from sharding for FSDP to work
             self.model = self.trainer.strategy._setup_model(self.model)
             # Move the CPU-initialized model (with `use_cpu_initialization=True`) to GPU, which is to avoid
             # out-of-memory carash before sharding. In case of GPU-initialized model, this is no-op.

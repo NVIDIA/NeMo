@@ -11,33 +11,30 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import inspect
 import json
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torch.distributed
+from lightning.pytorch.trainer.states import TrainerFn
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
     AbstractModelInferenceWrapper,
 )
-from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
-    EncoderDecoderTextGenerationController,
-)
 from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import (
     SimpleTextGenerationController,
 )
 from megatron.core.transformer.module import MegatronModule
-from pytorch_lightning.trainer.states import TrainerFn
 
 import nemo.lightning as nl
-from nemo.collections.llm.peft import LoRA
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
+from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 
@@ -64,7 +61,10 @@ class MCoreTokenizerWrappper:
         Returns:
             str: The detokenized string.
         """
-        return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
+        if 'remove_special_tokens' in inspect.signature(self.tokenizer.ids_to_text).parameters:
+            return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
+        else:
+            return self.tokenizer.ids_to_text(tokens)
 
     def tokenize(self, prompt):
         """
@@ -149,6 +149,7 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     trainer.strategy._setup_optimizers = False
     trainer.ckpt_path = None
     trainer.strategy.connect(model)
+    model.trainer = trainer
     if trainer.strategy.launcher is not None:
         trainer.strategy.launcher.launch(lambda: None, trainer=trainer)
     trainer.strategy.setup_environment()
@@ -161,9 +162,9 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     trainer.strategy.trainer = trainer
     trainer.strategy.selective_restore()
 
-    lora: Union[io.TrainerContext, LoRA] = io.load_context(ckpt_to_context_subdir(path), "model.model_transform")
-    if isinstance(lora, LoRA):
-        model = lora(model)
+    peft: Optional[PEFT] = model.model_transform
+    if isinstance(peft, PEFT):
+        model = peft(model)
         adapter_sharded_state_dict = {k: v for k, v in model.sharded_state_dict().items() if ".adapter." in k}
         adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
             ckpt_to_weights_subdir(path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
@@ -232,6 +233,10 @@ def generate(
     Returns:
         dict: A dictionary containing the generated results.
     """
+    from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
+        EncoderDecoderTextGenerationController,
+    )
+
     if encoder_prompts is not None:
         text_generation_controller = EncoderDecoderTextGenerationController(
             inference_wrapped_model=model, tokenizer=tokenizer
@@ -242,7 +247,7 @@ def generate(
         text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
     )
 
-    common_inference_params = inference_params or CommonInferenceParams(num_tokens_to_generate=512)
+    common_inference_params = inference_params or CommonInferenceParams(num_tokens_to_generate=512, top_k=1)
 
     results = mcore_engine.generate(
         prompts=prompts,

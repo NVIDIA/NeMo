@@ -33,7 +33,7 @@ class UsageError(Exception):
 
 megatron_llm_supported = True
 try:
-    from nemo.deploy.nlp import MegatronLLMDeployable
+    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployable
 except Exception as e:
     LOGGER.warning(f"Cannot import MegatronLLMDeployable, it will not be available. {type(e).__name__}: {e}")
     megatron_llm_supported = False
@@ -319,7 +319,6 @@ def get_trtllm_deployable(args):
             trt_llm_exporter.export(
                 nemo_checkpoint_path=args.nemo_checkpoint,
                 model_type=args.model_type,
-                n_gpus=args.num_gpus,
                 tensor_parallelism_size=args.tensor_parallelism_size,
                 pipeline_parallelism_size=args.pipeline_parallelism_size,
                 max_input_len=args.max_input_len,
@@ -412,20 +411,21 @@ def nemo_deploy(argv):
             triton_model_name=args.triton_model_name,
             triton_model_version=args.triton_model_version,
             max_batch_size=args.max_batch_size,
-            port=args.triton_port,
+            http_port=args.triton_port,
             address=args.triton_http_address,
             streaming=args.enable_streaming,
         )
 
         LOGGER.info("Triton deploy function will be called.")
         nm.deploy()
+        nm.run()
     except Exception as error:
         LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
         return
 
     try:
         LOGGER.info("Model serving on Triton is will be started.")
-        if args.start_rest_service == "True":
+        if args.start_rest_service:
             try:
                 LOGGER.info("REST service will be started.")
                 uvicorn.run(

@@ -29,21 +29,21 @@ from typing import (
 )
 
 import torch
-from lightning_fabric.accelerators import CPUAccelerator
-from lightning_fabric.accelerators.accelerator import Accelerator
-from lightning_fabric.plugins.collectives.torch_collective import default_pg_timeout
-from lightning_fabric.plugins.environments.cluster_environment import ClusterEnvironment
-from lightning_fabric.plugins.io.checkpoint_io import CheckpointIO
-from lightning_fabric.plugins.precision import Precision
-from lightning_fabric.strategies import DDPStrategy
-from lightning_fabric.strategies.strategy import _validate_keys_for_strict_loading
-from lightning_fabric.utilities.types import _PATH, _Stateful
+from lightning.fabric.accelerators import CPUAccelerator
+from lightning.fabric.accelerators.accelerator import Accelerator
+from lightning.fabric.plugins.collectives.torch_collective import default_pg_timeout
+from lightning.fabric.plugins.environments.cluster_environment import ClusterEnvironment
+from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
+from lightning.fabric.plugins.precision import Precision
+from lightning.fabric.strategies import DDPStrategy
+from lightning.fabric.strategies.strategy import _validate_keys_for_strict_loading
+from lightning.fabric.utilities.types import _PATH, _Stateful
+from lightning.pytorch import LightningDataModule
+from lightning.pytorch.loops.fetchers import _DataFetcher
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
+from lightning.pytorch.utilities.combined_loader import CombinedLoader
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning import LightningDataModule
-from pytorch_lightning.loops.fetchers import _DataFetcher
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
-from pytorch_lightning.utilities.combined_loader import CombinedLoader
 from torch import Tensor, nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn import Module
@@ -58,8 +58,6 @@ from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.strategies import MegatronStrategy
 
 if TYPE_CHECKING:
-    from megatron.core.model_parallel_config import ModelParallelConfig
-
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
 
 
@@ -92,6 +90,7 @@ class FabricMegatronStrategy(DDPStrategy):
         output_data_idx: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         init_model_parallel: bool = True,
+        use_tp_pp_dp_mapping: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -121,7 +120,7 @@ class FabricMegatronStrategy(DDPStrategy):
         self.sequence_parallel = sequence_parallel
         self.pipeline_dtype = pipeline_dtype
         self._init_model_parallel = init_model_parallel
-
+        self.use_tp_pp_dp_mapping = use_tp_pp_dp_mapping
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
         if megatron_callbacks:
@@ -179,7 +178,10 @@ class FabricMegatronStrategy(DDPStrategy):
         if self.data_sampler:
             dataloader = self.data_sampler.transform_dataloader(dataloader)
 
-        # Code taken from: https://github.com/Lightning-AI/pytorch-lightning/blob/6cbe9ceb560d798892bdae9186291acf9bf5d2e3/src/lightning/pytorch/loops/fit_loop.py#L258-L260
+        # Code taken from:
+        # https://github.com/Lightning-AI/pytorch-lightning
+        # /blob/6cbe9ceb560d798892bdae9186291acf9bf5d2e3/src/lightning/pytorch/loops/fit_loop.py
+        # L258-L260
         output = _MegatronDataLoaderIterDataFetcher(output_data_idx=self.output_data_idx)
         output.setup(CombinedLoader(dataloader, "max_size_cycle"))
         iter(output)
@@ -418,6 +420,7 @@ class FabricMegatronStrategy(DDPStrategy):
             expert_model_parallel_size=self.expert_model_parallel_size,
             moe_extended_tp=self.moe_extended_tp,
             pipeline_dtype=self.pipeline_dtype,
+            use_tp_pp_dp_mapping=self.use_tp_pp_dp_mapping,
         )
 
 
@@ -499,6 +502,7 @@ def convert_megatron_strategy(strategy: MegatronStrategy) -> FabricMegatronStrat
         expert_model_parallel_size=strategy.expert_model_parallel_size,
         moe_extended_tp=strategy.moe_extended_tp,
         pipeline_dtype=strategy.pipeline_dtype,
+        use_tp_pp_dp_mapping=strategy.use_tp_pp_dp_mapping,
         ddp=strategy._ddp,
         process_group_backend=strategy.process_group_backend,
         timeout=strategy._timeout,

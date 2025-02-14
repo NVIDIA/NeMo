@@ -45,7 +45,7 @@ from nemo.collections.llm.gpt.model.gemma2 import (
     Gemma2Config27B,
     Gemma2Model,
 )
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HfAutoModelForCausalLM
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,
@@ -59,9 +59,13 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama31Config8B,
     Llama31Config70B,
     Llama31Config405B,
+    Llama32Config1B,
+    Llama32Config3B,
     LlamaConfig,
     LlamaModel,
+    MLPerfLoRALlamaModel,
 )
+from nemo.collections.llm.gpt.model.llama_embedding import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
 from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig,
@@ -79,6 +83,7 @@ from nemo.collections.llm.gpt.model.nemotron import (
     NemotronConfig,
     NemotronModel,
 )
+from nemo.collections.llm.gpt.model.phi3mini import Phi3Config, Phi3ConfigMini, Phi3Model
 from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config,
     Qwen2Config1P5B,
@@ -108,9 +113,16 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
 
 __all__ = [
     "GPTConfig",
+    "GPTConfig5B",
+    "GPTConfig7B",
+    "GPTConfig20B",
+    "GPTConfig40B",
+    "GPTConfig126M",
+    "GPTConfig175B",
     "GPTModel",
     "MistralConfig7B",
     "MistralModel",
+    "MistralNeMoConfig12B",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
@@ -133,6 +145,8 @@ __all__ = [
     "Llama31Config8B",
     "Llama31Config70B",
     "Llama31Config405B",
+    "Llama32Config1B",
+    "Llama32Config3B",
     "NemotronConfig",
     "Nemotron3Config4B",
     "Nemotron3Config8B",
@@ -140,6 +154,11 @@ __all__ = [
     "Nemotron3Config22B",
     "Nemotron4Config340B",
     "NemotronModel",
+    "LlamaEmbeddingModel",
+    "Llama32EmbeddingConfig1B",
+    "Phi3Config",
+    "Phi3ConfigMini",
+    "Phi3Model",
     "CodeLlamaConfig7B",
     "CodeLlamaConfig13B",
     "CodeLlamaConfig34B",
@@ -156,6 +175,7 @@ __all__ = [
     "Gemma2Config9B",
     "Gemma2Model",
     "LlamaModel",
+    "MLPerfLoRALlamaModel",
     "Baichuan2Config",
     "Baichuan2Config7B",
     "Baichuan2Model",
@@ -183,5 +203,5 @@ __all__ = [
     "transformer_engine_layer_spec",
     "transformer_engine_full_layer_spec",
     "local_layer_spec",
-    "HfAutoModelForCausalLM",
+    "HFAutoModelForCausalLM",
 ]

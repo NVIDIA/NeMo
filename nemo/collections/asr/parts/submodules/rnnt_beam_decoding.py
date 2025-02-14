@@ -55,6 +55,20 @@ except (ImportError, ModuleNotFoundError):
 
 
 def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
+    """
+    Packs a list of hypotheses into a tensor and prepares decoder states.
+
+    This function takes a list of token sequences (hypotheses) and converts
+    it into a tensor format. If any decoder states are on the GPU, they
+    are moved to the CPU. Additionally, the function removes any timesteps
+    with a value of -1 from the sequences.
+
+    Args:
+        hypotheses (list): A list of token sequences representing hypotheses.
+
+    Returns:
+        list: A list of packed hypotheses in tensor format.
+    """
     for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
         hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
 
@@ -62,13 +76,25 @@ def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
             hyp.dec_state = _states_to_device(hyp.dec_state)
 
         # Remove -1 from timestep
-        if hyp.timestep is not None and len(hyp.timestep) > 0 and hyp.timestep[0] == -1:
-            hyp.timestep = hyp.timestep[1:]
+        if hyp.timestamp is not None and len(hyp.timestamp) > 0 and hyp.timestamp[0] == -1:
+            hyp.timestamp = hyp.timestamp[1:]
 
     return hypotheses
 
 
 def _states_to_device(dec_state, device='cpu'):
+    """
+    Transfers decoder states to the specified device.
+
+    This function moves the provided decoder states to the specified device (e.g., 'cpu' or 'cuda').
+
+    Args:
+        dec_state (Tensor): The decoder states to be transferred.
+        device (str): The target device to which the decoder states should be moved. Defaults to 'cpu'.
+
+    Returns:
+        Tensor: The decoder states on the specified device.
+    """
     if torch.is_tensor(dec_state):
         dec_state = dec_state.to(device)
 
@@ -106,7 +132,8 @@ class BeamRNNTInfer(Typing):
                     however the time required for the search also grows steadily.
 
                 `tsd` - time synchronous decoding. Please refer to the paper:
-                    [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
+                    [Alignment-Length Synchronous Decoding for RNN Transducer]
+                    (https://ieeexplore.ieee.org/document/9053040)
                     for details on the algorithm implemented.
 
                     Time synchronous decoding (TSD) execution time grows by the factor T * max_symmetric_expansions.
@@ -114,7 +141,8 @@ class BeamRNNTInfer(Typing):
                     good results. This also requires greater memory to execute.
 
                 `alsd` - alignment-length synchronous decoding. Please refer to the paper:
-                    [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
+                    [Alignment-Length Synchronous Decoding for RNN Transducer]
+                    (https://ieeexplore.ieee.org/document/9053040)
                     for details on the algorithm implemented.
 
                     Alignment-length synchronous decoding (ALSD) execution time is faster than TSD, with growth
@@ -127,7 +155,8 @@ class BeamRNNTInfer(Typing):
                     For a given decoding accuracy, it is possible to attain faster decoding via ALSD than TSD.
 
                 `maes` = modified adaptive expansion searcn. Please refer to the paper:
-                    [Accelerating RNN Transducer Inference via Adaptive Expansion Search](https://ieeexplore.ieee.org/document/9250505)
+                    [Accelerating RNN Transducer Inference via Adaptive Expansion Search]
+                    (https://ieeexplore.ieee.org/document/9250505)
 
                     Modified Adaptive Synchronous Decoding (mAES) execution time is adaptive w.r.t the
                     number of expansions (for tokens) required per timestep. The number of expansions can usually
@@ -169,10 +198,10 @@ class BeamRNNTInfer(Typing):
             and affects the speed of inference since large values will perform large beam search in the next step.
 
         maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-            The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-            where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-            predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-            expansion apart from the "most likely" candidate.
+            The default (2.3) is selected from the paper. It performs a comparison
+            (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob
+            is the "most" likely token to be predicted. Gamma therefore provides a margin of additional tokens which
+            can be potential candidates for expansion apart from the "most likely" candidate.
             Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
             but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
             thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
@@ -182,7 +211,7 @@ class BeamRNNTInfer(Typing):
 
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             beam decoding (sample). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1).
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1)
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -456,7 +485,7 @@ class BeamRNNTInfer(Typing):
 
         # Construct initial hypothesis
         hyp = Hypothesis(
-            score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=encoded_lengths
+            score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestamp=[-1], length=encoded_lengths
         )
 
         if partial_hypotheses is not None:
@@ -503,7 +532,7 @@ class BeamRNNTInfer(Typing):
                     hyp.y_sequence.append(int(pred))
                     hyp.score += float(logp)
                     hyp.dec_state = state
-                    hyp.timestep.append(i)
+                    hyp.timestamp.append(i)
 
                     # Compute next state and token
                     y, state, _ = self.decoder.score_hypothesis(hyp, cache)
@@ -553,7 +582,7 @@ class BeamRNNTInfer(Typing):
         dec_state = self.decoder.initialize_state(h)
 
         # Initialize first hypothesis for the beam (blank)
-        kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0)]
+        kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestamp=[-1], length=0)]
         cache = {}
 
         if partial_hypotheses is not None:
@@ -602,7 +631,7 @@ class BeamRNNTInfer(Typing):
                         y_sequence=max_hyp.y_sequence[:],
                         dec_state=max_hyp.dec_state,
                         lm_state=max_hyp.lm_state,
-                        timestep=max_hyp.timestep[:],
+                        timestamp=max_hyp.timestamp[:],
                         length=encoded_lengths,
                     )
 
@@ -616,7 +645,7 @@ class BeamRNNTInfer(Typing):
                         # if non-blank token was predicted, update state and sequence and then search more hypothesis
                         new_hyp.dec_state = state
                         new_hyp.y_sequence.append(int(k))
-                        new_hyp.timestep.append(i)
+                        new_hyp.timestamp.append(i)
 
                         hyps.append(new_hyp)
 
@@ -700,7 +729,7 @@ class BeamRNNTInfer(Typing):
                 y_sequence=[self.blank],
                 score=0.0,
                 dec_state=self.decoder.batch_select_state(beam_state, 0),
-                timestep=[-1],
+                timestamp=[-1],
                 length=0,
             )
         ]
@@ -746,7 +775,7 @@ class BeamRNNTInfer(Typing):
                             y_sequence=hyp.y_sequence[:],
                             dec_state=hyp.dec_state,
                             lm_state=hyp.lm_state,
-                            timestep=hyp.timestep[:],
+                            timestamp=hyp.timestamp[:],
                             length=encoded_lengths,
                         )
 
@@ -778,7 +807,7 @@ class BeamRNNTInfer(Typing):
                                 y_sequence=(hyp.y_sequence + [int(k)]),
                                 dec_state=beam_state[j],
                                 lm_state=hyp.lm_state,
-                                timestep=hyp.timestep[:] + [i],
+                                timestamp=hyp.timestamp[:] + [i],
                                 length=encoded_lengths,
                             )
 
@@ -874,7 +903,7 @@ class BeamRNNTInfer(Typing):
                 y_sequence=[self.blank],
                 score=0.0,
                 dec_state=beam_state[0],
-                timestep=[-1],
+                timestamp=[-1],
                 length=0,
             )
         ]
@@ -970,7 +999,7 @@ class BeamRNNTInfer(Typing):
                         y_sequence=hyp.y_sequence[:],
                         dec_state=hyp.dec_state,
                         lm_state=hyp.lm_state,
-                        timestep=hyp.timestep[:],
+                        timestamp=hyp.timestamp[:],
                         length=i,
                     )
 
@@ -1007,7 +1036,7 @@ class BeamRNNTInfer(Typing):
                             y_sequence=(hyp.y_sequence[:] + [int(k)]),
                             dec_state=beam_state[h_states_idx],
                             lm_state=hyp.lm_state,
-                            timestep=hyp.timestep[:] + [i],
+                            timestamp=hyp.timestamp[:] + [i],
                             length=i,
                         )
 
@@ -1087,7 +1116,7 @@ class BeamRNNTInfer(Typing):
                 y_sequence=[self.blank],
                 score=0.0,
                 dec_state=self.decoder.batch_select_state(beam_state, 0),
-                timestep=[-1],
+                timestamp=[-1],
                 length=0,
             )
         ]
@@ -1131,7 +1160,7 @@ class BeamRNNTInfer(Typing):
                 dec_out=[beam_dec_out[0]],
                 lm_state=lm_state,
                 lm_scores=lm_scores,
-                timestep=[-1],
+                timestamp=[-1],
                 length=0,
             )
         ]
@@ -1189,7 +1218,7 @@ class BeamRNNTInfer(Typing):
                             dec_state=hyp.dec_state,
                             lm_state=hyp.lm_state,
                             lm_scores=hyp.lm_scores,
-                            timestep=hyp.timestep[:],
+                            timestamp=hyp.timestamp[:],
                             length=t,
                         )
                         if self.ngram_lm:
@@ -1203,7 +1232,7 @@ class BeamRNNTInfer(Typing):
                             # new_hyp.y_sequence.append(int(k))
                             if (new_hyp.y_sequence + [int(k)]) not in duplication_check:
                                 new_hyp.y_sequence.append(int(k))
-                                new_hyp.timestep.append(t)
+                                new_hyp.timestamp.append(t)
 
                                 # Setup ngram LM:
                                 if self.ngram_lm:
@@ -1456,8 +1485,11 @@ class BeamRNNTInfer(Typing):
         return lm_score, next_state
 
     def set_decoding_type(self, decoding_type: str):
-
-        # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        """
+        Sets decoding type. Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
+        Args:
+            decoding_type: decoding type
+        """
         # TOKEN_OFFSET for BPE-based models
         if decoding_type == 'subword':
             from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
@@ -1467,6 +1499,10 @@ class BeamRNNTInfer(Typing):
 
 @dataclass
 class BeamRNNTInferConfig:
+    """
+    Beam RNNT Inference config.
+    """
+
     beam_size: int
     search_type: str = 'default'
     score_norm: bool = True

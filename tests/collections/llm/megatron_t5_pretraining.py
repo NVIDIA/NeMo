@@ -18,12 +18,12 @@
 import argparse
 
 import torch
+from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.api import train
+from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.t5.data import PreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
@@ -148,12 +148,11 @@ if __name__ == '__main__':
         wandb=wandb_logger,
     )
 
-    train(
+    pretrain(
         model=model,
         resume=resume,
         data=data,
         trainer=trainer,
         log=nemo_logger,
-        tokenizer='data',
         optim=opt,
     )

@@ -18,7 +18,6 @@ import subprocess
 import warnings
 from typing import List, Optional
 
-import tensorrt_llm
 from tensorrt_llm.models import PretrainedConfig
 
 from nemo.export.trt_llm.qnemo.utils import CONFIG_NAME, WEIGHTS_NAME
@@ -51,7 +50,7 @@ def qnemo_to_tensorrt_llm(
 
     warnings.warn(
         "Note that setting tensor_parallel_size, pipeline_parallel_size and use_parallel_embedding "
-        " parameters for quantized models is done on calibration step with nemo.export.quantize module."
+        " parameters for quantized models is done on the calibration step (in PTQ workflow)."
         " These parameters are ignored when building and running TensorRT-LLM engine below.",
         UserWarning,
         stacklevel=3,
@@ -77,8 +76,6 @@ def qnemo_to_tensorrt_llm(
 
     use_qdq = quant_algo in ["FP8", "W8A8_SQ_PER_CHANNEL"]
 
-    builder_opt = 4 if "RecurrentGemma" not in config.architecture else 0
-
     speculative_decoding_mode = "medusa" if "Medusa" in config.architecture else None
 
     build_cmd = "trtllm-build "
@@ -90,20 +87,15 @@ def qnemo_to_tensorrt_llm(
     build_cmd += f"--max_input_len {max_input_len} "
     build_cmd += f"--max_beam_width {max_beam_width} "
     build_cmd += f"--max_prompt_embedding_table_size {max_prompt_embedding_table_size} "
-    build_cmd += f"--builder_opt {builder_opt} "
     build_cmd += f"--paged_kv_cache {'enable' if paged_kv_cache else 'disable'} "
     build_cmd += f"--use_paged_context_fmha {'enable' if paged_context_fmha else 'disable'} "
     build_cmd += f"--remove_input_padding {'enable' if remove_input_padding else 'disable'} "
     build_cmd += f"--multiple_profiles {'enable' if multiple_profiles else 'disable'} "
     build_cmd += f"--reduce_fusion {'enable' if reduce_fusion else 'disable'} "
-    # TODO: resolve version check for setting use_fused_mlp once we move to 0.13.0 in the NeMo container
-    if tensorrt_llm.__version__ >= "0.13.0":
-        build_cmd += f"--use_fused_mlp {'enable' if use_fused_mlp else 'disable'} "
-    else:
-        build_cmd += "--use_fused_mlp " if use_fused_mlp else ""
+    build_cmd += f"--use_fused_mlp {'enable' if use_fused_mlp else 'disable'} "
 
     if not use_qdq:
-        build_cmd += f"--gemm_plugin auto "
+        build_cmd += "--gemm_plugin auto "
 
     if max_seq_len is not None:
         build_cmd += f"--max_seq_len {max_seq_len} "

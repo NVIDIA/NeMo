@@ -15,19 +15,18 @@
 
 from typing import Callable, Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
-from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
@@ -219,12 +218,27 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         Use this method with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
-        )
+    if not recipe.trainer.callbacks:
+        recipe.trainer.callbacks = []
+
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=100,
+        gc_interval_val=100,
     )
+    mcomm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            garbage_collection_callback,
+            mcomm_overlap_callback,
+        ]
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
     return recipe
 
 
@@ -251,9 +265,11 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora'/'dora'/'none'/None.
         seq_length (int): Maximum number of tokens per microbatch.
-        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given maximum seq_length for better efficiency. By default, this value equals performance_mode.
+        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given
+            maximum seq_length for better efficiency. By default, this value equals performance_mode.
         performance_mode (bool): If true, enables optimizations for maximum performance.
 
     Returns:
@@ -287,11 +303,10 @@ def finetune_recipe(
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(LoRA)
+    elif peft_scheme.lower() in ['lora', 'dora']:
+        recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.peft.dim = 8
         recipe.peft.alpha = 16
-        recipe.peft.target_modules = ['linear_qkv']
         recipe.optim.config.use_distributed_optimizer = False
 
         # some settings currently do not function correctly with LoRA
@@ -305,7 +320,7 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        recipe.data.pad_to_max_length = True
+        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
         recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
 
     if performance_mode:
@@ -326,7 +341,8 @@ def finetune_performance_optimizations(
 
     Args:
         recipe (run.Partial): Base fine-tuning recipe to which performance optimizations will be added
-        peft_scheme (str): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora'/'dora'/'none'/None.
 
     Returns:
         run.Partial: Partial configuration for performance-optimized fine-tuning.
@@ -337,7 +353,7 @@ def finetune_performance_optimizations(
     """
     recipe.trainer.strategy.tensor_model_parallel_size = 1
 
-    if not hasattr(recipe.trainer, "callbacks"):
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
@@ -350,13 +366,15 @@ def finetune_performance_optimizations(
             overlap_param_gather=True,
             average_in_collective=True,
         )
-        recipe.trainer.callbacks.append(
-            run.Config(
-                MegatronCommOverlapCallback,
-                tp_comm_overlap=False,
-            )
-        )
+    else:
+        recipe.peft.target_modules = ['linear_qkv']
 
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=False,
+        )
+    )
     recipe.trainer.callbacks.append(run.Config(TimingCallback))
     recipe.trainer.callbacks.append(
         run.Config(

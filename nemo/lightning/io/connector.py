@@ -15,12 +15,12 @@
 import logging
 import os
 import shutil
-from pathlib import Path, PosixPath, PurePath, WindowsPath
+from pathlib import Path, PosixPath, WindowsPath
 from typing import Generic, Optional, Tuple, TypeVar
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from filelock import FileLock, Timeout
-from pytorch_lightning.trainer.states import TrainerFn
+from lightning.pytorch.trainer.states import TrainerFn
 
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
@@ -69,9 +69,11 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
     LOCK_TIMEOUT = 1200
 
     def init(self) -> TargetT:
+        """Should be implemented to initialize the target type from the source type."""
         raise NotImplementedError()
 
     def apply(self, output_path: Path) -> Path:
+        """Should be implemented to apply the transformation and save the result at the output path."""
         raise NotImplementedError()
 
     def __new__(cls, *args, **kwargs):
@@ -118,6 +120,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         return _output_path
 
     def local_path(self, base_path: Optional[Path] = None) -> Path:
+        """Computes the local path for storage based on a base path or a default cache home."""
         if base_path:
             _base = base_path
         else:
@@ -128,6 +131,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
         return _base / str(self).replace("://", "/")
 
     def is_in_cache(self, base_path: Optional[Path] = None) -> bool:
+        """Checks if the transformed data is already cached at the specified base path."""
         return self.local_path(base_path=base_path).exists()
 
 
@@ -145,7 +149,8 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             Saves the model's state to the specified path using the trainer's current strategy.
 
         nemo_load(path: Path, trainer: Optional[pl.Trainer] = None, cpu: bool = True) -> Tuple[Any, pl.Trainer]:
-            Loads a model from the specified path, optionally using a CPU-focused strategy, and returns the model and trainer.
+            Loads a model from the specified path, optionally using a CPU-focused strategy, and returns the model and
+            trainer.
     """
 
     def nemo_setup(
@@ -170,6 +175,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         )
         # Note: set trainer to fitting state to avoid the following code path. Feel free to refactor if we no longer
         #  need to avoid this:
+        # pylint: disable=C0301
         #  https://github.com/NVIDIA/NeMo/blob/e35a6592f53ee34b1ec2fc3f1e009dd1ebc79e65/nemo/lightning/pytorch/strategies/megatron_strategy.py#L346-L349
         _trainer.state.fn = TrainerFn.FITTING  # needed for proper save.
 
@@ -226,11 +232,20 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
         from nemo.lightning.io.api import load_context
 
-        model = load_context(path).model
+        model = load_context(path, subpath="model")
+        # skip initialization since a checkpoint is loaded in this function
+        model.config.perform_initialization = False
+
+        is_peft_ckpt = model.model_transform is not None
+        callbacks = []
+        if is_peft_ckpt:
+            callbacks.append(model.model_transform)
+
         _trainer = trainer or Trainer(
             devices=1,
             accelerator="cpu" if cpu else "gpu",
             strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False),
+            callbacks=callbacks,
         )
 
         _trainer.strategy.connect(model)
@@ -245,7 +260,20 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
                 model.configure_model()
 
         _trainer.strategy.setup(_trainer)
-        _trainer.strategy.load_checkpoint(path)
+        if is_peft_ckpt:
+            from nemo.lightning.io.pl import ckpt_to_weights_subdir
+
+            model.trainer = _trainer
+            model = model.model_transform(model)
+            adapter_sharded_state_dict = {
+                k: v for k, v in _trainer.strategy.megatron_parallel.sharded_state_dict().items() if ".adapter." in k
+            }
+            adapter_state = _trainer.strategy.checkpoint_io.load_checkpoint(
+                ckpt_to_weights_subdir(path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
+            )
+            _trainer.strategy.load_model_state_dict(adapter_state, strict=False)
+        else:
+            _trainer.strategy.load_checkpoint(path)
 
         return model, _trainer
 
@@ -266,15 +294,17 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         return _base / str(self).replace("://", "/")
 
     def on_import_ckpt(self, model: pl.LightningModule):
+        """Called after checkpoint is imported"""
         if hasattr(self, "tokenizer"):
             model.tokenizer = self.tokenizer
             if hasattr(model, "__io__") and hasattr(self.tokenizer, '__io__'):
                 model.__io__.tokenizer = self.tokenizer.__io__
 
     def save_hf_tokenizer_assets(self, tokenizer_name_or_path, save_path="/tmp/nemo_tokenizer"):
+        """Save HF tokenizer to the imported NeMo model"""
         from transformers import AutoTokenizer
 
-        tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
+        tok = AutoTokenizer.from_pretrained(tokenizer_name_or_path, trust_remote_code=True)
         # Save tokenizer assets to save_path.
         tok.save_pretrained(save_path)
         return save_path

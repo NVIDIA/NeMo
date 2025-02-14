@@ -15,21 +15,21 @@
 
 from typing import Callable, Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x22B, MixtralModel
-from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.utils.exp_manager import TimingCallback
@@ -184,7 +184,7 @@ def pretrain_recipe(
         trainer=trainer(
             num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=65536, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
@@ -214,27 +214,33 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         It may not be suitable for all hardware configurations or use cases.
     """
 
-    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically
-    # by MegatronCommOverlapCallback. They are added here for user's knowledge.
-    # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
-    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else
-    # each PP stage launches independently as needed.
+    if not recipe.trainer.callbacks:
+        recipe.trainer.callbacks = []
 
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=100,
+        gc_interval_val=100,
+    )
+
+    mcomm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        # 'overlap_param_gather_with_optimizer_step' is set automatically. Added here for user's knowledge
+        overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to issue with checkpointing
+    )
     recipe.trainer.callbacks.extend(
         [
-            run.Config(
-                MegatronTokenDropCallback,
-            ),
-            run.Config(
-                MegatronCommOverlapCallback,
-                overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing
-                align_param_gather=True,
-            ),
+            run.Config(MegatronTokenDropCallback),
+            garbage_collection_callback,
+            mcomm_overlap_callback,
         ]
     )
+
     recipe.trainer.strategy.expert_model_parallel_size = 1
     recipe.trainer.strategy.tensor_model_parallel_size = 8
     recipe.trainer.strategy.sequence_parallel = True
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
     return recipe
 
 
@@ -259,8 +265,10 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
-        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given maximum seq_length for better efficiency.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora'/'dora'/'none'/None.
+        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given
+            maximum seq_length for better efficiency.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
@@ -286,8 +294,10 @@ def finetune_recipe(
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 14
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(LoRA, target_modules=['linear_qkv', 'linear_proj'], dim=32)
+    elif peft_scheme.lower() in ['lora', 'dora']:
+        recipe.peft = run.Config(
+            PEFT_STR2CLS[peft_scheme.lower()], target_modules=['linear_qkv', 'linear_proj'], dim=32
+        )
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")

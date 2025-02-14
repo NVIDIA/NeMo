@@ -14,10 +14,10 @@
 
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+import lightning.pytorch as pl
 import numpy as np
-import pytorch_lightning as pl
 import torch
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
@@ -50,6 +50,8 @@ class MockDataModule(pl.LightningDataModule):
         super().__init__()
         self.seq_length = seq_length
         self.seq_length_dec = seq_length_dec
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
@@ -125,13 +127,11 @@ class _MockT5Dataset(Dataset):
         self.seed = seed
         self.create_attention_mask = create_attention_mask
 
-        self.mask_encoder = torch.ones((self.seq_length, self.seq_length), device='cpu')
-        self.mask_decoder = torch.tril(torch.ones((self.seq_length_dec, self.seq_length_dec), device='cpu'))
-        self.mask_encoder_decoder = torch.ones((self.seq_length_dec, self.seq_length), device='cpu')
+        # update for T5 now use FlashFused attention (b11s)
+        self.mask_encoder = torch.ones(self.seq_length, device='cpu')
+        self.mask_decoder = torch.ones(self.seq_length_dec, device='cpu')
         self.mask_encoder = self.mask_encoder < 0.5
         self.mask_decoder = self.mask_decoder < 0.5
-        self.mask_encoder_decoder = self.mask_encoder_decoder < 0.5
-
         self.loss_mask = torch.ones(self.seq_length_dec, dtype=torch.float)
 
     def __len__(self) -> int:
@@ -156,7 +156,6 @@ class _MockT5Dataset(Dataset):
             "truncated": 0,
             "enc_mask": self.mask_encoder,
             "dec_mask": self.mask_decoder,
-            "enc_dec_mask": self.mask_encoder_decoder,
         }
 
         return batch

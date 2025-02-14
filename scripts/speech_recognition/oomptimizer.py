@@ -20,13 +20,13 @@ from numbers import Number
 from typing import Iterable, Literal
 
 import click
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 from lhotse import compute_num_samples
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
 
 
@@ -125,7 +125,12 @@ class ProfilingBatchGenerator:
         names = []
         for item in self.schema["inputs"]:
             nt = item["type"]
-            if not isinstance(nt, NeuralType):  # placeholder
+            if isinstance(nt, str) and nt == "constant":
+                if isinstance(val := item["value"], str) and val == "batch":
+                    tnsr = torch.tensor([B], dtype=torch.long, device=self.device)
+                else:
+                    tnsr = torch.tensor([val], dtype=torch.long, device=self.device)
+            elif not isinstance(nt, NeuralType):  # placeholder
                 tnsr = torch.tensor([])
             elif isinstance(nt.elements_type, AudioSignal):
                 seq_length = select_seq_length[item["seq_length"]]
@@ -136,6 +141,9 @@ class ProfilingBatchGenerator:
             elif isinstance(nt.elements_type, LabelsType):
                 seq_length = select_seq_length[item["seq_length"]]
                 tnsr = torch.randint(0, item["vocab_size"], size=(B, seq_length), device=self.device)
+            elif isinstance(nt.elements_type, MaskType):
+                seq_length = select_seq_length[item["seq_length"]]
+                tnsr = torch.ones(B, seq_length, device=self.device)
             else:
                 raise RuntimeError("Unexpected item in oomptimizer schema: {item}")
             batch.append(tnsr)
@@ -400,7 +408,9 @@ def oomptimizer(
         (
             "text"
             if any(
-                isinstance(item["type"].elements_type, LabelsType) and item["seq_length"] == direction
+                isinstance(item["type"], NeuralType)
+                and isinstance(item["type"].elements_type, LabelsType)
+                and item["seq_length"] == direction
                 for item in schema["inputs"]
                 if item["type"] != "dummy"
             )
@@ -510,8 +520,6 @@ def oomptimizer(
     if is_2d_bucketing:
         # 2D bucketing doesn't support bucket merging.
         final_profile = [["[" + ",".join(map(str, b)) + "]", bs] for (b, _, __), bs in profile.items()]
-        max_input_len, max_output_len = buckets[-1]
-        ratio = max_output_len / max_input_len
     else:
         click.echo("Bucket merging stage...")
         final_profile = []
@@ -524,7 +532,6 @@ def oomptimizer(
                 final_profile[-1][0] = bucket
                 continue
             final_profile.append([bucket, bs])
-        max_input_len = final_profile[-1][0]
 
     click.secho(f"The profile was created with the following settings:")
     click.secho(f"* using {memory_fraction:.1%} of available GPU RAM.")
@@ -533,9 +540,6 @@ def oomptimizer(
     click.secho("The final profile is:", bold=True)
     click.secho("\tbucket_duration_bins=[" + ",".join(str(seqlen) for seqlen, bs in final_profile) + "]", bold=True)
     click.secho("\tbucket_batch_size=[" + ",".join(str(bs) for seqlen, bs in final_profile) + "]", bold=True)
-    click.secho("\t(The following flags are suitable for ASR/speech-to-text models):")
-    click.secho(f"\tmax_tps={ratio}", bold=True)
-    click.secho(f"\tmax_duration={max_input_len}", bold=True)
 
 
 if __name__ == "__main__":

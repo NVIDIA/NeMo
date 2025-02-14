@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,11 +18,12 @@ import numpy as np
 import torch
 from torch import Tensor, nn
 
-from nemo.collections.diffusion.vae.blocks import AttnBlock, Downsample, Normalize, ResnetBlock, Upsample, make_attn
+from nemo.collections.diffusion.vae.blocks import Downsample, Normalize, ResnetBlock, Upsample, make_attn
 
 
+# pylint: disable=C0116
 @dataclass
-class AutoEncoderParams:
+class AutoEncoderConfig:
     ch_mult: list[int]
     attn_resolutions: list[int]
     resolution: int = 256
@@ -276,7 +277,7 @@ class DiagonalGaussian(nn.Module):
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, params: AutoEncoderParams):
+    def __init__(self, params: AutoEncoderConfig):
         super().__init__()
         self.encoder = Encoder(
             resolution=params.resolution,
@@ -332,3 +333,6 @@ class AutoEncoder(nn.Module):
         missing, unexpected = self.load_state_dict(state_dict)
         if len(missing) > 0:
             logger.warning(f"Following keys are missing from checkpoint loaded: {missing}")
+
+
+# pylint: disable=C0116
