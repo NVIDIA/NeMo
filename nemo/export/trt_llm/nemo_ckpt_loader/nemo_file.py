@@ -79,6 +79,28 @@ class TarFileSystemReader(FileSystemReader):
             self.path = path  # overwrites path set in super().__init__ call
 
 
+def load_extra_state_from_bytes(val: Optional[Union[torch.Tensor, BytesIO]]) -> Optional[dict]:
+    """ Loads single extra_state from bytes storage.
+
+    Args:
+        val (torch.Tensor | BytesIO): Bytes storage of extra_state
+    Returns:
+        Optional[dict]: Deserialized extra_state, or None if the bytes storage is empty.
+    """
+    if val is None:
+        return None
+
+    # TransformerEngine shifted from storing extra_states bytes storage from _io.BytesIO to torch.Tensor
+    if isinstance(val, torch.Tensor):
+        if val.numel() == 0:
+            return None
+
+        val = val.detach().numpy(force=True).tobytes()
+        return pickle.loads(val)
+
+    val.seek(0)
+    return torch.load(val, weights_only=True)
+
 def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Scaling factors are kept in BufferIO objects.
@@ -90,21 +112,12 @@ def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> D
     Returns:
         dict: The same dictionary, with explicitly loaded extra states from bytes.
     """
-    scales_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE in k}
+    scales_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE in k and 'core_attention' not in k}
     state_dict = {k: v for k, v in state_dict.items() if EXTRA_STATE not in k}
     scales = {}
 
     for key, value in scales_dict.items():
-        if value is None or 'core_attention' in key:
-            continue
-
-        # TransformerEngine shifted from _io.BytesIO to torch.Tensor for bytes storage
-        if isinstance(value, torch.Tensor):
-            value = value.detach().numpy(force=True).tobytes()
-            extra_state = pickle.loads(value)
-        else:
-            value.seek(0)
-            extra_state = torch.load(value, weights_only=True)
+        extra_state = load_extra_state_from_bytes(value)
 
         if extra_state is not None and 'scale_fwd' in extra_state:
             scales[key + '.scale_fwd'] = extra_state['scale_fwd'].cpu()
