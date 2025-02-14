@@ -582,7 +582,7 @@ class AdapterModuleMixin(ABC):
         adapter_module: torch.nn.Module,
         *,
         adapter_name: str,
-        adapter_strategy: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy',
+        adapter_strategy: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy', # noqa: F821
     ):
         """
         Perform the forward step of a single adapter module on some input data.
