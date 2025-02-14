@@ -142,7 +142,6 @@ nemo() {
   DEPS=(
     "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
-    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737"
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
     "llama-index==0.10.43"
     "unstructured==0.14.9"
@@ -157,6 +156,10 @@ nemo() {
 
   echo 'Installing dependencies of nemo'
   ${PIP} install --upgrade --upgrade-strategy only-if-needed --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
+
+  # nvidia-resiliency is installeed with mcore but force-install a newer version for needed fixes
+  RESIL="git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737"
+  ${PIP} install --force-reinstall --no-deps --no-cache-dir --extra-index-url https://pypi.nvidia.com $RESIL
 
   echo 'Installing nemo itself'
   pip install --no-cache-dir --no-build-isolation $NEMO_DIR/.[all]
