@@ -15,7 +15,7 @@
 import torch
 
 try:
-    from megatron.core.optimizer.optimizer import MegatronOptimizer
+    from megatron.core.optimizer.optimizer import MegatronOptimizer  # noqa W0611
 
     HAVE_MEGATRON_CORE = True
 
@@ -104,7 +104,8 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
             model_sharded_state_dict (dict): The model's sharded state dictionary.
             optimizer_state_dict (dict, optional): The optimizer's state dictionary. Defaults to None.
             is_loading (bool, optional): Whether the function is being used for loading. Defaults to False.
-            dist_ckpt_parallel_save (bool, optional): Flag indicating whether to use a fully sharded model space. Defaults to False.
+            dist_ckpt_parallel_save (bool, optional): Flag indicating whether to use a fully sharded model
+                space. Defaults to False.
 
         Returns:
             dict: The sharded optimizer state dictionary.
