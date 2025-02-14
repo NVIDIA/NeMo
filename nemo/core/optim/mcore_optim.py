@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from copy import deepcopy
+from itertools import chain
+from types import MethodType
+
 import torch
 
 try:
@@ -22,6 +26,49 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_MEGATRON_CORE = False
+
+
+try:
+    import transformer_engine
+
+    PATCH_TE_LOAD_STATE_DICT = transformer_engine.__version__ == "1.14.0"
+
+except (ImportError, ModuleNotFoundError):
+
+    PATCH_TE_LOAD_STATE_DICT = False
+
+
+def load_state_dict(self, state_dict):
+    """This is a patch to use FusedAdam.load_state_dict from TE 2.0
+    
+    There is an issue when state dict value is None in TE 1.14.
+    """
+    super().load_state_dict(state_dict)
+
+    groups = self.param_groups
+    saved_groups = deepcopy(state_dict["param_groups"])
+    id_map = dict(
+        zip(
+            chain.from_iterable(g["params"] for g in saved_groups),
+            chain.from_iterable(g["params"] for g in groups),
+        )
+    )
+    for k, v in state_dict["state"].items():
+        if k in id_map:
+            param = id_map[k]
+            self.state[param] = {}
+            for name in v:
+                if v[name] is None:
+                    continue
+                if (
+                    self.store_param_remainders
+                    and name == "master_param"
+                    and param.dtype == torch.bfloat16
+                ):
+                    self.set_scaled_state(param, name, v[name])
+                    assert v[name].dtype == torch.int16
+                else:
+                    self.set_scaled_state(param, name, v[name].float())
 
 
 class McoreDistributedOptimizer(torch.optim.Optimizer):
@@ -51,6 +98,11 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         return self.mcore_optimizer.state_dict()
 
     def load_state_dict(self, state_dict):
+        if PATCH_TE_LOAD_STATE_DICT and self.mcore_optimizer.optimizer.__class__.__name__ == "FusedAdam":
+            self.mcore_optimizer.optimizer.load_state_dict = MethodType(
+                load_state_dict, self.mcore_optimizer.optimizer
+            )
+
         self.mcore_optimizer.load_state_dict(state_dict)
 
     def sharded_state_dict(
