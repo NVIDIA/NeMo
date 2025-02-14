@@ -14,6 +14,7 @@
 
 import torch
 
+
 def _filter_empty_common_step(state_dict):
     """
     Filters out the 'common_step' key from the optimizer state dictionary if its value is None.
