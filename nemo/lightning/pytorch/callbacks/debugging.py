@@ -111,7 +111,7 @@ class ParameterDebugger(Callback):
             ), f"Hook {hook_name} supplied to log_on_hooks is not valid or can not be used. Valid hooks are {valid_hooks}"
             setattr(self, hook_name, self._apply_user_funcs)
 
-    def _apply_user_funcs(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+    def _apply_user_funcs(self, trainer: pl.Trainer, pl_module: pl.LightningModule,  *args, **kwargs) -> None:
         """
         Iterate over model parameters, find gradient tensor, apply and collect outputs of
         param_fn and grad_fn, and log outputs in a table.
@@ -119,7 +119,7 @@ class ParameterDebugger(Callback):
 
         def find_grad_tensor(param: torch.Tensor) -> Optional[torch.Tensor]:
             """If using MCore optimizer, search the grad buckets for param's grad tensor."""
-            if not isinstance(pl_module.optim, MegatronOptimizerModule):
+            if not isinstance(getattr(pl_module, 'optim', None), MegatronOptimizerModule):
                 return param.grad
 
             for buf in pl_module.buffers:
