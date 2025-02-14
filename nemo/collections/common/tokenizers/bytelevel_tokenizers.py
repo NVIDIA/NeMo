@@ -36,19 +36,29 @@ class ByteLevelProcessor:
 
 
 class ByteLevelTokenizer(TokenizerSpec):
-    def __init__(self, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None):
-        self.vocab_size = 259
-        self.special_start = 256
+    def __init__(self, 
+                 special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
+                 vocab_size: int = 512,
+                 _eos_id: int = 0,
+                 _pad_id: int = 1,
+                 _bos_id: int = None,):
+        self.vocab_size = vocab_size if special_tokens is None else vocab_size + len(special_tokens)
+        self.special_start = vocab_size
+        self._eos_id = _eos_id
+        self._pad_id = _pad_id
+        self._bos_id = _bos_id
         self.special_token_to_id = {
             self.pad_id: self.pad_id,
             self.bos_id: self.bos_id,
             self.eos_id: self.eos_id,
         }
+        # Track special byte-tokens at end of vocabulary.
+        self.vocab_size = vocab_size if special_tokens is None else vocab_size + len(special_tokens)
+        self.special_start = self.vocab_size
         special_tokens = {} if special_tokens is None else special_tokens
         for tok in special_tokens:
             self.special_start -= 1
             self.special_token_to_id[tok] = self.special_start
-
         self.id_to_special_token = {v: k for k, v in self.special_token_to_id.items()}
 
     # no distinction between tokens and ids.
@@ -61,10 +71,16 @@ class ByteLevelTokenizer(TokenizerSpec):
     def text_to_ids(self, text):
         return list(text.encode('utf-8'))
 
+    def decode_token(self, token: int):
+        return str(chr(self.clamp(token)))
+    
+    def clamp(self, n):
+        return max(32, min(n, self.vocab_size))
+    
     def ids_to_text(self, ids):
         # remove special tokens.
         ids = [x for x in ids if x < self.special_start]
-        return bytes(ids).decode('utf-8', errors='ignore').rstrip()
+        return "".join(list(map(self.decode_token, ids)))
 
     def tokens_to_ids(self, tokens):
         if isinstance(tokens, str):
@@ -89,23 +105,19 @@ class ByteLevelTokenizer(TokenizerSpec):
             return token
 
     def id_to_token(self, id):
-        if id < self.special_start:
+        if id not in self.id_to_special_token:
             return id
         else:
             return self.id_to_special_token[id]
 
     @property
     def pad_id(self):
-        return 256
-
-    @property
-    def bos_id(self):
-        return 257
+        return self._pad_id
 
     @property
     def eos_id(self):
-        return 258
-
+        return self._eos_id
+    
     @property
-    def unk_id(self):
-        return 259  # unused
+    def bos_id(self):
+        return self._bos_id

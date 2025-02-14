@@ -45,6 +45,18 @@ from nemo.collections.llm.gpt.model.gemma2 import (
     Gemma2Config27B,
     Gemma2Model,
 )
+from nemo.collections.llm.gpt.model.hyena import (
+    Hyena7bARCLongContextConfig,
+    Hyena7bConfig,
+    Hyena40bARCLongContextConfig,
+    Hyena40bConfig,
+    HyenaConfig,
+    HyenaModel,
+    HyenaNV7bConfig,
+    HyenaNV40bConfig,
+    HyenaNVTestConfig,
+    HyenaTestConfig,
+)
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
@@ -204,4 +216,14 @@ __all__ = [
     "transformer_engine_full_layer_spec",
     "local_layer_spec",
     "HFAutoModelForCausalLM",
+    "HyenaTestConfig",
+    "Hyena7bConfig",
+    "Hyena40bConfig",
+    "Hyena7bARCLongContextConfig",
+    "Hyena40bARCLongContextConfig",
+    "HyenaNVTestConfig",
+    "HyenaNV40bConfig",
+    "HyenaNV7bConfig",
+    "HyenaConfig",
+    "HyenaModel",
 ]

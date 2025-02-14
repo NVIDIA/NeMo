@@ -22,6 +22,8 @@ from lightning.pytorch.callbacks import Callback
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.utils import flops_formulas, logging
+from nemo.utils.hyena_flops_formulas import hyena
+
 
 __all__ = ["FLOPsMeasurementCallback", "MM_FLOPsMeasurementCallback"]
 
@@ -32,6 +34,7 @@ _model_flops_map = {
     "nemotron": flops_formulas.nemotron,
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,
+    "hyena": hyena,
 }
 
 
@@ -43,7 +46,7 @@ class FLOPsMeasurementCallback(Callback):
         model_config (GPTConfig): Model parameters.
         data_config (pl.LightningDataModule): Data module being used in the experiment.
         model_name (str): Name of the model being run. The following models are supported:
-            gpt3, llama2, llama3, nemotron, mixtral, bert.
+            gpt3, llama2, llama3, nemotron, mixtral, bert, hyena.
 
 
     """
@@ -169,7 +172,7 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
     """
     Calculate and log FLOPs per second after every ``trainer.log_every_n_steps`` steps for multi-modal models.
     The following models are supported:
-            hf_clip_vit_l, neva_projection, gpt3, llama2, llama3, nemotron, mixtral, bert.
+            hf_clip_vit_l, neva_projection, gpt3, llama2, llama3, nemotron, mixtral, bert, hyena
 
     Args:
         model_name_config_dict (dict):
