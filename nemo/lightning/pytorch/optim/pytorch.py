@@ -97,6 +97,7 @@ class PytorchOptimizerModule(OptimizerModule):
         self.lr_mult = lr_mult
 
     def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"):
+        """ nooop """
         # Noop
         pass
 
@@ -120,6 +121,7 @@ class PytorchOptimizerModule(OptimizerModule):
         return self.optimizer_fn(_extract_model_params_for_optim(model, wd, self.no_weight_decay_cond))
 
     def finalize_model_grads(self, *args, **kwargs):
+        """ noop """
         # Noop
         pass
 
