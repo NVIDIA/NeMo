@@ -84,6 +84,29 @@ class HyenaModel(GPTModel):
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
         return model_inference_wrapper
 
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        decoder_input: Optional[torch.Tensor] = None,
+        loss_mask: Optional[torch.Tensor] = None,
+        inference_params=None,
+        packed_seq_params=None,
+    ) -> torch.Tensor:
+        extra_kwargs = {'packed_seq_params': packed_seq_params} if packed_seq_params is not None else {}
+        output_tensor = self.module(
+            input_ids,
+            position_ids,
+            attention_mask,
+            decoder_input=decoder_input,
+            labels=labels,
+            inference_params=inference_params,
+            loss_mask=loss_mask,
+            **extra_kwargs,
+        )
+        return output_tensor
 
 def hyena_forward_step(model, batch) -> torch.Tensor:
 
