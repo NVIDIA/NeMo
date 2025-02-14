@@ -63,6 +63,9 @@ class SortformerModules(NeuralModule, Exportable):
         step_left_context: int = 0,
         step_right_context: int = 0,
         mem_sil_frames_per_spk: int = 5,
+        causal_attn_rate: float = 0,
+        causal_attn_rc: int = 7,
+        scores_add_rnd: float = 0,
     ):
         super().__init__()
         self.mem_sil_frames_per_spk = mem_sil_frames_per_spk
@@ -85,6 +88,9 @@ class SortformerModules(NeuralModule, Exportable):
         self.encoder_proj = nn.Linear(self.fc_d_model, self.tf_d_model)
         self.visualization: bool = False
         self.log = False
+        self.causal_attn_rate = causal_attn_rate
+        self.causal_attn_rc = causal_attn_rc
+        self.scores_add_rnd = scores_add_rnd
 
     def length_to_mask(self, lengths, max_length):
         """
@@ -307,6 +313,8 @@ class SortformerModules(NeuralModule, Exportable):
         scores[:,self.mem_len:,:] += 0.05 # to boost newly added frames
 
         if self.training:
+            if self.scores_add_rnd > 0:
+                scores += torch.rand(B, n_frames, n_spk, device=scores.device) * self.scores_add_rnd
             spk_perm = torch.stack([torch.cat([torch.randperm(max_perm_index[b].item()), torch.arange(max_perm_index[b].item(), n_spk)]) for b in range(B)]).to(preds.device)
             scores = torch.stack([scores[b, :, spk_perm[b]] for b in range(B)])
         else:

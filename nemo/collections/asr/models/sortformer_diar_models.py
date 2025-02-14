@@ -501,6 +501,14 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             pad_tensor = torch.full((B, C, max_T-T), -99, dtype=processed_signal.dtype, device=processed_signal.device)
             processed_signal = torch.cat([processed_signal, pad_tensor], dim=2)
 
+        att_mod = False
+        if self.training:
+            r = random.random()
+            if r < self.sortformer_modules.causal_attn_rate:
+                self.encoder.att_context_size=[-1, self.sortformer_modules.causal_attn_rc]
+                self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
+                att_mod = True
+
         for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, feat_seq_length=processed_signal_length):
             MEM, FIFO_QUEUE, MEM_PREDS, _, total_pred, spk_perm = self.forward_streaming_step(
                 processed_signal=chunk_feat_seq_t,
@@ -513,6 +521,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 left_offset=left_offset,
                 right_offset=right_offset,
             )
+
+        if att_mod:
+            self.encoder.att_context_size=[-1, -1]
+            self.transformer_encoder.diag = None
 
         del processed_signal, processed_signal_length, MEM, FIFO_QUEUE
         if not self.training:
