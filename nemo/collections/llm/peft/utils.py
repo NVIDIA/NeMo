@@ -41,7 +41,9 @@ TELayerNormColumnParallelLinear, HAVE_TE_LN_COL_LINEAR = safe_import_from(
 TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
     "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
 )
-HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR))
+te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
+
+HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEARm HAVE_TE))
 
 MixedFusedLayerNorm, HAVE_APEX = safe_import_from("apex.normalization.fused_layer_norm", "MixedFusedLayerNorm")
 
@@ -75,6 +77,11 @@ def get_adapter_attributes_from_linear(m: nn.Module):
         input_is_parallel = True
         in_features = m.input_size
         out_features = m.output_size
+    elif isinstance(m, te.Linear):
+        input_is_parallel = False
+        in_features = m.in_features
+        out_features = m.out_features
+        assert getattr(m, 'tp_size', 1) == 1, 'te.Linear only supports TP=1'
     else:
         raise NotImplementedError(f"Layer type is unrecognized for LoRA: {type(m)}")
 
