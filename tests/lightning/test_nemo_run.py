@@ -32,8 +32,7 @@ class MockContext(Context):
 
     def run(self, command: str, **kwargs: Any):
         kwargs["in_stream"] = False
-        runner = self.config.runners.local(self)
-        return self._run(runner, command, **kwargs)
+        super().run(command, **kwargs)
 
 
 @pytest.mark.parametrize(
