@@ -17,13 +17,13 @@ import functools
 import json
 import logging
 import os
+import pickle
 import shutil
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
-import pickle
 import tensorstore  # This is important even though not used. Otherwise zarr raises error.
 import torch
 import yaml
@@ -80,7 +80,7 @@ class TarFileSystemReader(FileSystemReader):
 
 
 def load_extra_state_from_bytes(val: Optional[Union[torch.Tensor, BytesIO]]) -> Optional[dict]:
-    """ Loads single extra_state from bytes storage.
+    """Loads single extra_state from bytes storage.
 
     Args:
         val (torch.Tensor | BytesIO): Bytes storage of extra_state
@@ -100,6 +100,7 @@ def load_extra_state_from_bytes(val: Optional[Union[torch.Tensor, BytesIO]]) -> 
 
     val.seek(0)
     return torch.load(val, weights_only=True)
+
 
 def preprocess_scaling_factors_for_local_export(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
