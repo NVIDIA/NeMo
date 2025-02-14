@@ -630,8 +630,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 # Log any MoE losses.
                 # @akoumparouli: disabling this as it hangs with deepseek.
                 # TODO(@akoumparouli): loss_scale depends on the GBS.
-            #                for loss_name, loss_value in aggregate_moe_loss_stats(loss_scale=1.0).items():
-            #                    self.lightning_module.log(loss_name, loss_value, prog_bar=True, rank_zero_only=True, batch_size=1)
+            # for loss_name, loss_value in aggregate_moe_loss_stats(loss_scale=1.0).items():
+            #    self.lightning_module.log(
+            #    loss_name, loss_value, prog_bar=True, rank_zero_only=True, batch_size=1)
 
             return out
 
