@@ -13,10 +13,27 @@
 # limitations under the License.
 
 from functools import partial
+from typing import Any, Optional
+from unittest.mock import patch
 
 import pytest
+from invoke.config import Config
+from invoke.context import Context
 
 BASE_CHECKPOINT_DIR = "/nemo_run/checkpoints"
+
+
+class MockContext(Context):
+    def __init__(self, config: Optional[Config] = None) -> None:
+        defaults = Config.global_defaults()
+        defaults["run"]["pty"] = True
+        defaults["run"]["in_stream"] = False
+        super().__init__(config=config)
+
+    def run(self, command: str, **kwargs: Any):
+        kwargs["in_stream"] = False
+        runner = self.config.runners.local(self)
+        return self._run(runner, command, **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -58,6 +75,7 @@ BASE_CHECKPOINT_DIR = "/nemo_run/checkpoints"
         ("gpt3_175b", "pretrain_recipe", "gpt3_175b_pretrain"),
     ],
 )
+@patch("invoke.context.Context", MockContext)
 def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
     monkeypatch.setenv("NEMORUN_HOME", str(tmpdir))
     monkeypatch.setenv("WANDB_API_KEY", "dummy")
