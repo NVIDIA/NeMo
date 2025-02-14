@@ -8,11 +8,9 @@ from torch.nn.utils.rnn import pad_sequence
 from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextRawBatch, LlavaNextTextSample
 from nemo.collections.vlm.llava_next.model.utils import select_best_resolution
 from nemo.utils import logging
-
-from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextSample, LlavaNextTextRawBatch
-
 
 
 class LlavaNextSampleEncoder(VQASampleEncoder):
@@ -75,8 +73,10 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
 
             text = [conversation_prompt]
             image_sizes = iter([[height, width]])
-            resized_height, resized_width = (self.hf_config.vision_config.image_size,
-                                             self.hf_config.vision_config.image_size)
+            resized_height, resized_width = (
+                self.hf_config.vision_config.image_size,
+                self.hf_config.vision_config.image_size,
+            )
             prompt_strings = []
             for sample in text:
                 while self.image_token.token_str in sample:
@@ -85,7 +85,9 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
                         # cast to list to avoid numerical precision errors when calculating unpadding
                         image_size = image_size.tolist()
                     orig_height, orig_width = image_size
-                    num_image_tokens = self._get_number_of_features(orig_height, orig_width, resized_height, resized_width)
+                    num_image_tokens = self._get_number_of_features(
+                        orig_height, orig_width, resized_height, resized_width
+                    )
                     sample = sample.replace(self.image_token.token_str, "<placeholder>" * num_image_tokens, 1)
                 prompt_strings.append(sample)
             prompt_strings = [sample.replace("<placeholder>", self.image_token.token_str) for sample in prompt_strings]

@@ -352,7 +352,6 @@ class MCoreLlavaNextModel(MCoreNevaModel):
                 )
             )
 
-
         n_image_tokens = (input_ids == media_token_index).sum().item()
         n_image_features = media_embeddings.shape[0]
         if n_image_tokens != n_image_features:
@@ -371,7 +370,6 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         final_loss_mask = None
         if final_labels is not None:
             final_loss_mask = (final_labels != ignore_index).long()
-
 
         combined_embeddings = combined_embeddings.permute(1, 0, 2)
         combined_embeddings = combined_embeddings.contiguous()

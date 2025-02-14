@@ -11,6 +11,7 @@ from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncode
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.utils import logging
 
+
 @dataclass
 class LlavaNextTextSample(ImageTextSample):
     '''
@@ -33,6 +34,7 @@ class LlavaNextTextSample(ImageTextSample):
     # For Debug
     extra_tokens: torch.tensor = field(default_factory=lambda: torch.tensor([]))
 
+
 @dataclass
 class PackedLlavaNextTextSample(LlavaNextTextSample):
     """Sample type for packed image text sample"""
@@ -40,7 +42,6 @@ class PackedLlavaNextTextSample(LlavaNextTextSample):
     __restore_key__: tuple[Union[str, int, tuple], ...] = ()
     position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
-
 
 
 @dataclass
@@ -68,4 +69,3 @@ class PackedLlavaNextTextRawBatch(LlavaNextTextRawBatch):
 
     position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
-

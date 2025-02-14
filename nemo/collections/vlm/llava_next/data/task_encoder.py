@@ -4,26 +4,34 @@ from typing import Dict, List, Optional, Union
 import torch
 from megatron.energon import SimilarityInterleavedSample, VQASample, batch_list, batch_pad_stack, stateless
 from torch.nn.utils.rnn import pad_sequence
+from transformers import AutoProcessor
 
 from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm.llava_next.data.interleaved_sample_encoder import LlavaNextSimilarityInterleavedSampleEncoder
-from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextRawBatch, LlavaNextTextSample, \
-    PackedLlavaNextTextSample, PackedLlavaNextTextRawBatch
+from nemo.collections.vlm.llava_next.data.sample import (
+    LlavaNextTextRawBatch,
+    LlavaNextTextSample,
+    PackedLlavaNextTextRawBatch,
+    PackedLlavaNextTextSample,
+)
 from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import LlavaNextSampleEncoder
 from nemo.utils import logging
-from transformers import AutoProcessor
 
 
 class LlavaNextTaskEncoder(MultiModalTaskEncoder):
     """LlavaNextTaskEncoder"""
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config,
-                 packed_sequence=False,
-                 packed_sequence_size=-1,
-                 num_image_embeddings_per_tile=576,
-                 ):
+    def __init__(
+        self,
+        tokenizer,
+        image_processor,
+        multimodal_sample_config,
+        packed_sequence=False,
+        packed_sequence_size=-1,
+        num_image_embeddings_per_tile=576,
+    ):
         """
         Initialize the LlavaNextTaskEncoder.
 
@@ -36,8 +44,14 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         multimodal_sample_config (MultiModalSampleConfig): Configuration settings for multimodal samples.
 
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config, packed_sequence,
-                         packed_sequence_size, num_image_embeddings_per_tile)
+        super().__init__(
+            tokenizer,
+            image_processor,
+            multimodal_sample_config,
+            packed_sequence,
+            packed_sequence_size,
+            num_image_embeddings_per_tile,
+        )
         self.encoders: Dict[str, SampleEncoder] = {
             VQASample.__name__: LlavaNextSampleEncoder(tokenizer, image_processor, multimodal_sample_config),
             SimilarityInterleavedSample.__name__: LlavaNextSimilarityInterleavedSampleEncoder(
@@ -45,8 +59,9 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             ),
         }
 
-    def batch(self, samples: List[Union[LlavaNextTextSample, PackedLlavaNextTextSample]]
-              ) -> Union[LlavaNextTextRawBatch, PackedLlavaNextTextRawBatch]:
+    def batch(
+        self, samples: List[Union[LlavaNextTextSample, PackedLlavaNextTextSample]]
+    ) -> Union[LlavaNextTextRawBatch, PackedLlavaNextTextRawBatch]:
         """
         Batch multiple encoded samples into a single batch structure for model input.
 
@@ -130,17 +145,15 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             ), "image_sizes and batch_num_media_tiles must have the same length"
 
             return LlavaNextTextRawBatch(
-                    __keys__=batch_keys,
-                    images=batch_images,
-                    tokens=batch_tokens,
-                    labels=batch_labels,
-                    loss_mask=batch_loss_mask,
-                    num_media_tiles=batch_num_media_tiles,
-                    image_sizes=image_sizes,
-                    attention_mask=batch_attention_mask,
-                )
-
-
+                __keys__=batch_keys,
+                images=batch_images,
+                tokens=batch_tokens,
+                labels=batch_labels,
+                loss_mask=batch_loss_mask,
+                num_media_tiles=batch_num_media_tiles,
+                image_sizes=image_sizes,
+                attention_mask=batch_attention_mask,
+            )
 
     def select_samples_to_pack(self, samples: List[Union[LlavaNextTextSample, PackedLlavaNextTextSample]]):
         """Selects which samples will be packed together.
@@ -149,6 +162,7 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         Please see https://nvidia.github.io/Megatron-Energon/packing.html
         """
         from nemo.collections.vlm.neva.data.sequence_packing import greedy_knapsack, predict_seq_len_llava_next
+
         # import pdb; pdb.set_trace()
         media_token_id = self.sample_config.image_token.token_id
 
@@ -157,12 +171,12 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
                 sample.tokens,
                 media_token_index=media_token_id,
                 num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
-                num_media_tiles=sample.num_media_tiles
+                num_media_tiles=sample.num_media_tiles,
             )
             for sample in samples
         ]
 
-# predict_seq_len_llava_next( samples[0].tokens, media_token_index=self.sample_config.image_token.token_id, num_image_embeddings_per_tile=self.num_image_embeddings_per_tile, num_media_tiles=samples[0].num_media_tiles)
+        # predict_seq_len_llava_next( samples[0].tokens, media_token_index=self.sample_config.image_token.token_id, num_image_embeddings_per_tile=self.num_image_embeddings_per_tile, num_media_tiles=samples[0].num_media_tiles)
         packed_samples = greedy_knapsack(lengths, samples, self.packed_sequence_size)
         avg_samples_per_bin = round(len(lengths) / len(packed_samples))
         logging.info(
@@ -213,7 +227,6 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         batch_list_num_media_tiles = flatten_if_nested(batch_list_num_media_tiles)
         batch_num_media_tiles = torch.tensor(batch_list_num_media_tiles, dtype=torch.int)
 
-
         packed_images = torch.cat([sample.images for sample in samples], dim=0)
         media_token_id = self.sample_config.image_token.token_id
         packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = convert_to_packed(
@@ -233,23 +246,23 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             position_ids=packed_position_ids,
             loss_mask=packed_loss_mask,
             packed_seq_params=packed_seq_params,
-            attention_mask=None, # We don't need attention mask for packed samples
+            attention_mask=None,  # We don't need attention mask for packed samples
             num_media_tiles=sample.num_media_tiles,
             image_sizes=sample.image_sizes,
         )
 
         PackedLlavaNextTextRawBatch(
-                        __keys__=sample.__key__,
-                        images=sample.images,
-                        tokens=sample.tokens,
-                        labels=sample.labels,
-                        loss_mask=sample.loss_mask,
-                        num_media_tiles=sample.num_media_tiles,
-                        image_sizes=sample.image_sizes,
-                        attention_mask=sample.attention_mask,
-                        position_ids=sample.position_ids,
-                        packed_seq_params=sample.packed_seq_params,
-                    )
+            __keys__=sample.__key__,
+            images=sample.images,
+            tokens=sample.tokens,
+            labels=sample.labels,
+            loss_mask=sample.loss_mask,
+            num_media_tiles=sample.num_media_tiles,
+            image_sizes=sample.image_sizes,
+            attention_mask=sample.attention_mask,
+            position_ids=sample.position_ids,
+            packed_seq_params=sample.packed_seq_params,
+        )
 
 
 from itertools import chain
@@ -288,7 +301,7 @@ if __name__ == '__main__':
             task_encoder=LlavaNextTaskEncoder(
                 tokenizer=tokenizer,
                 image_processor=processor.image_processor,
-                multimodal_sample_config=MultiModalSampleConfig()
+                multimodal_sample_config=MultiModalSampleConfig(),
             ),
             worker_config=worker_config,
         ),

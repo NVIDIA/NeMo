@@ -23,6 +23,7 @@ Example:
 """
 
 import argparse
+import pdb
 
 import torch
 from lightning.pytorch.loggers import WandbLogger
@@ -35,7 +36,6 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
 
-import pdb
 # pdb.set_trace = lambda: 1
 def main(args):
     # pylint: disable=C0115,C0116
@@ -94,9 +94,7 @@ def main(args):
         raise ValueError(f"Data type {args.data_type} not supported")
 
     # Submodules configurations
-    language_transformer_config = llm.Llama2Config7B(
-        seq_length=decoder_seq_length, num_layers=1
-    )
+    language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length, num_layers=1)
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
