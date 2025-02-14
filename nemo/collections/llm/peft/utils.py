@@ -43,7 +43,7 @@ TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
 )
 te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
-HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEARm HAVE_TE))
+HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR, HAVE_TE))
 
 MixedFusedLayerNorm, HAVE_APEX = safe_import_from("apex.normalization.fused_layer_norm", "MixedFusedLayerNorm")
 
