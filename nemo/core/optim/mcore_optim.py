@@ -14,15 +14,6 @@
 
 import torch
 
-try:
-    from megatron.core.optimizer.optimizer import MegatronOptimizer  # pylint: disable=unused-import
-
-    HAVE_MEGATRON_CORE = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_MEGATRON_CORE = False
-
 def _filter_empty_common_step(state_dict):
     """
     Filters out the 'common_step' key from the optimizer state dictionary if its value is None.
