@@ -37,7 +37,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import Agg
 from nemo.collections.tts.data.text_to_speech_dataset_lhotse import T5TTSLhotseDataset, build_lhotse_dataloader
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
-from nemo.collections.tts.modules import t5tts_transformer
+from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.collections.tts.parts.utils.tts_dataset_utils import stack_tensors
 from nemo.core.classes import ModelPT
@@ -148,9 +148,9 @@ class T5TTS_Model(ModelPT):
         if self.model_type != 'decoder_pretrain_synthesizer':
             # Decoder pretrain synthesizer doesn't have transcript encoder/text embeddings
             self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
-            self.t5_encoder = t5tts_transformer.Transformer(**dict(cfg.t5_encoder))
+            self.t5_encoder = transformer_2501.Transformer(**dict(cfg.t5_encoder))
 
-        self.t5_decoder = t5tts_transformer.Transformer(**dict(cfg.t5_decoder))
+        self.t5_decoder = transformer_2501.Transformer(**dict(cfg.t5_decoder))
 
         self.final_proj = nn.Linear(
             cfg.t5_decoder.d_model, cfg.num_audio_codebooks * cfg.num_audio_tokens_per_codebook
@@ -185,7 +185,7 @@ class T5TTS_Model(ModelPT):
             for layer in self.context_decoder_layers:
                 multi_encoder_mapping[layer] = 1
             self.multi_encoder_mapping = multi_encoder_mapping
-            self.context_encoder = t5tts_transformer.Transformer(**dict(cfg.context_encoder))
+            self.context_encoder = transformer_2501.Transformer(**dict(cfg.context_encoder))
 
         elif self.model_type == 'decoder_context_tts':
             self.transcript_decoder_layers = [
