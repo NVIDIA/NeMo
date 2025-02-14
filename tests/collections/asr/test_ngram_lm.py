@@ -37,7 +37,7 @@ class TestFastNGramLM:
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         vocab_size = 1024
         device = torch.device("cpu")
-        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size)
+        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
         kenlm_wrapper = KenLMWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
         batch_size = 3
         for bos in [True, False]:
@@ -54,7 +54,7 @@ class TestFastNGramLM:
     def test_triton_vs_pytorch_random_states(self, test_data_dir):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         vocab_size = 1024
-        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size)
+        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
         batch_size = 2
         device = torch.device("cuda")
         torch.manual_seed(777)
@@ -77,7 +77,7 @@ class TestFastNGramLM:
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         vocab_size = 1024
         device = torch.device("cpu")
-        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size)
+        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
         kenlm_wrapper = KenLMWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
         # TODO: make sentences
         for sentence in [[25, 70, 12], [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999]]:
