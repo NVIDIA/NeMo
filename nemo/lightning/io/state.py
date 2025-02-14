@@ -21,7 +21,9 @@ import numpy as np
 import torch
 from nemo.utils import logging
 from torch import nn
+
 from nemo.lightning.pytorch.utils import extract_dtypes
+from nemo.utils import logging
 
 SourceModuleT = TypeVar("SourceModuleT", bound=nn.Module)
 TargetModuleT = TypeVar("TargetModuleT", bound=nn.Module)
@@ -147,9 +149,11 @@ def apply_transforms(
     )
 
     for key, val in mapping.items():
+        logging.debug(f"Mapping {key} -> {val}")
         ctx = StateDictTransform(key, val)(ctx)
 
     for transform in transforms:
+        logging.debug(f"Transforming {transform.source_key} -> {transform.target_key}")
         ctx = transform(ctx)
 
     _params: Dict[str, nn.Parameter] = {}
@@ -157,7 +161,10 @@ def apply_transforms(
         if name in target_state:
             target_param = target_state[name]
             if param.data.shape != target_param.shape:
-                raise ValueError(f"Shape mismatch for parameter {name}: {param.shape} vs {target_param.shape}")
+                raise ValueError(
+                    f"Shape mismatch for parameter {name}: target shape {param.shape} vs "
+                    f"converted source shape {target_param.shape}"
+                )
 
             _params[name] = nn.Parameter(target_param, requires_grad=param.requires_grad)
             target_state.pop(name)
@@ -203,6 +210,16 @@ def apply_transforms(
 
     """finally:
         cls._set_model_restore_state(is_being_restored=False)"""
+
+    meta_tensor_keys = []
+    for name, param in target.named_parameters():
+        if param.is_meta:
+            meta_tensor_keys.append(name)
+
+    assert not meta_tensor_keys, (
+        f"{meta_tensor_keys}\nThere are meta tensors in the model after conversion."
+        f"Did you forget to include these parameters in the mapping or transforms in `convert_state`?"
+    )
 
     assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
         f"dtype mismatch between source and target state dicts. "
@@ -299,9 +316,8 @@ class StateDictTransform(Generic[F]):
             else:
                 if isinstance(target_key, dict):
                     raise ValueError("Target key must be a string or a tuple of strings.")
-
-                _matches = np.vstack([_match_keys(target_keys, key) for key in target_key])
-                target_matches = np.transpose(_matches)
+                _matches = [_match_keys(target_keys, key) for key in target_key]
+                target_matches = np.stack(_matches, axis=-1)
 
             # Determine if we are dealing with multiple source matches or multiple target matches
             multiple_sources = source_matches.ndim >= target_matches.ndim
@@ -311,7 +327,11 @@ class StateDictTransform(Generic[F]):
 
             if multiple_sources:
                 for target_index, target_match in np.ndenumerate(target_matches):
-                    source_match = source_matches[target_index]
+                    try:
+                        source_match = source_matches[target_index]
+                    except IndexError as e:
+                        logging.error(f"Enountered IndexError during transform.\n{source_matches=}\n{target_matches=}")
+                        raise e
                     if accepts_var_args:
                         source_values = [source_dict[k] for k in source_match]
                         target_dict[target_match] = self.call_transform(ctx, *source_values)
@@ -324,22 +344,9 @@ class StateDictTransform(Generic[F]):
 
                         kwargs = {param: source_dict[k] for param, k in zip(fn_params, _source_match_list)}
                         target_dict[target_match] = self.call_transform(ctx, **kwargs)
+                    logging.debug(f"Matched (multi source)! {target_match=} {source_match=}")
             else:
-                if source_matches.ndim == 0:
-                    source_matches_list = [source_matches.item()]
-                    source_matches = np.array(source_matches_list, dtype=object)
-                else:
-                    source_matches_list = list(source_matches)
-
-                if source_matches.shape[0] != target_matches.shape[0]:
-                    if target_matches.shape[0] == 1 and source_matches.shape[0] == target_matches.shape[1]:
-                        source_matches_list = [source_matches_list]
-                    else:
-                        raise ValueError(
-                            "Mismatch between source and target keys: {source_matches} vs {target_matches}"
-                        )
-
-                for source_index, source_match in enumerate(source_matches_list):
+                for source_index, source_match in np.ndenumerate(source_matches):
                     target_match = target_matches[source_index]
                     source_values = (
                         [source_dict[source_match]]
@@ -357,6 +364,7 @@ class StateDictTransform(Generic[F]):
                     else:
                         for i, t in enumerate(outputs):
                             target_dict[target_match[i]] = t
+                    logging.debug(f"Matched (single source)! {target_match=} {source_match=}")
 
         return ctx
 
@@ -494,7 +502,7 @@ class TransformFns:
     """
 
     @staticmethod
-    def split_qkv(ctx: TransformCTX, linear_qkv):
+    def split_qkv(ctx: TransformCTX, linear_qkv: torch.Tensor):
         """
         Split interleave-concatenated qkv to q, k, v
 

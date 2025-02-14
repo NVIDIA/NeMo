@@ -20,7 +20,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear, wildcard_match
+from nemo.collections.llm.peft.module_matcher import ModuleMatcher
+from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
@@ -92,6 +93,7 @@ class LinearAdapter(nn.Linear):
             lora_dtype=lora_dtype,
         )
 
+    @torch.no_grad
     @staticmethod
     def _init_adapter(
         obj,
@@ -128,35 +130,33 @@ class LinearAdapter(nn.Linear):
         out_features = obj.out_features
         dtype = lora_dtype or obj.weight.dtype
 
-        obj.lora_a = nn.Parameter(torch.zeros((in_features, dim), dtype=dtype, device=device))
-        obj.lora_b = nn.Parameter(torch.zeros((dim, out_features), dtype=dtype, device=device))
+        obj.lora_a = nn.Linear(in_features, dim, bias=False, dtype=dtype, device=device)
+        obj.lora_b = nn.Linear(dim, out_features, bias=False, dtype=dtype, device=device)
         if lora_A_init_method == 'xavier':
-            torch.nn.init.uniform_(obj.lora_a)
+            torch.nn.init.uniform_(obj.lora_a.weight.data)
         else:
-            nn.init.kaiming_uniform_(obj.lora_a, a=math.sqrt(5))
-
+            nn.init.kaiming_uniform_(obj.lora_a.weight.data, a=math.sqrt(5))
+        obj.lora_b.weight.data.fill_(0)
         obj.dropout = nn.Dropout(p=dropout)
         assert dropout_position in ['pre', 'post'], dropout_position
         obj.dropout_position = dropout_position
 
-    @staticmethod
-    def _forward(obj, x, fwd=None):
+    def forward(self, x):
         # pylint: disable=C0115,C0116
-        if fwd is not None:
+        # If LinearAdapter is used to monkey-patch a nn.Linear module, we want to use nn.Linear's
+        # forward in the case where it uses quantized weights. We store a reference to nn.Linear's
+        # forward in `super_fwd` attribute. If the attribute does not exist we do the usual linear.
+        if (fwd := getattr(self, 'super_fwd', None)) is not None:
             res = fwd(x)
         else:
-            res = F.linear(x, obj.weight, obj.bias)
-        if obj.dropout_position == 'pre':
-            x = obj.dropout(x)
-        lora_res = x @ obj.lora_a
-        lora_res = lora_res @ obj.lora_b
-        lora_res = lora_res * obj.scale
-        if obj.dropout_position == 'post':
-            lora_res = obj.dropout(lora_res)
+            res = F.linear(x, self.weight, self.bias)
+        if self.dropout_position == 'pre':
+            x = self.dropout(x)
+        lora_res = self.lora_b(self.lora_a(x))
+        lora_res = lora_res * self.scale
+        if self.dropout_position == 'post':
+            lora_res = self.dropout(lora_res)
         return res + lora_res
-
-    def forward(self, x):
-        return LinearAdapter._forward(self, x)
 
 
 def patch_linear_module(
@@ -188,7 +188,7 @@ def patch_linear_module(
             Defaults to 'post' (choices: 'pre', 'post').
         lora_A_init_method (str, optional): lora_a init method. Defaults to 'xavier'.
         lora_dtype (_type_, optional): Lora weights' dtype. By default will use orig_linear's dtype
-        but orig_linear might use non-trainable dtype (e.g. 4bit), in which case the user must
+        but orig_linear might use non-trainable dtype (e.g., 4bit), in which case the user must
         specify the dtype manually. Defaults to None.
 
     Returns:
@@ -198,16 +198,25 @@ def patch_linear_module(
     assert isinstance(orig_linear, nn.Linear)
 
     LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
-    fwd = None
     # If the model uses quantized weights, we want to use orig_linear's forward
     if orig_linear.weight.dtype == torch.uint8:
-        fwd = orig_linear.forward
-    orig_linear.forward = lambda x: LinearAdapter._forward(orig_linear, x, fwd)
+        orig_linear.super_fwd = orig_linear.forward
+
+    cls = orig_linear.__class__
+    new_cls = type('PatchedLinearAdapter', (LinearAdapter, cls), {})
+    orig_linear.__class__ = new_cls
+
+    if hasattr(orig_linear.weight.data, '_local_tensor'):
+        from torch.distributed._composable.fsdp.fully_shard import fully_shard
+
+        fully_shard(orig_linear.lora_a, reshard_after_forward=False)
+        fully_shard(orig_linear.lora_b, reshard_after_forward=False)
+
     return orig_linear
 
 
 @dataclass
-class LoRA(PEFT):
+class LoRA(PEFT, ModuleMatcher):
     """
     Implements the LoRA (Low-Rank Adaptation) module for parameter-efficient fine-tuning.
 
@@ -225,13 +234,16 @@ class LoRA(PEFT):
             Target modules can also contain wildcards. For example, you can specify
                 target_modules=['*.layers.0.*.linear_qkv', '*.layers.1.*.linear_qkv'] to add LoRA to only linear_qkv
                 on the first two layers.
+        exclude_modules (List[str], optional): A list of module names not to apply LoRa to. It will
+            match all nn.Linear & nn.Linear-adjacent modules whose name does not match any string in
+            exclude_modules. If used, will require target_modules to be empty list or None.
         dim (int): Dimension of the low-rank projection space. Defaults to 32.
         alpha (int): Weighting factor for the low-rank projection. Defaults to 32.
         dropout (float): Dropout rate for the low-rank projection. Defaults to 0.0.
         dropout_position (Literal['pre', 'post'], optional): Position for applying dropout.
             Can be 'pre' (before the low-rank projection) or 'post' (after). Defaults to 'pre'.
         a2a_experimental (bool): Enables the experimental All-to-All (A2A) communication strategy. Defaults to False.
-        lora_drype (torch.dtype): Parameter data type for LoRA weights. Default None (will use model's dtype).
+        lora_dtype (torch.dtype): Parameter data type for LoRA weights. Default None (will use model's dtype).
 
     Example:
     --------
@@ -274,12 +286,16 @@ class LoRA(PEFT):
         Returns:
             nn.Module: The modified module with LoRA applied, or the original module if not a target.
         """
-        from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
+        from nemo.collections.llm.peft.utils import ParallelLinearAdapter
 
-        full_name = f"{prefix}.{name}" if prefix else name
-        if name in self.target_modules or any(wildcard_match(pattern, full_name) for pattern in self.target_modules):
+        if (ans := self.match(m, name, prefix)) is not None:
+            (match, full_name) = ans
             if isinstance(m, nn.Linear):
-                if self._is_fsdp_v1 or m.weight.data.dtype == torch.uint8:
+                # Will use the `patch_linear_module` function if:
+                # - is FSDP v1
+                # - is DTensor (has _local_tensor attribute)
+                # - is quantized weights.
+                if self._is_fsdp_v1 or hasattr(m.weight.data, '_local_tensor') or m.weight.data.dtype == torch.uint8:
                     lora_cls = patch_linear_module
                 else:
                     lora_cls = LinearAdapter
