@@ -525,7 +525,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
                         decoder_model=decoder,
                         joint_model=joint,
-                        durations=self.durations,
+                        # durations=self.durations,
                         blank_index=self.blank_id,
                         beam_size=self.cfg.beam.beam_size,
                         search_type='maes_batch',

@@ -42,6 +42,8 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
 
+from nemo.utils.timers import SimpleTimer
+
 try:
     import kenlm
 
@@ -168,6 +170,7 @@ class BeamTDTInfer(Typing):
         self.joint = joint_model
         self.decoder = decoder_model
         self.durations = durations
+        self.timer = SimpleTimer()
 
         self.token_offset = 0
         self.search_type = search_type
@@ -273,6 +276,7 @@ class BeamTDTInfer(Typing):
         decoder_training_state = self.decoder.training
         joint_training_state = self.joint.training
 
+        self.timer.start(device=encoder_output.device)
         with torch.inference_mode():
             # Apply optional preprocessing
             encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
@@ -317,6 +321,7 @@ class BeamTDTInfer(Typing):
                         best_hypothesis: NBestHypotheses = NBestHypotheses(nbest_hyps)
                     hypotheses.append(best_hypothesis)
 
+        self.timer.stop(device=encoder_output.device)
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
 
@@ -843,6 +848,7 @@ class Best1BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         self.max_symbols = malsd_max_symbols_per_step
         self.preserve_alignments = preserve_alignments
 
+        self.timer = SimpleTimer()
         if search_type == "malsd_batch":
             # Depending on availability of `blank_as_pad` support
             # switch between more efficient batch decoding technique

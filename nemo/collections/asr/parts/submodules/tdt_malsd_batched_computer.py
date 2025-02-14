@@ -1166,16 +1166,17 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         if self.ngram_lm_batch is not None:
             # batch_lm_states: [(BxBeam)]
             # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
-            torch.gather(
-                self.state.batch_lm_states_candidates,
-                dim=1,
-                index=self.state.next_idx[:, :, None]
-                .expand(
-                    self.state.batch_size,
-                    self.beam_size,
-                    self.state.batch_lm_states_candidates.shape[-1]
-                ),
-                out=self.state.batch_lm_states_candidates
+            self.state.batch_lm_states_candidates.copy_(
+                torch.gather(
+                    self.state.batch_lm_states_candidates,
+                    dim=1,
+                    index=self.state.next_idx[:, :, None]
+                    .expand(
+                        self.state.batch_size,
+                        self.beam_size,
+                        self.state.batch_lm_states_candidates.shape[-1]
+                    ),
+                )
             )
             torch.gather(
                 self.state.batch_lm_states,

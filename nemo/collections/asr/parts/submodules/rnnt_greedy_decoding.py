@@ -45,6 +45,7 @@ from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
+from nemo.utils.timers import SimpleTimer
 
 
 def pack_hypotheses(
@@ -623,6 +624,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
 
         self.use_cuda_graph_decoder = use_cuda_graph_decoder
         self.loop_labels = loop_labels
+        self.timer = SimpleTimer()
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
@@ -769,8 +771,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
+        self.timer.start(device=x.device)
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
+        self.timer.stop(device=x.device)
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
         return hyps
@@ -2795,6 +2799,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         self.durations = durations
         self.include_duration = include_duration
         self.include_duration_confidence = include_duration_confidence
+        
+        self.timer = SimpleTimer()
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
@@ -2886,8 +2892,10 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not implemented")
 
+        self.timer.start(device=x.device)
         batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
+        self.timer.stop(device=x.device)
         for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             hyp.dec_state = state
         return hyps

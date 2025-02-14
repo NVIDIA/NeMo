@@ -35,7 +35,7 @@ from nemo.core.utils.cuda_python_utils import (
 )
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
-from nemo.collections.asr.parts.ngram_lm import KenLMWrapper, FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 
 try:
     from cuda import cudart

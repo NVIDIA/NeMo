@@ -22,6 +22,9 @@ import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
+from nemo.utils.timers import SimpleTimer
+import numpy as np
+
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.models.aed_multitask_models import parse_multitask_prompt
 from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
@@ -378,29 +381,58 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     )
                 total_duration += item["duration"]
 
-    with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu', dtype=amp_dtype, enabled=cfg.amp):
-        with torch.no_grad():
-            if cfg.calculate_rtfx:
-                start_time = time.time()
+    timer = SimpleTimer()
+    warmup_steps = 1
+    run_steps = 3
+    if (cfg.decoding.strategy in ("maes", "alsd")) or "dev" in cfg.dataset_manifest:
+        warmup_steps = 0
+        run_steps = 1
+    model_measurements = []
+    decoder_measurements = []
+    for run_step in range(warmup_steps + run_steps):
+        with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu', dtype=amp_dtype, enabled=cfg.amp):
+            with torch.no_grad():
+                if cfg.calculate_rtfx:
+                    start_time = time.time()
 
-            override_cfg = asr_model.get_transcribe_config()
-            override_cfg.batch_size = cfg.batch_size
-            override_cfg.num_workers = cfg.num_workers
-            override_cfg.return_hypotheses = cfg.return_hypotheses
-            override_cfg.channel_selector = cfg.channel_selector
-            override_cfg.augmentor = augmentor
-            override_cfg.text_field = cfg.gt_text_attr_name
-            override_cfg.lang_field = cfg.gt_lang_attr_name
-            override_cfg.timestamps = cfg.timestamps
-            if hasattr(override_cfg, "prompt"):
-                override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
+                override_cfg = asr_model.get_transcribe_config()
+                override_cfg.batch_size = cfg.batch_size
+                override_cfg.num_workers = cfg.num_workers
+                override_cfg.return_hypotheses = cfg.return_hypotheses
+                override_cfg.channel_selector = cfg.channel_selector
+                override_cfg.augmentor = augmentor
+                override_cfg.text_field = cfg.gt_text_attr_name
+                override_cfg.lang_field = cfg.gt_lang_attr_name
+                override_cfg.timestamps = cfg.timestamps
+                if hasattr(override_cfg, "prompt"):
+                    override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
 
-            transcriptions = asr_model.transcribe(
-                audio=filepaths,
-                override_config=override_cfg,
-            )
-            if cfg.calculate_rtfx:
-                transcribe_time = time.time() - start_time
+                device = next(asr_model.parameters()).device
+                timer.reset()
+                asr_model.decoding.decoding.timer.reset()
+                timer.start(device=device)
+                
+                transcriptions = asr_model.transcribe(
+                    audio=filepaths,
+                    override_config=override_cfg,
+                )
+                if cfg.calculate_rtfx:
+                    transcribe_time = time.time() - start_time
+                
+                timer.stop(device=device)
+                logging.info(f"Model time for iteration {run_step}: {timer.total_sec():.3f}")
+                logging.info(f"Decoder-only time for iteration {run_step}: {asr_model.decoding.decoding.timer.total_sec():.3f}")
+                if run_step >= warmup_steps:
+                    model_measurements.append(timer.total_sec())
+                    decoder_measurements.append(asr_model.decoding.decoding.timer.total_sec())
+                    
+    model_measurements = np.asarray(model_measurements)
+    decoder_measurements = np.asarray(decoder_measurements)
+    logging.info(f"Model time avg: {model_measurements.mean():.3f}" +
+                 (f" (std: {model_measurements.std():.3f})" if run_steps > 1 else ""))
+    logging.info(f"Decoder-only time avg: {decoder_measurements.mean():.3f}" +
+                 (f" (std: {decoder_measurements.std():.3f})" if run_steps > 1 else ""))
+
 
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")

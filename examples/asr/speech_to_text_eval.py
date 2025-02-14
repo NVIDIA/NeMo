@@ -110,7 +110,7 @@ class EvaluationConfig(transcribe_speech.TranscriptionConfig):
         )
     )
     
-    normalize: bool = False
+    normalize: bool = True
 
 
 @hydra_runner(config_name="EvaluationConfig", schema=EvaluationConfig)

@@ -187,7 +187,7 @@ class BatchedBeamHyps:
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
         new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
-        torch.where(scores_to_keep, new_scores, self.INACTIVE_SCORE_TENSOR, out=self.scores)
+        torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
     
     def remove_duplicates(self, labels, total_logps):
         if self.beam_size <= 1:
@@ -320,7 +320,7 @@ class BatchedBeamHyps:
         transcript = self.transcript_wb[..., :self.current_lengths_wb.max()].tolist()
         transcript_wb_prev_ptr = self.transcript_wb_prev_ptr[..., :self.current_lengths_wb.max()].tolist()
         if score_norm:
-            end_indices = torch.argmax(self.scores / self.current_lengths_nb.to(self.scores.dtype), dim=-1).tolist()
+            end_indices = torch.argmax(self.scores / self.current_lengths_nb.to(self.scores.dtype).add_(1), dim=-1).tolist()
         else:
             end_indices = torch.argmax(self.scores, dim=-1).tolist()
         scores = self.scores.tolist()

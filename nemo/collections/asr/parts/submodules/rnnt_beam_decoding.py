@@ -54,7 +54,7 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMeth
 from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
 from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
 
-
+from nemo.utils.timers import SimpleTimer
 from nemo.collections.asr.parts.ngram_lm import FastNGramLM
 
 try:
@@ -293,6 +293,7 @@ class BeamRNNTInfer(Typing):
         self.beam_size = beam_size
         self.score_norm = score_norm
         self.max_candidates = beam_size
+        self.timer = SimpleTimer()
 
         if self.beam_size == 1:
             logging.info("Beam size of 1 was used, switching to sample level `greedy_search`")
@@ -421,6 +422,7 @@ class BeamRNNTInfer(Typing):
             return_hat_ilm_default = self.joint.return_hat_ilm
             self.joint.return_hat_ilm = self.hat_subtract_ilm
 
+        self.timer.start(device=encoder_output.device)
         with torch.inference_mode():
             # Apply optional preprocessing
             encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
@@ -465,6 +467,7 @@ class BeamRNNTInfer(Typing):
                         best_hypothesis = NBestHypotheses(nbest_hyps)  # type: NBestHypotheses
                     hypotheses.append(best_hypothesis)
 
+        self.timer.stop(device=encoder_output.device)
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
         if self.hat_subtract_ilm:
@@ -998,6 +1001,8 @@ class BeamRNNTInfer(Typing):
                     # Update the current batch states with the sub-batch states (in the correct indices)
                     # These indices are specified by sub_batch_ids, the ids of samples which were updated.
                     if isinstance(self.decoder, RNNTDecoder) or isinstance(self.decoder, StatelessTransducerDecoder):
+                        if max(sub_batch_ids) > len(beam_state)-1:
+                            beam_state = list(range(beam))
                         # LSTM decoder, state is [layer x batch x hidden]
                         index = 0
                         for sub_batch_id in sub_batch_ids:
@@ -1420,6 +1425,13 @@ class BeamRNNTInfer(Typing):
             )  # type: List[Hypothesis]
             kept_hyps = []
 
+            # print("Frame idx: ", t)
+            # print("After")
+            # for hyp1 in sorted(hyps, key = lambda x: x.score, reverse=True):
+            #     print("Sequence: ", hyp1.y_sequence)
+            #     print("Timesteps: ", hyp1.timestep)
+            #     print("Score: ", hyp1.score)
+            #     print()
             # Prepare output tensor
             beam_enc_out = enc_out_t
 
@@ -1609,14 +1621,14 @@ class BeamRNNTInfer(Typing):
                                 if int(label) == self.blank:
                                     h_i.alignments.append([])  # blank buffer for next timestep
 
-            #     print("-"*20)
-            #     print("After maes step No: ", n)
-            #     for hyp1 in sorted(hyps, key = lambda x: x.score, reverse=True):
-            #         print("Sequence: ", hyp1.y_sequence)
-            #         print("Timesteps: ", hyp1.timestep)
-            #         print("Score: ", hyp1.score)
-            #         print()
-            # print("-"*20)
+        # print("-"*20)
+        # print("Final")
+        # for hyp1 in sorted(kept_hyps, key = lambda x: x.score, reverse=True):
+        #     print("Sequence: ", hyp1.y_sequence)
+        #     print("Timesteps: ", hyp1.timestep)
+        #     print("Score: ", hyp1.score)
+        #     print()
+        # print("-"*20)
         # Remove trailing empty list of alignments
         if self.preserve_alignments:
             for h in kept_hyps:
@@ -1788,6 +1800,7 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
         self.max_symbols = malsd_max_symbols_per_step
         self.preserve_alignments = preserve_alignments
 
+        self.timer = SimpleTimer()
         if search_type == "malsd_batch":
             # Depending on availability of `blank_as_pad` support
             # switch between more efficient batch decoding technique
@@ -1859,7 +1872,9 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
             self.joint.eval()
 
             inseq = encoder_output  # [B, T, D]
+            self.timer.start(device=inseq.device)
             hyps = self._decoding_computer(x=inseq, out_len=logitlen)
+            self.timer.stop(device=inseq.device)
             # hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
             # for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             #     hyp.dec_state = state
