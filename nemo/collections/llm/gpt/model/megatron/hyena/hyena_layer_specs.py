@@ -15,27 +15,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from megatron.core.extensions.transformer_engine import (
     TEDotProductAttention,
     TELayerNormColumnParallelLinear,
+    TENorm,
     TERowParallelLinear,
 )
-from megatron.core.tensor_parallel.layers import(
-    ColumnParallelLinear,
-    RowParallelLinear,
-)
-from megatron.core.transformer.dot_product_attention import DotProductAttention    
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_block import HyenaStack, HyenaStackSubmodules
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer import HyenaLayer, HyenaLayerSubmodules
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import HyenaMixer, HyenaMixerSubmodules
-from nemo.collections.llm.gpt.model.megatron.hyena.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
+from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from megatron.core.extensions.transformer_engine import TENorm
+
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_block import HyenaStack, HyenaStackSubmodules
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer import HyenaLayer, HyenaLayerSubmodules
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import HyenaMixer, HyenaMixerSubmodules
 
 # Layer spec with TE modules
 hyena_stack_spec = ModuleSpec(

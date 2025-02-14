@@ -15,30 +15,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
+from contextlib import nullcontext
 from dataclasses import dataclass
-from functools import partial
 from typing import Union
 
 from torch import Tensor, nn
 
-from megatron.core import parallel_state
+from megatron.core import parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.extensions.transformer_engine import TENorm
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import Symbols as LayerSymbols
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import allocate_layers
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
-from megatron.core.tensor_parallel import get_cuda_rng_tracker
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import sharded_state_dict_default
 from megatron.core.utils import make_viewless_tensor
-from megatron.core import InferenceParams, parallel_state, tensor_parallel
-from contextlib import nullcontext
-from megatron.core.packed_seq_params import PackedSeqParams
+
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import Symbols as LayerSymbols
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import allocate_layers
+
 
 try:
     from megatron.core.extensions.transformer_engine import (
@@ -65,10 +62,7 @@ except ImportError:
         LayerNormImpl = WrappedTorchLayerNorm
 
 try:
-    from megatron.core.extensions.transformer_engine import (
-        TEDelayedScaling,
-        TENorm,
-    )
+    from megatron.core.extensions.transformer_engine import TEDelayedScaling, TENorm
 
     HAVE_TE = True
     LayerNormImpl = TENorm

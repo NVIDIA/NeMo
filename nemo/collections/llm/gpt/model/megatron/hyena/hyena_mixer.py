@@ -15,35 +15,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, replace
-from typing import List, Optional, Union
+from dataclasses import dataclass
+from typing import Union
+
 import torch
 import torch.nn as nn
+import transformer_engine
 from einops import rearrange
+from megatron.core import parallel_state
+from megatron.core.parallel_state import (
+    get_context_parallel_group,
+    get_context_parallel_world_size,
+    get_tensor_model_parallel_world_size,
+)
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.parallel_state import (
-    get_tensor_model_parallel_world_size, 
-    get_tensor_model_parallel_rank,
-    get_context_parallel_world_size,
-    get_context_parallel_rank,
-    get_context_parallel_group
-)
+from megatron.core.transformer.utils import sharded_state_dict_default
+
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
-    divide,
     ParallelCausalDepthwiseConv1d,
-    ParallelShortHyenaOperator,
     ParallelHyenaOperator,
+    ParallelShortHyenaOperator,
+    divide,
 )
-import transformer_engine
-from megatron.core.transformer.utils import (
-    sharded_state_dict_default,
-)
-from megatron.core import parallel_state
+
 try:
-    from transformer_engine.common.recipe import Format, DelayedScaling
+    from transformer_engine.common.recipe import DelayedScaling, Format
 except:
     print("WARNING: transformer_engine not installed. Using default recipe.")
 

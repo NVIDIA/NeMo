@@ -19,15 +19,16 @@ from dataclasses import dataclass
 from typing import Union
 
 import torch
-from torch import Tensor
-
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import make_viewless_tensor
+from torch import Tensor
+
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
-    
+
+
 @dataclass
 class HyenaLayerSubmodules:
     norm: Union[ModuleSpec, type] = IdentityOp

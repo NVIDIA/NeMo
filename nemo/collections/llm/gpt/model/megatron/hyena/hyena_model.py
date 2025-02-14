@@ -15,24 +15,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from copy import deepcopy
-from typing import Literal, Optional, Callable
+from typing import Literal, Optional
 
-from torch import Tensor
-from torch.nn.parameter import Parameter
-
-from megatron.core import parallel_state, InferenceParams, tensor_parallel
+import torch
+from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.common.language_module.language_module import LanguageModule
-from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayer
+from torch import Tensor
+from torch.nn.parameter import Parameter
+
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import get_init_method, reweighted_cross_entropy, make_upper_case
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
+    get_init_method,
+    make_upper_case,
+    reweighted_cross_entropy,
+)
 
 
 class HyenaModel(LanguageModule):

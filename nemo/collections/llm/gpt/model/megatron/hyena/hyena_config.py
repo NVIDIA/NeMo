@@ -17,6 +17,7 @@
 
 from dataclasses import dataclass
 
+
 @dataclass
 class HyenaConfig:
     """Configuration object for Hyena model and operators"""
