@@ -9,6 +9,7 @@ def write_manifest(fp, records):
             f.write(json.dumps(record) + "\n")
     print("Wrote {} records to: {}".format(len(records), fp))
 
+
 def main():
     """
     python scripts/t5tts/dpo/create_text_contextpairs.py \
@@ -23,7 +24,9 @@ def main():
     parser.add_argument("--challenging_texts", type=str, help="Text file containing challenging texts")
     parser.add_argument("--regular_texts_for_audiocontext", type=str, help="Text file containing regular texts")
     parser.add_argument("--regular_texts_for_textcontext", type=str, help="Text file containing regular texts")
-    parser.add_argument("--audio_contexts", type=str, help="Manifest containing audio contexts") # This manifest should contain 'context_audio_filepath', 'context_audio_duration' and (optionally) 'context_audio_codes_path'
+    parser.add_argument(
+        "--audio_contexts", type=str, help="Manifest containing audio contexts"
+    )  # This manifest should contain 'context_audio_filepath', 'context_audio_duration' and (optionally) 'context_audio_codes_path'
     parser.add_argument("--text_contexts", type=str, help="Text file containing text contexts")
     parser.add_argument("--n_audio_contexts_per_challenging_text", type=int, default=10)
     parser.add_argument("--n_audio_contexts_per_regular_text", type=int, default=1)
@@ -32,27 +35,29 @@ def main():
     parser.add_argument("--nsamples_perpair", type=int, default=6)
     parser.add_argument("--output_manifest", type=str)
     args = parser.parse_args()
-    
+
     with open(args.challenging_texts, 'r') as f:
         challenging_texts = f.readlines()
         challenging_texts = [text.strip() for text in challenging_texts if text.strip() != '']
-    
+
     with open(args.regular_texts_for_audiocontext, 'r') as f:
         regular_texts_for_audiocontext = f.readlines()
-        regular_texts_for_audiocontext = [text.strip() for text in regular_texts_for_audiocontext if text.strip() != '']
-    
+        regular_texts_for_audiocontext = [
+            text.strip() for text in regular_texts_for_audiocontext if text.strip() != ''
+        ]
+
     with open(args.regular_texts_for_textcontext, 'r') as f:
         regular_texts_for_textcontext = f.readlines()
         regular_texts_for_textcontext = [text.strip() for text in regular_texts_for_textcontext if text.strip() != '']
-    
+
     with open(args.audio_contexts, 'r') as f:
         audio_contexts = f.readlines()
         audio_contexts = [json.loads(context.strip()) for context in audio_contexts if context.strip() != '']
-    
+
     with open(args.text_contexts, 'r') as f:
         text_contexts = f.readlines()
         text_contexts = [text for text in text_contexts if text.strip() != '']
-    
+
     all_records = []
     dummy_audio_filepath = audio_contexts[0]['context_audio_filepath']
     dummy_target_audio_codes_path = audio_contexts[0].get('context_audio_codes_path', None)
@@ -61,55 +66,63 @@ def main():
             audio_context = random.choice(audio_contexts)
             record = create_audio_context_record(challenging_text, audio_context, 'challenging')
             all_records.append(record)
-        
+
         for _ in range(args.n_text_contexts_per_challenging_text):
             text_context = random.choice(text_contexts)
-            record = create_text_context_record(challenging_text, text_context, dummy_audio_filepath, 'challenging', dummy_target_audio_codes_path)
+            record = create_text_context_record(
+                challenging_text, text_context, dummy_audio_filepath, 'challenging', dummy_target_audio_codes_path
+            )
             all_records.append(record)
-    
+
     for regular_text in regular_texts_for_audiocontext:
         for _ in range(args.n_audio_contexts_per_regular_text):
             audio_context = random.choice(audio_contexts)
             record = create_audio_context_record(regular_text, audio_context, 'regular')
             all_records.append(record)
-    
+
     for regular_text in regular_texts_for_textcontext:
         for _ in range(args.n_text_contexts_per_regular_text):
             text_context = random.choice(text_contexts)
-            record = create_text_context_record(regular_text, text_context, dummy_audio_filepath, 'regular', dummy_target_audio_codes_path)
+            record = create_text_context_record(
+                regular_text, text_context, dummy_audio_filepath, 'regular', dummy_target_audio_codes_path
+            )
             all_records.append(record)
-    
+
     random.shuffle(all_records)
     repeated_records = []
     for record in all_records:
         for _ in range(args.nsamples_perpair):
             repeated_records.append(record)
-    
+
     write_manifest(args.output_manifest, repeated_records)
-    write_manifest(args.output_manifest.replace(".json", "_tinysubset.json"), repeated_records[:100*args.nsamples_perpair])
-            
+    write_manifest(
+        args.output_manifest.replace(".json", "_tinysubset.json"), repeated_records[: 100 * args.nsamples_perpair]
+    )
+
+
 def create_audio_context_record(text, audio_context, record_type):
     record = {
-        'text' : text,
-        'duration' : 6.0, # Does not matter, avoids filtering out in DPO,
+        'text': text,
+        'duration': 6.0,  # Does not matter, avoids filtering out in DPO,
         'audio_filepath': audio_context['context_audio_filepath'],
         'context_audio_filepath': audio_context['context_audio_filepath'],
-        'context_audio_duration' : audio_context['context_audio_duration'],
-        'record_type' : record_type # challenging or regular
+        'context_audio_duration': audio_context['context_audio_duration'],
+        'record_type': record_type,  # challenging or regular
     }
     if 'context_audio_codes_path' in audio_context:
         record['context_audio_codes_path'] = audio_context['context_audio_codes_path']
         record['target_audio_codes_path'] = audio_context['context_audio_codes_path']
-    
+
     return record
+
 
 def create_text_context_record(text, text_context, dummy_audio_filepath, record_type, target_audio_codes_path=None):
     record = {
-        'text' : text,
-        'duration' : 6.0, # Does not matter, avoids filtering out in DPO,
+        'text': text,
+        'duration': 6.0,  # Does not matter, avoids filtering out in DPO,
         'audio_filepath': dummy_audio_filepath,
-        'context_text' : text_context,
-        'record_type' : record_type # challenging or regular
+        'context_text': text_context,
+        'record_type': record_type,  # challenging or regular
     }
     if target_audio_codes_path is not None:
         record['target_audio_codes_path'] = target_audio_codes_path

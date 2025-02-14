@@ -15,16 +15,18 @@
 import pytorch_lightning as pl
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.tts.models import T5TTS_Model, T5TTS_ModelInference, T5TTS_ModelDPO
+from nemo.collections.tts.models import T5TTS_Model, T5TTS_ModelDPO, T5TTS_ModelInference
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
 
 @hydra_runner(config_path="conf/t5tts", config_name="t5tts")
 def main(cfg):
     logging.info('\nConfig Params:\n%s', OmegaConf.to_yaml(cfg, resolve=True))
     if not cfg.model.get('use_lthose', False):
         import torch.multiprocessing as mp
+
         mp.set_start_method("spawn", force=True)
 
     trainer = pl.Trainer(**cfg.trainer)
@@ -43,7 +45,7 @@ def main(cfg):
         raise NotImplementedError(f"Only train, dpo_train and test modes are supported. Got {cfg.mode}")
 
     model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
-    
+
     if cfg.get('mode', 'train') in ['train', 'dpo_train']:
         trainer.fit(model)
     elif cfg.get('mode', 'train') == 'test':

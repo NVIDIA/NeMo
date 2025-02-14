@@ -19,6 +19,8 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import List, Optional, Union
 
+from transformers import PreTrainedTokenizerBase
+
 from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
     get_grapheme_character_set,
     get_ipa_punctuation_list,
@@ -36,7 +38,7 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from transformers import PreTrainedTokenizerBase
+
 
 class BaseTokenizer(ABC):
     PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
@@ -1075,6 +1077,7 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
 
         return [self._token2id[p] for p in ps]
 
+
 class AggregatedTTSTokenizer:
     def __init__(self, tokenizers: List[Union[BaseTokenizer, PreTrainedTokenizerBase]], tokenizer_names: List[str]):
         """A simple aggregated tokenizer. Aggregates multiple tokenizers into one by combining (simply concatenating)
@@ -1105,15 +1108,13 @@ class AggregatedTTSTokenizer:
         self.tokens = tokens
         self.tokenizer_names = tokenizer_names
         self.toknizer_offsets = toknizer_offsets
-        self.pad = self.tokenizers[tokenizer_names[0]].pad # Use the first tokenizer's pad token
+        self.pad = self.tokenizers[tokenizer_names[0]].pad  # Use the first tokenizer's pad token
 
     def encode(self, text: str, tokenizer_name: str) -> List[int]:
         tokenizer = self.tokenizers[tokenizer_name]
         tokens = tokenizer.encode(text)
         return [self.toknizer_offsets[tokenizer_name] + token for token in tokens]
-    
+
     def decode(self, tokens: List[int], tokenizer_name: str) -> str:
         tokenizer = self.tokenizers[tokenizer_name]
         return tokenizer.decode([token - self.toknizer_offsets[tokenizer_name] for token in tokens])
-
-        

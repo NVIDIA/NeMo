@@ -14,6 +14,7 @@
 
 ###############################################################################
 
+import math
 from typing import Optional, Tuple
 
 import numpy as np
@@ -29,8 +30,6 @@ from nemo.collections.tts.parts.utils.splines import (
     unbounded_piecewise_quadratic_transform,
 )
 
-import math
-import torch
 
 def _apply_sinc_resample_kernel(
     waveform: Tensor,
@@ -60,6 +59,7 @@ def _apply_sinc_resample_kernel(
     # unpack batch
     resampled = resampled.view(shape[:-1] + resampled.shape[-1:])
     return resampled
+
 
 def _get_sinc_resample_kernel(
     orig_freq: int,
