@@ -77,7 +77,7 @@ def get_adapter_attributes_from_linear(m: nn.Module):
         input_is_parallel = True
         in_features = m.input_size
         out_features = m.output_size
-    elif isinstance(m, te.Linear):
+    elif HAVE_TE and isinstance(m, te.Linear):
         input_is_parallel = False
         in_features = m.in_features
         out_features = m.out_features
