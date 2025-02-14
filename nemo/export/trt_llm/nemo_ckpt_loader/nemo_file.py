@@ -280,6 +280,7 @@ def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=Tru
 
 def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
     """Updates tokenizer paths in the tokenizer config."""
+
     def _update_config_entry(key, file_pattern):
         old_path = tokenizer_config.get(key, None)
         if old_path is None:
