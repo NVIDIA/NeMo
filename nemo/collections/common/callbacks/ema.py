@@ -121,8 +121,6 @@ class EMA(Callback):
     ) -> None:
         checkpoint_callback = trainer.checkpoint_callback
 
-        # use the connector as NeMo calls the connector directly in the exp_manager when restoring.
-        connector = trainer._checkpoint_connector
         # Replace connector._ckpt_path with below to avoid calling into lightning's protected API
         ckpt_path = trainer.ckpt_path
 

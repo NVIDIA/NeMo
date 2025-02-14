@@ -15,6 +15,7 @@
 import inspect
 from abc import ABC
 from dataclasses import dataclass, is_dataclass
+from __future__ import annotations
 from typing import Iterable, List, Optional, Set, Tuple, Union
 
 import torch
@@ -402,7 +403,8 @@ class AdapterModuleMixin(ABC):
     def set_accepted_adapter_types(self, adapter_types: List[Union[type, str]]) -> None:
         """
         The module with this mixin can define a list of adapter names that it will accept.
-        This method should be called in the modules init method and set the adapter names the module will expect to be added.
+        This method should be called in the modules init method and set the adapter names
+        the module will expect to be added.
 
         Args:
             adapter_types: A list of str paths that correspond to classes. The class paths will be instantiated to
