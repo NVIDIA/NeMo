@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import os
 import shutil
 from pathlib import Path, PosixPath, PurePath, WindowsPath
@@ -21,6 +20,7 @@ from typing import Generic, Optional, Tuple, TypeVar
 import lightning.pytorch as pl
 from filelock import FileLock, Timeout
 from lightning.pytorch.trainer.states import TrainerFn
+from nemo.utils import logging
 
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
@@ -71,7 +71,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
     def init(self) -> TargetT:
         raise NotImplementedError()
 
-    def apply(self, output_path: Path) -> Path:
+    def apply(self, output_path: Path, **kwargs) -> Path:
         raise NotImplementedError()
 
     def __new__(cls, *args, **kwargs):
@@ -81,7 +81,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
 
         return super().__new__(cls, *args, **kwargs)
 
-    def __call__(self, output_path: Optional[Path] = None, overwrite: bool = False) -> Path:
+    def __call__(self, output_path: Optional[Path] = None, overwrite: bool = False, **kwargs) -> Path:
         _output_path = output_path or self.local_path()
         lock_path = _output_path.with_suffix(_output_path.suffix + '.lock')
         lock = FileLock(lock_path)
@@ -96,7 +96,7 @@ class Connector(BasePath, Generic[SourceT, TargetT]):
                     shutil.rmtree(_output_path)
 
                 if not _output_path.exists():
-                    to_return = self.apply(_output_path)
+                    to_return = self.apply(_output_path, **kwargs)
                     _output_path = to_return or _output_path
 
         except Timeout:

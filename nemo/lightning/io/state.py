@@ -38,9 +38,28 @@ class TransformCTX:
     target_state: dict
 
 
+class _ModelState:
+    """
+    Helper class for used for to modify state dict of a source model during model conversion.
+    """
+
+    def __init__(self, state_dict):
+        self._state_dict = state_dict
+
+    def state_dict(self):
+        # pylint: disable=C0115,C0116
+        return self._state_dict
+
+    def to(self, dtype):
+        for k, v in self._state_dict.items():
+            if v.dtype != dtype:
+                logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
+            self._state_dict[k] = v.to(dtype)
+
+
 @torch.no_grad
 def apply_transforms(
-    source: nn.Module,
+    source: Union[nn.Module, _ModelState],
     target: TargetModuleT,
     mapping: Dict[str, str],
     transforms: Optional[List[Callable[[TransformCTX], TransformCTX]]] = [],
@@ -549,22 +568,3 @@ class TransformFns:
         Example: export Performant LoRA linear_qkv.adapter.linear_in to HF {q|k|v}_proj.lora_A
         """
         return param, param, param
-
-
-class _ModelState:
-    """
-    Helper class for used for to modify state dict of a source model during model conversion.
-    """
-
-    def __init__(self, state_dict):
-        self._state_dict = state_dict
-
-    def state_dict(self):
-        # pylint: disable=C0115,C0116
-        return self._state_dict
-
-    def to(self, dtype):
-        for k, v in self._state_dict.items():
-            if v.dtype != dtype:
-                logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
-            self._state_dict[k] = v.to(dtype)
