@@ -75,6 +75,29 @@ def greedy_knapsack(item_sizes: List[int], samples: List, max_capacity: int) -> 
 
     return knapsacks
 
+def predict_seq_len_llava_next(instance_tokens: torch.Tensor, num_image_embeddings_per_tile: int,
+                               media_token_index: int, num_media_tiles: int | List[int]) -> int:
+    """
+    Predict the effective sequence length, accounting for media embeddings.
+
+    Args:
+        instance_tokens (torch.Tensor): Token tensor for a single instance.
+        num_image_embeddings_per_tile (int): Number of image embeddings per tile.
+        media_token_index (int): Token ID representing media.
+        num_media_tiles (int | List[int]): Number of tiles per image.
+
+    Returns:
+        int: Effective sequence length.
+    """
+
+    if isinstance(num_media_tiles, list):
+        num_media_tiles = sum(num_media_tiles)
+
+    num_images = torch.sum(instance_tokens == media_token_index).item()
+    num_images_per_tile = num_images * num_media_tiles
+    seqlen = len(instance_tokens) - num_images + (num_image_embeddings_per_tile) * num_images_per_tile
+    return seqlen
+
 
 def predict_seq_len(instance_tokens: torch.Tensor, num_image_embeddings_per_tile: int, media_token_index: int) -> int:
     """

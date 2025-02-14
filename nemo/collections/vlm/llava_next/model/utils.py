@@ -38,6 +38,12 @@ def merge_input_ids_with_image_features(
     image_token_index=-200,
     ignore_index=-100,
 ):
+    # Sample inputs
+    # image_features = torch.randn((600, 576)) # 200, 400
+    # feature_lens = torch.tensor([200, 400], dtype=torch.long)
+    # inputs_embeds = torch.randn((1, 5, 576))
+    # input_ids = torch.tensor([[45,56,-200,0, 23, -200]], dtype=torch.long)
+    # attention_mask = torch.tensor([[1, 1, 1,0, 1, 1]], dtype=torch.long)
     """
     Merge input_ids with with image features into final embeddings
     Args:

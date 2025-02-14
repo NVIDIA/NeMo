@@ -35,6 +35,8 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
 
+import pdb
+# pdb.set_trace = lambda: 1
 def main(args):
     # pylint: disable=C0115,C0116
 
@@ -71,9 +73,10 @@ def main(args):
             path=data_path,
             tokenizer=tokenizer,
             image_processor=processor.image_processor,
-            num_workers=32,
+            num_workers=0,
             micro_batch_size=mbs,
             global_batch_size=gbs,
+            seq_length=decoder_seq_length,
             multimodal_sample_config=multimodal_sample_config,
             task_encoder=task_encoder,
         )
@@ -92,7 +95,7 @@ def main(args):
 
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
-        seq_length=decoder_seq_length,
+        seq_length=decoder_seq_length, num_layers=1
     )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"

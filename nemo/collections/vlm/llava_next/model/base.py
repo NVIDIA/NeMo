@@ -215,8 +215,8 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
         image_sizes: torch.Tensor,
-        loss_mask: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
+        loss_mask: Optional[torch.Tensor],
+        attention_mask: Optional[torch.Tensor],
         media: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         inference_params: Optional[InferenceParams] = None,
@@ -338,18 +338,41 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             image_newline=self.image_newline,
         )
 
-        combined_embeddings, attention_mask, position_ids, final_labels, final_input_ids, final_loss_mask = (
-            merge_input_ids_with_image_features(
-                media_embeddings,
-                feature_lens,
-                language_embeddings,
-                input_ids,
-                attention_mask,
-                position_ids,
-                labels=labels,
-                image_token_index=media_token_index,
+        if False:
+            combined_embeddings, attention_mask, position_ids, final_labels, final_input_ids, final_loss_mask = (
+                merge_input_ids_with_image_features(
+                    media_embeddings,
+                    feature_lens,
+                    language_embeddings,
+                    input_ids,
+                    attention_mask,
+                    position_ids,
+                    labels=labels,
+                    image_token_index=media_token_index,
+                )
             )
-        )
+
+
+        n_image_tokens = (input_ids == media_token_index).sum().item()
+        n_image_features = media_embeddings.shape[0]
+        if n_image_tokens != n_image_features:
+            raise ValueError(
+                f"Image features and image tokens do not match: tokens: {n_image_tokens}, features {n_image_features}"
+            )
+        special_image_mask = (input_ids == media_token_index).unsqueeze(-1)
+        special_image_mask = special_image_mask.expand_as(language_embeddings).to(language_embeddings.device)
+        media_embeddings = media_embeddings.to(language_embeddings.device, language_embeddings.dtype)
+        combined_embeddings = language_embeddings.masked_scatter(special_image_mask, media_embeddings)
+        final_labels = labels
+        ignore_index = -100
+
+        # We replace all 0 in final lables with -100 to maintain similarity with merge_input_ids_with_image_features
+        final_labels.masked_fill_(final_labels == 0, -100)
+        final_loss_mask = None
+        if final_labels is not None:
+            final_loss_mask = (final_labels != ignore_index).long()
+
+
         combined_embeddings = combined_embeddings.permute(1, 0, 2)
         combined_embeddings = combined_embeddings.contiguous()
         output = self.language_model(
