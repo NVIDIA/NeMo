@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import inspect
 from abc import ABC
 from dataclasses import dataclass, is_dataclass
-from __future__ import annotations
 from typing import Iterable, List, Optional, Set, Tuple, Union
 
 import torch
