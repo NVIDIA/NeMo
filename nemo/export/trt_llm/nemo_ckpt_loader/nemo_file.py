@@ -279,6 +279,7 @@ def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=Tru
 
 
 def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
+    """Updates tokenizer paths in the tokenizer config."""
     def _update_config_entry(key, file_pattern):
         old_path = tokenizer_config.get(key, None)
         if old_path is None:
@@ -300,6 +301,7 @@ def update_tokenizer_paths(tokenizer_config: Dict, unpacked_checkpoints_dir):
 
 
 def copy_tokenizer_files(config, out_dir):
+    """Copies tokenizer files to the output directory."""
     basenames = {
         "model": "tokenizer",
         "vocab_file": "vocab",
@@ -671,6 +673,10 @@ def gpu_map_location(storage, loc):
 
 
 class UnpackedNemoCheckpointDir:
+    """
+    Caches model config and tokenizer file path when loading from a packed NeMo checkpoint directory.
+    """
+
     def __init__(
         self,
         checkpoints_dir: Union[Path, TarPath],
@@ -683,6 +689,7 @@ class UnpackedNemoCheckpointDir:
     @property
     @functools.lru_cache
     def model_config(self):
+        "Returns model config dictionary"
         model_config = None
 
         model_config_filename = "model_config.yaml"
@@ -723,6 +730,7 @@ class UnpackedNemoCheckpointDir:
 
     @property
     def checkpoints_dir(self):
+        "Returns path to checkpoints directory"
         return self._checkpoints_dir
 
     def get_checkpoints_paths(self, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
@@ -760,6 +768,7 @@ class UnpackedNemoCheckpointDir:
     @property
     @functools.lru_cache
     def checkpoint_name(self):
+        "Returns name of checkpoint file"
         patterns = [
             "model_weights.ckpt",  # older megatron checkpoints
             "*last.ckpt",  # newer format of checkpoints
@@ -773,6 +782,7 @@ class UnpackedNemoCheckpointDir:
 
     @functools.lru_cache
     def get_tokenizer_file_path(self, tokenizer_key, file_key, default_filename_pattern):
+        "Returns path to tokenizer file"
         model_config = self.model_config
         file_property = None
         if tokenizer_key in model_config and file_key in model_config[tokenizer_key]:
