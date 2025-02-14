@@ -40,7 +40,7 @@ except (ImportError, ModuleNotFoundError):
 
 def load_state_dict(self, state_dict):
     """This is a patch to use FusedAdam.load_state_dict from TE 2.0
-    
+
     There is an issue when state dict value is None in TE 1.14.
     """
     super().load_state_dict(state_dict)
@@ -60,11 +60,7 @@ def load_state_dict(self, state_dict):
             for name in v:
                 if v[name] is None:
                     continue
-                if (
-                    self.store_param_remainders
-                    and name == "master_param"
-                    and param.dtype == torch.bfloat16
-                ):
+                if self.store_param_remainders and name == "master_param" and param.dtype == torch.bfloat16:
                     self.set_scaled_state(param, name, v[name])
                     assert v[name].dtype == torch.int16
                 else:
