@@ -15,16 +15,19 @@
 from dataclasses import dataclass, field
 from functools import cached_property, partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, List, Optional, Union, Tuple, Dict, Any
 
 import torch
 import torch.nn.functional as F
+import yaml
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import HAVE_TE, GPTConfig, GPTModel, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import HAVE_TE, GPTConfig, GPTModel, torch_dtype_from_mcore_config, \
+    torch_dtype_from_dict_config
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.lightning.pytorch.optim import OptimizerModule
@@ -378,28 +381,65 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
                 torch_dtype=dtype,
             )
 
-    def apply(self, output_path: Path) -> Path:
+    def ckpt_load(self, path: Path) -> Tuple[Dict, Dict]:
+        """
+        This function loads the state dict directly from a distributed checkpoint, and modify the state dict
+        so that it is consistent with the key names you would get from loading the checkpoint into a model.
+        This is a more memory-efficient method to obtain a state dict without initializing the nemo model.
+
+        Args:
+            path (Path): The path from which the model will be loaded.
+
+        Returns
+        -------
+            Tuple[Dict, Dict]: The loaded state dict and the yaml config dict.
+        """
+        model_yaml = path / "context" / "model.yaml"
+        if model_yaml.exists():
+            with open(model_yaml, 'r') as stream:
+                config = yaml.safe_load(stream)
+
+        dist_ckpt_folder = path / "weights"
+        state_dict = {}
+        for k, v in load_distributed_model_weights(dist_ckpt_folder, True).items():
+            if '_extra_state' in k:
+                continue
+            new_k = k.replace("module.", "")
+            if '.experts.experts.' in k:
+                # split experts into multiple tensors
+                for i in range(v.size(0)):
+                    state_dict[new_k.replace(".experts.experts.", ".experts.")+str(i)] = v[i]
+            else:
+                state_dict[new_k] = v
+        return state_dict, config['config']
+
+    def apply(self, output_path: Path, target_model_name=None) -> Path:
         logging.info("Loading DeepSeek NeMo checkpoint. This may take a while...")
-        source, _ = self.nemo_load(str(self))
+        source, source_config = self.ckpt_load(self)
         logging.info("DeepSeek NeMo checkpoint loaded.")
+        if target_model_name is None:
+            # Before DeepSeek is fully supported by HF, it is necessary to pass in a local HF checkpoint that
+            # is used to initialize the HF model. The following
+            logging.warning("Before DeepSeek is officially supported in HF, you should pass in a local HF "
+                            "checkpoint using llm.export_ckpt(..., target_model_name=<local hf path>)")
+            if source_config['moe_router_enable_expert_bias']:
+                target_model_name = "deepseek-ai/DeepSeek-V3"
+            elif source_config['q_lora_rank'] is not None:
+                target_model_name = "deepseek-ai/DeepSeek-V2"
+            else:
+                target_model_name = "deepseek-ai/DeepSeek-V2-Lite"
 
-        if source.config.moe_router_enable_expert_bias:
-            model_name = "deepseek-ai/DeepSeek-V3"
-        elif source.config.q_lora_rank is not None:
-            model_name = "deepseek-ai/DeepSeek-V2"
-        else:
-            model_name = "deepseek-ai/DeepSeek-V2-Lite"
-
-        target = self.init(torch_dtype_from_mcore_config(source.config), model_name=model_name)
-        target = self.convert_state(source, target)
+        target = self.init(torch_dtype_from_dict_config(source_config), model_name=target_model_name)
+        target = self.convert_state(source, target, source_config)
 
         target = target.cpu()
-        target.save_pretrained(output_path)
+        logging.info(f"Converted DeepSeek model to HF, saving model to {output_path}...")
+        target.save_pretrained(output_path, safe_serialization=False)
         self.tokenizer.save_pretrained(output_path)
 
         return output_path
 
-    def convert_state(self, source, target):
+    def convert_state(self, source, target, source_config):
         mapping = {
             ## Embed
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
@@ -427,22 +467,20 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             "output_layer.weight": "lm_head.weight",
         }
         # For lite model
-        if source.config.q_lora_rank is None:
+        if source_config['q_lora_rank'] is None:
             del mapping["decoder.layers.*.self_attention.linear_q_down_proj.weight"]
             del mapping["decoder.layers.*.self_attention.linear_q_up_proj.weight"]
             mapping["decoder.layers.*.self_attention.linear_q_proj.weight"] = "model.layers.*.self_attn.q_proj.weight"
         # Account for Mcore local spec
-        if source.config.q_lora_rank is not None and not isinstance(
-            source.module.decoder.layers[0].self_attention.q_layernorm, IdentityOp
-        ):
+        if source_config['q_lora_rank'] is not None and 'decoder.layers.0.self_attention.q_layernorm.weight' in source:
             mapping["decoder.layers.*.self_attention.q_layernorm.weight"] = (
                 mapping.pop("decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight"))
 
-        if not isinstance(source.module.decoder.layers[0].self_attention.kv_layernorm, IdentityOp):
+        if 'decoder.layers.0.self_attention.kv_layernorm.weight' in source:
             mapping["decoder.layers.*.self_attention.kv_layernorm.weight"] = (
                 mapping.pop("decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight"))
 
-        if hasattr(source.config, "moe_router_enable_expert_bias") and source.config.moe_router_enable_expert_bias:
+        if source_config.get('moe_router_enable_expert_bias', False):
             mapping.update(
                 {
                     "decoder.layers.*.mlp.router.expert_bias": "model.layers.*.mlp.gate.e_score_correction_bias",
@@ -472,7 +510,7 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
                 fn=TransformFns.split_fc1,
             ),
         ]
-        source = self._modify_source_state(source)
+        source = self._modify_source_state(source, source_config)
 
         return io.apply_transforms(
             source,
@@ -481,7 +519,7 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             transforms=transforms,
         )
 
-    def _modify_source_state(self, source: nn.Module) -> _ModelState:
+    def _modify_source_state(self, source: Dict[str, Any], source_config: Dict[str, Any]) -> _ModelState:
         """
         In deepseek, HF weight `model.layers.*.post_attention_layernorm.weight` is mapped to mcore weight
         a) `decoder.layers.*.mlp.linear_fc1.layer_norm_weight`, if the layer is dense
@@ -489,17 +527,16 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
 
         We rename decoder.layers.*.mlp.linear_fc1.layer_norm_weight in the first case to unify key names
         """
-        state_dict = source.module.state_dict()
-        for layer_i in range(source.config.num_layers):
-            if f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict:
-                weight = state_dict.pop(f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
-                state_dict[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
-        modified_source = _ModelState(state_dict)
+        for layer_i in range(source_config['num_layers']):
+            if f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in source:
+                weight = source.pop(f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
+                source[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
+        modified_source = _ModelState(source)
         return modified_source
 
     @property
-    def tokenizer(self) -> "TokenizerSpec":
-        return io.load_context(str(self), subpath="model").tokenizer
+    def tokenizer(self) -> 'AutoTokenizer':
+        return io.load_context(self, subpath="model").tokenizer
 
 
 
