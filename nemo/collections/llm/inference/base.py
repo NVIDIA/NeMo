@@ -108,7 +108,9 @@ class MCoreTokenizerWrappper:
 
 
 # TODO: Move to lightning Fabric API.
-def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.LightningModule, tokenizer: Any = None):
+def _setup_trainer_and_restore_model(
+    path: Path, trainer: nl.Trainer, model: pl.LightningModule, tokenizer: Any = None
+):
     """
     Sets up the trainer and restores the model from the given checkpoint path.
 
