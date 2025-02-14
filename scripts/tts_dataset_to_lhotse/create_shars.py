@@ -1,23 +1,24 @@
-from pathlib import Path
+import argparse
+import csv
 import json
 import os
-import argparse
 import shutil
-import csv
-import soundfile as sf
+from pathlib import Path
+
 ### from nemo.collections.tts.models import AudioCodecModel
 import librosa
-import torch
 import numpy as np
-from tqdm import tqdm
-from matplotlib import pyplot as plt
-
-from lhotse import CutSet, SupervisionSegment, Recording, AudioSource
+import soundfile as sf
+import torch
+from lhotse import AudioSource, CutSet, Recording, SupervisionSegment
+from lhotse.array import Array, TemporalArray
+from lhotse.audio import RecordingSet
 from lhotse.cut.base import Cut
 from lhotse.features.base import Features, FeatureSet
-from lhotse.array import TemporalArray, Array
 from lhotse.shar.writers import AudioTarWriter
-from lhotse.audio import RecordingSet
+from matplotlib import pyplot as plt
+from tqdm import tqdm
+
 
 def json_reader(filename):
     with open(filename) as f:
@@ -25,9 +26,7 @@ def json_reader(filename):
             yield json.loads(line)
 
 
-def create_shar_from_manifest(
-    manifest, audio_root_path, out_shar_dir, shard_size=1000
-):
+def create_shar_from_manifest(manifest, audio_root_path, out_shar_dir, shard_size=1000):
     in_manifest = list(json_reader(manifest))
     print(f"...loaded {manifest} # of datapoints {len(in_manifest)}")
     num_shard = int(len(in_manifest) / shard_size)
@@ -73,7 +72,6 @@ def create_shar_from_manifest(
         # Language target
         target_language.append(language)
 
-
     print("Done extracting data from manifest")
     print(len(user_recordings))
     cuts = CutSet.from_manifests(recordings=RecordingSet.from_recordings(user_recordings))
@@ -109,21 +107,18 @@ def create_shar_from_manifest(
     out_shar_dir.mkdir(parents=True, exist_ok=True)
     shard_size = shard_size
     assert len(user_recordings) % shard_size != 0, "Lhotse breaks if feat_list is a multiple of shard_size"
-    exported = cuts.to_shar(
-        out_shar_dir, fields={"recording": "wav"}, num_jobs=4, shard_size=shard_size
-    )
+    exported = cuts.to_shar(out_shar_dir, fields={"recording": "wav"}, num_jobs=4, shard_size=shard_size)
     print(f"...share created")
 
     print(f"...Exporting target_audio to tar files")
     for i, path in tqdm(enumerate(exported["cuts"])):
         path = path[0]
         out_path = path.replace("cuts", "target_audio").replace(".jsonl.gz", ".tar")
-        with AudioTarWriter(
-            out_path, shard_size=None, format="flac"
-        ) as writer:
+        with AudioTarWriter(out_path, shard_size=None, format="flac") as writer:
             for cut in CutSet.from_file(path):
                 writer.write(cut.id, cut.target_audio.load_audio(), manifest=cut.target_audio, sampling_rate=22050)
     print(f"...Exported target_audio to tar files")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -161,7 +156,6 @@ def main():
         shard_size=args.shard_size,
     )
 
+
 if __name__ == "__main__":
     main()
-
-

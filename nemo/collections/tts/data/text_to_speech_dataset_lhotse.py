@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import copy
+import random
 from pathlib import Path
 from typing import List, Optional
 
 import librosa
 import torch
-import random
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 from megatron.core import parallel_state
 from omegaconf.omegaconf import OmegaConf
@@ -40,9 +40,9 @@ def collate_vectors(items, max_length: int, padding_value):
         vectors = vectors.long()
     return vectors
 
+
 def normalize_volume_torch(audio, volume_level: float = 0.95):
-    """Apply peak normalization to the input audio.
-    """
+    """Apply peak normalization to the input audio."""
     if not (0.0 <= volume_level <= 1.0):
         raise ValueError(f"Volume must be in range [0.0, 1.0], received {volume_level}")
 
@@ -54,6 +54,7 @@ def normalize_volume_torch(audio, volume_level: float = 0.95):
         return audio
 
     return volume_level * (audio / torch.max(torch.abs(audio)))
+
 
 def build_lhotse_dataloader(dataset, data_cfg, is_eval=False):
     """Buld dataloader given an input dataset."""
@@ -88,6 +89,7 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
             will be ignored.
         volume_norm: Whether to apply volume normalization to loaded audio.
     """
+
     def __init__(
         self,
         sample_rate: int,
@@ -108,7 +110,7 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
         use_text_conditioning_tokenizer: bool = False,
         pad_context_text_to_max_duration: bool = False,
         context_duration_min: float = 3.0,
-        context_duration_max: float = 10.0
+        context_duration_max: float = 10.0,
     ):
         super().__init__()
         self.sample_rate = sample_rate
@@ -162,13 +164,13 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
             answer_audio = torch.nn.functional.pad(
                 answer_audio,
                 (0, self.codec_model_downsample_factor - (answer_audio.shape[0] % self.codec_model_downsample_factor)),
-                value=0
+                value=0,
             ).unsqueeze(0)
 
             answer_audio_len = answer_audio.shape[1]
             target_audios.append(answer_audio)
             target_audios_lens.append(answer_audio_len)
-            num_frames = int(answer_audio_len / self.codec_model_downsample_factor) + 1 # +1 for EOS
+            num_frames = int(answer_audio_len / self.codec_model_downsample_factor) + 1  # +1 for EOS
             num_codec_frames.append(num_frames)
 
             # load context audio
@@ -178,8 +180,11 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
 
             context_audio = torch.nn.functional.pad(
                 context_audio,
-                (0, self.codec_model_downsample_factor - (context_audio.shape[0] % self.codec_model_downsample_factor)),
-                value=0
+                (
+                    0,
+                    self.codec_model_downsample_factor - (context_audio.shape[0] % self.codec_model_downsample_factor),
+                ),
+                value=0,
             ).unsqueeze(0)
             context_audios_len = context_audio.shape[1]
             context_audios.append(context_audio)
@@ -189,7 +194,9 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
             if cut.supervisions[0].speaker == "user":
                 if self.use_text_conditioning_tokenizer:
                     context_text = cut.supervisions[0].text
-                    context_tokenizer = self.text_conditioning_tokenizer if self.text_conditioning_tokenizer else self.text_tokenizer
+                    context_tokenizer = (
+                        self.text_conditioning_tokenizer if self.text_conditioning_tokenizer else self.text_tokenizer
+                    )
                     # check if the text is not empty
                     if context_text.replace(" ", ""):
                         context_text = self.text_conditioning_tokenizer(context_text)['input_ids']
@@ -197,9 +204,11 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
                     else:
                         context_text = self.text_conditioning_tokenizer("[NO TEXT CONTEXT]")['input_ids']
                         has_text_context_list.append(False)
-                    
+
                     if self.pad_context_text_to_max_duration:
-                        _required_len = int(self.context_duration_max * self.sample_rate / self.codec_model_downsample_factor) + 2 # +2 for BOS and EOS
+                        _required_len = (
+                            int(self.context_duration_max * self.sample_rate / self.codec_model_downsample_factor) + 2
+                        )  # +2 for BOS and EOS
                         if len(context_text) < _required_len:
                             _pad_id = self.text_conditioning_tokenizer.pad_token_id
                             context_text += [_pad_id] * (_required_len - len(context_text))
@@ -217,7 +226,7 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
                 target_text = cut.supervisions[1].text
                 # check if the text is not empty
                 if target_text.replace(" ", ""):
-                    tokenizer_name = "english_phoneme" # Default to english phoneme tokenizer
+                    tokenizer_name = "english_phoneme"  # Default to english phoneme tokenizer
                     if getattr(cut, "tokenizer_names", None):
                         # Pick a random tokenizer from the list of tokenizers
                         tokenizer_name = random.choice(cut.tokenizer_names)
@@ -236,12 +245,16 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
 
             if self.include_align_prior:
                 # align_prior = self.beta_binomial_interpolator(spec_len, text_len)
-                align_prior = beta_binomial_prior_distribution(phoneme_count=target_text_len, mel_count=num_frames, scaling_factor=self.prior_scaling_factor)
+                align_prior = beta_binomial_prior_distribution(
+                    phoneme_count=target_text_len, mel_count=num_frames, scaling_factor=self.prior_scaling_factor
+                )
                 align_prior = torch.tensor(align_prior, dtype=torch.float32)
                 align_priors.append(align_prior)
 
             if self.load_16khz_audio:
-                target_audio_16khz = librosa.resample(answer_audio.squeeze(0).numpy(), orig_sr=self.sample_rate, target_sr=16000)
+                target_audio_16khz = librosa.resample(
+                    answer_audio.squeeze(0).numpy(), orig_sr=self.sample_rate, target_sr=16000
+                )
                 target_audio_16khz = torch.FloatTensor(target_audio_16khz).unsqueeze(0)
                 target_audio_16khz_len = target_audio_16khz.shape[1]
                 target_audios_16khz.append(target_audio_16khz)
@@ -262,23 +275,32 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
 
         # collate context/user text
         if self.use_text_conditioning_tokenizer:
-            context_text_tokens = collate_vectors(context_text_tokens, max_length=max(context_text_tokens_lens), padding_value=self.text_tokenizer.pad)
+            context_text_tokens = collate_vectors(
+                context_text_tokens, max_length=max(context_text_tokens_lens), padding_value=self.text_tokenizer.pad
+            )
             context_text_tokens_lens = torch.IntTensor(context_text_tokens_lens)
 
         # collate target/agent text
-        target_text_tokens = collate_vectors(target_text_tokens, max_length=max(target_text_tokens_lens), padding_value=self.text_tokenizer.pad)
+        target_text_tokens = collate_vectors(
+            target_text_tokens, max_length=max(target_text_tokens_lens), padding_value=self.text_tokenizer.pad
+        )
         target_text_tokens_lens = torch.IntTensor(target_text_tokens_lens)
 
         # collate align prior
         if self.include_align_prior:
             spec_max_len = max([prior.shape[0] for prior in align_priors])
             text_max_len = max([prior.shape[1] for prior in align_priors])
-            align_priors = stack_tensors(align_priors, max_lens=[text_max_len, spec_max_len],)
+            align_priors = stack_tensors(
+                align_priors,
+                max_lens=[text_max_len, spec_max_len],
+            )
 
         # collate 16khz target/agent audio
         if self.load_16khz_audio:
             target_audios_16khz = collate_vectors(
-                [a.squeeze(0) for a in target_audios_16khz], max_length=max(target_audios_16khz_lens), padding_value=0.0
+                [a.squeeze(0) for a in target_audios_16khz],
+                max_length=max(target_audios_16khz_lens),
+                padding_value=0.0,
             ).float()
             target_audios_16khz_lens = torch.IntTensor(target_audios_16khz_lens)
 
@@ -300,7 +322,7 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
 
         if self.include_align_prior:
             batch_dict["align_prior_matrix"] = align_priors
-        
+
         if self.load_16khz_audio:
             batch_dict['audio_16khz'] = target_audios_16khz
             batch_dict['audio_lens_16khz'] = target_audios_16khz_lens
@@ -311,7 +333,6 @@ class T5TTSLhotseDataset(torch.utils.data.Dataset):
             batch_dict['has_text_context'] = torch.BoolTensor(has_text_context_list)
 
         return batch_dict
-
 
     def collate_fn(self, batch: List[dict]):
         return batch
