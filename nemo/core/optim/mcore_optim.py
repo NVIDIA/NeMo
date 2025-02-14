@@ -15,7 +15,7 @@
 import torch
 
 try:
-    from megatron.core.optimizer.optimizer import MegatronOptimizer  # noqa W0611
+    from megatron.core.optimizer.optimizer import MegatronOptimizer  # pylint: disable=unused-import
 
     HAVE_MEGATRON_CORE = True
 
