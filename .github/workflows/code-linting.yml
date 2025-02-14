@@ -85,7 +85,7 @@ jobs:
             exit 0
           fi
 
-          if [[ grep -q "exit-zero" ".flake8.$DOMAIN" ]]; then
+          if grep -q "exit-zero" ".flake8.$DOMAIN"; then
             ADDITIONAL_FLAKE8_ARGS="--exit-zero"
           else
             ADDITIONAL_FLAKE8_ARGS=""
