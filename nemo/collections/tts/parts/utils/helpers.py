@@ -815,8 +815,8 @@ def generate_path(duration, mask):
     cum_duration_flat = cum_duration.view(b * t_x)
     path = get_mask_from_lengths(cum_duration_flat, torch.Tensor(t_y).reshape(1, 1, -1)).to(mask.dtype)
     path = path.view(b, t_x, t_y)
-    pad_shape = [[0, 0], [1, 0], [0, 0]]
-    path = path - torch.nn.functional.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
+    path = path - torch.nn.functional.pad(path, convert_pad_shape(pad_shape))[:, :-1]
+    path = path.unsqueeze(1).transpose(2, 3) * mask
     return path
 
 
