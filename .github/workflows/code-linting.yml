@@ -85,9 +85,15 @@ jobs:
             exit 0
           fi
 
+          if [[ grep -q "exit-zero" ".flake8.$DOMAIN" ]]; then
+            ADDITIONAL_FLAKE8_ARGS="--exit-zero"
+          else
+            ADDITIONAL_FLAKE8_ARGS=""
+          fi
+
           pip install flake8
           set +e
-          flake8 --output "flake8.$DOMAIN.txt" --config ".flake8.$DOMAIN" ${CHANGED_FILES[@]}
+          flake8 $ADDITIONAL_FLAKE8_ARGS --output "flake8.$DOMAIN.txt" --config ".flake8.$DOMAIN" ${CHANGED_FILES[@]}
           echo "exit-code=$?" | tee -a "$GITHUB_OUTPUT"
 
       - name: Summary
