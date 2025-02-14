@@ -19,3 +19,5 @@ NEMO_ENV_VARNAME_VERSION = "NEMO_EXPM_VERSION"  # Used for nemo.utils.exp_manage
 NEMO_ENV_CACHE_DIR = "NEMO_CACHE_DIR"  # Used to change default nemo cache directory
 NEMO_ENV_DATA_STORE_CACHE_DIR = "NEMO_DATA_STORE_CACHE_DIR"  # Used to change default nemo data store cache directory
 NEMO_ENV_DATA_STORE_CACHE_SHARED = "NEMO_DATA_STORE_CACHE_SHARED"  # Shared among nodes (1) or not shared (0)
+
+import os
