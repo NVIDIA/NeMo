@@ -20,9 +20,9 @@ from typing import Generic, Optional, Tuple, TypeVar
 import lightning.pytorch as pl
 from filelock import FileLock, Timeout
 from lightning.pytorch.trainer.states import TrainerFn
-from nemo.utils import logging
 
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.utils import logging
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == 'nt':

@@ -15,7 +15,7 @@
 from dataclasses import dataclass, field
 from functools import cached_property, partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional, Union, Tuple, Dict, Any
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
@@ -23,11 +23,16 @@ import yaml
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import HAVE_TE, GPTConfig, GPTModel, torch_dtype_from_mcore_config, \
-    torch_dtype_from_dict_config
+from nemo.collections.llm.gpt.model.base import (
+    HAVE_TE,
+    GPTConfig,
+    GPTModel,
+    torch_dtype_from_dict_config,
+    torch_dtype_from_mcore_config,
+)
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.lightning.pytorch.optim import OptimizerModule
@@ -408,7 +413,7 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             if '.experts.experts.' in k:
                 # split experts into multiple tensors
                 for i in range(v.size(0)):
-                    state_dict[new_k.replace(".experts.experts.", ".experts.")+str(i)] = v[i]
+                    state_dict[new_k.replace(".experts.experts.", ".experts.") + str(i)] = v[i]
             else:
                 state_dict[new_k] = v
         return state_dict, config['config']
@@ -420,8 +425,10 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
         if target_model_name is None:
             # Before DeepSeek is fully supported by HF, it is necessary to pass in a local HF checkpoint that
             # is used to initialize the HF model. The following
-            logging.warning("Before DeepSeek is officially supported in HF, you should pass in a local HF "
-                            "checkpoint using llm.export_ckpt(..., target_model_name=<local hf path>)")
+            logging.warning(
+                "Before DeepSeek is officially supported in HF, you should pass in a local HF "
+                "checkpoint using llm.export_ckpt(..., target_model_name=<local hf path>)"
+            )
             if source_config['moe_router_enable_expert_bias']:
                 target_model_name = "deepseek-ai/DeepSeek-V3"
             elif source_config['q_lora_rank'] is not None:
@@ -473,12 +480,14 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             mapping["decoder.layers.*.self_attention.linear_q_proj.weight"] = "model.layers.*.self_attn.q_proj.weight"
         # Account for Mcore local spec
         if source_config['q_lora_rank'] is not None and 'decoder.layers.0.self_attention.q_layernorm.weight' in source:
-            mapping["decoder.layers.*.self_attention.q_layernorm.weight"] = (
-                mapping.pop("decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight"))
+            mapping["decoder.layers.*.self_attention.q_layernorm.weight"] = mapping.pop(
+                "decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight"
+            )
 
         if 'decoder.layers.0.self_attention.kv_layernorm.weight' in source:
-            mapping["decoder.layers.*.self_attention.kv_layernorm.weight"] = (
-                mapping.pop("decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight"))
+            mapping["decoder.layers.*.self_attention.kv_layernorm.weight"] = mapping.pop(
+                "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight"
+            )
 
         if source_config.get('moe_router_enable_expert_bias', False):
             mapping.update(
@@ -537,7 +546,6 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
     @property
     def tokenizer(self) -> 'AutoTokenizer':
         return io.load_context(self, subpath="model").tokenizer
-
 
 
 __all__ = [

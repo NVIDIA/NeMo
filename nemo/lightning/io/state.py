@@ -19,7 +19,6 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar,
 
 import numpy as np
 import torch
-from nemo.utils import logging
 from torch import nn
 
 from nemo.lightning.pytorch.utils import extract_dtypes
