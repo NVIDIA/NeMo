@@ -3804,7 +3804,7 @@ jobs:
           --max-steps 3 \
           --devices 2 \
           --strategy ddp \
-          --ckpt-folder /tmp/hf_peft_ckpt_ddp --auto-restore
+          --ckpt-folder /tmp/hf_peft_ckpt_ddp --auto-resume
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
