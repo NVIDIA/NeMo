@@ -23,14 +23,15 @@ from nemo.utils import logging
 
 
 def collect_precision(tensor: torch.Tensor) -> Dict[str, str]:
-    """ Returns tensor's precision """
+    """Returns tensor's precision"""
     if isinstance(tensor, torch.Tensor):
         return {"Precision": str(tensor.dtype)}
     else:
         return {"Precision": "not-a-tensor"}
 
+
 def collect_precision_and_shape(tensor: torch.Tensor) -> Dict[str, str]:
-    """ Returns tensor's shape & precision """
+    """Returns tensor's shape & precision"""
     if isinstance(tensor, torch.Tensor):
         return {"Shape": str(tensor.shape), "Precision": str(tensor.dtype)}
     else:
@@ -113,13 +114,12 @@ class ParameterDebugger(Callback):
         if isinstance(log_on_hooks, str):
             log_on_hooks = [log_on_hooks]
         for hook_name in log_on_hooks:
-            assert (
-                hook_name in valid_hooks
-            ), ("Hook {} supplied to log_on_hooks is not valid or "
-            "can not be used. Valid hooks are {}").format(hook_name, valid_hooks)
+            assert hook_name in valid_hooks, (
+                "Hook {} supplied to log_on_hooks is not valid or " "can not be used. Valid hooks are {}"
+            ).format(hook_name, valid_hooks)
             setattr(self, hook_name, self._apply_user_funcs)
 
-    def _apply_user_funcs(self, trainer: pl.Trainer, pl_module: pl.LightningModule,  *args, **kwargs) -> None:
+    def _apply_user_funcs(self, trainer: pl.Trainer, pl_module: pl.LightningModule, *args, **kwargs) -> None:
         """
         Iterate over model parameters, find gradient tensor, apply and collect outputs of
         param_fn and grad_fn, and log outputs in a table.
