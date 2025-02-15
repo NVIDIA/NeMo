@@ -30,9 +30,7 @@ from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
-    init_model_parallel,
     setup_data_sampler,
-    setup_parallel_ranks,
 )
 
 from torch.distributed.tensor._api import distribute_tensor
