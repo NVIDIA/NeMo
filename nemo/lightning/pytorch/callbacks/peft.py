@@ -183,6 +183,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
         4. Set up `finalize_model_grads` from mcore.
         """
         super().apply_transform(trainer)
+        # @akoumparouli: only used in FSDP2Strategy.
+        if callable(getattr(trainer.strategy, 'parallelize', None)):
+            trainer.strategy.parallelize()
+
         self.trainable_params = set(
             name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
         )
@@ -240,23 +244,30 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
     def restore_automodel(self, trainer, path):
         """ restores automodel's adapter and optimizer state dict """
-        adapter_state = self.wrapped_io.load_checkpoint(path)
-        state_dict = trainer.lightning_module.state_dict()
-        # Ensure keys are in state dict.
-        for key in adapter_state['state_dict'].keys():
-            assert key in state_dict
-
         def pop_fqn_prefix(fqn, prefix='model'):
+            """ helper function to remove first "model" from fqn"""
             parts = fqn.split('.')
             assert parts[0] == prefix
             return '.'.join(parts[1:])
 
-        trainer.lightning_module.load_state_dict({
-            pop_fqn_prefix(k): v for k, v in adapter_state['state_dict'].items()}, strict=False)
+        adapter_state = self.wrapped_io.load_checkpoint(path)
+        # Ensure all keys from adapter_state are contained in model
+        state_dict = trainer.lightning_module.state_dict()
+        for key in adapter_state['state_dict'].keys():
+            assert key in state_dict, (key, state_dict.keys())
 
+        # Move to cpu and load state
+        from nemo.lightning.pytorch.strategies.utils import to_cpu
+        trainer.strategy.load_model_state_dict({'state_dict': {
+            pop_fqn_prefix(k): to_cpu(v) for k, v in adapter_state['state_dict'].items()}
+        }, strict=False)
+
+        # Ensure adapters have grad enabled
         for key, param in trainer.lightning_module.named_parameters():
             if key in adapter_state['state_dict']:
                 assert param.requires_grad == True
+
+        # Restore optim and LR Scheduler
         trainer.lightning_module.configure_optimizers()
         if trainer.state.fn == TrainerFn.FITTING:
             # Load optimizer
