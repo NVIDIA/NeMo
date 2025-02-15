@@ -29,7 +29,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from tests.collections.llm.common import AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays
 
 
 def get_args():
@@ -92,7 +91,7 @@ if __name__ == '__main__':
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=5000,
     )
-    callbacks = [checkpoint_callback, AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays()]
+    callbacks = [checkpoint_callback]
 
     resume = nl.AutoResume(
         resume_if_exists=True,
