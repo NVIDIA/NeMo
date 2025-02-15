@@ -220,8 +220,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Returns:
             STEP_OUTPUT: The loss for backpropagation.
         """
-        if self.parallelize_fn is not None:
-            self.parallelize()
+        self.parallelize()
 
         # See load_optimizer_state_dict to understand why we call this here.
         if self.checkpoint is not None:
