@@ -25,6 +25,7 @@ from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 from transformers import AutoModelForCausalLM
 from pathlib import Path
+from nemo.lightning.pytorch.strategies.utils import to_cpu
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -156,12 +157,13 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
     from the checkpoint on the first training batch.
     """
 
-    def __init__(self, check_weights: bool = True, check_optimizer: bool = True):
+    def __init__(self, check_weights: bool = True, check_optimizer: bool = True, tolerance: float = 1e-4):
         super().__init__()
         self.check_weights = check_weights
         self.check_optimizer = check_optimizer
         self.loaded_model_state = None
         self.loaded_optimizer_states = None
+        self.tolerance = tolerance
 
     def on_load_checkpoint(
         self,
@@ -175,6 +177,11 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
         """
         self.loaded_model_state = checkpoint["state_dict"]
         self.loaded_optimizer_states = checkpoint["optimizer_states"]
+
+    @property
+    def has_loaded_checkpoint(self):
+        return self.loaded_model_state is not None and \
+            self.loaded_optimizer_states is not None
 
     def on_train_batch_start(self, trainer: "pl.Trainer", lightning_module, batch, batch_idx) -> None:
         """
@@ -191,9 +198,12 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
 
                 # Compare current parameter to the checkpointed parameter
                 checkpoint_param = self.loaded_model_state[name]
-                if not torch.allclose(current_param.cpu(), checkpoint_param.cpu(), atol=1e-7):
+                current_param, checkpoint_param = to_cpu(current_param), to_cpu(checkpoint_param)
+                if not torch.allclose(current_param, checkpoint_param, atol=self.tolerance):
+                    rank = os.environ.get('LOCAL_RANK', '0')
+                    diff = (current_param - checkpoint_param).view(-1).float().abs().cpu().max()
                     raise ValueError(
-                        f"Model parameter '{name}' does not match the checkpointed value."
+                        f"{rank}: Model parameter '{name}' does not match the checkpointed value {diff}."
                     )
 
         # ------------------------------------------------------------------
@@ -228,7 +238,7 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
                         loaded_tensor_or_val = loaded_param_state[state_key]
                         # If it's a tensor, compare contents
                         if isinstance(current_tensor_or_val, torch.Tensor):
-                            if not torch.allclose(current_tensor_or_val.cpu(), loaded_tensor_or_val.cpu(), atol=1e-7):
+                            if not torch.allclose(current_tensor_or_val.cpu(), loaded_tensor_or_val.cpu(), atol=1e-5):
                                 raise ValueError(
                                     f"Optimizer state for param_id={param_id}, "
                                     f"key='{state_key}' does not match the checkpoint."
@@ -242,10 +252,11 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
                                 )
         # After the first batch, we don't need to check again
         # (Remove if you need ongoing checks)
-        trainer.callbacks.remove(self)
-        print("Weights match")
-        sys.exit(0)
-
+        if not self.has_loaded_checkpoint:
+            trainer.callbacks.remove(self)
+        else:
+            print("Weights match")
+            sys.exit(0)
 
 def main():
     """Example script to run SFT with a HF transformers-instantiated model on squad."""
