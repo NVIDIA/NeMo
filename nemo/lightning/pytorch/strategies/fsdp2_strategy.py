@@ -124,6 +124,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def setup_environment(self) -> None:
+        """ setup distributed environment and device mesh """
         from torch.distributed.device_mesh import init_device_mesh
         super().setup_environment()
         self._setup_distributed()
