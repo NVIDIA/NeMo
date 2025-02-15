@@ -35,6 +35,8 @@ from nemo.lightning.pytorch.strategies.utils import (
     setup_parallel_ranks,
 )
 
+from torch.distributed.tensor._api import distribute_tensor
+from torch.distributed.tensor.placement_types import Shard
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning implementing FSDP 2.
