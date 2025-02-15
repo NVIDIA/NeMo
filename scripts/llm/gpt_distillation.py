@@ -150,6 +150,10 @@ if __name__ == "__main__":
     if args.legacy_ckpt:
         trainer.strategy.ckpt_load_strictness = False
 
+    # Load ckpt saved with TE < 1.14
+    if args.legacy_ckpt:
+        trainer.strategy.ckpt_load_strictness = False
+
     # Run
     llm.train(
         model=model,
