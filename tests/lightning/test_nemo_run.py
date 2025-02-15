@@ -75,6 +75,8 @@ class MockContext(Context):
     ],
 )
 @patch("invoke.context.Context", MockContext)
+@patch("nemo_run.core.packaging.git.Context", MockContext)
+@patch("nemo_run.core.execution.slurm.Context", MockContext)
 def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
     monkeypatch.setenv("NEMORUN_HOME", str(tmpdir))
     monkeypatch.setenv("WANDB_API_KEY", "dummy")
@@ -102,6 +104,7 @@ def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
                 partition="dummy",
                 nodes=recipe_config.trainer.num_nodes,
                 ntasks_per_node=recipe_config.trainer.devices,
+                packager=run.Packager(),
             ),
             name=name,
             plugins=run_plugins,
@@ -117,6 +120,7 @@ def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
                     partition="dummy",
                     nodes=recipe_config.trainer.num_nodes + 1,
                     ntasks_per_node=recipe_config.trainer.devices + 1,
+                    packager=run.Packager(),
                 ),
                 name=name,
                 plugins=run_plugins,
@@ -134,6 +138,7 @@ def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
                     partition="dummy",
                     nodes=cfg.trainer.num_nodes,
                     ntasks_per_node=cfg.trainer.devices,
+                    packager=run.Packager(),
                 ),
                 name=name,
                 plugins=run_plugins,
@@ -149,6 +154,7 @@ def test_recipes_with_nemo_run(module, recipe, name, tmpdir, monkeypatch):
                 partition="dummy",
                 nodes=recipe_config.trainer.num_nodes,
                 ntasks_per_node=recipe_config.trainer.devices,
+                packager=run.Packager(),
             ),
             name=name,
             plugins=run_plugins,
