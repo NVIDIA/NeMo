@@ -468,7 +468,7 @@ def fsdp2_strategy_parallelize(
             for name, sub_module in module.named_children():
                 parallelize_helper(sub_module, mesh, mp_policy)
 
-#    assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
+    # assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
     dp_mesh = device_mesh["data_parallel"]
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
