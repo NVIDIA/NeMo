@@ -123,17 +123,15 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         from torch.distributed.checkpoint.state_dict import set_optimizer_state_dict
 
         if self.checkpoint is None:
-            return
-
-        for optimizer, opt_state in zip(self.optimizers, self.checkpoint["optimizer_states"]):
-            set_optimizer_state_dict(
-                self.lightning_module,
-                optimizer,
-                optim_state_dict=opt_state,
-                options={},
-            )
-        # run this only once
-        self.checkpoint = None
+            for optimizer, opt_state in zip(self.optimizers, self.checkpoint["optimizer_states"]):
+                set_optimizer_state_dict(
+                    self.lightning_module,
+                    optimizer,
+                    optim_state_dict=opt_state,
+                    options={},
+                )
+            # run this only once
+            self.checkpoint = None
 
     @override
     def setup_environment(self) -> None:
