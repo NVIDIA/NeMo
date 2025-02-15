@@ -33,11 +33,15 @@ from nemo.lightning.pytorch.strategies.utils import (
     fix_progress_bar,
     setup_data_sampler,
 )
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy
-from torch.distributed.tensor._api import distribute_tensor
-from torch.distributed.tensor.placement_types import Shard
 from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 
+from torch.distributed._composable.fsdp import MixedPrecisionPolicy
+try:
+    from torch.distributed.tensor._api import distribute_tensor
+    from torch.distributed.tensor.placement_types import Shard
+except ImportError:
+    from torch.distributed._tensor.api import distribute_tensor
+    from torch.distributed._tensor.placement_types import Shard
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     """FSDP2Strategy implementing FSDP via FSDP 2.
