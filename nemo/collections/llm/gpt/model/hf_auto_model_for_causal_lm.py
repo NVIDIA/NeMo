@@ -53,23 +53,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     """
     A LightningModule wrapper for AutoModelForCausalLm.
 
-    This module wraps around a LightningModule around a AutoModelForCausalLm (e.g., GPT-2).
-    It provides functionalities for training, validation, and saving, and it supports model parallelization
-    techniques including FSDP2 and tensor parallelism.
-
-    Attributes:
-        model_name (str): The name or path of the pretrained model.
-        load_pretrained_weights (bool): Whether to load pretrained weights.
-        loss_fn (callable): The loss function to use during training and validation.
-        is_hf_model (bool): Flag indicating that the underlying model is from Hugging Face.
-        model_transform (callable, optional): A function to transform the model after creation.
-        model_accelerator (callable, optional): A function to apply additional accelerations or modifications.
-        trust_remote_code (bool): Whether to trust remote code for model loading.
-        default_dtype (torch.dtype): The default data type for model weights.
-        load_in_4bit (bool): Whether to load the model in 4-bit precision.
-        attn_implementation (str): The attention implementation to use.
-        mp_policy (MixedPrecisionPolicy): Mixed precision policy for distributed training.
-        parallelize_fn (callable, optional): Function for parallelizing the model.
+    This module wraps a LightningModule around a AutoModelForCausalLM.
+    It provides functionalities for training, validation, and checkpoint saving.
     """
 
     def __init__(
@@ -84,11 +69,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
         attn_implementation="sdpa",
-        param_dtype=torch.bfloat16,
-        reduce_dtype=torch.float32,
-        output_dtype=None,
-        cast_forward_inputs=True,
-        parallelize_fn=None,
     ):
         """
         Initialize the HFAutoModelForCausalLM.
@@ -105,14 +85,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             default_dtype (torch.dtype, optional): Default data type for the model. Defaults to torch.bfloat16.
             load_in_4bit (bool, optional): Whether to load the model in 4-bit precision. Defaults to False.
             attn_implementation (str, optional): Attention implementation to use. Defaults to "sdpa".
-            param_dtype (torch.dtype, optional): Data type for model parameters in mixed precision.
-                Defaults to torch.bfloat16.
-            reduce_dtype (torch.dtype, optional): Data type for reduction operations in mixed precision.
-                Defaults to torch.float32.
-            output_dtype (torch.dtype, optional): Data type for model outputs in mixed precision.
-                Defaults to None.
-            cast_forward_inputs (bool, optional): Whether to cast forward inputs. Defaults to True.
-            parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
+
         """
         super().__init__()
         self.save_hyperparameters()
@@ -128,13 +101,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
-        self.mp_policy = MixedPrecisionPolicy(
-            param_dtype=param_dtype,
-            reduce_dtype=reduce_dtype,
-            output_dtype=output_dtype,
-            cast_forward_inputs=cast_forward_inputs,
-        )
-        self.parallelize_fn = parallelize_fn
+
 
     @property
     def tokenizer(self):
@@ -185,9 +152,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """helper method; see also configure_model."""
         # create all your layers here
         if self.load_pretrained_weights:
-            self.model = AutoModelForCausalLM.from_pretrained(
+            return AutoModelForCausalLM.from_pretrained(
                 self.model_name,
-                torch_dtype='auto',
+                torch_dtype=torch.bfloat16,
                 device_map="cpu",
                 trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
@@ -198,7 +165,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
             dtype = getattr(config, 'torch_dtype', self.default_dtype)
-            self.model = AutoModelForCausalLM.from_config(
+            return AutoModelForCausalLM.from_config(
                 config,
                 torch_dtype=dtype,
                 trust_remote_code=self.trust_remote_code,
@@ -218,19 +185,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             Exception: If model configuration fails.
         """
         try:
-            self._configure_model(attn_implementation=self.attn_implementation)
+            self.model = self._configure_model(attn_implementation=self.attn_implementation)
         except ValueError as e:
-            if (
-                'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
-                in str(e)
-            ):
-                self._configure_model(attn_implementation="eager")
-
-        # Apply FSDP2 and TP to the model
-        if self.device_mesh is not None:
-            if self.parallelize_fn is None:
-                self.parallelize_fn = fsdp2_strategy_parallelize
-            self.parallelize_fn(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
+            # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
+            if 'does not support an attention' in str(e):
+                self.model = self._configure_model(attn_implementation="eager")
 
         if self.model_accelerator is not None:
             self.model_accelerator(self.model)
@@ -392,7 +351,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 * **unexpected_keys** is a list of str containing the keys that are not
                     expected by this module but present in the provided ``state_dict``.
         """
-        return self.model.load_state_dict(state_dict, strict=strict, assign=assign)
+        self.model.load_state_dict(state_dict, strict=strict, assign=assign)
 
     def make_checkpoint_io(self, adapter_only=False):
         """
