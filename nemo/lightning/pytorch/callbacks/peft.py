@@ -193,7 +193,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         adapter_sharded_state_dict = {}
         if self.wrapped_io.adapter_ckpt_path is not None \
-            and self.wrapped_io.adapter_ckpt_path.parts[-1] == HF_ADAPTER_PATH:
+            and Path(self.wrapped_io.adapter_ckpt_path).parts[-1] == HF_ADAPTER_PATH:
             # Automodel adapter restoration is handled in restore_automodel.
             return self.restore_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
 
