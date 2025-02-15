@@ -14,6 +14,7 @@
 
 import os
 import shutil
+import torch
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
@@ -32,25 +33,17 @@ from nemo.lightning.pytorch.strategies.utils import (
     fix_progress_bar,
     setup_data_sampler,
 )
-
+from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from torch.distributed.tensor._api import distribute_tensor
-from torch.distributed.tensor.placement_types import Shard
+from torch.distributed.tensor.placement_types import Shard, Replicate
+from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
+
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
-    """Megatron plugin for Pytorch Lightning implementing FSDP 2.
-
-    This strategy utilizes PyTorch's native Fully Sharded Data Parallel (FSDP) version 2 methods.
-    Compared to `MegatronStrategy`, `FSDP2Strategy` is designed to be more lightweight while
-    maintaining compatibility with NeMo and MCore. By default, this strategy wraps FSDP2 per
-    Transformer layer.
+    """FSDP2Strategy implementing FSDP via FSDP 2.
 
     Notes:
-        - This strategy is designed for NVIDIA's Megatron-LM framework and requires models
-          compatible with Megatron's parallelism techniques.
-        - Due to different optimizer structures, training cannot be resumed from checkpoints
-          saved with `MegatronStrategy`. However, model weights remain compatible, allowing for
-          switching strategies when only weights are needed (e.g., pretraining with Megatron 4D
-          parallelism and fine-tuning with FSDP2).
+    - TP + FSDP2 is currently not supported.
     """
 
     def __init__(
@@ -59,6 +52,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
         data_sampler=None,
         checkpoint_io=None,
+        param_dtype=torch.bfloat16,
+        reduce_dtype=torch.float32,
+        output_dtype=None,
+        cast_forward_inputs=True,
+        parallelize_fn=None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -67,12 +65,27 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             data_parallel_size (Union[Literal["auto"], int]): Number of data-parallel replicas.
             tensor_parallel_size (Union[Literal["auto"], int]): Number of tensor-parallel groups.
             data_sampler (optional): Custom data sampler to process dataloaders.
+            param_dtype (torch.dtype, optional): Data type for model parameters in mixed precision.
+                Defaults to torch.bfloat16.
+            reduce_dtype (torch.dtype, optional): Data type for reduction operations in mixed precision.
+                Defaults to torch.float32.
+            output_dtype (torch.dtype, optional): Data type for model outputs in mixed precision.
+                Defaults to None.
+            cast_forward_inputs (bool, optional): Whether to cast forward inputs. Defaults to True.
+            parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
             **kwargs: Additional arguments for base class initialization.
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
         self._checkpoint_io = checkpoint_io
         self.data_sampler = data_sampler
         self.checkpoint = None
+        self.mp_policy = MixedPrecisionPolicy(
+            param_dtype=param_dtype,
+            reduce_dtype=reduce_dtype,
+            output_dtype=output_dtype,
+            cast_forward_inputs=cast_forward_inputs,
+        )
+        self.parallelize_fn = parallelize_fn or fsdp2_strategy_parallelize
 
     @property
     @override
@@ -138,9 +151,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             mesh_shape=(self._data_parallel_size, ),
             mesh_dim_names=("data_parallel", ),
         )
-        # Users can access device mesh in `LightningModule.configure_model()`
-        assert self.lightning_module is not None
-        self.lightning_module._device_mesh = self._device_mesh
 
 
     @override
@@ -154,6 +164,13 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
         super().setup(trainer)
+
+    def parallelize(self):
+        # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
+        # Apply FSDP2 and TP to the model
+        print('self.device_mesh= ', self.device_mesh)
+        self.parallelize_fn(self.lightning_module.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
+        self.parallelize = lambda: True
 
     def _get_loss_reduction(self, step_type: str):
         """Retrieves the loss reduction method for a given step type.
@@ -202,6 +219,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Returns:
             STEP_OUTPUT: The loss for backpropagation.
         """
+        self.parallelize()
+
         # See load_optimizer_state_dict to understand why we call this here.
         if self.checkpoint is not None:
             self._load_optimizer_state_dict()
@@ -379,9 +398,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """Loads checkpoint with checkpoint_io"""
         return self.checkpoint_io.load_checkpoint(checkpoint_path)
 
-
+    @override
+    @torch.no_grad
     def load_model_state_dict(self, ckpt, strict=False):
         """ Shards a full state dict """
+        # TODO(@akoumparouli): update `placements` value once TP is enabled.
         sharded_state = {
             k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
             for k,v in ckpt['state_dict'].items()
