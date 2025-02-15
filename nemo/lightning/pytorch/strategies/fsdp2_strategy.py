@@ -124,10 +124,22 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def setup_environment(self) -> None:
-        """Sets up the parallel environment and initializes model parallelism."""
-        setup_parallel_ranks(self)
+        from torch.distributed.device_mesh import init_device_mesh
         super().setup_environment()
-        init_model_parallel(self.model)
+        self._setup_distributed()
+        if self._data_parallel_size == "auto":
+            self._data_parallel_size = self.num_nodes
+        if self._tensor_parallel_size == "auto":
+            self._tensor_parallel_size = self.num_processes
+        self._device_mesh = init_device_mesh(
+            device_type=self.root_device.type,
+            mesh_shape=(self._data_parallel_size, ),
+            mesh_dim_names=("data_parallel", ),
+        )
+        # Users can access device mesh in `LightningModule.configure_model()`
+        assert self.lightning_module is not None
+        self.lightning_module._device_mesh = self._device_mesh
+
 
     @override
     def setup(self, trainer: pl.Trainer) -> None:
@@ -364,3 +376,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     def load_checkpoint(self, checkpoint_path: str | Path) -> Dict[str, Any]:
         """Loads checkpoint with checkpoint_io"""
         return self.checkpoint_io.load_checkpoint(checkpoint_path)
+
+
+    def load_model_state_dict(self, ckpt, strict=False):
+        sharded_state = {
+            k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
+            for k,v in ckpt['state_dict'].items()
+        }
+        self.lightning_module.load_state_dict(sharded_state, strict=strict)
