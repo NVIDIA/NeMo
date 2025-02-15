@@ -390,7 +390,7 @@ def main():
             tokenizer=tokenizer,
         )
     else:
-        blended_dataset_config = parse_dataset_config(args.dataset_config, args.dataset_path)
+        blended_dataset_config = parse_dataset_config(args.dataset_config, args.dataset_dir)
         dataset_cls = Evo2DatasetPadEodLossMask if args.eod_pad_in_loss_mask else Evo2Dataset
         # Instantiate pre-training module.
         data = PreTrainingDataModule(

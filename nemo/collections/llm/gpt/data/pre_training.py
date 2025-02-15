@@ -16,12 +16,13 @@ import logging
 import os
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Type
 
 import lightning.pytorch as pl
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
-
+from megatron.core.datasets.gpt_dataset import GPTDataset
+from megatron.core.datasets.megatron_dataset import MegatronDataset
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
@@ -136,6 +137,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_train_samples (Optional[int]): The number of samples to use for training, defaults to total train steps times global batch size.
         num_val_samples (Optional[int]): The number of samples to use for validation, defaults to total validation steps times global batch size.
         num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total test steps times global batch size.
+        dataset_cls (Optional[Type[MegatronDataset]]): The dataset class to use for the data module.
     """
 
     def __init__(
@@ -160,12 +162,15 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_train_samples: Optional[int] = None,
         num_val_samples: Optional[int] = None,
         num_test_samples: Optional[int] = None,
+        dataset_cls: Type[MegatronDataset] = GPTDataset,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple, dict)):
             paths = [paths]
 
         from megatron.core.datasets.utils import get_blend_from_list
+
+        self.dataset_cls = dataset_cls
 
         validate_dataset_asset_accessibility(paths)
 
@@ -226,7 +231,6 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         trainer_limit_test_batches: Union[int, float],
     ):
         from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-        from megatron.core.datasets.gpt_dataset import GPTDataset
 
         train_iters = trainer_max_steps
         assert train_iters > 0, f"max_steps {train_iters} should be greater than 0"
@@ -275,7 +279,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
         self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-            GPTDataset,
+            self.dataset_cls,
             train_valid_test_num_samples,
             is_built_on_rank=lambda: True,
             config=self.gpt_dataset_config,
