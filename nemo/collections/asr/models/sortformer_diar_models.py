@@ -484,6 +484,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         MEM_PREDS = None # memory predictions
         FIFO_QUEUE = None # memory to save the embedding from the latest chunks
         total_pred = None
+        spk_perm = None
 
         B, C, T = processed_signal.shape
 
@@ -500,19 +501,30 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             pad_tensor = torch.full((B, C, max_T-T), -99, dtype=processed_signal.dtype, device=processed_signal.device)
             processed_signal = torch.cat([processed_signal, pad_tensor], dim=2)
 
-        feat_len = processed_signal.shape[2]
-        num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.sortformer_modules.subsampling_factor))
-        for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in tqdm(self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, feat_seq_length=processed_signal_length), total=num_chunks, desc="Streaming Steps"):
-            MEM, FIFO_QUEUE, MEM_PREDS, _, total_pred = self.forward_streaming_step(
+        att_mod = False
+        if self.training:
+            r = random.random()
+            if r < self.sortformer_modules.causal_attn_rate:
+                self.encoder.att_context_size=[-1, self.sortformer_modules.causal_attn_rc]
+                self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
+                att_mod = True
+
+        for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, feat_seq_length=processed_signal_length):
+            MEM, FIFO_QUEUE, MEM_PREDS, _, total_pred, spk_perm = self.forward_streaming_step(
                 processed_signal=chunk_feat_seq_t,
                 processed_signal_length=feat_lengths,
                 fifo_last_time=FIFO_QUEUE,
                 mem_last_time=MEM,
                 mem_preds_last_time=MEM_PREDS,
                 previous_pred_out=total_pred,
+                previous_spk_perm=spk_perm,
                 left_offset=left_offset,
                 right_offset=right_offset,
             )
+
+        if att_mod:
+            self.encoder.att_context_size=[-1, -1]
+            self.transformer_encoder.diag = None
 
         del processed_signal, processed_signal_length, MEM, FIFO_QUEUE
         if not self.training:
@@ -531,6 +543,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         mem_last_time=None,
         mem_preds_last_time=None,
         previous_pred_out=None,
+        previous_spk_perm=None,
         left_offset=0,
         right_offset=0,
     ):
@@ -584,12 +597,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         mem_chunk_preds = self.forward_infer(mem_chunk_fc_encoder_embs, mem_chunk_fc_encoder_lengths)
 
-        mem, fifo, mem_preds, fifo_preds, chunk_preds = self.sortformer_modules.update_memory_FIFO(
+        mem, fifo, mem_preds, fifo_preds, chunk_preds, spk_perm = self.sortformer_modules.update_memory_FIFO(
             mem=mem_last_time,
             mem_preds=mem_preds_last_time,
             fifo=fifo_last_time,
             chunk=chunk_pre_encode_embs,
             preds=mem_chunk_preds,
+            spk_perm=previous_spk_perm,
             chunk_left_offset=round(left_offset / self.encoder.subsampling_factor),
             chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
         )
@@ -601,7 +615,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             self.fifo_preds_list.append(fifo_preds.detach().cpu().numpy())
             self.mem_preds_list.append(mem_preds.detach().cpu().numpy())
 
-        return mem, fifo, mem_preds, fifo_preds, total_step_preds
+        return mem, fifo, mem_preds, fifo_preds, total_step_preds, spk_perm
 
 
     def _get_aux_train_evaluations(self, preds, targets, target_lens) -> dict:
