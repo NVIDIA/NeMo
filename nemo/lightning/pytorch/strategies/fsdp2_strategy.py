@@ -131,6 +131,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             self._data_parallel_size = self.num_nodes
         if self._tensor_parallel_size == "auto":
             self._tensor_parallel_size = self.num_processes
+        # No TP currently
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
             mesh_shape=(self._data_parallel_size, ),
@@ -379,6 +380,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
 
     def load_model_state_dict(self, ckpt, strict=False):
+        """ Shards a full state dict """
         sharded_state = {
             k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
             for k,v in ckpt['state_dict'].items()
