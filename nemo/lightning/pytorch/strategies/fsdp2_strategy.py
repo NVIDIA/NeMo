@@ -166,11 +166,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         super().setup(trainer)
 
     def parallelize(self):
+        if self.parallelize_fn is None:
+            return
         # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
         # Apply FSDP2 and TP to the model
-        print('self.device_mesh= ', self.device_mesh)
         self.parallelize_fn(self.lightning_module.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
-        self.parallelize = lambda: True
+        self.parallelize_fn = None
 
     def _get_loss_reduction(self, step_type: str):
         """Retrieves the loss reduction method for a given step type.
@@ -219,7 +220,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         Returns:
             STEP_OUTPUT: The loss for backpropagation.
         """
-        self.parallelize()
+        if self.parallelize_fn is not None:
+            self.parallelize()
 
         # See load_optimizer_state_dict to understand why we call this here.
         if self.checkpoint is not None:
