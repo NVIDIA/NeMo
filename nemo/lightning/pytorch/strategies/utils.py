@@ -449,9 +449,6 @@ def fsdp2_strategy_parallelize(
     because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
     """
 
-    dp_mesh = device_mesh["data_parallel"]
-    tp_mesh = device_mesh["tensor_parallel"]
-
     def parallelize_helper(module, mesh, mp_policy):
         if isinstance(module, nn.ModuleList):
             for layer_id, transformer_block in enumerate(module):
@@ -471,10 +468,10 @@ def fsdp2_strategy_parallelize(
             for name, sub_module in module.named_children():
                 parallelize_helper(sub_module, mesh, mp_policy)
 
-    assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
-
+#    assert tp_mesh.size() == 1, "Tensor parallelism is not supported yet in this model."
+    dp_mesh = device_mesh["data_parallel"]
     if dp_mesh.size() > 1:
-        assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
+        assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
         # Find transformer layers and apply parallelisms
         parallelize_helper(model, dp_mesh, mp_policy)
