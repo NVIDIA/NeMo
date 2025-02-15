@@ -52,10 +52,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
         data_sampler=None,
         checkpoint_io=None,
-        param_dtype=torch.bfloat16,
-        reduce_dtype=torch.float32,
-        output_dtype=None,
-        cast_forward_inputs=True,
+        mp_policy=None,
         parallelize_fn=None,
         **kwargs,
     ):
@@ -65,13 +62,16 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             data_parallel_size (Union[Literal["auto"], int]): Number of data-parallel replicas.
             tensor_parallel_size (Union[Literal["auto"], int]): Number of tensor-parallel groups.
             data_sampler (optional): Custom data sampler to process dataloaders.
-            param_dtype (torch.dtype, optional): Data type for model parameters in mixed precision.
-                Defaults to torch.bfloat16.
-            reduce_dtype (torch.dtype, optional): Data type for reduction operations in mixed precision.
-                Defaults to torch.float32.
-            output_dtype (torch.dtype, optional): Data type for model outputs in mixed precision.
-                Defaults to None.
-            cast_forward_inputs (bool, optional): Whether to cast forward inputs. Defaults to True.
+            mp_policy (optional): Mixed precision policy for parameter and operation casting.
+                Defaults to:
+                ```python
+                MixedPrecisionPolicy(
+                    param_dtype=torch.bfloat16,
+                    reduce_dtype=torch.float32,
+                    output_dtype=None,
+                    cast_forward_inputs=True,
+                )
+                ```
             parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
             **kwargs: Additional arguments for base class initialization.
         """
@@ -79,12 +79,14 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self._checkpoint_io = checkpoint_io
         self.data_sampler = data_sampler
         self.checkpoint = None
-        self.mp_policy = MixedPrecisionPolicy(
-            param_dtype=param_dtype,
-            reduce_dtype=reduce_dtype,
-            output_dtype=output_dtype,
-            cast_forward_inputs=cast_forward_inputs,
-        )
+        self.mp_policy = mp_policy
+        if self.mp_policy is None:
+            self.mp_policy = MixedPrecisionPolicy(
+                param_dtype=torch.bfloat16,
+                reduce_dtype=torch.float32,
+                output_dtype=None,
+                cast_forward_inputs=True,
+            )
         self.parallelize_fn = parallelize_fn or fsdp2_strategy_parallelize
 
     @property
