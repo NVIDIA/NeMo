@@ -35,7 +35,7 @@ from nemo.lightning.pytorch.strategies.utils import (
 )
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from torch.distributed.tensor._api import distribute_tensor
-from torch.distributed.tensor.placement_types import Shard, Replicate
+from torch.distributed.tensor.placement_types import Shard
 from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 
 
@@ -166,11 +166,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         super().setup(trainer)
 
     def parallelize(self):
-        if self.parallelize_fn is None:
-            return
-        # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
-        # Apply FSDP2 and TP to the model
-        self.parallelize_fn(self.lightning_module.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
+        """ Applies fully_shard on model """
+        if self.parallelize_fn is not None:
+            # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
+            # Apply FSDP2 and TP to the model
+            self.parallelize_fn(self.lightning_module.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
         self.parallelize_fn = None
 
     def _get_loss_reduction(self, step_type: str):
