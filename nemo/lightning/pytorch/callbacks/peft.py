@@ -239,6 +239,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
                 )
 
     def restore_automodel(self, trainer, path):
+        """ restores automodel's adapter and optimizer state dict """
         adapter_state = self.wrapped_io.load_checkpoint(path)
         state_dict = trainer.lightning_module.state_dict()
         # Ensure keys are in state dict.
@@ -256,14 +257,14 @@ class PEFT(IOMixin, ABC, ModelTransform):
         for key, param in trainer.lightning_module.named_parameters():
             if key in adapter_state['state_dict']:
                 assert param.requires_grad == True
-        # trainer.lightning_module.configure_optimizers()
-        # if trainer.state.fn == TrainerFn.FITTING:
-        #     # Load optimizer
-        #     trainer.strategy.load_optimizer_state_dict(adapter_state)
-        #     # Load lr scheduler
-        #     if (lr_schedulers := adapter_state.get('lr_schedulers', None)) is not None:
-        #         for config, lrs_state in zip(trainer.lr_scheduler_configs, lr_schedulers):
-        #             config.scheduler.load_state_dict(lrs_state)
+        trainer.lightning_module.configure_optimizers()
+        if trainer.state.fn == TrainerFn.FITTING:
+            # Load optimizer
+            trainer.strategy.load_optimizer_state_dict(adapter_state)
+            # Load lr scheduler
+            if (lr_schedulers := adapter_state.get('lr_schedulers', None)) is not None:
+                for config, lrs_state in zip(trainer.lr_scheduler_configs, lr_schedulers):
+                    config.scheduler.load_state_dict(lrs_state)
 
     def adapter_key_filter(self, key: str) -> bool:
         """
