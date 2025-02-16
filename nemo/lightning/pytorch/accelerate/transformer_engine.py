@@ -20,7 +20,7 @@ from nemo.utils.import_utils import safe_import_from
 
 te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
