@@ -35,9 +35,8 @@ DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 def make_squad_hf_dataset(data_path, tokenizer):
     tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
 
-    def formatting_prompts_func(examples):
-        alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
-
+    def fmt(examples):
+        prompt = """
     ### Instruction:
     {}
 
@@ -51,14 +50,14 @@ def make_squad_hf_dataset(data_path, tokenizer):
         output = examples["answers"]['text']
         if isinstance(output, list):
             output = output[0]
-        text = alpaca_prompt.format(instruction, input, output) + "<eos>"
+        text = prompt.format(instruction, input, output) + "<eos>"
         tokens = tokenizer.text_to_ids(text)
         return {'input_ids': tokens, 'labels': tokens}
 
     datamodule = llm.HFDatasetDataModule(data_path, split="train[:100]", pad_token_id=tokenizer.eos_id)
 
     datamodule.map(
-        formatting_prompts_func,
+        fmt,
         batched=False,
         batch_size=2,
         remove_columns=["id", "title", "context", "question", 'answers'],
@@ -143,6 +142,22 @@ class DummyJitModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits, labels = align_labels(output, labels)
         return F.cross_entropy(logits, labels)
 
+
+    def connect_optim_builder(self, optim_builder):
+        """ connector between: model <> optimizer builder
+
+        This allows us to modify the model, and later create the optimizer, without definiting
+        the optimizer here.
+
+        For details on the optimizer builder look at nemo/lightning/pytorch/optim/pytorch.py
+
+        TODO(@akoumparouli): refactor.
+        """
+        self.optim_builder = optim_builder
+
+    def configure_optimizers(self):
+        """ Creates model's optimizer using the optimizer-builder """
+        return self.optim_builder.optimizers(self.model)
 
 if __name__ == '__main__':
     import argparse
