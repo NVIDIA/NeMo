@@ -376,3 +376,19 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         fwd_signature = inspect.signature(self.model.forward)
         allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
         return {k: batch[k] for k in allowed_keys if k in batch}
+
+    def connect_optim_builder(self, optim_builder):
+        """ connector between: model <> optimizer builder
+
+        This allows us to modify the model, and later create the optimizer, without definiting
+        the optimizer here.
+
+        For details on the optimizer builder look at nemo/lightning/pytorch/optim/pytorch.py
+
+        TODO(@akoumparouli): refactor.
+        """
+        self.optim_builder = optim_builder
+
+    def configure_optimizers(self):
+        """ Creates model's optimizer using the optimizer-builder """
+        return self.optim_builder.optimizers(self.model)

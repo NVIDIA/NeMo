@@ -120,15 +120,11 @@ class PytorchOptimizerModule(OptimizerModule):
         wd = self.optimizer_fn.keywords.get('weight_decay', 0)
         return self.optimizer_fn(_extract_model_params_for_optim(model, wd, self.no_weight_decay_cond))
 
-    def finalize_model_grads(self, *args, **kwargs):
-        """ noop """
-        # Noop
-        pass
-
     def connect(self, model: L.LightningModule) -> None:
-        """Connects the optimizer module to the model and trainer.
+        """Connects the optimizer module to the model.
 
         Args:
             model (L.LightningModule): The model to which the optimizer module is being connected.
         """
-        model.configure_optimizers = lambda: self.optimizers(model)
+        model.connect_optim_builder(self)
+
