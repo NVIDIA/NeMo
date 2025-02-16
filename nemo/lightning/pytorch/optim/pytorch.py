@@ -129,5 +129,5 @@ class PytorchOptimizerModule(OptimizerModule):
         Args:
             model (L.LightningModule): The model to which the optimizer module is being connected.
         """
-        model.connect_optim_builder(self)
+        model.configure_optimizers = lambda: self.optimizers(model)
 

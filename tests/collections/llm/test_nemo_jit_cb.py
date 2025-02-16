@@ -142,23 +142,6 @@ class DummyJitModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits, labels = align_labels(output, labels)
         return F.cross_entropy(logits, labels)
 
-
-    def connect_optim_builder(self, optim_builder):
-        """ connector between: model <> optimizer builder
-
-        This allows us to modify the model, and later create the optimizer, without definiting
-        the optimizer here.
-
-        For details on the optimizer builder look at nemo/lightning/pytorch/optim/pytorch.py
-
-        TODO(@akoumparouli): refactor.
-        """
-        self.optim_builder = optim_builder
-
-    def configure_optimizers(self):
-        """ Creates model's optimizer using the optimizer-builder """
-        return self.optim_builder.optimizers(self.model)
-
 if __name__ == '__main__':
     import argparse
 

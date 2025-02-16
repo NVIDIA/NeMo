@@ -57,6 +57,4 @@ def test_optimizer_creation(dummy_model, optimizer_module):
     assert isinstance(optimizer[0], torch.optim.Optimizer)
 
 def test_connect_method(dummy_model, optimizer_module):
-    dummy_model.connect_optim_builder = Mock()
     optimizer_module.connect(dummy_model)
-    dummy_model.connect_optim_builder.assert_called_once_with(optimizer_module)

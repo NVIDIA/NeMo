@@ -154,19 +154,3 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self._processor.save_pretrained(path)
         else:
             logging.warning("A processor wasn't created before to save.")
-
-    def connect_optim_builder(self, optim_builder):
-        """ connector between: model <> optimizer builder
-
-        This allows us to modify the model, and later create the optimizer, without definiting
-        the optimizer here.
-
-        For details on the optimizer builder look at nemo/lightning/pytorch/optim/pytorch.py
-
-        TODO(@akoumparouli): refactor.
-        """
-        self.optim_builder = optim_builder
-
-    def configure_optimizers(self):
-        """ Creates model's optimizer using the optimizer-builder """
-        return self.optim_builder.optimizers(self.model)
