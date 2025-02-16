@@ -144,12 +144,16 @@ class PEFT(IOMixin, ABC, ModelTransform):
         trainer.strategy.trainer = trainer
         wrapped_io = partial(WrappedAdapterIO, peft=self)
 
+        # automodel_setup_optimizers is either None or holds a reference to trainer.strategy.setup_optimizers
+        self.automodel_setup_optimizers = None
         if get_automodel_from_trainer(trainer) is not None:
             ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
             # Due to the workaround used in peft restoration, it makes restoration non-PTL conforming,
             # therefore need to short-circuit these two functions.
             trainer._checkpoint_connector.restore_training_state = lambda: True
             trainer._checkpoint_connector.restore_model = lambda: True
+            self.automodel_setup_optimizers = trainer.strategy.setup_optimizers
+            trainer.strategy.setup_optimizers = lambda x: True
         else:
             ckpt_io_kwarg_names = [
                 "save_ckpt_format",
@@ -183,20 +187,26 @@ class PEFT(IOMixin, ABC, ModelTransform):
         4. Set up `finalize_model_grads` from mcore.
         """
         super().apply_transform(trainer)
-        # @akoumparouli: only used in FSDP2Strategy.
+        # @akoumparouli: only used with automodel + FSDP2Strategy.
         if callable(getattr(trainer.strategy, 'parallelize', None)):
             trainer.strategy.parallelize()
+
+        # Handle automodel and return early.
+        if self.wrapped_io.adapter_ckpt_path is not None \
+            and Path(self.wrapped_io.adapter_ckpt_path).parts[-1] == HF_ADAPTER_PATH:
+            # Automodel adapter restoration is handled in restore_automodel.
+            return self.restore_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
+        elif self.automodel_setup_optimizers is not None:
+            logging.info("Setting up optimizers")
+            self.automodel_setup_optimizers(trainer)
+            return
+
 
         self.trainable_params = set(
             name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
         )
 
         adapter_sharded_state_dict = {}
-        if self.wrapped_io.adapter_ckpt_path is not None \
-            and Path(self.wrapped_io.adapter_ckpt_path).parts[-1] == HF_ADAPTER_PATH:
-            # Automodel adapter restoration is handled in restore_automodel.
-            return self.restore_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
-
         if self.wrapped_io.adapter_ckpt_path is not None:
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
             # create sharded state dict for adapter weights only to enable PEFT resume
@@ -264,12 +274,13 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         # Ensure adapters have grad enabled
         for key, param in trainer.lightning_module.named_parameters():
-            if key in adapter_state['state_dict']:
-                assert param.requires_grad == True
+            param.requires_grad_(key in adapter_state['state_dict'])
 
-        # Restore optim and LR Scheduler
-        trainer.lightning_module.configure_optimizers()
         if trainer.state.fn == TrainerFn.FITTING:
+            # Restore optim and LR Scheduler
+            assert self.automodel_setup_optimizers is not None, \
+                "Expected automodel_setup_optimizers to be valid"
+            self.automodel_setup_optimizers(trainer)
             # Load optimizer
             trainer.strategy.load_optimizer_state_dict(adapter_state)
             # Load lr scheduler
