@@ -107,25 +107,30 @@ jobs:
           PYLINT: ${{ steps.pylint.outputs.exit-code == 0 }}
           FLAKE8: ${{ steps.flake8.outputs.exit-code == 0 }}
         run: |
-          echo "Pylint output:" | tee -a $GITHUB_STEP_SUMMARY
 
-          echo '```' | tee -a $GITHUB_STEP_SUMMARY
-          cat pylintrc.$DOMAIN.txt | tee -a $GITHUB_STEP_SUMMARY
-          echo '```' | tee -a $GITHUB_STEP_SUMMARY
+          if [[ "$PYLINT" != "true" ]]; then
+            echo "Pylint output:" | tee -a $GITHUB_STEP_SUMMARY
 
-          echo "Flake8 output:" | tee -a $GITHUB_STEP_SUMMARY
+            echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            cat pylintrc.$DOMAIN.txt | tee -a $GITHUB_STEP_SUMMARY
+            echo '```' | tee -a $GITHUB_STEP_SUMMARY
+          fi
 
-          echo '```' | tee -a $GITHUB_STEP_SUMMARY
-          cat flake8.$DOMAIN.txt | tee -a $GITHUB_STEP_SUMMARY
-          echo '```' | tee -a $GITHUB_STEP_SUMMARY
+          if [[ "$FLAKE8" != "true" ]]; then  
+            echo "Flake8 output:" | tee -a $GITHUB_STEP_SUMMARY
 
-          
-          echo "The following directories got scanned:" | tee -a $GITHUB_STEP_SUMMARY
-          echo '```' | tee -a $GITHUB_STEP_SUMMARY
-          echo ${{ steps.filter.outputs.main }} | tee -a $GITHUB_STEP_SUMMARY
-          echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            cat flake8.$DOMAIN.txt | tee -a $GITHUB_STEP_SUMMARY
+            echo '```' | tee -a $GITHUB_STEP_SUMMARY
+          fi
 
           if [[ "$PYLINT" != "true" ||  "$FLAKE8" != "true" ]]; then
+            echo "The following directories got scanned:" | tee -a $GITHUB_STEP_SUMMARY
+
+            echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            echo ${{ steps.filter.outputs.main }} | tee -a $GITHUB_STEP_SUMMARY
+            echo '```' | tee -a $GITHUB_STEP_SUMMARY
+
             exit 1
           fi
 
