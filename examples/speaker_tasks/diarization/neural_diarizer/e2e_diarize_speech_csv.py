@@ -539,8 +539,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             
     else:
         logging.info(f"No saved prediction tensors found. Running inference on the dataset...")
-        # diar_model.test_batch()
-        diar_model.test_batch_smooth()
+        diar_model.test_batch()
         diar_model_preds_total_list = diar_model.preds_total_list
 
         if cfg.save_preds_tensors:

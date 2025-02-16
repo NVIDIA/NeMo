@@ -512,7 +512,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         feat_len = processed_signal.shape[2]
         num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.sortformer_modules.subsampling_factor))
         for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in tqdm(self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, feat_seq_length=processed_signal_length), total=num_chunks, desc="Streaming Steps"):
-            MEM, FIFO_QUEUE, MEM_PREDS, _, total_pred = self.forward_streaming_step(
+            MEM, FIFO_QUEUE, MEM_PREDS, _, total_pred, spk_perm = self.forward_streaming_step(
                 processed_signal=chunk_feat_seq_t,
                 processed_signal_length=feat_lengths,
                 fifo_last_time=FIFO_QUEUE,
