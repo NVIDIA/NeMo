@@ -118,7 +118,10 @@ class PytorchOptimizerModule(OptimizerModule):
             raise ValueError("Model cannot be an instance of MegatronParallel")
 
         wd = self.optimizer_fn.keywords.get('weight_decay', 0)
-        return self.optimizer_fn(_extract_model_params_for_optim(model, wd, self.no_weight_decay_cond))
+        ans = self.optimizer_fn(_extract_model_params_for_optim(model, wd, self.no_weight_decay_cond))
+        if not isinstance(ans, list):
+            ans = [ans]
+        return ans
 
     def connect(self, model: L.LightningModule) -> None:
         """Connects the optimizer module to the model.
