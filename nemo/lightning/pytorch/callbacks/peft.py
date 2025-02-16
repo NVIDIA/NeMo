@@ -196,7 +196,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
             and Path(self.wrapped_io.adapter_ckpt_path).parts[-1] == HF_ADAPTER_PATH:
             # Automodel adapter restoration is handled in restore_automodel.
             return self.restore_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
-        elif self.automodel_setup_optimizers is not None:
+        elif getattr(self, 'automodel_setup_optimizers', None) is not None:
             logging.info("Setting up optimizers")
             self.automodel_setup_optimizers(trainer)
             return
