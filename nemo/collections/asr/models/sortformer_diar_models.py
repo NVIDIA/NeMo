@@ -113,9 +113,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         self.loss = instantiate(self._cfg.loss)
 
         self.streaming_mode = self._cfg.get("streaming_mode", False)
-        if self.streaming_mode:
-            self.prev_total_step_preds = torch.tensor(0).to(self.device)
-        #     import ipdb; ipdb.set_trace()
         self.save_hyperparameters("cfg")
         self._init_eval_metrics()
         speaker_inds = list(range(self._cfg.max_num_of_spks))
@@ -487,6 +484,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         MEM_PREDS = None # memory predictions
         FIFO_QUEUE = None # memory to save the embedding from the latest chunks
         total_pred = None
+        spk_perm = None
 
         B, C, T = processed_signal.shape
 
@@ -503,20 +501,32 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             pad_tensor = torch.full((B, C, max_T-T), -99, dtype=processed_signal.dtype, device=processed_signal.device)
             processed_signal = torch.cat([processed_signal, pad_tensor], dim=2)
 
+        att_mod = False
+        if self.training:
+            r = random.random()
+            if r < self.sortformer_modules.causal_attn_rate:
+                self.encoder.att_context_size=[-1, self.sortformer_modules.causal_attn_rc]
+                self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
+                att_mod = True
+
         feat_len = processed_signal.shape[2]
         num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.sortformer_modules.subsampling_factor))
         for (step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset) in tqdm(self.sortformer_modules.streaming_feat_loader(feat_seq=processed_signal, feat_seq_length=processed_signal_length), total=num_chunks, desc="Streaming Steps"):
             MEM, FIFO_QUEUE, MEM_PREDS, _, total_pred = self.forward_streaming_step(
-                step_idx=step_idx,
                 processed_signal=chunk_feat_seq_t,
                 processed_signal_length=feat_lengths,
                 fifo_last_time=FIFO_QUEUE,
                 mem_last_time=MEM,
                 mem_preds_last_time=MEM_PREDS,
                 previous_pred_out=total_pred,
+                previous_spk_perm=spk_perm,
                 left_offset=left_offset,
                 right_offset=right_offset,
             )
+
+        if att_mod:
+            self.encoder.att_context_size=[-1, -1]
+            self.transformer_encoder.diag = None
 
         del processed_signal, processed_signal_length, MEM, FIFO_QUEUE
         if not self.training:
@@ -525,18 +535,17 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         if T < max_T: #discard preds corresponding to padding
             n_frames = math.ceil(T / self.encoder.subsampling_factor)
             total_pred = total_pred[:,:n_frames,:]
-            self.prev_total_step_preds = self.prev_total_step_preds[:,:n_frames,:]
         return total_pred
 
     def forward_streaming_step(
         self,
-        step_idx,
         processed_signal,
         processed_signal_length,
         fifo_last_time=None,
         mem_last_time=None,
         mem_preds_last_time=None,
         previous_pred_out=None,
+        previous_spk_perm=None,
         left_offset=0,
         right_offset=0,
     ):
@@ -572,6 +581,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 Dimension: (batch_size, total_pred_len, num_speakers)
             
         """
+
         B = processed_signal.shape[0]
         if mem_last_time is None:
             mem_last_time = self.sortformer_modules.init_memory(batch_size=B, d_model=self.sortformer_modules.fc_d_model, device=self.device)# memory to save the embeddings from start
@@ -589,24 +599,17 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         mem_chunk_preds = self.forward_infer(mem_chunk_fc_encoder_embs, mem_chunk_fc_encoder_lengths)
 
-        mem, fifo, mem_preds, fifo_preds, chunk_preds = self.sortformer_modules.update_memory_FIFO(
+        mem, fifo, mem_preds, fifo_preds, chunk_preds, spk_perm = self.sortformer_modules.update_memory_FIFO(
             mem=mem_last_time,
             mem_preds=mem_preds_last_time,
             fifo=fifo_last_time,
             chunk=chunk_pre_encode_embs,
             preds=mem_chunk_preds,
+            spk_perm=previous_spk_perm,
             chunk_left_offset=round(left_offset / self.encoder.subsampling_factor),
             chunk_right_offset=math.ceil(right_offset / self.encoder.subsampling_factor),
         )
 
-        self.smoothing_count = int(self.sortformer_modules.step_right_context/self.sortformer_modules.step_len)
-        if step_idx == 0:
-            self.prev_total_step_preds = mem_chunk_preds.clone()[:, :2*self.sortformer_modules.step_len, :]
-        else:
-            # print(f"step_idx: {step_idx}, ")
-            next_lookahead = mem_chunk_preds[:, -self.sortformer_modules.step_right_context:(-self.sortformer_modules.step_right_context+self.sortformer_modules.step_len), :].clone()
-            self.prev_total_step_preds = torch.cat([self.prev_total_step_preds, next_lookahead], dim=1)
-        
         total_step_preds = torch.cat([previous_pred_out, chunk_preds], dim=1)
 
         if not self.training and self.sortformer_modules.visualization:
@@ -614,7 +617,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             self.fifo_preds_list.append(fifo_preds.detach().cpu().numpy())
             self.mem_preds_list.append(mem_preds.detach().cpu().numpy())
 
-        return mem, fifo, mem_preds, fifo_preds, total_step_preds
+        return mem, fifo, mem_preds, fifo_preds, total_step_preds, spk_perm
 
 
     def _get_aux_train_evaluations(self, preds, targets, target_lens) -> dict:
@@ -820,51 +823,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         self._accuracy_test.reset()
         self._accuracy_test_ats.reset()
-
-    def test_batch_smooth(
-        self,
-    ):
-        """
-        Perform batch testing on the model.
-
-        This method iterates through the test data loader, making predictions for each batch,
-        and calculates various evaluation metrics. It handles both single and multi-sample batches.
-        """
-        (
-            self.preds_total_list,
-            self.prev_preds_total_list,
-            self.batch_f1_accs_list,
-            self.batch_precision_list,
-            self.batch_recall_list,
-            self.batch_f1_accs_ats_list,
-        ) = ([], [], [], [], [], [])
-
-        with torch.no_grad():
-            for batch_idx, batch in enumerate(tqdm(self._test_dl)):
-                audio_signal, audio_signal_length, targets, target_lens = batch
-                audio_signal = audio_signal.to(self.device)
-                audio_signal_length = audio_signal_length.to(self.device)
-                targets = targets.to(self.device)
-                preds = self.forward(
-                    audio_signal=audio_signal,
-                    audio_signal_length=audio_signal_length,
-                )
-                self._get_aux_test_batch_evaluations(batch_idx, preds, targets, target_lens)
-                self.prev_total_step_preds = self.prev_total_step_preds[:, :preds.shape[1], :]
-                preds = preds.detach().to('cpu')
-                prev_preds = self.prev_total_step_preds.detach().to('cpu')
-                if preds.shape[0] == 1:  # batch size = 1
-                    self.preds_total_list.append(preds)
-                    self.prev_preds_total_list.append(prev_preds)
-                else:
-                    self.preds_total_list.extend(torch.split(preds, [1] * preds.shape[0]))
-                    self.prev_preds_total_list.extend(torch.split(prev_preds, [1] * prev_preds.shape[0]))
-                torch.cuda.empty_cache()
-
-        logging.info(f"Batch F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_list))}")
-        logging.info(f"Batch Precision MEAN: {torch.mean(torch.tensor(self.batch_precision_list))}")
-        logging.info(f"Batch Recall MEAN: {torch.mean(torch.tensor(self.batch_recall_list))}")
-        logging.info(f"Batch ATS F1Acc. MEAN: {torch.mean(torch.tensor(self.batch_f1_accs_ats_list))}")
 
     def test_batch(
         self,
