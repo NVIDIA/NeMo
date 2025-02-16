@@ -155,7 +155,7 @@ def optuna_suggest_params(cfg: DiarizationConfig, postprocessing_cfg: PostProces
         postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.15, step=0.001)
         postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.0, 0.3, step=0.001)
         postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.0, 0.23, step=0.001)
-    elif "callhome" in cfg.dataset_manifest:
+    elif "NIST_SRE_2000" in cfg.dataset_manifest:
         ##### NIST SRE 2000 Setting
         postprocessing_cfg.onset = trial.suggest_float("onset", 0.44, 0.75, step=0.001)
         postprocessing_cfg.offset = trial.suggest_float("offset", 0.37, 0.77, step=0.001)
