@@ -129,7 +129,7 @@ def get_latest_checkpoint(base_dir):
 
 
 
-def verify_sft_checkpoint_structure(path):
+def verify_sft_checkpoint_structure(path, has_io_bytes=False):
     expected_files = set([
         'config.json',
         'generation_config.json',
@@ -138,6 +138,9 @@ def verify_sft_checkpoint_structure(path):
         'tokenizer.model',
         'tokenizer_config.json'
     ])
+    if has_io_bytes:
+        expected_files.add('io_bytes.pt')
+
     ckpt_dir = Path(path)
     hf_weights = (ckpt_dir / "hf_weights")
     assert hf_weights.exists(), str(hf_weights)
@@ -350,7 +353,7 @@ def main():
     del trainer
 
     path = get_latest_checkpoint(args.ckpt_folder)
-    verify_sft_checkpoint_structure(path)
+    verify_sft_checkpoint_structure(path, model_accelerator is not None)
 
     ans = AutoModelForCausalLM.from_pretrained(path / "hf_weights", output_loading_info=True)
     assert len(ans[1]['missing_keys']) == 0, ("NOT LOADABLE #1", ans)
