@@ -207,7 +207,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         from safetensors import safe_open
 
         try:
-            with safe_open(adapter_file, framework="pt", device=0) as f:
+            with safe_open(adapter_file, framework="pt", device="cpu") as f:
                 for k in f.keys():
                     state_dict[HFAdapterKeyRenamer.hf_to_nemo(k)] = f.get_tensor(k)
         except OSError as e:
