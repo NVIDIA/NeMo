@@ -70,6 +70,7 @@ def make_squad_hf_dataset(data_path, tokenizer):
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
+            device='cuda:0',
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     elif strategy == 'ddp':
