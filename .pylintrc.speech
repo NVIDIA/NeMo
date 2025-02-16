@@ -7,5 +7,3 @@ disable=all
 
 enable=W0611
 # W0611: unused-import
-
-exit-zero=true
