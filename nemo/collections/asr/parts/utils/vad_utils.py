@@ -61,7 +61,7 @@ class PostProcessingParams:
     pad_offset: float = 0.0  # Adding durations after each speech segment
     min_duration_on: float = 0.0  # Threshold for small non-speech deletion
     min_duration_off: float = 0.0  # Threshold for short speech segment deletion
-
+    prev_chunk_weight: float = 0.5 # Weight for the previous chunk in the smoothing process
 
 def load_postprocessing_from_yaml(postprocessing_yaml: str = None) -> PostProcessingParams:
     """
@@ -1879,6 +1879,71 @@ def predlist_to_timestamps(
     ):
         offset = audio_rttm_values['offset']
         speaker_assign_mat = batch_preds_list[sample_idx].squeeze(dim=0)
+        speaker_timestamps = [[] for _ in range(speaker_assign_mat.shape[-1])]
+        for spk_id in range(speaker_assign_mat.shape[-1]):
+            ts_mat = ts_vad_post_processing(
+                speaker_assign_mat[:, spk_id],
+                cfg_vad_params=cfg_vad_params,
+                unit_10ms_frame_count=unit_10ms_frame_count,
+                bypass_postprocessing=bypass_postprocessing,
+            )
+            ts_mat = ts_mat + offset
+            ts_seg_raw_list = ts_mat.tolist()
+            ts_seg_list = [[round(stt, precision), round(end, precision)] for (stt, end) in ts_seg_raw_list]
+            speaker_timestamps[spk_id].extend(ts_seg_list)
+        total_speaker_timestamps.append(speaker_timestamps)
+    return total_speaker_timestamps
+
+
+def predlist_to_timestamps_smooth(
+    batch_preds_list: List[torch.Tensor],
+    batch_prev_preds_list: List[torch.Tensor],
+    audio_rttm_map_dict: Dict[str, Dict[str, Union[float, int]]],
+    cfg_vad_params: OmegaConf,
+    unit_10ms_frame_count: int,
+    bypass_postprocessing: bool = False,
+    precision: int = 2,
+) -> List[List[float]]:
+    """
+    Converts floating point number tensor diarization results to timestamps using VAD style
+    post-processing methods.
+
+    Args:
+        batch_preds_list (List[Tensor]):
+            Tensor diarization results for each sample.
+            Dimension: [(num_frames, num_speakers), ...]
+        audio_rttm_map_dict (Dict[str, Dict[str, Union[float, int]]]):
+            Dictionary mapping unique audio file names to their rttm file entries.
+        cfg_vad_params (OmegaConf):
+            Configuration (omega config) of VAD parameters.
+        unit_10ms_frame_count (int):
+            an integer indicating the number of 10ms frames in a unit.
+            For example, if unit_10ms_frame_count is 8, then each frame is 0.08 seconds.
+        bypass_postprocessing (bool, optional):
+            If True, diarization post-processing will be bypassed.
+        precision (int, optional):
+            The number of decimal places to round the timestamps. Defaults to 2.
+
+    Returns:
+        total_speaker_timestamps (List[List[List[float]]]):
+            A list of lists of timestamp tensors for each session (utterance)
+            Levels:
+                - Session-level (uniq_id) [session1_list, session2_list,...]
+                    - Segment-level: [[start1, end1], [start2, end2],...]]
+                        - List of start and end timestamp [start, end]
+    """
+    total_speaker_timestamps = []
+    pp_message = "Binarization" if bypass_postprocessing else "Post-processing"
+    logging.info(f"Processing with prev_chunk_weight: {cfg_vad_params.prev_chunk_weight}")
+    for sample_idx, (uniq_id, audio_rttm_values) in tqdm(
+        enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc=pp_message
+    ):
+        offset = audio_rttm_values['offset']
+        curr_speaker_assign_mat = batch_preds_list[sample_idx].squeeze(dim=0)
+        prev_speaker_assign_mat = batch_prev_preds_list[sample_idx].squeeze(dim=0)
+        # speaker_assign_mat = (1 - cfg_vad_params.prev_chunk_weight) * curr_speaker_assign_mat + cfg_vad_params.prev_chunk_weight * prev_speaker_assign_mat
+        speaker_assign_mat =  (1 + cfg_vad_params.prev_chunk_weight) * curr_speaker_assign_mat - cfg_vad_params.prev_chunk_weight * prev_speaker_assign_mat 
+        
         speaker_timestamps = [[] for _ in range(speaker_assign_mat.shape[-1])]
         for spk_id in range(speaker_assign_mat.shape[-1]):
             ts_mat = ts_vad_post_processing(

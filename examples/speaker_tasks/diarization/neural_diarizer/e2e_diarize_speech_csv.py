@@ -63,6 +63,7 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     PostProcessingParams,
     load_postprocessing_from_yaml,
     predlist_to_timestamps,
+    predlist_to_timestamps_smooth,
     ts_vad_post_processing,
 )
 from nemo.core.config import hydra_runner
@@ -110,7 +111,8 @@ class DiarizationConfig:
     visualization: bool = False
     streaming_eval: bool = False # If True, evaluation will be done in a streaming fashion
     out_dir: Optional[str] = None # Path to a file to save DER values
-
+    prev_chunk_smoothing: bool = False
+    
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
     matmul_precision: str = "highest"  # Literal["highest", "high", "medium"]
@@ -145,12 +147,20 @@ def optuna_suggest_params(postprocessing_cfg: PostProcessingParams, trial: optun
         min_duration_on: 0.08  # Threshold for small non-speech deletion
         min_duration_off: 0.07  # Threshold for short speech segment deletion
     """
-    postprocessing_cfg.onset = trial.suggest_float("onset", 0.56, 0.96, step=0.01)
-    postprocessing_cfg.offset = trial.suggest_float("offset", 0.61, 1.0, step=0.01)
-    postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.0, 0.2, step=0.01)
-    postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.15, step=0.01)
-    postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.0, 0.25, step=0.01) # v2
-    postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.0, 0.23, step=0.01) # v2
+    ##### DIHARD3 Setting
+    postprocessing_cfg.onset = trial.suggest_float("onset", 0.56, 0.96, step=0.001)
+    postprocessing_cfg.offset = trial.suggest_float("offset", 0.61, 1.0, step=0.001)
+    postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.0, 0.2, step=0.001)
+    postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.15, step=0.001)
+    postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.0, 0.3, step=0.001) # v2
+    postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.0, 0.23, step=0.001) # v2
+    ##### NIST SRE 2000 Setting
+    # postprocessing_cfg.onset = trial.suggest_float("onset", 0.44, 0.75, step=0.001)
+    # postprocessing_cfg.offset = trial.suggest_float("offset", 0.37, 0.77, step=0.001)
+    # postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.0, 0.4, step=0.001)
+    # postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.45, step=0.001)
+    # postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.2, 0.6, step=0.001) # v2
+    # postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.2, 0.6, step=0.001) # v2
     return postprocessing_cfg
 
 
@@ -264,6 +274,58 @@ def run_optuna_hyperparam_search(
     logger.addHandler(logging.StreamHandler())
     optuna.logging.enable_propagation()  # Propagate logs to the root logger.
     study.optimize(worker_function, n_trials=cfg.optuna_n_trials)
+
+
+def convert_pred_mat_to_segments_smooth(
+    audio_rttm_map_dict: Dict[str, Dict[str, str]],
+    postprocessing_cfg,
+    batch_preds_list: List[torch.Tensor],
+    batch_prev_preds_list: List[torch.Tensor],
+    unit_10ms_frame_count: int = 8,
+    bypass_postprocessing: bool = False,
+    out_rttm_dir: str | None = None,
+):
+    """
+    Convert prediction matrix to time-stamp segments.
+
+    Args:
+        audio_rttm_map_dict (dict): dictionary of audio file path, offset, duration and RTTM filepath.
+        batch_preds_list (List[torch.Tensor]): list of prediction matrices containing sigmoid values for each speaker.
+            Dimension: [(1, num_frames, num_speakers), ..., (1, num_frames, num_speakers)]
+        unit_10ms_frame_count (int, optional): number of 10ms segments in a frame. Defaults to 8.
+        bypass_postprocessing (bool, optional): if True, postprocessing will be bypassed. Defaults to False.
+
+    Returns:
+       all_hypothesis (list): list of pyannote objects for each audio file.
+       all_reference (list): list of pyannote objects for each audio file.
+       all_uems (list): list of pyannote objects for each audio file.
+    """
+    batch_pred_ts_segs, all_hypothesis, all_reference, all_uems = [], [], [], []
+    cfg_vad_params = OmegaConf.structured(postprocessing_cfg)
+    total_speaker_timestamps = predlist_to_timestamps_smooth(
+        batch_preds_list=batch_preds_list,
+        batch_prev_preds_list=batch_prev_preds_list,
+        audio_rttm_map_dict=audio_rttm_map_dict,
+        cfg_vad_params=cfg_vad_params,
+        unit_10ms_frame_count=unit_10ms_frame_count,
+        bypass_postprocessing=bypass_postprocessing,
+    )
+    for sample_idx, (uniq_id, audio_rttm_values) in enumerate(audio_rttm_map_dict.items()):
+        speaker_timestamps = total_speaker_timestamps[sample_idx]
+        if audio_rttm_values.get("uniq_id", None) is not None:
+            uniq_id = audio_rttm_values["uniq_id"]
+        else:
+            uniq_id = get_uniqname_from_filepath(audio_rttm_values["audio_filepath"])
+        all_hypothesis, all_reference, all_uems = timestamps_to_pyannote_object(
+            speaker_timestamps,
+            uniq_id,
+            audio_rttm_values,
+            all_hypothesis,
+            all_reference,
+            all_uems,
+            out_rttm_dir,
+        )
+    return all_hypothesis, all_reference, all_uems
 
 
 def convert_pred_mat_to_segments(
@@ -470,13 +532,23 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         logging.info(
             f"A saved prediction tensor has been found. Loading the saved prediction tensors from {tensor_path}..."
         )
-        diar_model_preds_total_list = torch.load(tensor_path)
+        if cfg.prev_chunk_smoothing:
+            diar_model_preds_total_list, diar_model_prev_preds_total_list = torch.load(tensor_path)
+        else:
+            diar_model_preds_total_list = torch.load(tensor_path)
+            
     else:
         logging.info(f"No saved prediction tensors found. Running inference on the dataset...")
-        diar_model.test_batch()
+        # diar_model.test_batch()
+        diar_model.test_batch_smooth()
         diar_model_preds_total_list = diar_model.preds_total_list
+
         if cfg.save_preds_tensors:
-            torch.save(diar_model.preds_total_list, tensor_path)
+            if cfg.prev_chunk_smoothing:
+                diar_model_prev_preds_total_list = diar_model.prev_preds_total_list
+                torch.save([diar_model.preds_total_list, diar_model_prev_preds_total_list], tensor_path)
+            else:
+                torch.save(diar_model.preds_total_list, tensor_path)
 
     if cfg.launch_pp_optim:
         # Launch a hyperparameter optimization process if launch_pp_optim is True
@@ -494,14 +566,25 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             os.mkdir(cfg.out_rttm_dir)
 
         logging.info(f"Running offline diarization evaluation...")
-        all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(
-            infer_audio_rttm_dict,
-            postprocessing_cfg=postprocessing_cfg,
-            batch_preds_list=diar_model_preds_total_list,
-            unit_10ms_frame_count=8,
-            bypass_postprocessing=cfg.bypass_postprocessing,
-            out_rttm_dir=cfg.out_rttm_dir,
-        )
+        if cfg.prev_chunk_smoothing:
+            all_hyps, all_refs, all_uems = convert_pred_mat_to_segments_smooth(
+                infer_audio_rttm_dict,
+                postprocessing_cfg=postprocessing_cfg,
+                batch_preds_list=diar_model_preds_total_list,
+                batch_prev_preds_list=diar_model_prev_preds_total_list,
+                unit_10ms_frame_count=8,
+                bypass_postprocessing=cfg.bypass_postprocessing,
+                out_rttm_dir=cfg.out_rttm_dir,
+            )
+        else:
+            all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(
+                infer_audio_rttm_dict,
+                postprocessing_cfg=postprocessing_cfg,
+                batch_preds_list=diar_model_preds_total_list,
+                unit_10ms_frame_count=8,
+                bypass_postprocessing=cfg.bypass_postprocessing,
+                out_rttm_dir=cfg.out_rttm_dir,
+            )
         logging.info(f"Evaluating the model on the {len(diar_model_preds_total_list)} audio segments...")
         metric, mapping_dict, itemized_errors = score_labels(
             AUDIO_RTTM_MAP=infer_audio_rttm_dict,
