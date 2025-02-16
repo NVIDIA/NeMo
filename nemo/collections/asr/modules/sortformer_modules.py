@@ -65,7 +65,9 @@ class SortformerModules(NeuralModule, Exportable):
         mem_sil_frames_per_spk: int = 5,
         causal_attn_rate: float = 0,
         causal_attn_rc: int = 7,
+        use_causal_eval: bool = False,
         scores_add_rnd: float = 0,
+        init_step_len: int = 999,
     ):
         super().__init__()
         self.mem_sil_frames_per_spk = mem_sil_frames_per_spk
@@ -90,7 +92,9 @@ class SortformerModules(NeuralModule, Exportable):
         self.log = False
         self.causal_attn_rate = causal_attn_rate
         self.causal_attn_rc = causal_attn_rc
+        self.use_causal_eval = use_causal_eval
         self.scores_add_rnd = scores_add_rnd
+        self.init_step_len = init_step_len
 
     def length_to_mask(self, lengths, max_length):
         """
@@ -127,21 +131,29 @@ class SortformerModules(NeuralModule, Exportable):
                 Dimension: (batch_size,)
         """
         feat_len = feat_seq.shape[2]
-        num_chunks = math.ceil(feat_len / (self.step_len * self.subsampling_factor))
-        if self.log:
-            logging.info(f"feat_len={feat_len}, num_chunks={num_chunks}, feat_seq_length={feat_seq_length}")
+#        num_chunks = math.ceil(feat_len / (self.step_len * self.subsampling_factor))
+#        if self.log:
+#            logging.info(f"feat_len={feat_len}, num_chunks={num_chunks}, feat_seq_length={feat_seq_length}")
         stt_feat = 0
-        for step_idx in range(num_chunks):
+        end_feat = 0
+        current_step_len = min(self.init_step_len, self.step_len)
+        step_idx = 0
+        while end_feat < feat_len:
             left_offset = min(self.step_left_context * self.subsampling_factor, stt_feat)
-            end_feat = min(stt_feat + self.step_len * self.subsampling_factor, feat_len)
+            end_feat = min(stt_feat + current_step_len * self.subsampling_factor, feat_len)
             right_offset = min(self.step_right_context * self.subsampling_factor, feat_len-end_feat)
             chunk_feat_seq = feat_seq[:, :, stt_feat-left_offset:end_feat+right_offset]
             feat_lengths = (feat_seq_length - stt_feat + left_offset).clamp(0,chunk_feat_seq.shape[2])
             stt_feat = end_feat
             chunk_feat_seq_t = torch.transpose(chunk_feat_seq, 1, 2)
             if self.log:
-                logging.info(f"step_idx: {step_idx}, chunk_feat_seq_t shape: {chunk_feat_seq_t.shape}, chunk_feat_lengths: {feat_lengths}")
+                logging.info(f"step_idx: {step_idx}, current step len: {current_step_len}, chunk_feat_seq_t shape: {chunk_feat_seq_t.shape}, chunk_feat_lengths: {feat_lengths}")
             yield step_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset
+            step_idx += 1
+            if end_feat >= self.step_len * self.subsampling_factor:
+                current_step_len = self.step_len
+            elif end_feat < self.step_len * self.subsampling_factor and current_step_len < self.step_len and end_feat >= 4*current_step_len*self.subsampling_factor:
+                current_step_len *= 2
      
     def forward_speaker_sigmoids(self, hidden_out):
         hidden_out = self.dropout(F.relu(hidden_out))
@@ -203,8 +215,17 @@ class SortformerModules(NeuralModule, Exportable):
         chunk_preds = preds[:, mem_len + fifo_len + lc:mem_len + fifo_len + chunk_len + lc]
 
         if self.fifo_len == 0:
-            assert fifo_len == self.fifo_len
-            pop_out_embs, pop_out_preds = chunk, chunk_preds
+            if mem_len == 0 and self.init_step_len < self.step_len:
+                fifo = torch.cat([fifo, chunk], dim=1)
+                if fifo_len >= self.step_len:
+                    pop_out_embs = fifo
+                    pop_out_preds = torch.cat([fifo_preds, chunk_preds], dim=1)
+                    fifo = self.init_memory(B, D, mem.device)
+                else:
+                    pop_out_embs, pop_out_preds = self.init_memory(B, D, mem.device), self.init_memory(B, self.unit_n_spks, mem.device)
+            else:
+                assert fifo_len == self.fifo_len
+                pop_out_embs, pop_out_preds = chunk, chunk_preds
         else:
             fifo = torch.cat([fifo, chunk], dim=1)
             if fifo.size(1) <= self.fifo_len:

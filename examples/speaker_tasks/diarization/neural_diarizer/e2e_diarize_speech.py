@@ -104,6 +104,7 @@ class DiarizationConfig:
     mem_len: int = 100
     mem_refresh_rate: int = 1
     fifo_len: int = 100
+    init_step_len: int = 999
     step_len: int = 100
     step_left_context: int = 100
     step_right_context: int = 100
@@ -444,6 +445,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
 
     # Steaming mode setup
     diar_model.streaming_mode = cfg.streaming_mode
+    diar_model.sortformer_modules.init_step_len = cfg.init_step_len
     diar_model.sortformer_modules.step_len = cfg.step_len
     diar_model.sortformer_modules.mem_len = cfg.mem_len
     diar_model.sortformer_modules.step_left_context = cfg.step_left_context

@@ -508,6 +508,10 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
                 self.encoder.att_context_size=[-1, self.sortformer_modules.causal_attn_rc]
                 self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
                 att_mod = True
+        elif self.sortformer_modules.use_causal_eval:
+            self.encoder.att_context_size=[-1, self.sortformer_modules.causal_attn_rc]
+            self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
+            att_mod = True
 
         feat_len = processed_signal.shape[2]
         num_chunks = math.ceil(feat_len / (self.sortformer_modules.step_len * self.sortformer_modules.subsampling_factor))
