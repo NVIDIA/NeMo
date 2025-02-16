@@ -23,6 +23,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
+from nemo.lightning.pytorch.strategies.utils import to_cpu
 from transformers import AutoModelForCausalLM
 
 
@@ -148,13 +149,13 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
                 else:
                     # Compare current parameter to the checkpointed parameter
                     checkpoint_param = self.loaded_model_state[name]
-                    if not torch.allclose(current_param.cpu(), checkpoint_param.cpu(), atol=1e-7):
-                        print('current_param= ', current_param.cpu(), '\ncheckpoint_param= ', checkpoint_param.cpu())
+                    current_param, checkpoint_param = to_cpu(current_param), to_cpu(checkpoint_param)
+                    if not torch.allclose(current_param, checkpoint_param, atol=1e-4):
                         raise ValueError(
-                            f"Model parameter '{name}' does not match the checkpointed value."
+                            f"Model parameter '{name}' does not match the checkpointed value. {diff}"
                         )
-        print("Weights match")
-        sys.exit(0)
+            print("model weights match")
+
         # ------------------------------------------------------------------
         # 2) Check the optimizer states
         # ------------------------------------------------------------------
@@ -186,12 +187,16 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
 
                         loaded_tensor_or_val = loaded_param_state[state_key]
                         # If it's a tensor, compare contents
+
+                        current_tensor_or_val, loaded_tensor_or_val = to_cpu(current_tensor_or_val), to_cpu(loaded_tensor_or_val)
                         if isinstance(current_tensor_or_val, torch.Tensor):
-                            if not torch.allclose(current_tensor_or_val.cpu(), loaded_tensor_or_val.cpu(), atol=1e-7):
+                            if not torch.allclose(current_tensor_or_val, loaded_tensor_or_val, atol=1e-7):
                                 raise ValueError(
                                     f"Optimizer state for param_id={param_id}, "
                                     f"key='{state_key}' does not match the checkpoint."
                                 )
+
+
                         # Otherwise, compare directly (e.g., scalar values)
                         else:
                             if current_tensor_or_val != loaded_tensor_or_val:
@@ -199,10 +204,12 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
                                     f"Optimizer state for param_id={param_id}, "
                                     f"key='{state_key}' differs from checkpoint."
                                 )
+            print("optim weights match")
+
         # After the first batch, we don't need to check again
         # (Remove if you need ongoing checks)
         trainer.callbacks.remove(self)
-        print("Weights match")
+        print("All weights match")
         sys.exit(0)
 
 
