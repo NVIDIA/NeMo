@@ -191,6 +191,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
         if callable(getattr(trainer.strategy, 'parallelize', None)):
             trainer.strategy.parallelize()
 
+        self.trainable_params = set(
+            name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
+        )
+
         # Handle automodel and return early.
         if self.wrapped_io.adapter_ckpt_path is not None \
             and Path(self.wrapped_io.adapter_ckpt_path).parts[-1] == HF_ADAPTER_PATH:
@@ -200,11 +204,6 @@ class PEFT(IOMixin, ABC, ModelTransform):
             logging.info("Setting up optimizers")
             self.automodel_setup_optimizers(trainer)
             return
-
-
-        self.trainable_params = set(
-            name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
-        )
 
         adapter_sharded_state_dict = {}
         if self.wrapped_io.adapter_ckpt_path is not None:
