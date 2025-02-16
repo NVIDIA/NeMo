@@ -167,7 +167,7 @@ def read_train_file(
         if line:
             if path[-8:] == '.json.gz':  # for Common Crawl dataset
                 line = json.loads(line.decode('utf-8'))['text']
-            elif path.endswith('.json'):
+            elif path.endswith('.json') or path.endswith(".jsonl"):
                 jline = json.loads(line)
                 line = jline['text']
                 if is_aggregate_tokenizer:

@@ -79,6 +79,8 @@ class TrainKenlmConfig:
     )  # List of digits to prune Ngram. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation
     cache_path: str = ""  # Cache path to save tokenized files.
     verbose: int = 1  # Verbose level, default is 1.
+    normalize_unk_nemo: bool = True
+    add_all_unigrams: bool = False  # Add all unigrams to the lm.
 
 
 @hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=TrainKenlmConfig)
@@ -110,6 +112,8 @@ def main(args: TrainKenlmConfig):
     ] + [str(n) for n in args.ngram_prune]
 
     if args.cache_path:
+        if args.add_all_unigrams:
+            raise NotImplementedError("Adding all unigrams is not supported with cache_path")
         if not os.path.exists(args.cache_path):
             os.makedirs(args.cache_path, exist_ok=True)
 
@@ -154,7 +158,11 @@ def main(args: TrainKenlmConfig):
     else:
         logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
         kenlm_p = subprocess.Popen(kenlm_args, stdout=sys.stdout, stdin=subprocess.PIPE, stderr=sys.stderr)
+        if args.add_all_unigrams:
+            from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 
+            for token in range(tokenizer.vocab_size):
+                kenlm_p.stdin.write(f"{chr(token+DEFAULT_TOKEN_OFFSET)}\n".encode())
         kenlm_utils.iter_files(
             source_path=train_paths,
             dest_path=kenlm_p.stdin,
@@ -186,7 +194,9 @@ def main(args: TrainKenlmConfig):
     if args.save_nemo:
         if full_vocab_size is None:
             raise NotImplementedError("Unknown vocab size, cannot convert the model")
-        nemo_model = FastNGramLM.from_arpa(lm_path=arpa_file, vocab_size=full_vocab_size)
+        nemo_model = FastNGramLM.from_arpa(
+            lm_path=arpa_file, vocab_size=full_vocab_size, normalize_unk=args.normalize_unk_nemo
+        )
         nemo_model.save_to(f"{args.kenlm_model_file}.nemo")
 
     if not args.preserve_arpa:

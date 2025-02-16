@@ -265,7 +265,8 @@ class SuffixTreeStorage:
 
         if self.normalize_unk:
             num_unk_labels = self.vocab_size - num_vocab_labels
-            self.unk_prob -= np.log(num_unk_labels)
+            if num_unk_labels > 1:
+                self.unk_prob -= np.log(num_unk_labels)
         for ilabel in range(self.vocab_size):
             if ilabel not in added_symbols:
                 self.arcs[ilabel] = (start_state, start_state, ilabel, self.unk_prob)
