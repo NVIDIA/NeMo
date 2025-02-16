@@ -126,7 +126,7 @@ class DiarizationConfig:
     optuna_n_trials: int = 100000
 
 
-def optuna_suggest_params(postprocessing_cfg: PostProcessingParams, trial: optuna.Trial) -> PostProcessingParams:
+def optuna_suggest_params(cfg: DiarizationConfig, postprocessing_cfg: PostProcessingParams, trial: optuna.Trial) -> PostProcessingParams:
     """
     Suggests hyperparameters for postprocessing using Optuna.
     See the following link for `trial` instance in Optuna framework.
@@ -147,20 +147,24 @@ def optuna_suggest_params(postprocessing_cfg: PostProcessingParams, trial: optun
         min_duration_on: 0.08  # Threshold for small non-speech deletion
         min_duration_off: 0.07  # Threshold for short speech segment deletion
     """
-    ##### DIHARD3 Setting
-    postprocessing_cfg.onset = trial.suggest_float("onset", 0.56, 0.96, step=0.001)
-    postprocessing_cfg.offset = trial.suggest_float("offset", 0.61, 1.0, step=0.001)
-    postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.0, 0.2, step=0.001)
-    postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.15, step=0.001)
-    postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.0, 0.3, step=0.001) # v2
-    postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.0, 0.23, step=0.001) # v2
-    ##### NIST SRE 2000 Setting
-    # postprocessing_cfg.onset = trial.suggest_float("onset", 0.44, 0.75, step=0.001)
-    # postprocessing_cfg.offset = trial.suggest_float("offset", 0.37, 0.77, step=0.001)
-    # postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.0, 0.4, step=0.001)
-    # postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.45, step=0.001)
-    # postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.2, 0.6, step=0.001) # v2
-    # postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.2, 0.6, step=0.001) # v2
+    if "dihard3" in cfg.dataset_manifest:
+        ##### DIHARD3 Setting
+        postprocessing_cfg.onset = trial.suggest_float("onset", 0.56, 0.96, step=0.001)
+        postprocessing_cfg.offset = trial.suggest_float("offset", 0.61, 1.0, step=0.001)
+        postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.0, 0.2, step=0.001)
+        postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.15, step=0.001)
+        postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.0, 0.3, step=0.001)
+        postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.0, 0.23, step=0.001)
+    elif "callhome" in cfg.dataset_manifest:
+        ##### NIST SRE 2000 Setting
+        postprocessing_cfg.onset = trial.suggest_float("onset", 0.44, 0.75, step=0.001)
+        postprocessing_cfg.offset = trial.suggest_float("offset", 0.37, 0.77, step=0.001)
+        postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.0, 0.4, step=0.001)
+        postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.45, step=0.001)
+        postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.2, 0.6, step=0.001) 
+        postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.2, 0.6, step=0.001)
+    else:
+        raise ValueError(f"Unsupported dataset manifest manifest path: {cfg.dataset_manifest}")
     return postprocessing_cfg
 
 
@@ -186,6 +190,7 @@ def get_tensor_path(cfg: DiarizationConfig) -> str:
 
 def diarization_objective(
     trial: optuna.Trial,
+    cfg: DiarizationConfig,
     postprocessing_cfg: PostProcessingParams,
     temp_out_dir: str,
     infer_audio_rttm_dict: Dict[str, Dict[str, str]],
@@ -218,7 +223,7 @@ def diarization_objective(
     """
     with tempfile.TemporaryDirectory(dir=temp_out_dir, prefix="Diar_PostProcessing_") as local_temp_out_dir:
         if trial is not None:
-            postprocessing_cfg = optuna_suggest_params(postprocessing_cfg, trial)
+            postprocessing_cfg = optuna_suggest_params(cfg, postprocessing_cfg, trial)
         all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(
             audio_rttm_map_dict=infer_audio_rttm_dict,
             postprocessing_cfg=postprocessing_cfg,
@@ -258,6 +263,7 @@ def run_optuna_hyperparam_search(
     """
     worker_function = lambda trial: diarization_objective(
         trial=trial,
+        cfg=cfg,
         postprocessing_cfg=postprocessing_cfg,
         temp_out_dir=temp_out_dir,
         infer_audio_rttm_dict=infer_audio_rttm_dict,
