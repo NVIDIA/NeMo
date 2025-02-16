@@ -137,6 +137,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             # Where the `hf_weights` directory contains the model's state dict, in HF format.
             # The `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
             hf_weights_path = checkpoint_dir / HF_WEIGHTS_PATH
+            hf_weights_path.mkdir(parents=True, exist_ok=True)
             self.model.save_pretrained(hf_weights_path, state_dict=checkpoint.pop('state_dict'))
             torch.save(checkpoint, checkpoint_dir / 'trainer.pt')
         else:
