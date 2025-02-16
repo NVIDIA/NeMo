@@ -21,6 +21,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
+import _io
 
 
 def masked_cross_entropy(logits, targets, mask=None):
@@ -190,7 +191,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 self.model = self._configure_model(attn_implementation="eager")
 
         if self.model_accelerator is not None:
-            self.model_accelerator(self.model)
+            from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+            te_accelerate(self.model, self.model_accelerator.fp8_autocast)
 
         self.model.train()
 
@@ -302,8 +304,17 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # and `return self.model.state_dict()`, however FSDP2 uses FQNs to acecss modules, therefore
         # removing "model." at the state_dict function level will cause issues with FSDP2.
         keys = list(state_dict.keys())
+        io_bytes_state = {}
         for key, new_key in map(lambda x: (x, pop_fqn_prefix(x)), keys):
-            state_dict[new_key] = state_dict.pop(key)
+            val = state_dict.pop(key)
+            if isinstance(val, _io.BytesIO):
+                io_bytes_state[new_key] = val
+            else:
+                state_dict[new_key] = val
+
+        if len(io_bytes_state) > 0:
+            logging.warning("State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`.")
+            torch.save(io_bytes_state, path / 'io_bytes.pt')
 
         self.model.save_pretrained(path, state_dict=state_dict)
         if self._tokenizer is not None:

@@ -289,9 +289,8 @@ def main():
 
     model_accelerator = None
     if args.model_accelerator == "te":
-        from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
-
-        model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
+        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
+        model_acceletator = TEConfig(fp8_autocast=args.fp8_autocast)
 
     callbacks = []
     if args.use_torch_jit:
