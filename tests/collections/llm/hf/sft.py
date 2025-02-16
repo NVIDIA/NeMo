@@ -14,7 +14,6 @@
 # limitations under the License.
 import os, re, sys
 import torch
-from functools import partial
 
 import fiddle as fdl
 import lightning.pytorch as pl
