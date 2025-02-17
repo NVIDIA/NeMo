@@ -142,11 +142,15 @@ nemo() {
   DEPS=(
     "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
-    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e ; platform_machine == 'x86_64'"
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
     "llama-index==0.10.43"
     "unstructured==0.14.9"
   )
+
+  if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
+    echo "Installing NVIDIA Resiliency in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
+    pip install --no-cache-dir "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e ; platform_machine == 'x86_64'"
+  fi
 
   echo 'Installing dependencies of nemo'
   ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
