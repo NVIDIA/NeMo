@@ -26,7 +26,7 @@ on:
 
 jobs:
   code-freeze:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_code_freeze.yml@ko3n1g/feat/code-freeze-dry-run
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_code_freeze.yml@v0.22.0
     with:
       library-name: NeMo-Toolkit
       python-package: nemo
