@@ -14,6 +14,7 @@ INSTALL_OPTION=${1:-dev}
 HEAVY_DEPS=${HEAVY_DEPS:-false}
 CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 WHEELS_DIR=${WHEELS_DIR:-'/tmp/wheels'}
+INSTALL_DIR=${INSTALL_DIR:-'/opt'}
 
 PIP=pip
 ${PIP} install -U ${PIP}
@@ -25,7 +26,7 @@ mcore() {
   export CAUSAL_CONV1D_FORCE_BUILD=TRUE
   export CAUSAL_CONV_TAG=v1.2.2.post1
 
-  CAUSAL_CONV1D_DIR="/opt/causal-conv1d" &&
+  CAUSAL_CONV1D_DIR="$INSTALL_DIR/causal-conv1d" &&
     if [ ! -d "$CAUSAL_CONV1D_DIR/.git" ]; then
       rm -rf "$CAUSAL_CONV1D_DIR" &&
         cd $(dirname "$CAUSAL_CONV1D_DIR") &&
@@ -35,7 +36,7 @@ mcore() {
     git checkout -f $CAUSAL_CONV_TAG &&
     popd
 
-  MAMBA_DIR="/opt/mamba" &&
+  MAMBA_DIR="$INSTALL_DIR/mamba" &&
     if [ ! -d "$MAMBA_DIR/.git" ]; then
       rm -rf "$MAMBA_DIR" &&
         cd $(dirname "$MAMBA_DIR") &&
@@ -48,7 +49,7 @@ mcore() {
     git checkout -f $MAMBA_TAG &&
     popd
 
-  MLM_DIR="/opt/Megatron-LM" &&
+  MLM_DIR="$INSTALL_DIR/Megatron-LM" &&
     if [ ! -d "$MLM_DIR/.git" ]; then
       rm -rf "$MLM_DIR" &&
         cd $(dirname "$MLM_DIR") &&
@@ -70,7 +71,7 @@ mcore() {
 
 te() {
   local mode="$1"
-  TE_DIR="/opt/TransformerEngine"
+  TE_DIR="$INSTALL_DIR/TransformerEngine"
 
   if [ ! -d "$TE_DIR/.git" ]; then
     rm -rf "$TE_DIR" &&
@@ -91,7 +92,7 @@ te() {
 
 apex() {
   local mode="$1"
-  APEX_DIR="/opt/Apex"
+  APEX_DIR="$INSTALL_DIR/Apex"
 
   if [ ! -d "$APEX_DIR/.git" ]; then
     rm -rf "$APEX_DIR" &&
@@ -112,7 +113,7 @@ apex() {
 
 nemo() {
   local mode="$1"
-  NEMO_DIR=${NEMO_DIR:-"/opt/NeMo"}
+  NEMO_DIR=${NEMO_DIR:-"$INSTALL_DIR/NeMo"}
 
   if [[ -n "$NEMO_TAG" ]]; then
     if [ ! -d "$NEMO_DIR/.git" ]; then
@@ -127,9 +128,9 @@ nemo() {
   fi
 
   ${PIP} install --no-cache-dir virtualenv &&
-    virtualenv /opt/venv &&
-    /opt/venv/bin/pip install --no-cache-dir setuptools &&
-    /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
+    virtualenv $INSTALL_DIR/venv &&
+    $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools &&
+    $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation \
       -r $NEMO_DIR/requirements/requirements_vllm.txt \
       -r $NEMO_DIR/requirements/requirements_deploy.txt
 
