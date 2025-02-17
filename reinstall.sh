@@ -64,7 +64,7 @@ mcore() {
     pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $CAUSAL_CONV1D_DIR
     pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $MLM_DIR
   else
-    pip install --no-cache-dir $WHEELS_DIR/mcore/*.whl
+    pip install --no-cache-dir $WHEELS_DIR/mcore/*.whl "nvidia-pytriton ; platform_machine == 'x86_64'"
     pip install --no-cache-dir -e $MLM_DIR
   fi
 }
@@ -144,10 +144,9 @@ nemo() {
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
     "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e ; platform_machine == 'x86_64'"
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
-    "nvidia-pytriton ; platform_machine == 'x86_64'"
+    "llama-index"
+    "unstructured"
   )
-
-  ${PIP} install --no-cache-dir "llama-index" "unstructured"
 
   echo 'Installing dependencies of nemo'
   ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
