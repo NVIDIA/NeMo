@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tempfile, torch, sys, re, os
+import os
+import re
+import sys
+import tempfile
 from pathlib import Path
 
 import fiddle as fdl
 import lightning.pytorch as pl
+import torch
 from lightning.pytorch.loggers import WandbLogger
+from transformers import AutoModelForCausalLM
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 from nemo.lightning.pytorch.strategies.utils import to_cpu
-from transformers import AutoModelForCausalLM
-
-
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -105,8 +107,9 @@ def logger(ckpt_folder) -> nl.NeMoLogger:
         wandb=None,
     )
 
+
 class ValidateCheckpointRestoreCallback(pl.Callback):
-    """ This callback checks that the model weights and optimizer states are exactly restored
+    """This callback checks that the model weights and optimizer states are exactly restored
     from the checkpoint on the first training batch.
     """
 
@@ -117,12 +120,7 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
         self.loaded_model_state = None
         self.loaded_optimizer_states = None
 
-    def on_load_checkpoint(
-        self,
-        trainer: "pl.Trainer",
-        pl_module: "pl.LightningModule",
-        checkpoint: dict
-    ) -> None:
+    def on_load_checkpoint(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: dict) -> None:
         """
         Save the loaded model and optimizer states so we can compare them
         to the actual states after resuming.
@@ -151,9 +149,7 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
                     checkpoint_param = self.loaded_model_state[name]
                     current_param, checkpoint_param = to_cpu(current_param), to_cpu(checkpoint_param)
                     if not torch.allclose(current_param, checkpoint_param, atol=1e-4):
-                        raise ValueError(
-                            f"Model parameter '{name}' does not match the checkpointed value. {diff}"
-                        )
+                        raise ValueError(f"Model parameter '{name}' does not match the checkpointed value. {diff}")
             print("model weights match")
 
         # ------------------------------------------------------------------
@@ -172,30 +168,27 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
 
                 # Compare keys in the optimizer state
                 if current_opt_state.keys() != loaded_opt_state.keys():
-                    raise ValueError(
-                        "Mismatch in optimizer state keys between current state and checkpoint."
-                    )
+                    raise ValueError("Mismatch in optimizer state keys between current state and checkpoint.")
 
                 # Compare each parameter state group
                 for param_id, param_state in current_opt_state["state"].items():
                     loaded_param_state = loaded_opt_state["state"][param_id]
                     for state_key, current_tensor_or_val in param_state.items():
                         if state_key not in loaded_param_state:
-                            raise ValueError(
-                                f"Key '{state_key}' missing in the loaded optimizer state."
-                            )
+                            raise ValueError(f"Key '{state_key}' missing in the loaded optimizer state.")
 
                         loaded_tensor_or_val = loaded_param_state[state_key]
                         # If it's a tensor, compare contents
 
-                        current_tensor_or_val, loaded_tensor_or_val = to_cpu(current_tensor_or_val), to_cpu(loaded_tensor_or_val)
+                        current_tensor_or_val, loaded_tensor_or_val = to_cpu(current_tensor_or_val), to_cpu(
+                            loaded_tensor_or_val
+                        )
                         if isinstance(current_tensor_or_val, torch.Tensor):
                             if not torch.allclose(current_tensor_or_val, loaded_tensor_or_val, atol=1e-7):
                                 raise ValueError(
                                     f"Optimizer state for param_id={param_id}, "
                                     f"key='{state_key}' does not match the checkpoint."
                                 )
-
 
                         # Otherwise, compare directly (e.g., scalar values)
                         else:
@@ -236,13 +229,16 @@ def get_latest_checkpoint(base_dir):
 
     return Path(latest_checkpoint)
 
+
 def verify_peft_checkpoint_structure(path):
-    expected_files = set([
-        'adapter_model.safetensors',
-        'adapter_config.json',
-    ])
+    expected_files = set(
+        [
+            'adapter_model.safetensors',
+            'adapter_config.json',
+        ]
+    )
     ckpt_dir = Path(path)
-    hf_weights = (ckpt_dir / "hf_adapter")
+    hf_weights = ckpt_dir / "hf_adapter"
     assert hf_weights.exists(), str(hf_weights)
     for file in hf_weights.glob('*'):
         assert file.name in expected_files, file
@@ -254,6 +250,7 @@ def verify_peft_checkpoint_structure(path):
     context_files = ['model.yaml', 'io.json']
     for file in context_files:
         assert (ckpt_dir / 'context' / file).exists()
+
 
 def main():
     """Example script to run PEFT with a HF transformers-instantiated model on squad."""

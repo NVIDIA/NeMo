@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re, json
+import json
+import re
 from abc import ABC, abstractmethod
 from functools import partial
 from pathlib import Path
@@ -26,8 +27,7 @@ from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.trainer.states import TrainerFn
 from typing_extensions import override
 
-from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, HF_ADAPTER_PATH, HF_ADAPTER_CONFIG_FILENAME
-
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, HF_ADAPTER_CONFIG_FILENAME, HF_ADAPTER_PATH
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
@@ -196,8 +196,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
         )
 
         # Handle automodel and return early.
-        if self.wrapped_io.adapter_ckpt_path is not None \
-            and Path(self.wrapped_io.adapter_ckpt_path).parts[-1] == HF_ADAPTER_PATH:
+        if (
+            self.wrapped_io.adapter_ckpt_path is not None
+            and Path(self.wrapped_io.adapter_ckpt_path).parts[-1] == HF_ADAPTER_PATH
+        ):
             # Automodel adapter restoration is handled in restore_automodel.
             return self.restore_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
         elif getattr(self, 'automodel_setup_optimizers', None) is not None:
@@ -252,9 +254,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
                 )
 
     def restore_automodel(self, trainer, path):
-        """ restores automodel's adapter and optimizer state dict """
+        """restores automodel's adapter and optimizer state dict"""
+
         def pop_fqn_prefix(fqn, prefix='model'):
-            """ helper function to remove first "model" from fqn"""
+            """helper function to remove first "model" from fqn"""
             parts = fqn.split('.')
             assert parts[0] == prefix
             return '.'.join(parts[1:])
@@ -267,9 +270,11 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         # Move to cpu and load state
         from nemo.lightning.pytorch.strategies.utils import to_cpu
-        trainer.strategy.load_model_state_dict({'state_dict': {
-            pop_fqn_prefix(k): to_cpu(v) for k, v in adapter_state['state_dict'].items()}
-        }, strict=False)
+
+        trainer.strategy.load_model_state_dict(
+            {'state_dict': {pop_fqn_prefix(k): to_cpu(v) for k, v in adapter_state['state_dict'].items()}},
+            strict=False,
+        )
 
         # Ensure adapters have grad enabled
         for key, param in trainer.lightning_module.named_parameters():
@@ -277,8 +282,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         if trainer.state.fn == TrainerFn.FITTING:
             # Restore optim and LR Scheduler
-            assert self.automodel_setup_optimizers is not None, \
-                "Expected automodel_setup_optimizers to be valid"
+            assert self.automodel_setup_optimizers is not None, "Expected automodel_setup_optimizers to be valid"
             self.automodel_setup_optimizers(trainer)
             # Load optimizer
             trainer.strategy.load_optimizer_state_dict(adapter_state)
@@ -467,9 +471,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
         assert state_key in checkpoint, "Expected state_key to be in checkpoint"
 
         state_dict = checkpoint.pop(state_key)
-        checkpoint[state_key] = dict(
-            filter(lambda item: self.peft.adapter_key_filter(item[0]), state_dict.items())
-        )
+        checkpoint[state_key] = dict(filter(lambda item: self.peft.adapter_key_filter(item[0]), state_dict.items()))
         ckpt_keys = list(checkpoint[state_key].keys())
         request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
 
@@ -495,7 +497,8 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
         return request
 
     def _create_lora_hf_config(self, ckpt_keys):
-        """ Creates a HF lora config from a NeMo Lora config"""
+        """Creates a HF lora config from a NeMo Lora config"""
+
         def extract_matched_module_names(ckpt_keys, target_modules):
             """
             Extracts module names from a list of checkpoint keys that match the target modules.
@@ -539,10 +542,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
                 return target_modules
             non_re_target_modules = list(filter(lambda x: not '*' in x, target_modules))
             combined_pattern = '|'.join(
-                map(
-                    lambda x: x.replace('*', '[^.]+'),
-                    re_target_modules
-                ),
+                map(lambda x: x.replace('*', '[^.]+'), re_target_modules),
             )
             ans = set(non_re_target_modules)
             for key in ckpt_keys:
@@ -550,11 +550,11 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
             return list(ans)
 
         from peft import LoraConfig
+
         from nemo.collections.llm.peft import DoRA
 
         # Contains all target module names, without any regular expression
-        materialized_module_names = extract_matched_module_names(
-            ckpt_keys, self.peft.target_modules)
+        materialized_module_names = extract_matched_module_names(ckpt_keys, self.peft.target_modules)
         lora_config = LoraConfig(
             r=self.peft.dim,
             target_modules=materialized_module_names,

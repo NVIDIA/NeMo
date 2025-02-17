@@ -32,6 +32,7 @@ class TEConfig:
 
     fp8_autocast: bool = False
 
+
 def te_accelerate(model, fp8_autocast=False):
     """
     Replaces original model layers with TE's accelerated layers

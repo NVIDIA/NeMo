@@ -14,15 +14,16 @@
 
 import os
 import shutil
-import torch
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
 
 import lightning.pytorch as pl
+import torch
 from lightning.fabric.plugins import CheckpointIO
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
@@ -31,17 +32,17 @@ from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
+    fsdp2_strategy_parallelize,
     setup_data_sampler,
 )
-from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 try:
     from torch.distributed.tensor._api import distribute_tensor
     from torch.distributed.tensor.placement_types import Shard
 except ImportError:
     from torch.distributed._tensor.api import distribute_tensor
     from torch.distributed._tensor.placement_types import Shard
+
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     """FSDP2Strategy implementing FSDP via FSDP 2.
@@ -141,8 +142,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def setup_environment(self) -> None:
-        """ setup distributed environment and device mesh """
+        """setup distributed environment and device mesh"""
         from torch.distributed.device_mesh import init_device_mesh
+
         super().setup_environment()
         self._setup_distributed()
         if self._data_parallel_size == "auto":
@@ -152,10 +154,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # No TP currently
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
-            mesh_shape=(self._data_parallel_size, ),
-            mesh_dim_names=("data_parallel", ),
+            mesh_shape=(self._data_parallel_size,),
+            mesh_dim_names=("data_parallel",),
         )
-
 
     @override
     def setup(self, trainer: pl.Trainer) -> None:
@@ -170,7 +171,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         super().setup(trainer)
 
     def parallelize(self):
-        """ Applies fully_shard on model """
+        """Applies fully_shard on model"""
         if self.parallelize_fn is not None:
             # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
             # Apply FSDP2 and TP to the model
@@ -406,10 +407,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     @override
     @torch.no_grad
     def load_model_state_dict(self, ckpt, strict=False):
-        """ Shards a full state dict """
+        """Shards a full state dict"""
         # TODO(@akoumparouli): update `placements` value once TP is enabled.
         sharded_state = {
             k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
-            for k,v in ckpt['state_dict'].items()
+            for k, v in ckpt['state_dict'].items()
         }
         self.lightning_module.load_state_dict(sharded_state, strict=strict)

@@ -25,8 +25,7 @@ from lightning.fabric.utilities.types import _PATH
 from torch import nn
 from typing_extensions import override
 
-from nemo.lightning.ckpt_utils import WEIGHTS_PATH, HF_WEIGHTS_PATH, HF_ADAPTER_PATH, HF_ADAPTER_CONFIG_FILENAME
-
+from nemo.lightning.ckpt_utils import HF_ADAPTER_CONFIG_FILENAME, HF_ADAPTER_PATH, HF_WEIGHTS_PATH, WEIGHTS_PATH
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
@@ -44,18 +43,25 @@ def is_rank_0():
 
 class HFAdapterKeyRenamer:
     """Dummy class for key renaming"""
+
     @staticmethod
     def nemo_to_hf(x):
-        """ Converts lora adapter FQNs to HF"""
-        return x.replace("model.model.", "base_model.model.model.", 1) \
-                .replace("lora_a.weight", "lora_A.weight", 1) \
-                .replace("lora_b.weight", "lora_B.weight", 1)
+        """Converts lora adapter FQNs to HF"""
+        return (
+            x.replace("model.model.", "base_model.model.model.", 1)
+            .replace("lora_a.weight", "lora_A.weight", 1)
+            .replace("lora_b.weight", "lora_B.weight", 1)
+        )
+
     @staticmethod
     def hf_to_nemo(x):
-        """ Converts lora adapter FQNs to NeMo"""
-        return x.replace("lora_B.weight", "lora_b.weight", 1) \
-                .replace("lora_A.weight", "lora_a.weight", 1) \
-                .replace("base_model.model.model.", "model.model.", 1)
+        """Converts lora adapter FQNs to NeMo"""
+        return (
+            x.replace("lora_B.weight", "lora_b.weight", 1)
+            .replace("lora_A.weight", "lora_a.weight", 1)
+            .replace("base_model.model.model.", "model.model.", 1)
+        )
+
 
 class HFCheckpointIO(CheckpointIO, IOMixin):
     """HFCheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load
@@ -257,9 +263,11 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         elif callable(getattr(self.model, 'load_pretrained', None)):
             trainer_state['state_dict'] = self.model.load_pretrained(path / HF_WEIGHTS_PATH)
         else:
-            raise RuntimeError("Checkpoint load has failed: 'load_pretrained' is not defined for "
-            "this model and 'adapter_only' is disabled. Please implement 'load_pretrained' or "
-            "switch to 'adapter_only' mode.")
+            raise RuntimeError(
+                "Checkpoint load has failed: 'load_pretrained' is not defined for "
+                "this model and 'adapter_only' is disabled. Please implement 'load_pretrained' or "
+                "switch to 'adapter_only' mode."
+            )
 
         return trainer_state
 

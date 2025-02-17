@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import MagicMock
+
 import pytest
 import torch
-from unittest.mock import MagicMock
+
 from nemo.lightning.io.hf import HFCheckpointIO
+
 
 @pytest.fixture
 def mock_model():
@@ -24,13 +27,16 @@ def mock_model():
     model.load_pretrained = MagicMock(return_value={'mock_state_dict': torch.tensor([1.0])})
     return model
 
+
 @pytest.fixture
 def checkpoint_io(mock_model, tmp_path):
     return HFCheckpointIO(model=mock_model, adapter_only=False)
 
+
 @pytest.fixture
 def adapter_checkpoint_io(mock_model, tmp_path):
     return HFCheckpointIO(model=mock_model, adapter_only=True)
+
 
 def save_and_load_checkpoint(checkpoint_io, checkpoint, path, adapter_only=False):
     try:
@@ -53,15 +59,18 @@ def save_and_load_checkpoint(checkpoint_io, checkpoint, path, adapter_only=False
                 subdir.unlink()
         path.rmdir()
 
+
 def test_save_and_load_checkpoint(checkpoint_io, tmp_path):
     checkpoint = {'state_dict': {'layer.weight': torch.tensor([1.0])}}
     path = tmp_path / "checkpoint"
     save_and_load_checkpoint(checkpoint_io, checkpoint, path)
 
+
 def test_save_and_load_checkpoint_adapter_only(adapter_checkpoint_io, tmp_path):
     checkpoint = {'state_dict': {'model.model.lora_a.weight': torch.tensor([1.0])}}
     path = tmp_path / "checkpoint"
     save_and_load_checkpoint(adapter_checkpoint_io, checkpoint, path, adapter_only=True)
+
 
 def test_remove_checkpoint(checkpoint_io, tmp_path):
     path = tmp_path / "checkpoint"

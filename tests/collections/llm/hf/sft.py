@@ -12,18 +12,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os, re, sys
-import torch
+import os
+import re
+import sys
+from pathlib import Path
 
 import fiddle as fdl
 import lightning.pytorch as pl
+import torch
 from lightning.pytorch.loggers import WandbLogger
+from transformers import AutoModelForCausalLM
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-from transformers import AutoModelForCausalLM
-from pathlib import Path
 from nemo.lightning.pytorch.strategies.utils import to_cpu
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
@@ -104,6 +106,7 @@ def logger(ckpt_folder) -> nl.NeMoLogger:
         wandb=None,
     )
 
+
 def get_latest_checkpoint(base_dir):
     latest_checkpoint = None
     max_epoch = -1
@@ -128,21 +131,22 @@ def get_latest_checkpoint(base_dir):
     return Path(latest_checkpoint)
 
 
-
 def verify_sft_checkpoint_structure(path, has_io_bytes=False):
-    expected_files = set([
-        'config.json',
-        'generation_config.json',
-        'model.safetensors',
-        'special_tokens_map.json',
-        'tokenizer.model',
-        'tokenizer_config.json'
-    ])
+    expected_files = set(
+        [
+            'config.json',
+            'generation_config.json',
+            'model.safetensors',
+            'special_tokens_map.json',
+            'tokenizer.model',
+            'tokenizer_config.json',
+        ]
+    )
     if has_io_bytes:
         expected_files.add('io_bytes.pt')
 
     ckpt_dir = Path(path)
-    hf_weights = (ckpt_dir / "hf_weights")
+    hf_weights = ckpt_dir / "hf_weights"
     assert hf_weights.exists(), str(hf_weights)
     for file in hf_weights.glob('*'):
         assert file.name in expected_files, file
@@ -155,8 +159,9 @@ def verify_sft_checkpoint_structure(path, has_io_bytes=False):
     for file in context_files:
         assert (ckpt_dir / 'context' / file).exists()
 
+
 class ValidateCheckpointRestoreCallback(pl.Callback):
-    """ This callback checks that the model weights and optimizer states are exactly restored
+    """This callback checks that the model weights and optimizer states are exactly restored
     from the checkpoint on the first training batch.
     """
 
@@ -168,12 +173,7 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
         self.loaded_optimizer_states = None
         self.tolerance = tolerance
 
-    def on_load_checkpoint(
-        self,
-        trainer: "pl.Trainer",
-        pl_module: "pl.LightningModule",
-        checkpoint: dict
-    ) -> None:
+    def on_load_checkpoint(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: dict) -> None:
         """
         Save the loaded model and optimizer states so we can compare them
         to the actual states after resuming.
@@ -183,8 +183,7 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
 
     @property
     def has_loaded_checkpoint(self):
-        return self.loaded_model_state is not None and \
-            self.loaded_optimizer_states is not None
+        return self.loaded_model_state is not None and self.loaded_optimizer_states is not None
 
     def on_train_batch_start(self, trainer: "pl.Trainer", lightning_module, batch, batch_idx) -> None:
         """
@@ -205,9 +204,7 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
                 if not torch.allclose(current_param, checkpoint_param, atol=self.tolerance):
                     rank = os.environ.get('LOCAL_RANK', '0')
                     diff = (current_param - checkpoint_param).view(-1).float().abs().cpu().max()
-                    raise ValueError(
-                        f"{rank}: Model parameter '{name}' does not match the checkpointed value {diff}."
-                    )
+                    raise ValueError(f"{rank}: Model parameter '{name}' does not match the checkpointed value {diff}.")
 
         # ------------------------------------------------------------------
         # 2) Check the optimizer states
@@ -225,18 +222,14 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
 
                 # Compare keys in the optimizer state
                 if current_opt_state.keys() != loaded_opt_state.keys():
-                    raise ValueError(
-                        "Mismatch in optimizer state keys between current state and checkpoint."
-                    )
+                    raise ValueError("Mismatch in optimizer state keys between current state and checkpoint.")
 
                 # Compare each parameter state group
                 for param_id, param_state in current_opt_state["state"].items():
                     loaded_param_state = loaded_opt_state["state"][param_id]
                     for state_key, current_tensor_or_val in param_state.items():
                         if state_key not in loaded_param_state:
-                            raise ValueError(
-                                f"Key '{state_key}' missing in the loaded optimizer state."
-                            )
+                            raise ValueError(f"Key '{state_key}' missing in the loaded optimizer state.")
 
                         loaded_tensor_or_val = loaded_param_state[state_key]
                         # If it's a tensor, compare contents
@@ -260,6 +253,7 @@ class ValidateCheckpointRestoreCallback(pl.Callback):
         else:
             print("Weights match")
             sys.exit(0)
+
 
 def main():
     """Example script to run SFT with a HF transformers-instantiated model on squad."""
@@ -292,6 +286,7 @@ def main():
     model_accelerator = None
     if args.model_accelerator == "te":
         from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
+
         model_accelerator = TEConfig(fp8_autocast=args.fp8_autocast)
 
     callbacks = []

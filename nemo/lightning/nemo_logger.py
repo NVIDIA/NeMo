@@ -97,17 +97,21 @@ class NeMoLogger(IOMixin):
         if self.explicit_log_dir and isinstance(trainer, pl.Trainer):
             if trainer.logger is not None and not self.update_logger_directory:
                 logging.warning(
-                    ("nemo logger received explicit_log_dir: {} and the pytorch lightning trainer "
-                    "that was passed to nemo_logger container a logger, but "
-                    "update_logger_directory is False. This means that the trainer's logger "
-                    "directory may not match with the explicit_log_dir.").format(
+                    (
+                        "nemo logger received explicit_log_dir: {} and the pytorch lightning trainer "
+                        "that was passed to nemo_logger container a logger, but "
+                        "update_logger_directory is False. This means that the trainer's logger "
+                        "directory may not match with the explicit_log_dir."
+                    ).format(
                         self.explicit_log_dir,
                     )
                 )
             if self.log_dir or self.version:
                 logging.error(
-                    ("nemo logger received explicit_log_dir: {} and at least one of dir: {}"
-                    "or version: {}. Please note that dir, name, and version will be ignored.").format(
+                    (
+                        "nemo logger received explicit_log_dir: {} and at least one of dir: {}"
+                        "or version: {}. Please note that dir, name, and version will be ignored."
+                    ).format(
                         self.explicit_log_dir,
                         self.log_dir,
                         self.version,
@@ -181,9 +185,8 @@ class NeMoLogger(IOMixin):
                     logger._version = version or ""
                     logger._root_dir = Path(dir) / os.path.relpath(logger.save_dir)
                     logging.warning(
-                        '"update_logger_directory" is True. Overwriting tensorboard' ' logger "save_dir" to {}'.format(
-                            logger._root_dir
-                        )
+                        '"update_logger_directory" is True. Overwriting tensorboard'
+                        ' logger "save_dir" to {}'.format(logger._root_dir)
                     )
                 elif isinstance(logger, WandbLogger):
                     logger._id = version or ""
@@ -217,11 +220,13 @@ class NeMoLogger(IOMixin):
                     and trainer.max_epochs < trainer.check_val_every_n_epoch
                 ):
                     logging.error(
-                        ("The checkpoint callback was told to monitor a validation value but "
-                        "trainer.max_epochs({}) was less than trainer.check_val_every_n_epoch({})."
-                        "It is very likely this run will fail with ModelCheckpoint(monitor='{}') "
-                        "not found in the returned metrics. Please ensure that validation is "
-                        "run within trainer.max_epochs.").format(
+                        (
+                            "The checkpoint callback was told to monitor a validation value but "
+                            "trainer.max_epochs({}) was less than trainer.check_val_every_n_epoch({})."
+                            "It is very likely this run will fail with ModelCheckpoint(monitor='{}') "
+                            "not found in the returned metrics. Please ensure that validation is "
+                            "run within trainer.max_epochs."
+                        ).format(
                             trainer.max_epochs,
                             trainer.check_val_every_n_epoch,
                             ckpt.monitor,
@@ -229,9 +234,11 @@ class NeMoLogger(IOMixin):
                     )
                 elif trainer.max_steps is not None and trainer.max_steps != -1:
                     logging.warning(
-                        ("The checkpoint callback was told to monitor a validation value and "
-                        "trainer's max_steps was set to {}. Please ensure that max_steps will run "
-                        "for at least {} epochs to ensure that checkpointing will not error out.").format(
+                        (
+                            "The checkpoint callback was told to monitor a validation value and "
+                            "trainer's max_steps was set to {}. Please ensure that max_steps will run "
+                            "for at least {} epochs to ensure that checkpointing will not error out."
+                        ).format(
                             trainer.max_steps,
                             trainer.check_val_every_n_epoch,
                         )

@@ -97,7 +97,7 @@ class PytorchOptimizerModule(OptimizerModule):
         self.lr_mult = lr_mult
 
     def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"):
-        """ nooop """
+        """nooop"""
         # Noop
         pass
 
@@ -130,4 +130,3 @@ class PytorchOptimizerModule(OptimizerModule):
             model (L.LightningModule): The model to which the optimizer module is being connected.
         """
         model.configure_optimizers = lambda: self.optimizers(model)
-

@@ -142,6 +142,7 @@ class DummyJitModel(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits, labels = align_labels(output, labels)
         return F.cross_entropy(logits, labels)
 
+
 if __name__ == '__main__':
     import argparse
 

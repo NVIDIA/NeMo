@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import _io
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
@@ -21,7 +22,6 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
-import _io
 
 
 def masked_cross_entropy(logits, targets, mask=None):
@@ -100,7 +100,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
-
 
     @property
     def tokenizer(self):
@@ -192,6 +191,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         if self.model_accelerator is not None:
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+
             te_accelerate(self.model, self.model_accelerator.fp8_autocast)
 
         self.model.train()
