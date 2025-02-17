@@ -89,7 +89,7 @@ def _torch_dist_init(cfg: FlatConfig, get_embedding_ranks, get_position_embeddin
         return None
 
     if cfg.lazy_mpu_init:
-        cfg.use_cpu_initialization = True
+        cfg.use_cpu_initialization = True  # TODO (maanug): move to config validation
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals
         parallel_state.set_tensor_model_parallel_world_size(cfg.tensor_model_parallel_size)
