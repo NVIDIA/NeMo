@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   test-installs:
-    name: test-${{ matrix.collection }}-install-${{ matrix.os }}-py${{ matrix.python }}
+    name: test-install-${{ matrix.os }}-py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
