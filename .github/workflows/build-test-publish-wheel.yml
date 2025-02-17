@@ -14,11 +14,12 @@
 
 name: Build, test, and publish a PyPi wheel (to testpypi)
 
-on: 
+on:
   push:
     branches:
       - main
-      - 'r**'
+      - "r**"
+  workflow_dispatch:
 
 defaults:
   run:
@@ -26,14 +27,13 @@ defaults:
 
 jobs:
   build-test-publish-wheel:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.20.0
+    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@ko3n1g/fix/build-wheel
     with:
-      dry-run: true
+      dry-run: false
       python-package: nemo
-      python-version: '3.10'
-      environment: public
+      python-version: "3.10"
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
       SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
-      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
