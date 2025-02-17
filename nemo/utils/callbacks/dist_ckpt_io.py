@@ -180,6 +180,28 @@ class AsyncFinalizerCallback(Callback):
                 f'Async finalizer requires an async compatible CheckpointIO, got: {checkpoint_io.__class__}'
             )
         return checkpoint_io
+    
+
+class AppStateFinalizerCallback(Callback):
+    """Callback which finalizes async operations tracked by AppState.
+    
+    Required when using async checkpoint saves with MegatronCheckpointIO.
+    """
+
+    def on_train_batch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        from nemo.utils.app_state import AppState
+        AppState().maybe_finalize_async_ops(blocking=False)
+
+    def on_train_epoch_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        from nemo.utils.app_state import AppState
+        AppState().maybe_finalize_async_ops(blocking=False)
+
+    def on_train_end(self, trainer: "pl.Trainer", *args, **kwargs) -> None:
+        from nemo.utils.app_state import AppState
+        app_state = AppState()
+        if app_state.get_num_pending_async_ops() > 0:
+            logging.info('Pending async operations. Finalizing them synchronously now')
+            app_state.maybe_finalize_async_ops(blocking=True)
 
 
 class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):

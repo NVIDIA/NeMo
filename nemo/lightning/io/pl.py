@@ -135,13 +135,8 @@ def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving) -> Path:
     return base_dir
 
 
-class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
-    """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
-    common for most use cases.
-
-    .. warning::  This is an :ref:`experimental <versioning:Experimental API>` feature.
-
-    """
+class MegatronCheckpointIO(IOMixin):
+    """CheckpointIO that utilizes Megatron Core distributed checkpointing."""
 
     def __init__(
         self,
@@ -166,29 +161,15 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self._save_sharded_strategy = None
         self.validated_consistency = False
 
-    @override
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-        """Save model/training states as a checkpoint file through state-dump and file-write.
-
-        Args:
-            checkpoint: dict containing model and trainer state
-            path: write-target path
-            storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
-
-        Raises
-        ------
-            TypeError:
-                If ``storage_options`` arg is passed in
-
-        """
+        """Save model/training states as a checkpoint file through state-dump and file-write."""
         from megatron.core import dist_checkpointing
+        from nemo.utils.app_state import AppState
 
         if storage_options is not None and len(storage_options) > 0:
-            logging.warning(
-                f"{self.__class__.__name__} does not support"
-                f" storage_options, but {storage_options=} was provided."
-                f" Ignoring given storage_options"
-            )
+            logging.warning(f"{self.__class__.__name__} does not support storage_options. Ignoring.")
+            
+        external_finalize_fn = (storage_options or {}).pop('finalize_fn', None)
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
 
         fs = get_filesystem(checkpoint_dir)
@@ -197,13 +178,26 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
 
-        return dist_checkpointing.save(
+        # Get async request from dist_checkpointing
+        async_request = dist_checkpointing.save(
             sharded_state_dict=checkpoint,
             checkpoint_dir=checkpoint_dir,
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
         )
+
+        # If async save is enabled, register with AppState's queue
+        if self.async_save:
+            if external_finalize_fn is not None:
+                async_request.add_finalize_fn(external_finalize_fn)
+            AppState().schedule_async_op(async_request)
+            return async_request
+        
+        # For synchronous save, execute immediately
+        if external_finalize_fn is not None:
+            external_finalize_fn()
+        return None
 
     @override
     def load_checkpoint(
