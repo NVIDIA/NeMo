@@ -144,8 +144,8 @@ nemo() {
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
     "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e ; platform_machine == 'x86_64'"
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
-    "llama-index==0.10.43"
-    "unstructured==0.14.9"
+    "llama-index"
+    "unstructured"
     "nvidia-pytriton ; platform_machine == 'x86_64'"
   )
 
