@@ -62,6 +62,7 @@ jobs:
         run: |
           if [[ "$INSTALLER" == "pip" ]]; then
             pip install .
+
           else
             export NEMO_TAG
             export NEMO_REPO
