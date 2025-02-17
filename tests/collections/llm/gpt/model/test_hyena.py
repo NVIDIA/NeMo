@@ -22,7 +22,6 @@ from typing import Type
 # TODO add back support for slurm resilience.
 # import nvidia_resiliency_ext.ptl_resiliency as res_module
 import torch
-from bionemo.llm.utils.datamodule_utils import infer_global_batch_size
 from lightning.pytorch.callbacks import LearningRateMonitor, RichModelSummary
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -101,7 +100,7 @@ def parse_args():
         "--context-parallel-size", type=int, default=1, help="Order of context parallelism. Defaults to 1."
     )
     parser.add_argument("--no-wandb", action="store_true", default=False, help="Disable Wandb logging")
-    parser.add_argument("--wandb-project", type=str, default="bionemo_evo2", help="Wandb project name")
+    parser.add_argument("--wandb-project", type=str, default="nemo_evo2", help="Wandb project name")
     parser.add_argument("--wandb-run-id", type=str, default=None, help="Wandb run identifier")
     parser.add_argument(
         "--wandb-group", type=str, default=None, help="A unique string shared by all runs in a given group"
@@ -138,7 +137,7 @@ def parse_args():
     parser.add_argument(
         "--no-aligned-megatron-ddp", action="store_true", default=False, help="Do not do aligned gradient updates etc."
     )
-    parser.add_argument("--use-megatron-comm-overlap-llama3-8k", action="store_true", default=False)
+    parser.add_argument("--use-megatron-comm-overlap-8k", action="store_true", default=False)
     parser.add_argument(
         "--tp-comm-overlap-backend",
         type=str,
@@ -371,16 +370,6 @@ def main():
 
     # Infer global batch size.
     global_batch_size = args.global_batch_size
-    if global_batch_size is None:
-        global_batch_size = infer_global_batch_size(
-            micro_batch_size=args.micro_batch_size,
-            num_nodes=args.num_nodes,
-            devices=args.devices,
-            accumulate_grad_batches=args.grad_acc_batches,
-            tensor_model_parallel_size=args.tensor_parallel_size,
-            pipeline_model_parallel_size=args.pipeline_model_parallel_size,
-            context_model_parallel_size=args.context_parallel_size,
-        )
     if args.mock_data:
         data = MockDataModule(
             seq_length=args.seq_length,
@@ -427,7 +416,7 @@ def main():
 
     # Retrieve model config.
     config_modifiers_init = {
-        "tp_comm_overlap": args.use_megatron_comm_overlap_llama3_8k,
+        "tp_comm_overlap": args.use_megatron_comm_overlap_8k,
         "seq_length": args.seq_length,
         "to_upper": "weighted" if args.no_renormalize_loss else "normalized_weighted",
         "distribute_saved_activations": False if args.sequence_parallel else True,
@@ -494,7 +483,7 @@ def main():
     #             enable_ptl_logging=True,
     #         )
     #     )
-    if args.use_megatron_comm_overlap_llama3_8k:
+    if args.use_megatron_comm_overlap_8k:
         # Pick the floating point appropriate config.
         if args.fp8:
             tp_comm_overlap_cfg = userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192
@@ -608,7 +597,7 @@ def main():
             fp8_amax_compute_algo="max" if args.fp8 else "most_recent",
             fp8_wgrad=args.fp8
             and (
-                args.fp8_wgrad or args.use_megatron_comm_overlap_llama3_8k
+                args.fp8_wgrad or args.use_megatron_comm_overlap_8k
             ),  # faster and less accurate when set to True, and MUST be True if using TP communication overlap
         ),
         val_check_interval=args.val_check_interval,
@@ -670,8 +659,8 @@ if __name__ == "__main__":
             --devices=8 \
             --max-steps=500000 \
             --val-check-interval=200 \
-            --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/checkpoints/hyena_exp4 \
-            --dataset-config=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/evo2_blend.yaml \
+            --experiment-dir=<PATH TO DIR TO EXP DIR> \
+            --dataset-config=<PATH TO DATA CONFIG YAML> \
             --seq-length=8192 \
             --tensor-parallel-size=1 \
             --pipeline-model-parallel-size=1 \
@@ -684,6 +673,7 @@ if __name__ == "__main__":
             --overlap-grad-reduce \
             --lr=0.0003 \
             --warmup-steps=2500 \
-            --wandb-project=bionemo_evo2
+            --wandb-project=nemo_evo2
+            
     """
     main()
