@@ -14,23 +14,18 @@ permissions:
 
 jobs:
   test-installs:
-    name: test-install-${{ matrix.os }}-${{ matrix.image }}-py${{ matrix.python }}-${{ matrix.installer }}
+    name: test-install-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.installer }}
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.image }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        image: ["ubuntu:22.04", "nvcr.io/nvidia/pytorch:25.01-py3"]
-        python: ["3.10", "3.11", "3.12"]
+        image: ["python:3.10", "python:3.11", "python:3.12", "nvcr.io/nvidia/pytorch:25.01-py3"]
         installer: ["pip", "reinstall.sh"]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
-      - uses: actions/setup-python@v5
-        if: ${{ matrix.image == 'ubuntu:22.04' }}
-        with:
-          python-version: "${{ matrix.python }}"
       - name: Install NeMo
         env:
           INSTALLER: ${{ matrix.installer }}
