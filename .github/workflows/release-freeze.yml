@@ -47,7 +47,7 @@ jobs:
           path: ${{ github.run_id }}
           fetch-depth: 0
           fetch-tags: true
-          ref: ${{ inputs.dry-run == 'true' && 'main' || needs.code-freeze.outputs.release-branch }}
+          ref: ${{ inputs.dry-run == 'true' && inputs.freeze-commit || needs.code-freeze.outputs.release-branch }}
 
       - name: Pin branch name in Notebooks
         run: |
