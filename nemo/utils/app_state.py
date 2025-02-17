@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import Dict, Optional
 
-from nemo.utils.metaclasses import Singleton
 from nemo.utils import logging
+from nemo.utils.metaclasses import Singleton
 
 
 @dataclass()
@@ -780,11 +780,12 @@ class AppState(metaclass=Singleton):
     def restore(self, restore: bool):
         self._restore = restore
 
-    @property 
+    @property
     def async_queue(self):
         """Returns the global async operations queue. Initializes if not exists."""
         if self._async_calls_queue is None:
             from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue
+
             self._async_calls_queue = AsyncCallsQueue()
         return self._async_calls_queue
 
@@ -793,7 +794,7 @@ class AppState(metaclass=Singleton):
         call_idx = self.async_queue.schedule_async_request(async_request)
         logging.debug(f'Scheduled an async call #{call_idx}')
         return call_idx
-        
+
     def maybe_finalize_async_ops(self, blocking=False):
         """Try to finalize any completed async operations"""
         call_idx_finalized = self.async_queue.maybe_finalize_async_calls(blocking)

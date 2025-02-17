@@ -60,6 +60,7 @@ from typing_extensions import override
 
 from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 from nemo.lightning import _strategy_lib, io
+from nemo.lightning.io.pl import MegatronCheckpointIO
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
@@ -72,7 +73,6 @@ from nemo.lightning.pytorch.strategies.utils import (
 )
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AppStateFinalizerCallback
-from nemo.lightning.io.pl import MegatronCheckpointIO
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -156,27 +156,27 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
         lazy_init (bool): Use lazy initialization for model parallel parameters. Defaults to False.
         pipeline_dtype (Optional[torch.dtype]): Data type for pipeline parallelism. Defaults to None.
-        save_ckpt_format (str): [Deprecated] Use MegatronCheckpointIO plugin instead. Distributed checkpoint format 
+        save_ckpt_format (str): [Deprecated] Use MegatronCheckpointIO plugin instead. Distributed checkpoint format
             to use for checkpoint saving. Should be one of 'torch_dist' or 'zarr'. Defaults to 'torch_dist'.
-        ckpt_async_save (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. Whether to save checkpoints 
+        ckpt_async_save (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. Whether to save checkpoints
             asynchronously to reduce checkpointing overhead. Defaults to True.
-        ckpt_torch_dist_multiproc (int): [Deprecated] Use MegatronCheckpointIO plugin instead. Number of extra 
+        ckpt_torch_dist_multiproc (int): [Deprecated] Use MegatronCheckpointIO plugin instead. Number of extra
             processes per rank used during ckpt save with PyTorch distributed format. Defaults to None.
-        ckpt_assume_constant_structure (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. Allows caching 
-            some computation across checkpoint saves. Set to True only if the state dict structure doesn't change 
+        ckpt_assume_constant_structure (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. Allows caching
+            some computation across checkpoint saves. Set to True only if the state dict structure doesn't change
             within a single job.
-        ckpt_parallel_save (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. If true, each worker will 
+        ckpt_parallel_save (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. If true, each worker will
             write its own part of the dist checkpoint. Defaults to True.
-        ckpt_parallel_save_within_dp (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. If true, save 
-            will be parallelized only within a DP group (whole world otherwise), which might slightly reduce the 
+        ckpt_parallel_save_within_dp (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. If true, save
+            will be parallelized only within a DP group (whole world otherwise), which might slightly reduce the
             save overhead. Defaults to False.
-        ckpt_parallel_load (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. If true, each worker will 
+        ckpt_parallel_load (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. If true, each worker will
             load part of the dist checkpoint and exchange with NCCL. Might use some extra GPU memory. Defaults to True.
-        ckpt_parallel_save_optim (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. Parallel save/load 
-            of a DistributedOptimizer. 'True' allows performant save and reshardable checkpoints. Set to 'False' 
+        ckpt_parallel_save_optim (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. Parallel save/load
+            of a DistributedOptimizer. 'True' allows performant save and reshardable checkpoints. Set to 'False'
             only in order to minimize the number of checkpoint files.
-        ckpt_load_directly_on_device (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. If True, loads 
-            the weights directly on GPU. Has effect only for `zarr` based checkpoints (PyT Distributed always loads 
+        ckpt_load_directly_on_device (bool): [Deprecated] Use MegatronCheckpointIO plugin instead. If True, loads
+            the weights directly on GPU. Has effect only for `zarr` based checkpoints (PyT Distributed always loads
             on device). Defaults to True.
         ckpt_load_strictness (StrictHandling, optional): defines loading strictness.
             If not None, overwrites the `strict` flag passed to `load_checkpoint`.
@@ -253,7 +253,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         **kwargs,
     ) -> None:
         """Initialize MegatronStrategy."""
-        if any([
+        if any(
+            [
                 save_ckpt_format != "torch_dist",
                 ckpt_async_save is not False,
                 ckpt_torch_dist_multiproc is not None,
@@ -262,8 +263,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 ckpt_parallel_save_within_dp is not False,
                 ckpt_parallel_load is not False,
                 ckpt_load_directly_on_device is not True,
-        ]):
+            ]
+        ):
             import warnings
+
             warnings.warn(
                 "Checkpoint IO configuration via MegatronStrategy constructor is deprecated and will be removed in v2.0.0. "
                 "Please configure checkpointing by passing a custom MegatronCheckpointIO instance to the Trainer. Example:\n\n"
@@ -275,7 +278,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 ")\n"
                 "trainer = Trainer(strategy=MegatronStrategy(...), plugins=[checkpoint_io])",
                 DeprecationWarning,
-                stacklevel=2
+                stacklevel=2,
             )
 
         # Store the values for backward compatibility

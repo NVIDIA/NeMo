@@ -168,7 +168,7 @@ class MegatronCheckpointIO(IOMixin):
 
         if storage_options is not None and len(storage_options) > 0:
             logging.warning(f"{self.__class__.__name__} does not support storage_options. Ignoring.")
-            
+
         external_finalize_fn = (storage_options or {}).pop('finalize_fn', None)
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
 
@@ -193,7 +193,7 @@ class MegatronCheckpointIO(IOMixin):
                 async_request.add_finalize_fn(external_finalize_fn)
             AppState().schedule_async_op(async_request)
             return async_request
-        
+
         # For synchronous save, execute immediately
         if external_finalize_fn is not None:
             external_finalize_fn()
