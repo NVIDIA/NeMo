@@ -17,8 +17,7 @@ import os
 import tarfile
 from typing import Union
 
-import zarr.storage
-
+from zarr.storage._local import LocalStore
 
 class TarPath:
     """
@@ -169,39 +168,21 @@ class TarPath:
     def iterdir(self):
         return self.glob('*')
 
+    def read_bytes(self):
+        with self.open('rb') as f:
+            return f.read()
 
-class ZarrPathStore(zarr.storage.BaseStore):
+
+class ZarrPathStore(LocalStore):
     """
-    An implementation of read-only Store for zarr library
-    that works with pathlib.Path or TarPath objects.
+    An implementation of a read-only Store for the zarr library that works with
+    pathlib.Path or TarPath objects.
     """
 
-    def __init__(self, tarpath: TarPath):
-        self._path = tarpath
-        self._writable = False
-        self._erasable = False
-
-    def __getitem__(self, key):
-        with (self._path / key).open('rb') as file:
-            return file.read()
-
-    def __contains__(self, key):
-        return (self._path / key).is_file()
-
-    def __iter__(self):
-        return self.keys()
-
-    def __len__(self):
-        return sum(1 for _ in self.keys())
-
-    def __setitem__(self, key, value):
-        raise NotImplementedError()
-
-    def __delitem__(self, key):
-        raise NotImplementedError()
-
-    def keys(self):
-        return self._path.iterdir()
+    def __init__(self, tarpath):
+        # Mark the store as read-only
+        super().__init__(root="/tmp/tmp", read_only=True)
+        self.root = tarpath
 
 
 def unpack_tarball(archive: str, dest_dir: str):

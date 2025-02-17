@@ -222,7 +222,7 @@ def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tenso
         elif (subdir / '.zarray').exists():
             key = subdir.name
             zstore = ZarrPathStore(subdir)
-            arr = zarr.open(zstore, 'r')
+            arr = zarr.open(zstore, mode='r')
 
             if torch_tensor:
                 # sharded_state_dict[key] = torch.from_numpy(arr[:].astype("float32")).to(dtype=torch.bfloat16)
