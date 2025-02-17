@@ -28,10 +28,13 @@ jobs:
       - name: Install NeMo
         env:
           INSTALLER: ${{ matrix.installer }}
+          NEMO_TAG: ${{ github.repositoryUrl }}
+          NEMO_REPO: ${{ github.repositoryUrl }}
         run: |
           if [[ "$INSTALLER" == "pip" ]]; then
             pip install .
           else
-            export NEMO_TAG=$(git rev-parse HEAD)
+            export NEMO_TAG
+            export NEMO_REPO
             bash reinstall.sh --library nemo --mode install
           fi
