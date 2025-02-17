@@ -234,13 +234,8 @@ class HyenaMixer(MegatronModule):
             _proj_use_cp = False
 
         L, B, D = x.size()
-        if self.config.fp8:
-            fp8_recipe = set_format_recipe()
-            fp8_group = parallel_state.get_amax_reduction_group(with_context_parallel=True, tp_only_amax_red=self.config.tp_only_amax_red)
-            with transformer_engine.pytorch.fp8_autocast(enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group):
-                features, _ = self.dense_projection(x)
-        else:
-            features, _ = self.dense_projection(x)
+
+        features, _ = self.dense_projection(x)
         features = rearrange(features, "l b d -> b l d").contiguous()
         features_L_last = features.permute(0, 2, 1)
         features_D_last = self.hyena_proj_conv(features_L_last, _use_cp=_proj_use_cp).permute(0, 2, 1)
@@ -251,9 +246,6 @@ class HyenaMixer(MegatronModule):
 
         z = self.mixer(x1, x2, v)
         z = rearrange(z, "b l d -> l b d").contiguous()
-        if self.config.fp8:
-            with transformer_engine.pytorch.fp8_autocast(enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group):
-                y, bias = self.dense(z)
-        else:
-            y, bias = self.dense(z)
+        
+        y, bias = self.dense(z)
         return y, bias

@@ -518,14 +518,17 @@ class ImplicitModalFilter(nn.Module):
         # Do not register into buffer, so it doesn't cast to BF16! 
         self.t = rearrange(torch.arange(L_cache, dtype=torch.float32), "L -> 1 1 L").to(device=torch.cuda.current_device())  # <- this should be arange
         self.use_cached_t = False
-        
-        gamma = torch.rand(self.d_model, order, dtype=torch.float32) * (gamma_max - gamma_min) + gamma_min
-        gamma = gamma.cuda().log()
-        self.gamma = nn.Parameter(gamma)
+        with get_cuda_rng_tracker().fork():
+            gamma = torch.rand(self.d_model, order, dtype=torch.float32) * (gamma_max - gamma_min) + gamma_min
+            gamma = gamma.cuda().log()
+            self.gamma = nn.Parameter(gamma)
 
-        R = 1e-1 * torch.randn(d_model, order, dtype=torch.float32) / math.sqrt(order)
-        self.R = nn.Parameter(R)
-        self.p = nn.Parameter(-torch.ones(d_model, order, dtype=torch.float32))
+            R = 1e-1 * torch.randn(d_model, order, dtype=torch.float32) / math.sqrt(order)
+            self.R = nn.Parameter(R)
+            self.p = nn.Parameter(-torch.ones(d_model, order, dtype=torch.float32))
+            setattr(self.gamma, 'tensor_model_parallel', True)
+            setattr(self.R, 'tensor_model_parallel', True)
+            setattr(self.p, 'tensor_model_parallel', True)
 
     def get_t(self, L):
         # Assumes L <= L_cache
@@ -581,8 +584,8 @@ class ExplicitSingleDecayFilter(nn.Module):
             decay_preset="strong",
             small_init=True):
         super().__init__()
-
-        h = torch.randn(d_model, L_cache) / math.sqrt(L_cache)
+        with get_cuda_rng_tracker().fork():
+            h = torch.randn(d_model, L_cache) / math.sqrt(L_cache)
         assert decay_preset in ["strong", "normal", "weak"]
         if decay_preset == "strong":
             log_r_min = 0
@@ -605,6 +608,7 @@ class ExplicitSingleDecayFilter(nn.Module):
         decay = torch.logspace(log_r_min, log_r_max, d_model)[:, None]
         decay = torch.exp((- decay * t).cuda())
         self.register_buffer("decay", decay)
+        setattr(self.h, 'tensor_model_parallel', True)
 
     def forward(self, L, *args, **kwargs):
         return self.filter(L, *args, **kwargs)
@@ -813,22 +817,24 @@ class ParallelHyenaOperator(nn.Module):
         else:
             raise ValueError(f"Unknown hyena filter class: {self.hyena_filter_cls}")
 
-        if self.use_slow_heads:
-            self.conv_bias = nn.Parameter(
-                torch.empty(
-                    self.num_groups,
-                    device=torch.cuda.current_device(),
-                    dtype=torch.float32,
+        with get_cuda_rng_tracker().fork():
+            if self.use_slow_heads:
+                self.conv_bias = nn.Parameter(
+                    torch.empty(
+                        self.num_groups,
+                        device=torch.cuda.current_device(),
+                        dtype=torch.float32,
+                    )
                 )
-            )
-        else:
-            self.conv_bias = nn.Parameter(
-                torch.empty(
-                    self.width_per_tp_group,
-                    device=torch.cuda.current_device(),
-                    dtype=torch.float32,
+            else:
+                self.conv_bias = nn.Parameter(
+                    torch.empty(
+                        self.width_per_tp_group,
+                        device=torch.cuda.current_device(),
+                        dtype=torch.float32,
+                    )
                 )
-            )
+            setattr(self.conv_bias, 'tensor_model_parallel', True)
 
         self.conv_bias.model_parallel = True
         self.conv_bias.partition_dim = 0
@@ -1398,13 +1404,15 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
 
                 self.conv_groups = self.num_groups
 
-        self.short_conv_weight = nn.Parameter(
-            torch.empty(
-                weight_shape,
-                device=torch.cuda.current_device(),
-                dtype=transformer_config.params_dtype,
+        with get_cuda_rng_tracker().fork():
+            self.short_conv_weight = nn.Parameter(
+                torch.empty(
+                    weight_shape,
+                    device=torch.cuda.current_device(),
+                    dtype=transformer_config.params_dtype,
+                )
             )
-        )
+            setattr(self.short_conv_weight, 'tensor_model_parallel', True)
 
         # Use the standard PyTorch Conv1d class init: https://pytorch.org/docs/master/generated/torch.nn.Conv1d.html
         bounds = math.sqrt(1 / hyena_config.short_conv_L)
