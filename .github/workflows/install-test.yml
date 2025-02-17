@@ -32,5 +32,6 @@ jobs:
           if [[ "$INSTALLER" == "pip" ]]; then
             pip install .
           else
+            export NEMO_TAG=$(git rev-parse HEAD)
             bash reinstall.sh --library nemo --mode install
           fi
