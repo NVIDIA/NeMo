@@ -9,6 +9,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test-installs:
     name: test-install-${{ matrix.os }}-${{ matrix.image }}-py${{ matrix.python }}-${{ matrix.installer }}
