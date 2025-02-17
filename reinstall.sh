@@ -125,6 +125,7 @@ nemo() {
 
   ${PIP} install --no-cache-dir virtualenv &&
     virtualenv /opt/venv &&
+    /opt/venv/bin/pip install --no-cache-dir setuptools &&
     /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
       -r $NEMO_DIR/requirements/requirements_vllm.txt \
       -r $NEMO_DIR/requirements/requirements_deploy.txt
@@ -149,6 +150,8 @@ nemo() {
 echo 'Uninstalling stuff'
 # Some of these packages are uninstalled for legacy purposes
 ${PIP} uninstall -y nemo_toolkit sacrebleu nemo_asr nemo_nlp nemo_tts
+
+${PIP} install setuptools
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
   echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
