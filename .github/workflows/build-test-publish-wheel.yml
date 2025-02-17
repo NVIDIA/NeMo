@@ -19,7 +19,7 @@ on:
     branches:
       - main
       - "r**"
-  workflow_dispatch:
+  pull_request:
 
 defaults:
   run:
