@@ -127,12 +127,17 @@ nemo() {
       git checkout -f $NEMO_TAG
   fi
 
-  ${PIP} install --no-cache-dir virtualenv &&
-    virtualenv $INSTALL_DIR/venv &&
-    $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools &&
-    $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation \
-      -r $NEMO_DIR/requirements/requirements_vllm.txt \
-      -r $NEMO_DIR/requirements/requirements_deploy.txt
+  PLATFORM_MACHINE=$(python -c "import platform; print(platform.machine())")
+  if [[ "$PLATFORM_MACHINE" == "x86_64" ]]; then
+    ${PIP} install --no-cache-dir virtualenv &&
+      virtualenv $INSTALL_DIR/venv &&
+      $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools &&
+      $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation \
+        -r $NEMO_DIR/requirements/requirements_vllm.txt \
+        -r $NEMO_DIR/requirements/requirements_deploy.txt
+  else
+    echo "Skipping VLLM install for non x86_64 machine."
+  fi
 
   DEPS=(
     "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
