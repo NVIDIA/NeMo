@@ -31,6 +31,8 @@ jobs:
           NEMO_TAG: ${{ github.sha }}
           NEMO_REPO: ${{ github.server_url }}/${{ github.repository }}
         run: |
+          pip cache purge
+
           if [[ "$INSTALLER" == "pip" ]]; then
             pip install .
           else
@@ -60,6 +62,8 @@ jobs:
           NEMO_REPO: ${{ github.server_url }}/${{ github.repository }}
         shell: bash
         run: |
+          pip cache purge
+
           if [[ "$INSTALLER" == "pip" ]]; then
             pip install .
 
