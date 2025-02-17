@@ -18,7 +18,12 @@ Example:
   --devices=8 --tp=4 --data_type=mock
   
   torchrun --nproc_per_node=8 scripts/vlm/llava_next_pretrain.py \
-  --devices=8 --tp=4 --data_type=energon --data_path='' \ 
+  --devices=8 --tp=4 --data_type=energon --data_path='' \
+  --language_model_path=/root/.cache/nemo/models/lmsys/vicuna-7b-v1.5
+  
+  torchrun --nproc_per_node=8 scripts/vlm/llava_next_pretrain.py \
+  --devices=8 --tp=4 --data_type=energon --data_path='' \
+  --num_workers=8 --max_samples_per_sequence=100 --shuffle_buffer_size=100 \
   --language_model_path=/root/.cache/nemo/models/lmsys/vicuna-7b-v1.5
 """
 
