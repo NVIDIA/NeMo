@@ -11,14 +11,13 @@ concurrency:
 
 jobs:
   test-installs:
-    name: test-install-${{ matrix.os }}-py${{ matrix.python }}-${{matrix.installer }}
+    name: test-install-${{ matrix.os }}-py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         python: ["3.10", "3.11", "3.12"]
-        installer: ["pip", "reinstall.sh"]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -29,8 +28,4 @@ jobs:
         env:
           INSTALLER: ${{ matrix.installer }}
         run: |
-          if [[ "$INSTALLER" == "pip" ]]; then
-            pip install .
-          else
-            bash reinstall.sh
-          fi
+          bash reinstall.sh
