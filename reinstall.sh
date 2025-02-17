@@ -39,7 +39,10 @@ mcore() {
     if [ ! -d "$MAMBA_DIR/.git" ]; then
       rm -rf "$MAMBA_DIR" &&
         cd $(dirname "$MAMBA_DIR") &&
-        git clone https://github.com/state-spaces/$(basename $MAMBA_DIR).git
+        git clone https://github.com/state-spaces/$(basename $MAMBA_DIR).git &&
+        pushd $(basename $MAMBA_DIR) &&
+        sed -i "/triton/d" setup.py &&
+        popd
     fi &&
     pushd $MAMBA_DIR &&
     git checkout -f $MAMBA_TAG &&
@@ -137,7 +140,7 @@ nemo() {
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
     "llama-index==0.10.43"
     "unstructured==0.14.9"
-    "triton==3.1.0"
+    "nvidia-pytriton ; platform_machine == 'x86_64'"
   )
 
   echo 'Installing dependencies of nemo'
