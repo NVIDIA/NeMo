@@ -42,6 +42,7 @@ def main(args):
     gbs = args.gbs
     mbs = args.mbs
     max_steps = args.max_steps
+    num_workers = args.num_workers
 
     decoder_seq_length = 4096
 
@@ -54,6 +55,9 @@ def main(args):
         from nemo.collections.vlm import LlavaNextTaskEncoder
 
         data_path = args.data_path
+        max_samples_per_sequence = args.max_samples_per_sequence
+        shuffle_buffer_size = args.shuffle_buffer_size
+
         model_id = "llava-hf/llava-v1.6-vicuna-7b-hf"
         processor = AutoProcessor.from_pretrained(model_id)
         tokenizer = AutoTokenizer(model_id)
@@ -71,9 +75,11 @@ def main(args):
             path=data_path,
             tokenizer=tokenizer,
             image_processor=processor.image_processor,
-            num_workers=32,
+            num_workers=num_workers,
             micro_batch_size=mbs,
             global_batch_size=gbs,
+            max_samples_per_sequence=max_samples_per_sequence,
+            shuffle_buffer_size=shuffle_buffer_size,
             multimodal_sample_config=multimodal_sample_config,
             task_encoder=task_encoder,
         )
@@ -85,7 +91,7 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=4,
+            num_workers=num_workers,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
@@ -218,6 +224,27 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=32, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=0.001, help="Learning rate")
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        required=False,
+        default=4,
+        help="The number of data loader workers per rank. May be 0 to disable worker processes",
+    )
+    parser.add_argument(
+        "--max_samples_per_sequence",
+        type=int,
+        required=False,
+        default=100,
+        help="If using Energon, the maximum number of samples per sequence to load from memory",
+    )
+    parser.add_argument(
+        "--shuffle_buffer_size",
+        type=int,
+        required=False,
+        default=100,
+        help="If using Energon, the size of the sample shuffle buffer (before task encoding)",
+    )
 
     args = parser.parse_args()
     main(args)
