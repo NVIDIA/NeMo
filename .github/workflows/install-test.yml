@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        image: [ubuntu:22.04, nvcr.io/nvidia/pytorch:25.01-py3]
+        image: ["ubuntu:22.04", "nvcr.io/nvidia/pytorch:25.01-py3"]
         python: ["3.10", "3.11", "3.12"]
         installer: ["pip", "reinstall.sh"]
     steps:
