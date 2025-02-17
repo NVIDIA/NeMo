@@ -398,7 +398,7 @@ def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenize
 
 
 def build_tokenizer(tokenizer):
-    "Builds for trt-llm export"
+    """Builds tokenizer for trt-llm export."""
     if isinstance(tokenizer, dict):
         tokenizer_config = tokenizer
         if tokenizer_config["library"] == "sentencepiece":
@@ -769,7 +769,7 @@ class UnpackedNemoCheckpointDir:
     @property
     @functools.lru_cache
     def checkpoint_name(self):
-        """Returns name of checkpoint file."""
+        """Returns the name of the checkpoint file."""
         patterns = [
             "model_weights.ckpt",  # older megatron checkpoints
             "*last.ckpt",  # newer format of checkpoints
