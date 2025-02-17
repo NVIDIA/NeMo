@@ -708,6 +708,91 @@ def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler
     scheduler = partial(scheduler_cls, **kwargs)
     return scheduler
 
+class WarmupConstantCooldownPolicy(_LRScheduler):
+    """
+    Implements a learning rate schedule with a warmup period, a constant learning rate period,
+    and a linear cooldown to zero.
+
+    Args:
+        optimizer (torch.optim.Optimizer): The optimizer to adjust the learning rate for.
+        warmup_steps (int): Number of steps for the linear warmup.
+        constant_steps (int): Number of steps with a constant learning rate.
+        cooldown_steps (int): Number of steps for the linear cooldown.
+        min_lr (float): The minimum learning rate to decay to. Defaults to 0.0.
+        max_steps (int, optional): Total number of training steps.  If None, cooldown_steps MUST be specified.
+        last_epoch (int): The index of the last epoch when resuming training. Defaults to -1.
+
+    Example:
+
+    ```python
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    scheduler = WarmupConstantCooldownPolicy(
+        optimizer,
+        warmup_steps=1000,
+        constant_steps=5000,
+        cooldown_steps=2000,
+        min_lr=1e-5,
+        max_steps=8000
+    )
+    ```
+    """
+
+    def __init__(
+        self,
+        optimizer: optim.Optimizer,
+        warmup_steps: int,
+        constant_steps: int,
+        cooldown_steps: int,
+        min_lr: float = 0.0,
+        max_steps: Optional[int] = None,
+        last_epoch: int = -1,
+    ):
+        self.warmup_steps = warmup_steps
+        self.constant_steps = constant_steps
+        self.cooldown_steps = cooldown_steps
+        self.min_lr = min_lr
+        self.max_steps = max_steps
+
+        if max_steps is None:
+            self.max_steps = warmup_steps + constant_steps + cooldown_steps
+            if self.max_steps <= 0:
+                raise ValueError("If max_steps is not specified, sum of warmup_steps, constant_steps and cooldown_steps should be positive")
+
+        if self.max_steps <= (self.warmup_steps + self.constant_steps):
+             raise ValueError("Max steps needs to be greater than the sum of warmup steps and constant steps")
+
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        if not self._get_lr_called_within_step:
+            warnings.warn(
+                "To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning
+            )
+
+        step = self.last_epoch
+
+        if step <= self.warmup_steps:
+            return self._get_warmup_lr(step)
+        elif step <= (self.warmup_steps + self.constant_steps):
+            return self._get_constant_lr()
+        else:
+            return self._get_cooldown_lr(step)
+
+    def _get_warmup_lr(self, step: int):
+        # Linear Warmup
+        lr_scale = (step + 1) / (self.warmup_steps + 1)
+        return [base_lr * lr_scale for base_lr in self.base_lrs]
+
+    def _get_constant_lr(self):
+        # Constant Learning Rate
+        return self.base_lrs
+
+    def _get_cooldown_lr(self, step: int):
+        # Linear Cooldown
+        progress = (step - self.warmup_steps - self.constant_steps) / self.cooldown_steps
+        lr_scale = max(0.0, 1.0 - progress)  # Ensure it doesn't go below 0
+        return [self.min_lr + (base_lr - self.min_lr) * lr_scale for base_lr in self.base_lrs]
+
 
 def prepare_lr_scheduler(
     optimizer: optim.Optimizer,
@@ -1010,6 +1095,7 @@ AVAILABLE_SCHEDULERS = {
     'ExponentialLR': pt_scheduler.ExponentialLR,
     'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,
     'CyclicLR': pt_scheduler.CyclicLR,
+    'WarmupConstantCooldown': WarmupConstantCooldownPolicy,
 }
 
 EPOCH_SCHEDULERS = {
