@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+## Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         assert is_rank_0(), "Expected to run only on rank=0"
         # Determine checkpoint directory & make dir
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
-        assert checkpoint_dir.parts[-1] == WEIGHTS_PATH, "Expected % to end with %".format(
+        assert checkpoint_dir.parts[-1] == WEIGHTS_PATH, "Expected {} to end with {}".format(
             checkpoint_dir, WEIGHTS_PATH
         )
         # remove the WEIGHTS_PATH suffix
@@ -170,7 +170,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         try:
             save_file(state_dict, path / "adapter_model.safetensors")
         except OSError as e:
-            raise OSError("Failed to save adapter weights: %".format(e))
+            raise OSError("Failed to save adapter weights: {}".format(e))
 
     @staticmethod
     def _load_adapter_weights_only(path: Union[str, Path]) -> Dict[str, Any]:
@@ -191,18 +191,18 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         fs = get_filesystem(path)
 
         if not fs.exists(path):
-            raise FileNotFoundError("Checkpoint file not found: %", path)
+            raise FileNotFoundError("Checkpoint file not found: {}", path)
 
         if not fs.isdir(path):
-            raise ValueError("Checkpoints should be a directory. Found: %", path)
+            raise ValueError("Checkpoints should be a directory. Found: {}".format(path))
 
         state_dict = {}
         adapter_file = Path(path) / "adapter_model.safetensors"
         if not adapter_file.exists():
-            raise FileNotFoundError("Adapter weights file not found: %", adapter_file)
+            raise FileNotFoundError("Adapter weights file not found: {}".format(adapter_file))
         config_file = Path(path) / HF_ADAPTER_CONFIG_FILENAME
         if not config_file.exists():
-            raise FileNotFoundError("Adapter config file not found: %", config_file)
+            raise FileNotFoundError("Adapter config file not found: {}".format(config_file))
 
         from safetensors import safe_open
 
@@ -242,7 +242,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         trainer_state = {}
 
         if not (path / 'trainer.pt').exists():
-            logging.info("Asked to restore from checkpoint without trainer state at %", path)
+            logging.info("Asked to restore from checkpoint without trainer state at {}".format(path))
         else:
             trainer_state = torch.load(
                 path / 'trainer.pt',
@@ -274,4 +274,4 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         fs = get_filesystem(path)
         if fs.exists(path):
             fs.rm(path, recursive=True)
-            log.debug("Removed checkpoint: %s", path)
+            log.debug("Removed checkpoint: {}".format(path))
