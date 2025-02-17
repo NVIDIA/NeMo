@@ -19,6 +19,7 @@ from typing import Union
 
 from zarr.storage._local import LocalStore
 
+
 class TarPath:
     """
     A class that represents a path inside a TAR archive and behaves like pathlib.Path.
