@@ -29,7 +29,7 @@ jobs:
         env:
           INSTALLER: ${{ matrix.installer }}
           NEMO_TAG: ${{ github.sha }}
-          NEMO_REPO: ${{ github.repositoryUrl }}
+          NEMO_REPO: ${{ github.server_url }}/${{ github.repository }}
         run: |
           if [[ "$INSTALLER" == "pip" ]]; then
             pip install .
