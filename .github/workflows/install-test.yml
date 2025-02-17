@@ -1,0 +1,36 @@
+name: CI-Install-Check
+
+on:
+  pull_request:
+    paths:
+      - "**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-installs:
+    name: test-${{ matrix.collection }}-install-${{ matrix.os }}-py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.11", "3.12"]
+        installer: ["pip", "reinstall.sh"]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "${{ matrix.python }}"
+      - name: Install NeMo
+        env:
+          INSTALLER: ${{ matrix.installer }}
+        run: |
+          if [[ "$INSTALLER" == "pip" ]]; then
+            pip install .
+          else
+            bash reinstall.sh
+          fi
