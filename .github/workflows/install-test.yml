@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   test-installs:
-    name: test-install-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.installer }}
+    name: test-install-${{ matrix.os }}-${{ matrix.image }}-py${{ matrix.python }}-${{ matrix.installer }}
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.image }}
     strategy:
