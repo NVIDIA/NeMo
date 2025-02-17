@@ -53,7 +53,7 @@ EXTRA_STATE = "extra_state"
 
 
 def is_nemo_file(path):
-    "Checks if the path is NeMo tarfile"
+    """Checks if the path is NeMo tarfile."""
     flag = False
 
     if path is not None:
@@ -188,7 +188,7 @@ def rename_extra_states(state_dict: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch_tensor: bool = True):
-    "Loads model state dictionary from torch_dist checkpoint format"
+    """Loads model state dictionary from torch_dist checkpoint format."""
     fs_reader = TarFileSystemReader(checkpoint_dir)
     metadata = fs_reader.read_metadata()
 
@@ -221,7 +221,7 @@ def load_sharded_metadata_torch_dist(checkpoint_dir: Union[Path, TarPath], torch
 
 
 def load_sharded_pickle_extra_state_scale(dir: Union[Path, TarPath]):
-    "Loads model state dictionary from pickle extra state scale"
+    """Loads model state dictionary from pickle extra state scale."""
     pt_files = list(dir.glob('shard_*_*.pt'))
     extra_states = {}
     for file in pt_files:
@@ -233,12 +233,12 @@ def load_sharded_pickle_extra_state_scale(dir: Union[Path, TarPath]):
 
 
 def contains_extra_states(subdir: Union[Path, TarPath]):
-    "Checks if the subdirectory contains extra states"
+    """Checks if the subdirectory contains extra states."""
     return list(subdir.glob('shard_0_*.pt')) != []
 
 
 def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    "Loads model state dictionary from zarr checkpoint format"
+    """Loads model state dictionary from zarr checkpoint format."""
     torch.serialization.add_safe_globals([BytesIO])  # For possible extra states
     sharded_state_dict = {}
     for subdir in checkpoint_dir.iterdir():
@@ -267,7 +267,7 @@ def load_sharded_metadata_zarr(checkpoint_dir: Union[Path, TarPath], torch_tenso
 
 
 def load_sharded_metadata(checkpoint_dir: Union[Path, TarPath], torch_tensor=True):
-    "Loads model state dictionary from all checkpoint formats"
+    """Loads model state dictionary from all checkpoint formats."""
     with (checkpoint_dir / 'metadata.json').open(mode='r') as f:
         config_dict = json.load(f)
     if config_dict['sharded_backend'] == 'zarr':
@@ -569,7 +569,7 @@ def load_distributed_model_weights(
 
 
 def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path], mcore_scales_format: bool = True):
-    "Unified model loading for trt-llm export"
+    """Unified model loading for trt-llm export."""
     if not os.path.exists(nemo_ckpt):
         raise TypeError("%s does not exist", nemo_ckpt)
 
@@ -657,12 +657,12 @@ def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Pat
 
 
 def cpu_map_location(storage, loc):
-    "Maps storage to CPU"
+    """Maps storage to CPU."""
     return storage.cpu()
 
 
 def gpu_map_location(storage, loc):
-    "Maps storage to GPU"
+    """Maps storage to GPU."""
     if loc.startswith("cuda"):
         training_gpu_idx = int(loc.split(":")[1])
         inference_gpu_idx = training_gpu_idx % torch.cuda.device_count()
@@ -690,7 +690,7 @@ class UnpackedNemoCheckpointDir:
     @property
     @functools.lru_cache
     def model_config(self):
-        "Returns model config dictionary"
+        """Returns model config dictionary."""
         model_config = None
 
         model_config_filename = "model_config.yaml"
@@ -731,7 +731,7 @@ class UnpackedNemoCheckpointDir:
 
     @property
     def checkpoints_dir(self):
-        "Returns path to checkpoints directory"
+        """Returns path to checkpoints directory."""
         return self._checkpoints_dir
 
     def get_checkpoints_paths(self, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
@@ -769,7 +769,7 @@ class UnpackedNemoCheckpointDir:
     @property
     @functools.lru_cache
     def checkpoint_name(self):
-        "Returns name of checkpoint file"
+        """Returns name of checkpoint file."""
         patterns = [
             "model_weights.ckpt",  # older megatron checkpoints
             "*last.ckpt",  # newer format of checkpoints
@@ -783,7 +783,7 @@ class UnpackedNemoCheckpointDir:
 
     @functools.lru_cache
     def get_tokenizer_file_path(self, tokenizer_key, file_key, default_filename_pattern):
-        "Returns path to tokenizer file"
+        """Returns path to tokenizer file."""
         model_config = self.model_config
         file_property = None
         if tokenizer_key in model_config and file_key in model_config[tokenizer_key]:
