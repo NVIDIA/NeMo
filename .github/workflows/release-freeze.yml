@@ -59,9 +59,15 @@ jobs:
           cd ${{ github.run_id }}
           sed -i 's/^ARG MCORE_TAG=.*$/ARG MCORE_TAG=${{ inputs.mcore_version }}/' Dockerfile.ci
 
+      - name: Show status
+        run: |
+          cd ${{ github.run_id }}
+          git status
+
       - name: Create PR
         uses: peter-evans/create-pull-request@v6
         id: create-pull-request
+        if: ${{ inputs.dry-run != true }}
         with:
           path: ${{ github.run_id }}
           base: ${{ needs.code-freeze.outputs.release-branch }}
