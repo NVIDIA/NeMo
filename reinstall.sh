@@ -16,7 +16,7 @@ CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 WHEELS_DIR=${WHEELS_DIR:-'/tmp/wheels'}
 
 PIP=pip
-${PIP} install -U ${PIP} setuptools
+${PIP} install -U ${PIP}
 
 mcore() {
   local mode="$1"
@@ -125,14 +125,14 @@ nemo() {
 
   ${PIP} install --no-cache-dir virtualenv &&
     virtualenv /opt/venv &&
-    /opt/venv/bin/pip install --no-cache-dir setuptools &&
     /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
       -r $NEMO_DIR/requirements/requirements_vllm.txt \
       -r $NEMO_DIR/requirements/requirements_deploy.txt
 
   DEPS=(
     "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
-    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
+    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
+    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e"
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
     "llama-index==0.10.43"
     "unstructured==0.14.9"
@@ -142,10 +142,6 @@ nemo() {
   echo 'Installing dependencies of nemo'
   ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
-  # nvidia-resiliency is installeed with mcore but force-install a newer version for needed fixes
-  RESIL="git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737"
-  ${PIP} install --force-reinstall --no-deps --no-cache-dir --extra-index-url https://pypi.nvidia.com $RESIL
-
   echo 'Installing nemo itself'
   pip install --no-cache-dir --no-build-isolation $NEMO_DIR/.[all]
 }
@@ -153,8 +149,6 @@ nemo() {
 echo 'Uninstalling stuff'
 # Some of these packages are uninstalled for legacy purposes
 ${PIP} uninstall -y nemo_toolkit sacrebleu nemo_asr nemo_nlp nemo_tts
-
-${PIP} install setuptools
 
 if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
   echo "Installing NeMo in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
