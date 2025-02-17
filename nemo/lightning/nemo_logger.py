@@ -97,22 +97,24 @@ class NeMoLogger(IOMixin):
         if self.explicit_log_dir and isinstance(trainer, pl.Trainer):
             if trainer.logger is not None and not self.update_logger_directory:
                 logging.warning(
-                    "nemo logger received explicit_log_dir: % and the pytorch lightning trainer "
+                    ("nemo logger received explicit_log_dir: {} and the pytorch lightning trainer "
                     "that was passed to nemo_logger container a logger, but "
                     "update_logger_directory is False. This means that the trainer's logger "
-                    "directory may not match with the explicit_log_dir.",
-                    self.explicit_log_dir,
+                    "directory may not match with the explicit_log_dir.").format(
+                        self.explicit_log_dir,
+                    )
                 )
             if self.log_dir or self.version:
                 logging.error(
-                    "nemo logger received explicit_log_dir: % and at least one of dir: %"
-                    "or version: %. Please note that dir, name, and version will be ignored.",
-                    self.explicit_log_dir,
-                    self.log_dir,
-                    self.version,
+                    ("nemo logger received explicit_log_dir: {} and at least one of dir: {}"
+                    "or version: {}. Please note that dir, name, and version will be ignored.").format(
+                        self.explicit_log_dir,
+                        self.log_dir,
+                        self.version,
+                    )
                 )
             if is_global_rank_zero() and Path(self.explicit_log_dir).exists():
-                logging.warning("NeMoLogger is logging to %, but it already exists.", self.explicit_log_dir)
+                logging.warning("NeMoLogger is logging to {}, but it already exists.".format(self.explicit_log_dir))
             log_dir, _dir, self.name, version = Path(self.explicit_log_dir), str(self.explicit_log_dir), "", ""
 
         else:
@@ -150,7 +152,7 @@ class NeMoLogger(IOMixin):
 
         # Cannot limit creation to global zero as all ranks write to own log file
         os.makedirs(log_dir, exist_ok=True)
-        logging.info("Experiments will be logged at %", log_dir)
+        logging.info("Experiments will be logged at {}".format(log_dir))
 
         if task_config and is_global_rank_zero():
             self._handle_task_config(task_config, log_dir)
@@ -179,16 +181,18 @@ class NeMoLogger(IOMixin):
                     logger._version = version or ""
                     logger._root_dir = Path(dir) / os.path.relpath(logger.save_dir)
                     logging.warning(
-                        '"update_logger_directory" is True. Overwriting tensorboard' ' logger "save_dir" to %',
-                        logger._root_dir,
+                        '"update_logger_directory" is True. Overwriting tensorboard' ' logger "save_dir" to {}'.format(
+                            logger._root_dir
+                        )
                     )
                 elif isinstance(logger, WandbLogger):
                     logger._id = version or ""
                     logger._save_dir = Path(dir) / logger.save_dir
                     logger._wandb_init["dir"] = Path(dir) / logger.save_dir
                     logging.warning(
-                        '"update_logger_directory" is True. Overwriting wandb logger ' '"save_dir" to %',
-                        logger._save_dir,
+                        '"update_logger_directory" is True. Overwriting wandb logger "save_dir" to {}'.format(
+                            logger._save_dir,
+                        )
                     )
 
     def _setup_trainer_model_checkpoint(self, trainer, log_dir, ckpt=None):
@@ -213,22 +217,24 @@ class NeMoLogger(IOMixin):
                     and trainer.max_epochs < trainer.check_val_every_n_epoch
                 ):
                     logging.error(
-                        "The checkpoint callback was told to monitor a validation value but "
-                        "trainer.max_epochs(%) was less than trainer.check_val_every_n_epoch(%)."
-                        "It is very likely this run will fail with ModelCheckpoint(monitor='%') "
+                        ("The checkpoint callback was told to monitor a validation value but "
+                        "trainer.max_epochs({}) was less than trainer.check_val_every_n_epoch({})."
+                        "It is very likely this run will fail with ModelCheckpoint(monitor='{}') "
                         "not found in the returned metrics. Please ensure that validation is "
-                        "run within trainer.max_epochs.",
-                        trainer.max_epochs,
-                        trainer.check_val_every_n_epoch,
-                        ckpt.monitor,
+                        "run within trainer.max_epochs.").format(
+                            trainer.max_epochs,
+                            trainer.check_val_every_n_epoch,
+                            ckpt.monitor,
+                        )
                     )
                 elif trainer.max_steps is not None and trainer.max_steps != -1:
                     logging.warning(
-                        "The checkpoint callback was told to monitor a validation value and "
+                        ("The checkpoint callback was told to monitor a validation value and "
                         "trainer's max_steps was set to {}. Please ensure that max_steps will run "
-                        "for at least {} epochs to ensure that checkpointing will not error out.",
-                        trainer.max_steps,
-                        trainer.check_val_every_n_epoch,
+                        "for at least {} epochs to ensure that checkpointing will not error out.").format(
+                            trainer.max_steps,
+                            trainer.check_val_every_n_epoch,
+                        )
                     )
 
         from nemo.lightning import MegatronStrategy
@@ -254,7 +260,7 @@ class NeMoLogger(IOMixin):
             with open(log_dir / "task.json", "w") as f:
                 f.write(task_json)
         except Exception as e:
-            logging.warning("Saving task config failed: %. Skipping saving", e)
+            logging.warning("Saving task config failed: {}. Skipping saving".format(e))
 
     def _setup_file_logging(self, log_dir):
         """Set up file logging based on rank settings."""
