@@ -9,7 +9,7 @@ from datetime import datetime
 
 from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo import lightning as nl
-from nemo.collections.llm import SquadDataModule
+from nemo.collections.llm import SquadDataModule, MockDataModule
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
@@ -152,6 +152,7 @@ def configure_recipe_llama32_1b_pretrain(
     seq_length=4096,
     global_batch_size=512,
     model_name="meta-llama/Llama-3.2-1B",
+    dataset=None,
 ):
     model_name = "llama32_1b_pretrain"
     recipe = llm.llama32_1b.pretrain_recipe(
@@ -176,17 +177,24 @@ def configure_recipe_llama32_1b_pretrain(
     #     global_batch_size=512,
     #     micro_batch_size=1,
     # )
-
-    datamodule = run.Config(
-        SquadDataModule,
-        seq_length=2048,
-        global_batch_size=128,
+    recipe.data = run.Config(
+        MockDataModule,
+        seq_length=seq_length,
+        global_batch_size=global_batch_size,
         micro_batch_size=1,
-        tokenizer=run.Config(
-            AutoTokenizer, pretrained_model_name="meta-llama/Llama-3.2-1B"
-        ),
     )
-    recipe.data = datamodule
+
+    if dataset == "squad":
+        datamodule = run.Config(
+            SquadDataModule,
+            seq_length=2048,
+            global_batch_size=128,
+            micro_batch_size=1,
+            tokenizer=run.Config(
+                AutoTokenizer, pretrained_model_name="meta-llama/Llama-3.2-1B"
+            ),
+        )
+        recipe.data = datamodule
 
     recipe.trainer.accumulate_grad_batches = (
         global_batch_size / num_gpus_per_node / num_nodes
@@ -253,17 +261,17 @@ def custom_hf_auto_model_for_causal_lm_finetune(
         num_gpus_per_node=num_gpus_per_node,
     )
 
-    datamodule = run.Config(
-        SquadDataModule,
-        seq_length=seq_length,
-        global_batch_size=global_batch_size,
-        micro_batch_size=1,
-        tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
-    )
-    finetune.data = datamodule
-    finetune.trainer.accumulate_grad_batches = (
-        global_batch_size / num_gpus_per_node / num_nodes
-    )  # Change gradient accumulation steps here
+    # datamodule = run.Config(
+    #     SquadDataModule,
+    #     seq_length=seq_length,
+    #     global_batch_size=global_batch_size,
+    #     micro_batch_size=1,
+    #     tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
+    # )
+    # finetune.data = datamodule
+    # finetune.trainer.accumulate_grad_batches = (
+    #     global_batch_size / num_gpus_per_node / num_nodes
+    # )  # Change gradient accumulation steps here
 
     finetune.log.wandb = run.Config(
         WandbLogger,
@@ -280,6 +288,7 @@ def custom_hf_auto_model_for_causal_lm(
     seq_length=4096,
     global_batch_size=512,
     model_name="meta-llama/Llama-3.2-1B",
+    dataset=None,
 ):
     pretrain = hf_auto_model_for_causal_lm.pretrain_recipe(
         model_name=model_name, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
@@ -290,21 +299,22 @@ def custom_hf_auto_model_for_causal_lm(
     pretrain.log.ckpt.save_top_k = -1
     # pretrain.optim = llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)
     # breakpoint()
-    # pretrain.data = run.Config(
-    #     MockDataModule,
-    #     seq_length=seq_length,
-    #     global_batch_size=global_batch_size,
-    #     micro_batch_size=1,
-    # )
-
-    datamodule = run.Config(
-        SquadDataModule,
+    pretrain.data = run.Config(
+        MockDataModule,
         seq_length=seq_length,
         global_batch_size=global_batch_size,
         micro_batch_size=1,
-        tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
     )
-    pretrain.data = datamodule
+
+    if dataset == "squad":
+        datamodule = run.Config(
+            SquadDataModule,
+            seq_length=seq_length,
+            global_batch_size=global_batch_size,
+            micro_batch_size=1,
+            tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
+        )
+        pretrain.data = datamodule
 
     pretrain.trainer.strategy = run.Config(
         nl.FSDP2Strategy,
@@ -340,25 +350,28 @@ recipes = [
     #     configure_recipe_llama32_1b_pretrain(1, 2, "nemo2"),
     #     "llama32_1b_pretrain_1_node_2_gpu",
     # ),
-    (
-        custom_hf_auto_model_for_causal_lm(1, 2, "nemo2"),
-        "hf_llama32_1b_pretrain_1_node_2_gpu",
-    ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm(1, 2, "nemo2", 2048, 128),
+    #     "hf_llama32_1b_pretrain_1_node_2_gpu",
+    # ),
     (
         custom_hf_auto_model_for_causal_lm_finetune(1, 2, "nemo2"),
         "hf_llama32_1b_finetune_1_node_2_gpu",
     ),
-    # (configure_recipe_llama32_1b_pretrain(1, 8), "llama32_1b_pretrain_1_node_8_gpu"),
     # (
-    #     custom_hf_auto_model_for_causal_lm(1, 8, "nemo2"),
+    #     configure_recipe_llama32_1b_pretrain(1, 8, "nemo2", 2048, 128),
+    #     "mcore_llama32_1b_pretrain_1_node_8_gpu",
+    # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm(1, 8, "nemo2", 2048, 128),
     #     "hf_llama32_1b_pretrain_1_node_8_gpu",
     # ),
     # (
-    #     custom_hf_auto_model_for_causal_lm(2, 8, "nemo2"),
+    #     custom_hf_auto_model_for_causal_lm(2, 8, "nemo2", 2048, 128),
     #     "hf_llama32_1b_pretrain_2_node_8_gpu",
     # ),
     # (
-    #     custom_hf_auto_model_for_causal_lm(4, 8, "nemo2"),
+    #     custom_hf_auto_model_for_causal_lm(4, 8, "nemo2", 2048, 128),
     #     "hf_llama32_1b_pretrain_4_node_8_gpu",
     # ),
 ]
@@ -392,7 +405,7 @@ def run_finetuning_on_slurm(**slurm_kwargs):
     )
 
     with run.Experiment(f"{DATE_STR}-squad_llama3_2_1b_pretrain") as exp:
-        for recipe, exp_name in zip(recipes, exp_names):
+        for recipe, exp_name in recipes:
             exp.add(
                 recipe, executor=executor(nodes=recipe.trainer.num_nodes), name=exp_name
             )

@@ -22,8 +22,8 @@ from nemo.utils import logging
 
 
 def clean_split(name):
-    if '[' in name:
-        return name.split('[')[0]
+    if "[" in name:
+        return name.split("[")[0]
     return name
 
 
@@ -57,7 +57,7 @@ def make_dataset_splits(dataset, split, split_aliases):
     >    "val": Dataset .. (with 10570 rows),
     > }
     """
-    valid_split_names = ['train', 'test', 'val']
+    valid_split_names = ["train", "test", "val"]
     dataset_splits = {_split: None for _split in valid_split_names}
 
     alias_to_split = {}
@@ -67,7 +67,9 @@ def make_dataset_splits(dataset, split, split_aliases):
             alias_to_split[alias] = split_name
 
     if isinstance(dataset, Dataset):
-        assert isinstance(split, str), "Expected split to be a string, but got " + str(type(split))
+        assert isinstance(split, str), "Expected split to be a string, but got " + str(
+            type(split)
+        )
         split = clean_split(split)
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
@@ -78,20 +80,20 @@ def make_dataset_splits(dataset, split, split_aliases):
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = split
     elif isinstance(split, list):
-        logging.info(f"Loaded HF dataset will use " + str(split) + " splits.")
+        logging.info("Loaded HF dataset will use " + str(split) + " splits.")
         assert isinstance(dataset, list)
         for i, alias_split_name in enumerate(map(clean_split, split)):
             split_name = alias_to_split[alias_split_name]
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = dataset[i]
     elif isinstance(split, str):
-        logging.info(f"Loaded HF dataset has a single split.")
+        logging.info("Loaded HF dataset has a single split.")
         assert not isinstance(dataset, list)
         alias_split_name = split
-        if '+' in alias_split_name:
+        if "+" in alias_split_name:
             raise ValueError("Split concatenation not supported")
-        elif '[' in alias_split_name:
-            alias_split_name = alias_split_name.split('[')[0]
+        elif "[" in alias_split_name:
+            alias_split_name = alias_split_name.split("[")[0]
         split_name = alias_to_split[alias_split_name]
         assert dataset_splits[split_name] is None
         dataset_splits[split_name] = dataset
@@ -100,7 +102,9 @@ def make_dataset_splits(dataset, split, split_aliases):
 
     assert set(valid_split_names) == set(dataset_splits.keys()), dataset_splits.keys()
     num_init_splits = sum(map(lambda x: x is not None, dataset_splits.values()))
-    assert num_init_splits > 0, f"Expected at least one split to have been initialized {num_init_splits}"
+    assert num_init_splits > 0, (
+        f"Expected at least one split to have been initialized {num_init_splits}"
+    )
     return dataset_splits
 
 
@@ -131,7 +135,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         global_batch_size=2,
         pad_token_id=0,
         use_mcore_sampler=False,
-        mcore_dataloader_type='cyclic',
+        mcore_dataloader_type="cyclic",
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
@@ -142,24 +146,33 @@ class HFDatasetDataModule(pl.LightningDataModule):
         # A dataset usually will have several splits (e.g. train, val, test, etc).
         # We map synonym names to canonical names (train, test, val).
         # A synonym can be a prefix/suffixed word e.g. train <> training.
-        split_aliases = {'train': train_aliases, 'test': test_aliases, 'val': val_aliases}
+        split_aliases = {
+            "train": train_aliases,
+            "test": test_aliases,
+            "val": val_aliases,
+        }
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
             logging.info(f"Loading HF dataset from {path_or_dataset}")
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
-        elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
+        elif isinstance(path_or_dataset, Dataset) or isinstance(
+            path_or_dataset, DatasetDict
+        ):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
             dataset = path_or_dataset
         else:
             raise ValueError(
-                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " + str(type(path_or_dataset))
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got "
+                + str(type(path_or_dataset))
             )
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id
+            )
         else:
             self._collate_fn = collate_fn
 
@@ -198,7 +211,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 torch.LongTensor(
                     pad_within_micro(
                         extract_key_from_dicts(batch, key),
-                        pad_token_id if key != 'loss_mask' else 0,
+                        pad_token_id if key != "loss_mask" else 0,
                     )
                 )
             )
@@ -219,7 +232,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
 
         if collate_fn is None:
-            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id
+            )
 
         return DataLoader(
             dataset,
@@ -232,15 +247,15 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     @property
     def train(self):
-        return self.dataset_splits['train']
+        return self.dataset_splits["train"]
 
     @property
     def val(self):
-        return self.dataset_splits['val']
+        return self.dataset_splits["val"]
 
     @property
     def test(self):
-        return self.dataset_splits['test']
+        return self.dataset_splits["test"]
 
     def train_dataloader(self):
         return self._make_dataloader(self.train, self._collate_fn)
@@ -268,6 +283,8 @@ class HFDatasetDataModule(pl.LightningDataModule):
 class SquadHFDataModule(HFDatasetDataModule):
     def __init__(self, tokenizer, **kwargs):
         super().__init__(**kwargs)
+        if tokenizer is None:
+            raise ValueError("tokenizer must be provided")
         self.tokenizer = tokenizer
 
     def formatting_prompts_func(self, example):
@@ -276,10 +293,10 @@ class SquadHFDataModule(HFDatasetDataModule):
             f" {example['answers']['text'][0].strip()}",
         ]
         context_ids, answer_ids = list(map(self.tokenizer.text_to_ids, formatted_text))
-        if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id:
-            context_ids.insert(0, tokenizer.bos_id)
-        if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id:
-            answer_ids.append(tokenizer.eos_id)
+        if len(context_ids) > 0 and context_ids[0] != self.tokenizer.bos_id:
+            context_ids.insert(0, self.tokenizer.bos_id)
+        if len(answer_ids) > 0 and answer_ids[-1] != self.tokenizer.eos_id:
+            answer_ids.append(self.tokenizer.eos_id)
 
         return dict(
             labels=(context_ids + answer_ids)[1:],
@@ -294,5 +311,5 @@ class SquadHFDataModule(HFDatasetDataModule):
             self.formatting_prompts_func,
             batched=False,
             batch_size=2,
-            remove_columns=["id", "title", "context", "question", 'answers'],
+            remove_columns=["id", "title", "context", "question", "answers"],
         )

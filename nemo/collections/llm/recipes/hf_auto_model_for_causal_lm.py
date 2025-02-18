@@ -95,8 +95,8 @@ def trainer(
             >>> print(trainer_config)
     """
     strategy = str(strategy).lower()
-    assert strategy in ['', 'ddp', 'fsdp2'], strategy
-    if strategy == 'fsdp2' or strategy == 'fsdp':
+    assert strategy in ['', 'ddp', 'fsdp'], strategy
+    if strategy == 'fsdp':
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
         gradient_clip_val = None
 
@@ -127,8 +127,6 @@ def pretrain_recipe(
     num_gpus_per_node: int = 8,
     fn=pretrain,
     model_name: str = '',
-    max_steps: int = 100,
-    strategy: Optional[str] = 'ddp',
 ) -> run.Partial:
     """
     Create a pre-training recipe for a HFAutoModelForCausalLM model.
@@ -161,8 +159,6 @@ def pretrain_recipe(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
-            max_steps=max_steps,
-            strategy=strategy,
         ),
         data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
