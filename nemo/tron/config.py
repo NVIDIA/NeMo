@@ -1011,6 +1011,8 @@ class ConfigContainer:
 
     def __post_init__(self):
         # Run validations
+
+        # Distributed
         world_size = get_world_size_safe()
         mlc = self.megatron_lm_config
         encoder_model_size = (
@@ -1027,6 +1029,11 @@ class ConfigContainer:
         ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
         self.data_parallel_size = world_size // total_model_size
 
+        cfg.megatron_lm_config.use_cpu_initialization = (
+            cfg.megatron_lm_config.use_cpu_initialization or cfg.megatron_lm_config.lazy_mpu_init
+        )
+
+        # Scheduler
         # Iteration-based training.
         if self.megatron_lm_config.train_iters:
             if self.megatron_lm_config.lr_decay_iters is None:
