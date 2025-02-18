@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 
 class CustomRetrievalDataModule(FineTuningDataModule):
-    """ Custom Retrieval Data Module loaded with json file """
+    """Custom Retrieval Data Module loaded with json file"""
 
     def __init__(
         self,
@@ -115,8 +115,10 @@ class CustomRetrievalDataModule(FineTuningDataModule):
         self.neg_doc_key = neg_doc_key
         self.unprocessed_root = data_root
 
-        log_info = (f"data_root: {data_root} will be split to "
-                    f"{self.train_ratio}:{self.val_ratio}:{self.test_ratio} used for train/val/test")
+        log_info = (
+            f"data_root: {data_root} will be split to "
+            f"{self.train_ratio}:{self.val_ratio}:{self.test_ratio} used for train/val/test"
+        )
         if self.val_root is not None:
             log_info += f", separate validation root: {self.val_root}"
         if self.test_root is not None:
