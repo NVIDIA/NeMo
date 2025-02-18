@@ -41,24 +41,41 @@ def load_dcp(ckpt_dir):
     )
     return state_dict
 
+def compare_ckpts(a_item, b_item, current_key, mismatches):
+    if isinstance(a_item, dict):
+        if not isinstance(b_item, dict):
+            mismatches.append(f"Mismatch at '{current_key}': Expected dict, got {type(b_item)}.")
+            return
+        # Compare keys in both dicts.
+        # If you want to fail if 'b_item' has extra keys or missing keys,
+        # you can add additional checks here.
+        for k in a_item:
+            sub_key = f"{current_key}.{k}" if current_key else k
+            compare_ckpts(a_item[k], b_item[k], sub_key)
+    elif isinstance(a_item, torch.Tensor):
+        if not isinstance(b_item, torch.Tensor):
+            mismatches.append(f"Mismatch at '{current_key}': Expected torch.Tensor, got {type(b_item)}.")
+            return
 
-def compare_ckpts(a, b, key=''):
-    if isinstance(a, dict):
-        assert isinstance(b, dict)
-        for key in a.keys():
-            compare_ckpts(a[key], b[key], key)
-    elif isinstance(a, torch.Tensor):
-        try:
-            assert a.dtype == b.dtype, f"mismatch\t{key}: different dtypes {a.dtype} {b.dtype}"
-            assert a.device == b.device, f"mismatch\t{key}: different device {a.device} {b.device}"
-            assert a.shape == b.shape, f"mismatch\t{key}: different shape {a.shape} {b.shape}"
-            assert torch.all(a == b), f"mismatch\t{key}: different values {key}\n{a}\n{b}"
-            print(f'match\t{key}')
-        except Exception as e:
-            print(e)
+        if a_item.dtype != b_item.dtype:
+            mismatches.append(f"Mismatch at '{current_key}': Different dtypes ({a_item.dtype} vs {b_item.dtype}).")
+        if a_item.device != b_item.device:
+            mismatches.append(f"Mismatch at '{current_key}': Different devices ({a_item.device} vs {b_item.device}).")
+        if a_item.shape != b_item.shape:
+            mismatches.append(f"Mismatch at '{current_key}': Different shapes ({a_item.shape} vs {b_item.shape}).")
+        # Use torch.equal for an element-wise equality check
+        if not torch.equal(a_item, b_item):
+            mismatches.append(f"Mismatch at '{current_key}': Different values:\n{a_item}\nvs\n{b_item}")
     else:
-        print(key, '\t', type(a), '\t', type(b))
-
+        # For simple Python objects, we can do a direct type and value check
+        if type(a_item) != type(b_item):
+            mismatches.append(
+                f"Mismatch at '{current_key}': Different types ({type(a_item)} vs {type(b_item)})."
+            )
+        elif a_item != b_item:
+            mismatches.append(
+                f"Mismatch at '{current_key}': Different values ({a_item} vs {b_item})."
+            )
 
 def remove_module_from_key(x):
     # module.decoder.layers.mlp.router.weight -> decoder.layers.mlp.router.weight
@@ -76,4 +93,14 @@ if __name__ == "__main__":
     load_n_rename = lambda x: remove_module_from_dict_keys(load_dcp(x))
     ckpt = load_n_rename(sys.argv[1])
     ckpt2 = load_n_rename(sys.argv[2])
-    compare_ckpts(ckpt, ckpt2)
+    # compare_ckpts(ckpt, ckpt2)
+    mismatches = []
+    compare_ckpts(ckpt, ckpt2, '', mismatches)
+
+    if len(mismatches) > 0:
+        # Join all mismatch messages and raise as a single exception
+        raise ValueError(
+            "The following mismatches were found:\n" + "\n".join(mismatches)
+        )
+    else:
+        print("All keys and tensors match!")
