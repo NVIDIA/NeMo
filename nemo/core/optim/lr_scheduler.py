@@ -708,6 +708,7 @@ def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler
     scheduler = partial(scheduler_cls, **kwargs)
     return scheduler
 
+
 class WarmupConstantCooldownPolicy(_LRScheduler):
     """
     Implements a learning rate schedule with a warmup period, a constant learning rate period,
@@ -756,10 +757,12 @@ class WarmupConstantCooldownPolicy(_LRScheduler):
         if max_steps is None:
             self.max_steps = warmup_steps + constant_steps + cooldown_steps
             if self.max_steps <= 0:
-                raise ValueError("If max_steps is not specified, sum of warmup_steps, constant_steps and cooldown_steps should be positive")
+                raise ValueError(
+                    "If max_steps is not specified, sum of warmup_steps, constant_steps and cooldown_steps should be positive"
+                )
 
         if self.max_steps <= (self.warmup_steps + self.constant_steps):
-             raise ValueError("Max steps needs to be greater than the sum of warmup steps and constant steps")
+            raise ValueError("Max steps needs to be greater than the sum of warmup steps and constant steps")
 
         super().__init__(optimizer, last_epoch)
 
