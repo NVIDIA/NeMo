@@ -51,7 +51,7 @@ def compare_ckpts(a_item, b_item, current_key, mismatches):
         # you can add additional checks here.
         for k in a_item:
             sub_key = f"{current_key}.{k}" if current_key else k
-            compare_ckpts(a_item[k], b_item[k], sub_key)
+            compare_ckpts(a_item[k], b_item[k], sub_key, mismatches)
     elif isinstance(a_item, torch.Tensor):
         if not isinstance(b_item, torch.Tensor):
             mismatches.append(f"Mismatch at '{current_key}': Expected torch.Tensor, got {type(b_item)}.")
