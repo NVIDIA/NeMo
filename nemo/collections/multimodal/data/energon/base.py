@@ -306,10 +306,9 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         if self.trainer:
             dataloader_obj = self.trainer.train_dataloader
 
-
             state = []
             tp_rank = parallel_state.get_tensor_model_parallel_rank()
-            if tp_rank==0: # Only get the dataloader states form the ranks which have a unique state, i.e.
+            if tp_rank == 0:  # Only get the dataloader states form the ranks which have a unique state, i.e.
                 # tp_rank=0 and pp_rank is already 0 from our assert on the top of init.
                 # TODO(ABhinav): Ask Yash or Yu Yao wheather we should also have a cp_rank=0 as well?
                 # As per Yash cp rank 0 should not have a dataloader
@@ -319,7 +318,8 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 self.trainer.global_step - self.init_global_step
             )
 
-            if state is None: state = [] # Megatron core requires all the states on all the ranks to have same python
+            if state is None:
+                state = []  # Megatron core requires all the states on all the ranks to have same python
             # type. Energon sends the state as a list
             logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
             return {'dataloader_state': state, 'consumed_samples': consumed_samples}
