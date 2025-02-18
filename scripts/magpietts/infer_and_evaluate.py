@@ -27,7 +27,7 @@ def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0
         metrics[key] = "{:.4f} +/- {:.4f}".format(mean, confidence_interval)
     return metrics
 
-def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk, codecmodel_path, use_cfg, cfg_scale, batch_size, num_repeats=1):
+def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature, topk, codecmodel_path, use_cfg, cfg_scale, batch_size, num_repeats=1, confidence_level=0.95):
     # import ipdb; ipdb.set_trace()
     model_cfg = OmegaConf.load(hparams_file).cfg
 
@@ -170,7 +170,7 @@ def run_inference(hparams_file, checkpoint_file, datasets, out_dir, temperature,
                        'ssim_pred_gt_avg_alternate', 'ssim_pred_context_avg_alternate', 'ssim_gt_context_avg_alternate',
                        'cer_gt_audio_cumulative', 'wer_gt_audio_cumulative'
                        ]
-        metrics_mean_ci = compute_mean_and_confidence_interval(metrics_n_repeated, metric_keys)
+        metrics_mean_ci = compute_mean_and_confidence_interval(metrics_n_repeated, metric_keys, confidence=confidence_level)
         all_experiment_csv_with_ci = os.path.join(out_dir, "all_experiment_metrics_with_ci.csv")
         if not os.path.exists(all_experiment_csv_with_ci):
             with open(all_experiment_csv_with_ci, "w") as f:
@@ -198,6 +198,7 @@ def main():
     parser.add_argument('--topk', type=int, default=80)
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--num_repeats', type=int, default=1)
+    parser.add_argument('--confidence_level', type=float, default=0.95)
     args = parser.parse_args()
 
     if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null"):
@@ -218,7 +219,8 @@ def main():
                 args.use_cfg,
                 args.cfg_scale,
                 args.batch_size,
-                args.num_repeats
+                args.num_repeats,
+                args.confidence_level,
             )
         return
     else:
@@ -269,7 +271,9 @@ def main():
                 args.codecmodel_path, 
                 args.use_cfg,
                 args.cfg_scale,
-                args.batch_size
+                args.batch_size,
+                num_repeats=args.num_repeats,
+                confidence_level=args.confidence_level,
             )
             
 
