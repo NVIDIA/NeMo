@@ -154,6 +154,7 @@ nemo() {
     pip install --no-cache-dir "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e ; platform_machine == 'x86_64'"
   fi
 
+  echo 'Installing dependencies of nemo'
   ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
   echo 'Installing nemo itself'
