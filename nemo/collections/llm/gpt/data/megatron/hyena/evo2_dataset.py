@@ -93,6 +93,24 @@ class Evo2Dataset(GPTDataset):
             other_tag_chars (set[int]): Set of ASCII values that appear only in tags.
             eod_token_id (int): The token ID for EOD.
 
+        Notes:
+        - The tag token is constructed as follows: So note that one way to know you have a tag is if you look at the first
+        token after the pipe and it is a 'd' character. Make sure implementation handles this.
+            ```
+            return (
+                "|d__{};p__{};c__{};o__{};f__{};g__{};s__{}|".format(
+                    lineage.kingdom if random.random() >= dropout else None,
+                    lineage.phylum if random.random() >= dropout else None,
+                    lineage.clazz if random.random() >= dropout else None,
+                    lineage.order if random.random() >= dropout else None,
+                    lineage.family if random.random() >= dropout else None,
+                    lineage.genus if random.random() >= dropout else None,
+                    lineage.species if random.random() >= dropout else None,
+                )
+                if lineage is not None
+                else None
+            )
+            ```
         Returns:
             torch.Tensor: A mask of the same shape as input where 1 = keep (DNA) and 0 = mask (tag).
         """
@@ -149,44 +167,39 @@ class Evo2Dataset(GPTDataset):
             # Always mask the pipe positions.
             seg_mask[pipe_pos] = 0
 
-            # Process the prefix (tokens before the first pipe).
+            # Does tag start before the first pipe? This determines the starting state of our state machine.
             first_pipe = pipe_pos[0].item()
-            if first_pipe > 0:
-                prefix = seg_seq[:first_pipe]
-                first_char = prefix[0].item()
-                single_lowercase = prefix.numel() == 1 and 97 <= first_char <= 122
-                if (
-                    (first_char in taxonomy_prefixes)
-                    or single_lowercase
-                    or torch.any(torch.isin(prefix, other_tag_tensor))
-                    or (not region_all_valid(prefix))
-                ):
+            if first_pipe >= 0 and first_pipe < seg_len - 1:
+                # fastest check is to look at the first token after the pipe, if it is a 'd' then the tag starts _after_
+                # otherwise it starts before.
+                next_tok = seg_seq[first_pipe + 1].item()
+                if next_tok == 100:
+                    # 'd' character for domain, which is the first part of a phylo tag.
+                    # tag starts after the pipe.
+                    is_tag = False
+                else:
+                    # tag starts before the pipe.
+                    is_tag = True
+            else:
+                # The sequence ends with a pipe, so just check everything before the pipe and return the seg mask
+                assert first_pipe == seg_len - 1
+                # The sequence ends with a pipe, so just check everything before the pipe.
+                if region_all_valid(seg_seq[:first_pipe]):
+                    return seg_mask # Pipe pos has already been masked
+                else:
                     seg_mask[:first_pipe] = 0
-
-            # Process regions between consecutive pipes.
-            for j in range(pipe_pos.numel() - 1):
-                start = pipe_pos[j].item()
-                end = pipe_pos[j + 1].item()
-                if end > start + 1:
-                    mid = seg_seq[start + 1 : end]
-                    # For a complete tag, if any token is a known tag char or not valid DNA, mask it.
-                    if torch.any(torch.isin(mid, other_tag_tensor)) or (not region_all_valid(mid)):
-                        seg_mask[start + 1 : end] = 0
-
-            # Process the suffix (tokens after the last pipe).
-            last_pipe = pipe_pos[-1].item()
-            if last_pipe < seg_len - 1:
-                suffix = seg_seq[last_pipe + 1 :]
-                if suffix.numel() > 0:
-                    first_suffix = suffix[0].item()
-                    if (
-                        (first_suffix == 100)
-                        or torch.any(torch.isin(suffix, other_tag_tensor))
-                        or torch.any(suffix == eod_token_id)
-                        or (not region_all_valid(suffix))
-                    ):
-                        seg_mask[last_pipe + 1 :] = 0
-
+                    return seg_mask
+            start = 0
+            for end in pipe_pos:
+                if is_tag:
+                    seg_mask[start:end] = 0
+                else:
+                    pass
+                is_tag = not is_tag  # Flip the state machine.
+                start = end + 1 # position after the pipe
+            # Process the last segment after the last pipe.
+            if is_tag:
+                seg_mask[start:] = 0
             return seg_mask
 
         # Process each row by splitting on EOD tokens.

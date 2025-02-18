@@ -20,7 +20,39 @@ import pytest
 import torch
 from nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset import Evo2Dataset, Evo2DatasetPadEodLossMask
 
+"""
+The tag token is constructed as follows: So note that one way to know you have a tag is if you look at the first
+token after the pipe and it is a 'd' character. Make sure tests are consistent with this simplification.
+    @staticmethod
+    def _construct_taxonomy_token(
+        lineage: Evo2TaxonomyLineage, dropout: float = 0.0, seed: Optional[int] = None
+    ) -> Optional[str]:
+        '''Construct a special Taxonomy token for natural language prompting of DNA generation models.
 
+        Args:
+            lineage (Evo2TaxonomyLineage): The taxonomy lineage information.
+            dropout (float): The probability of dropping out segments of the lineage. Defaults to 0.0.
+            seed (Optional[int]): The seed for the random number generator. Defaults to None.
+
+        Returns:
+            Optional[str]: The constructed taxonomy token or None if lineage is None.
+        '''
+        # If dropout > 0, randomly drop out segments of the lineage for training on incomplete lineages.
+        with Evo2Preprocessor.preprocessing_context_manager(seed if seed is not None else None):
+            return (
+                "|d__{};p__{};c__{};o__{};f__{};g__{};s__{}|".format(
+                    lineage.kingdom if random.random() >= dropout else None,
+                    lineage.phylum if random.random() >= dropout else None,
+                    lineage.clazz if random.random() >= dropout else None,
+                    lineage.order if random.random() >= dropout else None,
+                    lineage.family if random.random() >= dropout else None,
+                    lineage.genus if random.random() >= dropout else None,
+                    lineage.species if random.random() >= dropout else None,
+                )
+                if lineage is not None
+                else None
+            )
+"""
 @pytest.fixture
 def tag_tokens():
     """Standard tokens for phylogenetic tag tests, defined in Evo2_DataseT:
@@ -42,16 +74,16 @@ def test_mask_phylogenetic_tags_with_eod(tag_tokens):
     Tests a sequence where an EOD splits two partial tags.
 
     Example sequence (ASCII):
-      65       124   95    0     124   65
-      'A'      '|'   '_'   EOD   '|'   'A'
+      65       124   100    0     124   65
+      'A'      '|'   'd'   EOD   '|'   'A'
 
-    - Segment 1: "A|_" => keep 'A' (DNA), mask '|' and '_'
+    - Segment 1: "A|d" => keep 'A' (DNA), mask '|' and 'd'
     - EOD => masked
     - Segment 2: "|A" => mask '|', keep 'A' (DNA)
 
     Expected masking: [1, 0, 0, 1, 0, 1]
     """
-    sequence = torch.tensor([65, 124, 95, 0, 124, 65])  # "A|_" + EOD + "|A"
+    sequence = torch.tensor([65, 124, 100, 0, 124, 65])  # "A|d" + EOD + "|A"
 
     mask = Evo2Dataset.mask_phylogenetic_tags(
         tokenized_sequence=sequence,
@@ -69,7 +101,7 @@ def test_mask_phylogenetic_tags_middle(tag_tokens):
 
     The sequence contains:
     1. Normal DNA (ATG)
-    2. A phylo tag (|info_tag|)
+    2. A phylo tag (|d_|)
     3. More DNA (TCGA)
 
     Expected behavior: The DNA should be unmasked (1s) while everything between
@@ -81,7 +113,7 @@ def test_mask_phylogenetic_tags_middle(tag_tokens):
             84,
             71,  # ATG
             124,
-            105,
+            100,
             110,
             102,
             111,
@@ -89,7 +121,7 @@ def test_mask_phylogenetic_tags_middle(tag_tokens):
             116,
             97,
             103,
-            124,  # |info_tag|
+            124,  # |d__tag|
             84,
             67,
             71,
@@ -192,7 +224,7 @@ def test_mask_partial_tag_end(tag_tokens):
             84,
             71,  # ATG
             124,  # |
-            105,
+            100,
             110,
             102,
             111,
@@ -233,7 +265,7 @@ def test_standalone_tag(tag_tokens):
     Sequence: |tag_|
     Expected: All tokens masked (all zeros)
     """
-    sequence = torch.tensor([124, 116, 97, 103, 95, 124])  # |tag_|
+    sequence = torch.tensor([124, 100, 97, 103, 95, 124])  # |dtag_|
     mask = Evo2Dataset.mask_phylogenetic_tags(
         tokenized_sequence=sequence,
         terminal_tag_char=tag_tokens["terminal"],
@@ -257,12 +289,12 @@ def test_sequence_starting_with_tag(tag_tokens):
     sequence = torch.tensor(
         [
             124,
-            116,
+            100, #d token for domain
             97,
             103,
             95,
             124,  # |tag_|
-            65,
+            100,
             84,
             71,  # ATG
         ]
@@ -292,7 +324,7 @@ def test_sequence_ending_with_tag(tag_tokens):
             84,
             71,  # ATG
             124,
-            116,
+            100,
             97,
             103,
             95,
@@ -327,7 +359,7 @@ def test_mask_multiple_tags(tag_tokens):
             84,
             71,  # ATG
             124,
-            116,
+            100,
             97,
             103,
             95,
@@ -336,7 +368,7 @@ def test_mask_multiple_tags(tag_tokens):
             67,
             71,  # CG
             124,
-            116,
+            100,
             97,
             103,
             95,
@@ -606,7 +638,7 @@ def test_packed_partial_tag_subsequence_pretag(tag_tokens):
     sequence_alpha = "cacata|0acagataaaataTACAGGGAATA|d__"
     sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
     expected_mask = torch.tensor(
-        len("cacata|") * [0] + [1] * len("0acagataaaataTACAGGGAATA") + len("|d__") * [0], dtype=torch.int32
+        len("cacata") * [1] + [0] + [1] * len("0acagataaaataTACAGGGAATA") + len("|d__") * [0], dtype=torch.int32
     )
     mask = Evo2Dataset.mask_phylogenetic_tags(
         tokenized_sequence=sequence,
@@ -652,7 +684,7 @@ def test_packed_partial_tag_subsequence_pretag_middletag(tag_tokens):
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__"
     sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
     expected_mask = torch.tensor(
-        len("cacata|") * [0]
+        len("cacata") * [1] + [0] # masked pipe.
         + [1] * len("0acagataaaata")
         + len("|d__tag;|") * [0]
         + len("TACAGGGAATA") * [1]
@@ -676,7 +708,7 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs2(tag_tokens):
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__"
     sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
     expected_mask = torch.tensor(
-        len("cacata|") * [0]
+        len("cacata") * [1] + [0]
         + [1] * len("0acagataaaata")
         + len("|d__tag;|") * [0]
         + len("TACAGGGAATA") * [1]
