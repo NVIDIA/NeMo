@@ -344,47 +344,6 @@ class MegatronLMConfig:
     init_method_xavier_uniform: bool = False
     """Enable Xavier uniform parameter initialization"""
 
-    # ---------------- Learning rate config. ----------------
-
-    lr_decay_style: Literal["constant", "linear", "cosine", "inverse-square-root", "WSD"] = "linear"
-    """Learning rate decay function."""
-
-    lr_wsd_decay_style: Literal["exponential", "linear", "cosine"] = "exponential"
-    """Decay style for the annealing phase of WSD"""
-
-    lr_decay_iters: Optional[int] = None
-    """number of iterations to decay learning rate over, If None defaults to `--train-iters`"""
-
-    lr_decay_samples: Optional[int] = None
-    """number of samples to decay learning rate over, If None defaults to `--train-samples`"""
-
-    lr_wsd_decay_samples: Optional[int] = None
-    """number of samples for the annealing phase in the wsd schedule"""
-
-    lr_wsd_decay_iters: Optional[int] = None
-    """number of iterations for the annealing phase in the wsd schedule"""
-
-    lr_warmup_fraction: Optional[float] = None
-    """fraction of lr-warmup-(iters/samples) to use for warmup (as a float)"""
-
-    lr_warmup_iters: int = 0
-    """number of iterations to linearly warmup learning rate over."""
-
-    lr_warmup_samples: int = 0
-    """number of samples to linearly warmup learning rate over."""
-
-    lr_warmup_init: float = 0.0
-    """Initial value for learning rate warmup. The scheduler starts warmup from this value."""
-
-    warmup: Optional[int] = None
-    """Old lr warmup argument, do not use. Use one of the --lr-warmup-* arguments above"""
-
-    override_opt_param_scheduler: bool = False
-    """Reset the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from input arguments and ignore values from checkpoints. Note that all the above values will be reset."""
-
-    use_checkpoint_opt_param_scheduler: bool = False
-    """Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments."""
-
     # ---------------- Checkpointing config. ----------------
 
     save: Optional[str] = None
@@ -990,6 +949,45 @@ class MegatronLMConfig:
 
 @dataclass
 class SchedulerConfig:
+    lr_decay_style: Literal["constant", "linear", "cosine", "inverse-square-root", "WSD"] = "linear"
+    """Learning rate decay function."""
+
+    lr_wsd_decay_style: Literal["exponential", "linear", "cosine"] = "exponential"
+    """Decay style for the annealing phase of WSD"""
+
+    lr_decay_iters: Optional[int] = None
+    """number of iterations to decay learning rate over, If None defaults to `--train-iters`"""
+
+    lr_decay_samples: Optional[int] = None
+    """number of samples to decay learning rate over, If None defaults to `--train-samples`"""
+
+    lr_wsd_decay_samples: Optional[int] = None
+    """number of samples for the annealing phase in the wsd schedule"""
+
+    lr_wsd_decay_iters: Optional[int] = None
+    """number of iterations for the annealing phase in the wsd schedule"""
+
+    lr_warmup_fraction: Optional[float] = None
+    """fraction of lr-warmup-(iters/samples) to use for warmup (as a float)"""
+
+    lr_warmup_iters: int = 0
+    """number of iterations to linearly warmup learning rate over."""
+
+    lr_warmup_samples: int = 0
+    """number of samples to linearly warmup learning rate over."""
+
+    lr_warmup_init: float = 0.0
+    """Initial value for learning rate warmup. The scheduler starts warmup from this value."""
+
+    warmup: Optional[int] = None
+    """Old lr warmup argument, do not use. Use one of the --lr-warmup-* arguments above"""
+
+    override_opt_param_scheduler: bool = False
+    """Reset the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from input arguments and ignore values from checkpoints. Note that all the above values will be reset."""
+
+    use_checkpoint_opt_param_scheduler: bool = False
+    """Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments."""
+
     lr_warmup_steps: Optional[int] = None
     lr_decay_steps: Optional[int] = None
     wd_incr_steps: Optional[int] = None
@@ -1029,79 +1027,29 @@ class ConfigContainer:
         ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
         self.data_parallel_size = world_size // total_model_size
 
-        cfg.megatron_lm_config.use_cpu_initialization = (
-            cfg.megatron_lm_config.use_cpu_initialization or cfg.megatron_lm_config.lazy_mpu_init
+        self.megatron_lm_config.use_cpu_initialization = (
+            self.megatron_lm_config.use_cpu_initialization or self.megatron_lm_config.lazy_mpu_init
         )
 
         # Scheduler
-        # Iteration-based training.
-        if self.megatron_lm_config.train_iters:
-            if self.megatron_lm_config.lr_decay_iters is None:
-                self.megatron_lm_config.lr_decay_iters = self.megatron_lm_config.train_iters
-            lr_decay_steps = self.megatron_lm_config.lr_decay_iters * self.megatron_lm_config.global_batch_size
-            wd_incr_steps = self.megatron_lm_config.train_iters * self.megatron_lm_config.global_batch_size
-            wsd_decay_steps = None
-            if self.megatron_lm_config.lr_wsd_decay_iters is not None:
-                wsd_decay_steps = (
-                    self.megatron_lm_config.lr_wsd_decay_iters * self.megatron_lm_config.global_batch_size
-                )
-            if self.megatron_lm_config.lr_warmup_fraction is not None:
-                lr_warmup_steps = self.megatron_lm_config.lr_warmup_fraction * lr_decay_steps
-            else:
-                lr_warmup_steps = self.megatron_lm_config.lr_warmup_iters * self.megatron_lm_config.global_batch_size
-        # Sample-based training.
-        elif self.megatron_lm_config.train_samples:
-            # We need to set training iters for later use. Technically
-            # we need to adjust the training samples too (due to last
-            # batch being incomplete) but we leave it as is for now.
-            _update_train_iters(cfg)
-            if self.megatron_lm_config.lr_decay_samples is None:
-                self.megatron_lm_config.lr_decay_samples = self.megatron_lm_config.train_samples
-            lr_decay_steps = self.megatron_lm_config.lr_decay_samples
-            wd_incr_steps = self.megatron_lm_config.train_samples
-            wsd_decay_steps = self.megatron_lm_config.lr_wsd_decay_samples
-            if self.megatron_lm_config.lr_warmup_fraction is not None:
-                lr_warmup_steps = self.megatron_lm_config.lr_warmup_fraction * lr_decay_steps
-            else:
-                lr_warmup_steps = self.megatron_lm_config.lr_warmup_samples
-        else:
-            raise Exception('either train-iters or train-samples should be provided.')
-
-        self.scheduler_config = SchedulerConfig(lr_warmup_steps, lr_decay_steps, wd_incr_steps, wsd_decay_steps)
-
-    def _update_train_iters(self):
-        from megatron.core.num_microbatches_calculator import get_current_global_batch_size, update_num_microbatches
-
-        # For iteration-based training, we don't need to do anything
-        if self.megatron_lm_config.train_iters:
-            return
-
-        # Constant batch size with sample-based training.
-        if self.megatron_lm_config.rampup_batch_size is None:
-            self.megatron_lm_config.train_iters = (
-                self.megatron_lm_config.train_samples // self.megatron_lm_config.global_batch_size
+        if self.scheduler_config.lr_decay_iters is None:
+            self.scheduler_config.lr_decay_iters = self.megatron_lm_config.train_iters
+        self.scheduler_config.lr_decay_steps = (
+            self.scheduler_config.lr_decay_iters * self.megatron_lm_config.global_batch_size
+        )
+        self.scheduler_config.wd_incr_steps = (
+            self.megatron_lm_config.train_iters * self.megatron_lm_config.global_batch_size
+        )
+        self.scheduler_config.wsd_decay_steps = None
+        if self.scheduler_config.lr_wsd_decay_iters is not None:
+            self.scheduler_config.wsd_decay_steps = (
+                self.scheduler_config.lr_wsd_decay_iters * self.megatron_lm_config.global_batch_size
             )
-
+        if self.scheduler_config.lr_warmup_fraction is not None:
+            self.scheduler_config.lr_warmup_steps = (
+                self.scheduler_config.lr_warmup_fraction * self.scheduler_config.lr_decay_steps
+            )
         else:
-            # Sample based training with rampup batch size.
-            iterations = 0
-            consumed_samples = 0
-            # Rampup phase.
-            while (
-                consumed_samples <= int(self.megatron_lm_config.rampup_batch_size[2])
-                and consumed_samples <= self.megatron_lm_config.train_samples
-            ):
-                update_num_microbatches(consumed_samples, consistency_check=False)
-                consumed_samples += get_current_global_batch_size()
-                iterations += 1
-            # Reset
-            update_num_microbatches(0, consistency_check=False)
-            # Constant phase
-            # Note that we throw away any partial last batch.
-            if self.megatron_lm_config.train_samples > consumed_samples:
-                iterations += (
-                    self.megatron_lm_config.train_samples - consumed_samples
-                ) // self.megatron_lm_config.global_batch_size
-            self.megatron_lm_config.train_iters = iterations
-
-        print(f'setting training iterations to {self.megatron_lm_config.train_iters}')
+            self.scheduler_config.lr_warmup_steps = (
+                self.scheduler_config.lr_warmup_iters * self.megatron_lm_config.global_batch_size
+            )
