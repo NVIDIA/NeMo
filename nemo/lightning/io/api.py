@@ -109,7 +109,11 @@ def model_exporter(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[Con
 
 
 def import_ckpt(
-    model: pl.LightningModule, source: str, output_path: Optional[Path] = None, overwrite: bool = False
+    model: pl.LightningModule,
+    source: str,
+    output_path: Optional[Path] = None,
+    overwrite: bool = False,
+    import_tokenizer: bool = True,
 ) -> Path:
     """
     Imports a checkpoint into a model using the model's associated importer, typically for
@@ -144,6 +148,9 @@ def import_ckpt(
             If not specified, the importer's default path is used.
         overwrite (bool): If set to True, existing files at the output path will be overwritten.
             This is useful for model updates where retaining old checkpoint files is not required.
+        import_tokenizer (bool): If set to True, the importer will also import the tokenizer
+            associated with the model. This is set to False for multi-modal LLMs like SpeechLM,
+            where the tokenizer is associated with the SpeechLM model instead of the internal LLM.
 
     Returns
     -------
@@ -164,7 +171,8 @@ def import_ckpt(
 
     importer: ModelConnector = model.importer(source)
     ckpt_path = importer(overwrite=overwrite, output_path=output_path)
-    importer.on_import_ckpt(model)
+    if import_tokenizer:
+        importer.on_import_ckpt(model)
     return ckpt_path
 
 
