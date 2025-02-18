@@ -69,7 +69,12 @@ def _torch_dist_init(
         # Random seeds for reproducibility.
         if get_rank_safe() == 0:
             print("> setting random seeds to {} ...".format(cfg.rng_config.seed))
-        _set_random_seed(cfg.rng_config.seed, cfg.megatron_lm_config.data_parallel_random_init, cfg.rng_config.te_rng_tracker, cfg.rng_config.inference_rng_tracker)
+        _set_random_seed(
+            cfg.rng_config.seed,
+            cfg.megatron_lm_config.data_parallel_random_init,
+            cfg.rng_config.te_rng_tracker,
+            cfg.rng_config.inference_rng_tracker,
+        )
 
     if skip_mpu_initialization:
         return None

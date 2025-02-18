@@ -46,18 +46,20 @@ class TokenizerConfig:
     vocab_file: Optional[str] = None
     merge_file: Optional[str] = None
     vocab_extra_ids: int = 0
-    tokenizer_type: Optional[Literal[
-        "BertWordPieceLowerCase",
-        "BertWordPieceCase",
-        "GPT2BPETokenizer",
-        "SentencePieceTokenizer",
-        "GPTSentencePieceTokenizer",
-        "HuggingFaceTokenizer",
-        "Llama2Tokenizer",
-        "TikTokenizer",
-        "MultimodalTokenizer",
-        "NullTokenizer"
-    ]] = None
+    tokenizer_type: Optional[
+        Literal[
+            "BertWordPieceLowerCase",
+            "BertWordPieceCase",
+            "GPT2BPETokenizer",
+            "SentencePieceTokenizer",
+            "GPTSentencePieceTokenizer",
+            "HuggingFaceTokenizer",
+            "Llama2Tokenizer",
+            "TikTokenizer",
+            "MultimodalTokenizer",
+            "NullTokenizer",
+        ]
+    ] = None
     tokenizer_model: Optional[str] = None
     tiktoken_pattern: Optional[str] = None
     tiktoken_num_special_tokens: int = 1000
@@ -110,7 +112,9 @@ class DataConfig:
 
     dataset_config: GPTDatasetConfig
 
+
 # TODO (maanug): split this up into modular components
+
 
 @dataclass
 class MegatronLMConfig:
@@ -983,6 +987,7 @@ class MegatronLMConfig:
 
     # ---------------- Config logger config. ----------------
 
+
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass
 class ConfigContainer:
@@ -1000,14 +1005,12 @@ class ConfigContainer:
         world_size = get_world_size_safe()
         mlc = self.megatron_lm_config
         encoder_model_size = (
-            mlc.encoder_tensor_model_parallel_size *
-            mlc.encoder_pipeline_model_parallel_size *
-            mlc.context_parallel_size
+            mlc.encoder_tensor_model_parallel_size
+            * mlc.encoder_pipeline_model_parallel_size
+            * mlc.context_parallel_size
         )
         decoder_model_size = (
-            mlc.tensor_model_parallel_size *
-            mlc.pipeline_model_parallel_size *
-            mlc.context_parallel_size
+            mlc.tensor_model_parallel_size * mlc.pipeline_model_parallel_size * mlc.context_parallel_size
         )
         total_model_size = encoder_model_size + decoder_model_size
         assert (

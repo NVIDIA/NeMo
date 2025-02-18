@@ -8,14 +8,10 @@ from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatr
 from megatron.core.datasets.gpt_dataset import GPTDataset, MockGPTDataset
 from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
 from megatron.core.datasets.utils import get_blend_from_list
-from megatron.core.rerun_state_machine import (
-    RerunDataIterator,
-)
+from megatron.core.rerun_state_machine import RerunDataIterator
 
 from nemo.tron.config import ConfigContainer, DataConfig
-from nemo.tron.data.samplers import (
-    build_pretraining_data_loader,
-)
+from nemo.tron.data.samplers import build_pretraining_data_loader
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils import print_rank_0
@@ -23,14 +19,14 @@ from nemo.tron.utils import print_rank_0
 
 def get_blend_and_blend_per_split(data_config: DataConfig):
     """Get blend and blend_per_split from passed-in arguments."""
-    use_data_path = data_config.data_path is not None or \
-        data_config.data_args_path is not None
-    use_per_split_data_path = any(
-        elt is not None
-        for elt in [data_config.train_data_path,
-                    data_config.valid_data_path,
-                    data_config.test_data_path]) or \
-        data_config.per_split_data_args_path is not None
+    use_data_path = data_config.data_path is not None or data_config.data_args_path is not None
+    use_per_split_data_path = (
+        any(
+            elt is not None
+            for elt in [data_config.train_data_path, data_config.valid_data_path, data_config.test_data_path]
+        )
+        or data_config.per_split_data_args_path is not None
+    )
 
     blend = None
     blend_per_split = None
@@ -55,18 +51,19 @@ def get_blend_and_blend_per_split(data_config: DataConfig):
                 blend_per_split = [
                     get_blend_from_list(per_split_data_args["train"]),
                     get_blend_from_list(per_split_data_args["valid"]),
-                    get_blend_from_list(per_split_data_args["test"])
+                    get_blend_from_list(per_split_data_args["test"]),
                 ]
         else:
             blend_per_split = [
                 get_blend_from_list(data_config.train_data_path),
                 get_blend_from_list(data_config.valid_data_path),
-                get_blend_from_list(data_config.test_data_path)
+                get_blend_from_list(data_config.test_data_path),
             ]
     else:
         blend, blend_per_split = None, None
 
     return blend, blend_per_split
+
 
 def get_dataset_config(data_config: DataConfig, tokenizer: MegatronTokenizer) -> BlendedMegatronDatasetConfig:
     dataset_config = data_config.dataset_config
@@ -80,10 +77,9 @@ def get_dataset_config(data_config: DataConfig, tokenizer: MegatronTokenizer) ->
 
     return dataset_config
 
+
 def train_valid_test_datasets_provider(
-    train_val_test_num_samples: list[int],
-    is_dataset_built_on_rank: Callable[[], bool],
-    config: DataConfig
+    train_val_test_num_samples: list[int], is_dataset_built_on_rank: Callable[[], bool], config: DataConfig
 ):
     """Build the train test and validation datasets.
 
@@ -104,10 +100,7 @@ def train_valid_test_datasets_provider(
     print_rank_0("> building train, validation, and test datasets for GPT ...")
 
     train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
-        dataset_type,
-        train_val_test_num_samples,
-        is_dataset_built_on_rank,
-        dataset_config
+        dataset_type, train_val_test_num_samples, is_dataset_built_on_rank, dataset_config
     ).build()
 
     print_rank_0("> finished creating GPT datasets ...")
@@ -129,8 +122,9 @@ def get_train_valid_test_num_samples(cfg: ConfigContainer):
         train_samples = cfg.train_samples
     else:
         train_samples = cfg.megatron_lm_config.train_iters * cfg.data_config.global_batch_size
-    eval_iters = (cfg.megatron_lm_config.train_iters // cfg.megatron_lm_config.eval_interval + 1) * \
-                 cfg.megatron_lm_config.eval_iters
+    eval_iters = (
+        cfg.megatron_lm_config.train_iters // cfg.megatron_lm_config.eval_interval + 1
+    ) * cfg.megatron_lm_config.eval_iters
     test_iters = cfg.megatron_lm_config.eval_iters
 
     return (
@@ -150,8 +144,7 @@ def build_train_valid_test_datasets(cfg: ConfigContainer, build_train_valid_test
     return build_train_valid_test_datasets_provider(train_valid_test_num_samples)
 
 
-def build_train_valid_test_data_loaders(
-        build_train_valid_test_datasets_provider):
+def build_train_valid_test_data_loaders(build_train_valid_test_datasets_provider):
     """Build pretraining data loaders."""
 
     state = GlobalState()
@@ -164,13 +157,17 @@ def build_train_valid_test_data_loaders(
 
     # Backward compatibility, assume fixed batch size.
     if state.train_state.step > 0 and state.train_state.consumed_train_samples == 0:
-        assert cfg.megatron_lm_config.train_samples is None, \
-            'Only backward compatiblity support for iteration-based training'
+        assert (
+            cfg.megatron_lm_config.train_samples is None
+        ), 'Only backward compatiblity support for iteration-based training'
         state.train_state.consumed_train_samples = state.train_state.step * cfg.data_config.global_batch_size
     if state.train_state.step > 0 and state.train_state.consumed_valid_samples == 0:
         if cfg.megatron_lm_config.train_samples is None:
-            state.train_state.consumed_valid_samples = (state.train_state.step // cfg.megatron_lm_config.eval_interval) * \
-                cfg.megatron_lm_config.eval_iters * cfg.data_config.global_batch_size
+            state.train_state.consumed_valid_samples = (
+                (state.train_state.step // cfg.megatron_lm_config.eval_interval)
+                * cfg.megatron_lm_config.eval_iters
+                * cfg.data_config.global_batch_size
+            )
 
     # Rely on distributed-aware core datasets, temporary
     is_distributed = getattr(build_train_valid_test_datasets_provider, "is_distributed", False)
@@ -179,25 +176,20 @@ def build_train_valid_test_data_loaders(
     if is_distributed or mpu.get_tensor_model_parallel_rank() == 0:
 
         # Build datasets.
-        train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
-            build_train_valid_test_datasets_provider)
+        train_ds, valid_ds, test_ds = build_train_valid_test_datasets(build_train_valid_test_datasets_provider)
         # Build dataloders.
-        train_dataloader = build_pretraining_data_loader(
-            train_ds, state.train_state.consumed_train_samples)
+        train_dataloader = build_pretraining_data_loader(train_ds, state.train_state.consumed_train_samples)
         if cfg.megatron_lm_config.skip_train:
             valid_dataloader = build_pretraining_data_loader(valid_ds, 0)
         else:
-            valid_dataloader = build_pretraining_data_loader(
-                valid_ds, state.train_state.consumed_valid_samples)
+            valid_dataloader = build_pretraining_data_loader(valid_ds, state.train_state.consumed_valid_samples)
         test_dataloader = build_pretraining_data_loader(test_ds, 0)
 
         # Flags to know if we need to do training/validation/testing.
         do_train = train_dataloader is not None and cfg.megatron_lm_config.train_iters > 0
         do_valid = valid_dataloader is not None and cfg.megatron_lm_config.eval_iters > 0
         do_test = test_dataloader is not None and cfg.megatron_lm_config.eval_iters > 0
-        flags = torch.tensor(
-            [int(do_train), int(do_valid), int(do_test)],
-            dtype=torch.long, device='cuda')
+        flags = torch.tensor([int(do_train), int(do_valid), int(do_test)], dtype=torch.long, device='cuda')
     else:
         flags = torch.tensor([0, 0, 0], dtype=torch.long, device='cuda')
 
@@ -210,16 +202,15 @@ def build_train_valid_test_data_loaders(
     return train_dataloader, valid_dataloader, test_dataloader
 
 
-def build_train_valid_test_data_iterators(
-        build_train_valid_test_datasets_provider):
+def build_train_valid_test_data_iterators(build_train_valid_test_datasets_provider):
     """Build pretraining data iterators."""
 
     cfg = GlobalState().cfg
 
     # Build loaders.
-    train_dataloader, valid_dataloader, test_dataloader = \
-        build_train_valid_test_data_loaders(
-            build_train_valid_test_datasets_provider)
+    train_dataloader, valid_dataloader, test_dataloader = build_train_valid_test_data_loaders(
+        build_train_valid_test_datasets_provider
+    )
 
     # Build iterators.
     dl_type = cfg.data_config.dataloader_type

@@ -14,11 +14,8 @@ from nemo.collections.llm.t5.model.t5 import T5Config
 
 
 def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:
-    return (
-        ModelType.encoder_and_decoder
-        if isinstance(model_config, T5Config)
-        else ModelType.encoder_or_decoder
-    )
+    return ModelType.encoder_and_decoder if isinstance(model_config, T5Config) else ModelType.encoder_or_decoder
+
 
 def apply_parallel_wrappers(
     model_config: GPTConfig | T5Config,

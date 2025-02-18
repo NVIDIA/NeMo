@@ -1,4 +1,3 @@
-
 import os
 
 import torch.distributed
@@ -24,7 +23,6 @@ def get_world_size_safe() -> int:
 
 def get_local_rank_preinit() -> int:
     return int(os.getenv("LOCAL_RANK", "0"))
-
 
 
 def print_rank_0(message):

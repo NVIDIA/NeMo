@@ -60,7 +60,7 @@ def build_tokenizer(tokenizer_config: TokenizerConfig, **kwargs):
             pattern=pattern,
             vocab_size=tokenizer_config.vocab_size,
             num_special_tokens=tokenizer_config.tiktoken_num_special_tokens,
-            special_tokens=tokenizer_config.tiktoken_special_tokens
+            special_tokens=tokenizer_config.tiktoken_special_tokens,
         )
     elif tokenizer_config.tokenizer_type == 'NullTokenizer':
         assert tokenizer_config.vocab_size is not None
@@ -80,7 +80,7 @@ def build_tokenizer(tokenizer_config: TokenizerConfig, **kwargs):
             underlying_tokenizer,
             tokenizer_config.tokenizer_prompt_format,
             tokenizer_config.special_tokens,
-            tokenizer_config.image_tag_type
+            tokenizer_config.image_tag_type,
         )
     else:
         raise NotImplementedError('{} tokenizer is not ' 'implemented.'.format(tokenizer_config.tokenizer_type))
@@ -100,7 +100,12 @@ def _vocab_size_with_padding(orig_vocab_size, cfg, logging_enabled=True):
     multiple = cfg.megatron_lm_config.make_vocab_size_divisible_by * cfg.megatron_lm_config.tensor_model_parallel_size
     after = int(math.ceil(after / multiple) * multiple)
     if cfg.rank == 0 and logging_enabled:
-        print(' > padded vocab (size: {}) with {} dummy tokens (new size: {})'.format(orig_vocab_size, after - orig_vocab_size, after), flush=True)
+        print(
+            ' > padded vocab (size: {}) with {} dummy tokens (new size: {})'.format(
+                orig_vocab_size, after - orig_vocab_size, after
+            ),
+            flush=True,
+        )
     return after
 
 
@@ -110,9 +115,7 @@ class _HuggingFaceTokenizer(MegatronTokenizer):
         try:
             import transformers
         except ImportError:
-            raise EnvironmentError(
-                "The transformers library must be installed to use huggingface_tokenizer_provider"
-            )
+            raise EnvironmentError("The transformers library must be installed to use huggingface_tokenizer_provider")
 
         # TODO(bnorick): download tokenizer once to lustre and use force offline to make sure all tasks read it from there
         self._tokenizer = transformers.AutoTokenizer.from_pretrained(
@@ -187,9 +190,7 @@ class _BertWordPieceTokenizer(MegatronTokenizer):
         # (dsachan) Add additional special tokens
         # These can be used as sentinel tokens in T5 model inputs
         additional_special_tokens = []
-        additional_special_tokens.extend(
-            ["<extra_id_{}>".format(i) for i in range(vocab_extra_ids)]
-        )
+        additional_special_tokens.extend(["<extra_id_{}>".format(i) for i in range(vocab_extra_ids)])
         self.add_additional_special_tokens(additional_special_tokens)
 
     def add_token(self, token):
@@ -304,9 +305,7 @@ class _GPT2BPETokenizer(MegatronTokenizer):
     def __init__(self, vocab_file, merge_file):
         super().__init__(vocab_file, merge_file)
 
-        self.tokenizer = GPT2Tokenizer(
-            vocab_file, merge_file, errors='replace', special_tokens=[], max_len=None
-        )
+        self.tokenizer = GPT2Tokenizer(vocab_file, merge_file, errors='replace', special_tokens=[], max_len=None)
         self.eod_id = self.tokenizer.encoder['<|endoftext|>']
 
     @property
@@ -625,9 +624,7 @@ def reload_mergeable_ranks(path: str, max_vocab: Optional[int] = None) -> Dict[b
     return ranks
 
 
-PATTERN_TIKTOKEN = (
-    r"[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"
-)
+PATTERN_TIKTOKEN = r"[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"
 PATTERN_TIKTOKEN_V2 = "[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]*[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]+|[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]+[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]*|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n/]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
 
 
@@ -658,26 +655,18 @@ class CustomTikTokenizer(MegatronTokenizer):
         SPECIAL_TOKENS = ["<unk>", "<s>", "</s>"]
         if special_tokens is None:
             special_tokens = SPECIAL_TOKENS.copy()
-        assert len(special_tokens) == len(
-            set(special_tokens)
-        ), f"Special tokens should be unique: {special_tokens}"
+        assert len(special_tokens) == len(set(special_tokens)), f"Special tokens should be unique: {special_tokens}"
         assert len(special_tokens) <= num_special_tokens < self._vocab_size
-        assert set(SPECIAL_TOKENS) <= set(
-            special_tokens
-        ), f"Custom special tokens should include {SPECIAL_TOKENS}"
+        assert set(SPECIAL_TOKENS) <= set(special_tokens), f"Custom special tokens should include {SPECIAL_TOKENS}"
 
-        special_filler = [
-            "<SPECIAL_{id}>".format(id=i) for i in range(len(special_tokens), num_special_tokens)
-        ]
+        special_filler = ["<SPECIAL_{id}>".format(id=i) for i in range(len(special_tokens), num_special_tokens)]
         if special_filler:
             print_rank_0(f"Adding special tokens {special_filler[0]}, ..., {special_filler[-1]}")
         special_tokens = special_tokens + special_filler
         assert len(set(special_tokens)) == len(special_tokens) == num_special_tokens, special_tokens
         inner_vocab_size = self._vocab_size - num_special_tokens
 
-        token_to_id_without_special_tokens = reload_mergeable_ranks(
-            path, max_vocab=inner_vocab_size
-        )
+        token_to_id_without_special_tokens = reload_mergeable_ranks(path, max_vocab=inner_vocab_size)
         # Create space for special tokens.
         token_to_id_without_special_tokens = {
             t: i + num_special_tokens for t, i in token_to_id_without_special_tokens.items()

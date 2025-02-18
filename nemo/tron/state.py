@@ -44,6 +44,7 @@ class TrainState(Stateful):
         self.do_valid = state_dict["do_valid"].item()
         self.do_test = state_dict["do_test"].item()
 
+
 # replacement for Megatron's global variables, except mbs calc and parallel state
 class GlobalState:
     _instance = None
@@ -89,7 +90,7 @@ class GlobalState:
                 print('> setting tensorboard ...')
                 self._tensorboard_logger = SummaryWriter(
                     log_dir=self.cfg.megatron_lm_config.tensorboard_dir,
-                    max_queue=self.cfg.megatron_lm_config.tensorboard_queue_size
+                    max_queue=self.cfg.megatron_lm_config.tensorboard_queue_size,
                 )
             else:
                 self._tensorboard_logger = None
@@ -123,8 +124,7 @@ class GlobalState:
     def timers(self):
         if self._timers is None:
             self._timers = Timers(
-                self.cfg.megatron_lm_config.timing_log_level,
-                self.cfg.megatron_lm_config.timing_log_option
+                self.cfg.megatron_lm_config.timing_log_level, self.cfg.megatron_lm_config.timing_log_option
             )
         return self._timers
 
@@ -137,4 +137,3 @@ class GlobalState:
     @train_state.setter
     def train_state(self, value: TrainState):
         self._train_state = value
-
