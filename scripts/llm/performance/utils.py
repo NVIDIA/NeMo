@@ -70,7 +70,10 @@ def slurm_executor(
         "NEMORUN_HOME": log_dir,
     }
     mounts = []
-    srun_args = ["--mpi=pmix"]
+    srun_args = [
+        "--mpi=pmix",
+        "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))",
+    ]
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
