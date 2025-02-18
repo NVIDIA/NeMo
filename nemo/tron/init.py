@@ -1,3 +1,17 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import datetime
 import time
 import warnings
@@ -5,11 +19,16 @@ from typing import Callable, Optional
 
 import torch
 import torch.distributed
+import torch.nn.functional as F
 from megatron.core import parallel_state, tensor_parallel
+from megatron.core.fusions.fused_bias_dropout import bias_dropout_add_fused_train
+from megatron.core.fusions.fused_bias_gelu import bias_gelu
+from megatron.core.fusions.fused_bias_swiglu import bias_swiglu
 from megatron.core.num_microbatches_calculator import init_num_microbatches_calculator
-from megatron.core.utils import get_te_version, is_te_min_version
+from megatron.core.utils import get_te_version, is_te_min_version, is_torch_min_version
 
 from nemo.tron.config import ConfigContainer, RerunStateMachineConfig
+from nemo.tron.state import GlobalState
 from nemo.tron.utils import get_local_rank_preinit, get_rank_safe, get_world_size_safe
 
 
@@ -42,11 +61,11 @@ def initialize_megatron(
 
     init_num_microbatches_calculator(
         get_rank_safe(),
-        cfg.data_config.rampup_batch_size,
-        cfg.data_config.global_batch_size,
-        cfg.data_config.micro_batch_size,
+        cfg.megatron_lm_config.rampup_batch_size,
+        cfg.megatron_lm_config.global_batch_size,
+        cfg.megatron_lm_config.micro_batch_size,
         cfg.data_parallel_size,
-        cfg.data_config.decrease_batch_size_if_needed,
+        cfg.megatron_lm_config.decrease_batch_size_if_needed,
     )
 
     # init rerun global state
@@ -121,7 +140,8 @@ def _initialize_tp_communicators(cfg: ConfigContainer):
         ub_cfgs = {}
 
     input_shape = [
-        (cfg.model_config.seq_length * cfg.data_config.micro_batch_size) // cfg.model_config.context_parallel_size,
+        (cfg.model_config.seq_length * cfg.megatron_lm_config.micro_batch_size)
+        // cfg.model_config.context_parallel_size,
         cfg.model_config.hidden_size,
     ]
 
@@ -281,4 +301,106 @@ def _set_random_seed(
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.device_count() > 0:
-        tensor_parallel.model_parallel_cuda_manual_seed(seed, te_rng_tracker, inference_rng_tracker)
+        import inspect
+
+        sig = inspect.signature(tensor_parallel.model_parallel_cuda_manual_seed)
+        if "te_rng_tracker" in sig.parameters and "inference_rng_tracker" in sig.parameters:
+            tensor_parallel.model_parallel_cuda_manual_seed(seed, te_rng_tracker, inference_rng_tracker)
+        else:
+            tensor_parallel.model_parallel_cuda_manual_seed(seed)
+
+
+def set_jit_fusion_options(state: GlobalState):
+    """Set PyTorch JIT layer fusion options."""
+    # flags required to enable jit fusion kernels
+    if is_torch_min_version("2.2.0a0"):
+        pass  # we're using torch.compile for jit fusion
+    elif is_torch_min_version("1.10.0a0"):
+        # nvfuser
+        torch._C._jit_set_profiling_executor(True)
+        torch._C._jit_set_profiling_mode(True)
+        torch._C._jit_override_can_fuse_on_cpu(False)
+        torch._C._jit_override_can_fuse_on_gpu(False)
+        torch._C._jit_set_texpr_fuser_enabled(False)
+        torch._C._jit_set_nvfuser_enabled(True)
+        torch._C._debug_set_autodiff_subgraph_inlining(False)
+    else:
+        # legacy pytorch fuser
+        torch._C._jit_set_profiling_mode(False)
+        torch._C._jit_set_profiling_executor(False)
+        torch._C._jit_override_can_fuse_on_cpu(True)
+        torch._C._jit_override_can_fuse_on_gpu(True)
+
+    _warmup_jit_function(state)
+
+
+def _warmup_jit_function(state: GlobalState):
+    """Compilie JIT functions before the main training steps"""
+    if state.cfg.model_config.fp8:
+        dtype = torch.float8
+    elif state.cfg.model_config.fp16:
+        dtype = torch.float16
+    else:
+        dtype = torch.float32
+
+    # Warmup fused bias+gelu
+    bias = torch.rand(
+        state.cfg.model_config.ffn_hidden_size // state.cfg.model_config.tensor_model_parallel_size,
+        dtype=dtype,
+        device="cuda",
+    )
+    input = torch.rand(
+        (
+            state.cfg.model_config.seq_length // state.cfg.model_config.context_parallel_size,
+            state.cfg.megatron_lm_config.micro_batch_size,
+            state.cfg.model_config.ffn_hidden_size // state.cfg.model_config.tensor_model_parallel_size,
+        ),
+        dtype=dtype,
+        device="cuda",
+    )
+    # Warmup JIT fusions with the input grad_enable state of both forward
+    # prop and recomputation
+    for bias_grad, input_grad in zip([True, True], [False, True]):
+        bias.requires_grad, input.requires_grad = bias_grad, input_grad
+        for _ in range(5):
+            if state.cfg.model_config.activation_func == F.silu:
+                output = bias_swiglu(input, bias)
+            else:
+                output = bias_gelu(bias, input)
+    del bias, input, output
+
+    # Warmup fused bias+dropout+add
+    if state.cfg.model_config.sequence_parallel:
+        seq_length = state.cfg.model_config.seq_length // parallel_state.get_tensor_model_parallel_world_size()
+    else:
+        seq_length = state.cfg.model_config.seq_length
+    input = torch.rand(
+        (
+            seq_length // state.cfg.model_config.context_parallel_size,
+            state.cfg.megatron_lm_config.micro_batch_size,
+            state.cfg.model_config.hidden_size,
+        ),
+        dtype=dtype,
+        device="cuda",
+    )
+    residual = torch.rand(
+        (
+            seq_length // state.cfg.model_config.context_parallel_size,
+            state.cfg.megatron_lm_config.micro_batch_size,
+            state.cfg.model_config.hidden_size,
+        ),
+        dtype=dtype,
+        device="cuda",
+    )
+    bias = torch.rand((state.cfg.model_config.hidden_size), dtype=dtype, device="cuda").expand_as(residual)
+    dropout_rate = 0.1
+    # Warmup JIT fusions with the input grad_enable state of both forward
+    # prop and recomputation
+    for input_grad, bias_grad, residual_grad in zip([False, True], [True, True], [True, True]):
+        input.requires_grad = input_grad
+        bias.requires_grad = bias_grad
+        residual.requires_grad = residual_grad
+        for _ in range(5):
+            output = bias_dropout_add_fused_train([input, bias], residual, dropout_rate)
+    del bias, input, residual, output
+    torch.cuda.empty_cache()

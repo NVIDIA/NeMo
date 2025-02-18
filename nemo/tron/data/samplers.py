@@ -2,7 +2,6 @@
 
 """Dataloaders."""
 
-
 import random
 
 import numpy as np
@@ -11,31 +10,30 @@ from megatron.core import mpu
 from megatron.training import get_args
 from torch.utils.data import Dataset
 
-from nemo.tron.state import GlobalState
 
-
-def build_pretraining_data_loader(dataset, consumed_samples):
+def build_pretraining_data_loader(
+    dataset, consumed_samples: int, dataloader_type: str, micro_batch_size: int, num_workers: int, data_sharding: bool
+):
     """Build dataloader given an input dataset."""
 
     if dataset is None:
         return None
-    cfg = GlobalState().cfg
 
     # Megatron sampler
-    if cfg.data_config.dataloader_type == 'single':
+    if dataloader_type == "single":
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
-            micro_batch_size=cfg.data_config.micro_batch_size,
+            micro_batch_size=micro_batch_size,
             data_parallel_rank=mpu.get_data_parallel_rank(),
             data_parallel_size=mpu.get_data_parallel_world_size(),
         )
-    elif cfg.data_config.dataloader_type == 'cyclic':
+    elif cfg.data_config.dataloader_type == "cyclic":
         batch_sampler = MegatronPretrainingRandomSampler(
             dataset,
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
-            micro_batch_size=cfg.data_config.micro_batch_size,
+            micro_batch_size=micro_batch_size,
             data_parallel_rank=mpu.get_data_parallel_rank(),
             data_parallel_size=mpu.get_data_parallel_world_size(),
             data_sharding=cfg.data_config.data_sharding,
@@ -45,7 +43,7 @@ def build_pretraining_data_loader(dataset, consumed_samples):
         # torch-compatible dataloader and define samplers, if needed.
         return dataset
     else:
-        raise Exception('{} dataloader type is not supported.'.format(cfg.data_config.dataloader_type))
+        raise Exception("{} dataloader type is not supported.".format(cfg.data_config.dataloader_type))
 
     # Torch dataloader.
     return torch.utils.data.DataLoader(
@@ -58,7 +56,6 @@ def build_pretraining_data_loader(dataset, consumed_samples):
 
 
 class MegatronPretrainingSampler:
-
     def __init__(
         self, total_samples, consumed_samples, micro_batch_size, data_parallel_rank, data_parallel_size, drop_last=True
     ):
@@ -71,15 +68,15 @@ class MegatronPretrainingSampler:
         self.drop_last = drop_last
 
         # Sanity checks.
-        assert self.total_samples > 0, 'no sample to consume: {}'.format(self.total_samples)
-        assert self.consumed_samples < self.total_samples, 'no samples left to consume: {}, {}'.format(
+        assert self.total_samples > 0, "no sample to consume: {}".format(self.total_samples)
+        assert self.consumed_samples < self.total_samples, "no samples left to consume: {}, {}".format(
             self.consumed_samples, self.total_samples
         )
         assert self.micro_batch_size > 0
         assert data_parallel_size > 0
         assert (
             self.data_parallel_rank < data_parallel_size
-        ), 'data_parallel_rank should be smaller than data size: {}, ' '{}'.format(
+        ), "data_parallel_rank should be smaller than data size: {}, {}".format(
             self.data_parallel_rank, data_parallel_size
         )
 
@@ -108,7 +105,6 @@ class MegatronPretrainingSampler:
 
 
 class RandomSeedDataset(Dataset):
-
     def __init__(self, dataset):
         args = get_args()
         self.base_seed = args.seed
@@ -130,7 +126,6 @@ class RandomSeedDataset(Dataset):
 
 
 class MegatronPretrainingRandomSampler:
-
     def __init__(
         self,
         dataset,
@@ -153,12 +148,12 @@ class MegatronPretrainingRandomSampler:
         self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
 
         # Sanity checks.
-        assert self.total_samples > 0, 'no sample to consume: {}'.format(self.total_samples)
+        assert self.total_samples > 0, "no sample to consume: {}".format(self.total_samples)
         assert self.micro_batch_size > 0
         assert data_parallel_size > 0
         assert (
             self.data_parallel_rank < data_parallel_size
-        ), 'data_parallel_rank should be smaller than data size: {}, ' '{}'.format(
+        ), "data_parallel_rank should be smaller than data size: {}, {}".format(
             self.data_parallel_rank, data_parallel_size
         )
 

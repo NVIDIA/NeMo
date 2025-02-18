@@ -17,40 +17,42 @@ from nemo.tron.tokenizers.gpt2_tokenization import GPT2Tokenizer
 from nemo.tron.utils import get_rank_safe
 
 
-def build_tokenizer(tokenizer_config: TokenizerConfig, **kwargs):
+def build_tokenizer(
+    tokenizer_config: TokenizerConfig, make_vocab_size_divisible_by: int, tensor_model_parallel_size: int, **kwargs
+):
     """Initialize tokenizer."""
     if get_rank_safe() == 0:
-        print('> building {} tokenizer ...'.format(tokenizer_config.tokenizer_config.tokenizer_type), flush=True)
+        print("> building {} tokenizer ...".format(tokenizer_config.tokenizer_type), flush=True)
 
     # Select and instantiate the tokenizer.
-    if tokenizer_config.tokenizer_type == 'BertWordPieceLowerCase':
+    if tokenizer_config.tokenizer_type == "BertWordPieceLowerCase":
         assert tokenizer_config.vocab_file is not None
         tokenizer = _BertWordPieceTokenizer(
             vocab_file=tokenizer_config.vocab_file, lower_case=True, vocab_extra_ids=tokenizer_config.vocab_extra_ids
         )
-    elif tokenizer_config.tokenizer_type == 'BertWordPieceCase':
+    elif tokenizer_config.tokenizer_type == "BertWordPieceCase":
         assert tokenizer_config.vocab_file is not None
         tokenizer = _BertWordPieceTokenizer(
             vocab_file=tokenizer_config.vocab_file, lower_case=False, vocab_extra_ids=tokenizer_config.vocab_extra_ids
         )
-    elif tokenizer_config.tokenizer_type == 'GPT2BPETokenizer':
+    elif tokenizer_config.tokenizer_type == "GPT2BPETokenizer":
         assert tokenizer_config.vocab_file is not None
         assert tokenizer_config.merge_file is not None
         tokenizer = _GPT2BPETokenizer(tokenizer_config.vocab_file, tokenizer_config.merge_file)
-    elif tokenizer_config.tokenizer_type == 'SentencePieceTokenizer':
+    elif tokenizer_config.tokenizer_type == "SentencePieceTokenizer":
         assert tokenizer_config.tokenizer_model is not None
         tokenizer = _SentencePieceTokenizer(
             tokenizer_config.tokenizer_model, vocab_extra_ids=tokenizer_config.vocab_extra_ids
         )
-    elif tokenizer_config.tokenizer_type == 'GPTSentencePieceTokenizer':
+    elif tokenizer_config.tokenizer_type == "GPTSentencePieceTokenizer":
         assert tokenizer_config.tokenizer_model is not None
         tokenizer = _GPTSentencePieceTokenizer(tokenizer_config.tokenizer_model)
-    elif tokenizer_config.tokenizer_type == 'HuggingFaceTokenizer':
+    elif tokenizer_config.tokenizer_type == "HuggingFaceTokenizer":
         tokenizer = _HuggingFaceTokenizer(tokenizer_config.tokenizer_model, **kwargs)
-    elif tokenizer_config.tokenizer_type == 'Llama2Tokenizer':
+    elif tokenizer_config.tokenizer_type == "Llama2Tokenizer":
         assert tokenizer_config.tokenizer_model is not None
         tokenizer = _Llama2Tokenizer(tokenizer_config.tokenizer_model)
-    elif tokenizer_config.tokenizer_type == 'TikTokenizer':
+    elif tokenizer_config.tokenizer_type == "TikTokenizer":
         assert tokenizer_config.tokenizer_model is not None
         assert tokenizer_config.tiktoken_pattern is not None
         assert tokenizer_config.tiktoken_pattern in {"v1", "v2"}
@@ -62,7 +64,7 @@ def build_tokenizer(tokenizer_config: TokenizerConfig, **kwargs):
             num_special_tokens=tokenizer_config.tiktoken_num_special_tokens,
             special_tokens=tokenizer_config.tiktoken_special_tokens,
         )
-    elif tokenizer_config.tokenizer_type == 'NullTokenizer':
+    elif tokenizer_config.tokenizer_type == "NullTokenizer":
         assert tokenizer_config.vocab_size is not None
         tokenizer = _NullTokenizer(tokenizer_config.vocab_size)
     elif tokenizer_config.tokenizer_type == "MultimodalTokenizer":
@@ -71,7 +73,7 @@ def build_tokenizer(tokenizer_config: TokenizerConfig, **kwargs):
         except ImportError as exc:
             raise ImportError("MultimodalTokenizer currently requires transformers library to be installed") from exc
         kwargs = {}
-        if tokenizer_config.tokenizer_config.tokenizer_prompt_format == "nvlm-yi-34b":
+        if tokenizer_config.tokenizer_prompt_format == "nvlm-yi-34b":
             kwargs = {"from_slow": True, "legacy": False, "add_bos_token": True}
         underlying_tokenizer = _transformers.AutoTokenizer.from_pretrained(
             pretrained_model_name_or_path=tokenizer_config.tokenizer_model, **kwargs
@@ -83,25 +85,32 @@ def build_tokenizer(tokenizer_config: TokenizerConfig, **kwargs):
             tokenizer_config.image_tag_type,
         )
     else:
-        raise NotImplementedError('{} tokenizer is not ' 'implemented.'.format(tokenizer_config.tokenizer_type))
+        raise NotImplementedError("{} tokenizer is not implemented.".format(tokenizer_config.tokenizer_type))
 
     # Add vocab size (if not already set from a checkpoint).
     if getattr(tokenizer_config, "padded_vocab_size", None) is None:
-        tokenizer_config.padded_vocab_size = _vocab_size_with_padding(tokenizer.vocab_size, tokenizer_config)
+        tokenizer_config.padded_vocab_size = _vocab_size_with_padding(
+            tokenizer.vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size
+        )
 
     return tokenizer
 
 
-def _vocab_size_with_padding(orig_vocab_size, cfg, logging_enabled=True):
+def _vocab_size_with_padding(
+    orig_vocab_size: int,
+    make_vocab_size_divisible_by: int,
+    tensor_model_parallel_size: int,
+    logging_enabled: bool = True,
+):
     """Pad vocab size so it is divisible by model parallel size and
     still having GPU friendly size."""
 
     after = orig_vocab_size
-    multiple = cfg.megatron_lm_config.make_vocab_size_divisible_by * cfg.megatron_lm_config.tensor_model_parallel_size
+    multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
     after = int(math.ceil(after / multiple) * multiple)
-    if cfg.rank == 0 and logging_enabled:
+    if get_rank_safe() == 0 and logging_enabled:
         print(
-            ' > padded vocab (size: {}) with {} dummy tokens (new size: {})'.format(
+            " > padded vocab (size: {}) with {} dummy tokens (new size: {})".format(
                 orig_vocab_size, after - orig_vocab_size, after
             ),
             flush=True,
@@ -171,19 +180,19 @@ class _BertWordPieceTokenizer(MegatronTokenizer):
     def __init__(self, vocab_file, lower_case=True, vocab_extra_ids=0):
         super().__init__(vocab_file, lower_case=lower_case, vocab_extra_ids=vocab_extra_ids)
         self.tokenizer = FullBertTokenizer(vocab_file, do_lower_case=lower_case)
-        self.cls_id = self.tokenizer.vocab['[CLS]']
-        self.sep_id = self.tokenizer.vocab['[SEP]']
-        self.pad_id = self.tokenizer.vocab['[PAD]']
-        self.mask_id = self.tokenizer.vocab['[MASK]']
+        self.cls_id = self.tokenizer.vocab["[CLS]"]
+        self.sep_id = self.tokenizer.vocab["[SEP]"]
+        self.pad_id = self.tokenizer.vocab["[PAD]"]
+        self.mask_id = self.tokenizer.vocab["[MASK]"]
         self._additional_special_tokens = []
 
         # (dsachan) Add BOS and EOS tokens
-        SPECIAL_TOKENS = {'eos_token': '[EOS]', 'bos_token': '[BOS]'}
-        self._bos_token = '[BOS]'
+        SPECIAL_TOKENS = {"eos_token": "[EOS]", "bos_token": "[BOS]"}
+        self._bos_token = "[BOS]"
         self.add_token(self._bos_token)
         self._bos_token_id = self.vocab.get(self._bos_token)
 
-        self._eos_token = '[EOS]'
+        self._eos_token = "[EOS]"
         self.add_token(self._eos_token)
         self._eos_token_id = self.vocab.get(self._eos_token)
 
@@ -231,7 +240,7 @@ class _BertWordPieceTokenizer(MegatronTokenizer):
 
     def decode_token_ids(self, token_ids):
         tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
-        exclude_list = ['[PAD]', '[CLS]']
+        exclude_list = ["[PAD]", "[CLS]"]
         non_pads = [t for t in tokens if t not in exclude_list]
 
         result = ""
@@ -305,8 +314,8 @@ class _GPT2BPETokenizer(MegatronTokenizer):
     def __init__(self, vocab_file, merge_file):
         super().__init__(vocab_file, merge_file)
 
-        self.tokenizer = GPT2Tokenizer(vocab_file, merge_file, errors='replace', special_tokens=[], max_len=None)
-        self.eod_id = self.tokenizer.encoder['<|endoftext|>']
+        self.tokenizer = GPT2Tokenizer(vocab_file, merge_file, errors="replace", special_tokens=[], max_len=None)
+        self.eod_id = self.tokenizer.encoder["<|endoftext|>"]
 
     @property
     def vocab_size(self):
@@ -366,20 +375,20 @@ class _SentencePieceTokenizer(MegatronTokenizer):
             self._special_tokens[t] = self._vocab[t]
             self._inv_special_tokens[self._vocab[t]] = t
 
-        _add_special_token('<CLS>')
-        self._cls_id = self._vocab['<CLS>']
-        _add_special_token('<SEP>')
-        self._sep_id = self._vocab['<SEP>']
-        _add_special_token('<EOD>')
-        self._eod_id = self._vocab['<EOD>']
-        _add_special_token('<MASK>')
-        self._mask_id = self._vocab['<MASK>']
+        _add_special_token("<CLS>")
+        self._cls_id = self._vocab["<CLS>"]
+        _add_special_token("<SEP>")
+        self._sep_id = self._vocab["<SEP>"]
+        _add_special_token("<EOD>")
+        self._eod_id = self._vocab["<EOD>"]
+        _add_special_token("<MASK>")
+        self._mask_id = self._vocab["<MASK>"]
 
         pad_id = self.tokenizer.pad_id()
         try:
             pad_token = self.tokenizer.id_to_piece(pad_id)
         except IndexError:
-            pad_token = '<PAD>'
+            pad_token = "<PAD>"
         _add_special_token(pad_token)
         self._pad_id = self._vocab[pad_token]
 
@@ -387,7 +396,7 @@ class _SentencePieceTokenizer(MegatronTokenizer):
         try:
             bos_token = self.tokenizer.id_to_piece(bos_id)
         except IndexError:
-            bos_token = '<BOS>'
+            bos_token = "<BOS>"
         _add_special_token(bos_token)
         self._bos_id = self._vocab[bos_token]
 
@@ -395,7 +404,7 @@ class _SentencePieceTokenizer(MegatronTokenizer):
         try:
             eos_token = self.tokenizer.id_to_piece(eos_id)
         except IndexError:
-            eos_token = '<EOS>'
+            eos_token = "<EOS>"
         _add_special_token(eos_token)
         self._eos_id = self._vocab[eos_token]
 
@@ -558,7 +567,7 @@ class _Llama2Tokenizer(_SentencePieceTokenizer):
         assert self.tokenizer.vocab_size() == self.tokenizer.get_piece_size()
 
     def tokenize(self, s: str, bos=True, eos=False):
-        '''Default args for text completion, not chat/dialog.'''
+        """Default args for text completion, not chat/dialog."""
         assert type(s) is str
         t = self.tokenizer.encode(s)
         if bos:
@@ -752,11 +761,11 @@ class _NullTokenizer(MegatronTokenizer):
         self._eod_id = self._vocab_size_without_eod
 
     def tokenize(self, text):
-        return [int(x) for x in text.split(' ')]
+        return [int(x) for x in text.split(" ")]
 
     def detokenize(self, ids):
         text = [str(x) for x in ids]
-        return ' '.join(text)
+        return " ".join(text)
 
     def offsets(self, ids: list[int], text: str) -> list[int]:
         offsets, start_idx = [], 0
