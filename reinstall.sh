@@ -145,6 +145,7 @@ nemo() {
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
     "llama-index==0.10.43"
     "unstructured==0.14.9"
+    "-r tools/ctc_segmentation/requirements.txt"
   )
 
   if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
