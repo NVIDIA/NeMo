@@ -3760,6 +3760,30 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
+  L2_HF_Transformer_PEFT_notebook:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        jupyter nbconvert --to script tutorials/llm/hf/peft.ipynb --output _peft.py
+        if grep -q 'model_name = "meta-llama/Llama-3.2-1B"' _peft.py; then
+          sed -i 's#model_name = "meta-llama/Llama-3.2-1B"#model_name = "/home/TestData/akoumparouli/hf_mixtral_2l/"#' _peft.py
+        else
+          exit 1
+        fi
+
+        if grep -q 'max_steps = 100' _peft.py; then
+          sed -i 's/max_steps = 100/max_steps = 10/' _peft.py
+        else
+          exit 1
+        fi
+        TRANSFORMERS_OFFLINE=1 python3 _peft.py
+
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
   L2_HF_Transformer_PEFT:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -5342,6 +5366,7 @@ jobs:
       - L2_NeMo_2_llama3_pretraining_recipe
       - L2_NeMo_2_llama3_fault_tolerance_plugin
       - L2_NeMo_2_llama3_straggler_detection
+      - L2_HF_Transformer_PEFT_notebook
       - L2_HF_Transformer_PEFT
       - L2_HF_Transformer_PEFT_nemorun
       - L2_HF_Transformer_PEFT_2gpu
