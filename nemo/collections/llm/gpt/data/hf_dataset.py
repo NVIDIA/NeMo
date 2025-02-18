@@ -22,8 +22,16 @@ from nemo.utils import logging
 
 
 def clean_split(name):
-    if "[" in name:
-        return name.split("[")[0]
+    """removes split from name
+
+    Args:
+        name (str): partition name (e.g. "train[:100]")
+
+    Returns:
+        str: return partition name without any selector (e.g. "train").
+    """
+    if '[' in name:
+        return name.split('[')[0]
     return name
 
 
@@ -57,7 +65,7 @@ def make_dataset_splits(dataset, split, split_aliases):
     >    "val": Dataset .. (with 10570 rows),
     > }
     """
-    valid_split_names = ["train", "test", "val"]
+    valid_split_names = ['train', 'test', 'val']
     dataset_splits = {_split: None for _split in valid_split_names}
 
     alias_to_split = {}
@@ -67,9 +75,7 @@ def make_dataset_splits(dataset, split, split_aliases):
             alias_to_split[alias] = split_name
 
     if isinstance(dataset, Dataset):
-        assert isinstance(split, str), "Expected split to be a string, but got " + str(
-            type(split)
-        )
+        assert isinstance(split, str), "Expected split to be a string, but got " + str(type(split))
         split = clean_split(split)
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
@@ -80,7 +86,7 @@ def make_dataset_splits(dataset, split, split_aliases):
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = split
     elif isinstance(split, list):
-        logging.info("Loaded HF dataset will use " + str(split) + " splits.")
+        logging.info(f"Loaded HF dataset will use {str(split)} splits.")
         assert isinstance(dataset, list)
         for i, alias_split_name in enumerate(map(clean_split, split)):
             split_name = alias_to_split[alias_split_name]
@@ -90,10 +96,10 @@ def make_dataset_splits(dataset, split, split_aliases):
         logging.info("Loaded HF dataset has a single split.")
         assert not isinstance(dataset, list)
         alias_split_name = split
-        if "+" in alias_split_name:
+        if '+' in alias_split_name:
             raise ValueError("Split concatenation not supported")
-        elif "[" in alias_split_name:
-            alias_split_name = alias_split_name.split("[")[0]
+        elif '[' in alias_split_name:
+            alias_split_name = alias_split_name.split('[')[0]
         split_name = alias_to_split[alias_split_name]
         assert dataset_splits[split_name] is None
         dataset_splits[split_name] = dataset
@@ -102,9 +108,7 @@ def make_dataset_splits(dataset, split, split_aliases):
 
     assert set(valid_split_names) == set(dataset_splits.keys()), dataset_splits.keys()
     num_init_splits = sum(map(lambda x: x is not None, dataset_splits.values()))
-    assert num_init_splits > 0, (
-        f"Expected at least one split to have been initialized {num_init_splits}"
-    )
+    assert num_init_splits > 0, f"Expected at least one split to have been initialized {num_init_splits}"
     return dataset_splits
 
 
@@ -135,7 +139,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         global_batch_size=2,
         pad_token_id=0,
         use_mcore_sampler=False,
-        mcore_dataloader_type="cyclic",
+        mcore_dataloader_type='cyclic',
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
@@ -146,33 +150,24 @@ class HFDatasetDataModule(pl.LightningDataModule):
         # A dataset usually will have several splits (e.g. train, val, test, etc).
         # We map synonym names to canonical names (train, test, val).
         # A synonym can be a prefix/suffixed word e.g. train <> training.
-        split_aliases = {
-            "train": train_aliases,
-            "test": test_aliases,
-            "val": val_aliases,
-        }
+        split_aliases = {'train': train_aliases, 'test': test_aliases, 'val': val_aliases}
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
-            logging.info(f"Loading HF dataset from {path_or_dataset}")
+            logging.info(f"Loading HF dataset from {path_or_dataset}, this may take a moment.")
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
-        elif isinstance(path_or_dataset, Dataset) or isinstance(
-            path_or_dataset, DatasetDict
-        ):
+        elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
             dataset = path_or_dataset
         else:
             raise ValueError(
-                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got "
-                + str(type(path_or_dataset))
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " + str(type(path_or_dataset))
             )
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
-                x, pad_token_id=self.pad_token_id
-            )
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
         else:
             self._collate_fn = collate_fn
 
@@ -189,11 +184,14 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
+        """wraps Dataset's from_dict method"""
         dataset = Dataset.from_dict(dataset_dict)
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
     @staticmethod
     def collate_fn(batch, pad_token_id=0):
+        """Default batch collator"""
+
         def batchify(tensor):
             if tensor.ndim == 1:
                 return tensor.unsqueeze_(0)
@@ -211,7 +209,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 torch.LongTensor(
                     pad_within_micro(
                         extract_key_from_dicts(batch, key),
-                        pad_token_id if key != "loss_mask" else 0,
+                        pad_token_id if key != 'loss_mask' else 0,
                     )
                 )
             )
@@ -219,6 +217,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         }
 
     def setup(self, stage: str):
+        """setups sampler"""
         if not self.use_mcore_sampler:
             return
         self.data_sampler = MegatronDataSampler(
@@ -229,12 +228,11 @@ class HFDatasetDataModule(pl.LightningDataModule):
         )
 
     def _make_dataloader(self, dataset, collate_fn=None):
+        """Dataloader creator"""
         assert dataset is not None
 
         if collate_fn is None:
-            collate_fn = lambda x: HFDatasetDataModule.collate_fn(
-                x, pad_token_id=self.pad_token_id
-            )
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
 
         return DataLoader(
             dataset,
@@ -247,26 +245,33 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     @property
     def train(self):
-        return self.dataset_splits["train"]
+        """Returns the training partition"""
+        return self.dataset_splits['train']
 
     @property
     def val(self):
-        return self.dataset_splits["val"]
+        """Returns the validation partition"""
+        return self.dataset_splits['val']
 
     @property
     def test(self):
-        return self.dataset_splits["test"]
+        """Returns the test partition"""
+        return self.dataset_splits['test']
 
     def train_dataloader(self):
+        """Returns the train dataloader"""
         return self._make_dataloader(self.train, self._collate_fn)
 
     def val_dataloader(self):
+        """Returns the validation dataloader"""
         return self._make_dataloader(self.val, self._collate_fn)
 
     def test_dataloader(self):
+        """Returns the test dataloader"""
         return self._make_dataloader(self.test, self._collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
+        """Maps a function to the dataset"""
         if isinstance(split_names, str):
             dataset_splits = {split_names: self.dataset_splits[split_names]}
         elif isinstance(split_names, list):
@@ -281,13 +286,48 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
 
 class SquadHFDataModule(HFDatasetDataModule):
+    """
+    A data module for handling the SQuAD dataset using HFDatasetDataModule.
+
+    This class is responsible for tokenizing and formatting the SQuAD dataset for training
+    language models. It extends `HFDatasetDataModule` and implements a prompt-based
+    formatting function suitable for causal language modeling.
+
+    Attributes:
+        tokenizer: A tokenizer instance used to convert text into token IDs.
+    """
+
     def __init__(self, tokenizer, **kwargs):
+        """
+        Initializes the SquadHFDataModule.
+
+        Args:
+            tokenizer: A tokenizer instance for processing text data.
+            **kwargs: Additional arguments passed to the parent class (`HFDatasetDataModule`).
+        """
         super().__init__(**kwargs)
-        if tokenizer is None:
-            raise ValueError("tokenizer must be provided")
         self.tokenizer = tokenizer
 
     def formatting_prompts_func(self, example):
+        """
+        Formats a given example into a structured prompt for training.
+
+        This method converts a dataset example (containing context, question, and answer)
+        into a structured format, tokenizes it, and prepares input IDs and labels for
+        training a language model.
+
+        Args:
+            example (dict): A dictionary containing the following keys:
+                - 'context': The passage from which the question is derived.
+                - 'question': The question about the passage.
+                - 'answers': A dictionary with a 'text' key containing the answer(s).
+
+        Returns:
+            dict: A dictionary containing:
+                - 'input_ids': Tokenized input sequence (excluding the last token).
+                - 'labels': Tokenized output sequence (excluding the first token).
+                - 'loss_mask': A mask indicating which tokens contribute to the loss.
+        """
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
             f" {example['answers']['text'][0].strip()}",
@@ -305,11 +345,17 @@ class SquadHFDataModule(HFDatasetDataModule):
         )
 
     def setup(self, stage):
+        """
+        Prepares the dataset for training and applies formatting.
+
+        Args:
+            stage (str): The stage of training.
+        """
         super().setup(stage)
 
         self.map(
             self.formatting_prompts_func,
             batched=False,
             batch_size=2,
-            remove_columns=["id", "title", "context", "question", "answers"],
+            remove_columns=["id", "title", "context", "question", 'answers'],
         )
