@@ -70,7 +70,7 @@ class FabricMegatronStrategy(DDPStrategy):
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
-        pipeline_model_parallel_comm_backend: str = 'nccl',
+        pipeline_model_parallel_comm_backend: str = None,
         microbatch_group_size_per_vp_stage: Optional[int] = None,
         context_parallel_size: int = 1,
         sequence_parallel: bool = False,

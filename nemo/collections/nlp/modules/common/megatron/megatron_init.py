@@ -94,7 +94,7 @@ def initialize_model_parallel_for_nemo(
     pipeline_model_parallel_size=1,
     virtual_pipeline_model_parallel_size=None,
     pipeline_model_parallel_split_rank=None,
-    pipeline_model_parallel_comm_backend='nccl',
+    pipeline_model_parallel_comm_backend=None,
     context_parallel_size=1,
     encoder_tensor_model_parallel_size=0,
     encoder_pipeline_model_parallel_size=0,
