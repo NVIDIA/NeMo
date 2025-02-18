@@ -101,6 +101,17 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         **kwargs: Additional keyword arguments. Will be passed to get_train_dataset() of Energon
         """
 
+        if not parallel_state.is_initialized():
+            logging.info(
+                f"Muiltimodal data loader parallel state is not initialized,"
+                f"Please ensure no data loader is being created on pipeline parallel ranks >0"
+            )
+        else:
+            pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+            cp_rank = parallel_state.get_context_parallel_rank()
+            assert pp_rank == 0, "Only Pipeline Parallel ranks 0 load data"
+            assert cp_rank == 0, "Only Context Parallel ranks 0 load data"
+
         super().__init__()
         self.path = path
         self.tokenizer = tokenizer
@@ -294,10 +305,22 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
         if self.trainer:
             dataloader_obj = self.trainer.train_dataloader
-            state = dataloader_obj.save_state_global(dst_rank=0)
+
+
+            state = []
+            tp_rank = parallel_state.get_tensor_model_parallel_rank()
+            if tp_rank==0: # Only get the dataloader states form the ranks which have a unique state, i.e.
+                # tp_rank=0 and pp_rank is already 0 from our assert on the top of init.
+                # TODO(ABhinav): Ask Yash or Yu Yao wheather we should also have a cp_rank=0 as well?
+                # As per Yash cp rank 0 should not have a dataloader
+                state = dataloader_obj.save_state_global(global_dst_rank=0)
+
             consumed_samples = self.data_sampler.compute_consumed_samples(
                 self.trainer.global_step - self.init_global_step
             )
+
+            if state == None: state = [] # Megatron core requires all the states on all the ranks to have same python
+            # type. Energon sends the state as a list
             logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
             return {'dataloader_state': state, 'consumed_samples': consumed_samples}
 
@@ -324,7 +347,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         state = state_dict['dataloader_state']
         try:
             if self.trainer:
-                self.trainer.datamodule.train_dataloader().restore_state(state, src_rank=0)
+                self.trainer.datamodule.train_dataloader().restore_state_global(state)
                 logging.info("Multimodal dataloader state restored")
             else:
                 logging.error(f"Cannot restore state from state_dict {state_dict}")
