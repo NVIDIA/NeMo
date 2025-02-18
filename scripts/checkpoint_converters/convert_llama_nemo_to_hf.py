@@ -19,7 +19,7 @@ from collections import OrderedDict
 import torch
 from lightning.pytorch import Trainer
 from omegaconf import open_dict
-from transformers import AutoModelForCausalLM, LlamaTokenizer, LlamaTokenizerFast, convert_slow_tokenizer, AutoConfig
+from transformers import AutoConfig, AutoModelForCausalLM, LlamaTokenizer, LlamaTokenizerFast, convert_slow_tokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -122,7 +122,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
-    model_config.sequence_parallel = False # cannot convert with sequence parallel on
+    model_config.sequence_parallel = False  # cannot convert with sequence parallel on
     model_config.name = "te_gpt"
     if cpu_only:
         map_location = torch.device('cpu')
