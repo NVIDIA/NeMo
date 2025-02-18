@@ -319,7 +319,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 self.trainer.global_step - self.init_global_step
             )
 
-            if state == None: state = [] # Megatron core requires all the states on all the ranks to have same python
+            if state is None: state = [] # Megatron core requires all the states on all the ranks to have same python
             # type. Energon sends the state as a list
             logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
             return {'dataloader_state': state, 'consumed_samples': consumed_samples}
