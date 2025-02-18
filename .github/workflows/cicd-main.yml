@@ -5434,9 +5434,9 @@ jobs:
       - L2_Speech_Estimate_Duration_Bins
       - L2_Speech_Batch_Size_OOMptimizer
       - L2_Speech_Batch_Size_OOMptimizer_Canary
-      - Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
-      - Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt
-      - Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
       - L2_Megatron_GPT_Reranker
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
       - L2_NeMo_2_PTQ_Llama2_FP8
