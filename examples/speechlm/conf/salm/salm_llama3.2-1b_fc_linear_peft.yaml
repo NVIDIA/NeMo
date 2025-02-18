@@ -172,6 +172,7 @@ strategy:
   _target_: nemo.collections.speechlm.strategies.SpeechLMMegatronStrategy
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
+  context_parallel_size: 1
   ckpt_async_save: true
 
 callbacks:

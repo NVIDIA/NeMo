@@ -50,8 +50,7 @@ from nemo.collections.llm.gpt.model.base import (
     get_batch_on_this_context_parallel_rank,
     get_packed_seq_params,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.speechlm.data.dataset.data_utils import build_position_ids, pad_or_trim_to_max_length
 from nemo.collections.speechlm.models.base import SpeechLanguageModel
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
@@ -68,6 +67,7 @@ from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import AppState, logging, model_utils
+from nemo.utils.get_rank import get_last_rank
 
 
 def set_input_tensor(self, tensor: torch.Tensor):
@@ -125,12 +125,17 @@ def speech_to_text_llm_data_step(dataloader_iter) -> Dict[str, Any]:
         for key, val in _batch.items()
     }
 
-    # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch)
+    # inject num_valid_tokens_in_ub for context parallelism,
+    # which refers to the total number of valid tokens in the current batch
+    if parallel_state.get_context_parallel_world_size() > 1:
+        num_valid_tokens_in_ub = None
+        if "loss_mask" in _batch and _batch["loss_mask"] is not None:
+            num_valid_tokens_in_ub = _batch["loss_mask"].sum()
+        _batch["num_valid_tokens_in_ub"] = num_valid_tokens_in_ub
 
-    output["dataloader_idx"] = dataloader_idx
-    output["batch_idx"] = batch_idx
-    return output
+    _batch["dataloader_idx"] = dataloader_idx
+    _batch["batch_idx"] = batch_idx
+    return _batch
 
 
 def speech_to_text_llm_forward_step(model: pl.LightningModule, batch: Dict[str, Any]) -> torch.Tensor:
@@ -161,6 +166,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
     num_layers: int = 1  # added to avoid init error, not used!!!
     hidden_size: int = 1  # added to avoid init error, not used!!!
     num_attention_heads: int = 16  # added to avoid init error, not used!!!
+    seq_length: int = 1024  # added to avoid init error, not used!!!
 
     language_model_config: Optional[GPTConfig] = None
     language_model_class: Optional[str] = None
@@ -220,13 +226,32 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")
         return model
 
+    def _propagate_model_configs(self) -> TransformerConfig:
+        """
+        propagate key attributes to the language/speech model config
+        """
+        # LLM
+        self.language_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_model_config.sequence_parallel = self.sequence_parallel
+        self.language_model_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.language_model_config.context_parallel_size = self.context_parallel_size
+
+        # ASR
+        self.speech_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.speech_model_config.sequence_parallel = self.sequence_parallel
+        self.speech_model_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.speech_model_config.context_parallel_size = self.context_parallel_size
+
     def configure_model(
         self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
     ) -> "MCoreSpeechToTextLLM":
+        self._propagate_model_configs()
+
         language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: "MCoreGPTModel"
         language_model = self._maybe_load_pretrained_llm(language_model)
 
         if speech_model is None:
+            # propagate key attributes to the speech model config
             speech_model = self.speech_model_config.configure_model()
         speech_model.set_input_tensor = MethodType(set_input_tensor, speech_model)
 
@@ -262,7 +287,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
     def __init__(
         self,
-        config: TransformerConfig,
+        config: SpeechToTextLLMConfig,
         language_model: MegatronModule,
         speech_model: ASRModel,
         modality_adapter: nn.Module,
@@ -290,6 +315,13 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         pass
 
     def _create_attention_mask(self, encoder_input: torch.Tensor):
+        """
+        Create causal attention mask for whole input
+        Args:
+            encoder_input: The encoder input tensor of shape [b, t, h].
+        Returns:
+            attention_mask: The attention mask tensor of shape [b, 1, t, t].
+        """
         # Create causal attention mask for whole input
         batch_size = encoder_input.shape[0]
         max_len = encoder_input.shape[1]
@@ -298,6 +330,7 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         )
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
+        # [batch, 1, seq_len, seq_len]
         return attention_mask
 
     def _concat_features(self, embs1, emb1_lens, embs2, emb2_lens):
@@ -362,7 +395,21 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         input_length: torch.Tensor,
         context_start_idx: Optional[List[List[int]]] = None,
     ):
-        """Inject audio features into the text input and return the final input embeddings to LLM."""
+        """
+        Inject audio features into the text input and return the final input embeddings to LLM.
+        Args:
+            encoded: The audio features, tensor of shape [b, t, d] or a tuple/list of such tensors.
+            encoded_len: The length of the audio features, tensor of shape [b] or a tuple/list of such tensors.
+            input_ids: The input text tokens, tensor of shape [b, t].
+            input_length: The length of the input text tokens, tensor of shape [b].
+            context_start_idx: The start index of each text segment in the input text tokens, list of list of integers.
+        Returns:
+            combined_embed: The final input embeddings to the language model, shape [t, b, h].
+            attention_mask: The attention mask tensor of shape [b, 1, t, t].
+            combined_embed_length: The length of the final input embeddings, shape [b].
+            position_ids: The position ids tensor of shape [b, t].
+            encoder_max_length: The maximum length of the encoder input, integer.
+        """
         # [b, t, c]
         lm_embedding = self.language_model.embedding
         input_embeds = lm_embedding.word_embeddings(input_ids)
@@ -409,7 +456,6 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
                 combined_embed = lm_embedding.embedding_dropout(combined_embed)
         else:
             combined_embed = lm_embedding.embedding_dropout(combined_embed)
-
         return combined_embed, attention_mask, combined_embed_length, position_ids, encoder_max_length
 
     def _shift_labels_by_emb_len(self, labels, label_lens, emb_lens, max_len, pad_token=0):
@@ -451,6 +497,54 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
 
         return text_embeddings
 
+    def _get_llm_input_for_context_parallel(
+        self,
+        attention_mask: torch.Tensor,
+        decoder_input: torch.Tensor,
+        labels: torch.Tensor,
+        loss_masks: torch.Tensor,
+        max_length: int,
+    ):
+        """
+        Prepare context parallel input for the language model, where tensors are padded to the lengths
+        divisible by context parallel world size.
+        Args:
+            attention_mask: The attention mask tensor of shape [b, 1, t, t].
+            decoder_input: The decoder input tensor of shape [t, b, h].
+            labels: The labels tensor of shape [b, t].
+            loss_masks: The loss mask tensor of shape [b, t].
+            max_length: The maximum length of the input tensors, integer.
+        Returns:
+            attention_mask_cp: The attention mask tensor for context parallelism, shape [b, 1, t, t].
+            decoder_input_cp: The decoder input tensor for context parallelism, shape [t, b, h].
+            labels_cp: The labels tensor for context parallelism, shape [b, t].
+        """
+        cp_size = parallel_state.get_context_parallel_world_size()
+        if cp_size == 1:
+            return attention_mask, decoder_input, labels
+
+        shard_factor = 2 * cp_size  # 2x required by megatron context parallel
+        decoder_input = decoder_input.transpose(0, 1).contiguous()  # [t, b, h] -> [b, t, h]
+        decoder_input = pad_or_trim_to_max_length(decoder_input, max_length, 0, ceil_to=shard_factor)
+        labels = pad_or_trim_to_max_length(labels, max_length, 0, ceil_to=shard_factor)
+        loss_masks = pad_or_trim_to_max_length(loss_masks, max_length, 0, ceil_to=shard_factor)
+        attention_mask = self._create_attention_mask(decoder_input)
+
+        batch = {
+            "attention_mask": attention_mask,
+            "decoder_input": decoder_input,
+            "labels": labels,
+            "loss_mask": loss_masks,
+        }
+
+        # Split the batch for context parallelism
+        batch_cp = get_batch_on_this_context_parallel_rank(batch)
+        attention_mask_cp = batch_cp["attention_mask"]
+        decoder_input_cp = batch_cp["decoder_input"].transpose(0, 1).contiguous()  # [b, t, h] -> [t, b, h]
+        labels_cp = batch_cp["labels"]
+        loss_masks_cp = batch_cp["loss_mask"]
+        return attention_mask_cp, decoder_input_cp, labels_cp, loss_masks_cp
+
     def perception(self, input_signal, input_signal_length, processed_signal, processed_signal_length):
         encoded, encoded_len = self.speech_model(
             input_signal=input_signal,
@@ -476,6 +570,7 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         num_audios: Optional[torch.Tensor] = None,
         context_start_idx: Optional[List[List[int]]] = None,
         inference_params: Optional[InferenceParams] = None,
+        packed_seq_params: Optional[Dict[str, Any]] = None,
     ):
         encoded, encoded_len = self.perception(
             input_signal=audio_signal,
@@ -511,6 +606,9 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         else:
             final_loss_mask = None
 
+        attention_mask, combined_embeddings, final_labels, final_loss_mask = self._get_llm_input_for_context_parallel(
+            attention_mask, combined_embeddings, final_labels, final_loss_mask, max_length
+        )
         output = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -518,13 +616,11 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             decoder_input=combined_embeddings,
             labels=final_labels,
             inference_params=inference_params,
+            packed_seq_params=packed_seq_params,
         )
 
         if labels is None or loss_mask is None:
             return output
-
-        if output.size(1) != final_loss_mask.size(1):
-            raise RuntimeError(f"Output size {output.size(1)} does not match loss mask size {final_loss_mask.size(1)}")
 
         # [b, t], [b, t]
         return output, final_loss_mask.contiguous()
