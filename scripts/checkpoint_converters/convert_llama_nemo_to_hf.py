@@ -19,7 +19,7 @@ from collections import OrderedDict
 import torch
 from lightning.pytorch import Trainer
 from omegaconf import open_dict
-from transformers import AutoModelForCausalLM, LlamaTokenizer, LlamaTokenizerFast, convert_slow_tokenizer
+from transformers import AutoModelForCausalLM, LlamaTokenizer, LlamaTokenizerFast, convert_slow_tokenizer, AutoConfig
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
@@ -105,6 +105,11 @@ def get_args():
         help="Load model in cpu only. Useful if the model cannot fit in GPU memory, "
         "but this option makes the conversion script significantly slower.",
     )
+    parser.add_argument(
+        "--allow-reshaping",
+        action="store_true",
+        help="Automatically detect and adjust HF model dimensions to match NeMo model dimensions",
+    )
     args = parser.parse_args()
     return args
 
@@ -117,6 +122,7 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
+    model_config.sequence_parallel = False # cannot convert with sequence parallel on
     model_config.name = "te_gpt"
     if cpu_only:
         map_location = torch.device('cpu')
@@ -245,6 +251,7 @@ def replace_hf_weights_and_tokenizer(
     output_hf_path,
     tokenizer_path,
     output_hf_tokenizer,
+    allow_reshaping=False,
 ):
     model = AutoModelForCausalLM.from_pretrained(
         input_hf_path,
@@ -268,7 +275,34 @@ def replace_hf_weights_and_tokenizer(
             tokenizer = None
             logging.warning("Could not load custom tokenizer, proceeding with default tokenizer")
 
-    model.load_state_dict(nemo_exported)
+    if allow_reshaping:
+        # Detect dimensions from the NeMo weights
+        embed_dim = None
+        mlp_dim = None
+        for name, param in nemo_exported.items():
+            if name == "model.embed_tokens.weight":
+                embed_dim = param.shape[1]
+            elif "mlp.gate_proj.weight" in name:
+                mlp_dim = param.shape[0]
+            if embed_dim is not None and mlp_dim is not None:
+                break
+
+        logging.info(f"Adjusting model dimensions:")
+        logging.info(f"embed_dim: {model.config.hidden_size} -> {embed_dim}")
+        logging.info(f"mlp_dim: {model.config.intermediate_size} -> {mlp_dim}")
+
+        # replace the weights of the model with the weights from the nemo model
+        for name, param in model.named_parameters():
+            if name in nemo_exported:
+                param.data = nemo_exported[name]
+            else:
+                logging.warning(f"Layer {name} not found in nemo weights")
+
+        model.config.hidden_size = embed_dim
+        model.config.intermediate_size = mlp_dim
+    else:
+        model.load_state_dict(nemo_exported)
+
     model.save_pretrained(output_hf_path)
     logging.info(f"Full HF model saved to {output_hf_path}")
 
@@ -291,6 +325,7 @@ if __name__ == '__main__':
             args.hf_output_path,
             args.input_tokenizer,
             args.hf_output_tokenizer,
+            args.allow_reshaping,
         )
     else:
         logging.info("`hf_input_path` and/or `hf_output_path` not provided, not generating full HF model.")
