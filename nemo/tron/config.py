@@ -988,6 +988,14 @@ class MegatronLMConfig:
     # ---------------- Config logger config. ----------------
 
 
+@dataclass
+class SchedulerConfig:
+    lr_warmup_steps: Optional[int] = None
+    lr_decay_steps: Optional[int] = None
+    wd_incr_steps: Optional[int] = None
+    wsd_decay_steps: Optional[int] = None
+
+
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass
 class ConfigContainer:
@@ -999,6 +1007,7 @@ class ConfigContainer:
     optimizer_config: OptimizerConfig
     ddp_config: DistributedDataParallelConfig
     data_config: DataConfig
+    scheduler_config: SchedulerConfig
 
     def __post_init__(self):
         # Run validations
@@ -1017,3 +1026,75 @@ class ConfigContainer:
             world_size % total_model_size == 0
         ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
         self.data_parallel_size = world_size // total_model_size
+
+        # Iteration-based training.
+        if self.megatron_lm_config.train_iters:
+            if self.megatron_lm_config.lr_decay_iters is None:
+                self.megatron_lm_config.lr_decay_iters = self.megatron_lm_config.train_iters
+            lr_decay_steps = self.megatron_lm_config.lr_decay_iters * self.megatron_lm_config.global_batch_size
+            wd_incr_steps = self.megatron_lm_config.train_iters * self.megatron_lm_config.global_batch_size
+            wsd_decay_steps = None
+            if self.megatron_lm_config.lr_wsd_decay_iters is not None:
+                wsd_decay_steps = (
+                    self.megatron_lm_config.lr_wsd_decay_iters * self.megatron_lm_config.global_batch_size
+                )
+            if self.megatron_lm_config.lr_warmup_fraction is not None:
+                lr_warmup_steps = self.megatron_lm_config.lr_warmup_fraction * lr_decay_steps
+            else:
+                lr_warmup_steps = self.megatron_lm_config.lr_warmup_iters * self.megatron_lm_config.global_batch_size
+        # Sample-based training.
+        elif self.megatron_lm_config.train_samples:
+            # We need to set training iters for later use. Technically
+            # we need to adjust the training samples too (due to last
+            # batch being incomplete) but we leave it as is for now.
+            _update_train_iters(cfg)
+            if self.megatron_lm_config.lr_decay_samples is None:
+                self.megatron_lm_config.lr_decay_samples = self.megatron_lm_config.train_samples
+            lr_decay_steps = self.megatron_lm_config.lr_decay_samples
+            wd_incr_steps = self.megatron_lm_config.train_samples
+            wsd_decay_steps = self.megatron_lm_config.lr_wsd_decay_samples
+            if self.megatron_lm_config.lr_warmup_fraction is not None:
+                lr_warmup_steps = self.megatron_lm_config.lr_warmup_fraction * lr_decay_steps
+            else:
+                lr_warmup_steps = self.megatron_lm_config.lr_warmup_samples
+        else:
+            raise Exception('either train-iters or train-samples should be provided.')
+
+        self.scheduler_config = SchedulerConfig(lr_warmup_steps, lr_decay_steps, wd_incr_steps, wsd_decay_steps)
+
+    def _update_train_iters(self):
+        from megatron.core.num_microbatches_calculator import get_current_global_batch_size, update_num_microbatches
+
+        # For iteration-based training, we don't need to do anything
+        if self.megatron_lm_config.train_iters:
+            return
+
+        # Constant batch size with sample-based training.
+        if self.megatron_lm_config.rampup_batch_size is None:
+            self.megatron_lm_config.train_iters = (
+                self.megatron_lm_config.train_samples // self.megatron_lm_config.global_batch_size
+            )
+
+        else:
+            # Sample based training with rampup batch size.
+            iterations = 0
+            consumed_samples = 0
+            # Rampup phase.
+            while (
+                consumed_samples <= int(self.megatron_lm_config.rampup_batch_size[2])
+                and consumed_samples <= self.megatron_lm_config.train_samples
+            ):
+                update_num_microbatches(consumed_samples, consistency_check=False)
+                consumed_samples += get_current_global_batch_size()
+                iterations += 1
+            # Reset
+            update_num_microbatches(0, consistency_check=False)
+            # Constant phase
+            # Note that we throw away any partial last batch.
+            if self.megatron_lm_config.train_samples > consumed_samples:
+                iterations += (
+                    self.megatron_lm_config.train_samples - consumed_samples
+                ) // self.megatron_lm_config.global_batch_size
+            self.megatron_lm_config.train_iters = iterations
+
+        print(f'setting training iterations to {self.megatron_lm_config.train_iters}')
