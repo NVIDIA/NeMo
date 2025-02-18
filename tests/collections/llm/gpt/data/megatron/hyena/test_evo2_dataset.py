@@ -294,7 +294,7 @@ def test_sequence_starting_with_tag(tag_tokens):
             103,
             95,
             124,  # |tag_|
-            100,
+            65,
             84,
             71,  # ATG
         ]

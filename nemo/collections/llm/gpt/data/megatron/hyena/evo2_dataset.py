@@ -135,6 +135,7 @@ class Evo2Dataset(GPTDataset):
 
         # Valid DNA tokens: A, C, G, T, N (both uppercase and lowercase)
         valid_dna = {65, 67, 71, 84, 78, 97, 99, 103, 116, 110}
+        valid_dna_tensor = torch.tensor(list(valid_dna), device=device, dtype=dtype)
         # Taxonomy prefix letters: d, p, c, o, f, g, s (ASCII)
         taxonomy_prefixes = {100, 112, 99, 111, 102, 103, 115}
 
@@ -222,6 +223,9 @@ class Evo2Dataset(GPTDataset):
                 seg_mask = process_segment(seg)
                 out_mask[b, start_idx:] = seg_mask
 
+        # Just to make sure we do not allow any non-DNA tokens to be unmasked, even if something went wrong with our
+        #  mask logic.
+        out_mask[~torch.isin(tokenized_sequence, valid_dna_tensor)] = 0
         # Finally, force every EOD token to be unmasked. User decides outside of this function if they want EOD mask.
         out_mask[tokenized_sequence == eod_token_id] = 1
 
