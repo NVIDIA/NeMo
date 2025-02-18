@@ -27,9 +27,8 @@ if TYPE_CHECKING:
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
 
-# Custom Retrieval Data Module loaded with json file
 class CustomRetrievalDataModule(FineTuningDataModule):
-    """ """
+    """ Custom Retrieval Data Module loaded with json file """
 
     def __init__(
         self,
@@ -57,6 +56,36 @@ class CustomRetrievalDataModule(FineTuningDataModule):
         neg_doc_key: str = "neg_doc",
         dataset_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        """Custom DataModule for Finetuning retrieval Dataset for Embedding model.
+
+        Args:
+            data_root (Union[str, List[str]]): The JSONL data file(s) used for training/validation/test.
+                if val_root/test_root is not present, data_root will be split to training and val/test based on
+                val_ratio/test_ratio.
+            val_root (Optional[str]): The JSONL data file used for validation. If not provided, validation set
+                will be split from data_root.
+            test_root (Optional[str]): The JSONL data file used for test. If not provided, test set
+                will be split from data_root.
+            val_ratio (Optional[float]): The ratio of validation set when splitting from data_root.
+            test_ratio (Optional[float]): The ratio of test set when splitting from data_root.
+            dataset_identifier (str): Dataset identifier when saving the dataset to NEMO_HOME.
+            seq_length (int, optional): The maximum sequence length for the input and output text. Defaults to 2048.
+            tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text.
+                If not provided, a Megatron GPT2 BPE tokenizer will be used.
+            micro_batch_size (int, optional): The micro batch size for training. Defaults to 4.
+            global_batch_size (int, optional): The global batch size for training. Defaults to 8.
+            rampup_batch_size (Optional[List[int]], optional): A list of batch sizes for ramping up during training.
+                Defaults to None.
+            seed (int, optional): The random seed for data shuffling. Defaults to 1234.
+            memmap_workers (int, optional): The number of worker processes for loading data using TextMemMapDataset.
+                Defaults to 1.
+            num_workers (int, optional): The number of worker processes for data loading. Defaults to 8.
+            pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training.
+                Defaults to True.
+            persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs.
+                Defaults to False.
+            dataset_kwargs (Optional[Dict[str, Any]], optional): Keyword arguments to pass into the GPTSFTDataset class
+        """
         self.force_redownload = force_redownload
         self.delete_raw = delete_raw
 
@@ -86,7 +115,8 @@ class CustomRetrievalDataModule(FineTuningDataModule):
         self.neg_doc_key = neg_doc_key
         self.unprocessed_root = data_root
 
-        log_info = f"data_root: {data_root} will be split to {self.train_ratio}:{self.val_ratio}:{self.test_ratio} used for train/val/test"
+        log_info = (f"data_root: {data_root} will be split to "
+                    f"{self.train_ratio}:{self.val_ratio}:{self.test_ratio} used for train/val/test")
         if self.val_root is not None:
             log_info += f", separate validation root: {self.val_root}"
         if self.test_root is not None:
