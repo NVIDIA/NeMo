@@ -18,7 +18,7 @@
 
 import pytest
 import torch
-from nemo.collections.llm.gpt.data.megatron.hyena import Evo2Dataset, Evo2DatasetPadEodLossMask
+from nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset import Evo2Dataset, Evo2DatasetPadEodLossMask
 
 
 @pytest.fixture
@@ -38,25 +38,29 @@ def tag_tokens():
 
 
 def test_mask_phylogenetic_tags_with_eod(tag_tokens):
-    """Tests handling of EOD tokens within tag context.
-
-    Since we want to ensure the model only learns to output {A,C,G,T}, even EOD tokens
-    within a tag context should be masked to prevent the model from learning to
-    output non-DNA tokens.
-
-    Example sequence: token | _ EOD | token
-    Expected masking:   1   0 0  0  0   1
     """
-    sequence = torch.tensor([65, 124, 95, 0, 124, 65])  # token|_<EOD>|token
+    Tests a sequence where an EOD splits two partial tags.
+
+    Example sequence (ASCII):
+      65       124   95    0     124   65
+      'A'      '|'   '_'   EOD   '|'   'A'
+
+    - Segment 1: "A|_" => keep 'A' (DNA), mask '|' and '_'
+    - EOD => masked
+    - Segment 2: "|A" => mask '|', keep 'A' (DNA)
+
+    Expected masking: [1, 0, 0, 1, 0, 1]
+    """
+    sequence = torch.tensor([65, 124, 95, 0, 124, 65])  # "A|_" + EOD + "|A"
 
     mask = Evo2Dataset.mask_phylogenetic_tags(
         tokenized_sequence=sequence,
-        terminal_tag_char=tag_tokens["terminal"],  # |
-        other_tag_chars=tag_tokens["other_chars"],  # _, ;, space
-        eod_token_id=tag_tokens["eod"],
+        terminal_tag_char=tag_tokens["terminal"],  # '|'
+        other_tag_chars=tag_tokens["other_chars"],  # { '_',';',' ' }
+        eod_token_id=tag_tokens["eod"],            # 0
     )
 
-    expected_mask = torch.tensor([1, 0, 0, 0, 0, 1])
+    expected_mask = torch.tensor([1, 0, 0, 1, 0, 1])
     assert torch.equal(mask, expected_mask)
 
 

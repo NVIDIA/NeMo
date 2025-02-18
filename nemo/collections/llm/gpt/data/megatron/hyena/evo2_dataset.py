@@ -21,6 +21,7 @@ import torch
 from megatron.core.datasets.gpt_dataset import GPTDataset
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import make_upper_case
 
+
 class Evo2Dataset(GPTDataset):
     """Dataset for training Evo2."""
 
@@ -33,7 +34,7 @@ class Evo2Dataset(GPTDataset):
 
     def __getitem__(self, idx: Optional[int]) -> Dict[str, torch.Tensor]:
         """Get data at the specified index."""
-        # 1. Call the default gpt dataset object 
+        # 1. Call the default gpt dataset object
         databatch: dict = super().__getitem__(idx)
         loss_mask = databatch.get("loss_mask", None)
         if self.RESET_PAD_EOD_MASK and loss_mask is not None:
@@ -55,55 +56,53 @@ class Evo2Dataset(GPTDataset):
         )
         databatch["loss_mask"] = loss_mask * phylotag_mask
         if self.TO_UPPER_TOKENS:
-            databatch["tokens"], _  = make_upper_case(databatch["tokens"])
+            databatch["tokens"], _ = make_upper_case(databatch["tokens"])
         return databatch
 
+    @torch.no_grad()
     @staticmethod
     def mask_phylogenetic_tags(
         tokenized_sequence: torch.Tensor,
-        terminal_tag_char: int,
-        other_tag_chars: set[int],
-        eod_token_id: int,
+        terminal_tag_char: int,  # e.g. ASCII for '|'
+        other_tag_chars: set[int],  # e.g. {95, 59, 32} for '_', ';', space
+        eod_token_id: int,  # e.g. 0
     ) -> torch.Tensor:
-        """Creates a mask for sequences containing phylogenetic taxonomic tags and DNA.
-        
-        This function processes sequences that contain both DNA data (A,C,G,T in uppercase or lowercase)
-        and taxonomic information in the format |d__kingdom;p__phylum;c__class;...| to create a binary mask.
-        The mask ensures that only DNA sequences are exposed (1) while taxonomic tags and related information
-        are masked (0).
+        """
+        Creates a binary mask for sequences containing phylogenetic tags and DNA.
+        The rules are as follows (applied per contiguous sub‐sequence between EOD tokens):
 
-        Example:
-            For input "|d__Bacteria|ACGT|s__species|":
-            - Returns [0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0]
-            - The DNA sequence ACGT is unmasked (1s)
-            - The taxonomic tags and delimiters are masked (0s)
+          - Any token equal to the terminal_tag_char (the pipe, '|') is masked.
+          - For the region *before* the first pipe (the “prefix”):
+              * If the first token is in taxonomy_prefixes (d, p, c, o, f, g, s),
+                or if the prefix is exactly one lowercase letter,
+                or if any token in the prefix is one of other_tag_chars,
+                or if not every token is a valid DNA base,
+                then mask the entire prefix.
+          - For the region between pipes:
+              * If any token is in other_tag_chars or not all tokens are valid DNA, mask that region.
+          - For the region *after* the last pipe (the “suffix”):
+              * If the first token is the letter 'd' (ASCII 100) or if the region contains
+                any other tag characters or any EOD tokens or non‐DNA, mask the suffix.
 
-        The function handles several specific cases:
-        1. Complete tags: Sequences between pipe characters containing taxonomic information
-        2. Partial tags: Incomplete taxonomic information at sequence boundaries
-        3. DNA sequences: Uppercase A,C,G,T characters that should remain unmasked
-        4. Special tokens: EOD tokens within tag context that should be masked
+        Finally, any token equal to eod_token_id is forced to remain unmasked.
+        (EOD tokens “break” a sequence so that tags never span across them.)
 
         Args:
-            tokenized_sequence (torch.Tensor): Input sequence tensor of shape (batch_size, seq_length)
-                or (seq_length,). Contains ASCII values representing sequence characters.
-            terminal_tag_char (int): ASCII value for the tag delimiter character ('|' = 124).
-            other_tag_chars (set of int): Set of ASCII values for characters used in tags 
-                (e.g., '_', ';', space).
-            eod_token_id (int): Token ID representing end-of-document.
+            tokenized_sequence (torch.Tensor): shape (seq_len,) or (batch_size, seq_len)
+              containing ASCII values.
+            terminal_tag_char (int): ASCII value for the pipe character.
+            other_tag_chars (set[int]): Set of ASCII values that appear only in tags.
+            eod_token_id (int): The token ID for EOD.
 
         Returns:
-            torch.Tensor: Binary mask of the same shape as input where:
-                1 = Keep (DNA sequences)
-                0 = Mask (taxonomic tags and related information).
+            torch.Tensor: A mask of the same shape as input where 1 = keep (DNA) and 0 = mask (tag).
         """
         device = tokenized_sequence.device
         dtype = tokenized_sequence.dtype
 
-        # Handle empty sequence.
+        # Handle empty or single-token sequences.
         if tokenized_sequence.numel() == 0:
             return torch.ones(0, device=device, dtype=torch.int)
-        # Handle a single token.
         if tokenized_sequence.numel() == 1:
             mask = torch.ones(1, device=device, dtype=torch.int)
             token = tokenized_sequence.item()
@@ -111,87 +110,112 @@ class Evo2Dataset(GPTDataset):
                 mask[0] = 0
             return mask
 
-        batched_io = (tokenized_sequence.ndim == 2)
-        if not batched_io:
+        # Ensure input is 2D (batch, seq_len)
+        batched = tokenized_sequence.ndim == 2
+        if not batched:
             tokenized_sequence = tokenized_sequence.unsqueeze(0)
         batch_size, seq_len = tokenized_sequence.shape
 
-        # Create constant tensors
+        # Valid DNA tokens: A, C, G, T, N (both uppercase and lowercase)
+        valid_dna = {65, 67, 71, 84, 78, 97, 99, 103, 116, 110}
+        # Taxonomy prefix letters: d, p, c, o, f, g, s (ASCII)
+        taxonomy_prefixes = {100, 112, 99, 111, 102, 103, 115}
+
+        # Pre-build a tensor for other tag characters.
         other_tag_tensor = torch.tensor(list(other_tag_chars), device=device, dtype=dtype)
-        taxonomy_prefixes = torch.tensor([100, 112, 99, 111, 102, 103, 115], device=device, dtype=dtype)
-        valid_dna = torch.tensor([65, 67, 71, 84, 78, 97, 99, 103, 116, 110], device=device, dtype=dtype)
 
-        # Initialize output mask
-        mask_vector = torch.ones_like(tokenized_sequence, dtype=torch.int)
+        # Initialize output mask to all ones.
+        out_mask = torch.ones_like(tokenized_sequence, dtype=torch.int)
 
-        # Process each sequence
-        for i in range(batch_size):
-            row = tokenized_sequence[i]
+        # Helper: Check if all tokens in a region are valid DNA.
+        def region_all_valid(region: torch.Tensor) -> bool:
+            if region.numel() == 0:
+                return True
+            # Using Python’s all() over the token values.
+            return all(tok in valid_dna for tok in region.tolist())
 
-            # Compute in_tag status
-            in_tag = (torch.cumsum((row == terminal_tag_char).to(torch.int), dim=0) % 2) == 1
+        # Process one EOD-free segment using the O1 logic.
+        def process_segment(seg_seq: torch.Tensor) -> torch.Tensor:
+            seg_len = seg_seq.size(0)
+            seg_mask = torch.ones(seg_len, device=device, dtype=torch.int)
+            # Identify positions of terminal tag (pipe)
+            pipe_pos = (seg_seq == terminal_tag_char).nonzero(as_tuple=True)[0]
+            if pipe_pos.numel() == 0:
+                # If no pipe exists and any token is a known tag char or not valid DNA,
+                # mask the entire segment.
+                if torch.any(torch.isin(seg_seq, other_tag_tensor)) or (not region_all_valid(seg_seq)):
+                    seg_mask.zero_()
+                return seg_mask
 
-            # Find EOD tokens outside tags
-            eod_outside = (row == eod_token_id) & (~in_tag)
+            # Always mask the pipe positions.
+            seg_mask[pipe_pos] = 0
 
-            # Create segment boundaries
-            shifted = torch.roll(eod_outside.to(torch.int64), 1)
-            shifted[0] = 0
-            seg_ids = torch.cumsum(shifted, dim=0)
+            # Process the prefix (tokens before the first pipe).
+            first_pipe = pipe_pos[0].item()
+            if first_pipe > 0:
+                prefix = seg_seq[:first_pipe]
+                first_char = prefix[0].item()
+                single_lowercase = prefix.numel() == 1 and 97 <= first_char <= 122
+                if (
+                    (first_char in taxonomy_prefixes)
+                    or single_lowercase
+                    or torch.any(torch.isin(prefix, other_tag_tensor))
+                    or (not region_all_valid(prefix))
+                ):
+                    seg_mask[:first_pipe] = 0
 
-            # Process each segment
-            for seg in torch.unique(seg_ids):
-                seg_idx = (seg_ids == seg).nonzero(as_tuple=True)[0]
-                seg_seq = row[seg_idx]
+            # Process regions between consecutive pipes.
+            for j in range(pipe_pos.numel() - 1):
+                start = pipe_pos[j].item()
+                end = pipe_pos[j + 1].item()
+                if end > start + 1:
+                    mid = seg_seq[start + 1 : end]
+                    # For a complete tag, if any token is a known tag char or not valid DNA, mask it.
+                    if torch.any(torch.isin(mid, other_tag_tensor)) or (not region_all_valid(mid)):
+                        seg_mask[start + 1 : end] = 0
 
-                # Initialize segment mask
-                seg_mask = torch.ones_like(seg_seq, dtype=torch.int)
+            # Process the suffix (tokens after the last pipe).
+            last_pipe = pipe_pos[-1].item()
+            if last_pipe < seg_len - 1:
+                suffix = seg_seq[last_pipe + 1 :]
+                if suffix.numel() > 0:
+                    first_suffix = suffix[0].item()
+                    if (
+                        (first_suffix == 100)
+                        or torch.any(torch.isin(suffix, other_tag_tensor))
+                        or torch.any(suffix == eod_token_id)
+                        or (not region_all_valid(suffix))
+                    ):
+                        seg_mask[last_pipe + 1 :] = 0
 
-                # Find terminals in segment
-                term_mask = (seg_seq == terminal_tag_char)
-                term_positions = torch.nonzero(term_mask, as_tuple=True)[0]
+            return seg_mask
 
-                # If no terminals but has tag chars, mask everything
-                if not term_positions.numel():
-                    if torch.any(torch.isin(seg_seq, other_tag_tensor)):
-                        seg_mask.zero_()
-                    mask_vector[i, seg_idx] = seg_mask
-                    continue
+        # Process each row by splitting on EOD tokens.
+        for b in range(batch_size):
+            row = tokenized_sequence[b]
+            # Get indices of EOD tokens.
+            eod_positions = (row == eod_token_id).nonzero(as_tuple=True)[0]
+            start_idx = 0
+            for pos in eod_positions:
+                pos = pos.item()
+                if pos > start_idx:
+                    seg = row[start_idx:pos]
+                    seg_mask = process_segment(seg)
+                    out_mask[b, start_idx:pos] = seg_mask
+                # Leave the EOD token itself unmasked.
+                start_idx = pos + 1
+            # Process any remaining tokens after the last EOD.
+            if start_idx < seq_len:
+                seg = row[start_idx:]
+                seg_mask = process_segment(seg)
+                out_mask[b, start_idx:] = seg_mask
 
-                # Always mask terminal tokens
-                seg_mask[term_mask] = 0
+        # Finally, force every EOD token to be unmasked. User decides outside of this function if they want EOD mask.
+        out_mask[tokenized_sequence == eod_token_id] = 1
 
-                # Handle region before first terminal
-                first_pipe = term_positions[0].item()
-                if first_pipe > 0:
-                    prefix = seg_seq[:first_pipe]
-                    if prefix[0].item() in taxonomy_prefixes.tolist() or \
-                    (prefix.numel() == 1 and (97 <= prefix[0].item() <= 122)) or \
-                    torch.any(torch.isin(prefix, other_tag_tensor)) or \
-                    not torch.all(torch.isin(prefix, valid_dna)):
-                        seg_mask[:first_pipe] = 0
-
-                # Handle regions between terminals
-                for j in range(len(term_positions) - 1):
-                    start = term_positions[j].item()
-                    end = term_positions[j + 1].item()
-                    if torch.any(torch.isin(seg_seq[start + 1:end], other_tag_tensor)):
-                        seg_mask[start + 1:end] = 0
-
-                # Handle region after last terminal
-                last_pipe = term_positions[-1].item()
-                if last_pipe < len(seg_seq) - 1:
-                    suffix = seg_seq[last_pipe + 1:]
-                    if suffix.numel() > 0 and chr(suffix[0].item()) == 'd' or \
-                    torch.any(torch.isin(suffix, other_tag_tensor)) or \
-                    torch.any(suffix == eod_token_id):
-                        seg_mask[last_pipe + 1:] = 0
-
-                mask_vector[i, seg_idx] = seg_mask
-
-        if not batched_io:
-            mask_vector = mask_vector.squeeze(0)
-        return mask_vector
+        if not batched:
+            out_mask = out_mask.squeeze(0)
+        return out_mask
 
 
 class Evo2DatasetPadEodLossMask(Evo2Dataset):
