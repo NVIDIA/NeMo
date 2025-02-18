@@ -13,9 +13,24 @@
 # limitations under the License.
 
 """
-Example:
+Mock Data Example:
   torchrun --nproc_per_node=8 scripts/vlm/neva_finetune.py \
   --devices=8 --tp=4 --data_type=mock
+
+Llava Data Example:
+   torchrun --nproc_per_node=8 /path/to/NeMo/scripts/vlm/neva_finetune.py  \
+     --data_path "/path/to/dataset/llava_v1_5_mix665k.json" \
+     --image_folder "/path/to/dataset/images" \
+     --data_type llava \
+     --num_nodes 1 \
+     --log_dir "/path/to/experiments/neva_finetune" \
+     --devices=8 \
+     --projector_type=mcore_mlp \
+     --tp_size 2 --pp_size 1 \
+     --gbs 128 --mbs 4 \
+     --wandb_project=neva_demo \
+     --name=neva_finetune \
+     --restore_path "/path/to/experiments/neva_pretrain_checkpoint"
 """
 
 import argparse
@@ -79,7 +94,7 @@ def main(args):
         )
 
         # Data module setup
-        data = vlm.NevaLazyDataModule(
+        data = vlm.NevaPreloadedDataModule(
             paths=args.data_path,
             data_config=data_config,
             seq_length=decoder_seq_length,
