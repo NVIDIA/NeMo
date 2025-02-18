@@ -31,7 +31,8 @@ from nemo.deploy.utils import NEMO2, cast_output, nemo_checkpoint_version, str_n
 
 @wrapt.decorator
 def noop_decorator(func):
-    """ a decorator that's a no-op """
+    """a decorator that's a no-op"""
+
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
