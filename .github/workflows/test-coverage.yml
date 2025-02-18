@@ -4,6 +4,7 @@ on:
 jobs:
   Coverage:
     runs-on: ubuntu-latest
+    environment: main
     strategy:
       matrix:
         flag: [unit-test, e2e]
