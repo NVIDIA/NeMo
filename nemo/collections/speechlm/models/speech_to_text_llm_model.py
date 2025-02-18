@@ -206,7 +206,9 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         time.sleep(rank / 2)
 
         llm_model_cls = model_utils.import_class_by_path(self.language_model_class)  # type: GPTModel
-        ckpt_path = io.import_ckpt(llm_model_cls(self.language_model_config), f"{self.language_model_hub}{ckpt_path}")
+        ckpt_path = io.import_ckpt(
+            llm_model_cls(self.language_model_config), f"{self.language_model_hub}{ckpt_path}", import_tokenizer=False
+        )
 
         sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
 
