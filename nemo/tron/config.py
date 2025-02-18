@@ -1,12 +1,15 @@
 import os
-from dataclasses import dataclass, field, fields
-from typing import List, Literal, Optional, Type
+from dataclasses import dataclass, field
+from typing import List, Literal, Optional
 
+from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer import TransformerConfig
-from megatron.core.transformer.enums import AttnBackend, ModelType
-from nemo.tron.init import get_world_size_safe
+from megatron.core.transformer.enums import ModelType
+
+from nemo.collections.llm.gpt.model.base import GPTConfig
+from nemo.collections.llm.t5.model.t5 import T5Config
+from nemo.tron.utils import get_world_size_safe
 
 
 @dataclass
@@ -16,7 +19,7 @@ class RNGConfig:
     """Random seed used for python, numpy, pytorch, and cuda."""
 
     te_rng_tracker: bool = False
-    """Use the Transformer Engine version of the random number generator. 
+    """Use the Transformer Engine version of the random number generator.
     Required for CUDA graphs support."""
 
     inference_rng_tracker: bool = False
@@ -26,7 +29,7 @@ class RNGConfig:
 @dataclass
 class RerunStateMachineConfig:
     error_injection_rate: int = 0
-    """Rate at which to inject unexpected results, e.g. 1000 means 
+    """Rate at which to inject unexpected results, e.g. 1000 means
     once every 1000 result validations"""
 
     error_injection_type: Literal['correct_result', 'transient_error', 'persistent_error'] = 'transient_error'
@@ -37,7 +40,82 @@ class RerunStateMachineConfig:
     on variability of computations due to non-deterministic algorithms."""
 
 
+@dataclass
+class TokenizerConfig:
+    vocab_size: Optional[int] = None
+    vocab_file: Optional[str] = None
+    merge_file: Optional[str] = None
+    vocab_extra_ids: int = 0
+    tokenizer_type: Optional[
+        Literal[
+            "BertWordPieceLowerCase",
+            "BertWordPieceCase",
+            "GPT2BPETokenizer",
+            "SentencePieceTokenizer",
+            "GPTSentencePieceTokenizer",
+            "HuggingFaceTokenizer",
+            "Llama2Tokenizer",
+            "TikTokenizer",
+            "MultimodalTokenizer",
+            "NullTokenizer",
+        ]
+    ] = None
+    tokenizer_model: Optional[str] = None
+    tiktoken_pattern: Optional[str] = None
+    tiktoken_num_special_tokens: int = 1000
+    tiktoken_special_tokens: Optional[List[str]] = None
+    tokenizer_prompt_format: Optional[str] = None
+    special_tokens: Optional[List[str]] = None
+    image_tag_type: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class DataConfig:
+    data_path: Optional[str] = None
+    """Path to the data file."""
+
+    data_args_path: Optional[str] = None
+    """Path to the data arguments file."""
+
+    per_split_data_args_path: Optional[str] = None
+    """Path to the per split data arguments file."""
+
+    train_data_path: Optional[str] = None
+    """Path to the train data file."""
+
+    valid_data_path: Optional[str] = None
+    """Path to the valid data file."""
+
+    test_data_path: Optional[str] = None
+    """Path to the test data file."""
+
+    rampup_batch_size: int
+    """Rampup batch size."""
+
+    global_batch_size: int
+    """Global batch size."""
+
+    micro_batch_size: int
+    """Micro batch size."""
+
+    decrease_batch_size_if_needed: bool = False
+    """Decrease batch size if needed."""
+
+    mock_data: bool = False
+    """Mock data."""
+
+    dataloader_type: Literal["single", "cyclic", "external"]
+    """Dataloader type."""
+
+    num_workers: int
+    """Number of workers."""
+
+    dataset_config: GPTDatasetConfig
+
+
 # TODO (maanug): split this up into modular components
+
+
 @dataclass
 class MegatronLMConfig:
     """MegatronLM config."""
@@ -771,7 +849,7 @@ class MegatronLMConfig:
     """Report to tensorboard interval."""
 
     tensorboard_queue_size: int = 1000
-    """Size of the tensorboard queue for pending events and summaries before one of the ‘add’ calls forces a flush to disk."""
+    """Size of the tensorboard queue for pending events and summaries before one of the 'add' calls forces a flush to disk."""
 
     log_timers_to_tensorboard: bool = False
     """If set, write timers to tensorboard."""
@@ -910,43 +988,32 @@ class MegatronLMConfig:
     # ---------------- Config logger config. ----------------
 
 
-# TODO (maanug): need better designed solution with same flat interface
+# ---------------- Container config (standalone top-level config) ----------------
 @dataclass
-class FlatConfig(
-    TransformerConfig,
-    OptimizerConfig,
-    RNGConfig,
-    RerunStateMachineConfig,
-    MegatronLMConfig,
-    DistributedDataParallelConfig,
-):
-    def __post_init__(self):
-        """Validate, copy values, and create inferred values."""
-        world_size = get_world_size_safe()
+class ConfigContainer:
+    rng_config: RNGConfig
+    rerun_state_machine_config: RerunStateMachineConfig
+    tokenizer_config: TokenizerConfig
+    megatron_lm_config: MegatronLMConfig
+    model_config: GPTConfig | T5Config
+    optimizer_config: OptimizerConfig
+    ddp_config: DistributedDataParallelConfig
+    data_config: DataConfig
 
+    def __post_init__(self):
+        # Run validations
+        world_size = get_world_size_safe()
+        mlc = self.megatron_lm_config
         encoder_model_size = (
-            self.encoder_tensor_model_parallel_size
-            * self.encoder_pipeline_model_parallel_size
-            * self.context_parallel_size
+            mlc.encoder_tensor_model_parallel_size
+            * mlc.encoder_pipeline_model_parallel_size
+            * mlc.context_parallel_size
         )
         decoder_model_size = (
-            self.tensor_model_parallel_size * self.pipeline_model_parallel_size * self.context_parallel_size
+            mlc.tensor_model_parallel_size * mlc.pipeline_model_parallel_size * mlc.context_parallel_size
         )
         total_model_size = encoder_model_size + decoder_model_size
-
-        # Total model size.
         assert (
             world_size % total_model_size == 0
         ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
         self.data_parallel_size = world_size // total_model_size
-
-    def to_module_cfg(self, cls: Type):
-        """Extract a modular dataclass"""
-        assert isinstance(self, cls), f"FlatConfig does not contain attributes for {cls}."
-
-        kwargs = {}
-        for f in fields(cls):
-            if hasattr(self, f.name):
-                kwargs[f.name] = getattr(self, f.name)
-
-        return cls(**kwargs)
