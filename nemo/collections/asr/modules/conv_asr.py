@@ -886,11 +886,11 @@ class SpeakerDecoder(NeuralModule, Exportable):
 
         pool = pool.squeeze(-1)
         if self.angular:
-            for W in self.final.parameters():
-                W = F.normalize(W, p=2, dim=1)
+            W = F.normalize(self.final.weight, p=2, dim=1)
             pool = F.normalize(pool, p=2, dim=1)
-
-        out = self.final(pool)
+            out = F.linear(pool, W)
+        else:
+            out = self.final(pool)
 
         return out, embs[-1].squeeze(-1)
 
