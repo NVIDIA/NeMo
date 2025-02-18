@@ -47,6 +47,19 @@ def print_rank_0(message):
         print(message, flush=True)
 
 
+def is_last_rank():
+    return torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1)
+
+
+def print_rank_last(message):
+    """If distributed is initialized, print only on last rank."""
+    if torch.distributed.is_initialized():
+        if is_last_rank():
+            print(message, flush=True)
+    else:
+        print(message, flush=True)
+
+
 def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
     """Append given string to progress log."""
     if save_dir is None:
@@ -58,9 +71,7 @@ def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
         with open(progress_log_filename, "a") as f:
             job_id = os.getenv("SLURM_JOB_ID", "")
             num_gpus = get_world_size_safe()
-            f.write(
-                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\tJob ID: {job_id}\t# GPUs: {num_gpus}\t{string}\n"
-            )
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\tJob ID: {job_id}\t# GPUs: {num_gpus}\t{string}\n")
 
 
 def barrier_and_log(string):
