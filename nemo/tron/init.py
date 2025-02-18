@@ -80,7 +80,6 @@ def _torch_dist_init(
         return None
 
     if cfg.megatron_lm_config.lazy_mpu_init:
-        cfg.megatron_lm_config.use_cpu_initialization = True  # TODO (maanug): move to config validation
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals
         parallel_state.set_tensor_model_parallel_world_size(cfg.model_config.tensor_model_parallel_size)
