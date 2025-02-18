@@ -184,6 +184,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
                 context_key=data_cfg.get('context_key', 'context'),
                 default_context_key=data_cfg.get('default_context_key', 'default_context'),
                 answer_only_loss=data_cfg.get('answer_only_loss', True),
+                is_train=(mode == 'train'),
             )
 
         setattr(self, f"_{mode}_names", data_cfg.get('name', None))

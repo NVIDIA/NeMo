@@ -67,6 +67,7 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
         context_key: str = "context",
         default_context_key: str = "default_context",
         answer_only_loss: bool = True,
+        is_train: bool = False,
     ):
         super().__init__()
         self.text_processor = text_processor
@@ -79,6 +80,7 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
         self.context_key = context_key
         self.default_context_key = default_context_key
         self.answer_only_loss = answer_only_loss
+        self.is_train = is_train
 
     def __getitem__(self, all_cuts: CutSet) -> dict[str, Union[torch.Tensor, list[str], dict]]:
         audio_samples = []
@@ -113,11 +115,17 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
             "position_ids": text_batch["position_ids"],
             "contexts": text_batch["contexts"],
             "context_lengths": text_batch["context_lengths"],
-            "context_start_idx": text_batch["context_start_idx"],
             "answers": text_batch["answers"],
             "max_length": text_batch["max_length"],
-            "num_audios": text_batch["num_audios"],
+            "context_start_idx": text_batch["context_start_idx"],  # used for multi-audio per sample
+            "num_audios": text_batch["num_audios"],  # used for multi-audio per sample
         }
+
+        if self.is_train:
+            # drop the context and answer that are not used in training
+            batch.pop("contexts")
+            batch.pop("context_lengths")
+            batch.pop("answers")
 
         return batch
 

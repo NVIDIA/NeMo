@@ -98,9 +98,6 @@ def speech_to_text_llm_data_step(dataloader_iter) -> Dict[str, Any]:
             "metadata",
             "inference_params",
             "max_length",
-            "answers",
-            "contexts",
-            "context_lengths",
         ]
     )
     # "context", "context_length", "answers", "max_length",
@@ -115,6 +112,9 @@ def speech_to_text_llm_data_step(dataloader_iter) -> Dict[str, Any]:
                 "tokens_length",
                 "context_start_idx",
                 "num_audios",
+                "answers",
+                "contexts",
+                "context_lengths",
             )
         )
     if parallel_state.is_pipeline_last_stage():
@@ -521,7 +521,7 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         """
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size == 1:
-            return attention_mask, decoder_input, labels
+            return attention_mask, decoder_input, labels, loss_masks
 
         shard_factor = 2 * cp_size  # 2x required by megatron context parallel
         decoder_input = decoder_input.transpose(0, 1).contiguous()  # [t, b, h] -> [b, t, h]
