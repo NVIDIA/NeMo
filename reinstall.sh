@@ -145,7 +145,6 @@ nemo() {
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
     "llama-index==0.10.43"
     "unstructured==0.14.9"
-    "-r $NEMO_DIR/tools/ctc_segmentation/requirements.txt"
   )
 
   if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
@@ -154,6 +153,7 @@ nemo() {
   fi
 
   echo 'Installing dependencies of nemo'
+  ${PIP} install --no-cache-dir -r $NEMO_DIR/tools/ctc_segmentation/requirements.txt
   ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
   echo 'Installing nemo itself'
