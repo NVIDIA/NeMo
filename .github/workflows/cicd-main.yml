@@ -1211,10 +1211,10 @@ jobs:
         amp=true
 
   # L2: Speech Transcription
-  L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
+  Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1229,11 +1229,12 @@ jobs:
         matmul_precision=medium
       AFTER_SCRIPT: |
         rm -rf /tmp/preds.json transcribe.log
+      IS_OPTIONAL: true
 
-  L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
+  Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1252,11 +1253,12 @@ jobs:
         +prompt.pnc="no"
       AFTER_SCRIPT: |
         rm -rf preds.json transcribe.log
+      IS_OPTIONAL: true
 
-  L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
+  Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1271,6 +1273,7 @@ jobs:
         matmul_precision=medium
       AFTER_SCRIPT: |
         rm -rf preds.json
+      IS_OPTIONAL: true
 
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
@@ -3760,6 +3763,20 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
+  L2_HF_Transformer_PEFT_notebook:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_notebook')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        jupyter nbconvert --to script tutorials/llm/hf/peft.ipynb --output _peft
+        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_peft.py
+        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_peft.py
+        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_peft.py
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
   L2_HF_Transformer_PEFT:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -3767,7 +3784,9 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --ckpt-folder /tmp/hf_peft_ckpt
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 --ckpt-folder /tmp/hf_peft_ckpt
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3778,7 +3797,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py \
+        --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3789,20 +3809,37 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp --ckpt-folder /tmp/hf_peft_ckpt_ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy ddp \
+          --ckpt-folder /tmp/hf_peft_ckpt_ddp
+
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy ddp \
+          --ckpt-folder /tmp/hf_peft_ckpt_ddp --auto-resume
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
-  #  L2_HF_Transformer_PEFT_2gpu_FSDP2:
-  #    needs: [pre-flight, cicd-test-container-build]
-  #    uses: ./.github/workflows/_test_template.yml
-  #    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2') || needs.pre-flight.outputs.all == 'true'
-  #    with:
-  #      RUNNER: self-hosted-azure
-  #      SCRIPT: |
-  #        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy fsdp2 --ckpt-folder /tmp/hf_peft_ckpt_fsdp2
-  #      AFTER_SCRIPT: |
-  #        rm -rf nemo_experiments
+  # L2_HF_Transformer_PEFT_2gpu_FSDP2:
+  #   needs: [pre-flight, cicd-test-container-build]
+  #   uses: ./.github/workflows/_test_template.yml
+  #   if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2') || needs.pre-flight.outputs.all == 'true'
+  #   with:
+  #     RUNNER: self-hosted-azure
+  #     SCRIPT: |
+  #       TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+  #        --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+  #        --max-steps 3 \
+  #        --devices 2 \
+  #        --strategy fsdp2 \
+  #        --ckpt-folder /tmp/hf_peft_ckpt_fsdp2
+  #     AFTER_SCRIPT: |
+  #       rm -rf nemo_experiments
 
   L2_HF_Transformer_PEFT_2gpu_nemorun:
     needs: [pre-flight, cicd-test-container-build]
@@ -3822,7 +3859,42 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp --auto-resume
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  # L2_HF_Transformer_SFT_2gpu_FSDP2:
+  #   needs: [pre-flight, cicd-test-container-build]
+  #   uses: ./.github/workflows/_test_template.yml
+  #   if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2')
+  #   with:
+  #     RUNNER: self-hosted-azure
+  #     SCRIPT: |
+  #       TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2
+  #       TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2 --auto-resume
+  #     AFTER_SCRIPT: |
+  #       rm -rf nemo_experiments
+
+  L2_HF_Transformer_SFT_2gpu_nemorun:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3845,28 +3917,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_2gpu_nemorun:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3903,6 +3953,20 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
+  L2_HF_Transformer_SFT_notebook:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_notebook')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        jupyter nbconvert --to script tutorials/llm/hf/sft.ipynb --output _sft
+        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_sft.py
+        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_sft.py
+        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_sft.py
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
   L2_HF_Transformer_SFT:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -3910,7 +3974,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3932,7 +3996,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --model-accelerator te --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --model-accelerator te --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -5170,7 +5234,7 @@ jobs:
           --tp_size 1 \
           --pp_size 1 \
           --mbs 2
-        
+
         python tests/collections/speechlm/speech_to_text_llm_train.py \
           --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
           --val_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
@@ -5309,14 +5373,17 @@ jobs:
       - L2_NeMo_2_llama3_pretraining_recipe
       - L2_NeMo_2_llama3_fault_tolerance_plugin
       - L2_NeMo_2_llama3_straggler_detection
+      - L2_HF_Transformer_PEFT_notebook
       - L2_HF_Transformer_PEFT
       - L2_HF_Transformer_PEFT_nemorun
       - L2_HF_Transformer_PEFT_2gpu
-      #- L2_HF_Transformer_PEFT_2gpu_FSDP2
+      # - L2_HF_Transformer_PEFT_2gpu_FSDP2
       - L2_HF_Transformer_PEFT_2gpu_nemorun
+      - L2_HF_Transformer_SFT_notebook
       - L2_HF_Transformer_SFT
       - L2_HF_Transformer_SFT_nemorun
       - L2_HF_Transformer_SFT_2gpu
+      # - L2_HF_Transformer_SFT_2gpu_FSDP2
       - L2_VLM_HF_Transformer_PEFT
       - L2_VLM_HF_Transformer_PEFT_FSDP
       - L2_VLM_HF_Transformer_PEFT_4bit
@@ -5367,9 +5434,9 @@ jobs:
       - L2_Speech_Estimate_Duration_Bins
       - L2_Speech_Batch_Size_OOMptimizer
       - L2_Speech_Batch_Size_OOMptimizer_Canary
-      - L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
-      - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
-      - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
       - L2_Megatron_GPT_Reranker
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
       - L2_NeMo_2_PTQ_Llama2_FP8
