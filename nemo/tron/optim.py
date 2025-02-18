@@ -28,20 +28,20 @@ def setup_optimizer(cfg: ConfigContainer, model, no_weight_decay_cond=None, scal
 def _get_scheduler(cfg: ConfigContainer, optimizer: MegatronOptimizer):
     scheduler = OptimizerParamScheduler(
         optimizer,
-        init_lr=cfg.megatron_lm_config.lr_warmup_init,
+        init_lr=cfg.scheduler_config.lr_warmup_init,
         max_lr=cfg.optimizer_config.lr,
         min_lr=cfg.optimizer_config.min_lr,
         lr_warmup_steps=cfg.scheduler_config.lr_warmup_steps,
         lr_decay_steps=cfg.scheduler_config.lr_decay_steps,
-        lr_decay_style=cfg.megatron_lm_config.lr_decay_style,
-        start_wd=cfg.megatron_lm_config.start_weight_decay,
-        end_wd=cfg.megatron_lm_config.end_weight_decay,
+        lr_decay_style=cfg.scheduler_config.lr_decay_style,
+        start_wd=cfg.scheduler_config.start_weight_decay,
+        end_wd=cfg.scheduler_config.end_weight_decay,
         wd_incr_steps=cfg.scheduler_config.wd_incr_steps,
-        wd_incr_style=cfg.megatron_lm_config.weight_decay_incr_style,
-        use_checkpoint_opt_param_scheduler=cfg.megatron_lm_config.use_checkpoint_opt_param_scheduler,
-        override_opt_param_scheduler=cfg.megatron_lm_config.override_opt_param_scheduler,
+        wd_incr_style=cfg.scheduler_config.weight_decay_incr_style,
+        use_checkpoint_opt_param_scheduler=cfg.scheduler_config.use_checkpoint_opt_param_scheduler,
+        override_opt_param_scheduler=cfg.scheduler_config.override_opt_param_scheduler,
         wsd_decay_steps=cfg.scheduler_config.wsd_decay_steps,
-        lr_wsd_decay_style=cfg.megatron_lm_config.lr_wsd_decay_style,
+        lr_wsd_decay_style=cfg.scheduler_config.lr_wsd_decay_style,
     )
 
     return scheduler

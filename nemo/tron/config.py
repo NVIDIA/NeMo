@@ -145,17 +145,6 @@ class MegatronLMConfig:
     untie_embeddings_and_output_weights: bool = False
     """Untie embeddings and output weights."""
 
-    # ---------------- Regularization config. ----------------
-
-    start_weight_decay: Optional[float] = None
-    """Initial weight decay coefficient for L2 regularization."""
-
-    end_weight_decay: Optional[float] = None
-    """End of run weight decay coefficient for L2 regularization."""
-
-    weight_decay_incr_style: Literal["constant", "linear", "cosine"] = "constant"
-    """Weight decay increment function."""
-
     # ---------------- Training config. ----------------
 
     micro_batch_size: Optional[int] = None
@@ -916,8 +905,12 @@ class MegatronLMConfig:
     # ---------------- Config logger config. ----------------
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SchedulerConfig:
+    # ---------------- Learning rate config. ----------------
+    lr_warmup_steps: int
+    lr_decay_steps: int
+
     lr_decay_style: Literal["constant", "linear", "cosine", "inverse-square-root", "WSD"] = "linear"
     """Learning rate decay function."""
 
@@ -948,19 +941,38 @@ class SchedulerConfig:
     lr_warmup_init: float = 0.0
     """Initial value for learning rate warmup. The scheduler starts warmup from this value."""
 
-    warmup: Optional[int] = None
-    """Old lr warmup argument, do not use. Use one of the --lr-warmup-* arguments above"""
-
     override_opt_param_scheduler: bool = False
     """Reset the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from input arguments and ignore values from checkpoints. Note that all the above values will be reset."""
 
     use_checkpoint_opt_param_scheduler: bool = False
     """Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments."""
 
-    lr_warmup_steps: Optional[int] = None
-    lr_decay_steps: Optional[int] = None
+    # ---------------- Regularization config. ----------------
+
+    start_weight_decay: Optional[float] = None
+    """Initial weight decay coefficient for L2 regularization."""
+
+    end_weight_decay: Optional[float] = None
+    """End of run weight decay coefficient for L2 regularization."""
+
+    weight_decay_incr_style: Literal["constant", "linear", "cosine"] = "constant"
+    """Weight decay increment function."""
+
     wd_incr_steps: Optional[int] = None
     wsd_decay_steps: Optional[int] = None
+
+    def __post_init__(self):
+        assert self.lr_decay_steps > 0
+        assert self.lr_warmup_steps < self.lr_decay_steps
+
+        if self.lr_decay_style == "WSD":
+            assert self.wsd_decay_steps is not None
+
+        assert self.start_weight_decay >= 0.0
+        assert self.end_weight_decay >= self.start_weight_decay
+
+        if self.override_opt_param_scheduler:
+            assert not self.use_checkpoint_opt_param_scheduler, "both override and use-checkpoint are set."
 
 
 # ---------------- Container config (standalone top-level config) ----------------
@@ -990,9 +1002,9 @@ class ConfigContainer:
             mlc.tensor_model_parallel_size * mlc.pipeline_model_parallel_size * mlc.context_parallel_size
         )
         total_model_size = encoder_model_size + decoder_model_size
-        assert (
-            world_size % total_model_size == 0
-        ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
+        assert world_size % total_model_size == 0, (
+            f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
+        )
         self.data_parallel_size = world_size // total_model_size
 
         self.megatron_lm_config.use_cpu_initialization = (

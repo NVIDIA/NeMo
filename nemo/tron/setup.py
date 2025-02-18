@@ -20,6 +20,7 @@ from nemo.tron.config import ConfigContainer
 from nemo.tron.data.dataset import setup_data_iterators
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
+from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
 from nemo.tron.utils import append_to_progress_log, barrier_and_log, print_rank_0
 
@@ -68,7 +69,7 @@ def setup(
         overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
         data_parallel_random_init=cfg.megatron_lm_config.data_parallel_random_init,
     )
-    # TODO: setup optimizer and learning rate scheduler
+    optimizer, scheduler = setup_optimizer(cfg, model)
 
     timers("model-and-optimizer-setup").stop()
     barrier_and_log("after model, optimizer, and learning rate scheduler are built")
