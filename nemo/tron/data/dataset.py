@@ -10,9 +10,7 @@ from megatron.core.datasets.utils import get_blend_from_list
 from megatron.core.rerun_state_machine import RerunDataIterator
 
 from nemo.tron.config import ConfigContainer
-from nemo.tron.data.samplers import (
-    build_pretraining_data_loader,
-)
+from nemo.tron.data.samplers import build_pretraining_data_loader
 from nemo.tron.state import TrainState
 from nemo.tron.utils import print_rank_0
 
@@ -70,7 +68,9 @@ def get_blend_and_blend_per_split(
 
 
 def is_dataset_built_on_rank():
-    return (mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()) and mpu.get_tensor_model_parallel_rank() == 0
+    return (
+        mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
+    ) and mpu.get_tensor_model_parallel_rank() == 0
 
 
 def train_valid_test_datasets_provider(
@@ -144,9 +144,9 @@ def build_train_valid_test_data_loaders(
 
     # Backward compatibility, assume fixed batch size.
     if train_state.step > 0 and train_state.consumed_train_samples == 0:
-        assert cfg.megatron_lm_config.train_samples is None, (
-            "Only backward compatiblity support for iteration-based training"
-        )
+        assert (
+            cfg.megatron_lm_config.train_samples is None
+        ), "Only backward compatiblity support for iteration-based training"
         train_state.consumed_train_samples = train_state.step * cfg.megatron_lm_config.global_batch_size
     if train_state.step > 0 and train_state.consumed_valid_samples == 0:
         if cfg.megatron_lm_config.train_samples is None:
@@ -281,5 +281,7 @@ def setup_data_iterators(
             test_data_iterator.append(iterators[2])
     else:
         train_data_iterator, valid_data_iterator, test_data_iterator = build_train_valid_test_data_iterators(
-            cfg=cfg, train_state=train_state, build_train_valid_test_datasets_provider=train_valid_test_dataset_provider
+            cfg=cfg,
+            train_state=train_state,
+            build_train_valid_test_datasets_provider=train_valid_test_dataset_provider,
         )

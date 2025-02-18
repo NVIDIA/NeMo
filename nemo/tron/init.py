@@ -126,7 +126,8 @@ def _initialize_tp_communicators(cfg: ConfigContainer):
         ub_cfgs = {}
 
     input_shape = [
-        (cfg.model_config.seq_length * cfg.megatron_lm_config.micro_batch_size) // cfg.model_config.context_parallel_size,
+        (cfg.model_config.seq_length * cfg.megatron_lm_config.micro_batch_size)
+        // cfg.model_config.context_parallel_size,
         cfg.model_config.hidden_size,
     ]
 
