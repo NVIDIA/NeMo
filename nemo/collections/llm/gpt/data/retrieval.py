@@ -68,7 +68,7 @@ class CustomRetrievalDataModule(FineTuningDataModule):
 
         if val_root is not None:
             assert os.path.exists(val_root), f"Validation root {val_root} does not exist."
-            self.val_ratio = 0 # Use val_root for all validation
+            self.val_ratio = 0  # Use val_root for all validation
         else:
             self.val_ratio = val_ratio
 
@@ -132,7 +132,7 @@ class CustomRetrievalDataModule(FineTuningDataModule):
             save_splits['training'] = train_dataset
 
         split_dataset2 = {}
-        if self.val_ratio !=0 and self.test_ratio != 0:
+        if self.val_ratio != 0 and self.test_ratio != 0:
             # split_dataset2['train'] is the actual validation set
             # split_dataset2['test'] is the actual test set
             split_dataset2 = split_dataset['test'].train_test_split(
