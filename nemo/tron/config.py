@@ -1,3 +1,17 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
@@ -14,7 +28,6 @@ from nemo.tron.utils import get_world_size_safe
 
 @dataclass
 class RNGConfig:
-
     seed: int = 1234
     """Random seed used for python, numpy, pytorch, and cuda."""
 
@@ -32,10 +45,10 @@ class RerunStateMachineConfig:
     """Rate at which to inject unexpected results, e.g. 1000 means
     once every 1000 result validations"""
 
-    error_injection_type: Literal['correct_result', 'transient_error', 'persistent_error'] = 'transient_error'
+    error_injection_type: Literal["correct_result", "transient_error", "persistent_error"] = "transient_error"
     """Type of error to inject. """
 
-    rerun_mode: Literal['disabled', 'validate_results', 'report_stats'] = 'disabled'
+    rerun_mode: Literal["disabled", "validate_results", "report_stats"] = "disabled"
     """Use re-run engine to validate results (default) or to emit stats
     on variability of computations due to non-deterministic algorithms."""
 
@@ -67,50 +80,6 @@ class TokenizerConfig:
     tokenizer_prompt_format: Optional[str] = None
     special_tokens: Optional[List[str]] = None
     image_tag_type: Optional[str] = None
-
-
-@dataclass(kw_only=True)
-class DataConfig:
-    data_path: Optional[str] = None
-    """Path to the data file."""
-
-    data_args_path: Optional[str] = None
-    """Path to the data arguments file."""
-
-    per_split_data_args_path: Optional[str] = None
-    """Path to the per split data arguments file."""
-
-    train_data_path: Optional[str] = None
-    """Path to the train data file."""
-
-    valid_data_path: Optional[str] = None
-    """Path to the valid data file."""
-
-    test_data_path: Optional[str] = None
-    """Path to the test data file."""
-
-    rampup_batch_size: int
-    """Rampup batch size."""
-
-    global_batch_size: int
-    """Global batch size."""
-
-    micro_batch_size: int
-    """Micro batch size."""
-
-    decrease_batch_size_if_needed: bool = False
-    """Decrease batch size if needed."""
-
-    mock_data: bool = False
-    """Mock data."""
-
-    dataloader_type: Literal["single", "cyclic", "external"]
-    """Dataloader type."""
-
-    num_workers: int
-    """Number of workers."""
-
-    dataset_config: GPTDatasetConfig
 
 
 # TODO (maanug): split this up into modular components
@@ -175,17 +144,6 @@ class MegatronLMConfig:
 
     untie_embeddings_and_output_weights: bool = False
     """Untie embeddings and output weights."""
-
-    # ---------------- Regularization config. ----------------
-
-    start_weight_decay: Optional[float] = None
-    """Initial weight decay coefficient for L2 regularization."""
-
-    end_weight_decay: Optional[float] = None
-    """End of run weight decay coefficient for L2 regularization."""
-
-    weight_decay_incr_style: Literal["constant", "linear", "cosine"] = "constant"
-    """Weight decay increment function."""
 
     # ---------------- Training config. ----------------
 
@@ -518,7 +476,7 @@ class MegatronLMConfig:
     use_ring_exchange_p2p: bool = False
     """If set, use custom-built ring exchange for p2p communications. Note that this option will require a custom built image that support ring-exchange p2p."""
 
-    local_rank: int = field(default_factory=lambda: int(os.getenv('LOCAL_RANK', '0')))
+    local_rank: int = field(default_factory=lambda: int(os.getenv("LOCAL_RANK", "0")))
     """local rank passed from distributed launcher."""
 
     lazy_mpu_init: bool = False
@@ -582,7 +540,7 @@ class MegatronLMConfig:
     sample_rate: float = 1.0
     """sample rate for training data. Supposed to be 0  < sample_rate < 1"""
 
-    num_workers: int = 2
+    num_workers: int = 8
     """Dataloader number of workers."""
 
     create_attention_mask_in_dataloader: bool = True
@@ -947,8 +905,12 @@ class MegatronLMConfig:
     # ---------------- Config logger config. ----------------
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SchedulerConfig:
+    # ---------------- Learning rate config. ----------------
+    lr_warmup_steps: int
+    lr_decay_steps: int
+
     lr_decay_style: Literal["constant", "linear", "cosine", "inverse-square-root", "WSD"] = "linear"
     """Learning rate decay function."""
 
@@ -979,33 +941,51 @@ class SchedulerConfig:
     lr_warmup_init: float = 0.0
     """Initial value for learning rate warmup. The scheduler starts warmup from this value."""
 
-    warmup: Optional[int] = None
-    """Old lr warmup argument, do not use. Use one of the --lr-warmup-* arguments above"""
-
     override_opt_param_scheduler: bool = False
     """Reset the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from input arguments and ignore values from checkpoints. Note that all the above values will be reset."""
 
     use_checkpoint_opt_param_scheduler: bool = False
     """Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments."""
 
-    lr_warmup_steps: Optional[int] = None
-    lr_decay_steps: Optional[int] = None
+    # ---------------- Regularization config. ----------------
+
+    start_weight_decay: Optional[float] = None
+    """Initial weight decay coefficient for L2 regularization."""
+
+    end_weight_decay: Optional[float] = None
+    """End of run weight decay coefficient for L2 regularization."""
+
+    weight_decay_incr_style: Literal["constant", "linear", "cosine"] = "constant"
+    """Weight decay increment function."""
+
     wd_incr_steps: Optional[int] = None
     wsd_decay_steps: Optional[int] = None
 
+    def __post_init__(self):
+        assert self.lr_decay_steps > 0
+        assert self.lr_warmup_steps < self.lr_decay_steps
+
+        if self.lr_decay_style == "WSD":
+            assert self.wsd_decay_steps is not None
+
+        assert self.start_weight_decay >= 0.0
+        assert self.end_weight_decay >= self.start_weight_decay
+
+        if self.override_opt_param_scheduler:
+            assert not self.use_checkpoint_opt_param_scheduler, "both override and use-checkpoint are set."
+
 
 # ---------------- Container config (standalone top-level config) ----------------
-@dataclass
+@dataclass(kw_only=True)
 class ConfigContainer:
-    rng_config: RNGConfig
-    rerun_state_machine_config: RerunStateMachineConfig
-    tokenizer_config: TokenizerConfig
+    rng_config: RNGConfig = field(default_factory=RNGConfig)
+    rerun_state_machine_config: RerunStateMachineConfig = field(default_factory=RerunStateMachineConfig)
     megatron_lm_config: MegatronLMConfig
     model_config: GPTConfig | T5Config
     optimizer_config: OptimizerConfig
     ddp_config: DistributedDataParallelConfig
-    data_config: DataConfig
     scheduler_config: SchedulerConfig
+    dataset_config: GPTDatasetConfig
 
     def __post_init__(self):
         # Run validations
