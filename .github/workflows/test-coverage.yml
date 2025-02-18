@@ -28,6 +28,7 @@ jobs:
           ls -al .
           ls -al coverage-*/
           coverage combine --keep $(ls coverage-*/.coverage)
+          coverage report
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
