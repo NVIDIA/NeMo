@@ -145,16 +145,13 @@ nemo() {
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
     "llama-index==0.10.43"
     "unstructured==0.14.9"
+    "-r"
+    "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
   )
 
   if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
     echo "Installing NVIDIA Resiliency in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
     pip install --no-cache-dir "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e ; platform_machine == 'x86_64'"
-  fi
-
-  echo 'Installing dependencies of nemo'
-  if [[ "$PLATFORM_MACHINE" == "x86_64" ]]; then
-    ${PIP} install --no-cache-dir -r $NEMO_DIR/tools/ctc_segmentation/requirements.txt
   fi
 
   ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
