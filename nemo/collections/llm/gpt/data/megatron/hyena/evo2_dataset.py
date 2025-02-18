@@ -59,7 +59,6 @@ class Evo2Dataset(GPTDataset):
             databatch["tokens"], _ = make_upper_case(databatch["tokens"])
         return databatch
 
-    @torch.no_grad()
     @staticmethod
     def mask_phylogenetic_tags(
         tokenized_sequence: torch.Tensor,

@@ -667,3 +667,28 @@ def test_packed_partial_tag_subsequence_pretag_middletag(tag_tokens):
     )
     torch.testing.assert_close(mask, expected_mask)
 
+def test_packed_partial_tag_subsequence_pretag_middletag_bs2(tag_tokens):
+    """
+    Sequence: "cacata|[EOD]acagataaaata|d__tag;|TACAGGGAATA|d__"
+    Expected: First partial tag masked (0s), middle DNA unmasked (1s), end tag masked (0s)
+
+    """
+    sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__"
+    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    expected_mask = torch.tensor(
+        len("cacata|") * [0]
+        + [1] * len("0acagataaaata")
+        + len("|d__tag;|") * [0]
+        + len("TACAGGGAATA") * [1]
+        + len("|d__") * [0],
+        dtype=torch.int32,
+    )
+    expected_mask = torch.stack([expected_mask, expected_mask])
+    mask = Evo2DatasetPadEodLossMask.mask_phylogenetic_tags(
+        tokenized_sequence=torch.stack([sequence, sequence]),
+        terminal_tag_char=tag_tokens["terminal"],
+        other_tag_chars=tag_tokens["other_chars"],
+        eod_token_id=tag_tokens["eod"],
+    )
+    torch.testing.assert_close(mask, expected_mask)
+
