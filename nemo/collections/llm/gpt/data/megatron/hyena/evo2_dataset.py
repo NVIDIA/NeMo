@@ -48,7 +48,7 @@ class Evo2Dataset(GPTDataset):
         # Mask special label tags in loss.
         control_mask = torch.isin(labels, torch.tensor(self.CONTROL_TAGS, device=labels.device))
         loss_mask[control_mask] = 0
-        phylotag_mask = Evo2Dataset.mask_phylogenetic_tags(
+        phylotag_mask = self.mask_phylogenetic_tags(
             labels,
             self.TAG_BOUNDS,
             self.TAG_CHARS,
@@ -116,7 +116,6 @@ class Evo2Dataset(GPTDataset):
         """
         device = tokenized_sequence.device
         dtype = tokenized_sequence.dtype
-
         # Handle empty or single-token sequences.
         if tokenized_sequence.numel() == 0:
             return torch.ones(0, device=device, dtype=torch.int)
@@ -132,12 +131,11 @@ class Evo2Dataset(GPTDataset):
         if not batched:
             tokenized_sequence = tokenized_sequence.unsqueeze(0)
         batch_size, seq_len = tokenized_sequence.shape
+        first_taxonomy_prefix_token: int = 100
 
         # Valid DNA tokens: A, C, G, T, N (both uppercase and lowercase)
         valid_dna = {65, 67, 71, 84, 78, 97, 99, 103, 116, 110}
         valid_dna_tensor = torch.tensor(list(valid_dna), device=device, dtype=dtype)
-        # Taxonomy prefix letters: d, p, c, o, f, g, s (ASCII)
-        taxonomy_prefixes = {100, 112, 99, 111, 102, 103, 115}
 
         # Pre-build a tensor for other tag characters.
         other_tag_tensor = torch.tensor(list(other_tag_chars), device=device, dtype=dtype)
@@ -149,19 +147,19 @@ class Evo2Dataset(GPTDataset):
         def region_all_valid(region: torch.Tensor) -> bool:
             if region.numel() == 0:
                 return True
-            # Using Python’s all() over the token values.
-            return all(tok in valid_dna for tok in region.tolist())
+            # Using torch's all() over the token values.
+            return bool(torch.all(torch.isin(region, valid_dna_tensor)).cpu().item())
 
         # Process one EOD-free segment using the O1 logic.
         def process_segment(seg_seq: torch.Tensor) -> torch.Tensor:
             seg_len = seg_seq.size(0)
             seg_mask = torch.ones(seg_len, device=device, dtype=torch.int)
             # Identify positions of terminal tag (pipe)
-            pipe_pos = (seg_seq == terminal_tag_char).nonzero(as_tuple=True)[0]
-            if pipe_pos.numel() == 0:
+            pipe_pos = (seg_seq == terminal_tag_char).nonzero(as_tuple=True)[0].cpu().tolist()
+            if len(pipe_pos) == 0:
                 # If no pipe exists and any token is a known tag char or not valid DNA,
                 # mask the entire segment.
-                if torch.any(torch.isin(seg_seq, other_tag_tensor)) or (not region_all_valid(seg_seq)):
+                if not region_all_valid(seg_seq):
                     seg_mask.zero_()
                 return seg_mask
 
@@ -169,12 +167,12 @@ class Evo2Dataset(GPTDataset):
             seg_mask[pipe_pos] = 0
 
             # Does tag start before the first pipe? This determines the starting state of our state machine.
-            first_pipe = pipe_pos[0].item()
+            first_pipe = pipe_pos[0]
             if first_pipe >= 0 and first_pipe < seg_len - 1:
                 # fastest check is to look at the first token after the pipe, if it is a 'd' then the tag starts _after_
                 # otherwise it starts before.
                 next_tok = seg_seq[first_pipe + 1].item()
-                if next_tok == 100:
+                if next_tok == first_taxonomy_prefix_token:
                     # 'd' character for domain, which is the first part of a phylo tag.
                     # tag starts after the pipe.
                     is_tag = False
@@ -207,10 +205,9 @@ class Evo2Dataset(GPTDataset):
         for b in range(batch_size):
             row = tokenized_sequence[b]
             # Get indices of EOD tokens.
-            eod_positions = (row == eod_token_id).nonzero(as_tuple=True)[0]
+            eod_positions = (row == eod_token_id).nonzero(as_tuple=True)[0].cpu().tolist()
             start_idx = 0
             for pos in eod_positions:
-                pos = pos.item()
                 if pos > start_idx:
                     seg = row[start_idx:pos]
                     seg_mask = process_segment(seg)
