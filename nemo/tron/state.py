@@ -1,4 +1,5 @@
 import os
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -66,6 +67,7 @@ class GlobalState:
         self._wandb_logger = None
         self._timers = None
         self._train_state = None
+        self.start_time = time.time()
 
     @property
     def cfg(self):

@@ -14,7 +14,6 @@ from nemo.tron.utils import get_world_size_safe
 
 @dataclass
 class RNGConfig:
-
     seed: int = 1234
     """Random seed used for python, numpy, pytorch, and cuda."""
 
@@ -32,10 +31,10 @@ class RerunStateMachineConfig:
     """Rate at which to inject unexpected results, e.g. 1000 means
     once every 1000 result validations"""
 
-    error_injection_type: Literal['correct_result', 'transient_error', 'persistent_error'] = 'transient_error'
+    error_injection_type: Literal["correct_result", "transient_error", "persistent_error"] = "transient_error"
     """Type of error to inject. """
 
-    rerun_mode: Literal['disabled', 'validate_results', 'report_stats'] = 'disabled'
+    rerun_mode: Literal["disabled", "validate_results", "report_stats"] = "disabled"
     """Use re-run engine to validate results (default) or to emit stats
     on variability of computations due to non-deterministic algorithms."""
 
@@ -67,50 +66,6 @@ class TokenizerConfig:
     tokenizer_prompt_format: Optional[str] = None
     special_tokens: Optional[List[str]] = None
     image_tag_type: Optional[str] = None
-
-
-@dataclass(kw_only=True)
-class DataConfig:
-    data_path: Optional[str] = None
-    """Path to the data file."""
-
-    data_args_path: Optional[str] = None
-    """Path to the data arguments file."""
-
-    per_split_data_args_path: Optional[str] = None
-    """Path to the per split data arguments file."""
-
-    train_data_path: Optional[str] = None
-    """Path to the train data file."""
-
-    valid_data_path: Optional[str] = None
-    """Path to the valid data file."""
-
-    test_data_path: Optional[str] = None
-    """Path to the test data file."""
-
-    rampup_batch_size: int
-    """Rampup batch size."""
-
-    global_batch_size: int
-    """Global batch size."""
-
-    micro_batch_size: int
-    """Micro batch size."""
-
-    decrease_batch_size_if_needed: bool = False
-    """Decrease batch size if needed."""
-
-    mock_data: bool = False
-    """Mock data."""
-
-    dataloader_type: Literal["single", "cyclic", "external"]
-    """Dataloader type."""
-
-    num_workers: int
-    """Number of workers."""
-
-    dataset_config: GPTDatasetConfig
 
 
 # TODO (maanug): split this up into modular components
@@ -518,7 +473,7 @@ class MegatronLMConfig:
     use_ring_exchange_p2p: bool = False
     """If set, use custom-built ring exchange for p2p communications. Note that this option will require a custom built image that support ring-exchange p2p."""
 
-    local_rank: int = field(default_factory=lambda: int(os.getenv('LOCAL_RANK', '0')))
+    local_rank: int = field(default_factory=lambda: int(os.getenv("LOCAL_RANK", "0")))
     """local rank passed from distributed launcher."""
 
     lazy_mpu_init: bool = False
@@ -582,7 +537,7 @@ class MegatronLMConfig:
     sample_rate: float = 1.0
     """sample rate for training data. Supposed to be 0  < sample_rate < 1"""
 
-    num_workers: int = 2
+    num_workers: int = 8
     """Dataloader number of workers."""
 
     create_attention_mask_in_dataloader: bool = True
@@ -995,17 +950,16 @@ class SchedulerConfig:
 
 
 # ---------------- Container config (standalone top-level config) ----------------
-@dataclass
+@dataclass(kw_only=True)
 class ConfigContainer:
-    rng_config: RNGConfig
-    rerun_state_machine_config: RerunStateMachineConfig
-    tokenizer_config: TokenizerConfig
+    rng_config: RNGConfig = field(default_factory=RNGConfig)
+    rerun_state_machine_config: RerunStateMachineConfig = field(default_factory=RerunStateMachineConfig)
     megatron_lm_config: MegatronLMConfig
     model_config: GPTConfig | T5Config
     optimizer_config: OptimizerConfig
     ddp_config: DistributedDataParallelConfig
-    data_config: DataConfig
     scheduler_config: SchedulerConfig
+    dataset_config: GPTDatasetConfig
 
     def __post_init__(self):
         # Run validations
@@ -1022,9 +976,9 @@ class ConfigContainer:
             mlc.tensor_model_parallel_size * mlc.pipeline_model_parallel_size * mlc.context_parallel_size
         )
         total_model_size = encoder_model_size + decoder_model_size
-        assert (
-            world_size % total_model_size == 0
-        ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
+        assert world_size % total_model_size == 0, (
+            f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
+        )
         self.data_parallel_size = world_size // total_model_size
 
         self.megatron_lm_config.use_cpu_initialization = (

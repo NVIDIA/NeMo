@@ -17,9 +17,11 @@ def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:
     return ModelType.encoder_and_decoder if isinstance(model_config, T5Config) else ModelType.encoder_or_decoder
 
 
-def apply_parallel_wrappers(
+def get_model_from_config(
     model_config: GPTConfig | T5Config,
     ddp_config: DistributedDataParallelConfig,
+    overlap_param_gather_with_optimizer_step: bool = False,
+    use_torch_fsdp2: bool = False,
     wrap_with_ddp: bool = True,
     data_parallel_random_init: bool = True,
 ):
@@ -115,7 +117,7 @@ def apply_parallel_wrappers(
                     fp8_meta.amax_history[0][fp8_meta_index] = 0
 
     if wrap_with_ddp:
-        if model_config.use_torch_fsdp2:
+        if use_torch_fsdp2:
             DP = TorchFullyShardedDataParallel
         else:
             DP = DistributedDataParallel
@@ -127,7 +129,7 @@ def apply_parallel_wrappers(
                 module=model_chunk,
                 # Turn off bucketing for model_chunk 2 onwards, since communication for these
                 # model chunks is overlapped with compute anyway.
-                disable_bucketing=(model_chunk_idx > 0) or ddp_config.overlap_param_gather_with_optimizer_step,
+                disable_bucketing=(model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step,
             )
             for (model_chunk_idx, model_chunk) in enumerate(model)
         ]

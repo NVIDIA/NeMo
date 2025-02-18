@@ -1,4 +1,6 @@
 import os
+import time
+from datetime import datetime
 
 import torch.distributed
 
@@ -30,3 +32,24 @@ def print_rank_0(message):
     rank = get_rank_safe()
     if rank == 0:
         print(message, flush=True)
+
+
+def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
+    """Append given string to progress log."""
+    if save_dir is None:
+        return
+    progress_log_filename = os.path.join(save_dir, "progress.txt")
+    if barrier:
+        torch.distributed.barrier()
+    if torch.distributed.get_rank() == 0:
+        with open(progress_log_filename, "a") as f:
+            job_id = os.getenv("SLURM_JOB_ID", "")
+            num_gpus = get_world_size_safe()
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\tJob ID: {job_id}\t# GPUs: {num_gpus}\t{string}\n")
+
+
+def barrier_and_log(string):
+    """Note that this call will sync across all ranks."""
+    torch.distributed.barrier()
+    time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print_rank_0(f"[{string}] datetime: {time_str} ")
