@@ -1,5 +1,3 @@
-from typing import Callable
-
 import torch
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.distributed import (
@@ -8,26 +6,34 @@ from megatron.core.distributed import (
     TorchFullyShardedDataParallel,
 )
 from megatron.core.enums import ModelType
-from megatron.core.transformer import TransformerConfig
 from megatron.core.transformer.module import Float16Module
 from megatron.core.utils import is_float8tensor
 
-from nemo.tron.config import FlatConfig
+from nemo.collections.llm.gpt.model.base import GPTConfig
+from nemo.collections.llm.t5.model.t5 import T5Config
 
 
-def apply_parallel_wrappers(model_provider_func: Callable, cfg: FlatConfig, wrap_with_ddp=True):
+def _get_model_type(model_config: GPTConfig | T5Config) -> ModelType:
+    return ModelType.encoder_and_decoder if isinstance(model_config, T5Config) else ModelType.encoder_or_decoder
+
+
+def apply_parallel_wrappers(
+    model_config: GPTConfig | T5Config,
+    ddp_config: DistributedDataParallelConfig,
+    wrap_with_ddp: bool = True,
+    data_parallel_random_init: bool = True,
+):
     # This method should only be called after `init_distributed()`.
-    # model_provider_func can be something like the current llm.gpt.GPTConfig.configure_model()
-    # model_type can be something we infer instead of an argument
+    # model_provider_func is equivalent to llm.gpt.GPTConfig.configure_model()
+    # model_type is inferred from the model_config class
 
-    model_cfg = cfg.to_module_cfg(TransformerConfig)
-
+    model_type = _get_model_type(model_config)
     if (
         parallel_state.get_pipeline_model_parallel_world_size() > 1
         and parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None
     ):
         assert (
-            cfg.model_type != ModelType.encoder_and_decoder
+            model_type != ModelType.encoder_and_decoder
         ), "Interleaved schedule not supported for model with both encoder and decoder"
         model = []
         for i in range(parallel_state.get_virtual_pipeline_model_parallel_world_size()):
@@ -35,32 +41,34 @@ def apply_parallel_wrappers(model_provider_func: Callable, cfg: FlatConfig, wrap
             # Set pre_process and post_process only after virtual rank is set.
             pre_process = parallel_state.is_pipeline_first_stage()
             post_process = parallel_state.is_pipeline_last_stage()
-            this_model = model_provider_func(
+            this_model = model_config.configure_model(
+                tokenizer=None,
                 pre_process=pre_process,
                 post_process=post_process,
             )
-            this_model.model_type = cfg.model_type
+            this_model.model_type = model_type
             model.append(this_model)
     else:
         pre_process = parallel_state.is_pipeline_first_stage()
         post_process = parallel_state.is_pipeline_last_stage()
-        add_encoder = True
-        add_decoder = True
-        if cfg.model_type == ModelType.encoder_and_decoder:
+        if model_type == ModelType.encoder_and_decoder:
+            assert isinstance(model_config, T5Config)
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 rank = parallel_state.get_pipeline_model_parallel_rank()
                 first_decoder_rank = parallel_state.get_pipeline_model_parallel_decoder_start()
                 world_size = parallel_state.get_pipeline_model_parallel_world_size()
                 pre_process = rank == 0 or rank == first_decoder_rank
                 post_process = (rank == (first_decoder_rank - 1)) or (rank == (world_size - 1))
-                add_encoder = parallel_state.is_inside_encoder(rank)
-                add_decoder = parallel_state.is_inside_decoder(rank)
-            model = model_provider_func(
-                pre_process=pre_process, post_process=post_process, add_encoder=add_encoder, add_decoder=add_decoder
+            model = model_config.configure_model(
+                tokenizer=None,
             )
         else:
-            model = model_provider_func(pre_process=pre_process, post_process=post_process)
-        model.model_type = cfg.model_type
+            model = model_config.configure_model(
+                tokenizer=None,
+                pre_process=pre_process,
+                post_process=post_process,
+            )
+        model.model_type = model_type
 
     if not isinstance(model, list):
         model = [model]
@@ -90,8 +98,8 @@ def apply_parallel_wrappers(model_provider_func: Callable, cfg: FlatConfig, wrap
         model_module.cuda(torch.cuda.current_device())
 
     # Fp16 conversion.
-    if model_cfg.fp16 or model_cfg.bf16:
-        model = [Float16Module(model_cfg, model_module) for model_module in model]
+    if model_config.fp16 or model_config.bf16:
+        model = [Float16Module(model_config, model_module) for model_module in model]
 
     # The model_module.bfloat16()/model_module.half() above will call the inplace copy of TE's
     # Float8Tensor, which will write an unwanted value (amax calculated from the current fp8
@@ -107,28 +115,25 @@ def apply_parallel_wrappers(model_provider_func: Callable, cfg: FlatConfig, wrap
                     fp8_meta.amax_history[0][fp8_meta_index] = 0
 
     if wrap_with_ddp:
-        if cfg.use_torch_fsdp2:
+        if model_config.use_torch_fsdp2:
             DP = TorchFullyShardedDataParallel
         else:
             DP = DistributedDataParallel
-        # TODO: continue ddp wrap
-
-        ddp_cfg = cfg.to_module_cfg(DistributedDataParallelConfig)
 
         model = [
             DP(
-                config=model_cfg,
-                ddp_config=ddp_cfg,
+                config=model_config,
+                ddp_config=ddp_config,
                 module=model_chunk,
                 # Turn off bucketing for model_chunk 2 onwards, since communication for these
                 # model chunks is overlapped with compute anyway.
-                disable_bucketing=(model_chunk_idx > 0) or cfg.overlap_param_gather_with_optimizer_step,
+                disable_bucketing=(model_chunk_idx > 0) or ddp_config.overlap_param_gather_with_optimizer_step,
             )
             for (model_chunk_idx, model_chunk) in enumerate(model)
         ]
 
         # Broadcast params from data parallel src rank to other data parallel ranks.
-        if cfg.data_parallel_random_init:
+        if data_parallel_random_init:
             for model_module in model:
                 model_module.broadcast_params()
 
