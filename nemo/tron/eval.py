@@ -17,14 +17,9 @@ import time
 
 import torch
 from megatron.core import mpu
-from megatron.core.num_microbatches_calculator import (
-    get_num_microbatches,
-)
+from megatron.core.num_microbatches_calculator import get_num_microbatches
 from megatron.core.pipeline_parallel import get_forward_backward_func
-from megatron.core.rerun_state_machine import (
-    RerunMode,
-    get_rerun_state_machine,
-)
+from megatron.core.rerun_state_machine import RerunMode, get_rerun_state_machine
 from megatron.core.utils import get_model_config
 
 from nemo.tron.state import GlobalState
