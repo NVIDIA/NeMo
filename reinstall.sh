@@ -153,7 +153,10 @@ nemo() {
   fi
 
   echo 'Installing dependencies of nemo'
-  ${PIP} install --no-cache-dir -r $NEMO_DIR/tools/ctc_segmentation/requirements.txt
+  if [[ "$PLATFORM_MACHINE" == "x86_64" ]]; then
+    ${PIP} install --no-cache-dir -r $NEMO_DIR/tools/ctc_segmentation/requirements.txt
+  fi
+
   ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
   echo 'Installing nemo itself'
