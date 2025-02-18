@@ -41,6 +41,7 @@ def load_dcp(ckpt_dir):
     )
     return state_dict
 
+
 def compare_ckpts(a_item, b_item, current_key, mismatches):
     if isinstance(a_item, dict):
         if not isinstance(b_item, dict):
@@ -69,13 +70,10 @@ def compare_ckpts(a_item, b_item, current_key, mismatches):
     else:
         # For simple Python objects, we can do a direct type and value check
         if type(a_item) != type(b_item):
-            mismatches.append(
-                f"Mismatch at '{current_key}': Different types ({type(a_item)} vs {type(b_item)})."
-            )
+            mismatches.append(f"Mismatch at '{current_key}': Different types ({type(a_item)} vs {type(b_item)}).")
         elif a_item != b_item:
-            mismatches.append(
-                f"Mismatch at '{current_key}': Different values ({a_item} vs {b_item})."
-            )
+            mismatches.append(f"Mismatch at '{current_key}': Different values ({a_item} vs {b_item}).")
+
 
 def remove_module_from_key(x):
     # module.decoder.layers.mlp.router.weight -> decoder.layers.mlp.router.weight
@@ -99,8 +97,6 @@ if __name__ == "__main__":
 
     if len(mismatches) > 0:
         # Join all mismatch messages and raise as a single exception
-        raise ValueError(
-            "The following mismatches were found:\n" + "\n".join(mismatches)
-        )
+        raise ValueError("The following mismatches were found:\n" + "\n".join(mismatches))
     else:
         print("All keys and tensors match!")
