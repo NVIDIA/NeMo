@@ -59,7 +59,6 @@ def train(
     checkpointing_context,
     non_loss_data_func,
 ):
-    train_state: TrainState = global_state.train_state
     config: ConfigContainer = global_state.cfg
     model_config = config.model_config
     mlm_config = config.megatron_lm_config
@@ -71,9 +70,6 @@ def train(
 
     # Tracking loss.
     total_loss_dict = {}
-
-    # Iterations.
-    iteration = train_state.step
 
     model_config.grad_scale_func = optimizer.scale_loss
 
@@ -117,7 +113,7 @@ def train(
 
     prof = _profiler_setup(mlm_config)
 
-    start_iteration = iteration
+    start_iteration = global_state.train_state.step
     should_toggle_forward_pre_hook = (
         config.optimizer_config.use_distributed_optimizer and ddp_config.overlap_param_gather
     )
@@ -137,14 +133,14 @@ def train(
             model, cross_check=True
         ), "Parameter hashes not matching across DP replicas"
         torch.distributed.barrier()
-        print_rank_0(f">>> Weight hashes match after {iteration} iterations...")
+        print_rank_0(f">>> Weight hashes match after {global_state.train_state.step} iterations...")
 
     # Run training iterations till done.
-    while iteration < mlm_config.train_iters:
+    while global_state.train_state.step < mlm_config.train_iters:
         if mlm_config.profile and torch.distributed.get_rank() in mlm_config.profile_ranks:
             if mlm_config.use_pytorch_profiler:
                 prof.step()
-            elif iteration == mlm_config.profile_step_start:
+            elif global_state.train_state.step == mlm_config.profile_step_start:
                 torch.cuda.cudart().cudaProfilerStart()
                 torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
@@ -152,15 +148,15 @@ def train(
         # checkpoint should be saved. If the number of microbatches is different
         # from the previous iteration, save a checkpoint. Then run consistency check
         # to make sure training configuration is still valid.
-        update_num_microbatches(train_state.consumed_train_samples, consistency_check=False, verbose=True)
-        if get_num_microbatches() != num_microbatches and iteration != 0:
+        update_num_microbatches(global_state.train_state.consumed_train_samples, consistency_check=False, verbose=True)
+        if get_num_microbatches() != num_microbatches and global_state.train_state.step != 0:
             assert get_num_microbatches() > num_microbatches, (
                 f"Number of microbatches should be increasing due to batch size rampup; "
                 f"instead going from {num_microbatches} to {get_num_microbatches()}"
             )
             if mlm_config.save is not None:
                 save_checkpoint_and_time(
-                    iteration,
+                    global_state,
                     model,
                     optimizer,
                     scheduler,
@@ -169,15 +165,15 @@ def train(
                     train_data_iterator=train_data_iterator,
                 )  # TODO (ananth/hemild): implement
         num_microbatches = get_num_microbatches()
-        update_num_microbatches(train_state.consumed_train_samples, consistency_check=True, verbose=True)
+        update_num_microbatches(global_state.train_state.consumed_train_samples, consistency_check=True, verbose=True)
 
         # Run training step.
         loss_dict, skipped_iter, should_checkpoint, should_exit, exit_code, grad_norm, num_zeros_in_grad = train_step(
-            forward_step_func, iteration, train_data_iterator, model, optimizer, scheduler, config
+            forward_step_func, train_data_iterator, model, optimizer, scheduler, global_state
         )
         if should_checkpoint:
             save_checkpoint_and_time(
-                iteration,
+                global_state,
                 model,
                 optimizer,
                 scheduler,
@@ -191,12 +187,12 @@ def train(
         # Enable forward pre-hooks after first set of forward and backward passes.
         # When running in fp16, skip all NaN iterations until steady-state loss scaling value
         # is reached.
-        if iteration == start_iteration:
+        if global_state.train_state.step == start_iteration:
             if skipped_iter:
                 # Only enable forward pre-hook after a training step has successfully run. Relevant
                 # for fp16 codepath where first XX iterations are skipped until steady-state loss
                 # scale value is reached.
-                start_iteration = iteration + 1
+                start_iteration = global_state.train_state.step + 1
             else:
                 # Enable forward pre-hook after training step has successfully run. All subsequent
                 # forward passes will use the forward pre-hook / `param_sync_func` in
@@ -206,17 +202,17 @@ def train(
                     model_config.param_sync_func = param_sync_func
                     pre_hook_enabled = True
 
-        iteration += 1
+        global_state.train_state.step += 1
         batch_size = (
             parallel_state.get_data_parallel_world_size() * mlm_config.micro_batch_size * get_num_microbatches()
         )
-        train_state.consumed_train_samples += batch_size
+        global_state.train_state.consumed_train_samples += batch_size
         num_skipped_samples_in_batch = get_current_global_batch_size() - get_current_running_global_batch_size()
         if mlm_config.decrease_batch_size_if_needed:
             assert num_skipped_samples_in_batch >= 0
         else:
             assert num_skipped_samples_in_batch == 0
-        train_state.skipped_train_samples += num_skipped_samples_in_batch
+        global_state.train_state.skipped_train_samples += num_skipped_samples_in_batch
 
         # Logging.
         if not optimizer.is_stub_optimizer:
@@ -239,7 +235,7 @@ def train(
             total_loss_dict,
             learning_rate,
             decoupled_learning_rate,
-            iteration,
+            global_state,
             loss_scale,
             report_memory_flag,
             skipped_iter,
@@ -248,7 +244,11 @@ def train(
             num_zeros_in_grad,
         )  # TODO: implement
 
-        if train_state.do_valid and mlm_config.eval_interval and iteration % mlm_config.eval_interval == 0:
+        if (
+            global_state.train_state.do_valid
+            and mlm_config.eval_interval
+            and global_state.train_state.step % mlm_config.eval_interval == 0
+        ):
             timers('interval-time').stop()
             if should_toggle_forward_pre_hook:
                 disable_forward_pre_hook(model)
@@ -256,7 +256,7 @@ def train(
             if mlm_config.manual_gc and mlm_config.manual_gc_eval:
                 # Collect all objects.
                 gc.collect()
-            prefix = f'iteration {iteration}'
+            prefix = f'iteration {global_state.train_state.step}'
             timers('eval-time', log_level=0).start(barrier=True)
             evaluate_and_print_results(
                 global_state,
@@ -288,7 +288,7 @@ def train(
             model,
             optimizer,
             scheduler,
-            iteration,
+            global_state.train_state.step,
             prof,
             # num_floating_point_operations_since_last_log_event,
             should_toggle_forward_pre_hook,
@@ -296,10 +296,10 @@ def train(
 
         # Checkpoint and decide whether to exit.
         should_exit = checkpoint_and_decide_exit(
+            global_state,
             model,
             optimizer,
             scheduler,
-            iteration,
             # num_floating_point_operations_so_far,
             checkpointing_context,
             train_data_iterator,
@@ -323,12 +323,11 @@ def train(
             wandb_writer.finish()
         sys.exit(exit_code)
 
-    return iteration
+    return global_state.train_state.step
 
 
 def train_step(
     forward_step_func,
-    iteration,
     data_iterator,
     model,
     optimizer,
