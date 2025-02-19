@@ -299,3 +299,5 @@ def setup_data_iterators(
             train_state=train_state,
             build_train_valid_test_datasets_provider=train_valid_test_dataset_provider,
         )
+
+    return train_data_iterator, valid_data_iterator, test_data_iterator
