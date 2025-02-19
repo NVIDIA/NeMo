@@ -35,7 +35,7 @@ from nemo.utils import logging
 
 if TYPE_CHECKING:
     from megatron.core.transformer import ModuleSpec
-
+    from transformers import AutoModelForCausalLM
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -234,9 +234,9 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
     def convert_state(self, source, target):
         # pylint: disable=C0301
         mapping = {
-            ## Embed
+            # Embed
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
-            ## Attention
+            # Attention
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.input_layernorm.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
             "model.layers.*.self_attn.q_a_proj.weight": "decoder.layers.*.self_attention.linear_q_down_proj.weight",
@@ -247,16 +247,16 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             "model.layers.*.self_attn.kv_a_layernorm.weight": "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight",
             "model.layers.*.dense-post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.pre_mlp_layernorm.weight",
-            ## Dense MLP
+            # Dense MLP
             # model.layers.*.mlp.{gate|up}_proj.weight: decoder.layers.*.mlp.linear_fc1.weight
             "model.layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
-            ## MoE
+            # MoE
             "model.layers.*.mlp.gate.weight": "decoder.layers.*.mlp.router.weight",
             # model.layers.*.mlp.experts.*.{gate|up}_proj.weight: decoder.layers.*.mlp.experts.linear_fc1.weight*
             "model.layers.*.mlp.experts.*.down_proj.weight": "decoder.layers.*.mlp.experts.linear_fc2.weight*",
             # model.layers.*.mlp.shared_experts.{gate|up}_proj.weight： decoder.layers.*.mlp.shared_experts.linear_fc1.weight
             "model.layers.*.mlp.shared_experts.down_proj.weight": "decoder.layers.*.mlp.shared_experts.linear_fc2.weight",
-            ## LM Head
+            # LM Head
             "model.norm.weight": "decoder.final_layernorm.weight",
             "lm_head.weight": "output_layer.weight",
         }
@@ -445,9 +445,9 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
     def convert_state(self, source, target, source_config):
         # pylint: disable=C0301
         mapping = {
-            ## Embed
+            # Embed
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
-            ## Attention
+            # Attention
             "decoder.layers.*.input_layernorm.weight": "model.layers.*.input_layernorm.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.self_attention.linear_q_down_proj.weight": "model.layers.*.self_attn.q_a_proj.weight",
@@ -457,16 +457,16 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             "decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight": "model.layers.*.self_attn.q_a_layernorm.weight",
             "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight": "model.layers.*.self_attn.kv_a_layernorm.weight",
             "decoder.layers.*.pre_mlp_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
-            ## Dense MLP
+            # Dense MLP
             # decoder.layers.*.mlp.linear_fc1.weight: model.layers.*.mlp.{gate|up}_proj.weight
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
-            ## MoE
+            # MoE
             "decoder.layers.*.mlp.router.weight": "model.layers.*.mlp.gate.weight",
             # decoder.layers.*.mlp.experts.linear_fc1.weight*: model.layers.*.mlp.experts.*.{gate|up}_proj.weight
             "decoder.layers.*.mlp.experts.linear_fc2.weight*": "model.layers.*.mlp.experts.*.down_proj.weight",
             # decoder.layers.*.mlp.shared_experts.linear_fc1.weight: model.layers.*.mlp.shared_experts.{gate|up}_proj.weight
             "decoder.layers.*.mlp.shared_experts.linear_fc2.weight": "model.layers.*.mlp.shared_experts.down_proj.weight",
-            ## LM Head
+            # LM Head
             "decoder.final_layernorm.weight": "model.norm.weight",
             "output_layer.weight": "lm_head.weight",
         }

@@ -21,6 +21,7 @@ import torch
 import torch.distributed
 from megatron.core.transformer import TransformerConfig
 from torch import Tensor
+from transformers import AutoTokenizer
 
 from nemo.collections.vlm.mllama.model.base import (
     CrossAttentionTextConfig,
@@ -255,8 +256,6 @@ class HFMLlamaImporter(io.ModelConnector["MLlamaModel", MLlamaModel]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property

@@ -52,6 +52,7 @@ class _ModelState:
         return self._state_dict
 
     def to(self, dtype):
+        # pylint: disable=C0115,C0116
         for k, v in self._state_dict.items():
             if v.dtype != dtype:
                 logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
