@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import pytest
-import torch.nn.functional as F
 import torch
+import torch.nn.functional as F
+
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import masked_cross_entropy
+
 
 def test_no_mask():
     # Create sample logits and targets.
@@ -31,6 +33,7 @@ def test_no_mask():
 
     # Use allclose to check they match.
     assert torch.allclose(loss, expected_loss), "Loss without mask does not match expected cross_entropy loss."
+
 
 def test_with_mask():
     # Create sample logits and targets.
@@ -58,6 +61,7 @@ def test_with_mask():
     # Check that the loss matches.
     assert torch.allclose(loss, expected_loss), "Loss with mask does not match expected masked cross_entropy loss."
 
+
 def test_all_masked_out():
     # Test the case where all elements are masked out.
     logits = torch.tensor([[2.0, 1.0], [0.5, 1.5]], dtype=torch.float32)
@@ -71,6 +75,7 @@ def test_all_masked_out():
 
     loss = masked_cross_entropy(logits_copy, targets_copy, mask_copy)
     assert torch.isnan(loss), "Expected loss to be nan"
+
 
 if __name__ == "main":
     pytest.main()
