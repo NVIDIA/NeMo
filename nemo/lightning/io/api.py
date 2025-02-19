@@ -188,7 +188,7 @@ def load_connector_from_trainer_ckpt(path: Path, target: str) -> ModelConnector:
 
     Example:
         connector = load_connector_from_trainer_ckpt(
-            Path("/path/to/checkpoint"), 
+            Path("/path/to/checkpoint"),
             "hf"
         )
     """
