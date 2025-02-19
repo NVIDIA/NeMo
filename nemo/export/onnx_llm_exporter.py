@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-from typing import Optional, Union, Generator, List
+import json
 import warnings
-from tqdm import tqdm
+from pathlib import Path
+from typing import Generator, List, Optional, Union
 
+import modelopt.torch.quantization as mtq
 import numpy as np
 import tensorrt as trt
 import torch
 import wrapt
+from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
-import json
-import modelopt.torch.quantization as mtq
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.utils import get_example_inputs, get_model_device_type, is_nemo2_checkpoint, validate_fp8_network
@@ -78,7 +78,7 @@ class OnnxLLMExporter(ITritonDeployable):
         self,
         model_dir: str,
         model_name_or_path: str = None,
-        load_runtime: bool=True,
+        load_runtime: bool = True,
     ):
         """
         Args:
@@ -108,7 +108,9 @@ class OnnxLLMExporter(ITritonDeployable):
                 self.onnx_runtime_session = onnxruntime.InferenceSession(self.model_path)
                 self.model_input_names = [input.name for input in self.onnx_runtime_session.get_inputs()]
                 self.model_output_names = [output.name for output in self.onnx_runtime_session.get_outputs()]
-                self.tokenizer = AutoTokenizer.from_pretrained(Path(self.model_dir) / "tokenizer", trust_remote_code=True)
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    Path(self.model_dir) / "tokenizer", trust_remote_code=True
+                )
 
     def _load_hf_model(self):
         self.model = AutoModel.from_pretrained(
@@ -434,11 +436,7 @@ class OnnxLLMExporter(ITritonDeployable):
 
         # Enable FP8 kv cache to save memory footprint
         quant_cfg["quant_cfg"]["*output_quantizer"] = {
-            "num_bits": (
-                8
-                if quantization_type == "int8_sq" or quantization_type == "int8"
-                else (4, 3)
-            ),
+            "num_bits": (8 if quantization_type == "int8_sq" or quantization_type == "int8" else (4, 3)),
             "axis": None,
             "enable": True,
         }
