@@ -5146,6 +5146,29 @@ jobs:
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/vllm_from_nemo2
 
+  L2_NeMo_2_TRTLLM_EXPORT_MODEL_LOADING:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_TRTLLM_EXPORT_MODEL_LOADING')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python tests/setup/models/create_hf_model.py \
+          --model_name_or_path /home/TestData/nlp/megatron_llama/llama-ci-hf \
+          --output_dir /tmp/llama_head64 \
+          --config_updates "{\"hidden_size\": 512, \"num_attention_heads\": 4, \"numx_hidden_layers\": 2, \"num_key_value_heads\": 4, \"intermediate_size\": 1024, \"head_dim\": 128, \"num_hidden_layers\": 2, \"torch_dtype\": \"float16\" }"
+
+        python tests/collections/llm/test_hf_import.py --hf_model /tmp/llama_head64 --output_path /tmp/nemo2_ckpt
+
+        python tests/export/test_model_loading.py \
+          --nemo_ckpt_path /tmp/nemo2_ckpt \
+          --trt_llm_export_path /tmp/trtllm_export
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/llama_head64
+        rm -rf /tmp/nemo2_ckpt
+        rm -rf /tmp/trtllm_export
+
   L2_SpeechLM_LoRA_TP1PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -5377,6 +5400,7 @@ jobs:
       - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
+      - L2_NeMo_2_TRTLLM_EXPORT_MODEL_LOADING
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
 
     if: always() && github.event != 'push'
