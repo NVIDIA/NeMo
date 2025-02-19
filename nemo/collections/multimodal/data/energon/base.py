@@ -17,6 +17,7 @@ from typing import Any, Dict, Literal, Optional
 
 import fiddle as fdl
 import lightning.pytorch as pl
+import torch.distributed
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from megatron.core import parallel_state
 from megatron.energon import WorkerConfig, get_savable_loader, get_train_dataset
@@ -100,17 +101,6 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         and batching samples for validation. Defaults to None and will be the same as task_encoder.
         **kwargs: Additional keyword arguments. Will be passed to get_train_dataset() of Energon
         """
-
-        if not parallel_state.is_initialized():
-            logging.info(
-                f"Muiltimodal data loader parallel state is not initialized,"
-                f"Please ensure no data loader is being created on pipeline parallel ranks >0"
-            )
-        else:
-            pp_rank = parallel_state.get_pipeline_model_parallel_rank()
-            cp_rank = parallel_state.get_context_parallel_rank()
-            assert pp_rank == 0, "Only Pipeline Parallel ranks 0 load data"
-            assert cp_rank == 0, "Only Context Parallel ranks 0 load data"
 
         super().__init__()
         self.path = path
@@ -308,11 +298,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
 
             state = []
-            tp_rank = parallel_state.get_tensor_model_parallel_rank()
-            if tp_rank==0: # Only get the dataloader states form the ranks which have a unique state, i.e.
-                # tp_rank=0 and pp_rank is already 0 from our assert on the top of init.
-                # TODO(ABhinav): Ask Yash or Yu Yao wheather we should also have a cp_rank=0 as well?
-                # As per Yash cp rank 0 should not have a dataloader
+            if torch.distributed.get_rank() == parallel_state.get_model_parallel_src_rank():
                 state = dataloader_obj.save_state_global(global_dst_rank=0)
 
             consumed_samples = self.data_sampler.compute_consumed_samples(
