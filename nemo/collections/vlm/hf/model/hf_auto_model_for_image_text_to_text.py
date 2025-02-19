@@ -14,7 +14,6 @@
 
 import lightning.pytorch as pl
 import torch
-import torch.nn.functional as F
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor
 
