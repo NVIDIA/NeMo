@@ -298,6 +298,9 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
             state = []
             if torch.distributed.get_rank() == parallel_state.get_model_parallel_src_rank():
+                # Save_state_global in energon assumes that we call it for only the first rank within each group that
+                # shares the same dataloader state. By making sure that current rank is the first rank in a model
+                # parallel group, we ensure this.
                 state = dataloader_obj.save_state_global(global_dst_rank=0)
 
             consumed_samples = self.data_sampler.compute_consumed_samples(
