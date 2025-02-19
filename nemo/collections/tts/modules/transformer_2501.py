@@ -648,13 +648,22 @@ class Transformer(torch.nn.Module):
             if multi_encoder_mapping[idx] is None:
                 return None, None, None
             else:
+                _attn_prior = attn_prior[multi_encoder_mapping[idx]] if attn_prior is not None else None
+                if isinstance(_attn_prior, list):
+                    # @pneekhara: This means, we are passing layerwise attn_prior
+                    _attn_prior = _attn_prior[idx]
                 return (
                     cond[multi_encoder_mapping[idx]],
                     cond_mask[multi_encoder_mapping[idx]] if cond_mask is not None else None,
-                    attn_prior[multi_encoder_mapping[idx]] if attn_prior is not None else None,
+                    _attn_prior,
                 )
         else:
-            return cond, cond_mask, attn_prior
+            if isinstance(attn_prior, list):
+                # @pneekhara: This means, we are passing layerwise attn_prior
+                _attn_prior = attn_prior[idx]
+            else:
+                _attn_prior = attn_prior
+            return cond, cond_mask, _attn_prior
 
     def forward(
         self,

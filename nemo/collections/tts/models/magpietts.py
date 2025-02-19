@@ -14,6 +14,7 @@
 import copy
 import json
 import os
+import random
 import string
 from typing import List
 
@@ -374,13 +375,18 @@ class MagpieTTS_Model(ModelPT):
 
         return all_preds
 
-    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80):
+    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80, unfinished_items={}, finished_items={}):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
         all_preds = []
         for idx in range(self.cfg.num_audio_codebooks):
             si = idx * self.cfg.num_audio_tokens_per_codebook
             ei = si + self.cfg.num_audio_tokens_per_codebook
             codebook_logits = all_code_logits_t[:, si:ei]  # (B, num_tokens_per_codebook)
+            for item_idx in unfinished_items:
+                codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
+            for item_idx in finished_items:
+                codebook_logits[item_idx, :] = float('-inf')
+                codebook_logits[item_idx, self.audio_eos_id] = 0.0
             codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0]  # (B, topk)
             indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(
                 -1
@@ -462,6 +468,12 @@ class MagpieTTS_Model(ModelPT):
         if global_step < prior_scaledown_start_step:
             return prior
         elif global_step >= prior_end_step:
+            if self.cfg.get('prior_always_applied', False):
+                # Added this so that model always knows how to work with and without the prior
+                if random.random() < 0.5:
+                    return prior
+                else:
+                    return None
             return None
         else:
             with torch.no_grad():
@@ -596,6 +608,16 @@ class MagpieTTS_Model(ModelPT):
         else:
             raise ValueError(f"Unsupported model type {self.model_type}")
 
+        if attn_prior is not None and self.cfg.get('ctc_prior_layer_ids', None) is not None:
+            ctc_prior_layer_ids = self.cfg.ctc_prior_layer_ids
+            # Convert prior to a list of tensors, one for each layer
+            # Set None for layers not in ctc_prior_layer_ids
+            if self.model_type == 'multi_encoder_context_tts':
+                text_attn_prior = [attn_prior[0] if layer_idx in ctc_prior_layer_ids else None for layer_idx in range(self.cfg.t5_decoder.n_layers) ]
+                attn_prior = [text_attn_prior, attn_prior[1]]
+            else:
+                attn_prior = [attn_prior if layer_idx in ctc_prior_layer_ids else None for layer_idx in range(self.cfg.t5_decoder.n_layers) ]
+
         return {
             'cond': cond,
             'cond_mask': cond_mask,
@@ -721,11 +743,8 @@ class MagpieTTS_Model(ModelPT):
         alignment_loss = None
         if self.cfg.alignment_loss_scale > 0.0 and not disable_alignment_loss:
             text_lens = context_tensors['text_lens']
-            cross_attention_scores = [
-                attn['cross_attn_probabilities'][1]
-                for layer_idx, attn in enumerate(attn_info)
-                if layer_idx in self.transcript_decoder_layers
-            ]
+            ctc_prior_layer_ids = self.cfg.get('ctc_prior_layer_ids', self.transcript_decoder_layers)
+            cross_attention_scores = [attn['cross_attn_probabilities'][1] for layer_idx, attn in enumerate(attn_info) if layer_idx in ctc_prior_layer_ids]
             alignment_loss = self.compute_alignment_loss(
                 cross_attention_scores, text_lens, audio_codes_lens_target, dec_context_size
             )
@@ -789,11 +808,8 @@ class MagpieTTS_Model(ModelPT):
                 and len(attn_info[self.transcript_decoder_layers[0]]['cross_attn_probabilities']) > 1
             ):
                 # cross_attn_probabilities only returned when not using flash attention
-                cross_attention_probs = [
-                    attn['cross_attn_probabilities'][0]
-                    for layer_idx, attn in enumerate(attn_info)
-                    if layer_idx in self.transcript_decoder_layers
-                ]
+                ctc_prior_layer_ids = self.cfg.get('ctc_prior_layer_ids', self.transcript_decoder_layers)
+                cross_attention_probs = [attn['cross_attn_probabilities'][0] for layer_idx, attn in enumerate(attn_info) if layer_idx in ctc_prior_layer_ids]
                 self.log_attention_probs(
                     cross_attention_probs,
                     audio_codes_lens_target,
@@ -801,6 +817,9 @@ class MagpieTTS_Model(ModelPT):
                     prefix="val_",
                     dec_context_size=dec_context_size,
                 )
+                for layer_idx in self.transcript_decoder_layers:
+                    cross_attention_probs = [ attn_info[layer_idx]['cross_attn_probabilities'][0] ]
+                    self.log_attention_probs(cross_attention_probs, audio_codes_lens_target, text_lens, prefix=f"val_layer_{layer_idx}_", dec_context_size=dec_context_size)
 
         val_output = {
             'val_loss': loss,
@@ -811,7 +830,42 @@ class MagpieTTS_Model(ModelPT):
 
         return val_output
 
-    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, use_cfg=False, cfg_scale=1.0):
+    def get_cross_attention_scores(self, attn_probs, filter_layers=None):
+        """
+        Returns the cross attention probabilities for the last audio timestep
+        """
+        mean_cross_attn_scores = []
+        all_heads_cross_attn_scores = []
+        for lidx, layerwise_attn_prob in enumerate(attn_probs):
+            if (filter_layers is not None and lidx not in filter_layers) or (lidx not in self.transcript_decoder_layers):
+                continue
+            cross_attn_prob = layerwise_attn_prob['cross_attn_probabilities'][0] # B, H, audio_timesteps, text_timesteps
+            mean_cross_attn_scores.append(cross_attn_prob.mean(dim=1)) # B, audio_timesteps, text_timesteps
+            for head_idx in range(cross_attn_prob.size(1)):
+                all_heads_cross_attn_scores.append(cross_attn_prob[:, head_idx, -1, :]) # B, text_timesteps
+
+        mean_cross_attn_scores = torch.stack(mean_cross_attn_scores, dim=1) # B, L, audio_timesteps, text_timesteps
+        mean_cross_attn_scores = mean_cross_attn_scores.mean(dim=1) # B, audio_timesteps, text_timesteps
+        last_audio_timestep_scores = mean_cross_attn_scores[:, -1, :] # B, text_timesteps
+        return last_audio_timestep_scores, all_heads_cross_attn_scores
+
+    def infer_batch(
+            self,
+            batch,
+            max_decoder_steps=500,
+            temperature=0.7,
+            topk=80,
+            use_cfg=False,
+            cfg_scale=1.0,
+            return_cross_attn_probs=False,
+            apply_attention_prior=False,
+            prior_epsilon=1e-5,
+            lookahead_window_size=10,
+            estimate_alignment_from_layers=None,
+            apply_prior_to_layers=None,
+            start_prior_after_n_audio_steps=10,
+            compute_all_heads_attn_maps=False,
+        ):
         with torch.no_grad():
             self.decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
 
@@ -837,6 +891,13 @@ class MagpieTTS_Model(ModelPT):
                     )
                 )
 
+            cross_attention_scores_all_timesteps = []
+            all_heads_cross_attn_scores_all_timesteps = []
+            _attn_prior = None
+            unfinished_texts = {}
+            finished_texts_counter = {}
+            attended_timestep_counter = [{} for _ in range(text.size(0))]
+            last_attended_timesteps = [[1 for _ in range(text.size(0))]] # Maintain a list of attended timesteps as we predict audio for each batch item
             for idx in range(max_decoder_steps):
                 if idx % 20 == 0:
                     print(f"Decoding timestep {idx}")
@@ -850,7 +911,18 @@ class MagpieTTS_Model(ModelPT):
                     _audio_codes_embedded = audio_codes_embedded
                     _audio_codes_mask = audio_codes_mask
 
+                if apply_prior_to_layers is not None:
+                    attn_prior = [None for _ in range(self.cfg.t5_decoder.n_layers)]
+                    for layer_idx in apply_prior_to_layers:
+                        attn_prior[layer_idx] = _attn_prior
+                else:
+                    attn_prior = _attn_prior
+
+                if self.model_type == 'multi_encoder_context_tts':
+                    attn_prior = [attn_prior, None]
+
                 if use_cfg:
+                    # import ipdb; ipdb.set_trace()
                     batch_size = audio_codes_embedded.size(0)
                     # Combine conditional and unconditional inputs into one batch
                     if isinstance(context_tensors['cond'], list):
@@ -877,34 +949,104 @@ class MagpieTTS_Model(ModelPT):
                             dummy_addition_dec_mask
                         )
 
-                    combined_logits, _ = self.forward(
+                    combined_logits, attn_probs = self.forward(
                         dec_input_embedded=cfg_audio_codes_embedded,
                         dec_input_mask=cfg_audio_codes_mask,
                         cond=cfg_cond,
                         cond_mask=cfg_cond_mask,
-                        attn_prior=None,
-                        multi_encoder_mapping=context_tensors['multi_encoder_mapping'],
+                        attn_prior=attn_prior,
+                        multi_encoder_mapping=context_tensors['multi_encoder_mapping']
                     )
 
                     cond_logits = combined_logits[:batch_size]
                     uncond_logits = combined_logits[batch_size:]
                     all_code_logits = (1 - cfg_scale) * uncond_logits + cfg_scale * cond_logits
                 else:
-                    all_code_logits, _ = self.forward(
+                    batch_size = audio_codes_embedded.size(0)
+                    all_code_logits, attn_probs = self.forward(
                         dec_input_embedded=_audio_codes_embedded,
                         dec_input_mask=_audio_codes_mask,
                         cond=context_tensors['cond'],
                         cond_mask=context_tensors['cond_mask'],
-                        attn_prior=None,
-                        multi_encoder_mapping=context_tensors['multi_encoder_mapping'],
+                        attn_prior=attn_prior,
+                        multi_encoder_mapping=context_tensors['multi_encoder_mapping']
                     )
-                all_code_logits_t = all_code_logits[:, -1, :]  # (B, num_codebooks * num_tokens_per_codebook)
-                audio_codes_next = self.sample_codes_from_logits(
-                    all_code_logits_t, temperature=temperature, topk=topk
-                )  # (B, num_codebooks)
-                all_codes_next_argmax = self.sample_codes_from_logits(
-                    all_code_logits_t, temperature=0.01
-                )  # (B, num_codebooks)
+
+                if return_cross_attn_probs or apply_attention_prior:
+                    cross_attention_scores, all_heads_cross_attn_scores = self.get_cross_attention_scores(attn_probs) # B, text_timesteps
+                    alignment_attention_scores = cross_attention_scores
+                    if estimate_alignment_from_layers is not None:
+                        alignment_attention_scores, _ = self.get_cross_attention_scores(attn_probs, filter_layers=estimate_alignment_from_layers) # B, text_timesteps
+                    text_time_step_attended = []
+                    for bidx in range(batch_size):
+                        last_attended_timestep = last_attended_timesteps[-1][bidx]
+                        if attended_timestep_counter[bidx].get(last_attended_timestep, 0) >= 8:
+                            # This is probably an attention sink! Move to the next timestep
+                            last_attended_timestep += 1
+                        window_size = lookahead_window_size
+                        window_end = min(last_attended_timestep + window_size, context_tensors['text_lens'][bidx] - 3) # Ignore the last 3 timesteps
+                        item_attention_scores = alignment_attention_scores[bidx,last_attended_timestep:window_end]
+                        if item_attention_scores.size(0) == 0:
+                            # This means the sentence has ended
+                            attended_timestep = context_tensors['text_lens'][bidx] - 1
+                        else:
+                            attended_timestep = item_attention_scores.argmax().item() + last_attended_timestep
+                        text_time_step_attended.append(attended_timestep)
+                        attended_timestep_counter[bidx][attended_timestep] = attended_timestep_counter[bidx].get(attended_timestep, 0) + 1
+
+                    last_attended_timesteps.append(text_time_step_attended)
+                    cross_attention_scores_all_timesteps.append(cross_attention_scores)
+                    all_heads_cross_attn_scores_all_timesteps.append(all_heads_cross_attn_scores)
+                    # if idx % 20 == 0:
+                    # print("At timesteps", idx, text_time_step_attended, context_tensors['text_lens'])
+
+                if apply_attention_prior and idx >= start_prior_after_n_audio_steps:
+                    eps = prior_epsilon
+                    # Attn prior for the next timestep
+                    _attn_prior = torch.zeros(cross_attention_scores.shape[0], 1, cross_attention_scores.shape[1]) + eps
+                    _attn_prior = _attn_prior.to(cross_attention_scores.device)
+                    for bidx in range(cross_attention_scores.shape[0]):
+                        if bidx < batch_size:
+                            _text_len = context_tensors['text_lens'][bidx]
+                            if context_tensors['text_lens'][bidx] <= 5:
+                                # Very short sentences, No Prior
+                                _attn_prior[bidx, 0, :] = 1.0
+                            else:
+                                # _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-2)] = 0.1 # Slight exposure to history for better pronounciation. Not very important.
+                                _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1)] = 0.2 # Slight exposure to history for better pronounciation. Not very important.
+                                _attn_prior[bidx, 0, text_time_step_attended[bidx]] = 0.8 # Slightly bias to continue moving forward. Not very important.
+                                _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+1, _text_len - 1) ] = 1.0
+                                _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2, _text_len - 1) ] = 0.8
+
+                            # Penalize timesteps that have been attended to more than 10 times
+                            for _timestep in attended_timestep_counter[bidx]:
+                                if attended_timestep_counter[bidx][_timestep] >= 10:
+                                    # This means the timestep has been attended to more than 10 times (To avoid getting stuck)
+                                    _attn_prior[bidx, 0, _timestep] = eps
+
+                            unfinished_texts[bidx] = False
+                            if text_time_step_attended[bidx] < context_tensors['text_lens'][bidx] - 3:
+                                # This means the sentence has definitely not ended
+                                if bidx not in end_indices:
+                                    unfinished_texts[bidx] = True
+
+                            if text_time_step_attended[bidx] >= context_tensors['text_lens'][bidx] - 5 or bidx in end_indices:
+                                if bidx not in finished_texts_counter:
+                                    finished_texts_counter[bidx] = 0
+
+                for key in finished_texts_counter:
+                    finished_texts_counter[key] += 1
+                    if finished_texts_counter[key] > 10:
+                        # We should allow EOS to be predicted now.
+                        unfinished_texts[bidx] = False
+
+                finished_items = {k: v for k, v in finished_texts_counter.items() if v >= 20} # Items that have been close to the end for atleast 20 timesteps
+                unifinished_items = {k: v for k, v in unfinished_texts.items() if v}
+
+                all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
+                audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
+                all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
+
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
@@ -920,18 +1062,44 @@ class MagpieTTS_Model(ModelPT):
                 )  # (B, C, T')
                 audio_codes_lens = audio_codes_lens + 1
                 audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
-                if len(end_indices) == text.size(0):
+                if len(end_indices) == text.size(0) and len(all_predictions) >= 4:
+                    # Codec must be of atleast 4 timesteps to be decoded properly
                     print("All ends reached")
                     break
-
             predicted_codes = torch.stack(all_predictions, dim=-1)  # (B, num_codebooks, T')
-            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))]
+
+            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
             predicted_codes_lens = torch.tensor(predicted_lens, device=text.device).long()
 
             predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
 
             torch.cuda.empty_cache()
-            return predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens
+            if return_cross_attn_probs:
+                cross_attention_scores_all_timesteps = torch.stack(cross_attention_scores_all_timesteps, dim=2) # B, text_timesteps, T'
+
+                headwise_cross_attention_scores_all_timesteps = []
+                for hidx in range(len(all_heads_cross_attn_scores_all_timesteps[0])):
+                    head_cross_attention_all_timesteps = torch.stack([x[hidx] for x in all_heads_cross_attn_scores_all_timesteps], dim=2) # B, text_timesteps, T'
+                    headwise_cross_attention_scores_all_timesteps.append(head_cross_attention_all_timesteps)
+
+                cross_attention_maps = []
+                headwise_cross_attention_maps = []
+                for bidx in range(predicted_audio.size(0)):
+                    item_cross_attention_scores = cross_attention_scores_all_timesteps[bidx,:context_tensors['text_lens'][bidx],:predicted_codes_lens[bidx]]
+                    cross_attn_np = plot_alignment_to_numpy(item_cross_attention_scores.cpu().numpy())
+                    cross_attention_maps.append(cross_attn_np)
+                    item_all_head_cross_attn_maps = []
+                    if compute_all_heads_attn_maps:
+                        for hidx in range(len(all_heads_cross_attn_scores_all_timesteps[0])):
+                            item_headwise_cross_attention_scores = headwise_cross_attention_scores_all_timesteps[hidx][bidx,:context_tensors['text_lens'][bidx],:predicted_codes_lens[bidx]]
+                            headwise_cross_attn_np = plot_alignment_to_numpy(item_headwise_cross_attention_scores.cpu().numpy())
+                            item_all_head_cross_attn_maps.append(headwise_cross_attn_np)
+                        headwise_cross_attention_maps.append(item_all_head_cross_attn_maps)
+
+                return predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, cross_attention_maps, headwise_cross_attention_maps
+            else:
+                # For backward compatibility
+                return predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
