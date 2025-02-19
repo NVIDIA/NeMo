@@ -84,7 +84,7 @@ if __name__ == "__main__":
         plugins=nl.MegatronMixedPrecision(precision=args.precision),
     )
 
-    ## Load both models and combine into an aggregate module
+    # Load both models and combine into an aggregate module
     # NOTE: Special model and tokenizer for CI runs only
     tokenizer = AutoTokenizer("gpt2")
     _student_model = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
