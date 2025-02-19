@@ -14,8 +14,10 @@
 
 import math
 import re
+from importlib.metadata import version
 from typing import Optional
 
+import packaging
 import torch
 from megatron.core import ModelParallelConfig, parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -24,11 +26,6 @@ from megatron.core.tensor_parallel.mappings import (
     gather_from_sequence_parallel_region,
     scatter_to_sequence_parallel_region,
 )
-
-from importlib.metadata import version
-
-import packaging
-
 from torch import nn
 
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
