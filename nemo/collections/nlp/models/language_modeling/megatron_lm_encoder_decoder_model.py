@@ -1806,7 +1806,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                         'embedding.position_embeddings.weight'
                     ]
 
-                    module.load_state_dict(checkpoint_state_dict, strict=True)
+                    try:
+                        module.load_state_dict(checkpoint_state_dict, strict=True)
+                    except RuntimeError as e:
+                        missing_keys, expected_keys = module.load_state_dict(checkpoint_state_dict, strict=False)
+                        if all(s.endswith('_extra_state') for s in missing_keys):
+                            logging.warning(
+                                'Loding checkpoint created with Transformer Engine version lower than 1.13.'
+                                f'Missing layers {missing_keys} will be ignored.'
+                            )
+                        else:
+                            raise e                    
             else:
                 checkpoint['state_dict'] = {}
         else:
