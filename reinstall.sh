@@ -40,14 +40,12 @@ mcore() {
     if [ ! -d "$MAMBA_DIR/.git" ]; then
       rm -rf "$MAMBA_DIR" &&
         cd $(dirname "$MAMBA_DIR") &&
-        git clone https://github.com/state-spaces/$(basename $MAMBA_DIR).git &&
-        pushd $(basename $MAMBA_DIR) &&
-        sed -i "/triton/d" setup.py &&
-        cat setup.py &&
-        popd
+        git clone https://github.com/state-spaces/$(basename $MAMBA_DIR).git
     fi &&
     pushd $MAMBA_DIR &&
     git checkout -f $MAMBA_TAG &&
+    sed -i "/triton/d" setup.py &&
+    cat setup.py &&
     popd
 
   MLM_DIR="$INSTALL_DIR/Megatron-LM" &&
