@@ -175,7 +175,6 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         Returns:
             ImageTaskSamplePacked instance.
         """
-        # import pdb; pdb.set_trace()
 
         keys, images, tokens, labels, loss_mask, num_media_tiles, image_sizes, attention_mask = (
             [],
@@ -192,8 +191,6 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             image_sizes.append(sample.image_sizes)
 
         image_sizes = torch.cat(image_sizes, dim=0)
-
-        # num_media_tiles: [3, 3, 3, 3]: Shape torch.Size([4])
         batch_list_num_media_tiles = batch_list(num_media_tiles)
         # if batch_list_num_media_tiles is nested lists, each sample has multiple images with different tiles
         # we need to flatten the list so len is num_images (in the batch)
@@ -203,7 +200,7 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
 
 
         packed_images = torch.cat([sample.images for sample in samples], dim=0)
-        media_token_id = self.sample_config.image_token.token_id
+        self.sample_config.image_token.token_id
         packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = convert_to_packed_llava_next(
             tokens=[sample.tokens for sample in samples],
             labels=[sample.labels for sample in samples],

@@ -103,7 +103,6 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
         logging.debug(f"[Energon] task encoder encode_sample lables {labels}")
         loss_mask = self.compute_loss_mask(labels)
 
-        # Here the image goes from 3,338,336 --> 3,3,336,336 (So resize and patch creation)
         processed_image = self.process_image(input_sample.image)
         output_sample.__key__ = input_sample.__key__
         output_sample.images = processed_image
