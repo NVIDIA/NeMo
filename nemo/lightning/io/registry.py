@@ -59,7 +59,7 @@ except ImportError:
     pass
 
 try:
-    from lightning.pytorch.loggers import WandbLogger, TensorBoardLogger
+    from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 
     track_io(WandbLogger)
     track_io(TensorBoardLogger)

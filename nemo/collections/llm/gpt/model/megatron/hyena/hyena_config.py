@@ -239,7 +239,7 @@ class HyenaConfig:
 
     hyena_filter_r_max: float = 0.99  # TODO: Possibly remove, only used in ParallelComplexModalFilter
 
-    hyena_filter_r_min: float = 0.5   # TODO: Possibly remove, only used in ParallelComplexModalFilter
+    hyena_filter_r_min: float = 0.5  # TODO: Possibly remove, only used in ParallelComplexModalFilter
 
     hyena_filter_emb_dim: int = 33  # TODO: Possibly remove, only used in ParallelImplicitFreeformFilter
 

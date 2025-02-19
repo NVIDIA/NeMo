@@ -53,6 +53,8 @@ token after the pipe and it is a 'd' character. Make sure tests are consistent w
                 else None
             )
 """
+
+
 @pytest.fixture
 def tag_tokens():
     """Standard tokens for phylogenetic tag tests, defined in Evo2_DataseT:
@@ -89,7 +91,7 @@ def test_mask_phylogenetic_tags_with_eod(tag_tokens):
         tokenized_sequence=sequence,
         terminal_tag_char=tag_tokens["terminal"],  # '|'
         other_tag_chars=tag_tokens["other_chars"],  # { '_',';',' ' }
-        eod_token_id=tag_tokens["eod"],            # 0
+        eod_token_id=tag_tokens["eod"],  # 0
     )
 
     expected_mask = torch.tensor([1, 0, 0, 1, 0, 1])
@@ -289,7 +291,7 @@ def test_sequence_starting_with_tag(tag_tokens):
     sequence = torch.tensor(
         [
             124,
-            100, #d token for domain
+            100,  # d token for domain
             97,
             103,
             95,
@@ -684,7 +686,8 @@ def test_packed_partial_tag_subsequence_pretag_middletag(tag_tokens):
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__"
     sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
     expected_mask = torch.tensor(
-        len("cacata") * [1] + [0] # masked pipe.
+        len("cacata") * [1]
+        + [0]  # masked pipe.
         + [1] * len("0acagataaaata")
         + len("|d__tag;|") * [0]
         + len("TACAGGGAATA") * [1]
@@ -699,6 +702,7 @@ def test_packed_partial_tag_subsequence_pretag_middletag(tag_tokens):
     )
     torch.testing.assert_close(mask, expected_mask)
 
+
 def test_packed_partial_tag_subsequence_pretag_middletag_bs2(tag_tokens):
     """
     Sequence: "cacata|[EOD]acagataaaata|d__tag;|TACAGGGAATA|d__"
@@ -708,7 +712,8 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs2(tag_tokens):
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__"
     sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
     expected_mask = torch.tensor(
-        len("cacata") * [1] + [0]
+        len("cacata") * [1]
+        + [0]
         + [1] * len("0acagataaaata")
         + len("|d__tag;|") * [0]
         + len("TACAGGGAATA") * [1]
@@ -724,6 +729,7 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs2(tag_tokens):
     )
     torch.testing.assert_close(mask, expected_mask)
 
+
 def test_packed_partial_tag_subsequence_pretag_middletag_bs3(tag_tokens):
     """
     Sequence: "cacata|[EOD]acagataaaata|d__tag;|TACAGGGAATA|d__"
@@ -733,7 +739,8 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs3(tag_tokens):
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__somet"
     sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
     expected_mask = torch.tensor(
-        len("cacata") * [1] + [0]
+        len("cacata") * [1]
+        + [0]
         + [1] * len("0acagataaaata")
         + len("|d__tag;|") * [0]
         + len("TACAGGGAATA") * [1]
@@ -763,12 +770,14 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs3(tag_tokens):
     )
     torch.testing.assert_close(mask, expected_mask)
 
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_packed_partial_tag_subsequence_pretag_middletag_bs3_cuda(tag_tokens):
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__somet"
     sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
     expected_mask = torch.tensor(
-        len("cacata") * [1] + [0]
+        len("cacata") * [1]
+        + [0]
         + [1] * len("0acagataaaata")
         + len("|d__tag;|") * [0]
         + len("TACAGGGAATA") * [1]
@@ -798,6 +807,7 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs3_cuda(tag_tokens):
     )
     torch.testing.assert_close(mask.cpu(), expected_mask)
 
+
 def test_multiple_packed_tags(tag_tokens):
     """
     Tests a sequence with multiple packed tags.
@@ -815,6 +825,7 @@ def test_multiple_packed_tags(tag_tokens):
         eod_token_id=tag_tokens["eod"],
     )
     torch.testing.assert_close(mask, expected_mask)
+
 
 def test_multiple_eods(tag_tokens):
     """
@@ -847,6 +858,7 @@ def test_multiple_eods_prefix_no_suffix(tag_tokens):
     )
     torch.testing.assert_close(mask, expected_mask)
 
+
 def test_no_eods_with_batch(tag_tokens):
     """
     Tests a sequence with multiple EODs.
@@ -862,6 +874,7 @@ def test_no_eods_with_batch(tag_tokens):
     )
     torch.testing.assert_close(mask, torch.stack([expected_mask, expected_mask]))
 
+
 def test_no_eods_one_tag_with_batch_bs2(tag_tokens):
     """
     Tests a sequence with multiple EODs.
@@ -876,6 +889,7 @@ def test_no_eods_one_tag_with_batch_bs2(tag_tokens):
         eod_token_id=tag_tokens["eod"],
     )
     torch.testing.assert_close(mask, torch.stack([expected_mask, expected_mask]))
+
 
 def test_packed_partial_tag_subsequence_predna_with_control(tag_tokens):
     """
@@ -896,6 +910,7 @@ def test_packed_partial_tag_subsequence_predna_with_control(tag_tokens):
         eod_token_id=tag_tokens["eod"],
     )
     torch.testing.assert_close(mask, expected_mask)
+
 
 def test_packed_partial_tag_subsequence_predna_with_control2(tag_tokens):
     """

@@ -16,6 +16,7 @@
 # limitations under the License.
 
 from typing import Optional
+
 # TODO(@cye): Merge MCore HyenaConfig with NeMo HyenaConfig to have all model params in 1 config.
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.utils.flops_formulas import FLOPSConfig
@@ -52,12 +53,12 @@ def hyena(config: FLOPSConfig):
     # Logits FLOPs per batch for a flattened L x H -> V GEMM.
     logits_fpl = 2 * config.gbs * config.enc_seq_len * config.hs * config.vocab_size
     # Hyena Mixer Common FLOPs - Pre-Attention QKV Projections, Post-Attention Projections, and GLU FFN FLOPs per layer.
-    pre_attn_qkv_proj_fpl = 2 * 3 * config.gbs * config.enc_seq_len * config.hs ** 2
-    post_attn_proj_fpl = 2 * config.gbs * config.enc_seq_len * config.hs ** 2
+    pre_attn_qkv_proj_fpl = 2 * 3 * config.gbs * config.enc_seq_len * config.hs**2
+    post_attn_proj_fpl = 2 * config.gbs * config.enc_seq_len * config.hs**2
     # 3 Batched GEMMs: y = A(gelu(Bx) * Cx) where B,C: H -> F and A: F -> H.
     glu_ffn_fpl = 2 * 3 * config.gbs * config.enc_seq_len * config.ffn_hs * config.hs
     # Transformer (Self) Attention FLOPs - QK Attention Logits ((L, D) x (D, L)) & Attention-Weighted Values FLOPs ((L, L) x (L, D))
-    attn_fpl = 2 * 2 * config.gbs * config.hs * config.enc_seq_len ** 2
+    attn_fpl = 2 * 2 * config.gbs * config.hs * config.enc_seq_len**2
     # Hyena Projection
     hyena_proj_fpl = 2 * 3 * config.gbs * config.enc_seq_len * hyena_short_conv_L * config.hs
     # Hyena Short Conv
@@ -69,11 +70,11 @@ def hyena(config: FLOPSConfig):
     # Based off of https://gitlab-master.nvidia.com/clara-discovery/savanna/-/blob/main/savanna/mfu.py#L182
     # Assumption: 1x Backwards Pass FLOPS = 2x Forward Pass FLOPS
     return 3 * (
-            logits_fpl +
-            config.layers * (pre_attn_qkv_proj_fpl + post_attn_proj_fpl + glu_ffn_fpl) +
-            A * attn_fpl +
-            (S + D + H) * hyena_proj_fpl +
-            S * hyena_short_conv_fpl +
-            D * hyena_medium_conv_fpl +
-            H * hyena_long_conv_fft_fpl
+        logits_fpl
+        + config.layers * (pre_attn_qkv_proj_fpl + post_attn_proj_fpl + glu_ffn_fpl)
+        + A * attn_fpl
+        + (S + D + H) * hyena_proj_fpl
+        + S * hyena_short_conv_fpl
+        + D * hyena_medium_conv_fpl
+        + H * hyena_long_conv_fft_fpl
     )

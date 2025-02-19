@@ -64,7 +64,7 @@ class HyenaModel(LanguageModule):
         hyena_init_method: str = None,
         hyena_output_layer_init_method: str = None,
         remove_activation_post_first_layer: bool = True,
-        add_attn_proj_bias: bool = True
+        add_attn_proj_bias: bool = True,
     ) -> None:
         super().__init__(config=transformer_config)
 
@@ -153,7 +153,11 @@ class HyenaModel(LanguageModule):
                 if isinstance(layer, TransformerLayer):
                     linear_proj = layer.self_attention.linear_proj
                     output_size = linear_proj.weight.shape[0]
-                    linear_proj.bias = Parameter(torch.empty(output_size, dtype=linear_proj.config.params_dtype, device=linear_proj.weight.device))
+                    linear_proj.bias = Parameter(
+                        torch.empty(
+                            output_size, dtype=linear_proj.config.params_dtype, device=linear_proj.weight.device
+                        )
+                    )
                     # Always initialize bias to zero.
                     with torch.no_grad():
                         linear_proj.bias.zero_()
@@ -187,8 +191,7 @@ class HyenaModel(LanguageModule):
                 bias=self.config.add_bias_output,
                 skip_bias_add=False,
                 gather_output=not self.parallel_output,
-                skip_weight_param_allocation=self.pre_process
-                and self.share_embeddings_and_output_weights,
+                skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
             )
             if self.config.add_bias_output:
                 self.output_layer.bias.data.zero_()
@@ -276,9 +279,11 @@ class HyenaModel(LanguageModule):
 
         labels, lowercase_mask = make_upper_case(labels)
         loss = self.compute_language_model_loss(labels, logits)
-        normalize_per_batch = True if self.config.to_upper=="normalized_weighted" else False
-        loss = reweighted_cross_entropy(loss, 
-                                        (labels, loss_mask, lowercase_mask), 
-                                        lowercase_weight=self.hyena_config.lowercase_loss_reweighting, 
-                                        normalize_per_batch=normalize_per_batch)
+        normalize_per_batch = True if self.config.to_upper == "normalized_weighted" else False
+        loss = reweighted_cross_entropy(
+            loss,
+            (labels, loss_mask, lowercase_mask),
+            lowercase_weight=self.hyena_config.lowercase_loss_reweighting,
+            normalize_per_batch=normalize_per_batch,
+        )
         return loss

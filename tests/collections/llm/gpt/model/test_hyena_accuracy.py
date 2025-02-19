@@ -17,12 +17,24 @@
 
 
 import logging
-from pathlib import Path
-from typing import Literal, Set
 
+###########################################################
+# BEGIN COPY/pasted bionemo stuff:
+import os
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Iterator, Literal, Optional, Set, TypeVar
+
+import lightning.pytorch as pl
+import megatron.core.num_microbatches_calculator
 import torch
+import torch.distributed
+from megatron.core import parallel_state
+from megatron.core.dist_checkpointing.mapping import ShardedTensor
+from megatron.core.tensor_parallel import random as tp_random
 from megatron.core.transformer.enums import AttnBackend
-from megatron.core.transformer.module import Float16Module
+from megatron.core.transformer.module import Float16Module, MegatronModule
+
 from nemo.collections import llm
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.io.pl import MegatronCheckpointIO
@@ -33,23 +45,10 @@ from nemo.lightning.io.pl import MegatronCheckpointIO
 #     _munge_key_megatron_to_nemo2,
 #     _munge_sharded_tensor_key_megatron_to_nemo2,
 # )
-#from bionemo.testing.megatron_parallel_state_utils import distributed_model_parallel_state
+# from bionemo.testing.megatron_parallel_state_utils import distributed_model_parallel_state
 
-###########################################################
-# BEGIN COPY/pasted bionemo stuff:
-import os
-from contextlib import contextmanager
-from typing import Any, Iterator, Optional
 
-import lightning.pytorch as pl
-import megatron.core.num_microbatches_calculator
-import torch
-import torch.distributed
-from megatron.core import parallel_state
-from megatron.core.tensor_parallel import random as tp_random
-from typing import TypeVar
-from megatron.core.dist_checkpointing.mapping import ShardedTensor
-from megatron.core.transformer.module import MegatronModule
+
 
 def _munge_key_megatron_to_nemo2(k: str) -> str:
     return f"module.{k}"
@@ -68,7 +67,9 @@ def _key_in_filter(k: str, filter: Set[str]) -> bool:
             return True
     return False
 
+
 MegatronModelType = TypeVar("MegatronModelType", bound=MegatronModule)
+
 
 def _reset_microbatch_calculator():
     """Resets _GLOBAL_NUM_MICROBATCHES_CALCULATOR in megatron which is used in NeMo to initilised model parallel in
@@ -287,4 +288,3 @@ def test_golden_values():
             and token_similarity_vs_fp8 >= token_similarity_theirs
         )
         torch.testing.assert_close(outputs, gold_standard_no_fp8)
-

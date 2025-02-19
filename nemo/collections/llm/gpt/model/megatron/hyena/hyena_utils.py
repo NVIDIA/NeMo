@@ -15,40 +15,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import torch.nn.functional as F
-from einops import rearrange
-import torch.nn as nn
 import math
 import os
-import torch.nn.functional as F
-import math
 from functools import partial
-from megatron.core.tensor_parallel import get_cuda_rng_tracker
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from einops import rearrange
 from megatron.core.parallel_state import (
-    get_tensor_model_parallel_world_size, 
-    get_tensor_model_parallel_rank,
-    get_context_parallel_world_size,
+    get_context_parallel_group,
     get_context_parallel_rank,
-    get_context_parallel_group
+    get_context_parallel_world_size,
+    get_tensor_model_parallel_rank,
+    get_tensor_model_parallel_world_size,
 )
+from megatron.core.tensor_parallel import get_cuda_rng_tracker
 from megatron.core.transformer.transformer_config import TransformerConfig
+
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 
 try:
     from flashfftconv import FlashFFTConv
 except ImportError:
+
     def FlashFFTConv(*args, **kwargs):
         raise Exception(f"Not imported: FlashFFTConv")
 
+
 try:
-    from savanna.kernels.triton_src.cgcg.interface import (
-        two_pass_chunked_gate_conv_gate,
-    )
-    from savanna.kernels.triton_src.cgcg.src.kernel_utils import (
-        BwdKernelConfigRefactor,
-        FwdKernelConfigRefactor,
-    )
+    from savanna.kernels.triton_src.cgcg.interface import two_pass_chunked_gate_conv_gate
+    from savanna.kernels.triton_src.cgcg.src.kernel_utils import BwdKernelConfigRefactor, FwdKernelConfigRefactor
     from savanna.kernels.triton_src.short_hyena.interface import run_short_hyena
     from savanna.kernels.triton_src.short_hyena.src.kernel_utils import (
         PostConvKernelConfig,
@@ -56,20 +53,28 @@ try:
         ShortHyenaOperatorKernelConfig,
     )
 except ImportError:
+
     def two_pass_chunked_gate_conv_gate(*args, **kwargs):
         raise Exception(f"Not imported: two_pass_chunked_gate_conv_gate")
+
     def run_short_hyena(*args, **kwargs):
         raise Exception(f"Not imported: run_short_hyena")
+
     def PreConvKernelConfig(*args, **kwargs):
         raise Exception(f"Not imported: PreConvKernelConfig")
+
     def PostConvKernelConfig(*args, **kwargs):
         raise Exception(f"Not imported: PostConvKernelConfig")
+
     def ShortHyenaOperatorKernelConfig(*args, **kwargs):
         raise Exception(f"Not imported: ShortHyenaOperatorKernelConfig")
+
     def BwdKernelConfigRefactor(*args, **kwargs):
         raise Exception(f"Not imported: BwdKernelConfigRefactor")
+
     def FwdKernelConfigRefactor(*args, **kwargs):
         raise Exception(f"Not imported: FwdKernelConfigRefactor")
+
 
 try:
     from einops import rearrange, repeat
@@ -81,16 +86,12 @@ try:
 except ImportError:
     raise ImportError("causal_conv1d is required by the Hyena model but cannot be imported")
 
-from megatron.core.transformer.utils import (
-    make_sharded_tensors_for_checkpoint,
-    sharded_state_dict_default,
-)
-
+from typing import Any, List, Literal, Optional, Tuple
 
 ###### CP related utils ######
 import torch.distributed as dist
+from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint, sharded_state_dict_default
 from torch.distributed.nn.functional import all_to_all_single as functional_all_to_all_single
-from typing import Any, Optional, Tuple, List, Literal
 
 
 def _get_zigzag_indices(N, device=None):
@@ -134,7 +135,7 @@ def all_to_all_single_fn(
     group: dist.ProcessGroup,
     type: Literal["split_to_full", "full_to_split"],
     input: torch.Tensor,
-    with_zigzag_splitting: bool = True
+    with_zigzag_splitting: bool = True,
 ) -> torch.Tensor:
     """
     Autograd-aware all_to_all_single communication function.
@@ -157,11 +158,13 @@ def all_to_all_single_fn(
         d = D // world_size
 
         # Reshape and permute input for communication
-        input_reshaped = rearrange(input, "B (cp d) l -> cp B d l", cp=world_size).contiguous() # [cp_world_size, B, d, l]
+        input_reshaped = rearrange(
+            input, "B (cp d) l -> cp B d l", cp=world_size
+        ).contiguous()  # [cp_world_size, B, d, l]
 
         # Perform all_to_all_single communication
         output_reshaped = torch.empty_like(input_reshaped)
-        dist.all_to_all_single(output_reshaped, input_reshaped, group=group) # [cp_world_size, B, d, l]
+        dist.all_to_all_single(output_reshaped, input_reshaped, group=group)  # [cp_world_size, B, d, l]
 
         # Permute and reshape output back to original form
         output = rearrange(output_reshaped, "cp B d l -> B d (cp l)", cp=world_size).contiguous()
@@ -173,8 +176,11 @@ def all_to_all_single_fn(
             inverse_zigzag_idx = _get_inverse_zigzag_indices(num_chunks, device=device)
 
             # Vectorized rearrangement using inverse zigzag indices
-            output = output.reshape(B, d, num_chunks, unzigzagged_split_length).index_select(
-                dim=-2, index=inverse_zigzag_idx).reshape(B, d, L)
+            output = (
+                output.reshape(B, d, num_chunks, unzigzagged_split_length)
+                .index_select(dim=-2, index=inverse_zigzag_idx)
+                .reshape(B, d, L)
+            )
 
         return output
 
@@ -196,14 +202,18 @@ def all_to_all_single_fn(
                 raise ValueError(f"Sequence length {L} is not divisible by num_chunks {num_chunks}")
 
             # Vectorized rearrangement using zigzag indices
-            input = input.reshape(B, d, num_chunks, chunk_length).index_select(dim=-2, index=zigzag_idx).reshape(B, d, L)
+            input = (
+                input.reshape(B, d, num_chunks, chunk_length).index_select(dim=-2, index=zigzag_idx).reshape(B, d, L)
+            )
 
         # Reshape and permute inputs for communication
-        input_reshaped = rearrange(input, "b d (cp l) -> cp b d l", cp=world_size).contiguous() # [cp_world_size, b, d, l]
+        input_reshaped = rearrange(
+            input, "b d (cp l) -> cp b d l", cp=world_size
+        ).contiguous()  # [cp_world_size, b, d, l]
 
         # Perform all_to_all_single communication
         output_reshaped = torch.empty_like(input_reshaped)
-        dist.all_to_all_single(output_reshaped, input_reshaped, group=group) # [cp_world_size, B, d, l]
+        dist.all_to_all_single(output_reshaped, input_reshaped, group=group)  # [cp_world_size, B, d, l]
 
         # Permute and reshape outputs back to original form
         output = rearrange(output_reshaped, "cp b d l -> b (cp d) l", cp=world_size).contiguous()
@@ -216,15 +226,16 @@ def all_to_all_single_fn(
 
 from torch.autograd.function import Function
 
+
 class AllToAllSingleFunction(Function):
     """
-        A custom autograd function for performing all_to_all_single communication with optional zigzag splitting.
-        Attributes:
-        - ctx: A context object that stores information for the forward and backward passes.
-        - group: The process group for communication.
-        - type: The type of communication pattern ('split_to_full' or 'full_to_split').
-        - with_zigzag_splitting: A boolean indicating whether to apply zigzag splitting.
-        """
+    A custom autograd function for performing all_to_all_single communication with optional zigzag splitting.
+    Attributes:
+    - ctx: A context object that stores information for the forward and backward passes.
+    - group: The process group for communication.
+    - type: The type of communication pattern ('split_to_full' or 'full_to_split').
+    - with_zigzag_splitting: A boolean indicating whether to apply zigzag splitting.
+    """
 
     @staticmethod
     def forward(ctx, input_tensor, group, type, with_zigzag_splitting):
@@ -237,10 +248,7 @@ class AllToAllSingleFunction(Function):
 
         # Perform the communication operation
         output = all_to_all_single_fn(
-            group=ctx.group,
-            type=ctx.type,
-            input=input_tensor,
-            with_zigzag_splitting=ctx.with_zigzag_splitting
+            group=ctx.group, type=ctx.type, input=input_tensor, with_zigzag_splitting=ctx.with_zigzag_splitting
         )
 
         return output
@@ -252,10 +260,11 @@ class AllToAllSingleFunction(Function):
             group=ctx.group,
             type="split_to_full" if ctx.type != "split_to_full" else "full_to_split",
             input=grad_output,
-            with_zigzag_splitting=ctx.with_zigzag_splitting
+            with_zigzag_splitting=ctx.with_zigzag_splitting,
         )
         # Return the gradient w.r.t. the input_tensor and None for other arguments
         return grad_input, None, None, None
+
 
 def zigzag_get_overlapping_patches(data, seq_dim, overlap_size):
     """
@@ -272,7 +281,7 @@ def zigzag_get_overlapping_patches(data, seq_dim, overlap_size):
 
     data_shape = list(data.shape)
     modified_shape = list(data.shape)
-    modified_shape[seq_dim: seq_dim + 1] = [2, data_shape[seq_dim] // 2]
+    modified_shape[seq_dim : seq_dim + 1] = [2, data_shape[seq_dim] // 2]
 
     reshaped_data = torch.reshape(data, modified_shape)
 
@@ -284,22 +293,24 @@ def zigzag_get_overlapping_patches(data, seq_dim, overlap_size):
     reshaped_data = reshaped_data.permute(dims=permute_order)
 
     seq_len = reshaped_data.shape[seq_dim + 1]  # Remember that a new dimension was added.
-    overlapping_patches = reshaped_data.narrow(dim=seq_dim + 1, start=seq_len-overlap_size, length=overlap_size) # Last n elements.
+    overlapping_patches = reshaped_data.narrow(
+        dim=seq_dim + 1, start=seq_len - overlap_size, length=overlap_size
+    )  # Last n elements.
     return overlapping_patches[0], overlapping_patches[1]
 
 
 class ExchangeOverlappingRegionsCausal(Function):
     """
-        A custom autograd function for exchanging overlapping regions between chunks of data in a causal manner.
-        The data is split across multiple GPUs using a distributed process group.
-        The forward method handles the exchange of overlapping regions between chunks, while the backward method computes the gradients.
-        Attributes:
-        - ctx: A context object that stores information for the forward and backward passes.
-        - chunk_a: Chunk to pass to the left.
-        - chunk_b: Chunk to pass to the right.
-        - group: The CP group
-        - group_rank: The rank in the cp_group.
-        """
+    A custom autograd function for exchanging overlapping regions between chunks of data in a causal manner.
+    The data is split across multiple GPUs using a distributed process group.
+    The forward method handles the exchange of overlapping regions between chunks, while the backward method computes the gradients.
+    Attributes:
+    - ctx: A context object that stores information for the forward and backward passes.
+    - chunk_a: Chunk to pass to the left.
+    - chunk_b: Chunk to pass to the right.
+    - group: The CP group
+    - group_rank: The rank in the cp_group.
+    """
 
     @staticmethod
     def forward(ctx, chunk_a, chunk_b, group, group_rank):
@@ -416,7 +427,8 @@ class ExchangeOverlappingRegionsCausal(Function):
             _grad_chunk_a = grad_chunk_b  # In the last split, the chunks are exchanged locally.
 
         return _grad_chunk_a, _grad_chunk_b, None, None, None
-    
+
+
 ###### End of CP related functions ######
 
 
@@ -504,19 +516,21 @@ def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=Fal
 
 class ImplicitModalFilter(nn.Module):
     def __init__(
-            self,
-            d_model,
-            order=64,
-            L_cache=None,
-            gamma_min=0.01,
-            gamma_max=0.1,
-            lr=None,
+        self,
+        d_model,
+        order=64,
+        L_cache=None,
+        gamma_min=0.01,
+        gamma_max=0.1,
+        lr=None,
     ):
         super().__init__()
         self.order = order
         self.d_model = d_model
-        # Do not register into buffer, so it doesn't cast to BF16! 
-        self.t = rearrange(torch.arange(L_cache, dtype=torch.float32), "L -> 1 1 L").to(device=torch.cuda.current_device())  # <- this should be arange
+        # Do not register into buffer, so it doesn't cast to BF16!
+        self.t = rearrange(torch.arange(L_cache, dtype=torch.float32), "L -> 1 1 L").to(
+            device=torch.cuda.current_device()
+        )  # <- this should be arange
         self.use_cached_t = False
         with get_cuda_rng_tracker().fork():
             gamma = torch.rand(self.d_model, order, dtype=torch.float32) * (gamma_max - gamma_min) + gamma_min
@@ -541,7 +555,6 @@ class ImplicitModalFilter(nn.Module):
 
         return t
 
-
     def compute_filter(self, L, t):
         assert t.dtype == torch.float32, f't must be float32. Current dtype: {t.dtype}'
 
@@ -564,25 +577,20 @@ class ImplicitModalFilter(nn.Module):
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharding along axis 0, bias not sharded"""
         state_dict = self.state_dict(prefix='', keep_vars=True)
-        return make_sharded_tensors_for_checkpoint(
-            state_dict, 
-            prefix, 
-            {'gamma': 0,
-             'R': 0,
-             'p': 0}, 
-            sharded_offsets
-        )
+        return make_sharded_tensors_for_checkpoint(state_dict, prefix, {'gamma': 0, 'R': 0, 'p': 0}, sharded_offsets)
 
 
 class ExplicitSingleDecayFilter(nn.Module):
-    def __init__(self, 
-            d_model, 
-            L_cache, 
-            log_r_min=0, 
-            log_r_max=2,
-            unit_passthrough=False,
-            decay_preset="strong",
-            small_init=True):
+    def __init__(
+        self,
+        d_model,
+        L_cache,
+        log_r_min=0,
+        log_r_max=2,
+        unit_passthrough=False,
+        decay_preset="strong",
+        small_init=True,
+    ):
         super().__init__()
         with get_cuda_rng_tracker().fork():
             h = torch.randn(d_model, L_cache) / math.sqrt(L_cache)
@@ -606,13 +614,13 @@ class ExplicitSingleDecayFilter(nn.Module):
         self.log_r_min = log_r_min
         self.log_r_max = log_r_max
         decay = torch.logspace(log_r_min, log_r_max, d_model)[:, None]
-        decay = torch.exp((- decay * t).cuda())
+        decay = torch.exp((-decay * t).cuda())
         self.register_buffer("decay", decay)
         setattr(self.h, 'tensor_model_parallel', True)
 
     def forward(self, L, *args, **kwargs):
         return self.filter(L, *args, **kwargs)
-    
+
     @torch.compile(mode="max-autotune")
     def filter(self, L, *args, **kwargs):
         h = self.h[:, :L]
@@ -623,11 +631,13 @@ class ExplicitSingleDecayFilter(nn.Module):
         """Sharding along axis 0, bias not sharded"""
         state_dict = self.state_dict(prefix='', keep_vars=True)
         return make_sharded_tensors_for_checkpoint(
-            state_dict, 
-            prefix, 
-            {'h': 0,
-             'decay': 0,}, 
-            sharded_offsets
+            state_dict,
+            prefix,
+            {
+                'h': 0,
+                'decay': 0,
+            },
+            sharded_offsets,
         )
 
 
@@ -728,8 +738,8 @@ class ParallelHyenaOperator(nn.Module):
         self.use_fast_heads = hyena_config.use_fast_heads
         self.use_slow_heads = hyena_config.use_slow_heads
 
-        self.zigzag =zigzag
-        
+        self.zigzag = zigzag
+
         self.model_parallel_size = get_tensor_model_parallel_world_size()
         self.model_parallel_rank = get_tensor_model_parallel_rank()
 
@@ -910,13 +920,15 @@ class ParallelHyenaOperator(nn.Module):
 
         if type(h) == tuple:
             h = h[0]
-        
+
         conv_bias = self.conv_bias
         local_size = None
 
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
 
-            x1, x2, v = [AllToAllSingleFunction.apply(tensor, cp_group, "split_to_full", True) for tensor in [x1, x2, v] ]
+            x1, x2, v = [
+                AllToAllSingleFunction.apply(tensor, cp_group, "split_to_full", True) for tensor in [x1, x2, v]
+            ]
             # the tensors are now split across channels, but have full length.
             # [ B, H // num_ranks, L]
 
@@ -924,14 +936,14 @@ class ParallelHyenaOperator(nn.Module):
             local_size = self.num_groups // get_context_parallel_world_size()
 
             if isinstance(self.filter, (ImplicitModalFilter)):
-                h = h[:, rank * local_size:(rank + 1) * local_size]
+                h = h[:, rank * local_size : (rank + 1) * local_size]
             elif isinstance(self.filter, ExplicitSingleDecayFilter):
-                h = h[rank * local_size:(rank + 1) * local_size]
+                h = h[rank * local_size : (rank + 1) * local_size]
             else:
                 raise ValueError(f"Kernels of type {self.filter.__class__} have not been verified with CP.")
 
             local_bias_size = self.width_per_tp_group // get_context_parallel_world_size()
-            conv_bias = self.conv_bias[rank * local_bias_size:(rank + 1) * local_bias_size]
+            conv_bias = self.conv_bias[rank * local_bias_size : (rank + 1) * local_bias_size]
 
         if self.use_slow_heads:
             return self.multihead_forward(x1, x2, v, h)
@@ -1045,9 +1057,7 @@ class ParallelHyenaOperator(nn.Module):
         )
         # Submodules
         for name, module in self.named_children():
-            module_sharded_sd = sharded_state_dict_default(
-                module, f'{prefix}{name}.', sharded_offsets, metadata
-            )
+            module_sharded_sd = sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
 
             sharded_state_dict.update(module_sharded_sd)
         return sharded_state_dict
@@ -1083,9 +1093,7 @@ class ParallelShortHyenaOperator(nn.Module):
         world_size: int = get_tensor_model_parallel_world_size() if not local_init else 1
         # assert, if using fast_conv_mixer, then the hyena_short_conv_len must be 3
         if use_fast_causal_conv:
-            assert (
-                    hyena_config.hyena_short_conv_len <= 4
-            ), "fast_conv_mixer requires hyena_short_conv_len <= 4"
+            assert hyena_config.hyena_short_conv_len <= 4, "fast_conv_mixer requires hyena_short_conv_len <= 4"
 
         # for mlp type
         if is_mlp:
@@ -1115,7 +1123,7 @@ class ParallelShortHyenaOperator(nn.Module):
             self.num_groups = int(self.num_groups * hyena_config.hyena_mlp_expansion_factor)
         # handle mixer case
         else:
-            
+
             kernel_size = hyena_config.hyena_short_conv_len
             self.pregate = hyena_config.hyena_short_conv_pregate
             self.postgate = hyena_config.hyena_short_conv_postgate
@@ -1132,7 +1140,7 @@ class ParallelShortHyenaOperator(nn.Module):
         self.width_per_tp_group, self.num_groups, self.group_dim = get_groups_and_group_sizes(
             self.hidden_size, self.num_groups, world_size, hyena_config.hyena_width_expansion
         )
-    
+
         self.short_conv = short_conv_class(
             self.width_per_tp_group,
             transformer_config,
@@ -1348,14 +1356,12 @@ class ParallelShortHyenaOperator(nn.Module):
             z = x1 * z if self.postgate else z
 
             return rearrange(z, "b d l -> b l d")
-        
+
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         sharded_state_dict = {}
         # Submodules
         for name, module in self.named_children():
-            module_sharded_sd = sharded_state_dict_default(
-                module, f'{prefix}{name}.', sharded_offsets, metadata
-            )
+            module_sharded_sd = sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
 
             sharded_state_dict.update(module_sharded_sd)
         return sharded_state_dict
@@ -1421,7 +1427,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
             self.short_conv_weight.data = conv_init_method(self.short_conv_weight.data)
         else:
             initialize_affine_weight_gpu(self.short_conv_weight, conv_init_method, partition_dim=0)
-        
+
     def forward(self, x, _use_cp=True):
         assert x.ndim == 3, "Only 3D tensors supported."
 
@@ -1430,7 +1436,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         pad_size = self.kernel_size - 1
 
         if _use_cp and get_context_parallel_world_size() > 1:
-    
+
             cp_group = get_context_parallel_group()
             cp_rank = get_context_parallel_rank()
 
@@ -1454,7 +1460,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         if self.use_fast_causal_conv:
             y = causal_conv1d_fn(x, weight, bias=None, activation=None)[..., pad_size:]
         else:
-            
+
             y = F.conv1d(
                 x,
                 weight,
@@ -1465,7 +1471,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
             )
 
         if _use_cp and get_context_parallel_world_size() > 1:
-            y = rearrange(y,"(nc b) h s -> b h (nc s)", nc=2)
+            y = rearrange(y, "(nc b) h s -> b h (nc s)", nc=2)
 
         assert y.shape == x_shape, f"y.shape = {y.shape} | x.shape = {x_shape}"
 
@@ -1475,11 +1481,14 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         """Sharding along axis 0, bias not sharded"""
         state_dict = self.state_dict(prefix='', keep_vars=True)
         return make_sharded_tensors_for_checkpoint(
-            state_dict, 
-            prefix, 
-            {'short_conv_weight': 0,}, 
-            sharded_offsets
+            state_dict,
+            prefix,
+            {
+                'short_conv_weight': 0,
+            },
+            sharded_offsets,
         )
+
 
 def make_upper_case(tokens):
     """
@@ -1492,6 +1501,7 @@ def make_upper_case(tokens):
     uppercase_tensor[lowercase_mask] -= 32
 
     return uppercase_tensor, lowercase_mask
+
 
 def reweighted_cross_entropy(loss, labels, lowercase_weight=1.0, normalize_per_batch=True):
     """

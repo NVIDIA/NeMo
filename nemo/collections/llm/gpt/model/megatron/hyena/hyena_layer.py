@@ -39,6 +39,7 @@ class HyenaLayerSubmodules:
     mlp: Union[ModuleSpec, type] = IdentityOp
     mlp_bda: Union[ModuleSpec, type] = IdentityOp
 
+
 class HyenaLayer(MegatronModule):
     def __init__(
         self,
@@ -67,10 +68,12 @@ class HyenaLayer(MegatronModule):
             layer_number=layer_number,
             operator_type=operator_type,
         )
-        self.norm = build_module(submodules.norm, 
-                                 self.transformer_config, 
-                                 self.transformer_config.hidden_size,
-                                 eps=self.transformer_config.layernorm_epsilon,)
+        self.norm = build_module(
+            submodules.norm,
+            self.transformer_config,
+            self.transformer_config.hidden_size,
+            eps=self.transformer_config.layernorm_epsilon,
+        )
 
         self.hyena_bda = build_module(submodules.hyena_bda)
         self.bias_dropout_add_exec_handler = torch.enable_grad
@@ -113,20 +116,18 @@ class HyenaLayer(MegatronModule):
             hidden_states = self.hyena_bda(self.training, self.transformer_config.bias_dropout_fusion)(
                 mixer_out_with_bias, residual, self.hidden_dropout
             )
-        
+
         residual = hidden_states
 
         pre_mlp_layernorm_output = self.pre_mlp_layernorm(hidden_states)
-    
+
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
-        
+
         with self.bias_dropout_add_exec_handler():
             hidden_states = self.mlp_bda(self.training, self.transformer_config.bias_dropout_fusion)(
                 mlp_output_with_bias, residual, self.hidden_dropout
             )
-        
-        output = make_viewless_tensor(
-            inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
-        )
+
+        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
 
         return hidden_states

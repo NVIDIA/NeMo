@@ -93,17 +93,13 @@ hyena_stack_spec_no_te = ModuleSpec(
                 norm=TENorm,
                 mixer=ModuleSpec(
                     module=HyenaMixer,
-                    submodules=HyenaMixerSubmodules(
-                        dense_projection=ColumnParallelLinear, dense=RowParallelLinear
-                    ),
+                    submodules=HyenaMixerSubmodules(dense_projection=ColumnParallelLinear, dense=RowParallelLinear),
                 ),
                 hyena_bda=get_bias_dropout_add,
                 pre_mlp_layernorm=TENorm,
                 mlp=ModuleSpec(
                     module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear
-                    ),
+                    submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear),
                 ),
                 mlp_bda=get_bias_dropout_add,
             ),
@@ -125,9 +121,7 @@ hyena_stack_spec_no_te = ModuleSpec(
                 pre_mlp_layernorm=TENorm,
                 mlp=ModuleSpec(
                     module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear
-                    ),
+                    submodules=MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=RowParallelLinear),
                 ),
                 mlp_bda=get_bias_dropout_add,
             ),

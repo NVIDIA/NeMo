@@ -16,13 +16,14 @@ import logging
 import os
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
 
 import lightning.pytorch as pl
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from torch.utils import data
 from megatron.core.datasets.gpt_dataset import GPTDataset
 from megatron.core.datasets.megatron_dataset import MegatronDataset
+from torch.utils import data
+
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler

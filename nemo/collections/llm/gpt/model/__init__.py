@@ -45,6 +45,7 @@ from nemo.collections.llm.gpt.model.gemma2 import (
     Gemma2Config27B,
     Gemma2Model,
 )
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.hyena import (
     Hyena7bARCLongContextConfig,
     Hyena7bConfig,
@@ -57,7 +58,6 @@ from nemo.collections.llm.gpt.model.hyena import (
     HyenaNVTestConfig,
     HyenaTestConfig,
 )
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,

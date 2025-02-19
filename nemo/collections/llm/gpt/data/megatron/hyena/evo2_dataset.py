@@ -135,7 +135,9 @@ class Evo2Dataset(GPTDataset):
 
         # Valid DNA tokens: A, C, G, T, N (both uppercase and lowercase)
         valid_dna = {65, 67, 71, 84, 78, 97, 99, 103, 116, 110}
-        valid_dna_or_control_tensor = torch.tensor(list(valid_dna | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype)
+        valid_dna_or_control_tensor = torch.tensor(
+            list(valid_dna | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype
+        )
         # Pre-build a tensor for other tag characters.
         other_tag_tensor = torch.tensor(list(other_tag_chars), device=device, dtype=dtype)
 
@@ -183,7 +185,7 @@ class Evo2Dataset(GPTDataset):
                 assert first_pipe == seg_len - 1
                 # The sequence ends with a pipe, so just check everything before the pipe.
                 if region_all_valid_or_control(seg_seq[:first_pipe]):
-                    return seg_mask # Pipe pos has already been masked
+                    return seg_mask  # Pipe pos has already been masked
                 else:
                     seg_mask[:first_pipe] = 0
                     return seg_mask
@@ -194,7 +196,7 @@ class Evo2Dataset(GPTDataset):
                 else:
                     pass
                 is_tag = not is_tag  # Flip the state machine.
-                start = end + 1 # position after the pipe
+                start = end + 1  # position after the pipe
             # Process the last segment after the last pipe.
             if is_tag:
                 seg_mask[start:] = 0

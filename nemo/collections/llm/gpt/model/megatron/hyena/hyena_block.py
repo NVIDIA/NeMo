@@ -19,8 +19,6 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Union
 
-from torch import Tensor, nn
-
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
@@ -31,11 +29,11 @@ from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.utils import sharded_state_dict_default
 from megatron.core.utils import make_viewless_tensor
+from torch import Tensor, nn
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import Symbols as LayerSymbols
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import allocate_layers
-
 
 try:
     from megatron.core.extensions.transformer_engine import (
@@ -80,12 +78,14 @@ except ImportError:
 
         LayerNormImpl = WrappedTorchLayerNorm
 
-    
+
 HYENA_LAYER_MAP = {
     LayerSymbols.HYENA_SHORT: "hyena_short_conv",
     LayerSymbols.HYENA_MEDIUM: "hyena_medium_conv",
     LayerSymbols.HYENA: "hyena",
 }
+
+
 @dataclass
 class HyenaStackSubmodules:
     """
@@ -125,9 +125,7 @@ class HyenaStack(MegatronModule):
 
         pp_layer_offset = 0
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            pp_layer_offset, layer_type_list = self._select_layers_for_pipeline_parallel(
-                layer_type_list
-            )
+            pp_layer_offset, layer_type_list = self._select_layers_for_pipeline_parallel(layer_type_list)
 
         self.layers = nn.ModuleList()
         for i, layer_type in enumerate(layer_type_list):
@@ -142,9 +140,7 @@ class HyenaStack(MegatronModule):
                 )
             elif layer_type == LayerSymbols.ATTENTION:
                 # Transformer layers apply their own pp_layer_offset
-                layer = build_module(
-                    submodules.attention_layer, config=self.transformer_config, layer_number=i + 1
-                )
+                layer = build_module(submodules.attention_layer, config=self.transformer_config, layer_number=i + 1)
             else:
                 assert True, "unexpected layer_type"
             self.layers.append(layer)
@@ -168,6 +164,7 @@ class HyenaStack(MegatronModule):
         used by internal code to bypass the input provided by the
         forward_step_func"""
         self.input_tensor = input_tensor
+
     def _select_layers_for_pipeline_parallel(self, layer_type_list):
         pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
         num_layers_per_pipeline_rank = (
@@ -175,8 +172,7 @@ class HyenaStack(MegatronModule):
         )
 
         assert parallel_state.get_virtual_pipeline_model_parallel_world_size() is None, (
-            "The Hyena hybrid model does not currently support "
-            "virtual/interleaved pipeline parallelism"
+            "The Hyena hybrid model does not currently support " "virtual/interleaved pipeline parallelism"
         )
 
         offset = pipeline_rank * num_layers_per_pipeline_rank
@@ -196,13 +192,7 @@ class HyenaStack(MegatronModule):
         """Forward method with activation checkpointing."""
 
         def custom(start: int, end: int):
-            def custom_forward(
-                hidden_states, 
-                attention_mask, 
-                context,
-                context_mask,
-                rotary_pos_emb
-            ):
+            def custom_forward(hidden_states, attention_mask, context, context_mask, rotary_pos_emb):
                 for index in range(start, end):
                     layer = self._get_layer(index)
                     hidden_states = layer(
@@ -248,9 +238,7 @@ class HyenaStack(MegatronModule):
             # A method to further reduce memory usage reducing checkpoints.
             layer_idx = 0
             while layer_idx < self.num_layers_per_pipeline_rank:
-                hidden_states = checkpoint_handler(
-                    custom(layer_idx, layer_idx + self.config.recompute_num_layers)
-                )
+                hidden_states = checkpoint_handler(custom(layer_idx, layer_idx + self.config.recompute_num_layers))
 
                 layer_idx += self.config.recompute_num_layers
 
@@ -269,22 +257,20 @@ class HyenaStack(MegatronModule):
                 ):
                     hidden_states = checkpoint_handler(custom(layer_idx, layer_idx + 1))
                 else:
-                    hidden_states = custom(layer_idx, layer_idx + 1)(
-                        hidden_states, attention_mask, rotary_pos_emb
-                    )
+                    hidden_states = custom(layer_idx, layer_idx + 1)(hidden_states, attention_mask, rotary_pos_emb)
         else:
             raise ValueError("Invalid activation recompute method.")
 
         return hidden_states
-    
+
     def forward(
         self,
         hidden_states: Tensor,
         attention_mask: Tensor,
         inference_params=None,
         rotary_pos_emb: Tensor = None,
-    ):  
-        
+    ):
+
         if not self.pre_process:
             # See set_input_tensor()
             hidden_states = self.input_tensor
@@ -346,7 +332,6 @@ class HyenaStack(MegatronModule):
             if isinstance(hidden_states, tuple):
                 hidden_states = hidden_states[0]
 
-
         # # Forward pass.
         # if self.config.recompute_granularity == 'full' and self.training:
         #     hidden_states = self._checkpointed_forward(
@@ -373,12 +358,10 @@ class HyenaStack(MegatronModule):
         if self.post_process and self.post_layer_norm:
             hidden_states = self.final_norm(hidden_states)
 
-        output = make_viewless_tensor(
-                inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True
-            )
+        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
 
         return hidden_states
-        
+
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: dict = None
     ) -> ShardedStateDict:
@@ -404,16 +387,12 @@ class HyenaStack(MegatronModule):
         for local_layer_idx, layer in enumerate(self.layers):
 
             global_layer_offset = layer.layer_number - 1  # self.layer_number starts at 1
-            state_dict_prefix = (
-                f'{layer_prefix}{local_layer_idx}.'  # module list index in HyenaBlock
-            )
+            state_dict_prefix = f'{layer_prefix}{local_layer_idx}.'  # module list index in HyenaBlock
 
             sharded_prefix = f'{layer_prefix}{global_layer_offset}.'
             sharded_pp_offset = []
 
-            layer_sharded_state_dict = layer.sharded_state_dict(
-                state_dict_prefix, sharded_pp_offset, metadata
-            )
+            layer_sharded_state_dict = layer.sharded_state_dict(state_dict_prefix, sharded_pp_offset, metadata)
 
             replace_prefix_for_sharding(layer_sharded_state_dict, state_dict_prefix, sharded_prefix)
 
@@ -423,9 +402,7 @@ class HyenaStack(MegatronModule):
         for name, module in self.named_children():
             if not module is self.layers:
                 sharded_state_dict.update(
-                    sharded_state_dict_default(
-                        module, f'{prefix}{name}.', sharded_offsets, metadata
-                    )
+                    sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
                 )
 
         return sharded_state_dict

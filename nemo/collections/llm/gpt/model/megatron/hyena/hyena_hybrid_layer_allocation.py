@@ -38,7 +38,6 @@ class Symbols:
     VALID = {HYENA_SHORT, HYENA_MEDIUM, HYENA, ATTENTION}
 
 
-
 def _allocate_override(total_layers_count: int, override_pattern: str) -> list:
     layer_type_list = list(override_pattern)
     override_pattern_length = len(layer_type_list)
@@ -79,26 +78,22 @@ def allocate_layers(
     log_single_rank(
         logger,
         logging.INFO,
-        f"{actual_hyena_short_layers_count} heyna_short_conv layers in "
-        f"{total_layers_count} total layers.",
+        f"{actual_hyena_short_layers_count} heyna_short_conv layers in " f"{total_layers_count} total layers.",
     )
     log_single_rank(
         logger,
         logging.INFO,
-        f"{actual_hyena_medium_layers_count} heyna_medium_conv layers in "
-        f"{total_layers_count} total layers.",
+        f"{actual_hyena_medium_layers_count} heyna_medium_conv layers in " f"{total_layers_count} total layers.",
     )
     log_single_rank(
         logger,
         logging.INFO,
-        f"{actual_hyena_layers_count} heyna layers in "
-        f"{total_layers_count} total layers.",
+        f"{actual_hyena_layers_count} heyna layers in " f"{total_layers_count} total layers.",
     )
     log_single_rank(
         logger,
         logging.INFO,
-        f"{actual_attention_layers_count} attention layers in "
-        f"{total_layers_count} total layers.",
+        f"{actual_attention_layers_count} attention layers in " f"{total_layers_count} total layers.",
     )
 
     return layer_type_list

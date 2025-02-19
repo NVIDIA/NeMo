@@ -36,12 +36,14 @@ class ByteLevelProcessor:
 
 
 class ByteLevelTokenizer(TokenizerSpec):
-    def __init__(self, 
-                 special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
-                 vocab_size: int = 512,
-                 _eos_id: int = 0,
-                 _pad_id: int = 1,
-                 _bos_id: int = None,):
+    def __init__(
+        self,
+        special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,
+        vocab_size: int = 512,
+        _eos_id: int = 0,
+        _pad_id: int = 1,
+        _bos_id: int = None,
+    ):
         self.vocab_size = vocab_size if special_tokens is None else vocab_size + len(special_tokens)
         self.special_start = vocab_size
         self._eos_id = _eos_id
@@ -73,10 +75,10 @@ class ByteLevelTokenizer(TokenizerSpec):
 
     def decode_token(self, token: int):
         return str(chr(self.clamp(token)))
-    
+
     def clamp(self, n):
         return max(32, min(n, self.vocab_size))
-    
+
     def ids_to_text(self, ids):
         # remove special tokens.
         ids = [x for x in ids if x < self.special_start]
@@ -117,7 +119,7 @@ class ByteLevelTokenizer(TokenizerSpec):
     @property
     def eos_id(self):
         return self._eos_id
-    
+
     @property
     def bos_id(self):
         return self._bos_id

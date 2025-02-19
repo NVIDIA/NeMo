@@ -108,6 +108,7 @@ class HyenaModel(GPTModel):
         )
         return output_tensor
 
+
 def hyena_forward_step(model, batch) -> torch.Tensor:
 
     forward_args = {

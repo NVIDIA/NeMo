@@ -52,13 +52,16 @@ def set_format_recipe():
     fp8_recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
     return fp8_recipe
 
+
 @dataclass
 class HyenaMixerSubmodules:
     """
     Contains the module specs for the input and output linear layers.
     """
+
     dense_projection: Union[ModuleSpec, type] = None
     dense: Union[ModuleSpec, type] = None
+
 
 class HyenaMixer(MegatronModule):
     def __init__(
@@ -71,7 +74,7 @@ class HyenaMixer(MegatronModule):
         operator_type="H",
         is_mlp=False,  # TODO: Check if needed, only used when using Hyena for the MLP block
     ):
-        
+
         super().__init__(transformer_config)
         self.transformer_config = transformer_config
         self.hyena_config = hyena_config
@@ -96,9 +99,7 @@ class HyenaMixer(MegatronModule):
 
         # we might expand the hidden size for hyena
         self.input_size = self.transformer_config.hidden_size
-        self.hidden_size = int(
-            self.transformer_config.hidden_size * self.hyena_width_expansion
-        )
+        self.hidden_size = int(self.transformer_config.hidden_size * self.hyena_width_expansion)
 
         # ensures parallizable
         if self.hyena_width_expansion > 1:
@@ -207,14 +208,12 @@ class HyenaMixer(MegatronModule):
         # Submodules
         for name, module in self.named_children():
             if name != 'attention_dropout':
-                module_sharded_sd = sharded_state_dict_default(
-                    module, f'{prefix}{name}.', sharded_offsets, metadata
-                )
+                module_sharded_sd = sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
 
                 sharded_state_dict.update(module_sharded_sd)
 
         return sharded_state_dict
-    
+
     def forward(self, x, layer_past=None, inference_params=None, _hyena_use_cp=True):
         """
         Applies sequence mixing to a sequence of 1-dimensional embeddings: batch_size, seq_len, d_model
@@ -241,11 +240,11 @@ class HyenaMixer(MegatronModule):
         features_D_last = self.hyena_proj_conv(features_L_last, _use_cp=_proj_use_cp).permute(0, 2, 1)
 
         x1, x2, v = rearrange(
-                    features_D_last, "b l (g dg p) -> b l g p dg", p=3, g=self.num_groups_per_tp_rank
-                ).unbind(dim=3)
+            features_D_last, "b l (g dg p) -> b l g p dg", p=3, g=self.num_groups_per_tp_rank
+        ).unbind(dim=3)
 
         z = self.mixer(x1, x2, v)
         z = rearrange(z, "b l d -> l b d").contiguous()
-        
+
         y, bias = self.dense(z)
         return y, bias
