@@ -55,6 +55,7 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.speechlm.models.base import SpeechLanguageModel
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
+from nemo.collections.speechlm.utils.io import import_ckpt
 from nemo.collections.speechlm.utils.text_generation.audio_text_generation_strategy import (
     SpeechToTextGenerationStrategy,
 )
@@ -206,8 +207,8 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         time.sleep(rank / 2)
 
         llm_model_cls = model_utils.import_class_by_path(self.language_model_class)  # type: GPTModel
-        ckpt_path = io.import_ckpt(
-            llm_model_cls(self.language_model_config), f"{self.language_model_hub}{ckpt_path}", import_tokenizer=False
+        ckpt_path = import_ckpt(
+            llm_model_cls(self.language_model_config), f"{self.language_model_hub}{ckpt_path}", on_import_ckpt=False
         )
 
         sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
