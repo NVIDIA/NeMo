@@ -14,7 +14,7 @@
 
 from pathlib import Path
 from random import choices, sample
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Literal
 
 import datasets
 import numpy as np
