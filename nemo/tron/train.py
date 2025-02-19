@@ -233,7 +233,7 @@ def train(
         global_state.train_state.skipped_train_samples += num_skipped_samples_in_batch
 
         # Logging.
-        if not optimizer.is_stub_optimizer:
+        if hasattr(optimizer, 'is_stub_optimizer') and not optimizer.is_stub_optimizer:
             loss_scale = optimizer.get_loss_scale().item()
         else:
             loss_scale = 1.0
