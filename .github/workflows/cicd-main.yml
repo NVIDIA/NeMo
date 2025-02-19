@@ -61,16 +61,16 @@ jobs:
 
           # For correctly labeled PR, we replace `all` with the actual job names          
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" == "true" ]]; then
-              TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
+            TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
           # For incorrectly labeled PR, run no tests
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" != "true" ]]; then
             TESTS_TO_RUN=""
             
-          # For push events, run only unit tests. This is so that we can generate coverage
+          # For push events, run all tests. This is so that we can generate coverage
           # on branch `main`.
           elif [[ "$EVENT_NAME" == "push" ]]; then
-            TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[]] | [.[] | select(.key == "L0_Unit*") | .key] | join(",")')
+            TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
           else
             echo "Unsupported event_name $EVENT_NAME provided".
@@ -151,7 +151,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/audio -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -161,7 +160,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Common')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/common -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -171,7 +169,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_LLM')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/llm -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -181,7 +178,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Multimodal')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/multimodal -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -191,7 +187,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_NLP')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/nlp -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -201,7 +196,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_TTS')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/tts -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -212,7 +206,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/core -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -222,7 +215,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Hydra')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/hydra -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -232,7 +224,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Lightning')
     with:
       RUNNER: self-hosted-azure
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0,1 pytest tests/lightning -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -242,7 +233,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Others')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest -m "not pleasefixme" --with_downloads \
         --ignore=tests/collections/asr \
@@ -267,7 +257,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -277,7 +266,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Audio')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -288,7 +276,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/common -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -298,7 +285,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_LLM')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/llm -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -308,7 +294,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Multimodal')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -319,7 +304,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -329,7 +313,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_TTS')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -340,7 +323,6 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -350,7 +332,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Hydra')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/hydra -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -360,7 +341,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Lightning')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/lightning -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -370,7 +350,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Others')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat \
         --ignore=tests/collections/asr \
@@ -386,55 +365,6 @@ jobs:
         --ignore=tests/lightning \
         --ignore=tests/utils \
         --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_Coverage:
-    runs-on: ubuntu-latest
-    needs:
-      - L0_Unit_Tests_GPU_ASR
-      - L0_Unit_Tests_GPU_Audio
-      - L0_Unit_Tests_GPU_Common
-      - L0_Unit_Tests_GPU_LLM
-      - L0_Unit_Tests_GPU_Multimodal
-      - L0_Unit_Tests_GPU_NLP
-      - L0_Unit_Tests_GPU_TTS
-      - L0_Unit_Tests_GPU_Core
-      - L0_Unit_Tests_GPU_Hydra
-      - L0_Unit_Tests_GPU_Lightning
-      - L0_Unit_Tests_GPU_Others
-      - L0_Unit_Tests_CPU_ASR
-      - L0_Unit_Tests_CPU_Audio
-      - L0_Unit_Tests_CPU_Common
-      - L0_Unit_Tests_CPU_LLM
-      - L0_Unit_Tests_CPU_Multimodal
-      - L0_Unit_Tests_CPU_NLP
-      - L0_Unit_Tests_CPU_TTS
-      - L0_Unit_Tests_CPU_Core
-      - L0_Unit_Tests_CPU_Hydra
-      - L0_Unit_Tests_CPU_Lightning
-      - L0_Unit_Tests_CPU_Others
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download coverage reports of current branch
-        uses: actions/download-artifact@v4
-
-      - name: Get total coverage of current branch
-        shell: bash -x -e -u -o pipefail {0}
-        if: always()
-        id: total-current-branch
-        run: |
-          pip install coverage
-
-          ls -al .
-          ls -al coverage-*/
-          coverage combine --keep $(ls coverage-*/.coverage)
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
 
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
@@ -1211,10 +1141,10 @@ jobs:
         amp=true
 
   # L2: Speech Transcription
-  L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
+  Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1229,11 +1159,12 @@ jobs:
         matmul_precision=medium
       AFTER_SCRIPT: |
         rm -rf /tmp/preds.json transcribe.log
+      IS_OPTIONAL: true
 
-  L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
+  Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1252,11 +1183,12 @@ jobs:
         +prompt.pnc="no"
       AFTER_SCRIPT: |
         rm -rf preds.json transcribe.log
+      IS_OPTIONAL: true
 
-  L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
+  Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1271,6 +1203,7 @@ jobs:
         matmul_precision=medium
       AFTER_SCRIPT: |
         rm -rf preds.json
+      IS_OPTIONAL: true
 
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
@@ -3760,6 +3693,20 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
+  L2_HF_Transformer_PEFT_notebook:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_notebook')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        jupyter nbconvert --to script tutorials/llm/hf/peft.ipynb --output _peft
+        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_peft.py
+        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_peft.py
+        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_peft.py
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
   L2_HF_Transformer_PEFT:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -3767,7 +3714,9 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --ckpt-folder /tmp/hf_peft_ckpt
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 --ckpt-folder /tmp/hf_peft_ckpt
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3778,7 +3727,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py \
+        --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3789,20 +3739,37 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp --ckpt-folder /tmp/hf_peft_ckpt_ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy ddp \
+          --ckpt-folder /tmp/hf_peft_ckpt_ddp
+
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy ddp \
+          --ckpt-folder /tmp/hf_peft_ckpt_ddp --auto-resume
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
-  #  L2_HF_Transformer_PEFT_2gpu_FSDP2:
-  #    needs: [pre-flight, cicd-test-container-build]
-  #    uses: ./.github/workflows/_test_template.yml
-  #    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2') || needs.pre-flight.outputs.all == 'true'
-  #    with:
-  #      RUNNER: self-hosted-azure
-  #      SCRIPT: |
-  #        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy fsdp2 --ckpt-folder /tmp/hf_peft_ckpt_fsdp2
-  #      AFTER_SCRIPT: |
-  #        rm -rf nemo_experiments
+  # L2_HF_Transformer_PEFT_2gpu_FSDP2:
+  #   needs: [pre-flight, cicd-test-container-build]
+  #   uses: ./.github/workflows/_test_template.yml
+  #   if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2') || needs.pre-flight.outputs.all == 'true'
+  #   with:
+  #     RUNNER: self-hosted-azure
+  #     SCRIPT: |
+  #       TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+  #        --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+  #        --max-steps 3 \
+  #        --devices 2 \
+  #        --strategy fsdp2 \
+  #        --ckpt-folder /tmp/hf_peft_ckpt_fsdp2
+  #     AFTER_SCRIPT: |
+  #       rm -rf nemo_experiments
 
   L2_HF_Transformer_PEFT_2gpu_nemorun:
     needs: [pre-flight, cicd-test-container-build]
@@ -3822,7 +3789,42 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp --auto-resume
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  # L2_HF_Transformer_SFT_2gpu_FSDP2:
+  #   needs: [pre-flight, cicd-test-container-build]
+  #   uses: ./.github/workflows/_test_template.yml
+  #   if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2')
+  #   with:
+  #     RUNNER: self-hosted-azure
+  #     SCRIPT: |
+  #       TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2
+  #       TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2 --auto-resume
+  #     AFTER_SCRIPT: |
+  #       rm -rf nemo_experiments
+
+  L2_HF_Transformer_SFT_2gpu_nemorun:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3845,28 +3847,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_2gpu_nemorun:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3903,6 +3883,20 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
+  L2_HF_Transformer_SFT_notebook:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_notebook')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        jupyter nbconvert --to script tutorials/llm/hf/sft.ipynb --output _sft
+        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_sft.py
+        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_sft.py
+        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_sft.py
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
   L2_HF_Transformer_SFT:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -3910,7 +3904,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3932,7 +3926,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --model-accelerator te --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --model-accelerator te --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -5051,10 +5045,13 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        python tests/collections/llm/gpt_distillation.py \
+        python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
+
+        python scripts/llm/gpt_distillation.py \
           --name nemo2_llama_distill \
-          --teacher_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
-          --student_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+          --teacher_path /tmp/nemo2_ckpt \
+          --student_path /tmp/nemo2_ckpt \
+          --tokenizer gpt2 \
           --tp_size 1 \
           --cp_size 1 \
           --pp_size 2 \
@@ -5072,6 +5069,7 @@ jobs:
           --limit_val_batches 2
 
       AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/distill_logs
 
   L2_NeMo_2_Export_In_Framework:
@@ -5147,6 +5145,40 @@ jobs:
         rm -rf /tmp/llama_head64
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/vllm_from_nemo2
+
+  L2_SpeechLM_LoRA_TP1PP1_MBS2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_SpeechLM_LoRA_TP1PP1_MBS2') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python tests/collections/speechlm/speech_to_text_llm_train.py \
+          --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
+          --val_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
+          --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+          --devices 2 \
+          --max_steps 500 \
+          --experiment_dir /tmp/nemo2_speechlm_lora/${{ github.run_id }} \
+          --peft lora \
+          --tp_size 1 \
+          --pp_size 1 \
+          --mbs 2
+
+        python tests/collections/speechlm/speech_to_text_llm_train.py \
+          --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
+          --val_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
+          --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+          --devices 2 \
+          --max_steps 600 \
+          --experiment_dir /tmp/nemo2_speechlm_lora/${{ github.run_id }} \
+          --peft lora \
+          --tp_size 1 \
+          --pp_size 1 \
+          --mbs 2
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_speechlm_lora/${{ github.run_id }}
 
   Nemo_CICD_Test:
     needs:
@@ -5271,14 +5303,17 @@ jobs:
       - L2_NeMo_2_llama3_pretraining_recipe
       - L2_NeMo_2_llama3_fault_tolerance_plugin
       - L2_NeMo_2_llama3_straggler_detection
+      - L2_HF_Transformer_PEFT_notebook
       - L2_HF_Transformer_PEFT
       - L2_HF_Transformer_PEFT_nemorun
       - L2_HF_Transformer_PEFT_2gpu
-      #- L2_HF_Transformer_PEFT_2gpu_FSDP2
+      # - L2_HF_Transformer_PEFT_2gpu_FSDP2
       - L2_HF_Transformer_PEFT_2gpu_nemorun
+      - L2_HF_Transformer_SFT_notebook
       - L2_HF_Transformer_SFT
       - L2_HF_Transformer_SFT_nemorun
       - L2_HF_Transformer_SFT_2gpu
+      # - L2_HF_Transformer_SFT_2gpu_FSDP2
       - L2_VLM_HF_Transformer_PEFT
       - L2_VLM_HF_Transformer_PEFT_FSDP
       - L2_VLM_HF_Transformer_PEFT_4bit
@@ -5329,9 +5364,9 @@ jobs:
       - L2_Speech_Estimate_Duration_Bins
       - L2_Speech_Batch_Size_OOMptimizer
       - L2_Speech_Batch_Size_OOMptimizer_Canary
-      - L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
-      - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
-      - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
       - L2_Megatron_GPT_Reranker
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
       - L2_NeMo_2_PTQ_Llama2_FP8
@@ -5342,6 +5377,8 @@ jobs:
       - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
+      - L2_SpeechLM_LoRA_TP1PP1_MBS2
+
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
     steps:
@@ -5478,3 +5515,38 @@ jobs:
       - name: "Pipeline not successful, set exit code to 1"
         if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
         run: exit 1
+
+  Coverage:
+    runs-on: ubuntu-latest
+    needs: [Nemo_CICD_Test]
+    strategy:
+      matrix:
+        flag: [unit-test, e2e]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage reports of current branch
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-${{ matrix.flag }}-*
+
+      - name: Get total coverage of current branch
+        shell: bash -x -e -u -o pipefail {0}
+        if: always()
+        run: |
+          pip install coverage
+
+          ls -al .
+          ls -al coverage-*/
+          coverage combine --keep $(ls coverage-*/.coverage)
+          coverage report
+          rm -rf coverage-*
+          ls -al
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+          flags: ${{ matrix.flag }}
