@@ -48,8 +48,6 @@ from nemo.lightning.io.pl import MegatronCheckpointIO
 # from bionemo.testing.megatron_parallel_state_utils import distributed_model_parallel_state
 
 
-
-
 def _munge_key_megatron_to_nemo2(k: str) -> str:
     return f"module.{k}"
 
