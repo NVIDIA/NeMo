@@ -55,7 +55,7 @@ def evaluate(
     # make validation batch size independent from training batch size
     eval_batch_size = state.cfg.megatron_lm_config.global_batch_size
     eval_num_microbatches = eval_batch_size // (
-        state.cfg.megatron_lm_config.micro_batch_size * state.cfg.megatron_lm_config.data_parallel_size
+        state.cfg.megatron_lm_config.micro_batch_size * state.cfg.data_parallel_size
     )
 
     with torch.no_grad():
@@ -167,7 +167,7 @@ def evaluate_and_print_results(
     wandb_writer = state.wandb_logger
 
     total_loss_dict, collected_non_loss_data, timelimit = evaluate(
-        forward_step_func, data_iterator, model, process_non_loss_data_func, config, verbose, non_loss_data_func
+        state, forward_step_func, data_iterator, model, process_non_loss_data_func, config, verbose, non_loss_data_func
     )
 
     # Timelimit hit during evaluation
@@ -185,7 +185,7 @@ def evaluate_and_print_results(
                 total_loss_dict[key].item(),
                 state.train_state.consumed_train_samples,
             )
-            if state.cfg.megatron_lm_config.log_validation_ppl_to_tensorboard:
+            if state.cfg.logger_config.log_validation_ppl_to_tensorboard:
                 writer.add_scalar("{} validation ppl".format(key), ppl, state.train_state.step)
                 writer.add_scalar(
                     "{} validation ppl vs samples".format(key), ppl, state.train_state.consumed_train_samples

@@ -875,14 +875,17 @@ class LoggerConfig:
     log_world_size_to_tensorboard: bool = False
     """Enable world size logging to tensorboard."""
 
-    wandb_project: str = ""
+    wandb_project: Optional[str] = None
     """The wandb project name. Ignore wandb by default."""
 
-    wandb_exp_name: str = ""
+    wandb_exp_name: Optional[str] = None
     """The wandb experiment name."""
 
-    wandb_save_dir: str = ""
+    wandb_save_dir: Optional[str] = None
     """Path to save the wandb results locally."""
+
+    wandb_entity: Optional[str] = None
+    """The wandb entity name."""
 
     logging_level: Optional[int] = None
     """Set default logging level"""
