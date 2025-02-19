@@ -372,30 +372,6 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         combined_embeddings = combined_embeddings.permute(1, 0, 2)
         combined_embeddings = combined_embeddings.contiguous()
 
-        truncate_labels = (labels is not None) and final_labels.shape[1] > self._language_max_sequence_length
-        if truncate_labels:
-            final_labels = final_labels[:, : self._language_max_sequence_length]
-            final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
-
-        if combined_embeddings is not None:
-            # if self.context_parallel_lm == 1:
-            #     # Transpose to [s,b,h] if not using CP or not using packed_sequence/THD format
-            #     final_embedding = combined_embeddings.transpose(1, 0).contiguous()
-            # Truncate if exceeding the language model's max sequence length.
-            if combined_embeddings.shape[0] > self._language_max_sequence_length:
-                combined_embeddings = combined_embeddings[: self._language_max_sequence_length]
-                packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
-
-                if packed_sequence:
-                    truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
-                    packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
-                    packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
-                    packed_seq_params.cu_seqlens_q[-1] -= truncate_len
-                    packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
-                    assert (
-                            packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
-                    ), "with packed sequence, the truncation can only truncate on the last sequence."
-
         output = self.language_model(
             input_ids=None,
             position_ids=None,

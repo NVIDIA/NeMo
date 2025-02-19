@@ -11,7 +11,7 @@ from nemo.collections.vlm.llava_next.data.interleaved_sample_encoder import Llav
 from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextRawBatch, LlavaNextTextSample, \
     PackedLlavaNextTextSample, PackedLlavaNextTextRawBatch
 from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import LlavaNextSampleEncoder
-from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed_llava_next
+from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed_llava_next, predict_seq_len_with_padding
 from nemo.utils import logging
 
 
@@ -59,7 +59,6 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         LlavaNextTextRawBatch: A batch containing all input samples' images, tokens, labels,
             loss masks, and other metadata prepared for model processing.
         """
-        # import pdb; pdb.set_trace()
         if self.packed_sequence:
             if len(samples) > 1:
                 raise ValueError(
@@ -150,7 +149,7 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         from nemo.collections.vlm.neva.data.sequence_packing import greedy_knapsack
 
         lengths = [
-            len(sample.tokens) for sample in samples
+            predict_seq_len_with_padding(sample.tokens) for sample in samples
         ]
 
         packed_samples = greedy_knapsack(lengths, samples, self.packed_sequence_size)
