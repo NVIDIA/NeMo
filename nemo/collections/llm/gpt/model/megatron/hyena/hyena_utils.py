@@ -1513,11 +1513,11 @@ def reweighted_cross_entropy(loss, labels, lowercase_weight=1.0, normalize_per_b
     loss_weights[lower_loss_mask] = lowercase_weight
 
     if normalize_per_batch:
-        # Get per-row sums for both loss_mask and weights
-        weight_sums = loss_weights.sum(dim=1, keepdim=True)
-        mask_sums = loss_mask.sum(dim=1, keepdim=True)
-        row_normalizers = torch.maximum(weight_sums, torch.ones_like(weight_sums))
-        loss_weights = (mask_sums * loss_weights) / row_normalizers
+        # Get per-microbatch normalization factor
+        weight_sum = loss_weights.sum()
+        mask_sum = loss_mask.sum()
+        weight_normalizer = torch.maximum(weight_sum, torch.ones_like(weight_sum))
+        loss_weights = (mask_sum * loss_weights) / weight_normalizer
 
     # Apply loss weights and loss mask to the loss
     loss = loss * loss_weights * loss_mask

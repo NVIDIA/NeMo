@@ -876,3 +876,43 @@ def test_no_eods_one_tag_with_batch_bs2(tag_tokens):
         eod_token_id=tag_tokens["eod"],
     )
     torch.testing.assert_close(mask, torch.stack([expected_mask, expected_mask]))
+
+def test_packed_partial_tag_subsequence_predna_with_control(tag_tokens):
+    """
+    Sequence: "GAATA[EOD]cacata|acagataaa@ataTACAGGGAATA|d__"
+    Expected: First partial tag masked (0s), middle DNA unmasked (1s), end tag masked (0s)
+
+    """
+    sequence_alpha = "GAATA0cacata|acagataaaa@taTACAGGGAATA|d__"
+    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    expected_mask = torch.tensor(
+        len("GAATA0") * [1] + [0] * len("cacata|") + len("acagataaaa@taTACAGGGAATA") * [1] + [0] * len("|d__"),
+        dtype=torch.int32,
+    )
+    mask = Evo2Dataset.mask_phylogenetic_tags(
+        tokenized_sequence=sequence,
+        terminal_tag_char=tag_tokens["terminal"],
+        other_tag_chars=tag_tokens["other_chars"],
+        eod_token_id=tag_tokens["eod"],
+    )
+    torch.testing.assert_close(mask, expected_mask)
+
+def test_packed_partial_tag_subsequence_predna_with_control2(tag_tokens):
+    """
+    Sequence: "GAATA[EOD]cacata|acagataaa@ataTACAGGGAATA|d__"
+    Expected: First partial tag masked (0s), middle DNA unmasked (1s), end tag masked (0s)
+
+    """
+    sequence_alpha = "GA#ATA0cacata|acagataaaa@taTACAGGGAATA|d__"
+    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    expected_mask = torch.tensor(
+        len("GA#ATA0") * [1] + [0] * len("cacata|") + len("acagataaaa@taTACAGGGAATA") * [1] + [0] * len("|d__"),
+        dtype=torch.int32,
+    )
+    mask = Evo2Dataset.mask_phylogenetic_tags(
+        tokenized_sequence=sequence,
+        terminal_tag_char=tag_tokens["terminal"],
+        other_tag_chars=tag_tokens["other_chars"],
+        eod_token_id=tag_tokens["eod"],
+    )
+    torch.testing.assert_close(mask, expected_mask)

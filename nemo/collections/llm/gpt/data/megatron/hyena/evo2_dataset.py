@@ -135,8 +135,7 @@ class Evo2Dataset(GPTDataset):
 
         # Valid DNA tokens: A, C, G, T, N (both uppercase and lowercase)
         valid_dna = {65, 67, 71, 84, 78, 97, 99, 103, 116, 110}
-        valid_dna_tensor = torch.tensor(list(valid_dna), device=device, dtype=dtype)
-
+        valid_dna_or_control_tensor = torch.tensor(list(valid_dna | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype)
         # Pre-build a tensor for other tag characters.
         other_tag_tensor = torch.tensor(list(other_tag_chars), device=device, dtype=dtype)
 
@@ -144,11 +143,11 @@ class Evo2Dataset(GPTDataset):
         out_mask = torch.ones_like(tokenized_sequence, dtype=torch.int)
 
         # Helper: Check if all tokens in a region are valid DNA.
-        def region_all_valid(region: torch.Tensor) -> bool:
+        def region_all_valid_or_control(region: torch.Tensor) -> bool:
             if region.numel() == 0:
                 return True
             # Using torch's all() over the token values.
-            return bool(torch.all(torch.isin(region, valid_dna_tensor)).cpu().item())
+            return bool(torch.all(torch.isin(region, valid_dna_or_control_tensor)).cpu().item())
 
         # Process one EOD-free segment using the O1 logic.
         def process_segment(seg_seq: torch.Tensor) -> torch.Tensor:
@@ -159,7 +158,7 @@ class Evo2Dataset(GPTDataset):
             if len(pipe_pos) == 0:
                 # If no pipe exists and any token is a known tag char or not valid DNA,
                 # mask the entire segment.
-                if not region_all_valid(seg_seq):
+                if not region_all_valid_or_control(seg_seq):
                     seg_mask.zero_()
                 return seg_mask
 
@@ -183,7 +182,7 @@ class Evo2Dataset(GPTDataset):
                 # The sequence ends with a pipe, so just check everything before the pipe and return the seg mask
                 assert first_pipe == seg_len - 1
                 # The sequence ends with a pipe, so just check everything before the pipe.
-                if region_all_valid(seg_seq[:first_pipe]):
+                if region_all_valid_or_control(seg_seq[:first_pipe]):
                     return seg_mask # Pipe pos has already been masked
                 else:
                     seg_mask[:first_pipe] = 0
@@ -222,7 +221,7 @@ class Evo2Dataset(GPTDataset):
 
         # Just to make sure we do not allow any non-DNA tokens to be unmasked, even if something went wrong with our
         #  mask logic.
-        out_mask[~torch.isin(tokenized_sequence, valid_dna_tensor)] = 0
+        out_mask[~torch.isin(tokenized_sequence, valid_dna_or_control_tensor)] = 0
         # Finally, force every EOD token to be unmasked. User decides outside of this function if they want EOD mask.
         out_mask[tokenized_sequence == eod_token_id] = 1
 
