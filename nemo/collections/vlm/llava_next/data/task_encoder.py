@@ -8,8 +8,12 @@ from nemo.collections.multimodal.data.energon.config import MultiModalSampleConf
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm.llava_next.data.interleaved_sample_encoder import LlavaNextSimilarityInterleavedSampleEncoder
-from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextRawBatch, LlavaNextTextSample, \
-    PackedLlavaNextTextSample, PackedLlavaNextTextRawBatch
+from nemo.collections.vlm.llava_next.data.sample import (
+    LlavaNextTextRawBatch,
+    LlavaNextTextSample,
+    PackedLlavaNextTextRawBatch,
+    PackedLlavaNextTextSample,
+)
 from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import LlavaNextSampleEncoder
 from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed_llava_next, predict_seq_len_with_padding
 from nemo.utils import logging
@@ -18,11 +22,15 @@ from nemo.utils import logging
 class LlavaNextTaskEncoder(MultiModalTaskEncoder):
     """LlavaNextTaskEncoder"""
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config,
-                 packed_sequence=False,
-                 packed_sequence_size=-1,
-                 num_image_embeddings_per_tile=576,
-                 ):
+    def __init__(
+        self,
+        tokenizer,
+        image_processor,
+        multimodal_sample_config,
+        packed_sequence=False,
+        packed_sequence_size=-1,
+        num_image_embeddings_per_tile=576,
+    ):
         """
         Initialize the LlavaNextTaskEncoder.
 
@@ -35,8 +43,14 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         multimodal_sample_config (MultiModalSampleConfig): Configuration settings for multimodal samples.
 
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config, packed_sequence,
-                         packed_sequence_size, num_image_embeddings_per_tile)
+        super().__init__(
+            tokenizer,
+            image_processor,
+            multimodal_sample_config,
+            packed_sequence,
+            packed_sequence_size,
+            num_image_embeddings_per_tile,
+        )
         self.encoders: Dict[str, SampleEncoder] = {
             VQASample.__name__: LlavaNextSampleEncoder(tokenizer, image_processor, multimodal_sample_config),
             SimilarityInterleavedSample.__name__: LlavaNextSimilarityInterleavedSampleEncoder(
@@ -44,8 +58,9 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             ),
         }
 
-    def batch(self, samples: List[Union[LlavaNextTextSample, PackedLlavaNextTextSample]]
-              ) -> Union[LlavaNextTextRawBatch, PackedLlavaNextTextRawBatch]:
+    def batch(
+        self, samples: List[Union[LlavaNextTextSample, PackedLlavaNextTextSample]]
+    ) -> Union[LlavaNextTextRawBatch, PackedLlavaNextTextRawBatch]:
         """
         Batch multiple encoded samples into a single batch structure for model input.
 
@@ -128,17 +143,15 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             ), "image_sizes and batch_num_media_tiles must have the same length"
 
             return LlavaNextTextRawBatch(
-                    __keys__=batch_keys,
-                    images=batch_images,
-                    tokens=batch_tokens,
-                    labels=batch_labels,
-                    loss_mask=batch_loss_mask,
-                    num_media_tiles=batch_num_media_tiles,
-                    image_sizes=image_sizes,
-                    attention_mask=batch_attention_mask,
-                )
-
-
+                __keys__=batch_keys,
+                images=batch_images,
+                tokens=batch_tokens,
+                labels=batch_labels,
+                loss_mask=batch_loss_mask,
+                num_media_tiles=batch_num_media_tiles,
+                image_sizes=image_sizes,
+                attention_mask=batch_attention_mask,
+            )
 
     def select_samples_to_pack(self, samples: List[Union[LlavaNextTextSample, PackedLlavaNextTextSample]]):
         """Selects which samples will be packed together.
@@ -148,9 +161,7 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         """
         from nemo.collections.vlm.neva.data.sequence_packing import greedy_knapsack
 
-        lengths = [
-            predict_seq_len_with_padding(sample.tokens) for sample in samples
-        ]
+        lengths = [predict_seq_len_with_padding(sample.tokens) for sample in samples]
 
         packed_samples = greedy_knapsack(lengths, samples, self.packed_sequence_size)
         avg_samples_per_bin = round(len(lengths) / len(packed_samples))
@@ -175,6 +186,7 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         Returns:
             ImageTaskSamplePacked instance.
         """
+        # import pdb; pdb.set_trace()
 
         keys, images, tokens, labels, loss_mask, num_media_tiles, image_sizes, attention_mask = (
             [],
@@ -198,28 +210,28 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         batch_list_num_media_tiles = flatten_if_nested(batch_list_num_media_tiles)
         batch_num_media_tiles = torch.tensor(batch_list_num_media_tiles, dtype=torch.int)
 
-
         packed_images = torch.cat([sample.images for sample in samples], dim=0)
-        self.sample_config.image_token.token_id
-        packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = convert_to_packed_llava_next(
-            tokens=[sample.tokens for sample in samples],
-            labels=[sample.labels for sample in samples],
-            ignore_index=self.sample_config.ignore_place_holder,
+        packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = (
+            convert_to_packed_llava_next(
+                tokens=[sample.tokens for sample in samples],
+                labels=[sample.labels for sample in samples],
+                ignore_index=self.sample_config.ignore_place_holder,
+            )
         )
 
         return PackedLlavaNextTextSample(
-                        __key__=",".join([s.__key__ for s in samples]),
-                        __restore_key__=(),  # Will be set by energon based on `samples`
-                        images=packed_images,
-                        tokens=packed_tokens,
-                        labels=packed_labels,
-                        loss_mask=None,
-                        attention_mask=None,
-                        position_ids=packed_position_ids,
-                        packed_seq_params=packed_seq_params,
-                        num_media_tiles=batch_num_media_tiles,
-                        image_sizes=image_sizes,
-                    )
+            __key__=",".join([s.__key__ for s in samples]),
+            __restore_key__=(),  # Will be set by energon based on `samples`
+            images=packed_images,
+            tokens=packed_tokens,
+            labels=packed_labels,
+            loss_mask=None,
+            attention_mask=None,
+            position_ids=packed_position_ids,
+            packed_seq_params=packed_seq_params,
+            num_media_tiles=batch_num_media_tiles,
+            image_sizes=image_sizes,
+        )
 
 
 from itertools import chain
@@ -260,10 +272,10 @@ if __name__ == '__main__':
                 image_processor=processor.image_processor,
                 multimodal_sample_config=MultiModalSampleConfig(),
                 packed_sequence=True,
-                packed_sequence_size=8086
+                packed_sequence_size=8086,
             ),
             worker_config=worker_config,
-            packing_buffer_size=200
+            packing_buffer_size=200,
         ),
         worker_config=worker_config,
     )

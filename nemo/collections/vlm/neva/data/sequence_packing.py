@@ -120,11 +120,11 @@ def predict_seq_len(instance_tokens: torch.Tensor, num_image_embeddings_per_tile
     seqlen = len(instance_tokens) + (num_image_embeddings_per_tile - 1) * num_images
     return seqlen
 
-def predict_seq_len_with_padding(instance_tokens: torch.Tensor,  pad_to_multiple_of: int = 64) -> int:
+
+def predict_seq_len_with_padding(instance_tokens: torch.Tensor, pad_to_multiple_of: int = 64) -> int:
     seqlen = len(instance_tokens)
     seqlen_padded = (seqlen + pad_to_multiple_of - 1) // pad_to_multiple_of * pad_to_multiple_of
     return seqlen_padded
-
 
 
 def convert_to_packed(
@@ -189,7 +189,6 @@ def convert_to_packed(
     )
 
     return packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params
-
 
 
 def convert_to_packed_llava_next(
