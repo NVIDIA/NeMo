@@ -13,11 +13,17 @@ from megatron.core.num_microbatches_calculator import (
     get_num_microbatches,
     update_num_microbatches,
 )
+from megatron.core.pipeline_parallel import get_forward_backward_func
+from megatron.core.rerun_state_machine import get_rerun_state_machine
 from megatron.core.utils import check_param_hashes_across_dp_replicas
 
 from nemo.tron.config import ConfigContainer, MegatronLMConfig
 from nemo.tron.state import GlobalState, TrainState
-from nemo.tron.train_utils import calc_params_l2_norm
+from nemo.tron.train_utils import (
+    calc_params_l2_norm,
+    logical_and_across_model_parallel_group,
+    reduce_max_stat_across_model_parallel_group,
+)
 from nemo.tron.utils import print_rank_0
 
 
@@ -40,7 +46,7 @@ def forward_step(data_iterator, loss_func, data_step: Callable, model, global_st
     return output_tensor, partial(loss_func, model_inputs.get("loss_mask", None))
 
 
-def _train(
+def train(
     forward_step_func,
     model,
     optimizer,
@@ -315,6 +321,98 @@ def _train(
         sys.exit(exit_code)
 
     return iteration
+
+
+def train_step(
+    forward_step_func,
+    iteration,
+    data_iterator,
+    model,
+    optimizer,
+    scheduler,
+    cfg: ConfigContainer,
+    global_state: GlobalState,
+):
+    """Single training step."""
+    timers = global_state.timers
+    model_config = cfg.model_config
+    mlm_config = cfg.megatron_lm_config
+    optim_config = cfg.optimizer_config
+
+    rerun_state_machine = get_rerun_state_machine()
+    while rerun_state_machine.should_run_forward_backward(data_iterator):
+        # Set grad to zero.
+        for model_chunk in model:
+            model_chunk.zero_grad_buffer()
+        optimizer.zero_grad()
+
+        # Forward pass.
+        forward_backward_func = get_forward_backward_func()
+        losses_reduced = forward_backward_func(
+            forward_step_func=forward_step_func,
+            data_iterator=data_iterator,
+            model=model,
+            num_microbatches=get_num_microbatches(),
+            seq_length=model_config.seq_length,
+            micro_batch_size=mlm_config.micro_batch_size,
+            decoder_seq_length=mlm_config.decoder_seq_length,
+            forward_only=False,
+        )
+    should_checkpoint, should_exit, exit_code = rerun_state_machine.should_checkpoint_and_exit()
+    if should_exit:
+        return {}, True, should_checkpoint, should_exit, exit_code, None, None
+
+    # Empty unused memory.
+    if mlm_config.empty_unused_memory_level >= 1:
+        torch.cuda.empty_cache()
+
+    # Update parameters.
+    timers('optimizer', log_level=1).start(barrier=optim_config.barrier_with_L1_time)
+    update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
+    timers('optimizer').stop()
+
+    # when freezing sub-models we may have a mixture of successful and unsucessful ranks,
+    # so we must gather across mp ranks
+    update_successful = logical_and_across_model_parallel_group(update_successful)
+    # grad_norm and num_zeros_in_grad will be None on ranks without trainable params,
+    # so we must gather across mp ranks
+    grad_norm = reduce_max_stat_across_model_parallel_group(grad_norm)
+    if optim_config.log_num_zeros_in_grad:
+        num_zeros_in_grad = reduce_max_stat_across_model_parallel_group(num_zeros_in_grad)
+
+    # Update learning rate.
+    if update_successful:
+        increment = get_num_microbatches() * mlm_config.micro_batch_size * cfg.data_parallel_size
+        scheduler.step(increment=increment)
+        skipped_iter = 0
+    else:
+        skipped_iter = 1
+
+    # Empty unused memory.
+    if mlm_config.empty_unused_memory_level >= 2:
+        torch.cuda.empty_cache()
+
+    if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+        # Average loss across microbatches.
+        loss_reduced = {}
+        for key in losses_reduced[0].keys():
+            numerator = 0
+            denominator = 0
+            for x in losses_reduced:
+                val = x[key]
+                # there is one dict per microbatch. in new reporting, we average
+                # over the total number of tokens across the global batch.
+                if isinstance(val, tuple) or isinstance(val, list):
+                    numerator += val[0]
+                    denominator += val[1]
+                else:
+                    # legacy behavior. we average over the number of microbatches,
+                    # and so the denominator is 1.
+                    numerator += val
+                    denominator += 1
+            loss_reduced[key] = numerator / denominator
+        return loss_reduced, skipped_iter, should_checkpoint, should_exit, exit_code, grad_norm, num_zeros_in_grad
+    return {}, skipped_iter, should_checkpoint, should_exit, exit_code, grad_norm, num_zeros_in_grad
 
 
 def post_training_step_callbacks(

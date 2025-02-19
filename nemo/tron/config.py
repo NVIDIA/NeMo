@@ -528,6 +528,12 @@ class MegatronLMConfig:
     mock_data: bool = False
     """Skip data loading and validation and opt for artificial generation of mock data when an implementation is available."""
 
+    encoder_seq_length: Optional[int] = None
+    """Maximum encoder sequence length to process."""
+
+    decoder_seq_length: Optional[int] = None
+    """Maximum decoder sequence length to process."""
+
     retriever_sequence_length: int = 256
     """Maximum sequence length for the biencoder model for retriever"""
 
