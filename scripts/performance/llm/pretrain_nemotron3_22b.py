@@ -15,13 +15,14 @@
 from os.path import basename, splitext
 
 import nemo_run as run
-from ..argument_parser import parse_cli_args
-from ..utils import get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
 
 from nemo.collections.llm.recipes.nemotron3_22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+
+from ..argument_parser import parse_cli_args
+from ..utils import get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
 
 
 def override_recipe_configs(

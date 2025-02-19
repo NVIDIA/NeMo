@@ -15,6 +15,12 @@
 from os.path import basename, splitext
 
 import nemo_run as run
+
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+
 from ..argument_parser import parse_cli_args
 from ..utils import (
     get_user_configs,
@@ -24,11 +30,6 @@ from ..utils import (
     set_primary_perf_configs,
     slurm_executor,
 )
-
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
 
