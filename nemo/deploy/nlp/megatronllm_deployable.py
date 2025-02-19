@@ -225,7 +225,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         results = inference.generate(
             model=self.inference_wrapped_model,
             tokenizer=self.mcore_tokenizer,
-            prompts=prompts, #new_prompst
+            prompts=prompts,  # new_prompst
             max_batch_size=max_batch_size,
             random_seed=random_seed,
             inference_params=inference_params,
