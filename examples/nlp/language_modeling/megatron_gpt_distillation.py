@@ -468,7 +468,7 @@ def adjust_distillation_model_for_mcore(model: mtd.DistillationModel, distill_cf
     """Extra modifcations to ``mtd.DistillationModel`` requried for Megatron-Core."""
 
     # HACK: Get rid of ModelOpt Distillation state
-    modelopt_states = mto.ModeloptStateManager(model)._state
+    modelopt_states = mto.ModeloptStateManager(model).state_dict()
     if len(modelopt_states) > 1:
         modelopt_states.pop()
     else:
