@@ -17,8 +17,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 from lightning.pytorch.callbacks import Callback
 
-from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP, read_tb_log
-from nemo.utils import logging
+from nemo.collections.common.parts.perf_metrics_utils import read_tb_log
+from nemo.utils import flops_formulas, logging
 
 __all__ = ["FLOPsMeasurementCallback"]
 
@@ -68,18 +68,29 @@ class FLOPsMeasurementCallback(Callback):
         self.num_nodes = self.train_cfg.get('num_nodes', None)
         self.num_gpus_per_node = self.train_cfg.get('devices', None)
 
-        self.gbs = self.model_cfg.get('global_batch_size', None)
-        self.enc_seq_len = self.model_cfg.get('encoder_seq_length', None)
-        self.hs = self.model_cfg.get('hidden_size', None)
-        self.layers = self.model_cfg.get('num_layers', None)
-        self.ffn_hs = self.model_cfg.get('ffn_hidden_size', None)
-        self.attention_heads = self.model_cfg.get('num_attention_heads', None)
-        self.moe_router_topk = self.model_cfg.get('moe_router_topk', None)
+        gbs = self.model_cfg.get('global_batch_size', None)
+        enc_seq_len = self.model_cfg.get('encoder_seq_length', None)
+        hs = self.model_cfg.get('hidden_size', None)
+        layers = self.model_cfg.get('num_layers', None)
+        ffn_hs = self.model_cfg.get('ffn_hidden_size', None)
+        attention_heads = self.model_cfg.get('num_attention_heads', None)
+        moe_router_topk = self.model_cfg.get('moe_router_topk', None)
 
         # this handles both- 1. key is present, value is None; 2. key is absent
-        self.query_groups = self.model_cfg.get('num_query_groups', None)
-        if self.query_groups is None:
-            self.query_groups = self.attention_heads
+        query_groups = self.model_cfg.get('num_query_groups', None)
+        if query_groups is None:
+            query_groups = attention_heads
+
+        self.flops_config = flops_formulas.FLOPSConfig(
+            gbs=gbs,
+            enc_seq_len=enc_seq_len,
+            hs=hs,
+            layers=layers,
+            ffn_hs=ffn_hs,
+            attention_heads=attention_heads,
+            moe_router_topk=moe_router_topk,
+            query_groups=query_groups,
+        )
 
         self.model = self.model.lower() if self.model is not None else self.model
 
@@ -128,12 +139,12 @@ class FLOPsMeasurementCallback(Callback):
         """
 
         model_flops_map = {
-            "gpt3": self._gpt3,
-            "llama2": self._llama2,
-            "llama3": self._llama3,
-            "nemotron": self._nemotron,
-            "mixtral": self._mixtral,
-            "bert": self._bert,
+            "gpt3": flops_formulas.gpt3,
+            "llama2": flops_formulas.llama2,
+            "llama3": flops_formulas.llama3,
+            "nemotron": flops_formulas.nemotron,
+            "mixtral": flops_formulas.mixtral,
+            "bert": flops_formulas.bert,
         }
 
         if self.model is not None:
@@ -143,107 +154,7 @@ class FLOPsMeasurementCallback(Callback):
             logging.info(f"FLOPs measurement supported for {list(model_flops_map.keys())}")
             raise KeyError(f"Failed to extract valid model name from or missing FLOPs calculations for {self.model}")
 
-        total_flops = model_flops_map[self.model]()
+        total_flops = model_flops_map[self.model](self.flops_config)
         flops_per_gpu = total_flops / (self.num_nodes * self.num_gpus_per_node)
 
         return total_flops, flops_per_gpu
-
-    def _gpt3(self):
-        """Model FLOPs for GPT3 family"""
-
-        vocab_size = LLM_VOCAB_SIZE_MAP["gpt3"]
-
-        return (
-            24 * self.gbs * self.enc_seq_len * self.hs * self.hs
-            + 4 * self.gbs * self.enc_seq_len * self.enc_seq_len * self.hs
-        ) * (3 * self.layers) + (6 * self.gbs * self.enc_seq_len * self.hs * vocab_size)
-
-    def _llama2(self):
-        """Model FLOPs for llama2 family"""
-        vocab_size = LLM_VOCAB_SIZE_MAP["llama2"]
-
-        return (
-            self.gbs
-            * self.enc_seq_len
-            * self.layers
-            * self.hs
-            * self.hs
-            * (
-                12
-                + (12 * self.query_groups / self.attention_heads)
-                + (18 * self.ffn_hs / self.hs)
-                + (12 * self.enc_seq_len / self.hs)
-                + (6 * vocab_size / (self.layers * self.hs))
-            )
-        )
-
-    def _llama3(self):
-        """Model FLOPs for llama3 family"""
-        vocab_size = LLM_VOCAB_SIZE_MAP["llama3"]
-
-        return (
-            self.gbs
-            * self.enc_seq_len
-            * self.layers
-            * self.hs
-            * self.hs
-            * (
-                12
-                + (12 * self.query_groups / self.attention_heads)
-                + (18 * self.ffn_hs / self.hs)
-                + (12 * self.enc_seq_len / self.hs)
-                + (6 * vocab_size / (self.layers * self.hs))
-            )
-        )
-
-    def _nemotron(self):
-        """Model FLOPs for nemotron family"""
-        vocab_size = LLM_VOCAB_SIZE_MAP["nemotron"]
-
-        return (
-            self.gbs
-            * self.enc_seq_len
-            * self.layers
-            * self.hs
-            * self.hs
-            * (
-                12
-                + (12 * self.query_groups / self.attention_heads)
-                + (12 * self.ffn_hs / self.hs)
-                + (12 * self.enc_seq_len / self.hs)
-                + (6 * vocab_size / (self.layers * self.hs))
-            )
-        )
-
-    def _mixtral(self):
-        """Model FLOPs for mixtral family"""
-        vocab_size = LLM_VOCAB_SIZE_MAP["mixtral"]
-
-        return (
-            self.gbs
-            * self.enc_seq_len
-            * self.layers
-            * self.hs
-            * self.hs
-            * (
-                12
-                + (12 * self.query_groups / self.attention_heads)
-                + (18 * self.moe_router_topk * self.ffn_hs / self.hs)
-                + (12 * self.enc_seq_len / self.hs)
-                + (6 * vocab_size / (self.layers * self.hs))
-            )
-        )
-
-    def _bert(self):
-        """Model FLOPs for BERT family"""
-        vocab_size = LLM_VOCAB_SIZE_MAP["bert"]
-
-        return (
-            72
-            * self.gbs
-            * self.layers
-            * self.enc_seq_len
-            * self.hs
-            * self.hs
-            * (1 + (self.enc_seq_len / (6 * self.hs)) + (vocab_size / (12 * self.hs * self.layers)))
-        )

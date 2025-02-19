@@ -13,9 +13,24 @@
 # limitations under the License.
 
 """
-Example:
+Mock Data Example:
   torchrun --nproc_per_node=8 scripts/vlm/neva_finetune.py \
   --devices=8 --tp=4 --data_type=mock
+
+Llava Data Example:
+   torchrun --nproc_per_node=8 /path/to/NeMo/scripts/vlm/neva_finetune.py  \
+     --data_path "/path/to/dataset/llava_v1_5_mix665k.json" \
+     --image_folder "/path/to/dataset/images" \
+     --data_type llava \
+     --num_nodes 1 \
+     --log_dir "/path/to/experiments/neva_finetune" \
+     --devices=8 \
+     --projector_type=mcore_mlp \
+     --tp_size 2 --pp_size 1 \
+     --gbs 128 --mbs 4 \
+     --wandb_project=neva_demo \
+     --name=neva_finetune \
+     --restore_path "/path/to/experiments/neva_pretrain_checkpoint"
 """
 
 import argparse
@@ -79,7 +94,7 @@ def main(args):
         )
 
         # Data module setup
-        data = vlm.NevaLazyDataModule(
+        data = vlm.NevaPreloadedDataModule(
             paths=args.data_path,
             data_config=data_config,
             seq_length=decoder_seq_length,
@@ -153,6 +168,7 @@ def main(args):
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
+        context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=True,
         ddp=DistributedDataParallelConfig(
@@ -162,6 +178,7 @@ def main(args):
             overlap_param_gather=True,
             average_in_collective=True,
         ),
+        ckpt_load_strictness="log_all",
     )
 
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
@@ -186,7 +203,7 @@ def main(args):
         callbacks=[
             checkpoint_callback,
             TimingCallback(),
-            MegatronCommOverlapCallback(tp_comm_overlap=True),
+            MegatronCommOverlapCallback(tp_comm_overlap=False),
         ],
         val_check_interval=500,
         limit_val_batches=gbs,
@@ -271,6 +288,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
+    parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--projector_type", type=str, required=False, default="mcore_mlp")
     parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
