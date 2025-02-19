@@ -1,6 +1,6 @@
 import argparse
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 dummy_module = MagicMock()
 dummy_module.torch_to_numpy = lambda torch_tensor: torch_tensor.detach().cpu().numpy()
@@ -20,13 +20,16 @@ def test_model_loading(nemo_ckpt_path: str, trt_llm_export_path: str) -> None:
     export_path.mkdir(parents=True, exist_ok=True)
     export_path_mcore = export_path / 'mcore_export'
     export_path_local = export_path / 'local_export'
-    
+
     nemo_path = Path(nemo_ckpt_path)
 
-    with patch.dict('sys.modules', {
-        'tensorrt_llm': dummy_module,
-        'tensorrt_llm._utils': dummy_module,
-        }):
+    with patch.dict(
+        'sys.modules',
+        {
+            'tensorrt_llm': dummy_module,
+            'tensorrt_llm._utils': dummy_module,
+        },
+    ):
         from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 
         load_nemo_model(nemo_path, export_path_local, False)
