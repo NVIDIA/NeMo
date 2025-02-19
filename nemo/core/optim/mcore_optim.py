@@ -44,7 +44,7 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         optim (MegatronOptimizer): The distributed optimizer from Megatron Core.
     """
 
-    nvtx_label = "nemo.mcore_optim"
+    nvtx_label = "nemo.core.optim.mcore_optim"
 
     def __init__(self, optim):
         self.defaults = {}
