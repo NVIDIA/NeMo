@@ -19,7 +19,7 @@ from megatron.core.utils import check_param_hashes_across_dp_replicas
 
 from nemo.tron.config import ConfigContainer, MegatronLMConfig
 from nemo.tron.eval import evaluate_and_print_results
-from nemo.tron.state import GlobalState, TrainState
+from nemo.tron.state import GlobalState
 from nemo.tron.train_utils import (
     calc_params_l2_norm,
     logical_and_across_model_parallel_group,
@@ -111,7 +111,24 @@ def train(
     eval_duration = 0.0
     eval_iterations = 0
 
-    prof = _profiler_setup(mlm_config)
+    prof = None
+    if (
+        mlm_config.profile
+        and torch.distributed.get_rank() in mlm_config.profile_ranks
+        and mlm_config.use_pytorch_profiler
+    ):
+        prof = torch.profiler.profile(
+            schedule=torch.profiler.schedule(
+                wait=max(mlm_config.profile_step_start - 1, 0),
+                warmup=1 if mlm_config.profile_step_start > 0 else 0,
+                active=mlm_config.profile_step_end - mlm_config.profile_step_start,
+                repeat=1,
+            ),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(config.logger_config.tensorboard_dir),
+            record_shapes=True,
+            with_stack=True,
+        )
+        prof.start()
 
     start_iteration = global_state.train_state.step
     should_toggle_forward_pre_hook = (
@@ -154,16 +171,16 @@ def train(
                 f"Number of microbatches should be increasing due to batch size rampup; "
                 f"instead going from {num_microbatches} to {get_num_microbatches()}"
             )
-            if mlm_config.save is not None:
-                save_checkpoint_and_time(
-                    global_state,
-                    model,
-                    optimizer,
-                    scheduler,
-                    # num_floating_point_operations_so_far,
-                    checkpointing_context,
-                    train_data_iterator=train_data_iterator,
-                )  # TODO (ananth/hemild): implement
+            # if mlm_config.save is not None:
+            #     save_checkpoint_and_time(
+            #         global_state,
+            #         model,
+            #         optimizer,
+            #         scheduler,
+            #         # num_floating_point_operations_so_far,
+            #         checkpointing_context,
+            #         train_data_iterator=train_data_iterator,
+            #     )  # TODO (ananth/hemild): implement
         num_microbatches = get_num_microbatches()
         update_num_microbatches(global_state.train_state.consumed_train_samples, consistency_check=True, verbose=True)
 
@@ -171,16 +188,16 @@ def train(
         loss_dict, skipped_iter, should_checkpoint, should_exit, exit_code, grad_norm, num_zeros_in_grad = train_step(
             forward_step_func, train_data_iterator, model, optimizer, scheduler, global_state
         )
-        if should_checkpoint:
-            save_checkpoint_and_time(
-                global_state,
-                model,
-                optimizer,
-                scheduler,
-                # num_floating_point_operations_so_far,
-                checkpointing_context,
-                train_data_iterator=train_data_iterator,
-            )
+        # if should_checkpoint:
+        #     save_checkpoint_and_time(
+        #         global_state,
+        #         model,
+        #         optimizer,
+        #         scheduler,
+        #         # num_floating_point_operations_so_far,
+        #         checkpointing_context,
+        #         train_data_iterator=train_data_iterator,
+        #     )
         if should_exit:
             break
 
@@ -221,7 +238,7 @@ def train(
             loss_scale = 1.0
         params_norm = None
 
-        if mlm_config.log_params_norm:
+        if config.logger_config.log_params_norm:
             params_norm = calc_params_l2_norm(model, model_config)
         learning_rate = None
         decoupled_learning_rate = None
@@ -290,22 +307,23 @@ def train(
             scheduler,
             global_state.train_state.step,
             prof,
+            mlm_config,
             # num_floating_point_operations_since_last_log_event,
             should_toggle_forward_pre_hook,
         )
 
         # Checkpoint and decide whether to exit.
-        should_exit = checkpoint_and_decide_exit(
-            global_state,
-            model,
-            optimizer,
-            scheduler,
-            # num_floating_point_operations_so_far,
-            checkpointing_context,
-            train_data_iterator,
-        )
-        if should_exit:
-            break
+        # should_exit = checkpoint_and_decide_exit(
+        #     global_state,
+        #     model,
+        #     optimizer,
+        #     scheduler,
+        #     # num_floating_point_operations_so_far,
+        #     checkpointing_context,
+        #     train_data_iterator,
+        # )  # TODO: implement
+        # if should_exit:
+        #     break
 
     # Flush TensorBoard, WandB writers and one-logger.
     writer = global_state.tensorboard_logger
@@ -332,10 +350,10 @@ def train_step(
     model,
     optimizer,
     scheduler,
-    cfg: ConfigContainer,
     global_state: GlobalState,
 ):
     """Single training step."""
+    cfg: ConfigContainer = global_state.cfg
     timers = global_state.timers
     model_config = cfg.model_config
     mlm_config = cfg.megatron_lm_config
@@ -457,25 +475,6 @@ def post_training_step_callbacks(
     if mlm_config.manual_gc:
         if mlm_config.manual_gc_interval != 0 and iteration % mlm_config.manual_gc_interval == 0:
             gc.collect()
-
-
-def _profiler_setup(config: MegatronLMConfig):
-    prof = None
-    if config.profile and torch.distributed.get_rank() in config.profile_ranks and config.use_pytorch_profiler:
-        prof = torch.profiler.profile(
-            schedule=torch.profiler.schedule(
-                wait=max(config.profile_step_start - 1, 0),
-                warmup=1 if config.profile_step_start > 0 else 0,
-                active=config.profile_step_end - config.profile_step_start,
-                repeat=1,
-            ),
-            on_trace_ready=torch.profiler.tensorboard_trace_handler(config.tensorboard_dir),
-            record_shapes=True,
-            with_stack=True,
-        )
-        prof.start()
-
-    return prof
 
 
 def enable_forward_pre_hook(model_chunks):
