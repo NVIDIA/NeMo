@@ -46,6 +46,9 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
+    from megatron.core.distributed import DistributedDataParallel as McoreDDP
+    from megatron.core.distributed import DistributedDataParallelConfig
+    from megatron.core.utils import get_model_config
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
     from megatron.core.models.T5 import T5Model as MCoreT5Model
@@ -92,14 +95,15 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
-                    f"pipeline_model_parallel_split_rank must be > 0 when using pipeline_model_parallel_size > 1"
+                    "pipeline_model_parallel_split_rank must be > 0 when using pipeline_model_parallel_size > 1"
                 )
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if not cfg.get('share_token_embeddings', True) or not cfg.get(
                 'share_decoder_tokens_head_embeddings', True
             ):
                 raise ValueError(
-                    "when pipeline_model_parallel_size > 1 we require share_token_embeddings=True and share_decoder_tokens_head_embeddings=True"
+                    "when pipeline_model_parallel_size > 1 we require share_token_embeddings=True "
+                    "and share_decoder_tokens_head_embeddings=True"
                 )
 
         # Make sure trainer.accumulate_grad_batches is 1.
@@ -256,6 +260,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )  # For models before separate encoder/decoder configs, tokens_head_bias was always True.
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
+        """Model depends on pipeline paralellism."""
         if not hasattr(self.cfg, 'encoder') or not hasattr(self.cfg, 'decoder'):
             logging.warning(
                 'Could not find encoder or decoder in config. This is probably because of restoring an old checkpoint. Copying shared model configs to encoder and decoder configs.'
@@ -264,7 +269,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self._populate_encoder_decoder_configs_for_backward_compatibility(self.cfg)
 
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
-            raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
+            raise ValueError("Perceivers with pipeline parallel > 1 is not supported yet.")
 
         if getattr(self, 'mcore_t5', False):
             assert HAVE_MEGATRON_CORE, "Cannot use MCore T5 since Megatron Core is not found"
@@ -476,7 +481,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # when using pipeline parallelism, we need keep the word and position embeddings in sync
             self.allreduce_word_and_position_embeddings()
 
-        ## logging
+        # logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         for k, v in loss_dict.items():
@@ -510,6 +515,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     @property
     def max_decoder_seq_length(self) -> int:
+        """ Getting decoder sequence length """
         seq_len = self._cfg.data.get('seq_length_dec', None)
         if seq_len is None:
             seq_len = self.cfg.seq_length
@@ -517,6 +523,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     @property
     def max_encoder_seq_length(self) -> int:
+        """ Getting encoder sequence length """
         return self.cfg.seq_length
 
     def backward(self, *args, **kwargs):
@@ -558,6 +565,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 buf.copy_(synced)
 
     def allreduce_word_and_position_embeddings(self):
+        """ All reducing word embeddings and position embeddings """
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
         # All-reduce word_embeddings' grad across first, last stages to ensure that word_embeddings parameters stay in sync.
@@ -576,7 +584,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
             else:
                 raise ValueError(
-                    f"Attempting to allreduce word_embeddings for pipeline parallel size > 1, but found untied word embeddings or token head embeddings. This is not supported yet."
+                    "Attempting to allreduce word_embeddings for pipeline parallel size > 1, but found untied word embeddings or token head embeddings. This is not supported yet."
                 )
 
         # All-reduce position embeddings for T5.
@@ -902,6 +910,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.validation_step_outputs.append(outputs)
 
     def test_step(self, dataloader_iter):
+        """
+        Testing step
+        """
         outputs = self._test_validation_step(dataloader_iter=dataloader_iter)
         if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
             self.test_step_outputs[dataloader_iter.dataloader_idx].append(outputs)
@@ -1043,6 +1054,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         }
 
     def build_train_valid_test_datasets(self):
+        """ Building datasets for train/validation/test splits"""
         raise NotImplementedError("Please implement this method in child-class")
 
     def build_pretraining_data_loader(self, dataset, consumed_samples, num_workers):
@@ -1170,6 +1182,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     child.set_tensor_parallel_group(tp_group)
 
     def get_t5_module_list(self):
+        """ Overrding parent's get_model_module_list class """
         if isinstance(self.enc_dec_model, list):
             return [
                 model.module if isinstance(model, (Float16Module, MCoreFloat16Module)) else model
@@ -1452,7 +1465,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
-            decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
             dec_mask[:, 0] = 1  # Make sure you never mask the first token even if it is <pad>.
 
@@ -1725,7 +1737,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
-                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+                'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
             )
 
     def list_available_models(self):
