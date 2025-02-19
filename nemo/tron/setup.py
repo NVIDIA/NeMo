@@ -42,8 +42,8 @@ def setup(
 
     timers = state.timers
 
-    if cfg.megatron_lm_config.log_progress:
-        append_to_progress_log(cfg.megatron_lm_config.save, "Starting job")
+    if cfg.logger_config.log_progress:
+        append_to_progress_log(cfg.logger_config.save, "Starting job")
 
     # Set pytorch JIT layer fusion options and warmup JIT functions.
     set_jit_fusion_options(state)
@@ -93,3 +93,5 @@ def setup(
     # Print setup timing.
     print_rank_0("done with setup ...")
     timers.log(["model-and-optimizer-setup", "train/valid/test-data-iterators-setup"], barrier=True)
+
+    return model, optimizer, scheduler, train_data_iterator, valid_data_iterator, test_data_iterator
