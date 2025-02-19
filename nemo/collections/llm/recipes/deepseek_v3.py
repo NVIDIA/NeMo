@@ -79,7 +79,7 @@ def pretrain_recipe(
             $ nemo llm pretrain --factory "deepseek_v3(num_nodes=4, name='my_deepseek_v3')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="llama31_405b_pretrain", num_nodes=4)
+            >>> recipe = pretrain_recipe(name="deepseek_v3_pretrain", num_nodes=4)
             >>> print(recipe)
 
     """
