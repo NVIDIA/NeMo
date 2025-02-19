@@ -131,7 +131,7 @@ nemo() {
   if [[ "$PLATFORM_MACHINE" == "x86_64" ]]; then
     ${PIP} install --no-cache-dir virtualenv &&
       virtualenv $INSTALL_DIR/venv &&
-      $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools &&
+      $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools coverage &&
       $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation \
         -r $NEMO_DIR/requirements/requirements_vllm.txt \
         -r $NEMO_DIR/requirements/requirements_deploy.txt
@@ -149,11 +149,13 @@ nemo() {
 
   if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
     echo "Installing NVIDIA Resiliency in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
-    pip install --no-cache-dir "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'"
+    pip install --upgrade --upgrade-strategy only-if-needed --no-cache-dir \
+      "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'" \
+      -r "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
   fi
 
   echo 'Installing dependencies of nemo'
-  ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
+  ${PIP} install --upgrade --upgrade-strategy only-if-needed --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
   echo 'Installing nemo itself'
   pip install --no-cache-dir --no-build-isolation $NEMO_DIR/.[all]
