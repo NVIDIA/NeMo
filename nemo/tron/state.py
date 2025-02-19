@@ -36,19 +36,7 @@ def _timers_write_to_wandb(
     reset: bool = True,
     barrier: bool = False,
 ):
-    """Write timers to a tensorboard writer. Note that we only report maximum time across ranks
-       to tensorboard.
-
-    Args:
-        names (List[str]): Names of the timers to log.
-        writer (SummaryWriter): Tensorboard SummaryWriter object
-        iteration (int): Current iteration.
-        normalizer (float, optional): Normalizes the timer values by the factor.
-                                      Defaults to 1.0.
-        reset (bool, optional): Whether to reset timer values after logging. Defaults to True.
-        barrier (bool, optional): Whether to do a global barrier before time measurments.
-                                  Defaults to False.
-    """
+    """Patch to write timers to wandb for Megatron Core Timers."""
     # currently when using add_scalars,
     # torch.utils.add_scalars makes each timer its own run, which
     # polutes the runs list, so we just add each as a scalar
@@ -57,7 +45,7 @@ def _timers_write_to_wandb(
     if writer is not None:
         for name in name_to_min_max_time:
             _, max_time = name_to_min_max_time[name]
-            writer.log({name + '-time': max_time}, iteration)
+            writer.log({name + "-time": max_time}, iteration)
 
 
 @dataclass
