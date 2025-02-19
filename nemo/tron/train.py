@@ -24,6 +24,7 @@ from nemo.tron.train_utils import (
     calc_params_l2_norm,
     logical_and_across_model_parallel_group,
     reduce_max_stat_across_model_parallel_group,
+    training_log,
 )
 from nemo.tron.utils import print_rank_0
 
@@ -252,14 +253,15 @@ def train(
             total_loss_dict,
             learning_rate,
             decoupled_learning_rate,
-            global_state,
             loss_scale,
             report_memory_flag,
             skipped_iter,
             grad_norm,
             params_norm,
             num_zeros_in_grad,
-        )  # TODO: implement
+            config,
+            global_state,
+        )
 
         if (
             global_state.train_state.do_valid
