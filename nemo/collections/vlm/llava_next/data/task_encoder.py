@@ -1,12 +1,11 @@
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 import torch
 from megatron.energon import SimilarityInterleavedSample, VQASample, batch_list, batch_pad_stack, stateless
 from torch.nn.utils.rnn import pad_sequence
 
-from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, MultiModalSampleConfig
-from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
+from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm.llava_next.data.interleaved_sample_encoder import LlavaNextSimilarityInterleavedSampleEncoder
 from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextRawBatch, LlavaNextTextSample, \
@@ -14,7 +13,6 @@ from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextRawBatch, L
 from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import LlavaNextSampleEncoder
 from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed_llava_next
 from nemo.utils import logging
-from transformers import AutoProcessor
 
 
 class LlavaNextTaskEncoder(MultiModalTaskEncoder):
@@ -149,7 +147,7 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         NOTE: Energon dataloader calls this method internally if packing is used.
         Please see https://nvidia.github.io/Megatron-Energon/packing.html
         """
-        from nemo.collections.vlm.neva.data.sequence_packing import greedy_knapsack, predict_seq_len_llava_next
+        from nemo.collections.vlm.neva.data.sequence_packing import greedy_knapsack
 
         lengths = [
             len(sample.tokens) for sample in samples
@@ -179,7 +177,6 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             ImageTaskSamplePacked instance.
         """
         # import pdb; pdb.set_trace()
-        from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed
 
         keys, images, tokens, labels, loss_mask, num_media_tiles, image_sizes, attention_mask = (
             [],
