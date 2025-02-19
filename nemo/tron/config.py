@@ -231,9 +231,6 @@ class MegatronLMConfig:
     train_samples: Optional[int] = None
     """Total number of samples to train over all training runs. Note that either train-iters or train-samples should be provided."""
 
-    log_interval: int = 100
-    """Report loss and timing interval."""
-
     exit_interval: Optional[int] = None
     """Exit the program after the iteration is divisible by this value."""
 
@@ -242,9 +239,6 @@ class MegatronLMConfig:
 
     exit_signal_handler: bool = False
     """Dynamically save the checkpoint and shutdown the training if SIGTERM is received"""
-
-    tensorboard_dir: Optional[str] = None
-    """Write TensorBoard logs to this directory."""
 
     bias_gelu_fusion: bool = True
     """Disable bias and GeLU fusion."""
@@ -745,56 +739,6 @@ class MegatronLMConfig:
     rotary_scaling_factor: float = 1.0
     """Rotary scaling factor for the rotary embeddings."""
 
-    # ---------------- Logging config. ----------------
-
-    log_params_norm: bool = False
-    """If set, calculate and log parameters norm."""
-
-    log_throughput: bool = False
-    """If set, calculate and log throughput per GPU."""
-
-    log_progress: bool = False
-    """If set, log progress (in terms of number of processed tokens and number of floating-point operations) to progress.txt file in checkpoint directory."""
-
-    timing_log_level: Literal[0, 1, 2] = 0
-    """Granularity level to measure and report timing.    0: report only iteration time and make sure timing       does not introduce extra overhead.   1: report timing for operations that are executed       very limited times (basically once) during       each iteration (such as gradient all-reduce)    2: report timing for operations that migh be       executed numerous times during each iteration. Note that setting the level to 1 or 2 might cause increase in iteration time."""
-
-    timing_log_option: Literal["max", "minmax", "all"] = "minmax"
-    """Options for logging timing:  max: report the max timing across all ranks  minmax: report min and max timings across all ranks  all: report timings of all ranks."""
-
-    tensorboard_log_interval: int = 1
-    """Report to tensorboard interval."""
-
-    tensorboard_queue_size: int = 1000
-    """Size of the tensorboard queue for pending events and summaries before one of the 'add' calls forces a flush to disk."""
-
-    log_timers_to_tensorboard: bool = False
-    """If set, write timers to tensorboard."""
-
-    log_loss_scale_to_tensorboard: bool = True
-    """Disable loss-scale logging to tensorboard."""
-
-    log_validation_ppl_to_tensorboard: bool = False
-    """If set, write validation perplexity to tensorboard."""
-
-    log_memory_to_tensorboard: bool = False
-    """Enable memory logging to tensorboard."""
-
-    log_world_size_to_tensorboard: bool = False
-    """Enable world size logging to tensorboard."""
-
-    wandb_project: str = ""
-    """The wandb project name. Ignore wandb by default."""
-
-    wandb_exp_name: str = ""
-    """The wandb experiment name."""
-
-    wandb_save_dir: str = ""
-    """Path to save the wandb results locally."""
-
-    logging_level: Optional[int] = None
-    """Set default logging level"""
-
     # ---------------- Straggler config. ----------------
 
     log_straggler: bool = False
@@ -877,32 +821,74 @@ class MegatronLMConfig:
     yaml_cfg: Optional[str] = None
     """Config file to add additional arguments"""
 
-    # ---------------- One logger config. ----------------
-
-    enable_one_logger: bool = True
-    """If set, disable using one_logger to track E2E metrics. Note that one_logger is an internal tool and not available externally. For installation, please go to https://confluence.nvidia.com/display/MLWFO/Package+Repositories for more details"""
-
-    one_logger_project: str = "megatron-lm"
-    """The one-logger project name. Will ignore if --no-one-logger is set"""
-
-    one_logger_run_name: Optional[str] = None
-    """The one-logger run name displayed. Will ignore if --no-one-logger is set"""
-
-    one_logger_async: bool = False
-    """If set, forces one_logger to use async mode."""
-
-    app_tag_run_name: Optional[str] = None
-    """Jobs belonging to same training run, suppose to have the same name. It will be used to track progress of a training done over multiple different jobs"""
-
-    app_tag_run_version: str = "0.0.0"
-    """The version of the training of which current job is part of. It will be used to track the changes in the application side which might change the performance baseline"""
-
     # ---------------- Ft_package config. ----------------
 
     enable_ft_package: bool = False
     """If set, Fault Tolerance package is enabled. Note: This feature is for Nvidia internal use only."""
 
     # ---------------- Config logger config. ----------------
+
+
+@dataclass(kw_only=True)
+class LoggerConfig:
+    # ---------------- Logging config. ----------------
+
+    log_interval: int = 100
+    """Report loss and timing interval."""
+
+    log_params_norm: bool = False
+    """If set, calculate and log parameters norm."""
+
+    log_throughput: bool = False
+    """If set, calculate and log throughput per GPU."""
+
+    log_progress: bool = False
+    """If set, log progress (in terms of number of processed tokens and number of floating-point operations) to progress.txt file in checkpoint directory."""
+
+    timing_log_level: Literal[0, 1, 2] = 0
+    """Granularity level to measure and report timing.    0: report only iteration time and make sure timing       does not introduce extra overhead.   1: report timing for operations that are executed       very limited times (basically once) during       each iteration (such as gradient all-reduce)    2: report timing for operations that migh be       executed numerous times during each iteration. Note that setting the level to 1 or 2 might cause increase in iteration time."""
+
+    timing_log_option: Literal["max", "minmax", "all"] = "minmax"
+    """Options for logging timing:  max: report the max timing across all ranks  minmax: report min and max timings across all ranks  all: report timings of all ranks."""
+
+    tensorboard_dir: Optional[str] = None
+    """Write TensorBoard logs to this directory."""
+
+    tensorboard_log_interval: int = 1
+    """Report to tensorboard interval."""
+
+    tensorboard_queue_size: int = 1000
+    """Size of the tensorboard queue for pending events and summaries before one of the 'add' calls forces a flush to disk."""
+
+    log_timers_to_tensorboard: bool = False
+    """If set, write timers to tensorboard."""
+
+    log_loss_scale_to_tensorboard: bool = True
+    """Disable loss-scale logging to tensorboard."""
+
+    log_validation_ppl_to_tensorboard: bool = False
+    """If set, write validation perplexity to tensorboard."""
+
+    log_memory_to_tensorboard: bool = False
+    """Enable memory logging to tensorboard."""
+
+    log_world_size_to_tensorboard: bool = False
+    """Enable world size logging to tensorboard."""
+
+    wandb_project: Optional[str] = None
+    """The wandb project name. Ignore wandb by default."""
+
+    wandb_exp_name: Optional[str] = None
+    """The wandb experiment name."""
+
+    wandb_save_dir: Optional[str] = None
+    """Path to save the wandb results locally."""
+
+    wandb_entity: Optional[str] = None
+    """The wandb entity name."""
+
+    logging_level: Optional[int] = None
+    """Set default logging level"""
 
 
 @dataclass(kw_only=True)
@@ -986,6 +972,7 @@ class ConfigContainer:
     ddp_config: DistributedDataParallelConfig
     scheduler_config: SchedulerConfig
     dataset_config: GPTDatasetConfig
+    logger_config: LoggerConfig
 
     def __post_init__(self):
         # Run validations

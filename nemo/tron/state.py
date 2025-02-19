@@ -18,12 +18,34 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
+import yaml
 from megatron.core.timers import Timers
 from torch.distributed.checkpoint.stateful import Stateful
 
 from nemo.tron.config import ConfigContainer
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
-from nemo.tron.utils import get_rank_safe, get_world_size_safe
+from nemo.tron.utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
+
+
+def _timers_write_to_wandb(
+    self,
+    names: list[str],
+    writer,
+    iteration: int,
+    normalizer: float = 1.0,
+    reset: bool = True,
+    barrier: bool = False,
+):
+    """Patch to write timers to wandb for Megatron Core Timers."""
+    # currently when using add_scalars,
+    # torch.utils.add_scalars makes each timer its own run, which
+    # polutes the runs list, so we just add each as a scalar
+    assert normalizer > 0.0
+    name_to_min_max_time = self._get_global_min_max_time(names, reset, barrier, normalizer)
+    if writer is not None:
+        for name in name_to_min_max_time:
+            _, max_time = name_to_min_max_time[name]
+            writer.log({name + "-time": max_time}, iteration)
 
 
 @dataclass
@@ -100,13 +122,13 @@ class GlobalState:
     @property
     def tensorboard_logger(self):
         if self._tensorboard_logger is None:
-            if self.cfg.megatron_lm_config.tensorboard_dir and get_rank_safe() == (get_world_size_safe() - 1):
+            if self.cfg.logger_config.tensorboard_dir and get_rank_safe() == (get_world_size_safe() - 1):
                 from torch.utils.tensorboard.writer import SummaryWriter
 
-                print('> setting tensorboard ...')
+                print("> setting tensorboard ...")
                 self._tensorboard_logger = SummaryWriter(
-                    log_dir=self.cfg.megatron_lm_config.tensorboard_dir,
-                    max_queue=self.cfg.megatron_lm_config.tensorboard_queue_size,
+                    log_dir=self.cfg.logger_config.tensorboard_dir,
+                    max_queue=self.cfg.logger_config.tensorboard_queue_size,
                 )
             else:
                 self._tensorboard_logger = None
@@ -115,20 +137,20 @@ class GlobalState:
     @property
     def wandb_logger(self):
         if self._wandb_logger is None:
-            if self.cfg.megatron_lm_config.wandb_project and get_rank_safe() == (get_world_size_safe() - 1):
-                if self.cfg.megatron_lm_config.wandb_exp_name == '':
+            if self.cfg.logger_config.wandb_project and get_rank_safe() == (get_world_size_safe() - 1):
+                if self.cfg.logger_config.wandb_exp_name == "":
                     raise ValueError("Please specify the wandb experiment name!")
 
                 import wandb
 
-                save_dir = self.cfg.megatron_lm_config.wandb_save_dir or os.path.join(self.cfg.save, 'wandb')
+                save_dir = self.cfg.logger_config.wandb_save_dir or os.path.join(self.cfg.save, "wandb")
                 wandb_kwargs = {
-                    'dir': save_dir,
-                    'name': self.cfg.megatron_lm_config.wandb_exp_name,
-                    'project': self.cfg.megatron_lm_config.wandb_project,
-                    'config': vars(self.cfg),
+                    "dir": save_dir,
+                    "name": self.cfg.logger_config.wandb_exp_name,
+                    "project": self.cfg.logger_config.wandb_project,
+                    "config": yaml.safe_load(dump_dataclass_to_yaml(self.cfg)),
                 }
-                os.makedirs(wandb_kwargs['dir'], exist_ok=True)
+                os.makedirs(wandb_kwargs["dir"], exist_ok=True)
                 wandb.init(**wandb_kwargs)
 
                 self._wandb_logger = wandb
@@ -139,9 +161,8 @@ class GlobalState:
     @property
     def timers(self):
         if self._timers is None:
-            self._timers = Timers(
-                self.cfg.megatron_lm_config.timing_log_level, self.cfg.megatron_lm_config.timing_log_option
-            )
+            self._timers = Timers(self.cfg.logger_config.timing_log_level, self.cfg.logger_config.timing_log_option)
+            self._timers.write_to_wandb = _timers_write_to_wandb
         return self._timers
 
     @property
