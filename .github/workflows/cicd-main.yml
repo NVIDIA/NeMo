@@ -511,6 +511,7 @@ jobs:
         python examples/nlp/language_modeling/megatron_gpt_ptq.py \
           model.restore_from_path=/tmp/nlp_megatron_llama/llama_ci.nemo \
           model.tensor_model_parallel_size=2 \
+          ++model.dist_ckpt_load_strictness=log_all \
           trainer.devices=2 \
           quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
           quantization.algorithm=fp8 \
@@ -4386,7 +4387,8 @@ jobs:
         --devices 1 \
         --max-steps 10 \
         --experiment-dir /tmp/nlp_megatron_mamba_nemo-ux-mamba_cicd_test_sft/${{ github.run_id }} \
-        --model-path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt
+        --model-path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt \
+        --ckpt_load_strictness log_all
 
   L2_NeMo_2_HF_MODEL_IMPORT:
     needs: [pre-flight, cicd-test-container-build]
@@ -5048,7 +5050,7 @@ jobs:
       SCRIPT: |
         python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
 
-        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_engine
+        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_engine --ckpt_load_strictness log_all
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
