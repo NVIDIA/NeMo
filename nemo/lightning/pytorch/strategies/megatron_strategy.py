@@ -442,6 +442,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
             def broadcast_params(module):
                 """
+                Modified from
+                https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/distributed/distributed_data_parallel.py#L466-L483
                 Syncs parameters across all DP ranks.
                 """
                 from megatron.core import parallel_state
