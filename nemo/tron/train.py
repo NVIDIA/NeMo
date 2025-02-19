@@ -18,6 +18,7 @@ from megatron.core.rerun_state_machine import get_rerun_state_machine
 from megatron.core.utils import check_param_hashes_across_dp_replicas
 
 from nemo.tron.config import ConfigContainer, MegatronLMConfig
+from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.state import GlobalState, TrainState
 from nemo.tron.train_utils import (
     calc_params_l2_norm,
@@ -53,8 +54,10 @@ def train(
     scheduler,
     train_data_iterator,
     valid_data_iterator,
+    process_non_loss_data_func,
     global_state: GlobalState,
     checkpointing_context,
+    non_loss_data_func,
 ):
     train_state: TrainState = global_state.train_state
     config: ConfigContainer = global_state.cfg
@@ -256,17 +259,17 @@ def train(
             prefix = f'iteration {iteration}'
             timers('eval-time', log_level=0).start(barrier=True)
             evaluate_and_print_results(
+                global_state,
                 prefix,
                 forward_step_func,
                 valid_data_iterator,
                 model,
-                iteration,
-                # process_non_loss_data_func,
-                config,
+                process_non_loss_data_func,
+                model_config,
                 verbose=False,
                 write_to_tensorboard=True,
-                # non_loss_data_func=non_loss_data_func
-            )  # TODO (hemild): implement
+                non_loss_data_func=non_loss_data_func,
+            )
             eval_duration += timers('eval-time').elapsed()
             eval_iterations += mlm_config.eval_iters
             timers('eval-time').stop()
