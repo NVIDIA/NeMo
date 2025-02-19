@@ -43,6 +43,7 @@ mcore() {
         git clone https://github.com/state-spaces/$(basename $MAMBA_DIR).git &&
         pushd $(basename $MAMBA_DIR) &&
         sed -i "/triton/d" setup.py &&
+        cat setup.py &&
         popd
     fi &&
     pushd $MAMBA_DIR &&
