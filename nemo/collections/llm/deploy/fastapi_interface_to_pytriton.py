@@ -16,6 +16,7 @@ import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
+from jinja2 import Template
 
 from nemo.deploy.nlp import NemoQueryLLMPyTorch
 from nemo.utils import logging
@@ -49,7 +50,8 @@ triton_settings = TritonSettings()
 
 class CompletionRequest(BaseModel):
     model: str
-    prompt: str
+    prompt: str ='hello'
+    messages: list[dict] = [{}]
     max_tokens: int = 512
     temperature: float = 1.0
     top_p: float = 0.0
@@ -84,10 +86,11 @@ async def check_triton_health():
 
 
 @app.post("/v1/completions/")
-def completions_v1(request: CompletionRequest):
+async def completions_v1(request: CompletionRequest):
     try:
         url = f"http://{triton_settings.triton_service_ip}:{triton_settings.triton_service_port}"
         nq = NemoQueryLLMPyTorch(url=url, model_name=request.model)
+        prompts = request.prompt
         if not isinstance(request.prompt, list):
             prompts = [request.prompt]
         output = nq.query_llm(
@@ -97,6 +100,7 @@ def completions_v1(request: CompletionRequest):
             top_p=request.top_p,
             compute_logprob=True if request.logprobs == 1 else False,
             max_length=request.max_tokens,
+            init_timeout=300
         )
 
         # Convert NumPy arrays in output to lists
@@ -111,7 +115,69 @@ def completions_v1(request: CompletionRequest):
                 return obj
 
         output_serializable = convert_numpy(output)
+        ## #TODO Temp WAR
+        output_serializable["choices"][0]["text"] = output_serializable["choices"][0]["text"][0][0]
+        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
+        output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
+        print("--output--", output_serializable)
         return output_serializable
     except Exception as error:
         logging.error(f"An exception occurred with the post request to /v1/completions/ endpoint: {error}")
+        return {"error": "An exception occurred"}
+
+# Define a function to apply the chat template
+def apply_chat_template(messages, bos_token="<|startoftext|>", add_generation_prompt=False):
+    from nemo.collections.llm.deploy.base import chat_template
+    # Load the template
+    template = Template(chat_template)
+
+    # Render the template with the provided messages
+    rendered_output = template.render(
+        messages=messages,
+        bos_token=bos_token,
+        add_generation_prompt=add_generation_prompt
+    )
+
+    return rendered_output
+
+@app.post("/v1/chat/completions/")
+async def chat_completions_v1(request: CompletionRequest):
+    try:
+        url = f"http://{triton_settings.triton_service_ip}:{triton_settings.triton_service_port}"
+        nq = NemoQueryLLMPyTorch(url=url, model_name=request.model)
+        prompts = request.messages
+        if not isinstance(request.messages, list):
+            prompts = [request.messages]
+
+        prompts_formatted = [apply_chat_template(prompts)]
+        output = nq.query_llm(
+            prompts=prompts_formatted,
+            temperature=request.temperature,
+            top_k=request.top_k,
+            top_p=request.top_p,
+            compute_logprob=True if request.logprobs == 1 else False,
+            max_length=request.max_tokens,
+            init_timeout=300
+        )
+
+        # Convert NumPy arrays in output to lists
+        def convert_numpy(obj):
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {k: convert_numpy(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy(i) for i in obj]
+            else:
+                return obj
+
+        output_serializable = convert_numpy(output)
+        ## #TODO Temp WAR
+        output_serializable["choices"][0]["text"] = output_serializable["choices"][0]["text"][0][0]
+        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
+        output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
+        print("--output--", output_serializable)
+        return output_serializable
+    except Exception as error:
+        logging.error(f"An exception occurred with the post request to /v1/chat/completions/ endpoint: {error}")
         return {"error": "An exception occurred"}
