@@ -86,10 +86,13 @@ class QuantizationConfig:
 
 @dataclass
 class ExportConfig:
-    """Inference configuration for the quantized TensorRT-LLM checkpoint."""
+    """Inference configuration for the quantized TensorRT-LLM checkpoint.
 
-    export_format: str = "trtllm"
+    Available export formats methods are listed in `SUPPORTED_EXPORT_FMT` dictionary above.
+    """
+
     path: str  # TODO: In fact `Union[Path, str]` but NeMo-Run CLI fails on type hint: unserializable PosixPath value
+    export_format: str = "trtllm"
     dtype: Union[str, int] = "bf16"
     decoder_type: Optional[str] = None
     inference_tp: int = 1
@@ -101,7 +104,7 @@ class ExportConfig:
 
 
 class Quantizer:
-    """Post-training quantization (PTQ) and TensorRT-LLM export of NeMo 2.0 checkpoints.
+    """Post-training quantization (PTQ) and export of NeMo 2.0 checkpoints.
 
     PTQ converts selected model layers to low-precision format (e.g., INT4, FP8) for efficient serving.
     The process consist of several steps:
@@ -110,8 +113,9 @@ class Quantizer:
         2. Calibrating the model to obtain appropriate algorithm-specific scaling factors
         3. Producing an output directory with a quantized checkpoint and a tokenizer
 
-    The output directory produced is intended to be consumed by TensorRT-LLM toolbox
+    By default, the output directory produced is intended to be consumed by TensorRT-LLM toolbox
     for efficient inference. This can be achieved using nemo.export.tensorrt_llm module.
+    This can be changed to export a standard NeMo 2.0 checkpoint instead using `ExportConfig`.
     """
 
     def __init__(self, quantization_config: QuantizationConfig, export_config: ExportConfig):
