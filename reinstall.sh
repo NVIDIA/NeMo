@@ -55,6 +55,7 @@ mcore() {
     fi &&
     pushd $MLM_DIR &&
     git checkout -f $MLM_TAG &&
+    sed -i "/triton==3.1.0/d" requirements/pytorch_24.10/requirements.txt &&
     popd
 
   if [[ "$mode" == "build" ]]; then
