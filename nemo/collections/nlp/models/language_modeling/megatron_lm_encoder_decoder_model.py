@@ -1268,7 +1268,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     rampup_batch_size=None,
                     global_batch_size=1,
                     micro_batch_size=1, # Make sure that there is no "grad acc" while decoding
-                    data_parallel_size=1, # We check above to make sure that dataparallel size is always 1 at inference
+                    data_parallel_size=1, # We check above to make sure dataparallel size is always 1 at inference
                 )
 
         # If classes that inherit from this class are using a different tokenizer,
