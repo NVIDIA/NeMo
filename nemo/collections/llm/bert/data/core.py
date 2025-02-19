@@ -132,10 +132,10 @@ class BertEmbeddingDataset(Dataset):
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id else self.tokenizer.eos_id
         self.negative_sample_strategy = negative_sample_strategy
         assert (
-                truncation_method == 'left' or truncation_method == 'right'
+            truncation_method == 'left' or truncation_method == 'right'
         ), 'truncation_method must be either "left" or "right"'
         assert (
-                negative_sample_strategy == 'random' or negative_sample_strategy == 'first'
+            negative_sample_strategy == 'random' or negative_sample_strategy == 'first'
         ), 'negative_sample_strategy must be either "random" or "first"'
         if special_tokens is None:
             self.special_tokens = {
@@ -323,7 +323,7 @@ class BertEmbeddingDataset(Dataset):
         if self.truncation_method == 'left':
             # input ids:      [pad] [pad] token token |
             # attention mask: 0      0    1     1
-            attention_mask[max_length - item_length:] = 1
+            attention_mask[max_length - item_length :] = 1
         else:
             # input ids:      token token [pad] [pad] |
             # attention mask: 1     1     0      0
