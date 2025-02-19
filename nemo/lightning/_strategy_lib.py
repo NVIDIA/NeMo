@@ -617,33 +617,30 @@ def _sync_from_last_pipeline_stage(value: torch.Tensor, broadcast: bool = False)
     """
     from megatron.core import parallel_state
 
-    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-        src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+    # If there's no pipeline parallelism, nothing needs to be synced.
+    if parallel_state.get_pipeline_model_parallel_world_size() <= 1:
+        return
 
-        if not isinstance(src_rank, list):
-            src_rank = [src_rank]
+    src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+    group = parallel_state.get_pipeline_model_parallel_group()
 
-        if not broadcast:
-            group = parallel_state.get_pipeline_model_parallel_group()
-            if isinstance(group, list):
-                pp_ranks = []
-                for g in group:
-                    pp_ranks.append(torch.distributed.get_process_group_ranks(g))
-            else:
-                pp_ranks = torch.distributed.get_process_group_ranks(group)
+    src_ranks = src_rank if isinstance(src_rank, list) else [src_rank]
+    groups = group if isinstance(group, list) else [group]
 
-            for src_rank_idx in src_rank:
-                if torch.distributed.get_rank() == 0:
-                    torch.distributed.recv(value, src_rank_idx)
-                elif torch.distributed.get_rank() == src_rank_idx and 0 in pp_ranks:
-                    torch.distributed.send(value, 0)
+    assert len(src_ranks) == len(groups), "Mismatch between src_ranks and groups."
 
-        else:
-            torch.distributed.broadcast(
-                value,
-                src_rank,
-                group=parallel_state.get_pipeline_model_parallel_group(),
-            )
+    current_rank = torch.distributed.get_rank()
+    if not broadcast:
+        for src, grp in zip(src_ranks, groups):
+            pp_ranks = torch.distributed.get_process_group_ranks(grp)
+            if current_rank == 0:
+                torch.distributed.recv(value, src=src)
+            elif current_rank == src and 0 in pp_ranks:
+                torch.distributed.send(value, dst=0)
+
+    else:
+        for src, grp in zip(src_ranks, groups):
+            torch.distributed.broadcast(value, src=src, group=grp)
 
 
 def setup_megatron_optimizer(
