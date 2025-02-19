@@ -30,9 +30,6 @@ class LlavaNextTextSample(ImageTextSample):
     image_sizes: torch.tensor = field(default_factory=lambda: torch.tensor([]))
     attention_mask: Optional[torch.tensor] = None
 
-    # For Debug
-    extra_tokens: torch.tensor = field(default_factory=lambda: torch.tensor([]))
-
 @dataclass
 class PackedLlavaNextTextSample(LlavaNextTextSample):
     """Sample type for packed image text sample"""

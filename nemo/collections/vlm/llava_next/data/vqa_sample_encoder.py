@@ -91,16 +91,6 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
             prompt_strings = [sample.replace("<placeholder>", self.image_token.token_str) for sample in prompt_strings]
             conversation_prompt = prompt_strings[0]
 
-            ### FOr debugging
-            conversation_prompt_q = conversation_prompt
-            tokens_q = self.tokenize(conversation_prompt_q)
-            labels_q = self.compute_labels(tokens_q, input_sample)
-            tokens_q = tokens_q[:-1].contiguous()
-            output_sample.extra_tokens = tokens_q
-            labels_q = labels_q[1:].contiguous()
-            print(f"Shape of tokens_q {tokens_q.shape}, labels_q {labels_q.shape}")
-            ## For Debug
-
         logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
         # tokenize prompt
         tokens = self.tokenize(conversation_prompt)
@@ -146,7 +136,6 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
         base_features = patches_height * patches_width
 
         num_image_tokens = unpadded_features + newline_features + base_features
-        print(f"{base_features = }, {unpadded_features = }, {newline_features = }")
         return num_image_tokens
 
     def _get_unpadded_features(self, height, width, patches_height, patches_width, scale_height, scale_width):

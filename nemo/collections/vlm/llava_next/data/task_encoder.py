@@ -12,6 +12,7 @@ from nemo.collections.vlm.llava_next.data.interleaved_sample_encoder import Llav
 from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextRawBatch, LlavaNextTextSample, \
     PackedLlavaNextTextSample, PackedLlavaNextTextRawBatch
 from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import LlavaNextSampleEncoder
+from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed_llava_next
 from nemo.utils import logging
 from transformers import AutoProcessor
 
@@ -149,20 +150,11 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         Please see https://nvidia.github.io/Megatron-Energon/packing.html
         """
         from nemo.collections.vlm.neva.data.sequence_packing import greedy_knapsack, predict_seq_len_llava_next
-        # import pdb; pdb.set_trace()
-        media_token_id = self.sample_config.image_token.token_id
 
         lengths = [
-            predict_seq_len_llava_next(
-                sample.tokens,
-                media_token_index=media_token_id,
-                num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
-                num_media_tiles=sample.num_media_tiles
-            )
-            for sample in samples
+            len(sample.tokens) for sample in samples
         ]
 
-# predict_seq_len_llava_next( samples[0].tokens, media_token_index=self.sample_config.image_token.token_id, num_image_embeddings_per_tile=self.num_image_embeddings_per_tile, num_media_tiles=samples[0].num_media_tiles)
         packed_samples = greedy_knapsack(lengths, samples, self.packed_sequence_size)
         avg_samples_per_bin = round(len(lengths) / len(packed_samples))
         logging.info(
@@ -216,39 +208,24 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
 
         packed_images = torch.cat([sample.images for sample in samples], dim=0)
         media_token_id = self.sample_config.image_token.token_id
-        packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = convert_to_packed(
+        packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = convert_to_packed_llava_next(
             tokens=[sample.tokens for sample in samples],
             labels=[sample.labels for sample in samples],
-            num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
-            media_token_index=media_token_id,
             ignore_index=self.sample_config.ignore_place_holder,
         )
 
         return PackedLlavaNextTextSample(
-            __key__=",".join([s.__key__ for s in samples]),
-            __restore_key__=(),  # Will be set by energon based on `samples`
-            tokens=packed_tokens,
-            labels=packed_labels,
-            images=packed_images,
-            position_ids=packed_position_ids,
-            loss_mask=packed_loss_mask,
-            packed_seq_params=packed_seq_params,
-            attention_mask=None, # We don't need attention mask for packed samples
-            num_media_tiles=sample.num_media_tiles,
-            image_sizes=sample.image_sizes,
-        )
-
-        PackedLlavaNextTextRawBatch(
-                        __keys__=sample.__key__,
-                        images=sample.images,
-                        tokens=sample.tokens,
-                        labels=sample.labels,
-                        loss_mask=sample.loss_mask,
-                        num_media_tiles=sample.num_media_tiles,
-                        image_sizes=sample.image_sizes,
-                        attention_mask=sample.attention_mask,
-                        position_ids=sample.position_ids,
-                        packed_seq_params=sample.packed_seq_params,
+                        __key__=",".join([s.__key__ for s in samples]),
+                        __restore_key__=(),  # Will be set by energon based on `samples`
+                        images=packed_images,
+                        tokens=packed_tokens,
+                        labels=packed_labels,
+                        loss_mask=None,
+                        attention_mask=None,
+                        position_ids=packed_position_ids,
+                        packed_seq_params=packed_seq_params,
+                        num_media_tiles=batch_num_media_tiles,
+                        image_sizes=image_sizes,
                     )
 
 
@@ -282,15 +259,18 @@ if __name__ == '__main__':
     train_loader = get_loader(
         get_train_dataset(
             args.data_path,
-            batch_size=4,
+            batch_size=1,
             shuffle_buffer_size=100,
             max_samples_per_sequence=100,
             task_encoder=LlavaNextTaskEncoder(
                 tokenizer=tokenizer,
                 image_processor=processor.image_processor,
-                multimodal_sample_config=MultiModalSampleConfig()
+                multimodal_sample_config=MultiModalSampleConfig(),
+                packed_sequence=True,
+                packed_sequence_size=8086
             ),
             worker_config=worker_config,
+            packing_buffer_size=200
         ),
         worker_config=worker_config,
     )

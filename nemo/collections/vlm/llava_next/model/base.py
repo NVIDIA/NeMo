@@ -20,6 +20,7 @@ import torch
 import torch.distributed
 from megatron.core import parallel_state as ps
 from megatron.core.inference_params import InferenceParams
+from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
@@ -68,11 +69,20 @@ def llava_next_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     if parallel_state.is_pipeline_last_stage():
         required_keys.update(("labels", "loss_mask", "attention_mask"))
 
+    packed_seq_params = _batch.get("packed_seq_params", None)
     _batch = {
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
+    if packed_seq_params is not None:
+        for attr in ["cu_seqlens_q", "cu_seqlens_kv", "cu_seqlens_q_padded", "cu_seqlens_kv_padded"]:
+            value = getattr(packed_seq_params, attr, None)
+            if value is not None:
+                setattr(packed_seq_params, attr, value.cuda(non_blocking=True))
+    _batch["packed_seq_params"] = packed_seq_params
+
     # slice batch along sequence dimension for context parallelism
+    # Todo(abhi): This needs to be modified for packed seq later
     output = get_batch_on_this_context_parallel_rank(_batch)
 
     return output
@@ -102,10 +112,9 @@ def llava_next_forward_step(model, batch) -> torch.Tensor:
         "labels": batch.get("labels", None),
         "image_sizes": batch.get("image_sizes", None),
         "num_media_tiles": batch.get("num_media_tiles", None),
+        "packed_seq_params": batch.get("packed_seq_params", None),
     }
 
-    if 'cu_seqlens' in batch:
-        forward_args['packed_seq_params'] = get_packed_seq_params(batch)
     return model(**forward_args)
 
 
@@ -215,14 +224,15 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
         image_sizes: torch.Tensor,
-        loss_mask: Optional[torch.Tensor],
-        attention_mask: Optional[torch.Tensor],
+        loss_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
         media: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         inference_params: Optional[InferenceParams] = None,
         num_media_tiles: Optional[List[int]] = None,
         media_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
         runtime_gather_output: Optional[bool] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         """Forward function of the LLaVA Next model.
 
@@ -238,7 +248,8 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             inference_params (InferenceParams): Inference-time parameters including KV cache.
             num_media_tiles (list of int): Number of tiles per image. Default None assumes 1 tile per image.
             image_token_index (int): ID for input images.
-
+            packed_seq_params (PackedSeqParams): Dict with padded token information.
+                Required for using SP/CP with padding mask type.
         Returns:
             output (torch.Tensor): Loss ([b, s]) if labels are provided; logits ([b, s, vocab_size]) otherwise.
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
@@ -338,21 +349,6 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             image_newline=self.image_newline,
         )
 
-        if False:
-            combined_embeddings, attention_mask, position_ids, final_labels, final_input_ids, final_loss_mask = (
-                merge_input_ids_with_image_features(
-                    media_embeddings,
-                    feature_lens,
-                    language_embeddings,
-                    input_ids,
-                    attention_mask,
-                    position_ids,
-                    labels=labels,
-                    image_token_index=media_token_index,
-                )
-            )
-
-
         n_image_tokens = (input_ids == media_token_index).sum().item()
         n_image_features = media_embeddings.shape[0]
         if n_image_tokens != n_image_features:
@@ -363,18 +359,43 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         special_image_mask = special_image_mask.expand_as(language_embeddings).to(language_embeddings.device)
         media_embeddings = media_embeddings.to(language_embeddings.device, language_embeddings.dtype)
         combined_embeddings = language_embeddings.masked_scatter(special_image_mask, media_embeddings)
+
         final_labels = labels
         ignore_index = -100
 
         # We replace all 0 in final lables with -100 to maintain similarity with merge_input_ids_with_image_features
-        final_labels.masked_fill_(final_labels == 0, -100)
         final_loss_mask = None
         if final_labels is not None:
+            final_labels.masked_fill_(final_labels == 0, -100)
             final_loss_mask = (final_labels != ignore_index).long()
-
 
         combined_embeddings = combined_embeddings.permute(1, 0, 2)
         combined_embeddings = combined_embeddings.contiguous()
+
+        truncate_labels = (labels is not None) and final_labels.shape[1] > self._language_max_sequence_length
+        if truncate_labels:
+            final_labels = final_labels[:, : self._language_max_sequence_length]
+            final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
+
+        if combined_embeddings is not None:
+            # if self.context_parallel_lm == 1:
+            #     # Transpose to [s,b,h] if not using CP or not using packed_sequence/THD format
+            #     final_embedding = combined_embeddings.transpose(1, 0).contiguous()
+            # Truncate if exceeding the language model's max sequence length.
+            if combined_embeddings.shape[0] > self._language_max_sequence_length:
+                combined_embeddings = combined_embeddings[: self._language_max_sequence_length]
+                packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
+
+                if packed_sequence:
+                    truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
+                    packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
+                    packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
+                    packed_seq_params.cu_seqlens_q[-1] -= truncate_len
+                    packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
+                    assert (
+                            packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
+                    ), "with packed sequence, the truncation can only truncate on the last sequence."
+
         output = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -385,7 +406,7 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             runtime_gather_output=runtime_gather_output,
         )
 
-        if labels is None or loss_mask is None:
+        if labels is None:
             return output
 
         return output, final_loss_mask.contiguous()

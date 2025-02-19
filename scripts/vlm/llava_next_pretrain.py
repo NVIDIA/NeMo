@@ -34,9 +34,6 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
-
-import pdb
-# pdb.set_trace = lambda: 1
 def main(args):
     # pylint: disable=C0115,C0116
 
@@ -68,17 +65,20 @@ def main(args):
             tokenizer=tokenizer.tokenizer,
             image_processor=processor.image_processor,
             multimodal_sample_config=multimodal_sample_config,
+            packed_sequence=args.use_packed_sequence,
+            packed_sequence_size=decoder_seq_length
         )
         data = EnergonMultiModalDataModule(
             path=data_path,
             tokenizer=tokenizer,
             image_processor=processor.image_processor,
-            num_workers=0,
+            num_workers=32,
             micro_batch_size=mbs,
             global_batch_size=gbs,
             seq_length=decoder_seq_length,
             multimodal_sample_config=multimodal_sample_config,
             task_encoder=task_encoder,
+            packing_buffer_size=200 if args.use_packed_sequence else None,
         )
 
     elif args.data_type == "mock":
@@ -95,7 +95,7 @@ def main(args):
 
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
-        seq_length=decoder_seq_length, num_layers=1
+        seq_length=decoder_seq_length
     )
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
@@ -221,6 +221,9 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=32, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=0.001, help="Learning rate")
-
+    parser.add_argument(
+        "--use_packed_sequence",
+        action="store_true",
+    )
     args = parser.parse_args()
     main(args)
