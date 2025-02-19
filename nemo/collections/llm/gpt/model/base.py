@@ -32,7 +32,7 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from nemo.utils.nvtx import nvtx_range_push, nvtx_range_pop
+from nemo.utils.nvtx import nvtx_range_pop, nvtx_range_push
 
 _, HAVE_TE = safe_import("transformer_engine")
 
