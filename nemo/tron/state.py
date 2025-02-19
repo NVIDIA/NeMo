@@ -27,6 +27,38 @@ from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
 
 
+def _timers_write_to_wandb(
+        self,
+        names: list[str],
+        writer,
+        iteration: int,
+        normalizer: float = 1.0,
+        reset: bool = True,
+        barrier: bool = False,
+    ):
+        """Write timers to a tensorboard writer. Note that we only report maximum time across ranks
+           to tensorboard.
+
+        Args:
+            names (List[str]): Names of the timers to log.
+            writer (SummaryWriter): Tensorboard SummaryWriter object
+            iteration (int): Current iteration.
+            normalizer (float, optional): Normalizes the timer values by the factor.
+                                          Defaults to 1.0.
+            reset (bool, optional): Whether to reset timer values after logging. Defaults to True.
+            barrier (bool, optional): Whether to do a global barrier before time measurments.
+                                      Defaults to False.
+        """
+        # currently when using add_scalars,
+        # torch.utils.add_scalars makes each timer its own run, which
+        # polutes the runs list, so we just add each as a scalar
+        assert normalizer > 0.0
+        name_to_min_max_time = self._get_global_min_max_time(names, reset, barrier, normalizer)
+        if writer is not None:
+            for name in name_to_min_max_time:
+                _, max_time = name_to_min_max_time[name]
+                writer.log({name + '-time': max_time}, iteration)
+
 @dataclass
 class TrainState(Stateful):
     step: int = 0
@@ -141,6 +173,7 @@ class GlobalState:
     def timers(self):
         if self._timers is None:
             self._timers = Timers(self.cfg.logger_config.timing_log_level, self.cfg.logger_config.timing_log_option)
+            self._timers.write_to_wandb = _timers_write_to_wandb
         return self._timers
 
     @property
