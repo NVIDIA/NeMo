@@ -28,7 +28,7 @@ def build_pretraining_data_loader(
             data_parallel_rank=mpu.get_data_parallel_rank(),
             data_parallel_size=mpu.get_data_parallel_world_size(),
         )
-    elif cfg.data_config.dataloader_type == "cyclic":
+    elif dataloader_type == "cyclic":
         batch_sampler = MegatronPretrainingRandomSampler(
             dataset,
             total_samples=len(dataset),
@@ -36,22 +36,22 @@ def build_pretraining_data_loader(
             micro_batch_size=micro_batch_size,
             data_parallel_rank=mpu.get_data_parallel_rank(),
             data_parallel_size=mpu.get_data_parallel_world_size(),
-            data_sharding=cfg.data_config.data_sharding,
+            data_sharding=data_sharding,
         )
-    elif cfg.data_config.dataloader_type == "external":
+    elif dataloader_type == "external":
         # External dataloaders are passed through. User is expected to provide a
         # torch-compatible dataloader and define samplers, if needed.
         return dataset
     else:
-        raise Exception("{} dataloader type is not supported.".format(cfg.data_config.dataloader_type))
+        raise Exception("{} dataloader type is not supported.".format(dataloader_type))
 
     # Torch dataloader.
     return torch.utils.data.DataLoader(
         dataset,
         batch_sampler=batch_sampler,
-        num_workers=cfg.data_config.num_workers,
+        num_workers=num_workers,
         pin_memory=True,
-        persistent_workers=True if cfg.data_config.num_workers > 0 else False,
+        persistent_workers=True if num_workers > 0 else False,
     )
 
 
