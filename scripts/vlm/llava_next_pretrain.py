@@ -34,6 +34,7 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
+
 def main(args):
     # pylint: disable=C0115,C0116
 
@@ -66,7 +67,7 @@ def main(args):
             image_processor=processor.image_processor,
             multimodal_sample_config=multimodal_sample_config,
             packed_sequence=args.use_packed_sequence,
-            packed_sequence_size=decoder_seq_length
+            packed_sequence_size=decoder_seq_length,
         )
         data = EnergonMultiModalDataModule(
             path=data_path,
@@ -94,9 +95,7 @@ def main(args):
         raise ValueError(f"Data type {args.data_type} not supported")
 
     # Submodules configurations
-    language_transformer_config = llm.Llama2Config7B(
-        seq_length=decoder_seq_length
-    )
+    language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length)
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
