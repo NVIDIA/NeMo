@@ -197,6 +197,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.model.train()
 
     def configure_optimizers(self):
+        """
+        Configure optimizer.
+        """
         return torch.optim.AdamW(self.model.parameters(), lr=3e-3, foreach=True)
 
     def forward(self, batch):
