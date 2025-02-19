@@ -13,12 +13,8 @@
 # limitations under the License.
 
 import argparse
-from pathlib import Path
 
 from nemo.collections.llm import quantization
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
-from nemo.utils.get_rank import is_global_rank_zero
 
 
 def get_args():
@@ -120,6 +116,7 @@ def main():
         calibration_seq_len=args.seq_len,
     )
     export_config = quantization.ExportConfig(
+        export_format=args.export_format,
         path=args.export_path,
         decoder_type=args.decoder_type,
         inference_tp=args.inference_tp,
@@ -139,17 +136,7 @@ def main():
     )
     model = quantizer.quantize(model)
 
-    if args.export_format == "nemo":
-        # Standard NeMo 2.0 checkpoint format
-        trainer.save_checkpoint(args.export_path)
-        if is_global_rank_zero():
-            TrainerContext.from_trainer(trainer).io_dump(
-                ckpt_to_context_subdir(args.export_path), yaml_attrs=["model"]
-            )
-            assert (Path(ckpt_to_weights_subdir(args.export_path, False)) / "modelopt_state").exists()
-    else:
-        # TRT-LLM
-        quantizer.export(model, args.nemo_checkpoint)
+    quantizer.export(model, args.nemo_checkpoint, trainer)
 
 
 if __name__ == '__main__':

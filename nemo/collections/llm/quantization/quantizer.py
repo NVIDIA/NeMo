@@ -16,7 +16,7 @@ import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 import torch.distributed as dist
@@ -27,11 +27,16 @@ from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
 from nemo.collections.llm.utils import torch_dtype_from_precision
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.megatron_parallel import MegatronParallel
+from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import unwrap_model
 
 from .utils import get_modelopt_decoder_type
+
+if TYPE_CHECKING:
+    from nemo.lightning import Trainer
+    from nemo.lightning.megatron_parallel import MegatronParallel
 
 try:
     import modelopt.torch.quantization as mtq
@@ -54,6 +59,7 @@ except (ImportError, ModuleNotFoundError) as e:
 
 
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
+SUPPORTED_EXPORT_FMT = ["trtllm", "nemo"]
 
 
 @dataclass
@@ -82,6 +88,7 @@ class QuantizationConfig:
 class ExportConfig:
     """Inference configuration for the quantized TensorRT-LLM checkpoint."""
 
+    export_format: str = "trtllm"
     path: str  # TODO: In fact `Union[Path, str]` but NeMo-Run CLI fails on type hint: unserializable PosixPath value
     dtype: Union[str, int] = "bf16"
     decoder_type: Optional[str] = None
@@ -285,34 +292,46 @@ class Quantizer:
             logging.error("Failed to export the quantized model.")
         return export_successful
 
-    def export(self, model: MegatronParallel, model_dir: str) -> None:
-        """Export model to a TensorRT-LLM checkpoint."""
+    def export(self, model: MegatronParallel, model_dir: str, trainer: Optional[Trainer] = None) -> None:
+        """Export model to a TensorRT-LLM or NeMo checkpoint."""
         export_dir = self.export_config.path
-        inference_tp = self.export_config.inference_tp
-        inference_pp = self.export_config.inference_pp
+        export_fmt = self.export_config.export_format
+        assert export_fmt in SUPPORTED_EXPORT_FMT, f"Unsupported export format: {export_fmt}"
 
-        use_nfs_workspace = model.config.pipeline_model_parallel_size > 1
-        export_tensorrt_llm_checkpoint(
-            model=unwrap_model(model),
-            decoder_type=self._get_decoder_type(model),
-            dtype=self.torch_dtype,
-            export_dir=export_dir,
-            inference_tensor_parallel=inference_tp,
-            inference_pipeline_parallel=inference_pp,
-            use_nfs_workspace=use_nfs_workspace,
-        )
-        dist.barrier()
+        # Standard NeMo 2.0 checkpoint format
+        if self.export_config.export_format == "nemo":
+            assert trainer is not None, "Trainer required for NeMo export."
+            trainer.save_checkpoint(export_dir)
+            if is_global_rank_zero():
+                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
+                assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
+        # TRT-LLM
+        else:
+            inference_tp = self.export_config.inference_tp
+            inference_pp = self.export_config.inference_pp
 
-        # Save the model context in order to restore its tokenizer later. The destination
-        # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
-        if dist.get_rank() == 0:
-            assert self._validate_quantized_checkpoint(export_dir, inference_tp)
-            shutil.copytree(
-                ckpt_to_context_subdir(model_dir),
-                os.path.join(export_dir, "nemo_context"),
-                dirs_exist_ok=True,
+            use_nfs_workspace = model.config.pipeline_model_parallel_size > 1
+            export_tensorrt_llm_checkpoint(
+                model=unwrap_model(model),
+                decoder_type=self._get_decoder_type(model),
+                dtype=self.torch_dtype,
+                export_dir=export_dir,
+                inference_tensor_parallel=inference_tp,
+                inference_pipeline_parallel=inference_pp,
+                use_nfs_workspace=use_nfs_workspace,
             )
-            logging.info(f"Export succeeded, model has been exported to {export_dir}.")
+            dist.barrier()
+
+            # Save the model context in order to restore its tokenizer later. The destination
+            # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
+            if dist.get_rank() == 0:
+                assert self._validate_quantized_checkpoint(export_dir, inference_tp)
+                shutil.copytree(
+                    ckpt_to_context_subdir(model_dir),
+                    os.path.join(export_dir, "nemo_context"),
+                    dirs_exist_ok=True,
+                )
+                logging.info(f"Export succeeded, model has been exported to {export_dir}.")
 
 
 def get_calib_data_iter(
