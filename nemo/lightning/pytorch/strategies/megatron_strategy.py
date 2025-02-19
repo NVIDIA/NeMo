@@ -439,7 +439,29 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         else:
             # we need to manually synchronize the module's states since we aren't using the DDP wrapper
             assert self.model is not None
-            _sync_module_states(self.model)
+
+            def broadcast_params(module):
+                """
+                Syncs parameters across all DP ranks.
+                """
+                from megatron.core import parallel_state
+                for param in module.parameters():
+                    is_expert_parallel = not getattr(param, 'allreduce', True)
+
+                    if is_expert_parallel:
+                        data_parallel_group = parallel_state.get_expert_data_parallel_group()
+                    else:
+                        data_parallel_group = parallel_state.get_data_parallel_group(
+                            with_context_parallel=True, partial_data_parallel=True
+                        )
+                    torch.distributed.broadcast(
+                        param.data,
+                        src=torch.distributed.get_global_rank(data_parallel_group, 0),
+                        group=data_parallel_group,
+                    )
+
+            for model_module in self.model:
+                broadcast_params(model_module)
 
         # add AsyncFinalizerCallback if using async
         if self.async_save:
