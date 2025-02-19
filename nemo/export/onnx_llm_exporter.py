@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-from typing import Optional, Union, Generator, List
+import json
 import warnings
-from tqdm import tqdm
+from pathlib import Path
+from typing import Generator, List, Optional, Union
 
+import modelopt.torch.quantization as mtq
 import numpy as np
 import tensorrt as trt
 import torch
 import wrapt
+from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
-import json
-import modelopt.torch.quantization as mtq
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.utils import get_example_inputs, get_model_device_type, is_nemo2_checkpoint, validate_fp8_network
@@ -76,19 +76,21 @@ class OnnxLLMExporter(ITritonDeployable):
 
     def __init__(
         self,
-        model_dir: str,
+        onnx_model_dir: str,
+        model=None,
+        tokenizer=None,
         model_name_or_path: str = None,
-        load_runtime: bool=True,
+        load_runtime: bool = True,
     ):
         """
         Args:
             model_dir (str): path for storing the ONNX model files.
         """
-        self.model_dir = model_dir
+        self.onnx_model_dir = onnx_model_dir
         self.model_name_or_path = model_name_or_path
-        self.model_path = str(Path(model_dir) / "model.onnx")
-        self.model = None
-        self.tokenizer = None
+        self.onnx_model_path = str(Path(onnx_model_dir) / "model.onnx")
+        self.model = model
+        self.tokenizer = tokenizer
         self.model_input_names = None
         self.model_output_names = None
         self.onnx_runtime_session = None
@@ -97,18 +99,27 @@ class OnnxLLMExporter(ITritonDeployable):
         self.quant_max_batch_size = None
 
         if self.model_name_or_path is not None:
-            self._load_hf_model()
+            if model is not None:
+                warnings.warn("A model was also passed but it will be overridden.")
+
+            if Path(self.model_name_or_path).is_dir():
+                if is_nemo2_checkpoint(self.model_name_or_path):
+                    raise NotImplementedError("NeMo 2.0 checkpoint will be supported later.")
+                else:
+                    self._load_hf_model()
 
         if load_runtime:
             self._load_runtime()
 
     def _load_runtime(self):
         if use_onnxruntime:
-            if Path(self.model_path).exists():
-                self.onnx_runtime_session = onnxruntime.InferenceSession(self.model_path)
+            if Path(self.onnx_model_path).exists():
+                self.onnx_runtime_session = onnxruntime.InferenceSession(self.onnx_model_path)
                 self.model_input_names = [input.name for input in self.onnx_runtime_session.get_inputs()]
                 self.model_output_names = [output.name for output in self.onnx_runtime_session.get_outputs()]
-                self.tokenizer = AutoTokenizer.from_pretrained(Path(self.model_dir) / "tokenizer", trust_remote_code=True)
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    Path(self.onnx_model_dir) / "tokenizer", trust_remote_code=True
+                )
 
     def _load_hf_model(self):
         self.model = AutoModel.from_pretrained(
@@ -122,59 +133,28 @@ class OnnxLLMExporter(ITritonDeployable):
         self,
         input_names: list,
         output_names: list,
-        model_name_or_path: str = None,
         example_inputs: dict = None,
         opset: int = 20,
         dynamic_axes_input: Optional[dict] = None,
         dynamic_axes_output: Optional[dict] = None,
         export_dtype: str = "fp32",
-        model_dtype: Optional[Union[torch.dtype, str]] = None,
         verbose: bool = False,
     ):
         """Performs ONNX conversion from a PyTorch model."""
 
-        reload_model = False
-        if model_name_or_path is not None:
-            if self.model_name_or_path is not None:
-                warnings.warn("The model name or path was set before and it is being updated.")
-            self.model_name_or_path = model_name_or_path
-            reload_model = True
-
-        assert self.model_name_or_path is not None, "Model name or path cannot be None"
-
-        is_nemo_ckpt = False
-        if Path(self.model_name_or_path).is_dir():
-            if is_nemo2_checkpoint(self.model_name_or_path):
-                is_nemo_ckpt = True
-
-        if is_nemo_ckpt:
-            self._export_nemo_to_onnx(
-                input_names=input_names,
-                example_inputs=example_inputs,
-                output_names=output_names,
-                opset=opset,
-                dynamic_axes_input=dynamic_axes_input,
-                dynamic_axes_output=dynamic_axes_output,
-                export_dtype=export_dtype,
-            )
-        else:
-            self._export_hf_to_onnx(
-                input_names=input_names,
-                example_inputs=example_inputs,
-                output_names=output_names,
-                opset=opset,
-                dynamic_axes_input=dynamic_axes_input,
-                dynamic_axes_output=dynamic_axes_output,
-                export_dtype=export_dtype,
-                model_dtype=model_dtype,
-                trust_remote_code=True,
-                reload_model=reload_model,
-                verbose=verbose,
-            )
-
+        self._export_to_onnx(
+            input_names=input_names,
+            example_inputs=example_inputs,
+            output_names=output_names,
+            opset=opset,
+            dynamic_axes_input=dynamic_axes_input,
+            dynamic_axes_output=dynamic_axes_output,
+            export_dtype=export_dtype,
+            verbose=verbose,
+        )
         self._load_runtime()
 
-    def _export_hf_to_onnx(
+    def _export_to_onnx(
         self,
         input_names: list,
         output_names: list,
@@ -183,14 +163,8 @@ class OnnxLLMExporter(ITritonDeployable):
         dynamic_axes_input: Optional[dict] = None,
         dynamic_axes_output: Optional[dict] = None,
         export_dtype: Union[torch.dtype, str] = "fp32",
-        model_dtype: Optional[Union[torch.dtype, str]] = None,
-        trust_remote_code: bool = True,
-        reload_model: bool = False,
         verbose: bool = False,
     ):
-
-        if reload_model:
-            self._load_hf_model()
 
         if example_inputs is None:
             example_inputs = get_example_inputs(self.tokenizer)
@@ -207,31 +181,18 @@ class OnnxLLMExporter(ITritonDeployable):
             torch.onnx.export(
                 model=self.model,
                 args=(example_inputs,),
-                f=self.model_path,
+                f=self.onnx_model_path,
                 input_names=input_names,
                 output_names=output_names,
                 dynamic_axes={**dynamic_axes_input, **dynamic_axes_output},
                 verbose=verbose,
                 opset_version=opset,
             )
-        print(f"Successfully exported PyTorch model to " f"ONNX model ({self.model_path})")
+        print(f"Successfully exported PyTorch model to " f"ONNX model ({self.onnx_model_path})")
 
-        existing_directory_path = Path(self.model_dir) / "tokenizer"
+        existing_directory_path = Path(self.onnx_model_dir) / "tokenizer"
         existing_directory_path.mkdir(exist_ok=True)
         self.tokenizer.save_pretrained(existing_directory_path)
-
-    def _export_nemo_to_onnx(
-        self,
-        input_names: list,
-        example_inputs: dict,
-        output_names: list,
-        opset: int = 20,
-        dynamic_axes_input: Optional[dict] = None,
-        dynamic_axes_output: Optional[dict] = None,
-        export_dtype: str = "fp32",
-        verbose: bool = False,
-    ):
-        raise NotImplementedError("This function will be implemented later.")
 
     def export_onnx_to_trt(
         self,
@@ -247,7 +208,7 @@ class OnnxLLMExporter(ITritonDeployable):
         Raises:
             SerializationError: TensorRT engine must serialize properly.
         """
-        print(f"Building TRT engine from ONNX model ({self.model_path})")
+        print(f"Building TRT engine from ONNX model ({self.onnx_model_path})")
         trt_logger = trt.Logger(trt.Logger.WARNING)
         builder = trt.Builder(trt_logger)
         network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
@@ -256,7 +217,7 @@ class OnnxLLMExporter(ITritonDeployable):
 
         # we use parse_from_file() instead of parse() because it can be used for both single
         # file models as well as externally stored models (required when model >2GiB)
-        if not parser.parse_from_file(self.model_path):
+        if not parser.parse_from_file(self.onnx_model_path):
             print("ONNX model could not be parsed")
             for error in range(parser.num_errors):
                 print(parser.get_error(error))
@@ -312,7 +273,7 @@ class OnnxLLMExporter(ITritonDeployable):
             raise Exception("Failed to serialize the TensorRT Engine. Please check the " "TensorRT logs for details")
 
         trt_model_path.write_bytes(engine_string)
-        print(f"Successfully exported ONNX model ({self.model_path}) " f"to TRT engine ({trt_model_path})")
+        print(f"Successfully exported ONNX model ({self.onnx_model_path}) " f"to TRT engine ({trt_model_path})")
 
     def _override_layer_precision_to_fp32(self, layer: trt.ILayer) -> None:
         """Set TensorRT layer precision and output type to FP32.
@@ -434,11 +395,7 @@ class OnnxLLMExporter(ITritonDeployable):
 
         # Enable FP8 kv cache to save memory footprint
         quant_cfg["quant_cfg"]["*output_quantizer"] = {
-            "num_bits": (
-                8
-                if quantization_type == "int8_sq" or quantization_type == "int8"
-                else (4, 3)
-            ),
+            "num_bits": (8 if quantization_type == "int8_sq" or quantization_type == "int8" else (4, 3)),
             "axis": None,
             "enable": True,
         }
