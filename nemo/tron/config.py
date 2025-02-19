@@ -986,9 +986,9 @@ class ConfigContainer:
             mlc.tensor_model_parallel_size * mlc.pipeline_model_parallel_size * mlc.context_parallel_size
         )
         total_model_size = encoder_model_size + decoder_model_size
-        assert world_size % total_model_size == 0, (
-            f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
-        )
+        assert (
+            world_size % total_model_size == 0
+        ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
         self.data_parallel_size = world_size // total_model_size
 
         self.megatron_lm_config.use_cpu_initialization = (
