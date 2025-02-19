@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import os
 from datetime import datetime
+from typing import Any
 
 import torch.distributed
 
@@ -47,6 +49,19 @@ def print_rank_0(message):
         print(message, flush=True)
 
 
+def is_last_rank():
+    return torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1)
+
+
+def print_rank_last(message):
+    """If distributed is initialized, print only on last rank."""
+    if torch.distributed.is_initialized():
+        if is_last_rank():
+            print(message, flush=True)
+    else:
+        print(message, flush=True)
+
+
 def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
     """Append given string to progress log."""
     if save_dir is None:
@@ -68,3 +83,54 @@ def barrier_and_log(string):
     torch.distributed.barrier()
     time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print_rank_0(f"[{string}] datetime: {time_str} ")
+
+
+def _safe_object_representer(dumper, data):
+    """
+    Represent a given object as YAML using the specified dumper.
+
+    This function is a fallback for objects that don't have specific representers.
+    If the object has __qualname__ attr,
+    the __target__ is set to f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}".
+    If the object does not have a __qualname__ attr, the __target__ is set from its __class__ attr.
+    The __call__ key is used to indicate whether the target should be called to create an instance.
+
+    Args:
+        dumper (yaml.Dumper): The YAML dumper to use for serialization.
+        data (Any): The data to serialize. This can be any Python object,
+            but if it's a class or a class instance, special handling will be applied.
+
+    Returns:
+        str: The YAML representation of the data.
+    """
+    try:
+        obj = data
+        target = f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}"
+        call = False
+    except AttributeError:
+        obj = data.__class__
+        target = f"{inspect.getmodule(obj).__name__}.{obj.__qualname__}"
+        call = True
+
+    value = {
+        "_target_": target,  # type: ignore
+        "_call_": call,
+    }
+    return dumper.represent_data(value)
+
+
+def dump_dataclass_to_yaml(obj: Any):
+    import fiddle._src.experimental.dataclasses as fdl_dc
+    import yaml
+    from nemo_run.core.serialization.yaml import YamlSerializer
+
+    cfg = fdl_dc.convert_dataclasses_to_configs(obj, allow_post_init=True)
+    original_representers = yaml.SafeDumper.yaml_representers.copy()
+
+    yaml.SafeDumper.add_multi_representer(object, _safe_object_representer)
+
+    serializer = YamlSerializer()
+    result = serializer.serialize(cfg)
+
+    yaml.SafeDumper.yaml_representers = original_representers
+    return result
