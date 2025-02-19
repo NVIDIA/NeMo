@@ -16,8 +16,8 @@ from os.path import basename, splitext
 from typing import Optional
 
 import nemo_run as run
-from argument_parser import parse_cli_args
-from utils import get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
+from ..argument_parser import parse_cli_args
+from ..utils import get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
 
 from nemo.collections.llm.recipes.mixtral_8x22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed

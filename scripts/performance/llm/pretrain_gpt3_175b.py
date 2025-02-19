@@ -17,8 +17,8 @@ from os.path import basename, splitext
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
-from argument_parser import parse_cli_args
-from utils import (
+from ..argument_parser import parse_cli_args
+from ..utils import (
     get_comm_overlap_callback_idx,
     get_user_configs,
     hf_tokenizer,

@@ -14,9 +14,9 @@
 
 import nemo_run as run
 import torch
-from argument_parser import parse_cli_args
+from ..argument_parser import parse_cli_args
 from megatron.core.optimizer import OptimizerConfig
-from utils import import_ckpt_experiment, slurm_executor
+from ..utils import import_ckpt_experiment, slurm_executor
 
 from nemo import lightning as nl
 from nemo.collections import llm
