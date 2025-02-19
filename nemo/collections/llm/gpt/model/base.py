@@ -32,6 +32,7 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
+from nemo.utils.nvtx import nvtx_range_push, nvtx_range_pop
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -54,6 +55,7 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
 
+    nvtx_range_push("nemo.collections.llm.gpt.model.base.gpt_data_step")
     batch = next(dataloader_iter)
 
     _batch: dict
@@ -87,6 +89,7 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_context_parallel_rank(_batch_required_keys)
+    nvtx_range_pop()
 
     return output
 
