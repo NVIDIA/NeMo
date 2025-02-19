@@ -447,6 +447,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 Syncs parameters across all DP ranks.
                 """
                 from megatron.core import parallel_state
+
                 for param in module.parameters():
                     is_expert_parallel = not getattr(param, 'allreduce', True)
 
