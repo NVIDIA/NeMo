@@ -73,7 +73,9 @@ def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
         with open(progress_log_filename, "a") as f:
             job_id = os.getenv("SLURM_JOB_ID", "")
             num_gpus = get_world_size_safe()
-            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\tJob ID: {job_id}\t# GPUs: {num_gpus}\t{string}\n")
+            f.write(
+                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\tJob ID: {job_id}\t# GPUs: {num_gpus}\t{string}\n"
+            )
 
 
 def barrier_and_log(string):
