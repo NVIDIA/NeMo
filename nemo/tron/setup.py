@@ -93,3 +93,5 @@ def setup(
     # Print setup timing.
     print_rank_0("done with setup ...")
     timers.log(["model-and-optimizer-setup", "train/valid/test-data-iterators-setup"], barrier=True)
+
+    return model, optimizer, scheduler, train_data_iterator, valid_data_iterator, test_data_iterator
