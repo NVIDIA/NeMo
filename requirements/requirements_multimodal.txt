@@ -4,7 +4,7 @@ clip
 decord; sys_platform == 'linux'
 diffusers>=0.19.3
 einops_exts
-energon @ git+https://github.com/NVIDIA/Megatron-Energon.git@develop
+megatron-energon==5.2.0
 imageio
 kornia
 nerfacc>=0.5.3
