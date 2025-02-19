@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
     # Load ckpt saved with TE < 1.14
     if args.legacy_ckpt:
-        trainer.strategy.ckpt_load_strictness = False
+        trainer.strategy.ckpt_load_strictness = "log_all"
 
     # Run
     llm.train(
