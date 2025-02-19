@@ -296,7 +296,6 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         if self.trainer:
             dataloader_obj = self.trainer.train_dataloader
 
-
             state = []
             if torch.distributed.get_rank() == parallel_state.get_model_parallel_src_rank():
                 state = dataloader_obj.save_state_global(global_dst_rank=0)
