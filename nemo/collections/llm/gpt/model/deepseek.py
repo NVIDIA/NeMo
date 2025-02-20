@@ -194,6 +194,16 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
     def init(self) -> DeepSeekModel:
         return DeepSeekModel(self.config, tokenizer=self.tokenizer)
 
+    def local_path(self, base_path: Optional[Path] = None) -> Path:
+        # TODO: delete this function
+        self.debug = True
+        logging.setLevel(logging.DEBUG)
+
+        output_path = super().local_path(base_path)
+        if self.debug:
+            output_path = Path(str(output_path) + "_debug3")
+        return output_path
+
     def apply(self, output_path: Path) -> Path:
         from transformers import AutoModelForCausalLM
 
@@ -220,6 +230,29 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         """
 
         state_dict = source.state_dict()
+
+        import re
+        to_pop = set()
+        if hasattr(self, 'debug') and self.debug:
+            is_v3 = hasattr(self.config, "moe_router_enable_expert_bias") and self.config.moe_router_enable_expert_bias
+
+            for k in state_dict.keys():
+                if match := re.match(r"model\.layers\.(\d+)\.", k):
+                    if is_v3:
+                        if int(match.group(1)) not in [2, 3]:  # 0, 1, 2 dense, 3, 4, ... moe
+                            to_pop.add(k)
+                    else:
+                        if int(match.group(1)) >= self.config.num_layers:
+                            to_pop.add(k)
+                if is_v3 and (match := re.match(r".*\.experts.(\d+)", k)):
+                    if int(match.group(1)) >= 8:
+                        to_pop.add(k)
+            [state_dict.pop(k) for k in to_pop]
+            keys = list(state_dict.keys())
+            for k in keys:
+                state_dict[k.replace("layers.2", "layers.0").replace("layers.3", "layers.1")] = state_dict.pop(k)
+        state_dict['model.layers.1.mlp.gate.weight'] = state_dict['model.layers.1.mlp.gate.weight'][:8]
+        state_dict['model.layers.1.mlp.gate.e_score_correction_bias'] = state_dict['model.layers.1.mlp.gate.e_score_correction_bias'][:8]
 
         for layer_i, use_moe in enumerate(self.config.moe_layer_freq):
             if use_moe == 0:
@@ -327,6 +360,9 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
     @cached_property
     def config(self) -> DeepSeekConfig:
+        if hasattr(self, 'debug') and self.debug:
+            return self.config_debug
+
         from transformers import AutoConfig as HFAutoConfig
 
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
@@ -362,10 +398,59 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             **v3_kwargs,
         )
 
+    @cached_property
+    def config_debug(self) -> DeepSeekConfig:
+        # TODO remove
+        from transformers import AutoConfig as HFAutoConfig
+
+        source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
+        is_v3 = source.scoring_func == "sigmoid"
+        return DeepSeekConfig(
+            num_layers=2,
+            hidden_size=source.hidden_size,
+            ffn_hidden_size=source.intermediate_size,
+            num_moe_experts=8,
+            moe_ffn_hidden_size=source.moe_intermediate_size,
+            moe_shared_expert_intermediate_size=source.moe_intermediate_size * source.n_shared_experts,
+            moe_layer_freq=[0, 1],
+            moe_router_topk=source.num_experts_per_tok,
+            moe_router_num_groups=source.n_group,
+            moe_router_group_topk=source.topk_group,
+            moe_router_topk_scaling_factor=source.routed_scaling_factor,
+            moe_aux_loss_coeff=source.aux_loss_alpha,
+            moe_router_score_function=source.scoring_func,
+            moe_router_enable_expert_bias=is_v3,
+            make_vocab_size_divisible_by=1280 if is_v3 else 3200,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
+        )
+
+
+
+@dataclass
+class DeepSeekV3Config_Debug2(DeepSeekV3Config):
+    """
+    DEBUG2 DeepSeek-V3 Model: https://github.com/deepseek-ai/DeepSeek-V3 # todo delete
+    """
+    num_layers: int = 2
+    moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0, 1])  # first layer is dense
+    num_moe_experts: int = 32
+
+@dataclass
+class DeepSeekV3Config_Debug3(DeepSeekV3Config):
+    """
+    DEBUG3 DeepSeek-V3 Model: https://github.com/deepseek-ai/DeepSeek-V3 # todo delete
+    """
+    num_layers: int = 2
+    moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0, 1])  # first layer is dense
+    num_moe_experts: int = 8
 
 __all__ = [
     "DeepSeekConfig",
     "DeepSeekV2Config",
     "DeepSeekV3Config",
     "DeepSeekModel",
+    "DeepSeekV3Config_Debug2",
+    "DeepSeekV3Config_Debug3",
 ]

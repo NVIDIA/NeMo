@@ -20,7 +20,7 @@ import nemo_run as run
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Config
+from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Config, DeepSeekV3Config_Debug2, DeepSeekV3Config_Debug3
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 
@@ -28,7 +28,7 @@ NAME = "deepseek_v3"
 
 
 @run.cli.factory(name=NAME)
-def model() -> run.Config[pl.LightningModule]:
+def model(debug_model: Optional[str] = None) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a DeepSeek-V3 (671B) model configuration.
 
@@ -43,7 +43,12 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    conf = run.Config(DeepSeekV3Config)
+    if debug_model is None:
+        conf = run.Config(DeepSeekV3Config)
+    elif debug_model == "debug2":
+        conf = run.Config(DeepSeekV3Config_Debug2)
+    elif debug_model == "debug3":
+        conf = run.Config(DeepSeekV3Config_Debug3)
     return run.Config(DeepSeekModel, config=conf)
 
 
@@ -95,6 +100,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'lora',
     seq_length: Optional[int] = None,
     packed_sequence: Optional[bool] = None,
+    debug_model: Optional[str] = None,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for DeepSeek-V3 (671B) model.
@@ -140,10 +146,19 @@ def finetune_recipe(
         elif peft_scheme.lower() in ['lora', 'dora']:
             num_nodes = 6
 
+    resume_path = "deepseek-ai/DeepSeek-V3-Base"
+    if debug_model == "debug2":
+        resume_path = "/lustre/fsw/coreai_dlalgo_llm/yifuw/nemo_home/models/DeepSeek-V3-Base-BF16_debug2"
+    elif debug_model == "debug3":
+        resume_path = "/lustre/fsw/coreai_dlalgo_llm/yifuw/nemo_home/models/DeepSeek-V3-Base-BF16_debug3"
     recipe = default_finetune_recipe(
-        model(), "deepseek-ai/DeepSeek-V3-Base", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(debug_model=debug_model), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if debug_model is not None:
+        recipe.trainer.strategy.expert_model_parallel_size = 1
+        recipe.trainer.strategy.pipeline_model_parallel_size = 1
+        recipe.optim.config.lr = 5e-6
+    elif peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.expert_model_parallel_size = 64
         recipe.trainer.strategy.pipeline_model_parallel_size = 8
         recipe.model.config.num_layers_in_first_pipeline_stage = 7
