@@ -37,9 +37,9 @@ from typing_extensions import Self
 from nemo.lightning.io.artifact.base import Artifact
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.connector import ModelConnector
+from nemo.lightning.io.deserialize import SafeDeserialization
 from nemo.lightning.io.fdl_torch import enable as _enable_ext
 from nemo.lightning.io.to_config import to_config
-from nemo.lightning.io.deserialize import SafeDeserialization
 from nemo.utils import logging
 
 ConnT = TypeVar("ConnT", bound=ModelConnector)
@@ -743,9 +743,9 @@ def drop_unexpected_params(config: fdl.Config) -> bool:
 
 
 def load(
-    path: Path, 
-    output_type: Type[CkptType] = Any, 
-    subpath: Optional[str] = None, 
+    path: Path,
+    output_type: Type[CkptType] = Any,
+    subpath: Optional[str] = None,
     build: bool = True,
     trust_remote_code: bool = False,
     max_depth: int = 100,
@@ -761,8 +761,8 @@ def load(
         subpath (Optional[str]): Subpath to selectively load only specific objects inside the output_type.
                                  Defaults to None.
         build (bool): Whether to build the config into an object. Defaults to True.
-        trust_remote_code (bool): Whether to allow custom code from untrusted sources to be loaded. Can be used to 
-            load models containing custom code. SECURITY WARNING: This could execute arbitrary code. Only enable this if you 
+        trust_remote_code (bool): Whether to allow custom code from untrusted sources to be loaded. Can be used to
+            load models containing custom code. SECURITY WARNING: This could execute arbitrary code. Only enable this if you
             trust the source of the model. Defaults to False.
         max_depth (int): Maximum recursion depth for nested structures. Defaults to 100.
         max_string_length (int): Maximum allowed string length. Defaults to 100,000.

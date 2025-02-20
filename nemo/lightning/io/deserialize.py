@@ -1,18 +1,13 @@
-from typing import Any, Dict, Optional, Union, List, Final
 import builtins
+import logging
 import re
 import sys
-import logging
-from pathlib import Path, PosixPath, WindowsPath
 import time
+from pathlib import Path, PosixPath, WindowsPath
+from typing import Any, Dict, Final, List, Optional, Union
 
 from fiddle._src import daglish
-from fiddle._src.experimental.serialization import (
-    Deserialization,
-    PyrefPolicy,
-    _VALUE_KEY,
-    register_node_traverser,
-)
+from fiddle._src.experimental.serialization import _VALUE_KEY, Deserialization, PyrefPolicy, register_node_traverser
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -326,16 +321,12 @@ class SafePyrefPolicy(PyrefPolicy):
         if isinstance(value, dict):
             if len(value) > self.max_collection_size:
                 return False
-            return all(
-                self.allows_value(k) and self.allows_value(v) for k, v in value.items()
-            )
+            return all(self.allows_value(k) and self.allows_value(v) for k, v in value.items())
 
         if isinstance(value, str):
             if len(value) > self.max_string_length:
                 return False
-            return not any(
-                pattern.search(value) for pattern in self.SUSPICIOUS_PATTERNS
-            )
+            return not any(pattern.search(value) for pattern in self.SUSPICIOUS_PATTERNS)
 
         # For all other types, just return True if it's a primitive type
         return isinstance(value, (int, float, bool, type(None)))
@@ -351,9 +342,7 @@ class SafePyrefPolicy(PyrefPolicy):
     def _check_timeout(self) -> None:
         """Check if execution time limit has been exceeded."""
         if time.time() - self._start_time > self.execution_timeout:
-            raise ResourceLimitError(
-                f"Execution timeout ({self.execution_timeout}s) exceeded"
-            )
+            raise ResourceLimitError(f"Execution timeout ({self.execution_timeout}s) exceeded")
 
     def _validate_int(self, value: int) -> bool:
         """Validate integer values."""
@@ -432,9 +421,7 @@ class SafePyrefPolicy(PyrefPolicy):
                 if current_module in self.trusted_modules:
                     return True
 
-            logger.warning(
-                f"Blocked import from untrusted module in restricted mode: {module}"
-            )
+            logger.warning(f"Blocked import from untrusted module in restricted mode: {module}")
             return False
 
         # Validate names
@@ -463,14 +450,10 @@ class SafePyrefPolicy(PyrefPolicy):
         """
         if isinstance(value, (str, bytes)):
             if len(value) > self.max_string_length:
-                raise ValueError(
-                    f"String length {len(value)} exceeds limit {self.max_string_length}"
-                )
+                raise ValueError(f"String length {len(value)} exceeds limit {self.max_string_length}")
         elif isinstance(value, (list, tuple, set, dict)):
             if len(value) > self.max_collection_size:
-                raise ValueError(
-                    f"Collection size {len(value)} exceeds limit {self.max_collection_size}"
-                )
+                raise ValueError(f"Collection size {len(value)} exceeds limit {self.max_collection_size}")
 
 
 class SafeDeserialization(Deserialization):
@@ -513,36 +496,24 @@ class SafeDeserialization(Deserialization):
         """Verify that security measures haven't been compromised."""
         # Check if critical sets are still frozen
         if not isinstance(DANGEROUS_BUILTINS, frozenset):
-            raise SecurityViolationError(
-                "Security violation: DANGEROUS_BUILTINS has been modified"
-            )
+            raise SecurityViolationError("Security violation: DANGEROUS_BUILTINS has been modified")
         if not isinstance(BLOCKED_MODULES, frozenset):
-            raise SecurityViolationError(
-                "Security violation: BLOCKED_MODULES has been modified"
-            )
+            raise SecurityViolationError("Security violation: BLOCKED_MODULES has been modified")
         if not isinstance(TRUSTED_MODULES, frozenset):
-            raise SecurityViolationError(
-                "Security violation: TRUSTED_MODULES has been modified"
-            )
+            raise SecurityViolationError("Security violation: TRUSTED_MODULES has been modified")
 
         # Verify SafePyrefPolicy hasn't been tampered with
         if not hasattr(SafePyrefPolicy, "__setattr__"):
-            raise SecurityViolationError(
-                "Security violation: SafePyrefPolicy protection removed"
-            )
+            raise SecurityViolationError("Security violation: SafePyrefPolicy protection removed")
 
         # Verify that built-in functions haven't been monkey-patched
         for func_name in ("getattr", "setattr", "delattr", "eval", "exec"):
             builtin_func = getattr(builtins, func_name)
             builtins_func = (
-                __builtins__[func_name]
-                if isinstance(__builtins__, dict)
-                else getattr(__builtins__, func_name)
+                __builtins__[func_name] if isinstance(__builtins__, dict) else getattr(__builtins__, func_name)
             )
             if builtin_func is not builtins_func:
-                raise SecurityViolationError(
-                    f"Security violation: built-in {func_name} has been modified"
-                )
+                raise SecurityViolationError(f"Security violation: built-in {func_name} has been modified")
 
     def _validate_value(self, value: Any) -> None:
         """Recursively validate a value for security concerns."""
@@ -554,9 +525,7 @@ class SafeDeserialization(Deserialization):
         if isinstance(value, dict):
             for k, v in value.items():
                 if not isinstance(k, str):
-                    raise DeserializationError(
-                        f"Dictionary keys must be strings, got: {type(k)}"
-                    )
+                    raise DeserializationError(f"Dictionary keys must be strings, got: {type(k)}")
                 self._validate_value(v)
         elif isinstance(value, (list, tuple, set)):
             for item in value:
@@ -568,9 +537,7 @@ class SafeDeserialization(Deserialization):
 
         # Check string length limits
         if isinstance(value, str) and len(value) > self.max_string_length:
-            raise DeserializationError(
-                f"String length {len(value)} exceeds limit {self.max_string_length}"
-            )
+            raise DeserializationError(f"String length {len(value)} exceeds limit {self.max_string_length}")
 
         # Validate nested structures
         self._validate_value(value)
