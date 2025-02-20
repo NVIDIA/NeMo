@@ -842,6 +842,18 @@ class _ModuleStepFunction:
         return attr
 
 
+def getattr_proxy(self, item: Any) -> Any:
+    try:
+        return super(self.__class__, self).__getattr__(item)
+    except AttributeError as e:
+        if item == 'module':  ## this is a hacky WAR and may cause misleading error messages
+            raise e
+        try:
+            return getattr(self.module, item)
+        except AttributeError:
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
+
+
 class DDP(McoreDDP):
     def __init__(
         self,
@@ -866,6 +878,9 @@ class DDP(McoreDDP):
 
     def state_dict(self, prefix='', keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
+
+    def __getattr__(self, item: Any) -> Any:
+        return getattr_proxy(self, item)
 
 
 class CallbackConnector:
