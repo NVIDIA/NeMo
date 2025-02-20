@@ -40,7 +40,7 @@ _, HAVE_TE = safe_import("transformer_engine")
 # TODO: Clean this up with a getter and install instructions
 _grad_accum_fusion_available = True
 try:
-    import fused_weight_gradient_mlp_cuda
+    import fused_weight_gradient_mlp_cuda  # noqa: F401  # pylint: disable=unused-import
 except ImportError:
     _grad_accum_fusion_available = False
 
@@ -193,7 +193,10 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             )
 
         vp_size = self.virtual_pipeline_model_parallel_size
-        if vp_size:
+        is_pipeline_asymmetric = getattr(self, 'account_for_embedding_in_pipeline_split', False) or getattr(
+            self, 'account_for_loss_in_pipeline_split', False
+        )
+        if vp_size and not is_pipeline_asymmetric:
             p_size = self.pipeline_model_parallel_size
             assert (
                 self.num_layers // p_size
@@ -237,7 +240,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         # TP, CP group to the TE modules.
         # Deep iterate but skip self to avoid infinite recursion.
         if HAVE_TE and self.use_transformer_engine_full_layer_spec:
-            # Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
+            # Copied from:
+            # https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
             if parallel_state.get_tensor_model_parallel_world_size() > 1:
                 for index, child in enumerate(model.modules()):
                     if index == 0:
@@ -414,7 +418,8 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             vocab_size = self.config.vocab_size
         else:
             raise ValueError(
-                'Unable to find vocab size. Either pass in a tokenizer with vocab size, or set vocab size in the model config'
+                'Unable to find vocab size.'
+                ' Either pass in a tokenizer with vocab size, or set vocab size in the model config'
             )
 
         inference_wrapper_config = InferenceWrapperConfig(
@@ -460,8 +465,8 @@ def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
                     val.shape[seq_dim] // (2 * cp_size),
                     *val.shape[(seq_dim + 1) :],
                 )
-                index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).cuda(
-                    non_blocking=True
+                index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).to(
+                    _val.device, non_blocking=True
                 )
                 _val = _val.index_select(seq_dim, index)
                 _val = _val.view(*val.shape[0:seq_dim], -1, *_val.shape[(seq_dim + 2) :])
