@@ -141,9 +141,7 @@ def finetune_recipe(
         elif peft_scheme.lower() in ['lora', 'dora']:
             num_nodes = 6
 
-    recipe = default_finetune_recipe(
-        model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
-    )
+    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence)
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.expert_model_parallel_size = 64
         recipe.trainer.strategy.pipeline_model_parallel_size = 8

@@ -14,21 +14,23 @@
 
 
 from typing import Callable, Optional
+
 import lightning.pytorch as pl
+import nemo_run as run
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
+
 import nemo.lightning as nl
-import nemo_run as run
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.utils.exp_manager import TimingCallback
 from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2LiteConfig
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
+from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
+from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "deepseek_v2_lite"
 
@@ -51,6 +53,7 @@ def model() -> run.Config[pl.LightningModule]:
     """
     conf = run.Config(DeepSeekV2LiteConfig)
     return run.Config(DeepSeekModel, config=conf)
+
 
 def trainer(
     tensor_parallelism: int = 4,
@@ -188,6 +191,7 @@ def pretrain_recipe(
     )
 
     return recipe
+
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
