@@ -218,24 +218,31 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
-        import transformer_engine
-        with transformer_engine.pytorch.fp8_model_init(recipe=transformer_engine.common.recipe.DelayedScaling()):
-            model = MCoreGPTModel(
-                self,
-                transformer_layer_spec=transformer_layer_spec,
-                vocab_size=vocab_size,
-                max_sequence_length=self.seq_length,
-                fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
-                parallel_output=self.parallel_output,
-                share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
-                position_embedding_type=self.position_embedding_type,
-                rotary_percent=self.rotary_percent,
-                rotary_base=self.rotary_base,
-                seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-                pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
-                post_process=post_process or parallel_state.is_pipeline_last_stage(),
-                scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
-            )
+        # Set FP8 recipe to DelayedScaling to initialize model with float8 precision.
+        # If not set, the default recipe is MXFP8BlockScaling which will initialize
+        # model with mxfp8 precision.
+        if self.fp8 is not None:
+            assert HAVE_TE, "Transformer Engine is required for FP8 training."
+            te_fp8, _ = safe_import("transformer_engine.pytorch.fp8")
+            te_recipe, _ = safe_import("transformer_engine.common.recipe")
+            te_fp8.FP8GlobalStateManager.FP8_RECIPE = te_recipe.DelayedScaling()
+
+        model = MCoreGPTModel(
+            self,
+            transformer_layer_spec=transformer_layer_spec,
+            vocab_size=vocab_size,
+            max_sequence_length=self.seq_length,
+            fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
+            parallel_output=self.parallel_output,
+            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
+            position_embedding_type=self.position_embedding_type,
+            rotary_percent=self.rotary_percent,
+            rotary_base=self.rotary_base,
+            seq_len_interpolation_factor=self.seq_len_interpolation_factor,
+            pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
+            post_process=post_process or parallel_state.is_pipeline_last_stage(),
+            scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
+        )
 
         # If using full TE layer, need to set TP, CP group since the module call
         # is not routed through megatron core, which normally handles passing the

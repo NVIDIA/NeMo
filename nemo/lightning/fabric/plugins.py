@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Generator, Literal, TypeVar
+from typing import TYPE_CHECKING, Generator, Literal, TypeVar
 
 import torch
 from lightning.fabric.plugins.precision import MixedPrecision
@@ -68,9 +68,7 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             te_fp8, HAVE_TE = safe_import("transformer_engine.pytorch.fp8")
             assert HAVE_TE, "FP8 precision requires transformer engine."
             if fp8_params:
-                from transformer_engine.common.recipe import DelayedScaling
                 te_fp8.FP8GlobalStateManager.FP8_PARAMETERS = True
-                te_fp8.FP8_RECIPE = DelayedScaling()
                 fp8_param_gather = True
 
         dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
