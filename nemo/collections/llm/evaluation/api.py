@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -22,16 +22,9 @@ class ApiEndpoint(BaseModel):
     Represents evaluation Standard API target.api_endpoint object
     """
 
-    url: str = Field(description="Url of the model", default="http://0.0.0.0:8000")
+    url: str = Field(description="Url of the model", default="http://0.0.0.0:8000/v1/completions/")
     model_id: str = Field(description="Name of the model in API", default="triton_model")
-    nemo_checkpoint_path: Optional[str] = Field(
-        description="Path for nemo 2.0 checkpoint",
-        default=None,
-    )
-    nemo_triton_http_port: Optional[int] = Field(
-        description="HTTP port that was used for the PyTriton server in the deploy method. Default: 8000.",
-        default=8000,
-    )
+    type: str = Field(description="The type of the target", default="completions")
 
 
 class EvaluationTarget(BaseModel):
@@ -58,23 +51,13 @@ class ConfigParams(BaseModel):
     limit_samples: Optional[Union[int, float]] = Field(
         description="Limit evaluation to `limit` samples. Default: use all samples", default=None
     )
-    num_fewshot: Optional[int] = Field(
-        description="Number of examples in few-shot context. Default: None which means no few_shots are used.",
-        default=None,
-    )
     max_new_tokens: Optional[int] = Field(description="max tokens to generate", default=256)
-    batch_size: Optional[int] = Field(description="batch size to use for evaluation", default=1)
-    top_k: Optional[int] = Field(
-        description="Limits to a certain number (K) of the top tokens to consider",
-        default=1,
-    )
-    add_bos: Optional[bool] = Field(
-        description="whether a special bos token should be added when encoding a string",
-        default=False,
-    )
-    bootstrap_iters: int = Field(
-        description="Number of iterations for bootstrap statistics",
-        default=100000,
+    max_retries: Optional[int] = Field(description="Number of REST request retries", default=None)
+    parallelism: Optional[int] = Field(description="Parallelism to be used", default=None)
+    task: Optional[str] = Field(description="Name of the task", default=None)
+    timeout: Optional[int] = Field(description="REST response timeout", default=None)
+    extra: Optional[Dict[str, Any]] = Field(
+        description="Framework specific parameters to be used for evaluation", default_factory=dict
     )
 
 
@@ -83,5 +66,13 @@ class EvaluationConfig(BaseModel):
     Represents evaluation Standard API config object
     """
 
+    output_dir: str = Field(description="Directory to output the results", default="results")
+    supported_endpoint_types: Optional[list[str]] = Field(
+        description="Supported endpoint types like chat or completions", default=None
+    )
     type: str = Field(description="Name/type of the task")
     params: ConfigParams = Field(description="Parameters to be used for evaluation", default=ConfigParams())
+
+
+class MisconfigurationError(Exception):
+    pass
