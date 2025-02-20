@@ -1136,6 +1136,21 @@ class MegatronBertModel(MegatronBaseModel):
         """LightningModule hook:
         https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-load-checkpoint
         """
+
+        def load_model_state_dict(module: torch.nn.Module, state_dict: Dict[str, Any]):
+            """Helper function to load state dict with fallback"""
+            try:
+                module.load_state_dict(state_dict, strict=True)
+            except RuntimeError as e:
+                # Fallback support for backward compatibility breaking changes in TransformerEngine
+                missing_keys, _ = module.load_state_dict(state_dict, strict=False)
+                if all(k.endswith('_extra_state') for k in missing_keys):
+                    logging.debug(
+                        f'Loading checkpoint created with Transformer Engine version lower than 1.13. Missing layers {missing_keys} will be ignored.'
+                    )
+                else:
+                    raise
+
         if self.mcore_bert:
             if 'state_dict' in checkpoint and checkpoint['state_dict']:
                 for index, module in enumerate(self.get_model_module_list()):
@@ -1148,14 +1163,14 @@ class MegatronBertModel(MegatronBaseModel):
                         key.replace('model.', ''): checkpoint_state_dict.pop(key)
                         for key in list(checkpoint_state_dict.keys())
                     }
-                    module.load_state_dict(checkpoint_state_dict, strict=True)
+                    load_model_state_dict(module, checkpoint_state_dict)
             else:
                 checkpoint['state_dict'] = {}
         else:
             if isinstance(self.model, list):
                 for i in range(len(self.model)):
                     parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+                    load_model_state_dict(self.model[i].module, checkpoint[f'model{i}'])
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def build_transformer_config(self) -> TransformerConfig:
