@@ -609,11 +609,12 @@ def compute_throughputs_and_append_to_progress_log(state: GlobalState, num_float
     tokens_so_far = state.train_state.consumed_train_samples * state.cfg.model_config.seq_length
     saved_ckpt_prefix = "Saving async checkpoint" if state.cfg.checkpoint_config.async_save else "Saved checkpoint"
     append_to_progress_log(
+        state.cfg.checkpoint_config.save,
         f"{saved_ckpt_prefix}\tIteration: {state.train_state.step}\t"
         f"Job throughput: {job_throughput:.1f} TFLOP/s/GPU\t"
         f"Cumulative throughput: {cumulative_throughput:.1f} TFLOP/s/GPU\t"
         f"Floating-point operations: {num_floating_point_operations_so_far:.2e}\t"
-        f"Tokens (in billions): {tokens_so_far / 10**9:.2f}"
+        f"Tokens (in billions): {tokens_so_far / 10**9:.2f}",
     )
 
 

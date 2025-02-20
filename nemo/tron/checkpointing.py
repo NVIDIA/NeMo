@@ -489,7 +489,6 @@ def save_checkpoint(
             rerun_state=rerun_state,
         )
 
-        state_dict["num_floating_point_operations_so_far"] = num_floating_point_operations_so_far
         if ckpt_type == CheckpointType.GLOBAL:
             if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
                 # TODO Handle non-empty directories (e.g., after a crash during saving).
@@ -587,7 +586,7 @@ def save_checkpoint(
 
         if ckpt_type == CheckpointType.LOCAL:
 
-            def iter_finalize_fn():
+            def train_state_finalize_fn():
                 print_rank_0(f"  successfully saved local checkpoint from iteration {train_state.step:7d}")
                 if cfg.logger_config.log_progress and ckpt_cfg.async_save:
                     append_to_progress_log(
@@ -596,8 +595,12 @@ def save_checkpoint(
 
         else:
 
-            def iter_finalize_fn():
-                torch.save(train_state.state_dict(), tracker_filename)
+            def train_state_finalize_fn():
+                train_state_dict = train_state.state_dict()
+                train_state_dict["floating_point_operations_so_far"] = torch.tensor(
+                    num_floating_point_operations_so_far, dtype=torch.float32
+                )
+                torch.save(train_state_dict, tracker_filename)
                 print_rank_0(
                     f"  successfully saved checkpoint from iteration {train_state.step:7d} to {ckpt_cfg.save} "
                     f"[ t {(tensor_rank if tensor_rank is not None else mpu.get_tensor_model_parallel_rank()) + 1}/{mpu.get_tensor_model_parallel_world_size()}, "
@@ -610,9 +613,9 @@ def save_checkpoint(
 
         if ckpt_cfg.async_save:
             assert async_save_request is not None
-            async_save_request.add_finalize_fn(iter_finalize_fn)
+            async_save_request.add_finalize_fn(train_state_finalize_fn)
         else:
-            iter_finalize_fn()
+            train_state_finalize_fn()
 
     # Additional callback for wandb (last rank)
     if not torch.distributed.is_initialized() or is_last_rank():

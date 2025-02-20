@@ -69,7 +69,7 @@ class TrainState(Stateful):
             "consumed_valid_samples": torch.tensor(self.consumed_valid_samples, dtype=torch.int32),
             "variable_seq_lengths": torch.tensor(self.variable_seq_lengths, dtype=torch.bool),
             "floating_point_operations_so_far": torch.tensor(
-                self.floating_point_operations_so_far, dtype=torch.float32
+                self.floating_point_operations_so_far, dtype=torch.float64
             ),
             "do_train": torch.tensor(self.do_train, dtype=torch.bool),
             "do_valid": torch.tensor(self.do_valid, dtype=torch.bool),
