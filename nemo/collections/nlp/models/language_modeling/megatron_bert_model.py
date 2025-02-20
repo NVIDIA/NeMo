@@ -480,7 +480,7 @@ class MegatronBertModel(MegatronBaseModel):
                 self.proxies = []
 
             def make_proxy(self):
-                """ Make proxy"""
+                """Make proxy"""
                 self.proxies.append(CachingIterator.Proxy())
                 return self.proxies[-1]
 
@@ -853,7 +853,7 @@ class MegatronBertModel(MegatronBaseModel):
         and only needs to be called when using Transformer Engine.
         """
         for module in self.get_bert_module_list():
-            """Set TP group. Copied from: 
+            """Set TP group. Copied from:
             https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
             """
             # Deep iterate but skip self to avoid infinite recursion.
@@ -1265,7 +1265,7 @@ class MegatronBertTextEmbeddingModel(MegatronBertModel):
     """
 
     def average_pool(self, last_hidden_states, attention_mask):
-        """ Average pool over hidden states and mask. """
+        """Average pool over hidden states and mask."""
         last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
         return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
