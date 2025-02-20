@@ -47,12 +47,14 @@ class NevaLlama3Config8B(Llama3Config8B):
 class HFCLIPViTLConfig(vlm.HFCLIPVisionConfig):
     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = "openai/clip-vit-large-patch14-336"
 
+
 @dataclass
 class VisionProjectorConfig(vlm.MultimodalProjectorConfig):
     projector_type: str = "mcore_mlp"
     input_size: Optional[int] = 1024
     hidden_size: int = 4096
     ffn_hidden_size: int = 4096
+
 
 @dataclass
 class NevaConfig8B(vlm.NevaConfig):
