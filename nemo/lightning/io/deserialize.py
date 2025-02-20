@@ -141,6 +141,9 @@ DANGEROUS_BUILTINS: Final[frozenset] = frozenset(
 TRUSTED_MODULES: Final[frozenset] = frozenset(
     {
         "nemo",
+        "nemo_run",
+        "nemo_alligner",
+        "nemo_curator",
         "torch",
         "pytorch_lightning",
         "lightning",
