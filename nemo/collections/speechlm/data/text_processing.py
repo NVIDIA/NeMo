@@ -20,6 +20,7 @@ import torch
 from nemo.collections.common.data.lhotse.text_adapters import AudioTurn, NeMoMultimodalConversation
 from nemo.collections.common.data.prompt_fn import get_prompt_format_fn
 from nemo.collections.common.prompts import PromptFormatter
+from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.utils import logging
 
 __all__ = ['MultimodalConversationTextProcessor', 'TextProcessorOutput']
@@ -101,15 +102,20 @@ class MultimodalConversationTextProcessor(object):
         num_audios = len(audio_turns)
         audio_locator_str = audio_turns[0].audio_locator_tag if num_audios > 0 else None
 
-        prossed_sample = self.prompt_format_fn(lhotse_input, self.prompt)
+        processed_sample = self.prompt_format_fn(lhotse_input, self.prompt)
 
         if num_audios == 0:
             context_start_idx = [0]
-            input_ids = prossed_sample["input_ids"].cpu().numpy().tolist()
-            context_ids = prossed_sample["context_ids"].cpu().numpy().tolist()
-            answer_ids = prossed_sample["answer_ids"].cpu().numpy().tolist()
+            input_ids = processed_sample["input_ids"].cpu().numpy().tolist()
+            context_ids = processed_sample["context_ids"].cpu().numpy().tolist()
+            answer_ids = processed_sample["answer_ids"].cpu().numpy().tolist()
         else:
-            context = self.tokenizer.ids_to_text(prossed_sample["context_ids"])
+            if isinstance(self.tokenizer, AutoTokenizer):
+                # HF tokenizer skips special tokens when converting ids to text by default,
+                # which makes text_to_ids and ids_to_text not inverses of each other.
+                context = self.tokenizer.ids_to_text(processed_sample["context_ids"], remove_special_tokens=False)
+            else:
+                context = self.tokenizer.ids_to_text(processed_sample["context_ids"])
             context_ids = []
             context_start_idx = []
             segments = context.split(audio_locator_str)
@@ -123,7 +129,7 @@ class MultimodalConversationTextProcessor(object):
                     else:
                         context_seg = self.eoa_string + ' ' + context_seg + ' ' + self.boa_string
                 context_ids.extend(self.tokenizer.text_to_ids(context_seg))
-            answer_ids = prossed_sample["answer_ids"].cpu().numpy().tolist()
+            answer_ids = processed_sample["answer_ids"].cpu().numpy().tolist()
             input_ids = context_ids + answer_ids
 
         if len(input_ids) > self.max_seq_length:
