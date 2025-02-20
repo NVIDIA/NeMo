@@ -80,6 +80,7 @@ class TokenizerConfig:
     tokenizer_prompt_format: Optional[str] = None
     special_tokens: Optional[List[str]] = None
     image_tag_type: Optional[str] = None
+    padded_vocab_size: Optional[int] = None
 
 
 # TODO (maanug): split this up into modular components
@@ -528,6 +529,12 @@ class MegatronLMConfig:
     mock_data: bool = False
     """Skip data loading and validation and opt for artificial generation of mock data when an implementation is available."""
 
+    encoder_seq_length: Optional[int] = None
+    """Maximum encoder sequence length to process."""
+
+    decoder_seq_length: Optional[int] = None
+    """Maximum decoder sequence length to process."""
+
     retriever_sequence_length: int = 256
     """Maximum sequence length for the biencoder model for retriever"""
 
@@ -894,9 +901,6 @@ class LoggerConfig:
 @dataclass(kw_only=True)
 class SchedulerConfig:
     # ---------------- Learning rate config. ----------------
-    lr_warmup_steps: int
-    lr_decay_steps: int
-
     lr_decay_style: Literal["constant", "linear", "cosine", "inverse-square-root", "WSD"] = "linear"
     """Learning rate decay function."""
 
@@ -944,18 +948,15 @@ class SchedulerConfig:
     weight_decay_incr_style: Literal["constant", "linear", "cosine"] = "constant"
     """Weight decay increment function."""
 
-    wd_incr_steps: Optional[int] = None
-    wsd_decay_steps: Optional[int] = None
+    lr_warmup_steps: Optional[int] = field(init=False, default=None)
+    lr_decay_steps: Optional[int] = field(init=False, default=None)
+    wd_incr_steps: Optional[int] = field(init=False, default=None)
+    wsd_decay_steps: Optional[int] = field(init=False, default=None)
 
     def __post_init__(self):
-        assert self.lr_decay_steps > 0
-        assert self.lr_warmup_steps < self.lr_decay_steps
-
-        if self.lr_decay_style == "WSD":
-            assert self.wsd_decay_steps is not None
-
-        assert self.start_weight_decay >= 0.0
-        assert self.end_weight_decay >= self.start_weight_decay
+        if self.start_weight_decay is not None:
+            assert self.start_weight_decay >= 0.0
+            assert self.end_weight_decay >= self.start_weight_decay
 
         if self.override_opt_param_scheduler:
             assert not self.use_checkpoint_opt_param_scheduler, "both override and use-checkpoint are set."
@@ -973,6 +974,7 @@ class ConfigContainer:
     scheduler_config: SchedulerConfig
     dataset_config: GPTDatasetConfig
     logger_config: LoggerConfig
+    tokenizer_config: TokenizerConfig
 
     def __post_init__(self):
         # Run validations
@@ -1014,7 +1016,7 @@ class ConfigContainer:
             )
         if self.scheduler_config.lr_warmup_fraction is not None:
             self.scheduler_config.lr_warmup_steps = (
-                self.scheduler_config.lr_warmup_fraction * self.scheduler_config.lr_decay_steps
+                self.scheduler_config.lr_warmup_fraction * self.scheduler_config.lr_decay_iters
             )
         else:
             self.scheduler_config.lr_warmup_steps = (
