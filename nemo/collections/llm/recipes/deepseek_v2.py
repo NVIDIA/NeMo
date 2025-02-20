@@ -278,7 +278,6 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
-        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
+        raise ValueError("Packed sequence for DeepSeek is not yet supported. Please set packed_sequence=False.")
 
     return recipe
