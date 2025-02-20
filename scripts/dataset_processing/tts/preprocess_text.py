@@ -113,7 +113,9 @@ def get_args():
     return args
 
 
-def _split_and_normalize_text(text: str, normalizer: Normalizer, max_num_words: int = 500, additional_split_symbols: str = ";|:") -> str:
+def _split_and_normalize_text(
+    text: str, normalizer: Normalizer, max_num_words: int = 500, additional_split_symbols: str = ";|:"
+) -> str:
     """
     Splits the input text into sentences using additional split symbols,
     further splits sentences longer than 500 words, normalizes each sentence,
