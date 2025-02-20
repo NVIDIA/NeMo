@@ -14,6 +14,7 @@
 
 import os
 import time
+import types
 from dataclasses import dataclass
 from typing import Any
 
@@ -162,7 +163,7 @@ class GlobalState:
     def timers(self):
         if self._timers is None:
             self._timers = Timers(self.cfg.logger_config.timing_log_level, self.cfg.logger_config.timing_log_option)
-            self._timers.write_to_wandb = _timers_write_to_wandb
+            self._timers.write_to_wandb = types.MethodType(_timers_write_to_wandb, self._timers)
         return self._timers
 
     @property
