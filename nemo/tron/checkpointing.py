@@ -41,7 +41,7 @@ from megatron.core.num_microbatches_calculator import update_num_microbatches
 from megatron.core.rerun_state_machine import get_rerun_state_machine
 from megatron.core.utils import is_float8tensor
 
-from nemo.tron.config import CheckpointConfig, ConfigContainer
+from nemo.tron.config import ConfigContainer
 
 # from . import ft_integration
 from nemo.tron.state import TrainState
@@ -450,7 +450,7 @@ def save_checkpoint(
     ):
         optim_checkpoint_name = get_distributed_optimizer_checkpoint_name(checkpoint_name)
         ensure_directory_exists(optim_checkpoint_name)
-        if not optimizer.is_stub_optimizer:
+        if not getattr(optimizer, "is_stub_optimizer", False):
             optimizer.save_parameter_state(optim_checkpoint_name)
 
     async_save_request = None
@@ -740,7 +740,7 @@ def generate_state_dict(
             )
     # Optimizer stuff.
     if cfg.checkpoint_config.save_optim:
-        if optimizer is not None and not optimizer.is_stub_optimizer:
+        if optimizer is not None and not getattr(optimizer, "is_stub_optimizer", False):
             state_dict["optimizer"] = (
                 optimizer.sharded_state_dict(state_dict, **(optim_sd_kwargs or {}))
                 if use_dist_ckpt
@@ -1374,7 +1374,11 @@ def load_checkpoint(
     if not release and not args.finetune and not args.no_load_optim:
         try:
             # Load state dict.
-            if not skip_load_to_model_and_opt and optimizer is not None and not optimizer.is_stub_optimizer:
+            if (
+                not skip_load_to_model_and_opt
+                and optimizer is not None
+                and not getattr(optimizer, "is_stub_optimizer", False)
+            ):
                 optimizer.load_state_dict(state_dict["optimizer"])
 
             # Load distributed optimizer's custom parameter state.

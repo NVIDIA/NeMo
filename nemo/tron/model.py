@@ -100,8 +100,7 @@ def get_model_from_config(
     # Print number of parameters.
     if parallel_state.get_data_parallel_rank() == 0:
         print(
-            ' > number of parameters on (tensor, pipeline) '
-            'model parallel rank ({}, {}): {}'.format(
+            " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
                 parallel_state.get_tensor_model_parallel_rank(),
                 parallel_state.get_pipeline_model_parallel_rank(),
                 sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model]),
@@ -123,9 +122,9 @@ def get_model_from_config(
     for model_module in model:
         for param in model_module.parameters():
             if is_float8tensor(param) and param._fp8_meta is not None:
-                fp8_meta = param._fp8_meta['scaling_fwd']
+                fp8_meta = param._fp8_meta["scaling_fwd"]
                 fp8_meta_index = param._fp8_meta_index
-                if hasattr(param, 'get_high_precision_init_val'):
+                if hasattr(param, "get_high_precision_init_val"):
                     fp8_meta.amax_history[0][fp8_meta_index].copy_(param.get_high_precision_init_val().abs().max())
                 else:
                     fp8_meta.amax_history[0][fp8_meta_index] = 0
