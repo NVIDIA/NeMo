@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 import functools
 import inspect
 import json
@@ -20,7 +21,6 @@ import threading
 import types
 import uuid
 from copy import deepcopy
-from dataclasses import is_dataclass
 from pathlib import Path
 from pydoc import locate
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
@@ -50,12 +50,23 @@ _enable_ext()
 _thread_local = threading.local()
 
 
+def _is_default_factory(arg: Any) -> bool:
+    return arg == dataclasses._HAS_DEFAULT_FACTORY
+
+
 def _ordered_arguments_with_default(data: config_lib.Config) -> Dict[Union[int, str], Any]:
     result = config_lib.ordered_arguments(data, include_defaults=True)
     for key, arg in result.items():
         if isinstance(arg, config_lib.Config):
             ordered_arg = _ordered_arguments_with_default(arg)
             result[key] = ordered_arg
+        elif _is_default_factory(arg):
+            if dataclasses.is_dataclass(data.__fn_or_cls__):
+                fields = dataclasses.fields(data.__fn_or_cls__)
+                for field in fields:
+                    if field.name == key:
+                        result[key] = field.default_factory()
+                        break
 
     if "__fn_or_cls__" in result:
         raise ValueError(
@@ -524,7 +535,7 @@ def _io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
     for key in config_kwargs:
         if isinstance(config_kwargs[key], IOProtocol):
             config_kwargs[key] = config_kwargs[key].__io__
-        if is_dataclass(config_kwargs[key]):
+        if dataclasses.is_dataclass(config_kwargs[key]):
             config_kwargs[key] = fdl_dc.convert_dataclasses_to_configs(config_kwargs[key], allow_post_init=True)
             # Check if the arg is a factory (dataclasses.field)
         if config_kwargs[key].__class__.__name__ == "_HAS_DEFAULT_FACTORY_CLASS":
@@ -714,7 +725,6 @@ def drop_unexpected_params(config: fdl.Config) -> bool:
     updated = False
 
     def analyze(config: fdl.Config, prefix: str):
-
         if isinstance(config, fdl.Config):
             signature = inspect.signature(config.__fn_or_cls__)
 
