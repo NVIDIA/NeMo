@@ -12,30 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import pytest
+
+from nemo.collections import llm
+
+HF_PATH = "/home/TestData/nlp/megatron_llama/llama-ci-hf"
+OUTPUT_PATH = '/tmp/imported_nemo2'
 
 dummy_module = MagicMock()
 dummy_module.torch_to_numpy = lambda torch_tensor: torch_tensor.detach().cpu().numpy()
 
-
-def test_model_loading(nemo_ckpt_path: str, trt_llm_export_path: str) -> None:
+@pytest.mark.run_only_on('GPU')
+@pytest.mark.unit
+def test_model_loading() -> None:
     """
-    Test if model loading works without tensorrt_llm.
-
-    Args:
-        nemo_ckpt_path (str): Path to the nemo checkpoint.
-        trt_llm_export_path (str): Export path.
-    Returns:
-        None
+    Test if model loading works for tensorrt_llm export.
     """
-    export_path = Path(trt_llm_export_path)
+
+    model = llm.LlamaModel(config=llm.Llama2Config7B)
+    nemo_path = llm.import_ckpt(model, 'hf://' + HF_PATH, output_path=Path(OUTPUT_PATH))
+
+    assert nemo_path.exists()
+    assert (nemo_path / 'weights').exists()
+    assert (nemo_path / 'context').exists()
+
+    export_path = Path('/tmp/trtllm_exported_model')
     export_path.mkdir(parents=True, exist_ok=True)
     export_path_mcore = export_path / 'mcore_export'
     export_path_local = export_path / 'local_export'
-
-    nemo_path = Path(nemo_ckpt_path)
 
     with patch.dict(
         'sys.modules',
@@ -48,11 +55,5 @@ def test_model_loading(nemo_ckpt_path: str, trt_llm_export_path: str) -> None:
 
         load_nemo_model(nemo_path, export_path_local, False)
         load_nemo_model(nemo_path, export_path_mcore, True)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--nemo_ckpt_path', type=str, required=True)
-    parser.add_argument('--trt_llm_export_path', type=str, required=True)
-    args = parser.parse_args()
-    test_model_loading(args.nemo_ckpt_path, args.trt_llm_export_path)
+    
+    shutil.rmtree(OUTPUT_PATH, ignore_errors=True)
