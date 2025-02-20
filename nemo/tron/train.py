@@ -15,7 +15,7 @@ from megatron.core.num_microbatches_calculator import (
 )
 from megatron.core.pipeline_parallel import get_forward_backward_func
 from megatron.core.rerun_state_machine import get_rerun_state_machine
-from megatron.core.utils import check_param_hashes_across_dp_replicas
+from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model_config
 
 from nemo.tron.config import ConfigContainer, MegatronLMConfig
 from nemo.tron.eval import evaluate_and_print_results
@@ -39,9 +39,9 @@ def forward_step(data_iterator, loss_func, data_step: Callable, model, global_st
     timers = global_state.timers
 
     # Get the batch.
-    timers('batch-generator', log_level=2).start()
+    timers("batch-generator", log_level=2).start()
     model_inputs = data_step(data_iterator)
-    timers('batch-generator').stop()
+    timers("batch-generator").stop()
 
     output_tensor = model(**model_inputs)
 
@@ -61,7 +61,7 @@ def train(
     non_loss_data_func,
 ):
     config: ConfigContainer = global_state.cfg
-    model_config = config.model_config
+    model_config = get_model_config(model[0])
     mlm_config = config.megatron_lm_config
     timers = global_state.timers
 
@@ -73,12 +73,13 @@ def train(
     total_loss_dict = {}
 
     model_config.grad_scale_func = optimizer.scale_loss
+    model_config.timers = timers
 
     ddp_config = config.ddp_config
     if isinstance(model[0], DDP) and ddp_config.overlap_grad_reduce:
         assert model_config.no_sync_func is None, (
-            'When overlap_grad_reduce is True, config.no_sync_func must be None; '
-            'a custom no_sync_func is not supported when overlapping grad-reduce'
+            "When overlap_grad_reduce is True, config.no_sync_func must be None; "
+            "a custom no_sync_func is not supported when overlapping grad-reduce"
         )
         model_config.no_sync_func = [model_chunk.no_sync for model_chunk in model]
         if len(model) == 1:
@@ -93,7 +94,7 @@ def train(
             model_config.param_sync_func = model_config.param_sync_func[0]
     model_config.finalize_model_grads_func = finalize_model_grads
 
-    timers('interval-time', log_level=0).start(barrier=True)
+    timers("interval-time", log_level=0).start(barrier=True)
     report_memory_flag = True
     pre_hook_enabled = False
     should_exit = False
@@ -102,9 +103,9 @@ def train(
     if mlm_config.manual_gc:
         # Disable the default garbage collector and perform the collection manually.
         # This is to align the timing of garbage collection across ranks.
-        assert (
-            mlm_config.manual_gc_interval >= 0
-        ), 'Manual garbage collection interval should be larger than or equal to 0'
+        assert mlm_config.manual_gc_interval >= 0, (
+            "Manual garbage collection interval should be larger than or equal to 0"
+        )
         gc.disable()
         gc.collect()
 
@@ -147,9 +148,9 @@ def train(
         pre_hook_enabled = False
     # Also, check weight hash across DP replicas to be very pedantic.
     if mlm_config.check_weight_hash_across_dp_replicas_interval is not None:
-        assert check_param_hashes_across_dp_replicas(
-            model, cross_check=True
-        ), "Parameter hashes not matching across DP replicas"
+        assert check_param_hashes_across_dp_replicas(model, cross_check=True), (
+            "Parameter hashes not matching across DP replicas"
+        )
         torch.distributed.barrier()
         print_rank_0(f">>> Weight hashes match after {global_state.train_state.step} iterations...")
 
@@ -233,7 +234,7 @@ def train(
         global_state.train_state.skipped_train_samples += num_skipped_samples_in_batch
 
         # Logging.
-        if hasattr(optimizer, 'is_stub_optimizer') and not optimizer.is_stub_optimizer:
+        if hasattr(optimizer, "is_stub_optimizer") and not optimizer.is_stub_optimizer:
             loss_scale = optimizer.get_loss_scale().item()
         else:
             loss_scale = 1.0
@@ -244,10 +245,10 @@ def train(
         learning_rate = None
         decoupled_learning_rate = None
         for param_group in optimizer.param_groups:
-            if param_group['is_decoupled_lr']:
-                decoupled_learning_rate = param_group['lr']
+            if param_group["is_decoupled_lr"]:
+                decoupled_learning_rate = param_group["lr"]
             else:
-                learning_rate = param_group['lr']
+                learning_rate = param_group["lr"]
         report_memory_flag = training_log(
             loss_dict,
             total_loss_dict,
@@ -268,15 +269,15 @@ def train(
             and mlm_config.eval_interval
             and global_state.train_state.step % mlm_config.eval_interval == 0
         ):
-            timers('interval-time').stop()
+            timers("interval-time").stop()
             if should_toggle_forward_pre_hook:
                 disable_forward_pre_hook(model)
                 pre_hook_enabled = False
             if mlm_config.manual_gc and mlm_config.manual_gc_eval:
                 # Collect all objects.
                 gc.collect()
-            prefix = f'iteration {global_state.train_state.step}'
-            timers('eval-time', log_level=0).start(barrier=True)
+            prefix = f"iteration {global_state.train_state.step}"
+            timers("eval-time", log_level=0).start(barrier=True)
             evaluate_and_print_results(
                 global_state,
                 prefix,
@@ -289,9 +290,9 @@ def train(
                 write_to_tensorboard=True,
                 non_loss_data_func=non_loss_data_func,
             )
-            eval_duration += timers('eval-time').elapsed()
+            eval_duration += timers("eval-time").elapsed()
             eval_iterations += mlm_config.eval_iters
-            timers('eval-time').stop()
+            timers("eval-time").stop()
 
             if mlm_config.manual_gc and mlm_config.manual_gc_eval:
                 # Collect only the objects created and used in evaluation.
@@ -299,7 +300,7 @@ def train(
             if should_toggle_forward_pre_hook:
                 enable_forward_pre_hook(model)
                 pre_hook_enabled = True
-            timers('interval-time', log_level=0).start(barrier=True)
+            timers("interval-time", log_level=0).start(barrier=True)
 
         # Miscellaneous post-training-step functions (e.g., FT heartbeats, GC).
         # Some of these only happen at specific iterations.
@@ -357,7 +358,7 @@ def train_step(
     """Single training step."""
     cfg: ConfigContainer = global_state.cfg
     timers = global_state.timers
-    model_config = cfg.model_config
+    model_config = get_model_config(model[0])
     mlm_config = cfg.megatron_lm_config
     optim_config = cfg.optimizer_config
 
@@ -389,9 +390,9 @@ def train_step(
         torch.cuda.empty_cache()
 
     # Update parameters.
-    timers('optimizer', log_level=1).start(barrier=optim_config.barrier_with_L1_time)
+    timers("optimizer", log_level=1).start(barrier=optim_config.barrier_with_L1_time)
     update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
-    timers('optimizer').stop()
+    timers("optimizer").stop()
 
     # when freezing sub-models we may have a mixture of successful and unsucessful ranks,
     # so we must gather across mp ranks
@@ -453,9 +454,9 @@ def post_training_step_callbacks(
     ):
         if should_toggle_forward_pre_hook:
             disable_forward_pre_hook(model)
-        assert check_param_hashes_across_dp_replicas(
-            model, cross_check=True
-        ), "Parameter hashes not matching across DP replicas"
+        assert check_param_hashes_across_dp_replicas(model, cross_check=True), (
+            "Parameter hashes not matching across DP replicas"
+        )
         torch.distributed.barrier()
         print_rank_0(f">>> Weight hashes match after {iteration} iterations...")
         if should_toggle_forward_pre_hook:

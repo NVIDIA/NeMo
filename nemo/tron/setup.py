@@ -69,6 +69,7 @@ def setup(
         overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
         data_parallel_random_init=cfg.megatron_lm_config.data_parallel_random_init,
     )
+    cfg.optimizer_config.timers = timers
     optimizer, scheduler = setup_optimizer(cfg, model)
 
     timers("model-and-optimizer-setup").stop()
