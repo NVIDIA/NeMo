@@ -404,9 +404,9 @@ def save_checkpoint(
             ckpt_type = CheckpointType.LOCAL
             save_dir = checkpointing_context["local_checkpoint_manager"].local_ckpt_dir
         else:
-            assert False, (
-                f"Please use local or global non-persistent checkpoints(got: {ckpt_cfg.non_persistent_ckpt_type})"
-            )
+            assert (
+                False
+            ), f"Please use local or global non-persistent checkpoints(got: {ckpt_cfg.non_persistent_ckpt_type})"
 
     ckpt_format = ckpt_cfg.ckpt_format if ckpt_type == CheckpointType.GLOBAL else "torch"
     print_rank_0(f"saving checkpoint at iteration {train_state.step:7d} to {save_dir} in {ckpt_format} format")
@@ -593,6 +593,7 @@ def save_checkpoint(
                     append_to_progress_log(
                         ckpt_cfg.save, f"Saved async local checkpoint\tIteration: {train_state.step}", barrier=False
                     )
+
         else:
 
             def iter_finalize_fn():
@@ -776,7 +777,7 @@ def _transpose_first_dim(t, num_splits, num_splits_first, model):
         """[num_splits * np * hn, h]
         -->(view) [num_splits, np, hn, h]
         -->(tranpose) [np, num_splits, hn, h]
-        -->(view) [np * num_splits * hn, h] """
+        -->(view) [np * num_splits * hn, h]"""
 
         intermediate_shape = (
             num_splits,
@@ -790,7 +791,7 @@ def _transpose_first_dim(t, num_splits, num_splits_first, model):
         """[np * hn * num_splits, h]
         -->(view) [np, hn, num_splits, h]
         -->(tranpose) [np, num_splits, hn, h]
-        -->(view) [np * num_splits * hn, h] """
+        -->(view) [np * num_splits * hn, h]"""
 
         intermediate_shape = (
             num_attention_heads_per_partition,
