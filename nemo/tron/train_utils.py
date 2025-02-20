@@ -8,6 +8,7 @@ from megatron.core.utils import get_data_parallel_group_if_dtensor, to_local_if_
 
 from nemo.tron.config import ConfigContainer
 from nemo.tron.state import GlobalState
+from nemo.tron.theoretical_memory_usage import report_theoretical_memory
 from nemo.tron.utils import get_world_size_safe, is_last_rank, print_rank_last
 
 try:
@@ -400,7 +401,7 @@ def training_log(
             # Report memory after optimizer state has been initialized.
             if torch.distributed.get_rank() == 0:
                 num_microbatches = get_num_microbatches()
-                # report_theoretical_memory(args, num_microbatches=num_microbatches, verbose=True) # TODO: implement
+                report_theoretical_memory(config, num_microbatches=num_microbatches, verbose=True)
             report_memory(f'(after {train_state.step} iterations)')
             report_memory_flag = False
         timers.log(timers_to_log, normalizer=logger_config.log_interval)

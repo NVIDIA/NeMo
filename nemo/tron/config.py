@@ -80,6 +80,7 @@ class TokenizerConfig:
     tokenizer_prompt_format: Optional[str] = None
     special_tokens: Optional[List[str]] = None
     image_tag_type: Optional[str] = None
+    padded_vocab_size: Optional[int] = None
 
 
 # TODO (maanug): split this up into modular components
@@ -979,6 +980,7 @@ class ConfigContainer:
     scheduler_config: SchedulerConfig
     dataset_config: GPTDatasetConfig
     logger_config: LoggerConfig
+    tokenizer_config: TokenizerConfig
 
     def __post_init__(self):
         # Run validations
