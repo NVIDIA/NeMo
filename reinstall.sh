@@ -156,6 +156,18 @@ nemo() {
   echo 'Installing dependencies of nemo'
   ${PIP} install --upgrade --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
+  # bitsandbytes does not have wheels built with cuda 12.8 yet
+  # Build and install the version found in requirements/requirements_multimodal.txt
+  echo 'Building and installing bitsandbytes'
+  git clone https://github.com/bitsandbytes-foundation/bitsandbytes.git && \
+    cd bitsandbytes && \
+    git checkout tags/0.45.0 && \
+    cmake -DCOMPUTE_BACKEND=cuda -S . && \
+    make && \
+    cmake -DCOMPUTE_BACKEND=cpu -S . && \
+    make && \
+    pip install .
+
   echo 'Installing nemo itself'
   pip install --no-cache-dir --no-build-isolation $NEMO_DIR/.[all]
 }
