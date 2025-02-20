@@ -38,6 +38,12 @@ class FLOPSConfig:
     class_token_len: Optional[int] = None
     projector_type: Optional[str] = None
     inp_s: Optional[int] = None
+    num_joint_layers: Optional[int] = None
+    num_single_layers: Optional[int] = None
+    hidden_size: Optional[int] = None
+    model_channels: Optional[int] = None
+    context_dim: Optional[int] = None
+    vec_in_dim: Optional[int] = None
 
 
 def gpt3(config: FLOPSConfig):
@@ -170,3 +176,38 @@ def neva_projection(config: FLOPSConfig):
             f"NeVA Projections FLOPs calculator only supports 'mlp', 'mcore_mlp'"
             f" or 'affine' projector_type but found {config.projector_type}"
         )
+
+def flux(config: FLOPSConfig):
+    """Model FLOPs for FLUX"""
+
+    hs = config.hidden_size
+    seq_len = config.model_channels + config.context_dim
+    base_factor = 6 * config.gbs  # common multiplier for most terms
+
+    # Joint layer computations
+    joint_layer_flops = base_factor * config.num_joint_layers * (
+        10 * hs * hs +                                    # hidden size operations
+        2 * hs * (config.model_channels + config.context_dim) * (1 + hs * 5) +  # channel and context joint attention
+        2 * (config.model_channels + config.context_dim) * hs                    # final projection
+    )
+
+    # Single layer computations
+    single_layer_flops = base_factor * config.num_single_layers * seq_len * hs * (
+        3 +                          # linear Y
+        1 +                          # Modulation
+        4 * hs +                     # Linear computations
+        (3 * hs + 2 * seq_len) +    # attention operations
+        5 * hs +                     # feed-forward
+        1                           # Modulation
+    )
+
+    # Embedding and projection layers
+    other_flops = base_factor * (
+        config.context_dim * config.in_channels * hs +                    # image embedding
+        config.context_dim * hs * config.model_channels +                 # text embedding
+        config.vec_in_dim * hs + hs * hs +                               # vector embedding
+        2 * (config.model_channels * hs + hs * hs) +                     # guidance + timestep embedding
+        (config.context_dim * config.in_channels * hs) / config.gbs      # final projection
+    )
+
+    return joint_layer_flops + single_layer_flops + other_flops
