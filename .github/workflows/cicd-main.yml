@@ -138,7 +138,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_ASR')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       TIMEOUT: 20
       # TODO: remove this hack
       SCRIPT: |
@@ -149,7 +149,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Audio')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       TIMEOUT: 20
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/audio -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
@@ -159,7 +159,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Common')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/common -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -168,7 +168,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_LLM')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/llm -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -177,7 +177,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Multimodal')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/multimodal -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -186,7 +186,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_TTS')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/tts -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -195,7 +195,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Core')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       TIMEOUT: 20
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/core -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
@@ -205,7 +205,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Hydra')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/hydra -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -214,7 +214,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Lightning')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0,1 pytest tests/lightning -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
@@ -223,7 +223,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Others')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest -m "not pleasefixme" --with_downloads \
         --ignore=tests/collections/asr \
@@ -246,7 +246,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_ASR')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       TIMEOUT: 20
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
@@ -256,7 +256,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Audio')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -265,7 +265,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Common')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       TIMEOUT: 20
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/common -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
@@ -275,7 +275,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_LLM')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/llm -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -284,7 +284,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Multimodal')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -293,7 +293,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_TTS')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -302,7 +302,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Core')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       TIMEOUT: 20
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
@@ -312,7 +312,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Hydra')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/hydra -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -321,7 +321,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Lightning')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/lightning -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
@@ -330,7 +330,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Others')
     with:
-      RUNNER: self-hosted-azure-cpu
+      RUNNER: azure-gpu-vm-runner9-cpu
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat \
         --ignore=tests/collections/asr \
@@ -352,7 +352,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Setup_Test_Data_And_Models')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python -m tests.setup --save_dir /home/TestData/nlp
 
@@ -364,7 +364,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Community_vita_Checkpoints_tests_Llama3')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         mkdir /tmp/${{ github.run_id }}
         export PYTHONPATH=/home/TestData/multimodal/video_neva/LLaVA:$PYTHONPATH
@@ -411,7 +411,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_to_Text')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/asr_ctc/speech_to_text_ctc.py \
           model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -426,7 +426,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_-_CitriNet')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
           --config-path="../conf/citrinet/" --config-name="config_bpe" \
@@ -444,7 +444,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_Pre-training_-_CitriNet')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/speech_pretraining/speech_pre_training.py \
         --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
@@ -460,7 +460,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_To_Text_Finetuning')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/speech_to_text_finetune.py \
         --config-path="conf/asr_finetune" --config-name="speech_to_text_finetune" \
@@ -478,7 +478,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_To_Text_HF_Finetuning')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |-
         python examples/asr/speech_to_text_finetune.py \
         --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
@@ -514,7 +514,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_-_Conformer')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
         --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
@@ -535,7 +535,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
         --config-path="../conf/squeezeformer" --config-name="squeezeformer_ctc_bpe" \
@@ -556,7 +556,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_to_Text_EMA')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -572,7 +572,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_to_Text_AED')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/speech_multitask/speech_to_text_aed.py \
         model.prompt_format=canary \
@@ -612,7 +612,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Recognition')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/speaker_tasks/recognition/speaker_reco.py \
         model.train_ds.batch_size=10 \
@@ -631,7 +631,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
         model.diarizer.speaker_embeddings.model_path=titanet_large \
@@ -651,7 +651,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py \
         trainer.devices="[0]" \
@@ -666,7 +666,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \
         model_path=/home/TestData/an4_diarizer/diar_sortformer_4spk-v1-tiny.nemo \
@@ -678,7 +678,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Speech_to_Label')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/speech_classification/speech_to_label.py \
         model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
@@ -701,7 +701,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
         diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -719,7 +719,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Clustering_Diarizer_Inference')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_infer.py \
         diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -736,7 +736,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Neural_Diarizer_Inference')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder_infer.py \
         diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
@@ -750,7 +750,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tools/speech_data_simulator/multispeaker_simulator.py \
         --config-path=conf --config-name=data_simulator.yaml \
@@ -766,7 +766,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -783,7 +783,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/speech_classification/speech_to_label.py \
         model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
@@ -808,7 +808,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ASR_Adapters_Linear_Adapters')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/asr_adapters/train_asr_adapter.py \
         model.pretrained_model="stt_en_conformer_ctc_small" \
@@ -827,7 +827,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ASR_Adapters_RelPos_MHA_Adapters')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/asr_adapters/train_asr_adapter.py \
         model.pretrained_model="stt_en_conformer_ctc_small" \
@@ -848,7 +848,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Estimate_Duration_Bins')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         set -x
         # 1D buckets [SSL, CTC]
@@ -880,7 +880,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Batch_Size_OOMptimizer')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         # 1D bucketing
         python scripts/speech_recognition/oomptimizer.py \
@@ -899,7 +899,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Batch_Size_OOMptimizer_Canary')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python scripts/speech_recognition/oomptimizer.py \
           -c /home/TestData/oomptimizer/fast-conformer_aed.yaml \
@@ -912,7 +912,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Speech_to_Text_Transcribe')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/transcribe_speech.py \
         pretrained_name="QuartzNet15x5Base-En" \
@@ -926,7 +926,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/transcribe_speech.py \
         dataset_manifest=/home/TestData/asr/canary/dev-other-wav-10-canary-fields.json \
@@ -946,7 +946,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/transcribe_speech.py \
         dataset_manifest=/home/TestData/asr/canary/dev-other-wav-10.json \
@@ -970,7 +970,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/asr/transcribe_speech.py \
         audio_dir=/home/TestData/asr/canary/dev-other-wav \
@@ -991,7 +991,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd tools/ctc_segmentation && \
         TIME=`date +"%Y-%m-%d-%T"` && \
@@ -1010,7 +1010,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd tools/ctc_segmentation && \
         TIME=`date +"%Y-%m-%d-%T"` && \
@@ -1030,7 +1030,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd examples/tts/g2p && \
             TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_CONFORMER=output_ctc_${TIME} && \
@@ -1084,7 +1084,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd examples/tts/g2p && \
             TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR=output_${TIME} && \
@@ -1113,7 +1113,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/nlp/machine_translation/enc_dec_nmt.py \
           --config-path=conf \
@@ -1178,7 +1178,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd examples/nlp/machine_translation && \
         python enc_dec_nmt.py \
@@ -1206,7 +1206,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd examples/nlp/machine_translation && \
         python enc_dec_nmt.py \
@@ -1233,7 +1233,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Inference')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd examples/nlp/machine_translation && \
         python nmt_transformer_infer.py \
@@ -1249,7 +1249,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Finetuning')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd examples/nlp/machine_translation && \
         python enc_dec_nmt_finetune.py \
@@ -1280,7 +1280,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd examples/nlp/machine_translation && \
         python enc_dec_nmt.py \
@@ -1309,7 +1309,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         cd examples/nlp/machine_translation && \
         python create_tarred_parallel_dataset.py \
@@ -1328,7 +1328,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_NMT_Training_TP2')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/nlp/machine_translation/megatron_nmt_training.py \
         trainer.devices=2 \
@@ -1426,7 +1426,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
       AFTER_SCRIPT: |
@@ -1437,7 +1437,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_FSDP')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --strategy fsdp --devices 2
       AFTER_SCRIPT: |
@@ -1448,7 +1448,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_4bit')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --use-4bit
       AFTER_SCRIPT: |
@@ -1459,7 +1459,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_SFT_FSDP2')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/sft_fsdp2.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
       AFTER_SCRIPT: |
@@ -1470,7 +1470,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_notebook')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         jupyter nbconvert --to script tutorials/llm/hf/peft.ipynb --output _peft
         sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_peft.py
@@ -1484,7 +1484,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
           --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
@@ -1497,7 +1497,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_nemorun')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py \
         --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
@@ -1509,7 +1509,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
           --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
@@ -1532,7 +1532,7 @@ jobs:
   #   uses: ./.github/workflows/_test_template.yml
   #   if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2') || needs.pre-flight.outputs.all == 'true'
   #   with:
-  #     RUNNER: self-hosted-azure
+  #     RUNNER: azure-gpu-vm-runner9
   #     SCRIPT: |
   #       TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
   #        --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
@@ -1548,7 +1548,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_nemorun')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
       AFTER_SCRIPT: |
@@ -1559,7 +1559,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp --auto-resume
@@ -1571,7 +1571,7 @@ jobs:
   #   uses: ./.github/workflows/_test_template.yml
   #   if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2')
   #   with:
-  #     RUNNER: self-hosted-azure
+  #     RUNNER: azure-gpu-vm-runner9
   #     SCRIPT: |
   #       TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2
   #       TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2 --auto-resume
@@ -1583,7 +1583,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
       AFTER_SCRIPT: |
@@ -1594,7 +1594,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
       AFTER_SCRIPT: |
@@ -1605,7 +1605,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_FSDP2_2gpu')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
       AFTER_SCRIPT: |
@@ -1616,7 +1616,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_2gpu')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
       AFTER_SCRIPT: |
@@ -1627,7 +1627,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_2gpu_nemorun')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
       AFTER_SCRIPT: |
@@ -1638,7 +1638,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
       AFTER_SCRIPT: |
@@ -1649,7 +1649,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_nemorun')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
       AFTER_SCRIPT: |
@@ -1660,7 +1660,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_notebook')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         jupyter nbconvert --to script tutorials/llm/hf/sft.ipynb --output _sft
         sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_sft.py
@@ -1674,7 +1674,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
       AFTER_SCRIPT: |
@@ -1685,7 +1685,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_nemorun')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
       AFTER_SCRIPT: |
@@ -1696,7 +1696,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_TE_Acceleration')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --model-accelerator te --max-steps 3
       AFTER_SCRIPT: |
@@ -1707,7 +1707,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_TE_Acceleration')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --model-accelerator te --max-steps 10
       AFTER_SCRIPT: |
@@ -1719,7 +1719,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SpeechLM_SFT_2gpu') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/speechlm/hf/sft.py --model /home/TestData/speechlm/whisper-small/ --max-steps 10 --devices 2 --strategy ddp
       AFTER_SCRIPT: |
@@ -1731,7 +1731,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_Tacotron_2')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/tts/tacotron2.py \
         train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -1757,7 +1757,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_WaveGlow')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/tts/waveglow.py \
         train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -1779,7 +1779,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_FastPitch')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/tts/fastpitch.py \
         --config-name fastpitch_align_v1.05 \
@@ -1853,7 +1853,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_Hifigan')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python examples/tts/hifigan.py \
         train_dataset=/home/TestData/an4_dataset/an4_train.json \
@@ -1905,7 +1905,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Speech_Checkpoints_tests')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       TIMEOUT: 20
       SCRIPT: |
         CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_eval.py \
@@ -1921,7 +1921,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Stable_Diffusion_Training')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         rm -rf examples/multimodal/text_to_image/sd_train_results
 
@@ -1971,7 +1971,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_Pretraining_no_transformer_engine')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         pip uninstall -y apex ## TODO: remove when apex is no longer a dependency
         pip uninstall -y transformer_engine
@@ -2004,7 +2004,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_pretraining_recipe')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/llama3_pretraining.py \
@@ -2032,7 +2032,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_fault_tolerance_plugin')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         mkdir -p /tmp/llm_tests/llama_pretrain_results \
@@ -2052,7 +2052,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_straggler_detection')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         mkdir -p /tmp/llm_tests/llama_pretrain_results \
@@ -2072,7 +2072,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_DDP_Param_Parity_check')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         TORCHDYNAMO_DISABLE=1 python tests/lightning/test_ddp_parity_checker.py \
@@ -2089,7 +2089,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_SSM_Pretraining')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt/model/megatron_ssm_pretraining.py \
@@ -2103,7 +2103,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_SSM_Finetuning')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt/model/megatron_ssm_finetuning.py \
@@ -2117,7 +2117,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_HF_MODEL_IMPORT')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt/model/test_model_import.py
@@ -2130,7 +2130,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_jit_callback')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/test_nemo_jit_cb.py
@@ -2140,7 +2140,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_Pretraining')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/llm/megatron_t5_pretraining.py \
         --devices=2 \
@@ -2164,7 +2164,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_Finetuning')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/llm/megatron_t5_finetuning.py \
         --devices=2 \
@@ -2179,7 +2179,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_LoRA')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/llm/megatron_t5_finetuning.py \
         --devices=2 \
@@ -2195,7 +2195,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_TRAINING')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/vlm/test_neva_train.py \
         --devices=1 \
@@ -2207,7 +2207,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_PACKED_TRAINING')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/vlm/test_neva_train.py \
         --devices=1 \
@@ -2220,7 +2220,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_MLLAMA_MOCK_TRAINING')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 \
         python tests/collections/vlm/test_mllama_train.py \
@@ -2233,7 +2233,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_Pretraining')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python3 tests/collections/llm/megatron_mixtral_pretraining.py \
         --experiment-dir=/tmp/mixtral_pretrain_results \
@@ -2244,7 +2244,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS1')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2272,7 +2272,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS2')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2300,7 +2300,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP2_MBS2')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2328,7 +2328,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP2PP1_MBS2')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2356,7 +2356,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2384,7 +2384,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2412,7 +2412,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2440,7 +2440,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2468,7 +2468,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2496,7 +2496,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2524,7 +2524,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2552,7 +2552,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/llm/gpt_finetuning.py \
         --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
@@ -2579,7 +2579,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
@@ -2609,7 +2609,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
@@ -2625,7 +2625,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
@@ -2639,7 +2639,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
@@ -2654,7 +2654,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
@@ -2669,7 +2669,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
@@ -2684,7 +2684,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
@@ -2701,7 +2701,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/lora_mistralai.py \
@@ -2716,7 +2716,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_LoRA_MERGE')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/peft/lora_merge.py \
@@ -2728,7 +2728,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_LoRA_Export')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python tests/collections/llm/peft/lora_export.py \
@@ -2740,7 +2740,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_LoRA_Inference')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
 
         python scripts/llm/generate.py \
@@ -2757,7 +2757,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         bash tests/collections/llm/bitexact/mixtral/run.sh
 
@@ -2766,7 +2766,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
 
@@ -2781,7 +2781,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Distill_Llama3_TP1PP2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
 
@@ -2815,7 +2815,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Export_In_Framework')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/llm/test_hf_import.py \
           --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf \
@@ -2844,7 +2844,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/vlm/test_llava_next_train.py \
         --devices=1 \
@@ -2859,7 +2859,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_VLLM_EXPORT')
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/setup/models/create_hf_model.py \
           --model_name_or_path /home/TestData/nlp/megatron_llama/llama-ci-hf \
@@ -2889,7 +2889,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         mkdir examples/llm/auto_configurator/auto_conf_logs
 
@@ -2916,7 +2916,7 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_SpeechLM_LoRA_TP1PP1_MBS2') || needs.pre-flight.outputs.all == 'true'
     with:
-      RUNNER: self-hosted-azure
+      RUNNER: azure-gpu-vm-runner9
       SCRIPT: |
         python tests/collections/speechlm/speech_to_text_llm_train.py \
           --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
