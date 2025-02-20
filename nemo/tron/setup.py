@@ -23,6 +23,7 @@ from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
+from nemo.tron import fault_tolerance
 
 
 def setup(
@@ -44,6 +45,10 @@ def setup(
 
     if cfg.logger_config.log_progress:
         append_to_progress_log(cfg.checkpoint_config.save, "Starting job")
+
+    if cfg.ft_config.enable_ft_package:
+        fault_tolerance.setup(cfg, state)
+        fault_tolerance.maybe_setup_simulated_fault(cfg.ft_config)
 
     # Set pytorch JIT layer fusion options and warmup JIT functions.
     set_jit_fusion_options(state)
