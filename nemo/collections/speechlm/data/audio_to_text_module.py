@@ -181,7 +181,7 @@ class AudioToTextDataModule(pl.LightningDataModule, IOMixin):
                 tokens_to_generate=data_cfg.get('tokens_to_generate', 0),
                 pad_to_max_length=data_cfg.get('pad_to_max_length', False),
                 max_seq_length=data_cfg["max_seq_length"],
-                context_key=data_cfg.get('context_key', 'context'),
+                context_key=data_cfg.get('context_key'),
                 default_context_key=data_cfg.get('default_context_key', 'default_context'),
                 answer_only_loss=data_cfg.get('answer_only_loss', True),
                 is_train=(mode == 'train'),

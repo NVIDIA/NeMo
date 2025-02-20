@@ -151,10 +151,6 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
             context = getattr(cut, self.context_key)
         elif hasattr(cut, self.default_context_key):
             context = getattr(cut, self.default_context_key)
-        elif hasattr(cut, "context"):
-            context = getattr(cut, "context")
-        elif hasattr(cut, "question"):
-            context = getattr(cut, "question")
         else:
             context = self.default_context
         sample = NeMoMultimodalConversation(
