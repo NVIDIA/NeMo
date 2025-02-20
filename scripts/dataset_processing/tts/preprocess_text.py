@@ -105,6 +105,7 @@ def get_args():
     parser.add_argument(
         "--enable_split",
         action="store_true",
+        default=False,
         help="Enable splitting text into sentences before normalization.",
     )
 
