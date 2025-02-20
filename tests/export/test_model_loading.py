@@ -26,7 +26,6 @@ dummy_module = MagicMock()
 dummy_module.torch_to_numpy = lambda torch_tensor: torch_tensor.detach().cpu().numpy()
 
 
-@pytest.mark.run_only_on('GPU')
 @pytest.mark.unit
 def test_model_loading() -> None:
     """

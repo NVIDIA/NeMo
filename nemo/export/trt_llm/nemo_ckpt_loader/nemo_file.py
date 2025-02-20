@@ -570,6 +570,7 @@ def load_distributed_model_weights(
 
 def load_nemo_model(nemo_ckpt: Union[str, Path], nemo_export_dir: Union[str, Path], mcore_scales_format: bool = True):
     """Unified model loading for trt-llm export."""
+    raise Exception("Check if the test fails")
     if not os.path.exists(nemo_ckpt):
         raise TypeError("%s does not exist", nemo_ckpt)
 
