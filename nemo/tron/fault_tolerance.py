@@ -45,7 +45,6 @@ ft_launcher \
 ```
 """
 
-import argparse
 import json
 import os
 import random
@@ -53,38 +52,19 @@ import signal
 import sys
 import threading
 import time
-from typing import Any, Optional
+from typing import Any
 
 import torch
 
-from . import global_vars
-from .utils import is_rank0, print_rank_0
-
-_GLOBAL_RANK_MONITOR_CLIENT = None
-
-_ft_state_path = None
-_is_persistent_chkpt_loaded = False
-_is_async_chkpt_enabled = False
-_is_calculating_timeouts = False
-_is_setup_section_open = False
-_seen_checkpoints_cnt = 0
-_seen_tr_iters_cnt = 0
-_curr_eval_iter_idx = 0
+from nemo.tron.config import ConfigContainer, FaultToleranceConfig
+from nemo.tron.state import GlobalState
+from nemo.tron.utils.common_utils import get_rank_safe, print_rank_0
 
 _NUM_WARMUP_ITERS = 1
 _MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE = 16
 
 
-def get_rank_monitor_client() -> Optional[Any]:
-    """Returns the underlying fault tolerance client instance
-
-    Returns:
-        RankMonitorClient: rank monitor client instance, or None if FT was not initialized
-    """
-    return _GLOBAL_RANK_MONITOR_CLIENT
-
-
-def setup(args: argparse.Namespace) -> None:
+def setup(config: ConfigContainer, global_state: GlobalState) -> None:
     """Initialize fault tolerance
 
     Args:
@@ -95,183 +75,177 @@ def setup(args: argparse.Namespace) -> None:
     """
     from nvidia_resiliency_ext.fault_tolerance import RankMonitorClient
 
-    print_rank_0(f"FT: initializing...")
+    print_rank_0("FT: initializing...")
 
-    checkpoint_dir = args.save
+    checkpoint_dir = config.checkpoint_config.save
     if not checkpoint_dir:
         raise ValueError("checkpointing save dir must be set to enable fault tolerance")
-    if is_rank0() and not os.path.exists(checkpoint_dir):
+    if get_rank_safe() == 0 and not os.path.exists(checkpoint_dir):
         # MLM checkpoint dir will be needed for saving FT state.
         # it can happen before the checkpointing, so create it in advance
         os.makedirs(checkpoint_dir, exist_ok=True)
 
-    cli = RankMonitorClient()
-    global _GLOBAL_RANK_MONITOR_CLIENT
-    global_vars._ensure_var_is_not_initialized(_GLOBAL_RANK_MONITOR_CLIENT, "rank monitor client")
-    _GLOBAL_RANK_MONITOR_CLIENT = cli
+    global_state.rank_monitor_client = RankMonitorClient()
 
-    global _ft_state_path
-    _ft_state_path = os.path.join(checkpoint_dir, "ft_state.json")
+    global_state.fault_tolerance_state.ft_state_path = os.path.join(checkpoint_dir, "ft_state.json")
 
-    global _is_async_chkpt_enabled
-    _is_async_chkpt_enabled = args.async_save
+    global_state.fault_tolerance_state.is_async_chkpt_enabled = config.checkpoint_config.async_save
 
-    global _is_calculating_timeouts
-    _is_calculating_timeouts = args.calc_ft_timeouts
+    global_state.fault_tolerance_state.is_calculating_timeouts = config.ft_config.calc_ft_timeouts
 
-    cli.init_workload_monitoring()
-    _load_state_if_exists()
-    print_rank_0(f"FT: initialized. Timeouts={cli.section_timeouts}")
+    global_state.rank_monitor_client.init_workload_monitoring()
+    _load_state_if_exists(global_state)
+    print_rank_0(f"FT: initialized. Timeouts={global_state.rank_monitor_client.section_timeouts}")
 
-    cli.start_section("setup")
-    global _is_setup_section_open
-    _is_setup_section_open = True
+    global_state.rank_monitor_client.start_section("setup")
+    global_state.fault_tolerance_state.is_setup_section_open = True
 
 
-def on_training_step_start() -> None:
+def on_training_step_start(global_state: GlobalState) -> None:
     """Should be called before each training step"""
-    rmon_cli = get_rank_monitor_client()
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
     if rmon_cli is not None:
-        global _is_setup_section_open
-        if _is_setup_section_open:
+        if ft_state.is_setup_section_open:
             rmon_cli.end_section("setup")
-            _is_setup_section_open = False
-        if _seen_tr_iters_cnt >= _NUM_WARMUP_ITERS:
+            ft_state.is_setup_section_open = False
+        if ft_state.seen_tr_iters_cnt >= _NUM_WARMUP_ITERS:
             rmon_cli.start_section("step")
         # reset eval step index. we started training, so evaluation is done
-        global _curr_eval_iter_idx
-        _curr_eval_iter_idx = 0
+        ft_state.curr_eval_iter_idx = 0
 
 
-def on_training_step_end() -> None:
+def on_training_step_end(global_state: GlobalState) -> None:
     """Should be called after each training step"""
-    rmon_cli = get_rank_monitor_client()
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
     if rmon_cli is not None:
-        global _seen_tr_iters_cnt
-        if _seen_tr_iters_cnt >= _NUM_WARMUP_ITERS:
+        if ft_state.seen_tr_iters_cnt >= _NUM_WARMUP_ITERS:
             rmon_cli.end_section("step")
-        _seen_tr_iters_cnt += 1
+        ft_state.seen_tr_iters_cnt += 1
 
 
-def on_eval_step_start() -> None:
+def on_eval_step_start(global_state: GlobalState) -> None:
     """Should be called before each validation step"""
-    rmon_cli = get_rank_monitor_client()
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
     if rmon_cli is not None:
-        global _is_setup_section_open
-        if _is_setup_section_open:
+        if ft_state.is_setup_section_open:
             # setup section can be open if there were no training iters before evaluation
             rmon_cli.end_section("setup")
-            _is_setup_section_open = False
-        if _curr_eval_iter_idx >= _NUM_WARMUP_ITERS:
+            ft_state.is_setup_section_open = False
+        if ft_state.curr_eval_iter_idx >= _NUM_WARMUP_ITERS:
             rmon_cli.start_section("step")
 
 
-def on_eval_step_end() -> None:
+def on_eval_step_end(global_state: GlobalState) -> None:
     """Should be called after each validation step"""
-    rmon_cli = get_rank_monitor_client()
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
     if rmon_cli is not None:
-        global _curr_eval_iter_idx
-        if _curr_eval_iter_idx >= _NUM_WARMUP_ITERS:
+        if ft_state.curr_eval_iter_idx >= _NUM_WARMUP_ITERS:
             rmon_cli.end_section("step")
-        _curr_eval_iter_idx += 1
+        ft_state.curr_eval_iter_idx += 1
 
 
-def on_checkpointing_start() -> None:
+def on_checkpointing_start(global_state: GlobalState) -> None:
     """Should be called before each checkpoint-saving-related operation."""
-    rmon_cli = get_rank_monitor_client()
+    rmon_cli = global_state.rank_monitor_client
     if rmon_cli is not None:
         rmon_cli.start_section("checkpointing")
 
 
-def on_checkpointing_end(is_async_finalization: bool) -> None:
+def on_checkpointing_end(is_async_finalization: bool, global_state: GlobalState) -> None:
     """Should be called after each checkpoint-saving-related operation.
 
     Args:
         is_async_finalization (bool): true if called after an async checkpointing finalization
     """
-    rmon_cli = get_rank_monitor_client()
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
     if rmon_cli is not None:
         rmon_cli.end_section("checkpointing")
     # async checkpointing finalization is called before each training iter, it can be no-op.
     # let's try to update the timeouts only on the `save_checkpoint`
     if not is_async_finalization:
-        global _seen_checkpoints_cnt
-        _seen_checkpoints_cnt += 1
-        _maybe_update_timeouts()
+        ft_state.seen_checkpoints_cnt += 1
+        _maybe_update_timeouts(global_state)
 
 
-def on_checkpoint_loaded(is_local_chkpt: bool) -> None:
+def on_checkpoint_loaded(is_local_chkpt: bool, global_state: GlobalState) -> None:
     """Should be called after a checkpoint was loaded
 
     Args:
         is_local_chkpt (bool): true if it was a local checkpoint, false if global
     """
+    ft_state = global_state.fault_tolerance_state
     # checkpoint can be loaded during "setup"
     # check if persistent checkpoint was loaded,
     # in-memory checkpoint reading can be very fast,
     # so we could underestimate the "setup" timeout
-    global _is_persistent_chkpt_loaded
-    _is_persistent_chkpt_loaded = not is_local_chkpt
+    ft_state.is_persistent_chkpt_loaded = not is_local_chkpt
 
 
-def shutdown() -> None:
+def shutdown(global_state: GlobalState) -> None:
     """Shutdowns fault folerance, updates the FT timeouts if possible"""
-    global _GLOBAL_RANK_MONITOR_CLIENT
-    rmon_cli = get_rank_monitor_client()
+    rmon_cli = global_state.rank_monitor_client
     if rmon_cli is not None:
         print_rank_0("FT: closing...")
-        _maybe_update_timeouts(is_closing_ft=True)
+        _maybe_update_timeouts(global_state, is_closing_ft=True)
         rmon_cli.shutdown_workload_monitoring()
         print_rank_0("FT: closed.")
-    _GLOBAL_RANK_MONITOR_CLIENT = None
+    global_state.rank_monitor_client = None
 
 
-def _load_state_if_exists():
-    rmon_cli = get_rank_monitor_client()
-    if os.path.exists(_ft_state_path):
-        with open(_ft_state_path, "r") as f:
-            ft_state = json.load(f)
-        rmon_cli.load_state_dict(ft_state)
-        print_rank_0(f"FT: loaded timeouts from {_ft_state_path}. {rmon_cli.section_timeouts}")
+def _load_state_if_exists(global_state: GlobalState):
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
+    if os.path.exists(ft_state.ft_state_path):
+        with open(ft_state.ft_state_path, "r") as f:
+            rmon_state = json.load(f)
+        rmon_cli.load_state_dict(rmon_state)
+        print_rank_0(f"FT: loaded timeouts from {ft_state.ft_state_path}. {rmon_cli.section_timeouts}")
 
 
-def _update_timeouts(selected_sections, calc_out_of_section):
+def _update_timeouts(selected_sections, calc_out_of_section, global_state: GlobalState):
     print_rank_0(
         f"FT: updating timeouts for: {selected_sections} " + f"update out-of-section: {calc_out_of_section} ..."
     )
-    rmon_cli = get_rank_monitor_client()
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
     rmon_cli.calculate_and_set_section_timeouts(
         selected_sections=selected_sections, calc_out_of_section=calc_out_of_section
     )
-    if is_rank0():
-        ft_state = rmon_cli.state_dict()
-        with open(_ft_state_path, "w") as f:
-            json.dump(ft_state, f)
-        print_rank_0(f"FT: updated timeouts saved to {_ft_state_path}. {rmon_cli.section_timeouts}")
+    if get_rank_safe() == 0:
+        rmon_state = rmon_cli.state_dict()
+        with open(ft_state.ft_state_path, "w") as f:
+            json.dump(rmon_state, f)
+        print_rank_0(f"FT: updated timeouts saved to {ft_state.ft_state_path}. {rmon_cli.section_timeouts}")
 
 
-def _maybe_update_timeouts(is_closing_ft=False):
-    rmon_cli = get_rank_monitor_client()
+def _maybe_update_timeouts(global_state: GlobalState, is_closing_ft=False):
+    rmon_cli = global_state.rank_monitor_client
+    ft_state = global_state.fault_tolerance_state
     if rmon_cli is None:
         return
-    if not _is_calculating_timeouts:
+    if not ft_state.is_calculating_timeouts:
         return
 
     # Decide which section timeouts can be updated
     sections_to_update = []
 
-    if _is_persistent_chkpt_loaded:
+    if ft_state.is_persistent_chkpt_loaded:
         sections_to_update.append("setup")
     else:
         print_rank_0("FT: can't update the setup section timeout until persistent checkpoint is loaded")
 
-    if _seen_tr_iters_cnt >= _MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE:
+    if ft_state.seen_tr_iters_cnt >= _MIN_ITERS_FOR_STEP_TIMEOUT_UPDATE:
         sections_to_update.append("step")
     else:
         print_rank_0("FT: need to see more training iterations to update the step section timeout")
 
-    if _seen_checkpoints_cnt > 0:
-        if not _is_async_chkpt_enabled:
+    if ft_state.seen_checkpoints_cnt > 0:
+        if not ft_state.is_async_chkpt_enabled:
             sections_to_update.append("checkpointing")
         else:
             # There can be too much checkpointing section time variability
@@ -286,7 +260,7 @@ def _maybe_update_timeouts(is_closing_ft=False):
     if is_closing_ft:
         # with async checkpointing, "checkpointing" section is not updated,
         # but still we want to see some checkpointing to ensure that is was a complete run
-        if {"setup", "step"}.issubset(sections_to_update) and _seen_checkpoints_cnt > 0:
+        if {"setup", "step"}.issubset(sections_to_update) and ft_state.seen_checkpoints_cnt > 0:
             update_out_of_section = True
         else:
             print_rank_0("FT: the out-of-section timeout won't be updated until all FT sections were seen")
@@ -295,27 +269,25 @@ def _maybe_update_timeouts(is_closing_ft=False):
         print_rank_0("FT: the out-of-section timeout won't be updated as the FT is not closing yet")
 
     if sections_to_update or update_out_of_section:
-        _update_timeouts(selected_sections=sections_to_update, calc_out_of_section=update_out_of_section)
+        _update_timeouts(
+            selected_sections=sections_to_update,
+            calc_out_of_section=update_out_of_section,
+            global_state=global_state,
+        )
 
 
-def maybe_setup_simulated_fault() -> None:
+def maybe_setup_simulated_fault(config: FaultToleranceConfig) -> None:
     """Sets a simulated fault, based on `FT_SIM_FAULT_DESC` env variable.
     Simulated fault description format:
     rank_hung|rank_killed;rank_to_fail|"";base_delay
     NOTE: This if for FT testing only
     """
 
-    simulated_fault_desc = os.environ.get("FT_SIM_FAULT_DESC", None)
-    if not simulated_fault_desc:
+    if not config.simulate_fault:
         return
-    fault_type: Any  # silence mypy
-    rank_to_fail: Any  # silence mypy
-    base_delay: Any  # silence mypy
-    fault_type, rank_to_fail, base_delay = simulated_fault_desc.split(";")
-    fault_type = fault_type.strip()
-    rank_to_fail = rank_to_fail.strip()
-    rank_to_fail = int(rank_to_fail) if rank_to_fail else None
-    base_delay = float(base_delay.strip())
+    fault_type = config.simulated_fault_type
+    rank_to_fail = config.simulated_fault_rank
+    base_delay = config.simulated_fault_base_delay
 
     rng = random.Random()
 

@@ -724,11 +724,6 @@ class MegatronLMConfig:
     yaml_cfg: Optional[str] = None
     """Config file to add additional arguments"""
 
-    # ---------------- Ft_package config. ----------------
-
-    enable_ft_package: bool = False
-    """If set, Fault Tolerance package is enabled. Note: This feature is for Nvidia internal use only."""
-
     # ---------------- Config logger config. ----------------
 
 
@@ -956,6 +951,27 @@ class CheckpointConfig:
     """Determine handling of key mismatch during checkpoint load. Check StrictHandling docs for flags meaning. NOTE: This flag controls only distributed checkpoint load from storage, not loading state dict into the model."""
 
 
+@dataclass
+class FaultToleranceConfig:
+    enable_ft_package: bool = False
+    """If set, Fault Tolerance package is enabled. Note: This feature is for Nvidia internal use only."""
+
+    calc_ft_timeouts: bool = False
+    """If set, FT package will try to automatically compute the timeouts. Note: This feature is for Nvidia internal use only."""
+
+    simulate_fault: bool = False
+    """Sets a simulated fault for fault tolerance. NOTE: This if for fault tolerance testing only."""
+
+    simulated_fault_type: Literal["rank_hung", "rank_killed", "random"] = "random"
+    """How the simulated fault should behave. 'random' will randomly choose one of the other two options."""
+
+    simulated_fault_rank: Optional[int] = None
+    """Rank on which simulated fault should occur."""
+
+    simulated_fault_base_delay: int = 0
+    """Base delay before simulated fault thread is started. A small random delay is added to this."""
+
+
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass(kw_only=True)
 class ConfigContainer:
@@ -970,6 +986,7 @@ class ConfigContainer:
     logger_config: LoggerConfig
     tokenizer_config: TokenizerConfig
     checkpoint_config: CheckpointConfig
+    ft_config: FaultToleranceConfig
 
     def __post_init__(self):
         # Run validations

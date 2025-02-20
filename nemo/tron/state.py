@@ -16,7 +16,7 @@ import os
 import time
 import types
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 import yaml
@@ -26,6 +26,11 @@ from torch.distributed.checkpoint.stateful import Stateful
 from nemo.tron.config import ConfigContainer
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils.common_utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
+from nemo.utils.import_utils import safe_import
+
+_, HAVE_FT = safe_import("nvidia_resiliency_ext.fault_tolerance")
+if TYPE_CHECKING and HAVE_FT:
+    from nvidia_resiliency_ext.fault_tolerance import RankMonitorClient
 
 
 def _timers_write_to_wandb(
@@ -88,6 +93,18 @@ class TrainState(Stateful):
         self.do_test = state_dict["do_test"].item()
 
 
+@dataclass
+class FaultToleranceState:
+    ft_state_path: Optional[str] = None
+    is_persistent_chkpt_loaded: bool = False
+    is_async_chkpt_enabled: bool = False
+    is_calculating_timeouts: bool = False
+    is_setup_section_open: bool = False
+    seen_checkpoints_cnt: int = 0
+    seen_tr_iters_cnt: int = 0
+    curr_eval_iter_idx: int = 0
+
+
 # replacement for Megatron's global variables, except mbs calc and parallel state
 class GlobalState:
     _instance = None
@@ -109,7 +126,9 @@ class GlobalState:
         self._wandb_logger = None
         self._timers = None
         self._train_state = None
+        self._rank_monitor_client = None
         self.start_time = time.time()
+        self._ft_state = None
 
     @property
     def cfg(self):
@@ -180,3 +199,24 @@ class GlobalState:
     @train_state.setter
     def train_state(self, value: TrainState):
         self._train_state = value
+
+    @property
+    def rank_monitor_client(self):
+        assert (
+            self._rank_monitor_client is not None
+        ), "Should not attempt to access rank monitor client before fault tolerance setup."
+        return self._rank_monitor_client
+
+    @rank_monitor_client.setter
+    def rank_monitor_client(self, value: "RankMonitorClient"):
+        self._rank_monitor_client = value
+
+    @property
+    def fault_tolerance_state(self):
+        if self._ft_state is None:
+            self._ft_state = FaultToleranceState()
+        return self._ft_state
+
+    @fault_tolerance_state.setter
+    def fault_tolerance_state(self, value: FaultToleranceState):
+        self._ft_state = value
