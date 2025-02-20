@@ -43,7 +43,6 @@ use_pytriton = True
 batch = noop_decorator
 try:
     from pytriton.decorators import batch
-    from pytriton.model_config import Tensor
 except Exception:
     warnings.warn("PyTriton is not available.")
     use_pytriton = False
@@ -431,12 +430,12 @@ class OnnxLLMExporter(ITritonDeployable):
             pbar.update(self.quant_max_batch_size)
             pbar.refresh()
 
-    def forward(self, prompt: Union[str, Dict]):
+    def forward(self, prompt: Union[List, Dict]):
         if self.onnx_runtime_session is None:
             warnings.warn("ONNX Runtime is not available.")
             return None
         else:
-            if isinstance(prompt, str):
+            if isinstance(prompt, List):
                 tokenized = self.tokenizer(prompt)
                 prompt = {nn: tokenized[nn] for nn in self.model_input_names}
 
