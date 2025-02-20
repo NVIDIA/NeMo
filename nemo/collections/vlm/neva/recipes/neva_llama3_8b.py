@@ -14,7 +14,7 @@
 
 import os
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import lightning.pytorch as pl
 import nemo_run as run
