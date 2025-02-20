@@ -282,7 +282,9 @@ def training_log(
         if wandb_logger:
             wandb_logger.log({"samples vs steps": global_state.train_state.consumed_train_samples}, train_state.step)
         tb_logger.add_scalar("learning-rate", learning_rate, train_state.step)
-        tb_logger.add_scalar("learning-rate vs samples", learning_rate, global_state.train_state.consumed_train_samples)
+        tb_logger.add_scalar(
+            "learning-rate vs samples", learning_rate, global_state.train_state.consumed_train_samples
+        )
         if wandb_logger:
             wandb_logger.log({"learning-rate": learning_rate}, train_state.step)
         if config.optimizer_config.decoupled_lr is not None:
@@ -330,7 +332,9 @@ def training_log(
                 wandb_logger.log({"num-zeros": num_zeros_in_grad}, train_state.step)
         if params_norm is not None:
             tb_logger.add_scalar("params-norm", params_norm, train_state.step)
-            tb_logger.add_scalar("params-norm vs samples", params_norm, global_state.train_state.consumed_train_samples)
+            tb_logger.add_scalar(
+                "params-norm vs samples", params_norm, global_state.train_state.consumed_train_samples
+            )
             if wandb_logger:
                 wandb_logger.log({"params-norm": params_norm}, train_state.step)
         if logger_config.log_memory_to_tensorboard:
