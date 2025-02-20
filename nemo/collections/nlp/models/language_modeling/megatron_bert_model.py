@@ -85,8 +85,8 @@ class MegatronBertModel(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_MEGATRON_CORE:
             raise ImportError(
-                "megatron-core was not found. "
-                "Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+                "megatron-core was not found. Please see the NeMo README for installation instructions: "
+                "https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
         self.cfg = cfg
@@ -480,6 +480,7 @@ class MegatronBertModel(MegatronBaseModel):
                 self.proxies = []
 
             def make_proxy(self):
+                """ Make proxy"""
                 self.proxies.append(CachingIterator.Proxy())
                 return self.proxies[-1]
 
@@ -852,8 +853,8 @@ class MegatronBertModel(MegatronBaseModel):
         and only needs to be called when using Transformer Engine.
         """
         for module in self.get_bert_module_list():
-            """Set TP group
-            Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398  # pylint: disable=C0301
+            """Set TP group. Copied from: 
+            https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py#L398
             """
             # Deep iterate but skip self to avoid infinite recursion.
             for index, child in enumerate(module.modules()):
@@ -991,7 +992,8 @@ class MegatronBertModel(MegatronBaseModel):
             result.append(
                 PretrainedModelInfo(
                     pretrained_model_name=f"megatron_bert_345m_{vocab}",
-                    location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_bert_345m_{vocab}/versions/1/files/megatron_bert_345m_{vocab}.nemo",  # pylint: disable=C0301
+                    # pylint: disable=C0301
+                    location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_bert_345m_{vocab}/versions/1/files/megatron_bert_345m_{vocab}.nemo",
                     description=f"345M parameter BERT Megatron model with {vocab} vocab.",
                 )
             )
@@ -1000,7 +1002,9 @@ class MegatronBertModel(MegatronBaseModel):
                 result.append(
                     PretrainedModelInfo(
                         pretrained_model_name=f"biomegatron345m_biovocab_{vocab_size}_{vocab}",
-                        location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m_biovocab_{vocab_size}_{vocab}/versions/1/files/BioMegatron345m-biovocab-{vocab_size}-{vocab}.nemo",  # pylint: disable=C0301
+                        # pylint: disable=C0301
+                        location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m_biovocab_{vocab_size}_{vocab}/versions/1/files/BioMegatron345m-biovocab-{vocab_size}-{vocab}.nemo",
+                        # pylint: disable=C0301
                         description="Megatron 345m parameters model with biomedical vocabulary ({vocab_size} size) {vocab}, pre-trained on PubMed biomedical text corpus.",
                     )
                 )
@@ -1008,7 +1012,9 @@ class MegatronBertModel(MegatronBaseModel):
             result.append(
                 PretrainedModelInfo(
                     pretrained_model_name=f"biomegatron-bert-345m-{vocab}",
+                    # pylint: disable=C0301
                     location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m{vocab}/versions/1/files/BioMegatron345m{vocab.capitalize()}.nemo",
+                    # pylint: disable=C0301
                     description=f"Megatron pretrained on {vocab} biomedical dataset PubMed with 345 million parameters.",
                 )
             )
@@ -1259,6 +1265,7 @@ class MegatronBertTextEmbeddingModel(MegatronBertModel):
     """
 
     def average_pool(self, last_hidden_states, attention_mask):
+        """ Average pool over hidden states and mask. """
         last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
         return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
