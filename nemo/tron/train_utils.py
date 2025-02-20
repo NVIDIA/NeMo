@@ -332,7 +332,14 @@ def training_log(
             )
     if config.model_config.num_moe_experts is not None:
         moe_loss_scale = 1 / get_num_microbatches()
-        # track_moe_metrics(moe_loss_scale, train_state.step, tb_logger, wandb_logger, total_loss_dict, args.moe_per_layer_logging) # TODO: implement
+        track_moe_metrics(
+            moe_loss_scale,
+            train_state.step,
+            tb_logger,
+            wandb_logger,
+            total_loss_dict,
+            config.model_config.moe_per_layer_logging,
+        )
 
     if train_state.step % logger_config.log_interval == 0:
         elapsed_time = timers('interval-time').elapsed(barrier=True)
@@ -411,3 +418,64 @@ def report_memory(name):
     string += ' | max reserved: {}'.format(torch.cuda.max_memory_reserved() / mega_bytes)
     if parallel_state.get_data_parallel_rank() == 0:
         print("[Rank {}] {}".format(torch.distributed.get_rank(), string), flush=True)
+
+
+def track_moe_metrics(
+    loss_scale, iteration, tb_logger, wandb_logger=None, total_loss_dict=None, per_layer_logging=False
+):
+    """Track the MoE metrics for logging."""
+    # Aux loss logging
+    reduce_aux_losses_tracker_across_ranks()
+    tracker = parallel_state.get_moe_layer_wise_logging_tracker()
+    if tb_logger is not None:
+        aux_losses = {k: v['values'].float() * loss_scale for k, v in tracker.items()}
+        for name, loss_list in aux_losses.items():
+            if total_loss_dict is not None:
+                if name not in total_loss_dict:
+                    total_loss_dict[name] = loss_list.mean()
+                else:
+                    total_loss_dict[name] += loss_list.mean()
+
+            # currently when using add_scalars,
+            # torch.utils.add_scalars makes each timer its own run, which
+            # polutes the runs list, so we just add each as a scalar
+            tb_logger.add_scalar(name, loss_list.mean(), iteration)
+            if per_layer_logging:
+                for i, loss in enumerate(loss_list.tolist()):
+                    tb_logger.add_scalar(f"moe/{name}_layer_{i}", loss, iteration)
+
+            # W&B logging lacks support for logging multiple scalars simultaneously.
+            # As a workaround, we log each scalar individually first, then we can create
+            # a custom panel to manually group them to a single plot.
+            if wandb_logger:
+                wandb_logger.log({f"{name}": loss_list.mean()}, iteration)
+                if per_layer_logging:
+                    wandb_logger.log(
+                        {f"moe/{name}_layer_{i}": loss for i, loss in enumerate(loss_list.tolist())},
+                        iteration,
+                    )
+
+    clear_aux_losses_tracker()
+
+
+def clear_aux_losses_tracker():
+    """Clear the auxiliary losses."""
+    tracker = parallel_state.get_moe_layer_wise_logging_tracker()
+    for name in tracker:
+        tracker[name]["values"].zero_()
+        tracker[name]["reduce_group"] = None
+        tracker[name]["avg_group"] = None
+
+
+def reduce_aux_losses_tracker_across_ranks():
+    """Collect and reduce the auxiliary losses across ranks."""
+    tracker = parallel_state.get_moe_layer_wise_logging_tracker()
+    for name in tracker:
+        values = tracker[name]["values"]
+        # Collect aux losses across PP.
+        torch.distributed.all_reduce(values, group=parallel_state.get_pipeline_model_parallel_group())
+        # Reduce aux losses across ranks.
+        if tracker[name].get('reduce_group') is not None:
+            torch.distributed.all_reduce(values, group=tracker[name].get('reduce_group'))
+        if tracker[name].get('avg_group') is not None:
+            torch.distributed.all_reduce(values, group=tracker[name]['avg_group'], op=torch.distributed.ReduceOp.AVG)
