@@ -113,29 +113,28 @@ def get_args():
     return args
 
 
-def _split_and_normalize_text(text: str, normalizer: Normalizer) -> str:
+def _split_and_normalize_text(text: str, normalizer: Normalizer, max_num_words: int = 500, additional_split_symbols: str = ";|:") -> str:
     """
     Splits the input text into sentences using additional split symbols,
     further splits sentences longer than 500 words, normalizes each sentence,
     and then concatenates them back together.
     """
-    additional_split_symbols = ";|:"  # Adjust based on your dataset's characteristics
     sentences = normalizer.split_text_into_sentences(text, additional_split_symbols=additional_split_symbols)
     split_sentences = []
     for sentence in sentences:
         words = sentence.split()
-        if len(words) > 500:
-            # Split into chunks of 500 words
-            for i in range(0, len(words), 500):
-                chunk = ' '.join(words[i : i + 500])
+        if len(words) > max_num_words:
+            # Split into chunks of max_num_words words
+            for i in range(0, len(words), max_num_words):
+                chunk = ' '.join(words[i : i + max_num_words])
                 split_sentences.append(chunk)
         else:
             split_sentences.append(sentence)
 
-    # Log sentences exceeding 500 words (for debugging)
+    # Log sentences exceeding max_num_words words (for debugging)
     for idx, sentence in enumerate(split_sentences):
         word_count = len(sentence.split())
-        if word_count > 500:
+        if word_count > max_num_words:
             print(f"Warning: Sentence {idx} with {word_count} words is still too long.")
 
     normalized_sentences = [
