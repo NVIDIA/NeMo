@@ -151,7 +151,7 @@ def _process_entry(
     normalized_text_key: str,
     lower_case: bool,
     lower_case_norm: bool,
-    enable_split: bool,
+    enable_split: bool = False,
 ) -> dict:
     text = entry[text_key]
 
