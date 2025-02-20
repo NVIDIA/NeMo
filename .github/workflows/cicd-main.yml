@@ -424,7 +424,6 @@ jobs:
   #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
   #         if: "failure()"
 
-
   # L2: ASR dev run
   ASR_dev_run_Speech_to_Text:
     needs: [pre-flight, cicd-test-container-build]
@@ -3097,7 +3096,6 @@ jobs:
       - L2_NEMO_2_LoRA_Inference
       - L2_NeMo_2_Mixtral_Pretraining
       - L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124
-      - L2_Community_LLM_Checkpoints_tests_Llama3
       - L2_Speech_to_Text_AED
       - L2_Speech_Estimate_Duration_Bins
       - L2_Speech_Batch_Size_OOMptimizer
