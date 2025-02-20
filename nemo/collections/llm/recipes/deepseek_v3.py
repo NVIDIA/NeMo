@@ -89,6 +89,7 @@ def pretrain_recipe(
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
+    resume_path: str = "deepseek-ai/DeepSeek-V3-Base",
     name: str = "default",
     num_nodes: int = 4,
     num_gpus_per_node: int = 8,
@@ -105,6 +106,7 @@ def finetune_recipe(
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
+        resume_path (str): Path to the NeMo checkpoint
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
@@ -113,14 +115,13 @@ def finetune_recipe(
         seq_length (int): Maximum number of tokens per microbatch.
         packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given
             maximum seq_length for better efficiency. By default, this value equals performance_mode.
-        performance_mode (bool): If true, enables optimizations for maximum performance.
     Returns:
         run.Partial: Partial configuration for fine-tuning.
 
     Examples:
         CLI usage:
             $ nemo llm finetune --factory deepseek_v3
-            $ nemo llm finetune --factory "deepseek_v3(num_nodes=3, name='my_deepseek_v3_finetune')"
+            $ nemo llm finetune --factory "deepseek_v3(num_nodes=6, name='my_deepseek_v3_finetune')"
 
         Python API usage:
             >>> recipe = finetune_recipe(name="deepseek_v3_finetune", num_nodes=2)
@@ -141,7 +142,7 @@ def finetune_recipe(
             num_nodes = 6
 
     recipe = default_finetune_recipe(
-        model(), "deepseek-ai/DeepSeek-V3-Base", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.expert_model_parallel_size = 64
