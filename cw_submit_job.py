@@ -11,6 +11,7 @@ from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo import lightning as nl
 from nemo.collections.llm import SquadDataModule, MockDataModule
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.utils.exp_manager import DeltaTimingCallback
 
 
 DATE_STR = datetime.today().strftime("%m%d")
@@ -22,6 +23,7 @@ HF_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/hf_home"
 MEGATRON_CACHE = "/lustre/fsw/portfolios/coreai/users/yudong/megatron_cache"
 JOB_DIR = "/lustre/fsw/portfolios/coreai/users/yudong/exp/nemorun"
 DATA_PATH = "/lustre/fsw/portfolios/coreai/users/yudong/data"
+NEMO_MODELS_CACHE = "/lustre/fsw/portfolios/coreai/users/yudong/nemo_cache"
 
 
 def get_secrets():
@@ -145,6 +147,73 @@ def configure_recipe_llama3_8b(
     return recipe
 
 
+def configure_recipe_llama32_1b_finetune(
+    num_nodes,
+    num_gpus_per_node,
+    wandb_project_name=None,
+    seq_length=4096,
+    global_batch_size=512,
+    model_name="meta-llama/Llama-3.2-1B",
+    dataset=None,
+    packed_sequence=False,
+):
+    model_name = "llama32_1b_finetune"
+    recipe = llm.llama32_1b.finetune_recipe(
+        dir="/yudong/exp/nemorun/checkpoints",  # Path to store checkpoints
+        name=model_name,
+        num_nodes=num_nodes,
+        num_gpus_per_node=num_gpus_per_node,
+        packed_sequence=packed_sequence,
+        peft_scheme=None,
+    )
+    recipe.trainer.val_check_interval = 100
+    # tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(
+    #    "meta-llama/Llama-3.2-1B"
+    # )
+    # recipe.data = run.Config(
+    #     SquadHFDataModule,
+    #     path_or_dataset="rajpurkar/squad",
+    #     split="train",
+    #     pad_token_id=tokenizer.tokenizer.eos_token_id,
+    #     tokenizer=run.Config(
+    #         AutoTokenizer, pretrained_model_name="meta-llama/Llama-3.2-1B"
+    #     ),
+    #     seq_length=4096,
+    #     global_batch_size=512,
+    #     micro_batch_size=1,
+    # )
+    # recipe.data = run.Config(
+    #     MockDataModule,
+    #     seq_length=seq_length,
+    #     global_batch_size=global_batch_size,
+    #     micro_batch_size=1,
+    # )
+
+    # if dataset == "squad":
+    #     datamodule = run.Config(
+    #         SquadDataModule,
+    #         seq_length=seq_length,
+    #         global_batch_size=global_batch_size,
+    #         micro_batch_size=1,
+    #         tokenizer=run.Config(
+    #             AutoTokenizer, pretrained_model_name="meta-llama/Llama-3.2-1B"
+    #         ),
+    #     )
+    #     recipe.data = datamodule
+
+    # recipe.trainer.accumulate_grad_batches = (
+    #     global_batch_size / num_gpus_per_node / num_nodes
+    # )  # Change gradient accumulation steps here
+
+    recipe.log.wandb = run.Config(
+        WandbLogger,
+        project="nemo2",
+        name=f"{DATE_STR}-mcore-{model_name}-{num_nodes}-nodes-{wandb_project_name}",
+    )
+
+    return recipe
+
+
 def configure_recipe_llama32_1b_pretrain(
     num_nodes,
     num_gpus_per_node,
@@ -187,8 +256,8 @@ def configure_recipe_llama32_1b_pretrain(
     if dataset == "squad":
         datamodule = run.Config(
             SquadDataModule,
-            seq_length=2048,
-            global_batch_size=128,
+            seq_length=seq_length,
+            global_batch_size=global_batch_size,
             micro_batch_size=1,
             tokenizer=run.Config(
                 AutoTokenizer, pretrained_model_name="meta-llama/Llama-3.2-1B"
@@ -259,7 +328,13 @@ def custom_hf_auto_model_for_causal_lm_finetune(
         model_name=model_name,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
+        max_steps=10000,
+        peft_scheme=None,
     )
+
+    # datamodule = run.Config(
+    #    llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1
+    # )
 
     # datamodule = run.Config(
     #     SquadDataModule,
@@ -270,13 +345,14 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     # )
     # finetune.data = datamodule
     # finetune.trainer.accumulate_grad_batches = (
-    #     global_batch_size / num_gpus_per_node / num_nodes
+    #    global_batch_size / num_gpus_per_node / num_nodes
     # )  # Change gradient accumulation steps here
 
+    finetune.trainer.callbacks = [run.Config(DeltaTimingCallback)]
     finetune.log.wandb = run.Config(
         WandbLogger,
         project="nemo2",
-        name=f"{DATE_STR}-hf-{model_name}-{num_nodes}-nodes-{wandb_project_name}",
+        name=f"{DATE_STR}-hf-finetune-{model_name}-{num_nodes}-nodes-{wandb_project_name}",
     )
     return finetune
 
@@ -351,13 +427,25 @@ recipes = [
     #     "llama32_1b_pretrain_1_node_2_gpu",
     # ),
     # (
-    #     custom_hf_auto_model_for_causal_lm(1, 2, "nemo2", 2048, 128),
+    #     custom_hf_auto_model_for_causal_lm(1, 2, "nemo2", 2048, 128, dataset="squad"),
     #     "hf_llama32_1b_pretrain_1_node_2_gpu",
     # ),
     (
-        custom_hf_auto_model_for_causal_lm_finetune(1, 2, "nemo2"),
+        custom_hf_auto_model_for_causal_lm_finetune(1, 2, "nemo2", 2048, 128),
         "hf_llama32_1b_finetune_1_node_2_gpu",
     ),
+    # (
+    #     configure_recipe_llama32_1b_finetune(1, 8, "nemo2", 2048, 128),
+    #     f"{DATE_STR}-mcore_llama32_1b_finetune_1_node_8_gpu",
+    # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(1, 8, "nemo2", 2048, 128),
+    #     f"{DATE_STR}-hf_llama32_1b_finetune_1_node_8_gpu",
+    # ),
+    # (
+    #     configure_recipe_llama32_1b_finetune(1, 8, "nemo2", 2048, 128),
+    #     "mcore_llama32_1b_finetune_1_node_8_gpu",
+    # ),
     # (
     #     configure_recipe_llama32_1b_pretrain(1, 8, "nemo2", 2048, 128),
     #     "mcore_llama32_1b_pretrain_1_node_8_gpu",
@@ -383,7 +471,7 @@ def run_local():
     with run.Experiment(f"{DATE_STR}-llama3_2_1b_pretrain") as exp:
         for recipe, exp_name in recipes:
             exp.add(recipe, executor=executor(), name=exp_name)
-        exp.run(sequential=False, tail_logs=True)
+        exp.run(sequential=True, tail_logs=True)
 
 
 def run_finetuning_on_slurm(**slurm_kwargs):
@@ -400,6 +488,7 @@ def run_finetuning_on_slurm(**slurm_kwargs):
             f"{HF_HOME}:/opt/hf",
             f"{MEGATRON_CACHE}:/root/.cache/torch/megatron/",
             f"{DATA_PATH}:/data",
+            f"{NEMO_MODELS_CACHE}:/root/.cache/nemo/models/",
         ],
         **slurm_kwargs,
     )
@@ -414,7 +503,13 @@ def run_finetuning_on_slurm(**slurm_kwargs):
 
 # Wrap the call in an if __name__ == "__main__": block to work with Python's multiprocessing module.
 if __name__ == "__main__":
-    print("Update CW codebase")
+    # from nemo.collections import llm
+
+    # llm.import_ckpt(
+    #     model=llm.LlamaModel(llm.Llama32Config1B()),
+    #     source="hf://meta-llama/Llama-3.2-1B",
+    # )
+    print("did you Update CW codebase")
     breakpoint()
     # run_finetuning_on_slurm()
     run_local()
