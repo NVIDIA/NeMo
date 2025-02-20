@@ -138,13 +138,13 @@ class Quantizer:
         self.torch_dtype = torch_dtype_from_precision(dtype)
 
     @staticmethod
-    def _setup(model: MegatronParallel) -> None:
+    def _setup(model: "MegatronParallel") -> None:
         """Setup model for quantization."""
         # TODO: disable activation checkpointing
         model.config.vocab_size = model.tokenizer.vocab_size
         model.freeze()
 
-    def _get_decoder_type(self, model: MegatronParallel):
+    def _get_decoder_type(self, model: "MegatronParallel"):
         if self.export_config.decoder_type is not None:
             return self.export_config.decoder_type
         unwrapped_model = model
@@ -154,7 +154,7 @@ class Quantizer:
         return get_modelopt_decoder_type(unwrapped_model)
 
     @staticmethod
-    def _generate_sample(model: MegatronParallel):
+    def _generate_sample(model: "MegatronParallel"):
         prompts = ["Born in north-east France, Soyer trained as a", "Born in California, Soyer trained as a"]
 
         mcore_tokenizer = MCoreTokenizerWrappper(model.tokenizer)
@@ -167,7 +167,7 @@ class Quantizer:
 
         logging.info(f'Sample generation after PTQ (with prompts): {outputs}')
 
-    def quantize(self, model: MegatronParallel, forward_loop=None):
+    def quantize(self, model: "MegatronParallel", forward_loop=None):
         """Quantize the model and calibrate using given forward loop."""
         if forward_loop is None:
             get_dataloader = create_data_iterator_getter(
@@ -296,7 +296,7 @@ class Quantizer:
             logging.error("Failed to export the quantized model.")
         return export_successful
 
-    def export(self, model: MegatronParallel, model_dir: str, trainer: Optional[Trainer] = None) -> None:
+    def export(self, model: "MegatronParallel", model_dir: str, trainer: Optional["Trainer"] = None) -> None:
         """Export model to a TensorRT-LLM or NeMo checkpoint."""
         export_dir = self.export_config.path
         export_fmt = self.export_config.export_format
