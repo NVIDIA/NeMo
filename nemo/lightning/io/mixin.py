@@ -39,6 +39,7 @@ from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.connector import ModelConnector
 from nemo.lightning.io.fdl_torch import enable as _enable_ext
 from nemo.lightning.io.to_config import to_config
+from nemo.lightning.io.deserialize import SafeDeserialization
 from nemo.utils import logging
 
 ConnT = TypeVar("ConnT", bound=ModelConnector)
@@ -741,7 +742,16 @@ def drop_unexpected_params(config: fdl.Config) -> bool:
     return updated
 
 
-def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] = None, build: bool = True) -> CkptType:
+def load(
+    path: Path, 
+    output_type: Type[CkptType] = Any, 
+    subpath: Optional[str] = None, 
+    build: bool = True,
+    trust_remote_code: bool = False,
+    max_depth: int = 100,
+    max_string_length: int = 100_000,
+    max_collection_size: int = 10_000,
+) -> CkptType:
     """
     Loads a configuration from a pickle file and constructs an object of the specified type.
 
@@ -750,6 +760,13 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
         output_type (Type[CkptType]): The type of the object to be constructed from the loaded data.
         subpath (Optional[str]): Subpath to selectively load only specific objects inside the output_type.
                                  Defaults to None.
+        build (bool): Whether to build the config into an object. Defaults to True.
+        trust_remote_code (bool): Whether to allow custom code from untrusted sources to be loaded. Can be used to 
+            load models containing custom code. SECURITY WARNING: This could execute arbitrary code. Only enable this if you 
+            trust the source of the model. Defaults to False.
+        max_depth (int): Maximum recursion depth for nested structures. Defaults to 100.
+        max_string_length (int): Maximum allowed string length. Defaults to 100,000.
+        max_collection_size (int): Maximum allowed collection size. Defaults to 10,000.
 
     Returns
     -------
@@ -758,9 +775,16 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
     Raises
     ------
         FileNotFoundError: If the specified file does not exist.
+        DeserializationError: If deserialization fails due to security violations or resource limits.
+        SecurityViolationError: If a security violation is detected during deserialization.
+        ResourceLimitError: If resource limits are exceeded during deserialization.
 
     Example:
+        # Safe mode (default) - only allows trusted modules
         loaded_model = load("/path/to/model", output_type=MyModel)
+
+        # Unrestricted mode - allows all modules (use with caution)
+        loaded_model = load("/path/to/model", output_type=MyModel, trust_remote_code=True)
     """
     _path = Path(path)
     _thread_local.output_dir = _path
@@ -803,7 +827,14 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
     if root_key:
         json_config["root"]["key"] = root_key
 
-    config = serialization.Deserialization(json_config).result
+    config = SafeDeserialization(
+        json_config,
+        trust_remote_code=trust_remote_code,
+        max_depth=max_depth,
+        max_string_length=max_string_length,
+        max_collection_size=max_collection_size,
+    ).result
+
     _artifact_transform_load(config, path)
 
     drop_unexpected_params(config)
