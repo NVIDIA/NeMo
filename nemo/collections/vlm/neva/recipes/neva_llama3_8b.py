@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -41,12 +42,17 @@ class NevaLlama3Config8B(Llama3Config8B):
     seq_length: int = 8192
 
 @dataclass
+class HFCLIPConfig(vlm.HFCLIPVisionConfig):
+    pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = "openai/clip-vit-large-patch14-336"
+
+@dataclass
 class NevaConfig8B(vlm.NevaConfig):
     seq_length: int = 8192
     language_transformer_config: Optional[TransformerConfig] = NevaLlama3Config8B
-    vision_transformer_config: Optional[TransformerConfig] = vlm.HFCLIPVisionConfig(
-        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    )
+    # vision_transformer_config: Optional[TransformerConfig] = vlm.HFCLIPVisionConfig(
+    #     pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+    # )
+    vision_transformer_config: Optional[TransformerConfig] = HFCLIPConfig
     vision_projection_config: Optional[TransformerConfig] = vlm.MultimodalProjectorConfig(
         projector_type="mcore_mlp",
         input_size=vision_transformer_config.hidden_size,
