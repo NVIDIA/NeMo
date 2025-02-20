@@ -38,6 +38,8 @@ class JointSelfAttention(Attention):
         attn_mask_type=AttnMaskType.padding,
         context_pre_only: bool = False,
     ):
+        # Use RMSnorm in for qk norm
+        config.normalization = "RMSNorm"
         super().__init__(
             config=config,
             submodules=submodules,
@@ -336,6 +338,8 @@ class FluxSingleAttention(SelfAttention):
         attn_mask_type=AttnMaskType.padding,
         cp_comm_type: str = None,
     ):
+        # Use RMSnorm in for qk norm
+        config.normalization = "RMSNorm"
         super().__init__(
             config=config,
             submodules=submodules,

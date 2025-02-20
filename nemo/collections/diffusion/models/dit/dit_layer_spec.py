@@ -554,7 +554,7 @@ class MMDiTLayer(TransformerLayer):
         hidden_size = config.hidden_size
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
 
-        self.adaln = AdaLN(config, norm=TENorm, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
+        self.adaln = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
 
         self.context_pre_only = context_pre_only
         context_norm_type = "ada_norm_continuous" if context_pre_only else "ada_norm_zero"
@@ -562,9 +562,7 @@ class MMDiTLayer(TransformerLayer):
         if context_norm_type == "ada_norm_continuous":
             self.adaln_context = AdaLNContinuous(config, hidden_size, modulation_bias=True, norm_type="layer_norm")
         elif context_norm_type == "ada_norm_zero":
-            self.adaln_context = AdaLN(
-                config, norm=TENorm, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True
-            )
+            self.adaln_context = AdaLN(config, modulation_bias=True, n_adaln_chunks=6, use_second_norm=True)
         else:
             raise ValueError(
                 f"Unknown context_norm_type: {context_norm_type}, "
@@ -654,13 +652,7 @@ class FluxSingleTransformerBlock(TransformerLayer):
         modulation_bias: bool = True,
     ):
         super().__init__(config=config, submodules=submodules, layer_number=layer_number)
-        self.adaln = AdaLN(
-            config=config,
-            norm=TENorm,
-            n_adaln_chunks=n_adaln_chunks,
-            modulation_bias=modulation_bias,
-            use_second_norm=False,
-        )
+        self.adaln = AdaLN(config=config, n_adaln_chunks=n_adaln_chunks, modulation_bias=modulation_bias, use_second_norm=False)
 
     def forward(
         self,
