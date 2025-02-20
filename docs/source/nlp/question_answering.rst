@@ -65,7 +65,7 @@ Following BERT-like models are available for Extractive Question-Answering
 Module Design
 -------------
 
-The module is decouple data and model components to support idependent integration of various model achitectures and datasets.
+The module is decouple data and model components to support independent integration of various model achitectures and datasets.
 QAProcessor, QAExample, and the base QADataset modules are responsible for model-independent data handling utilites like loading SQuAD format dataset files and parsing examples.
 <Model>QADataset modules handle model-specific data formatting.
 Similarly, the BaseQAModel module handles common model tasks like creating dataloader, and the <Model>QAModel modules handle model architecture-specific functions like trainig, testing, and evaluation.
