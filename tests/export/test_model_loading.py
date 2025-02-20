@@ -25,6 +25,7 @@ OUTPUT_PATH = '/tmp/imported_nemo2'
 dummy_module = MagicMock()
 dummy_module.torch_to_numpy = lambda torch_tensor: torch_tensor.detach().cpu().numpy()
 
+
 @pytest.mark.run_only_on('GPU')
 @pytest.mark.unit
 def test_model_loading() -> None:
@@ -55,5 +56,5 @@ def test_model_loading() -> None:
 
         load_nemo_model(nemo_path, export_path_local, False)
         load_nemo_model(nemo_path, export_path_mcore, True)
-    
+
     shutil.rmtree(OUTPUT_PATH, ignore_errors=True)
