@@ -15,7 +15,7 @@
 import inspect
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 import torch.distributed
 from megatron.core import DistributedDataParallel as DDP
@@ -42,6 +42,10 @@ def unwrap_model(model, module_instances=ALL_MODULE_WRAPPER_CLASSNAMES):
     if not return_list:
         return unwrapped_model[0]
     return unwrapped_model
+
+
+def use_dist_ckpt(ckpt_format: str) -> bool:
+    return ckpt_format != "torch"
 
 
 def get_rank_safe() -> int:
@@ -145,7 +149,7 @@ def _safe_object_representer(dumper, data):
     return dumper.represent_data(value)
 
 
-def dump_dataclass_to_yaml(obj: Any):
+def dump_dataclass_to_yaml(obj: Any, filename: Optional[str] = None):
     import fiddle._src.experimental.dataclasses as fdl_dc
     import yaml
     from nemo_run.core.serialization.yaml import YamlSerializer
@@ -159,4 +163,9 @@ def dump_dataclass_to_yaml(obj: Any):
     result = serializer.serialize(cfg)
 
     yaml.SafeDumper.yaml_representers = original_representers
+
+    if filename is not None:
+        with open(filename, "w+") as f:
+            f.write(result)
+
     return result
