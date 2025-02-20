@@ -63,7 +63,7 @@ def maybe_finalize_async_save(ckpt_cfg: CheckpointConfig, blocking: bool = False
     if blocking and not is_empty_async_queue():
         print_rank_0("Unfinalized async checkpoint saves. Finalizing them synchronously now.")
 
-    _async_calls_queue.maybe_finalize_async_calls(blocking, no_dist=False)
+    _async_calls_queue.maybe_finalize_async_calls(blocking)
 
     if terminate:
         _async_calls_queue.close()

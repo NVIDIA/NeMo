@@ -301,13 +301,7 @@ def _set_random_seed(
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.device_count() > 0:
-        import inspect
-
-        sig = inspect.signature(tensor_parallel.model_parallel_cuda_manual_seed)
-        if "te_rng_tracker" in sig.parameters and "inference_rng_tracker" in sig.parameters:
-            tensor_parallel.model_parallel_cuda_manual_seed(seed, te_rng_tracker, inference_rng_tracker)
-        else:
-            tensor_parallel.model_parallel_cuda_manual_seed(seed)
+        tensor_parallel.model_parallel_cuda_manual_seed(seed, te_rng_tracker, inference_rng_tracker)
 
 
 def set_jit_fusion_options(state: GlobalState):

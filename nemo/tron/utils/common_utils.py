@@ -91,20 +91,20 @@ def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
     if save_dir is None:
         return
     progress_log_filename = os.path.join(save_dir, "progress.txt")
-    if barrier:
+    if barrier and torch.distributed.is_initialized():
         torch.distributed.barrier()
-    if torch.distributed.get_rank() == 0:
-        with open(progress_log_filename, "a") as f:
+    if get_rank_safe() == 0:
+        os.makedirs(os.path.dirname(progress_log_filename), exist_ok=True)
+        with open(progress_log_filename, "a+") as f:
             job_id = os.getenv("SLURM_JOB_ID", "")
             num_gpus = get_world_size_safe()
-            f.write(
-                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\tJob ID: {job_id}\t# GPUs: {num_gpus}\t{string}\n"
-            )
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\tJob ID: {job_id}\t# GPUs: {num_gpus}\t{string}\n")
 
 
 def barrier_and_log(string):
     """Note that this call will sync across all ranks."""
-    torch.distributed.barrier()
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
     time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print_rank_0(f"[{string}] datetime: {time_str} ")
 

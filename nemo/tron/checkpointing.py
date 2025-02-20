@@ -44,7 +44,7 @@ from megatron.core.utils import is_float8tensor
 from nemo.tron.config import ConfigContainer
 
 # from . import ft_integration
-from nemo.tron.state import TrainState
+from nemo.tron.state import GlobalState
 from nemo.tron.utils import wandb_utils
 from nemo.tron.utils.async_utils import is_empty_async_queue, schedule_async_save
 from nemo.tron.utils.common_utils import (
@@ -342,7 +342,7 @@ class CheckpointType(Enum):
 
 
 def save_checkpoint(
-    train_state: TrainState,
+    state: GlobalState,
     model,
     optimizer,
     opt_param_scheduler,
@@ -372,6 +372,7 @@ def save_checkpoint(
     Dataloader checkpoint is only saved if the dataloader supports it. Currently this applies only
     to the Megatron Energon dataloader (multimodal) and not the built-in Megatron dataloader (text-only).
     """
+    train_state = state.train_state
     start_ckpt = time()
     ckpt_cfg = cfg.checkpoint_config
 
@@ -581,7 +582,7 @@ def save_checkpoint(
                 torch.distributed.barrier()
 
     # And update the latest train state
-    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+    if get_rank_safe() == 0:
         tracker_filename = get_checkpoint_tracker_filename(save_dir)
 
         if ckpt_type == CheckpointType.LOCAL:
@@ -617,7 +618,11 @@ def save_checkpoint(
 
         def wandb_finalize_fn():
             wandb_utils.on_save_checkpoint_success(
-                checkpoint_name, get_checkpoint_tracker_filename(save_dir), save_dir, train_state.step
+                checkpoint_name,
+                get_checkpoint_tracker_filename(save_dir),
+                save_dir,
+                train_state.step,
+                wandb_writer=state.wandb_logger,
             )
 
         if ckpt_cfg.async_save:
