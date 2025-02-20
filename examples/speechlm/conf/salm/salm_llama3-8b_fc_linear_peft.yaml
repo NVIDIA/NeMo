@@ -161,7 +161,7 @@ trainer:
   devices: -1
   accelerator: gpu
   num_nodes: 1
-  max_epochs: 1000  # used to keep epoch logging correctly, but training will stop based on max_steps
+  max_epochs: -1
   max_steps: 1000000 # 1M steps
   log_every_n_steps: 2 # frequency with which training steps are logged 
   val_check_interval: 1.0 # If is an int n > 1, will run val every n training steps, if a float 0.0 - 1.0 will run val every epoch fraction, e.g. 0.25 will run val every quarter epoch
@@ -178,7 +178,7 @@ strategy:
 callbacks:
   checkpoint:
     _target_: nemo.lightning.pytorch.callbacks.ModelCheckpoint
-    filename: '${name}--{${callbacks.checkpoint.monitor}:.3f}-{step}-{epoch}'
+    filename: '${name}--{${callbacks.checkpoint.monitor}:.5f}-{step}'
     monitor: "val_loss"
     mode: "min"
     save_last: true
