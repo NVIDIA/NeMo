@@ -153,12 +153,12 @@ def evaluate_and_print_results(
     data_iterator,
     model,
     process_non_loss_data_func,
+    config,
     verbose=False,
     write_to_tensorboard=True,
     non_loss_data_func=None,
 ):
     """Helper function to evaluate and dump results on screen."""
-    config = get_model_config(model[0])
     if write_to_tensorboard:
         writer = state.tensorboard_logger
     else:
