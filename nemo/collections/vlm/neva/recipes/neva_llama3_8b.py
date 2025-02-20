@@ -21,25 +21,27 @@ import nemo_run as run
 import torch
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo import lightning as nl
 from nemo.collections import vlm
 from nemo.collections.llm.api import finetune
-from nemo.collections.vlm.neva.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config8B
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.collections.vlm.neva.data.mock import MockDataModule
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
-from megatron.core.transformer.transformer_config import TransformerConfig
 
 NAME = "neva_llama3_8b"
+
 
 @dataclass
 class NevaLlama3Config8B(Llama3Config8B):
     seq_length: int = 8192
+
 
 @dataclass
 class HFCLIPViTLConfig(vlm.HFCLIPVisionConfig):
@@ -76,7 +78,7 @@ class NevaConfig8B(vlm.NevaConfig):
 @run.cli.factory(name=NAME)
 def model(
     seq_length: Optional[int] = 8192,
-    ) -> run.Config[pl.LightningModule]:
+) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a NeVA (CLIP-ViT-L + LLaMa3 8B) model configuration.
 
@@ -217,7 +219,16 @@ def finetune_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=seq_length, global_batch_size=512, micro_batch_size=1, tokenizer=None, image_processor=None, num_workers=4, packed_sequence=packed_sequence),
+        data=run.Config(
+            MockDataModule,
+            seq_length=seq_length,
+            global_batch_size=512,
+            micro_batch_size=1,
+            tokenizer=None,
+            image_processor=None,
+            num_workers=4,
+            packed_sequence=packed_sequence,
+        ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),

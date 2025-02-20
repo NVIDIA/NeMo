@@ -16,12 +16,13 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-from nemo.collections.vlm.neva.recipes.neva_llama3_8b import finetune_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+from nemo.collections.vlm.neva.recipes.neva_llama3_8b import finetune_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import get_user_configs, set_primary_perf_configs, slurm_executor
+
 
 def override_recipe_configs(
     args: str,
@@ -59,7 +60,7 @@ def override_recipe_configs(
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
-    
+
     return recipe
 
 
@@ -73,7 +74,6 @@ if __name__ == "__main__":
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{args.finetuning}_{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-    
 
     executor = slurm_executor(
         args.account,
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=[],
-        custom_env_vars={"PYTHONPATH":"/lustre/fsw/coreai_dlalgo_genai/pmannan/megatron-lm"},
+        custom_env_vars={"PYTHONPATH": "/lustre/fsw/coreai_dlalgo_genai/pmannan/megatron-lm"},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
     )
