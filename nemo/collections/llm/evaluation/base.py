@@ -284,7 +284,7 @@ def wait_for_server_ready(
             logging.info("Server is ready.")
 
             # Check model readiness using ModelClient
-            with ModelClient(url, model_name=model_name, init_timeout_s=retry_interval) as client:
+            with ModelClient(url, model_name=model_name, init_timeout_s=retry_interval):
                 logging.info(f"Model '{model_name}' is ready.")
                 return True
 
