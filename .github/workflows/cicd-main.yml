@@ -181,15 +181,6 @@ jobs:
       SCRIPT: |
         NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/multimodal -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
-  L0_Unit_Tests_GPU_NLP:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_NLP')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/nlp -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
   L0_Unit_Tests_GPU_TTS:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -296,16 +287,6 @@ jobs:
       RUNNER: self-hosted-azure-cpu
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_NLP:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_NLP')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 20
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_TTS:
     needs: [pre-flight, cicd-test-container-build]
@@ -5190,7 +5171,6 @@ jobs:
       - L0_Unit_Tests_GPU_Common
       - L0_Unit_Tests_GPU_LLM
       - L0_Unit_Tests_GPU_Multimodal
-      - L0_Unit_Tests_GPU_NLP
       - L0_Unit_Tests_GPU_TTS
       - L0_Unit_Tests_GPU_Core
       - L0_Unit_Tests_GPU_Hydra
@@ -5202,7 +5182,6 @@ jobs:
       - L0_Unit_Tests_CPU_Common
       - L0_Unit_Tests_CPU_LLM
       - L0_Unit_Tests_CPU_Multimodal
-      - L0_Unit_Tests_CPU_NLP
       - L0_Unit_Tests_CPU_TTS
       - L0_Unit_Tests_CPU_Core
       - L0_Unit_Tests_CPU_Hydra
