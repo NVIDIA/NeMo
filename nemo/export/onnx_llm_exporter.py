@@ -15,7 +15,7 @@
 import json
 import warnings
 from pathlib import Path
-from typing import Generator, List, Optional, Union
+from typing import Dict, Generator, List, Optional, Union
 
 import modelopt.torch.quantization as mtq
 import numpy as np
@@ -431,16 +431,29 @@ class OnnxLLMExporter(ITritonDeployable):
             pbar.update(self.quant_max_batch_size)
             pbar.refresh()
 
-    def forward(self, prompt):
+    def forward(self, prompt: Union[str, Dict]):
         if self.onnx_runtime_session is None:
             warnings.warn("ONNX Runtime is not available.")
             return None
         else:
-            tokenized = self.tokenizer(prompt)
-            input_data = {nn: tokenized[nn] for nn in self.model_input_names}
+            if isinstance(prompt, str):
+                tokenized = self.tokenizer(prompt)
+                prompt = {nn: tokenized[nn] for nn in self.model_input_names}
 
-            output = self.onnx_runtime_session.run(self.model_output_names, input_data)
+            output = self.onnx_runtime_session.run(self.model_output_names, prompt)
             return output[0][0]
+
+    @property
+    def get_model(self):
+        return self.model
+
+    @property
+    def get_tokenizer(self):
+        return self.tokenizer
+
+    @property
+    def get_model_input_names(self):
+        return self.model_input_names
 
     @property
     def get_triton_input(self):
