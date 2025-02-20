@@ -18,7 +18,6 @@ import json
 import multiprocessing as mp
 import os
 import pickle
-import subprocess
 import time
 from functools import lru_cache, partial
 from typing import Any, Callable, List, Optional, Type
@@ -29,7 +28,6 @@ import torch
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Dataset
 from nemo.utils import AppState, logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 PREFIX_STR = (
     "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
