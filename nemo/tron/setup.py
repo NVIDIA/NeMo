@@ -22,7 +22,7 @@ from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
-from nemo.tron.utils import append_to_progress_log, barrier_and_log, print_rank_0
+from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
 
 
 def setup(
@@ -43,7 +43,7 @@ def setup(
     timers = state.timers
 
     if cfg.logger_config.log_progress:
-        append_to_progress_log(cfg.logger_config.save, "Starting job")
+        append_to_progress_log(cfg.checkpoint_config.save, "Starting job")
 
     # Set pytorch JIT layer fusion options and warmup JIT functions.
     set_jit_fusion_options(state)

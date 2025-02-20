@@ -29,7 +29,7 @@ from megatron.core.utils import get_te_version, is_te_min_version, is_torch_min_
 
 from nemo.tron.config import ConfigContainer, RerunStateMachineConfig
 from nemo.tron.state import GlobalState
-from nemo.tron.utils import get_local_rank_preinit, get_rank_safe, get_world_size_safe
+from nemo.tron.utils.common_utils import get_local_rank_preinit, get_rank_safe, get_world_size_safe
 
 
 def initialize_megatron(

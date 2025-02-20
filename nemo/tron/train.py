@@ -34,13 +34,13 @@ from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model
 from nemo.tron.config import ConfigContainer, MegatronLMConfig
 from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.state import GlobalState
-from nemo.tron.train_utils import (
+from nemo.tron.utils.common_utils import print_rank_0
+from nemo.tron.utils.train_utils import (
     calc_params_l2_norm,
     logical_and_across_model_parallel_group,
     reduce_max_stat_across_model_parallel_group,
     training_log,
 )
-from nemo.tron.utils import print_rank_0
 
 
 def forward_step(data_iterator, loss_func, data_step: Callable, model, global_state: GlobalState):
