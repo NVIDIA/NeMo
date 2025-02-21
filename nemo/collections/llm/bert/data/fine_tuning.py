@@ -21,7 +21,6 @@ import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.llm.bert.data.core import create_sft_dataset
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
@@ -154,26 +153,28 @@ class FineTuningDataModule(pl.LightningDataModule):
         # pylint: disable=C0115,C0116
         return self._create_dataloader(
             self._create_dataset(
-                self.train_path,
+                self.validation_path,
                 max_num_samples=self.max_train_samples,
                 **self.dataset_kwargs,
             ),
-            mode="train",
+            mode="validation",
         )
 
     def test_dataloader(self) -> DataLoader:
         # pylint: disable=C0115,C0116
         return self._create_dataloader(
             self._create_dataset(
-                self.train_path,
+                self.test_path,
                 max_num_samples=self.max_train_samples,
                 **self.dataset_kwargs,
             ),
-            mode="train",
+            mode="test",
         )
 
     @lru_cache
     def _create_dataset(self, path, **kwargs):
+        from nemo.collections.llm.bert.data.core import create_sft_dataset
+
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,

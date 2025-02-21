@@ -151,7 +151,6 @@ class TestExpManager:
             exp_manager(pl.Trainer(accelerator='cpu'), {"unused": 1})
 
     @pytest.mark.unit
-    @pytest.mark.pleasefixme
     def test_trainer_loggers(self, tmp_path):
         """Test that a trainer with logger errors out with a number of arguments. Test that it works with
         create_tensorboard_logger set to False
@@ -616,7 +615,7 @@ class TestExpManager:
 
         checkpoint_dir = Path(str(tmp_path / "checkpoints"))
         model_path = checkpoint_dir / "val_loss=0.0300-epoch=1-step=64-last.ckpt"
-        last_saved_checkpoint = torch.load(model_path)
+        last_saved_checkpoint = torch.load(model_path, weights_only=False)
         assert max_steps == last_saved_checkpoint['global_step']
 
         # restart training, ensure global step starts correctly

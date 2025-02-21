@@ -687,7 +687,8 @@ class TensorRTLLM(ITritonDeployable):
         if vp_size > 1:  # consolidate params across model chunks
             for idx, model_chunk in enumerate(model):
                 for key, val in model_chunk.state_dict().items():
-                    if torch.is_tensor(val):
+                    # TODO: currently fp8 is not supported
+                    if torch.is_tensor(val) and '_extra_state' not in key:
                         if 'layers' in key:
                             key2 = rename_layer_num(key, get_layer_num(key) + idx * pp_size * layers_per_chunk)
                             tl_params[key2] = val
@@ -695,7 +696,8 @@ class TensorRTLLM(ITritonDeployable):
                             model_level_params[key] = val
         else:
             for key, val in model.state_dict().items():
-                if torch.is_tensor(val):
+                # TODO: currently fp8 is not supported
+                if torch.is_tensor(val) and '_extra_state' not in key:
                     if 'decoder.layers' in key:
                         tl_params[key] = val
                     else:
@@ -776,7 +778,8 @@ class TensorRTLLM(ITritonDeployable):
         elif storage_dtype == torch.float16:
             return DataType.float16
 
-    def get_nemo_to_trtllm_conversion_dict(self, model_state_dict):
+    @staticmethod
+    def get_nemo_to_trtllm_conversion_dict(model_state_dict):
         """MCore export supports some default conversion dictionaries
         All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models sometimes start with "model.decoder.layers.4.blahblah". so we append model prefix. to the keys
         """
@@ -786,8 +789,8 @@ class TensorRTLLM(ITritonDeployable):
 
         nemo_model_conversion_dict = {}
         for key, value in DEFAULT_CONVERSION_DICT.items():
-            if 'layers' in key and model_prefix:
-                nemo_model_conversion_dict[f'{model_prefix}.{key}'] = value
+            if model_prefix:
+                nemo_model_conversion_dict[f'{model_prefix}{key}'] = value
             else:
                 nemo_model_conversion_dict[key] = value
         return nemo_model_conversion_dict
