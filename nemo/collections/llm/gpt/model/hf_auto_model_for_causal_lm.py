@@ -22,6 +22,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
+import time
 
 
 def masked_cross_entropy(logits, targets, mask=None):
@@ -102,7 +103,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.attn_implementation = attn_implementation
         # holds loss values until optim step.
         self.loss_buffer = []
-
+        self.n_tok = 0
+        self.timestamp = None
 
     @property
     def tokenizer(self):
@@ -226,6 +228,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Returns:
             torch.Tensor: The computed loss for the batch.
         """
+        # logging
+        if self.timestamp is None:
+            self.timestamp = time.perf_counter()
+
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
@@ -244,7 +250,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
+        # logging
         self.loss_buffer.append(loss.item())
+        self.n_tok += labels.numel()
         return loss
 
     def on_before_optimizer_step(self, optimizer) -> None:
@@ -254,9 +262,18 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Args:
             optimizer (torch.optim.Optimizer): the optimizer; unused.
         """
+        # Excluding the first/last iter, time_delta is calculated as follows
+        # fwd 0 | opt 0 | fwd 1 | opt 1 | fwd 2
+        #        ^              ^
+        s = time.perf_counter()
+        time_delta = s - self.timestamp
+        self.timestamp = s
+
         mean_loss = sum(self.loss_buffer) / len(self.loss_buffer)
         self.loss_buffer = []
         self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log('tps', self.n_tok / time_delta, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.n_tok = 0
 
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
