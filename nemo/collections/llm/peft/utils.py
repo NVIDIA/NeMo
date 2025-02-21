@@ -241,7 +241,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         a2a_experimental: bool = False,
         # TODO: should rename this or make it a default feature
         is_expert: bool = False,
-        disable_sequence_parallel_comm: bool = False,
+        disable_sequence_parallel_comm: bool = True,
         **kwargs,
     ):
         super().__init__()
@@ -339,6 +339,8 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         # revert config change in case it is read elsewhere
         model_parallel_config.sequence_parallel = _sequence_parallel
         self.disable_sequence_parallel_comm = disable_sequence_parallel_comm
+        if not _sequence_parallel:
+            self.disable_sequence_parallel_comm = True
 
     def _get_init_fn(self, init_method: str):
         if init_method == 'xavier':
@@ -373,7 +375,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         if self.norm_position == 'pre':
             x = self.layer_norm(x)
-        if not self.disable_sequence_parallel_comm and not self.input_is_parallel:
+        if not self.disable_sequence_parallel_comm and not self.input_is_parallel and not self.is_expert:
             # for attention_qkv and linear_fc1
             # layernorm before lora is impacted by sequence parallel,
             # hence seq dim need to be gathered right before lora linear layers
