@@ -97,6 +97,7 @@ jobs:
         run: |
           SCRIPT=$(echo "$SCRIPT" | grep -v '^#')
           SCRIPT=$(perl -pe 'chomp if eof' <<< "$SCRIPT")
+          [[ "${SCRIPT: -1}" == ";" ]] && SCRIPT="${SCRIPT::-1}"
 
           mkdir -p $DIR
           rm $DIR/.coverage || true
