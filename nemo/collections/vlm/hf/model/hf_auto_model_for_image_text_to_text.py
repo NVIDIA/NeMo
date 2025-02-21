@@ -96,6 +96,10 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def training_step(self, batch, batch_idx=None):
         """Run one training step"""
+        if isinstance(self.trainer.strategy.checkpoint_io, io.pl.MegatronCheckpointIO):
+            logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
+            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
+
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
@@ -182,3 +186,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if str(val) in PAD_TOKENS:
                 skipped_token_ids.append(key)
         return torch.IntTensor(list(set(skipped_token_ids)))
+
+    @property
+    def _has_lora_adapter(self):
+        return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
