@@ -100,6 +100,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
+        # holds loss values until optim step.
+        self.loss_buffer = []
+
 
     @property
     def tokenizer(self):
@@ -241,8 +244,19 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('reduced_train_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.loss_buffer.append(loss.item())
         return loss
+
+    def on_before_optimizer_step(self, optimizer) -> None:
+        """ Hook triggered befored the optimizer step.
+        Used for calculating the average loss across all gradient accumulation steps.
+
+        Args:
+            optimizer (torch.optim.Optimizer): the optimizer; unused.
+        """
+        mean_loss = sum(self.loss_buffer) / len(self.loss_buffer)
+        self.loss_buffer = []
+        self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
