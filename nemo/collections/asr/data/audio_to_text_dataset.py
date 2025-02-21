@@ -33,6 +33,11 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.collections.common.data.dataset import CodeSwitchedDataset, ConcatDataset
 from nemo.utils import logging
 
+from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
+from nemo.collections.common.tokenizers import TokenizerSpec
+from lightning.pytorch import LightningModule
+
+
 
 def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: DictConfig, key: str):
     """
@@ -94,7 +99,7 @@ def get_concat_char_dataset(
         An instance of ConcatDataset containing one or more instances of AudioToCharDataset.
     """
     if 'labels' not in config:
-        logging.warning(f"dataset does not have explicitly defined labels")
+        logging.warning("dataset does not have explicitly defined labels")
 
     manifest_filepaths = config['manifest_filepath']
     datasets = []
@@ -138,7 +143,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         An instance of AudioToCharDataset.
     """
     if 'labels' not in config:
-        logging.warning(f"dataset does not have explicitly defined labels")
+        logging.warning("dataset does not have explicitly defined labels")
 
     dataset = audio_to_text.AudioToCharDataset(
         manifest_filepath=config['manifest_filepath'],
@@ -332,7 +337,7 @@ def get_tarred_dataset(
     if bucketing_weights:
         for idx, weight in enumerate(bucketing_weights):
             if not isinstance(weight, int) or weight <= 0:
-                raise ValueError(f"bucket weights must be positive integers")
+                raise ValueError("bucket weights must be positive integers")
 
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
         raise ValueError(
@@ -340,7 +345,7 @@ def get_tarred_dataset(
         )
 
     if 'labels' not in config:
-        logging.warning(f"dataset does not have explicitly defined labels")
+        logging.warning("dataset does not have explicitly defined labels")
 
     if 'max_utts' in config:
         logging.warning('"max_utts" parameter is not supported for tarred datasets')
