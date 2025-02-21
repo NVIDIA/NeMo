@@ -29,7 +29,7 @@ from megatron.core.utils import get_te_version, is_te_min_version, is_torch_min_
 
 from nemo.tron.config import ConfigContainer, RerunStateMachineConfig
 from nemo.tron.state import GlobalState
-from nemo.tron.utils import get_local_rank_preinit, get_rank_safe, get_world_size_safe
+from nemo.tron.utils.common_utils import get_local_rank_preinit, get_rank_safe, get_world_size_safe
 
 
 def initialize_megatron(
@@ -301,13 +301,7 @@ def _set_random_seed(
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.device_count() > 0:
-        import inspect
-
-        sig = inspect.signature(tensor_parallel.model_parallel_cuda_manual_seed)
-        if "te_rng_tracker" in sig.parameters and "inference_rng_tracker" in sig.parameters:
-            tensor_parallel.model_parallel_cuda_manual_seed(seed, te_rng_tracker, inference_rng_tracker)
-        else:
-            tensor_parallel.model_parallel_cuda_manual_seed(seed)
+        tensor_parallel.model_parallel_cuda_manual_seed(seed, te_rng_tracker, inference_rng_tracker)
 
 
 def set_jit_fusion_options(state: GlobalState):
