@@ -196,6 +196,7 @@ def convert_to_packed_llava_next(
     labels: List[torch.Tensor],
     ignore_index: int,
     pad_to_multiple_of: int = 64,
+    final_padding_to: int | None = None
 ):
     """
     Convert tokens, labels, and associated inputs into a packed version with padded sequence parameters.
@@ -207,6 +208,7 @@ def convert_to_packed_llava_next(
         media_token_index (int): Token ID representing media.
         ignore_index (int): Value to use for padding labels.
         pad_to_multiple_of (int): Sequence length will be padded to a multiple of this value. Default is 8.
+        final_padding_to(int): Pad the final seq to make everything to same size
     """
     packed_tokens = []
     packed_labels = []
@@ -215,9 +217,14 @@ def convert_to_packed_llava_next(
     cu_seqlens = [0]
     cu_seqlens_padded = [0]
 
-    for instance_tokens, instance_labels in zip(tokens, labels):
+    i = 0
+    for i, (instance_tokens, instance_labels) in enumerate(zip(tokens, labels)):
         seqlen = len(instance_tokens)
         seqlen_padded = (seqlen + pad_to_multiple_of - 1) // pad_to_multiple_of * pad_to_multiple_of
+        if i == len(tokens) - 1 and final_padding_to:
+            assert final_padding_to >= (cu_seqlens_padded[-1] + seqlen_padded), (f"{final_padding_to = }, "
+                                                                                 f"{(cu_seqlens_padded[-1] + seqlen_padded)}")
+            seqlen_padded = final_padding_to - cu_seqlens_padded[-1]
         pad_len = seqlen_padded - seqlen
 
         if pad_len > 0:

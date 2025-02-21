@@ -81,11 +81,13 @@ def llava_next_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
                 setattr(packed_seq_params, attr, value.cuda(non_blocking=True))
     _batch["packed_seq_params"] = packed_seq_params
 
-    # slice batch along sequence dimension for context parallelism
-    # Todo(abhi): This needs to be modified for packed seq later
-    output = get_batch_on_this_context_parallel_rank(_batch)
+    if ps.get_context_parallel_world_size() > 1:
+        num_valid_tokens_in_ub = None
+        if "loss_mask" in _batch and _batch["loss_mask"] is not None:
+            num_valid_tokens_in_ub = _batch["loss_mask"].sum()
+        _batch["num_valid_tokens_in_ub"] = num_valid_tokens_in_ub
 
-    return output
+    return _batch
 
 
 def llava_next_forward_step(model, batch) -> torch.Tensor:
@@ -305,34 +307,10 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             input_ids_text = input_ids.clone()
             # MultiModal Token indices are assumed to be values
             input_ids_text[input_ids_text < 0] = 0
-            # Note: This adds absolute position embedding but not RoPE.
-            # Each image is counted as one position.
-            # RoPE is added in language_model forward. Each image embedding is one position.
-            if self.sequence_parallel_lm:
-                # Pad to nearest multiple of TP world size for embedding.
-                tp_world_size = ps.get_tensor_model_parallel_world_size()
-                padded_seq_len = (
-                    int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
-                    - input_ids_text.shape[1]
-                )
-                if padded_seq_len != 0:
-                    input_ids_text = torch.nn.functional.pad(input_ids_text, (0, padded_seq_len))
-                    if position_ids is not None:
-                        position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
+
             language_embeddings = self.language_model.embedding(
-                input_ids=input_ids_text, position_ids=position_ids
+                input_ids=input_ids_text, position_ids=None
             )  # [text_seq_len, b, h_language]
-            if self.sequence_parallel_lm:
-                # Gather the language embeddings back.
-                # We use the full embedding to insert image embeddings
-                # and then scatter to avoid load imbalance.
-                language_embeddings = gather_from_sequence_parallel_region(
-                    language_embeddings, tensor_parallel_output_grad=False
-                )
-                # Remove the padding done for SP as we'll need new padding calculation
-                # after image embeddings are inserted.
-                if padded_seq_len != 0:
-                    language_embeddings = language_embeddings[:-padded_seq_len]
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
         # Assume 1 tile per image if the number of tiles is not provided.
@@ -361,25 +339,31 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         combined_embeddings = language_embeddings.masked_scatter(special_image_mask, media_embeddings)
 
         final_labels = labels
-        ignore_index = -100
-
-        # We replace all 0 in final lables with -100 to maintain similarity with merge_input_ids_with_image_features
-        final_loss_mask = None
-        if final_labels is not None:
-            final_labels.masked_fill_(final_labels == 0, -100)
-            final_loss_mask = (final_labels != ignore_index).long()
+        final_loss_mask = loss_mask
 
         combined_embeddings = combined_embeddings.permute(1, 0, 2)
+        # Convert combined_embeddings to SBHD (or T1HD) format
         combined_embeddings = combined_embeddings.contiguous()
+
+        if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
+            if self.context_parallel_lm > 1:
+                combined_embeddings = combined_embeddings.transpose(1, 0)
+                # _process_embedding_token_parallel needs embeddings to be of shape B,S,H
+            combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
+                self._process_embedding_token_parallel(
+                    combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+                )
+            )
 
         output = self.language_model(
             input_ids=None,
             position_ids=None,
-            attention_mask=attention_mask,
+            attention_mask=None,
             decoder_input=combined_embeddings,
             labels=final_labels,
             inference_params=inference_params,
             runtime_gather_output=runtime_gather_output,
+            packed_seq_params = packed_seq_params
         )
 
         if labels is None:

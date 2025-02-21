@@ -30,6 +30,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.multimodal.data.energon import ImageToken
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
@@ -43,7 +44,7 @@ def main(args):
     mbs = args.mbs
     max_steps = args.max_steps
 
-    decoder_seq_length = 4096
+    decoder_seq_length = 8192
 
     if args.data_type == "energon":
         from transformers import AutoProcessor
@@ -58,7 +59,10 @@ def main(args):
         processor = AutoProcessor.from_pretrained(model_id)
         tokenizer = AutoTokenizer(model_id)
 
-        multimodal_sample_config = MultiModalSampleConfig()
+        multimodal_sample_config = MultiModalSampleConfig(
+            image_token=ImageToken(token_str="<image>", token_id=-200),
+            ignore_place_holder=-100,
+        )
         # Setting system prompt to empty string
         multimodal_sample_config.conversation_template_config.system = ''
 
@@ -73,7 +77,7 @@ def main(args):
             path=data_path,
             tokenizer=tokenizer,
             image_processor=processor.image_processor,
-            num_workers=32,
+            num_workers=4,
             micro_batch_size=mbs,
             global_batch_size=gbs,
             seq_length=decoder_seq_length,
@@ -122,9 +126,10 @@ def main(args):
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
+        context_parallel_size=args.cp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         pipeline_dtype=torch.bfloat16,
-        sequence_parallel=False,
+        sequence_parallel=True,
     )
 
     # Checkpoint callback setup
@@ -144,8 +149,11 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=500,
+        callbacks=[
+            checkpoint_callback,
+            TimingCallback(),
+        ],
+        val_check_interval=1000,
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
@@ -213,6 +221,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_steps", type=int, required=False, default=2100)
     parser.add_argument("--tp_size", type=int, required=False, default=2)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
+    parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
     parser.add_argument("--name", type=str, required=False, default="llava_next_pretrain")

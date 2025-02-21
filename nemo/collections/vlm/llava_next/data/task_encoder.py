@@ -225,7 +225,7 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             images=packed_images,
             tokens=packed_tokens,
             labels=packed_labels,
-            loss_mask=None,
+            loss_mask=packed_loss_mask,
             attention_mask=None,
             position_ids=packed_position_ids,
             packed_seq_params=packed_seq_params,
@@ -275,7 +275,7 @@ if __name__ == '__main__':
                 packed_sequence_size=8086,
             ),
             worker_config=worker_config,
-            packing_buffer_size=200,
+            packing_buffer_size=20,
         ),
         worker_config=worker_config,
     )
