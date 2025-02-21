@@ -416,7 +416,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             if (
                 self._trainer is not None
                 and isinstance(self._trainer.limit_train_batches, float)
-                and not isinstance(self._train_dl.dataset.dataset, LhotseSpeechToTextBpeDataset)
+                and (not hasattr(self._train_dl.dataset, 'dataset') or not isinstance(self._train_dl.dataset.dataset, LhotseSpeechToTextBpeDataset))
             ):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
@@ -425,7 +425,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMi
             elif (
                 self._trainer is not None
                 and isinstance(self._trainer.limit_train_batches, float)
-                and isinstance(self._train_dl.dataset.dataset, LhotseSpeechToTextBpeDataset)
+                and (hasattr(self._train_dl.dataset, 'dataset') and isinstance(self._train_dl.dataset.dataset, LhotseSpeechToTextBpeDataset))
             ):
                 logging.warning(f"Lhotse dataset don't have length attribute, limit_train_batches is ignored.")
             elif self._trainer is None:
