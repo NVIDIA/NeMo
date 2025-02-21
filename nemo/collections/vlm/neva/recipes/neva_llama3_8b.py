@@ -176,7 +176,7 @@ def trainer(
     return trainer
 
 
-@run.cli.factory(target=finetune, name=NAME)
+@run.cli.factory(target=pretrain, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
     name: str = "default",
@@ -185,10 +185,11 @@ def finetune_recipe(
     seq_length: int = 8192,
     performance_mode: bool = False,
     packed_sequence: bool = False,
-    fn: Callable = finetune,
+    fn: Callable = pretrain,
 ) -> run.Partial:
     """
     Create a finetuning recipe for NeVA (CLIP-ViT-L + LLaMa3 8B) model.
+    Using pre-train fn targets to use appropriate llm api call.
 
     This function sets up a complete configuration for finetuning, including
     model, trainer, data, logging, optimization, and resumption settings.
