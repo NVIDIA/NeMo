@@ -190,7 +190,8 @@ class FluxControlNet(VisionModule):
 
         if config.conditioning_embedding_channels is not None:
             self.input_hint_block = ControlNetConditioningEmbedding(
-                conditioning_embedding_channels=config.conditioning_embedding_channels, block_out_channels=(16, 16, 16, 16)
+                conditioning_embedding_channels=config.conditioning_embedding_channels,
+                block_out_channels=(16, 16, 16, 16),
             )
             self.controlnet_x_embedder = torch.nn.Linear(config.in_channels, self.hidden_size)
         else:
