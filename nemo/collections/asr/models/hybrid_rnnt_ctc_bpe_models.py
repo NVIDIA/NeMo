@@ -653,9 +653,10 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         return ans
 
     def normalize_matrices(self):
-        for module in self.children():
-            if hasattr(module, "normalize_matrices"):
-                module.normalize_matrices()
+        with torch.no_grad():
+            for module in self.children():
+                if hasattr(module, "normalize_matrices"):
+                    module.normalize_matrices()
 
     def on_train_start(self):
         super().on_train_start()
