@@ -14,7 +14,7 @@ from megatron.training.tokenizer.multimodal_tokenizer import MultimodalTokenizer
 from nemo.tron.config import TokenizerConfig
 from nemo.tron.tokenizers.bert_tokenization import FullTokenizer as FullBertTokenizer
 from nemo.tron.tokenizers.gpt2_tokenization import GPT2Tokenizer
-from nemo.tron.utils import get_rank_safe
+from nemo.tron.utils.common_utils import get_rank_safe, print_rank_0
 
 
 def build_tokenizer(
@@ -604,8 +604,6 @@ def reload_mergeable_ranks(path: str, max_vocab: Optional[int] = None) -> Dict[b
     """
     Reload our tokenizer JSON file and convert it to Tiktoken format.
     """
-    from ...utils import print_rank_0  # To prevent circular import.
-
     assert path.endswith(".json")
 
     # reload vocab
@@ -654,8 +652,6 @@ class CustomTikTokenizer(MegatronTokenizer):
             special_tokens=special_tokens,
         )
         import tiktoken
-
-        from ... import print_rank_0  # To prevent circular import.
 
         if vocab_size is None:
             vocab_size = 2**17  # Fallback vocab size is 131072.

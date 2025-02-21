@@ -23,7 +23,7 @@ from megatron.core.rerun_state_machine import RerunMode, get_rerun_state_machine
 from megatron.core.utils import get_model_config
 
 from nemo.tron.state import GlobalState
-from nemo.tron.utils import is_last_rank, print_rank_0, print_rank_last
+from nemo.tron.utils.common_utils import is_last_rank, print_rank_0, print_rank_last
 
 
 def evaluate(

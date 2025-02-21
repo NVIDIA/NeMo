@@ -13,16 +13,39 @@
 # limitations under the License.
 
 import time
+from typing import Any, NamedTuple, Optional
 
 import torch
+from megatron.core.optimizer import MegatronOptimizer
+from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
+from megatron.core.rerun_state_machine import RerunDataIterator
+from megatron.core.transformer import MegatronModule
 
+from nemo.tron.checkpointing import load_checkpoint
 from nemo.tron.config import ConfigContainer
 from nemo.tron.data.dataset import setup_data_iterators
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
-from nemo.tron.utils import append_to_progress_log, barrier_and_log, print_rank_0
+from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
+
+try:
+    from megatron.core.distributed import TorchFullyShardedDataParallel  # noqa: F401
+
+    HAVE_FSDP2 = True
+except ImportError:
+    HAVE_FSDP2 = False
+
+
+class SetupOutput(NamedTuple):
+    model: MegatronModule
+    optimizer: MegatronOptimizer
+    scheduler: OptimizerParamScheduler
+    train_data_iterator: Optional[RerunDataIterator | list[RerunDataIterator]]
+    valid_data_iterator: Optional[RerunDataIterator | list[RerunDataIterator]]
+    test_data_iterator: Optional[RerunDataIterator | list[RerunDataIterator]]
+    checkpointing_context: dict[str, Any]
 
 
 def setup(
@@ -43,7 +66,7 @@ def setup(
     timers = state.timers
 
     if cfg.logger_config.log_progress:
-        append_to_progress_log(cfg.logger_config.save, "Starting job")
+        append_to_progress_log(cfg.checkpoint_config.save, "Starting job")
 
     # Set pytorch JIT layer fusion options and warmup JIT functions.
     set_jit_fusion_options(state)
@@ -75,6 +98,23 @@ def setup(
     timers("model-and-optimizer-setup").stop()
     barrier_and_log("after model, optimizer, and learning rate scheduler are built")
 
+    # Load checkpoint if applicable
+    if (
+        cfg.checkpoint_config.load is not None or cfg.checkpoint_config.pretrained_checkpoint is not None
+    ) and not cfg.megatron_lm_config.moe_use_upcycling:
+        timers("load-checkpoint", log_level=0).start(barrier=True)
+
+        load_checkpoint(
+            state,
+            model,
+            optimizer,
+            scheduler,
+            checkpointing_context=checkpointing_context,
+            skip_load_to_model_and_opt=HAVE_FSDP2 and cfg.megatron_lm_config.use_torch_fsdp2,
+        )
+        timers("load-checkpoint").stop(barrier=True)
+        timers.log(["load-checkpoint"])
+
     # Data stuff.
     timers("train/valid/test-data-iterators-setup", log_level=0).start(barrier=True)
     train_data_iterator, valid_data_iterator, test_data_iterator = setup_data_iterators(
@@ -95,4 +135,12 @@ def setup(
     print_rank_0("done with setup ...")
     timers.log(["model-and-optimizer-setup", "train/valid/test-data-iterators-setup"], barrier=True)
 
-    return model, optimizer, scheduler, train_data_iterator, valid_data_iterator, test_data_iterator
+    return SetupOutput(
+        model,
+        optimizer,
+        scheduler,
+        train_data_iterator,
+        valid_data_iterator,
+        test_data_iterator,
+        checkpointing_context,
+    )

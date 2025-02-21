@@ -26,7 +26,7 @@ from megatron.core.rerun_state_machine import RerunDataIterator
 from nemo.tron.config import ConfigContainer
 from nemo.tron.data.samplers import build_pretraining_data_loader
 from nemo.tron.state import TrainState
-from nemo.tron.utils import print_rank_0
+from nemo.tron.utils.common_utils import print_rank_0
 
 
 def get_blend_and_blend_per_split(

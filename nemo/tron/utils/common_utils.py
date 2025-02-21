@@ -15,9 +15,37 @@
 import inspect
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 import torch.distributed
+from megatron.core import DistributedDataParallel as DDP
+from megatron.core.transformer.module import Float16Module
+
+try:
+    from megatron.core.distributed import TorchFullyShardedDataParallel as torch_FSDP
+
+    ALL_MODULE_WRAPPER_CLASSNAMES = (DDP, torch_FSDP, Float16Module)
+except ImportError:
+    ALL_MODULE_WRAPPER_CLASSNAMES = (DDP, Float16Module)
+
+
+def unwrap_model(model, module_instances=ALL_MODULE_WRAPPER_CLASSNAMES):
+    return_list = True
+    if not isinstance(model, list):
+        model = [model]
+        return_list = False
+    unwrapped_model = []
+    for model_module in model:
+        while isinstance(model_module, module_instances):
+            model_module = model_module.module
+        unwrapped_model.append(model_module)
+    if not return_list:
+        return unwrapped_model[0]
+    return unwrapped_model
+
+
+def use_dist_ckpt(ckpt_format: str) -> bool:
+    return ckpt_format != "torch"
 
 
 def get_rank_safe() -> int:
@@ -67,10 +95,11 @@ def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
     if save_dir is None:
         return
     progress_log_filename = os.path.join(save_dir, "progress.txt")
-    if barrier:
+    if barrier and torch.distributed.is_initialized():
         torch.distributed.barrier()
-    if torch.distributed.get_rank() == 0:
-        with open(progress_log_filename, "a") as f:
+    if get_rank_safe() == 0:
+        os.makedirs(os.path.dirname(progress_log_filename), exist_ok=True)
+        with open(progress_log_filename, "a+") as f:
             job_id = os.getenv("SLURM_JOB_ID", "")
             num_gpus = get_world_size_safe()
             f.write(
@@ -80,7 +109,8 @@ def append_to_progress_log(save_dir: str, string: str, barrier: bool = True):
 
 def barrier_and_log(string):
     """Note that this call will sync across all ranks."""
-    torch.distributed.barrier()
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
     time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print_rank_0(f"[{string}] datetime: {time_str} ")
 
@@ -119,7 +149,7 @@ def _safe_object_representer(dumper, data):
     return dumper.represent_data(value)
 
 
-def dump_dataclass_to_yaml(obj: Any):
+def dump_dataclass_to_yaml(obj: Any, filename: Optional[str] = None):
     import fiddle._src.experimental.dataclasses as fdl_dc
     import yaml
     from nemo_run.core.serialization.yaml import YamlSerializer
@@ -133,4 +163,9 @@ def dump_dataclass_to_yaml(obj: Any):
     result = serializer.serialize(cfg)
 
     yaml.SafeDumper.yaml_representers = original_representers
+
+    if filename is not None:
+        with open(filename, "w+") as f:
+            f.write(result)
+
     return result
