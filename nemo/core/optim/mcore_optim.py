@@ -14,6 +14,8 @@
 
 import torch
 
+from nemo.utils.nvtx import nvtx_range_pop, nvtx_range_push
+
 try:
     from megatron.core.optimizer.optimizer import MegatronOptimizer
 
@@ -31,6 +33,8 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
     Arguments:
         optim: distributed optimizer from Megatron core.
     """
+
+    nvtx_label = "nemo.core.optim.mcore_optim"
 
     def __init__(self, optim):
         self.defaults = {}
@@ -67,10 +71,14 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         # Apply closure
         loss = None
         if closure is not None:
+            nvtx_range_push(f"{McoreDistributedOptimizer.nvtx_label}.step.closure")
             loss = closure()
+            nvtx_range_pop()
 
         # return unused update_successful, grad_norm, num_zeros_in_grad
+        nvtx_range_push(f"{McoreDistributedOptimizer.nvtx_label}.step.step")
         _, grad_norm, num_zeros_in_grad = self.mcore_optimizer.step()
+        nvtx_range_pop()
 
         return loss, grad_norm, num_zeros_in_grad
 
