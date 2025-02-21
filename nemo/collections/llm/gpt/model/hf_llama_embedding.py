@@ -16,6 +16,7 @@ import os
 from typing import List, Literal, Optional, Tuple, Union
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 from transformers import AutoModel, AutoTokenizer
@@ -208,6 +209,8 @@ class LlamaBidirectionalHFAdapter(torch.nn.Module):
 
     @property
     def device(self) -> torch.device:
+        """Returns the device"""
+
         return self.model.device
 
     def forward(
@@ -217,6 +220,8 @@ class LlamaBidirectionalHFAdapter(torch.nn.Module):
         token_type_ids: Optional[torch.Tensor] = None,
         dimensions: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        """Inference for the adapted Llama model"""
+
         inputs = {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
@@ -251,11 +256,15 @@ class LlamaBidirectionalHFAdapter(torch.nn.Module):
 
 
 class Pooling(torch.nn.Module):
+    """Pooling layer for the adapter."""
+
     def __init__(self, pooling_mode: str):
         super().__init__()
         self.pooling_mode = pooling_mode
 
     def forward(self, last_hidden_states: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """Forward function of the Pooling layer."""
+
         last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
 
         pool_type = self.pooling_mode
@@ -288,6 +297,8 @@ def get_llama_bidirectional_hf_model(
     torch_dtype: Optional[Union[torch.dtype, str]] = None,
     trust_remote_code: bool = False,
 ):
+    """Returns the adapter for the Llama bidirectional HF model."""
+
     # check that the tokenizer matches the requirements of the pooling mode
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=trust_remote_code)
     pooling_mode = pooling_mode or "avg"
