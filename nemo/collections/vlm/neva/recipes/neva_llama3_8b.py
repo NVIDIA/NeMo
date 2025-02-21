@@ -226,8 +226,6 @@ def finetune_recipe(
             seq_length=seq_length,
             global_batch_size=512,
             micro_batch_size=1,
-            tokenizer=None,
-            image_processor=None,
             num_workers=4,
             packed_sequence=packed_sequence,
         ),
