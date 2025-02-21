@@ -156,13 +156,19 @@ def verify_sft_checkpoint_structure(path, has_io_bytes=False):
     has_model_file = model_file in found_files
     has_sharded_files = len(found_shards) > 0
 
-    assert not (has_model_file and has_sharded_files), "Both model.safetensors and sharded model files exist, which is invalid."
+    assert not (
+        has_model_file and has_sharded_files
+    ), "Both model.safetensors and sharded model files exist, which is invalid."
 
     if has_sharded_files:
         assert index_file in found_files, f"Missing index file: {index_file}"
         shard_numbers = sorted([int(f.split('-')[1]) for f in found_shards])
-        expected_shards = [f"model-{i:05d}-of-{shard_numbers[-1]:05d}.safetensors" for i in range(1, shard_numbers[-1] + 1)]
-        assert set(found_shards) == set(expected_shards), f"Missing or extra shard files. Expected: {expected_shards}, Found: {found_shards}"
+        expected_shards = [
+            f"model-{i:05d}-of-{shard_numbers[-1]:05d}.safetensors" for i in range(1, shard_numbers[-1] + 1)
+        ]
+        assert set(found_shards) == set(
+            expected_shards
+        ), f"Missing or extra shard files. Expected: {expected_shards}, Found: {found_shards}"
     else:
         assert has_model_file, "Missing model file(s)"
 
