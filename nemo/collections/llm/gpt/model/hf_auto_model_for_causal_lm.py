@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 import _io
 import lightning.pytorch as pl
 import torch
@@ -22,7 +24,6 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
-import time
 
 
 def masked_cross_entropy(logits, targets, mask=None):
@@ -256,7 +257,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         return loss
 
     def on_before_optimizer_step(self, optimizer) -> None:
-        """ Hook triggered befored the optimizer step.
+        """Hook triggered befored the optimizer step.
         Used for calculating the average loss across all gradient accumulation steps.
 
         Args:

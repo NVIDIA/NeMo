@@ -117,6 +117,7 @@ def pytorch_adam_with_flat_lr(
         ),
     )
 
+
 @run.cli.factory
 def te_adam_with_cosine_annealing(
     warmup_steps: int = 2000,
@@ -152,7 +153,8 @@ def te_adam_with_cosine_annealing(
 
 @run.cli.factory
 def te_adam_with_flat_lr(
-    lr: float = 1e-5, weight_decay: float = 0.01,
+    lr: float = 1e-5,
+    weight_decay: float = 0.01,
 ) -> run.Config[PytorchOptimizerModule]:
     """
     Creates a Transformer Engine fused Adam optimizer with a flat learning rate.
