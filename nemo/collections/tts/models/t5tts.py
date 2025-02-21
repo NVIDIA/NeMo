@@ -1011,9 +1011,7 @@ class T5TTS_Model(ModelPT):
         if cfg.dataloader_params.num_workers == 0:
             persistent_workers = False
             # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
-            dataset.text_tokenizer, dataset.text_conditioning_tokenizer = self._setup_tokenizers(
-                self.cfg, mode='test'
-            )
+            dataset.text_tokenizer, dataset.text_conditioning_tokenizer = self._setup_tokenizers(self.cfg, mode='test')
 
         data_loader = torch.utils.data.DataLoader(
             dataset,
