@@ -31,7 +31,9 @@ def distributed_fused_adam_with_cosine_annealing(
     min_lr: Optional[float] = None,
     clip_grad: float = 1.0,
 ) -> run.Config[PytorchOptimizerModule]:
-
+    """
+    Creates a distributed fused Adam optimizer with cosine annealing scheduler.
+    """
     opt_cfg = run.Config(
         OptimizerConfig,
         optimizer="adam",
@@ -69,6 +71,9 @@ def pytorch_adam_with_cosine_annealing(
     min_lr: Optional[float] = None,
     weight_decay: float = 0.01,
 ) -> run.Config[PytorchOptimizerModule]:
+    """
+    Creates a PyTorch Adam optimizer with a cosine annealing learning rate scheduler.
+    """
     from torch.optim import Adam
 
     return run.Config(
@@ -95,6 +100,9 @@ def pytorch_adam_with_flat_lr(
     lr: float = 1e-5,
     weight_decay: float = 0.01,
 ) -> run.Config[PytorchOptimizerModule]:
+    """
+    Creates a PyTorch Adam optimizer with a flat learning rate.
+    """
     from torch.optim import Adam
 
     return run.Config(
@@ -117,6 +125,9 @@ def te_adam_with_cosine_annealing(
     min_lr: Optional[float] = None,
     weight_decay: float = 0.01,
 ) -> run.Config[PytorchOptimizerModule]:
+    """
+    Creates a Transformer Engine fused Adam optimizer with cosine annealing scheduler.
+    """
     from transformer_engine.pytorch.optimizers import FusedAdam as Adam
 
     return run.Config(
@@ -143,6 +154,9 @@ def te_adam_with_cosine_annealing(
 def te_adam_with_flat_lr(
     lr: float = 1e-5, weight_decay: float = 0.01,
 ) -> run.Config[PytorchOptimizerModule]:
+    """
+    Creates a Transformer Engine fused Adam optimizer with a flat learning rate.
+    """
     from transformer_engine.pytorch.optimizers import FusedAdam as Adam
 
     return run.Config(
