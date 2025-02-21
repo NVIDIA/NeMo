@@ -30,12 +30,12 @@ __all__ = [
 
 
 def flatten(l):
-    """ flatten a list of lists """
+    """flatten a list of lists"""
     return [item for sublist in l for item in sublist]
 
 
 def add_space_around_dash(input: str):
-    """ adds space around dash between numbers and non-numbers"""
+    """adds space around dash between numbers and non-numbers"""
     input = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", input)
     input = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", input)
     input = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", input)
@@ -123,7 +123,7 @@ def convert_fraction(written: str):
 
 
 def input_preprocessing(sent: str, lang: str):
-    """ Function for preprocessing the input texts. The function first does
+    """Function for preprocessing the input texts. The function first does
     some basic tokenization. For English, it then also processes Greek letters
     such as Δ or λ (if any).
 
@@ -152,7 +152,7 @@ def input_preprocessing(sent: str, lang: str):
 
 
 def read_data_file(fp: str, lang: str, max_insts: int = -1):
-    """ Reading the raw data from a file of NeMo format
+    """Reading the raw data from a file of NeMo format
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
 
@@ -184,10 +184,10 @@ def read_data_file(fp: str, lang: str, max_insts: int = -1):
 
 
 def normalize_str(input_str):
-    """ Normalize an input string """
+    """Normalize an input string"""
     return input_str.strip().lower().replace("  ", " ")
 
 
 def remove_puncts(input_str):
-    """ Remove punctuations from an input string """
+    """Remove punctuations from an input string"""
     return input_str.translate(str.maketrans('', '', string.punctuation))
