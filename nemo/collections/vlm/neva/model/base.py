@@ -417,7 +417,6 @@ class _get_data_on_this_cp_rank(torch.autograd.Function):
                     ctx.decoder_emb_seqlen = data.size(1)
                 batch[key] = data.index_select(1, index)
                 batch[key].requires_grad = data.requires_grad
-                
 
         return batch
 
