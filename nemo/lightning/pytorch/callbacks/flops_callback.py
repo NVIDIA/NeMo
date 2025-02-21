@@ -206,11 +206,10 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
                 # TODO: Add img_seq_len directly to MultimodalProjectorConfig
                 kwargs["img_seq_len"] = model_name_config_dict["hf_clip_vit_l"].num_image_embeddings_per_tile
             elif model_name in ["flux"]:
-                kwargs["num_joint_layers"] = model_cfg.num_joint_layers
-                kwargs["num_single_layers"] = model_cfg.num_single_layers
-                kwargs["hidden_size"] = model_cfg.hidden_size
+                kwargs["layers"] = [model_cfg.num_joint_layers, model_cfg.num_single_layers]
+                kwargs["hs"] = model_cfg.hidden_size
                 kwargs["model_channels"] = model_cfg.model_channels
-                kwargs["context_dim"] = model_cfg.context_dim
+                kwargs["inp_s"] = model_cfg.context_dim
                 kwargs["in_channels"] = model_cfg.in_channels
                 kwargs["vec_in_dim"] = model_cfg.vec_in_dim
             else:
