@@ -187,7 +187,6 @@ def main(args):
         callbacks=[
             checkpoint_callback,
             TimingCallback(),
-            MegatronCommOverlapCallback(tp_comm_overlap=True),
         ],
         val_check_interval=500,
         limit_val_batches=gbs,

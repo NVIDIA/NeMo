@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
+from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.energon import VQASample, batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
 
@@ -9,6 +10,7 @@ from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, I
 from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.utils import logging
+
 
 @dataclass
 class LlavaNextTextSample(ImageTextSample):
@@ -31,6 +33,15 @@ class LlavaNextTextSample(ImageTextSample):
 
 
 @dataclass
+class PackedLlavaNextTextSample(LlavaNextTextSample):
+    """Sample type for packed image text sample"""
+
+    __restore_key__: tuple[Union[str, int, tuple], ...] = ()
+    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
+
+
+@dataclass
 class LlavaNextTextRawBatch(ImageTextRawBatch):
     """
     Batch type for raw LLaVA-Next samples, supporting tiled image data.
@@ -47,3 +58,11 @@ class LlavaNextTextRawBatch(ImageTextRawBatch):
     num_media_tiles: List[int] = field(default_factory=list)
     image_sizes: torch.tensor = field(default_factory=lambda: torch.tensor([]))
     attention_mask: Optional[torch.tensor] = None
+
+
+@dataclass
+class PackedLlavaNextTextRawBatch(LlavaNextTextRawBatch):
+    """Sample type for image text raw batch"""
+
+    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
