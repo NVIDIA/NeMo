@@ -20,7 +20,6 @@ import logging
 
 ###########################################################
 # BEGIN COPY/pasted bionemo stuff:
-import os
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Literal, Optional, Set, TypeVar

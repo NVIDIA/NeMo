@@ -40,7 +40,7 @@ try:
 except ImportError:
 
     def FlashFFTConv(*args, **kwargs):
-        raise Exception(f"Not imported: FlashFFTConv")
+        raise Exception("Not imported: FlashFFTConv")
 
 
 try:
@@ -55,29 +55,29 @@ try:
 except ImportError:
 
     def two_pass_chunked_gate_conv_gate(*args, **kwargs):
-        raise Exception(f"Not imported: two_pass_chunked_gate_conv_gate")
+        raise Exception("Not imported: two_pass_chunked_gate_conv_gate")
 
     def run_short_hyena(*args, **kwargs):
-        raise Exception(f"Not imported: run_short_hyena")
+        raise Exception("Not imported: run_short_hyena")
 
     def PreConvKernelConfig(*args, **kwargs):
-        raise Exception(f"Not imported: PreConvKernelConfig")
+        raise Exception("Not imported: PreConvKernelConfig")
 
     def PostConvKernelConfig(*args, **kwargs):
-        raise Exception(f"Not imported: PostConvKernelConfig")
+        raise Exception("Not imported: PostConvKernelConfig")
 
     def ShortHyenaOperatorKernelConfig(*args, **kwargs):
-        raise Exception(f"Not imported: ShortHyenaOperatorKernelConfig")
+        raise Exception("Not imported: ShortHyenaOperatorKernelConfig")
 
     def BwdKernelConfigRefactor(*args, **kwargs):
-        raise Exception(f"Not imported: BwdKernelConfigRefactor")
+        raise Exception("Not imported: BwdKernelConfigRefactor")
 
     def FwdKernelConfigRefactor(*args, **kwargs):
-        raise Exception(f"Not imported: FwdKernelConfigRefactor")
+        raise Exception("Not imported: FwdKernelConfigRefactor")
 
 
 try:
-    from einops import rearrange, repeat
+    from einops import rearrange
 except ImportError:
     raise ImportError("einops is required by the Hyena model but cannot be imported")
 
@@ -86,12 +86,11 @@ try:
 except ImportError:
     raise ImportError("causal_conv1d is required by the Hyena model but cannot be imported")
 
-from typing import Any, List, Literal, Optional, Tuple
+from typing import Literal
 
-###### CP related utils ######
+# CP related utils
 import torch.distributed as dist
 from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint, sharded_state_dict_default
-from torch.distributed.nn.functional import all_to_all_single as functional_all_to_all_single
 
 
 def _get_zigzag_indices(N, device=None):
@@ -153,8 +152,8 @@ def all_to_all_single_fn(
     if type == "split_to_full":
         """Given an split sequence, it gathers the whole sequence, while splitting across the channels dimension."""
 
-        B, D, l = input.shape
-        L = l * world_size
+        B, D, local_length = input.shape
+        L = local_length * world_size
         d = D // world_size
 
         # Reshape and permute input for communication
@@ -188,7 +187,6 @@ def all_to_all_single_fn(
         """Given a full sequence split across channels, splits across the sequence length and while gathering the channels."""
 
         B, d, L = input.shape
-        l = L // world_size
         D = d * world_size
 
         if with_zigzag_splitting:
@@ -371,7 +369,6 @@ class ExchangeOverlappingRegionsCausal(Function):
     @staticmethod
     def backward(ctx, grad_chunk_a, grad_chunk_b):
         # chunk_a, chunk_b = ctx.saved_tensors
-        group = ctx.group
         group_rank = ctx.group_rank
         group_world_size = ctx.group_world_size
         group_ranks = ctx.group_ranks
@@ -383,7 +380,7 @@ class ExchangeOverlappingRegionsCausal(Function):
         # Initialize requests
         reqs = []
 
-        ### Handling grad_chunk_a
+        # Handling grad_chunk_a
 
         # If rank > 0, send grad_recv_prev_a to rank - 1
         if group_rank > 0:
@@ -399,7 +396,7 @@ class ExchangeOverlappingRegionsCausal(Function):
             req_recv_a = dist.irecv(grad_chunk_a_recv, src=group_ranks[group_rank + 1])
             reqs.append(req_recv_a)
 
-        ### Handling grad_chunk_b
+        # Handling grad_chunk_b
 
         # If rank < world_size - 1, send grad_recv_next_b to rank + 1
         if group_rank < group_world_size - 1:
@@ -429,7 +426,7 @@ class ExchangeOverlappingRegionsCausal(Function):
         return _grad_chunk_a, _grad_chunk_b, None, None, None
 
 
-###### End of CP related functions ######
+# End of CP related functions
 
 
 def hyena_no_weight_decay_cond(name, param):
@@ -465,11 +462,6 @@ def _mul_sum(y, q):
 def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=False):
     seqlen = u.shape[-1]
     fft_size = 2 * seqlen
-
-    # check if k is less than seqlen
-    if k.shape[-1] < seqlen:
-        # Pad the filter k to the length of the input sequence u
-        k_padded = torch.nn.functional.pad(k, (0, seqlen - k.shape[-1]))
 
     # bidirectional
     if bidirectional:

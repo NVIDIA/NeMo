@@ -36,40 +36,16 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import allocate_layers
 
 try:
-    from megatron.core.extensions.transformer_engine import (
-        TEDelayedScaling,
-        TENorm,
-        get_cpu_offload_context,
-        te_checkpoint,
-    )
+    from megatron.core.extensions.transformer_engine import TEDelayedScaling, TENorm, te_checkpoint
 
     HAVE_TE = True
     LayerNormImpl = TENorm
+
 except ImportError:
     HAVE_TE = False
-    get_cpu_offload_context = None
 
     try:
-        import apex  # pylint: disable=unused-import
-
-        LayerNormImpl = FusedLayerNorm
-
-    except ImportError:
-        from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
-
-        LayerNormImpl = WrappedTorchLayerNorm
-
-try:
-    from megatron.core.extensions.transformer_engine import TEDelayedScaling, TENorm
-
-    HAVE_TE = True
-    LayerNormImpl = TENorm
-except ImportError:
-    HAVE_TE = False
-    get_cpu_offload_context = None
-
-    try:
-        import apex  # pylint: disable=unused-import
+        from apex.normalization import FusedLayerNorm
 
         LayerNormImpl = FusedLayerNorm
 
@@ -357,8 +333,6 @@ class HyenaStack(MegatronModule):
         # Final layer norm.
         if self.post_process and self.post_layer_norm:
             hidden_states = self.final_norm(hidden_states)
-
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
 
         return hidden_states
 

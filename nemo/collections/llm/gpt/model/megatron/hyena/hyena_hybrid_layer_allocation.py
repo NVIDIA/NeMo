@@ -47,9 +47,9 @@ def _allocate_override(total_layers_count: int, override_pattern: str) -> list:
             f"length: got {override_pattern_length}, expected "
             f"{total_layers_count}"
         )
-    for l in layer_type_list:
-        if l not in Symbols.VALID:
-            raise ValueError(f"In hybrid override pattern, '{l}' is not " f"one of {Symbols.VALID}")
+    for layer_type in layer_type_list:
+        if layer_type not in Symbols.VALID:
+            raise ValueError(f"In hybrid override pattern, '{layer_type}' is not " f"one of {Symbols.VALID}")
 
     return layer_type_list
 

@@ -44,6 +44,26 @@ class ByteLevelTokenizer(TokenizerSpec):
         _pad_id: int = 1,
         _bos_id: int = None,
     ):
+        """A byte-level tokenizer that encodes text as UTF-8 bytes.
+
+        This tokenizer treats each byte as a token, with a default vocabulary size of 512 to accommodate
+        UTF-8 byte values (0-255) plus special tokens. It can handle arbitrary text input by encoding
+        it into bytes.
+
+        Args:
+            special_tokens: Dictionary or list of special tokens to add to the vocabulary.
+                These tokens will be assigned IDs at the end of the vocabulary.
+                Defaults to None.
+            vocab_size: Size of the vocabulary, should be at least 256 to handle all byte values.
+                Special tokens will be added after this size.
+                Defaults to 512.
+            _eos_id: ID to use for the end-of-sequence token.
+                Defaults to 0.
+            _pad_id: ID to use for the padding token.
+                Defaults to 1.
+            _bos_id: ID to use for the beginning-of-sequence token.
+                Defaults to None.
+        """
         self.vocab_size = vocab_size if special_tokens is None else vocab_size + len(special_tokens)
         self.special_start = vocab_size
         self._eos_id = _eos_id
@@ -62,64 +82,3 @@ class ByteLevelTokenizer(TokenizerSpec):
             self.special_start -= 1
             self.special_token_to_id[tok] = self.special_start
         self.id_to_special_token = {v: k for k, v in self.special_token_to_id.items()}
-
-    # no distinction between tokens and ids.
-    def text_to_tokens(self, text):
-        return self.text_to_ids(text)
-
-    def tokens_to_text(self, tokens):
-        return self.ids_to_text(tokens)
-
-    def text_to_ids(self, text):
-        return list(text.encode('utf-8'))
-
-    def decode_token(self, token: int):
-        return str(chr(self.clamp(token)))
-
-    def clamp(self, n):
-        return max(32, min(n, self.vocab_size))
-
-    def ids_to_text(self, ids):
-        # remove special tokens.
-        ids = [x for x in ids if x < self.special_start]
-        return "".join(list(map(self.decode_token, ids)))
-
-    def tokens_to_ids(self, tokens):
-        if isinstance(tokens, str):
-            tokens = [tokens]
-        ids = []
-        for token in tokens:
-            ids.append(self.token_to_id(token))
-        return ids
-
-    def ids_to_tokens(self, ids):
-        if isinstance(ids, int):
-            ids = [ids]
-        tokens = []
-        for id in ids:
-            tokens.append(self.id_to_token(id))
-        return tokens
-
-    def token_to_id(self, token):
-        if token in self.special_token_to_id:
-            return self.special_token_to_id[token]
-        else:
-            return token
-
-    def id_to_token(self, id):
-        if id not in self.id_to_special_token:
-            return id
-        else:
-            return self.id_to_special_token[id]
-
-    @property
-    def pad_id(self):
-        return self._pad_id
-
-    @property
-    def eos_id(self):
-        return self._eos_id
-
-    @property
-    def bos_id(self):
-        return self._bos_id

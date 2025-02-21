@@ -20,9 +20,7 @@ from typing import Union
 
 import torch
 import torch.nn as nn
-import transformer_engine
 from einops import rearrange
-from megatron.core import parallel_state
 from megatron.core.parallel_state import (
     get_context_parallel_group,
     get_context_parallel_world_size,

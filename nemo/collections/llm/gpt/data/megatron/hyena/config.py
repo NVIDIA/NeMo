@@ -32,7 +32,8 @@ def infer_global_batch_size(
     pipeline_model_parallel_size: int = 1,
     context_model_parallel_size: int = 1,
 ) -> int:
-    """Infers the global batch size based on the micro batch size, number of nodes, devices, accumulation of gradient batches, and model parallel sizes.
+    """Infers the global batch size based on the micro batch size, number of nodes, devices, accumulation of gradient
+        batches, and model parallel sizes.
 
     Args:
         micro_batch_size (int): The micro batch size.
@@ -60,7 +61,8 @@ def infer_global_batch_size(
     ):
         raise ValueError(
             f"All arguments must be of type int, got {type(micro_batch_size)}, {type(num_nodes)}, {type(devices)}, "
-            f"{type(accumulate_grad_batches)}, {type(tensor_model_parallel_size)}, {type(pipeline_model_parallel_size)}, and {type(context_model_parallel_size)}"
+            f"{type(accumulate_grad_batches)}, {type(tensor_model_parallel_size)}, "
+            f"{type(pipeline_model_parallel_size)}, and {type(context_model_parallel_size)}"
         )
     if micro_batch_size <= 0:
         raise ValueError(f"micro_batch_size must be greater than 0, got {micro_batch_size}")
@@ -80,8 +82,9 @@ def infer_global_batch_size(
     world_size = num_nodes * devices
     if world_size % (tensor_model_parallel_size * pipeline_model_parallel_size * context_model_parallel_size) != 0:
         raise ValueError(
-            f"world_size must be divisible by tensor_model_parallel_size * pipeline_model_parallel_size * context_model_parallel_size, "
-            f"got {world_size} and TP{tensor_model_parallel_size} * PP{pipeline_model_parallel_size} * CP{context_model_parallel_size}"
+            f"world_size must be divisible by tensor_model_parallel_size * pipeline_model_parallel_size *"
+            f" context_model_parallel_size, got {world_size} and TP{tensor_model_parallel_size} * "
+            f"PP{pipeline_model_parallel_size} * CP{context_model_parallel_size}"
         )
 
     model_parallel_size = tensor_model_parallel_size * pipeline_model_parallel_size * context_model_parallel_size
@@ -114,7 +117,14 @@ class Evo2BlendedDatasetConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validate_dataset_prefix(cls, values: dict) -> dict:
-        """Ensure dataset_prefix paths exist and are properly resolved or are relative to base dataset_path if provided."""
+        """Ensure dataset_prefix paths exist and are properly resolved or are relative to base dataset_path if provided.
+
+        Args:
+            values (dict): Dictionary containing dataset_path and dataset_prefix.
+
+        Returns:
+            dict: Dictionary containing validated dataset_path and dataset_prefix.
+        """
         dataset_path = Path(values.get("dataset_path")) if values.get("dataset_path") else None
         prefix = Path(values.get("dataset_prefix"))
 

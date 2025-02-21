@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from typing import Optional
 
 # TODO(@cye): Merge MCore HyenaConfig with NeMo HyenaConfig to have all model params in 1 config.
@@ -25,7 +26,8 @@ from nemo.utils.flops_formulas import FLOPSConfig
 def hyena(config: FLOPSConfig):
     """Model FLOPs for Hyena family. FPL = 'flops per layer'."""
 
-    # TODO(@cye): For now, pull the Hyena defaults directly from a constant dataclass. Merge this config with the NeMo model config.
+    # TODO(@cye): For now, pull the Hyena defaults directly from a constant dataclass. Merge this config with the NeMo
+    #   model config.
     hyena_config = HyenaConfig()
     # Hyena Parameters
     hyena_short_conv_L = hyena_config.short_conv_L

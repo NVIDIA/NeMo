@@ -23,7 +23,6 @@ from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.utils import make_viewless_tensor
 from torch import Tensor
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
@@ -127,7 +126,5 @@ class HyenaLayer(MegatronModule):
             hidden_states = self.mlp_bda(self.training, self.transformer_config.bias_dropout_fusion)(
                 mlp_output_with_bias, residual, self.hidden_dropout
             )
-
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
 
         return hidden_states

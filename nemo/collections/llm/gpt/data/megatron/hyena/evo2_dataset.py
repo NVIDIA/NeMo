@@ -56,6 +56,8 @@ class Evo2Dataset(GPTDataset):
         )
         databatch["loss_mask"] = loss_mask * phylotag_mask
         if self.TO_UPPER_TOKENS:
+            # When making tokens uppercase, make sure this is done after the mask_phylogenetic_tags function which
+            #  relies in part on the original case of the tag tokens.
             databatch["tokens"], _ = make_upper_case(databatch["tokens"])
         return databatch
 
@@ -138,8 +140,6 @@ class Evo2Dataset(GPTDataset):
         valid_dna_or_control_tensor = torch.tensor(
             list(valid_dna | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype
         )
-        # Pre-build a tensor for other tag characters.
-        other_tag_tensor = torch.tensor(list(other_tag_chars), device=device, dtype=dtype)
 
         # Initialize output mask to all ones.
         out_mask = torch.ones_like(tokenized_sequence, dtype=torch.int)
