@@ -203,9 +203,9 @@ class NevaConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer) -> "MCoreNevaModel":
         # pylint: disable=C0115,C0116
-        self.language_transformer_config = self.language_transformer_config()
-        self.vision_transformer_config = self.vision_transformer_config()
-        self.vision_projection_config = self.vision_projection_config()
+        # self.language_transformer_config = self.language_transformer_config()
+        # self.vision_transformer_config = self.vision_transformer_config()
+        # self.vision_projection_config = self.vision_projection_config()
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
