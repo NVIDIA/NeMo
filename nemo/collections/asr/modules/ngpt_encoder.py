@@ -19,6 +19,7 @@ from dataclasses import dataclass
 import torch
 import torch.distributed
 import torch.nn as nn
+from torch.nn.attention.flex_attention import BlockMask, create_block_mask, flex_attention
 
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
@@ -27,25 +28,6 @@ from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-
-try:
-    from flash_attn import flash_attn_func
-except ImportError:
-
-    def flash_attn_func(
-        q,
-        k,
-        v,
-        dropout_p=0.0,
-        softmax_scale=1.0,
-        causal=False,
-        window_size=(-1, -1),
-        alibi_slopes=None,
-        deterministic=False,
-    ):
-        """Quick and dirty implementation for prototyping."""
-        return nn.functional.softmax(q @ (k * softmax_scale).transpose(2, 3), dim=-1) @ v
-
 
 __all__ = ['NGPTEncoder']
 
@@ -194,18 +176,33 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
             length = audio_signal.new_full(
                 (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int64, device=audio_signal.device
             )
-
         audio_signal = audio_signal.transpose(1, 2)
         x, length = self.pre_encode(x=audio_signal, lengths=length)
-        x = self.ngpt(x)
+        mask = build_padding_mask_for_batch(lengths=length, max_length=x.shape[1], n_head=self.ngpt.config.n_head)
+        x = self.ngpt(x, mask=mask)
         x = x.transpose(1, 2)
-
         return x, length
 
     def normalize_matrices(self):
         if hasattr(self.pre_encode, "normalize_matrices"):
             self.pre_encode.normalize_matrices()
         self.ngpt.normalize_matrices()
+
+
+def build_padding_mask_for_batch(lengths: torch.Tensor, max_length: int, n_head: int) -> BlockMask:
+    def padding_mask_mod(b, h, q_idx, kv_idx):
+        seq_len = lengths[b]  # Get valid length for this batch
+        return (q_idx < seq_len) & (kv_idx < seq_len)
+
+    return create_block_mask(
+        padding_mask_mod,
+        B=lengths.shape[0],
+        H=n_head,
+        Q_LEN=max_length,
+        KV_LEN=max_length,
+        device=lengths.device,
+        _compile=True,
+    )
 
 
 def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
@@ -319,19 +316,26 @@ class Block(nn.Module):
             softmax_scale = 1.0 / sqrt_head_dim
         if self.config.use_nGPT == 1:
             softmax_scale = sqrt_head_dim
-        y = flash_attn_func(
-            q,
-            k,
-            v,
-            dropout_p=0.0,
-            softmax_scale=softmax_scale,
-            causal=False,
-            window_size=(-1, -1),
-            alibi_slopes=None,
-            deterministic=False,
+        y = flex_attention(
+            q.permute(0, 2, 1, 3),
+            k.permute(0, 2, 1, 3),
+            v.permute(0, 2, 1, 3),
+            scale=softmax_scale,
+            block_mask=mask,
         )
+        # y = flash_attn_func(
+        #     q,
+        #     k,
+        #     v,
+        #     dropout_p=0.0,
+        #     softmax_scale=softmax_scale,
+        #     causal=False,
+        #     window_size=(-1, -1),
+        #     alibi_slopes=None,
+        #     deterministic=False,
+        # )
         y = y.to(dtype=q.dtype)
-        y = y.contiguous().view(B, T, self.config.n_embd)
+        y = y.permute(0, 2, 1, 3).contiguous().view(B, T, self.config.n_embd)
 
         h_att = self.att_c_proj(y)
 
@@ -463,34 +467,6 @@ class GPT(nn.Module):
             x = self.rmsnorm_f(x)
 
         return x
-
-    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
-        # start with all of the candidate parameters
-        param_dict = {pn: p for pn, p in self.named_parameters()}
-        # filter out those that do not require grad
-        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
-        # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
-        # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
-        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
-        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
-        optim_groups = [
-            {'params': decay_params, 'weight_decay': weight_decay},
-            {'params': nodecay_params, 'weight_decay': 0.0},
-        ]
-        num_decay_params = sum(p.numel() for p in decay_params)
-        num_nodecay_params = sum(p.numel() for p in nodecay_params)
-        logging.info(
-            f"[nGPT] num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters"
-        )
-        logging.info(
-            f"[nGPT] num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters"
-        )
-        # Create AdamW optimizer and use the fused version if it is available
-        use_fused = False  # fused_available and device_type == 'cuda'
-        extra_args = dict(fused=True) if use_fused else dict()
-        optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
-        logging.info(f"[nGPT] using fused AdamW: {use_fused}")
-        return optimizer
 
     def normalize_matrices(self):
         if not self.config.use_nGPT:
