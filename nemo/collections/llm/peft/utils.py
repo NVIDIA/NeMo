@@ -53,7 +53,7 @@ def get_adapter_attributes_from_linear(m: nn.Module):
     """
     Return input_is_parallel, in_features, out_feature attributes based on implementation of the base layer.
     """
-    disable_sequence_parallel_comm = False
+    disable_sequence_parallel_comm = not m.config.sequence_parallel
 
     if HAVE_TE and isinstance(m, TEColumnParallelLinear) or isinstance(m, TELayerNormColumnParallelLinear):
         input_is_parallel = False
