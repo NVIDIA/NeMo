@@ -314,6 +314,7 @@ def read_train_state(train_state_filename: str):
     return state_obj[0]
 
 
+@lru_cache()
 def read_run_config(run_config_filename: str):
     """
     Read the run config saved as YAML. On rank 0 load from the file,
@@ -337,7 +338,7 @@ def read_run_config(run_config_filename: str):
         torch.distributed.broadcast_object_list(config_obj, src=0)
 
     if isinstance(config_obj[0], dict) and config_obj[0].get("error", False):
-        return None
+        sys.exit(1)
 
     return config_obj[0]
 
@@ -779,10 +780,6 @@ def generate_state_dict(
     state_dict["checkpoint_version"] = 3.0
     if iteration is not None:
         state_dict["iteration"] = iteration
-
-    # TODO: Remove this hack when we find a way to save/load the config container.
-    state_dict["tensor_model_parallel_size"] = cfg.model_config.tensor_model_parallel_size
-    state_dict["pipeline_model_parallel_size"] = cfg.model_config.pipeline_model_parallel_size
 
     if len(model) == 1:
         state_dict["model"] = (
