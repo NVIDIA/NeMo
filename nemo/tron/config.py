@@ -23,7 +23,7 @@ from megatron.core.transformer.enums import ModelType
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
-from nemo.tron.utils import get_world_size_safe
+from nemo.tron.utils.common_utils import get_world_size_safe
 
 
 @dataclass
@@ -296,110 +296,6 @@ class MegatronLMConfig:
 
     init_method_xavier_uniform: bool = False
     """Enable Xavier uniform parameter initialization"""
-
-    # ---------------- Checkpointing config. ----------------
-
-    save: Optional[str] = None
-    """Output directory to save checkpoints to."""
-
-    save_interval: Optional[int] = None
-    """Number of iterations between persistent checkpoint saves."""
-
-    save_optim: bool = True
-    """Do not save current optimizer."""
-
-    save_rng: bool = True
-    """Do not save current rng state."""
-
-    load: Optional[str] = None
-    """Directory containing a model checkpoint."""
-
-    load_optim: bool = True
-    """Do not load optimizer when loading checkpoint."""
-
-    load_rng: bool = True
-    """Do not load rng state when loading checkpoint."""
-
-    non_persistent_save_interval: Optional[int] = None
-    """Number of iterations between non-persistent saves."""
-
-    non_persistent_ckpt_type: Optional[Literal["global", "local", "in_memory", "None"]] = None
-    """Type of non-persistent model checkpoints. "global" - Saved as a standard checkpoint (e.g., on Lustre) with old checkpoints being removed. "local" - [TBD] Each rank saves a portion of the checkpoint locally (e.g., on SSD/ramdisk). "in_memory" - [TBD] A special kind of local checkpoint that avoids serialization. None - No non-persistent checkpointing (default option)."""
-
-    non_persistent_global_ckpt_dir: Optional[str] = None
-    """Directory containing global non-persistent model checkpoints."""
-
-    non_persistent_local_ckpt_dir: Optional[str] = None
-    """Directory containing local non-persistent model checkpoints."""
-
-    non_persistent_local_ckpt_algo: Literal["fully_parallel", "atomic"] = "fully_parallel"
-    """Algorithm for local non-persistent checkpointing."""
-
-    finetune: bool = False
-    """Load model for finetuning. Do not load optimizer or rng state from checkpoint and set iteration to 0. Assumed when loading a release checkpoint."""
-
-    pretrained_checkpoint: Optional[str] = None
-    """Directory containing a pretrained model checkpoint for finetuning."""
-
-    ckpt_step: Optional[int] = None
-    """Checkpoint step to load model from."""
-
-    perform_initialization: bool = True
-    """Do not perform initialization when building model, can reduce startup time when definitely loading from a checkpoint"""
-
-    use_checkpoint_args: bool = False
-    """Override any command line arguments with arguments from the checkpoint"""
-
-    exit_on_missing_checkpoint: bool = False
-    """If '--load' is set, but checkpoint is not found (e.g., path typo), then exit instead of random initialization."""
-
-    use_dist_ckpt_deprecated: bool = False
-    """Deprecated: see --ckpt-format."""
-
-    auto_detect_ckpt_format: bool = False
-    """Determine if the checkpoint format is in legacy or distributed format. If False, expects distributed checkpoint iff args.ckpt_format != "torch". Might slow down loading a bit (double rank0 ckpt load)."""
-
-    dist_ckpt_format_deprecated: Optional[str] = None
-    """Deprecated: see --ckpt-format."""
-
-    ckpt_format: Literal["torch", "torch_dist", "zarr"] = "torch_dist"
-    """Checkpoint format to use."""
-
-    ckpt_convert_format: Optional[Literal["torch", "torch_dist", "zarr"]] = None
-    """Checkpoint format for conversion."""
-
-    ckpt_convert_save: Optional[str] = None
-    """Save directory for converted checkpoint."""
-
-    ckpt_convert_update_legacy_dist_opt_format: bool = False
-    """When loading a checkpoint, update the legacy format for the distributed optimizer, which previously used a merged param/grad buffer and a different bucket mapping. The legacy format was deprecated on Feb 13, 2024."""
-
-    ckpt_fully_parallel_save_deprecated: bool = False
-    """Deprecated: see --no-ckpt-fully-parallel-save."""
-
-    ckpt_fully_parallel_save: bool = True
-    """Disable applying full save parallelization across DP for distributed checkpoints. Depending on ckpt format might decrease the number of files in the checkpoint. Makes DistributedOptimizer checkpoint non-reshardable."""
-
-    async_save: bool = False
-    """Apply async checkpointing save. Currently works only with `torch_dist` distributed checkpoint format."""
-
-    ckpt_fully_parallel_load: bool = False
-    """Apply full load parallelization across DP for distributed checkpoints."""
-
-    ckpt_assume_constant_structure: bool = False
-    """If the model and optimizer state dict structure is constant throughout a *single training job*, it allows for different checkpointing performance optimizations."""
-
-    dist_ckpt_strictness: Literal[
-        "assume_ok_unexpected",
-        "log_unexpected",
-        "log_all",
-        "raise_unexpected",
-        "raise_all",
-        "return_unexpected",
-        "return_all",
-        "ignore_all",
-    ] = "assume_ok_unexpected"
-    """Determine handling of key mismatch during checkpoint load. Check StrictHandling docs for flags meaning. NOTE: This flag controls only distributed checkpoint load from storage, not loading state dict into the model."""
 
     # ---------------- Mixed precision config. ----------------
 
@@ -962,6 +858,104 @@ class SchedulerConfig:
             assert not self.use_checkpoint_opt_param_scheduler, "both override and use-checkpoint are set."
 
 
+@dataclass(kw_only=True)
+class CheckpointConfig:
+    # ---------------- Checkpointing config. ----------------
+
+    save: Optional[str] = None
+    """Output directory to save checkpoints to."""
+
+    save_interval: Optional[int] = None
+    """Number of iterations between persistent checkpoint saves."""
+
+    save_optim: bool = True
+    """Do not save current optimizer."""
+
+    save_rng: bool = True
+    """Do not save current rng state."""
+
+    load: Optional[str] = None
+    """Directory containing a model checkpoint."""
+
+    load_optim: bool = True
+    """Do not load optimizer when loading checkpoint."""
+
+    load_rng: bool = True
+    """Do not load rng state when loading checkpoint."""
+
+    non_persistent_save_interval: Optional[int] = None
+    """Number of iterations between non-persistent saves."""
+
+    non_persistent_ckpt_type: Optional[Literal["global", "local", "in_memory", "None"]] = None
+    """Type of non-persistent model checkpoints. "global" - Saved as a standard checkpoint (e.g., on Lustre) with old checkpoints being removed. "local" - [TBD] Each rank saves a portion of the checkpoint locally (e.g., on SSD/ramdisk). "in_memory" - [TBD] A special kind of local checkpoint that avoids serialization. None - No non-persistent checkpointing (default option)."""
+
+    non_persistent_global_ckpt_dir: Optional[str] = None
+    """Directory containing global non-persistent model checkpoints."""
+
+    non_persistent_local_ckpt_dir: Optional[str] = None
+    """Directory containing local non-persistent model checkpoints."""
+
+    non_persistent_local_ckpt_algo: Literal["fully_parallel", "atomic"] = "fully_parallel"
+    """Algorithm for local non-persistent checkpointing."""
+
+    finetune: bool = False
+    """Load model for finetuning. Do not load optimizer or rng state from checkpoint and set iteration to 0. Assumed when loading a release checkpoint."""
+
+    pretrained_checkpoint: Optional[str] = None
+    """Directory containing a pretrained model checkpoint for finetuning."""
+
+    ckpt_step: Optional[int] = None
+    """Checkpoint step to load model from."""
+
+    perform_initialization: bool = True
+    """Do not perform initialization when building model, can reduce startup time when definitely loading from a checkpoint"""
+
+    use_checkpoint_args: bool = False
+    """Override any command line arguments with arguments from the checkpoint"""
+
+    exit_on_missing_checkpoint: bool = False
+    """If '--load' is set, but checkpoint is not found (e.g., path typo), then exit instead of random initialization."""
+
+    auto_detect_ckpt_format: bool = False
+    """Determine if the checkpoint format is in legacy or distributed format. If False, expects distributed checkpoint iff args.ckpt_format != "torch". Might slow down loading a bit (double rank0 ckpt load)."""
+
+    ckpt_format: Literal["torch", "torch_dist", "zarr"] = "torch_dist"
+    """Checkpoint format to use."""
+
+    ckpt_convert_format: Optional[Literal["torch", "torch_dist", "zarr"]] = None
+    """Checkpoint format for conversion."""
+
+    ckpt_convert_save: Optional[str] = None
+    """Save directory for converted checkpoint."""
+
+    ckpt_convert_update_legacy_dist_opt_format: bool = False
+    """When loading a checkpoint, update the legacy format for the distributed optimizer, which previously used a merged param/grad buffer and a different bucket mapping. The legacy format was deprecated on Feb 13, 2024."""
+
+    fully_parallel_save: bool = True
+    """Disable applying full save parallelization across DP for distributed checkpoints. Depending on ckpt format might decrease the number of files in the checkpoint. Makes DistributedOptimizer checkpoint non-reshardable."""
+
+    async_save: bool = False
+    """Apply async checkpointing save. Currently works only with `torch_dist` distributed checkpoint format."""
+
+    fully_parallel_load: bool = False
+    """Apply full load parallelization across DP for distributed checkpoints."""
+
+    ckpt_assume_constant_structure: bool = False
+    """If the model and optimizer state dict structure is constant throughout a *single training job*, it allows for different checkpointing performance optimizations."""
+
+    dist_ckpt_strictness: Literal[
+        "assume_ok_unexpected",
+        "log_unexpected",
+        "log_all",
+        "raise_unexpected",
+        "raise_all",
+        "return_unexpected",
+        "return_all",
+        "ignore_all",
+    ] = "assume_ok_unexpected"
+    """Determine handling of key mismatch during checkpoint load. Check StrictHandling docs for flags meaning. NOTE: This flag controls only distributed checkpoint load from storage, not loading state dict into the model."""
+
+
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass(kw_only=True)
 class ConfigContainer:
@@ -975,6 +969,7 @@ class ConfigContainer:
     dataset_config: GPTDatasetConfig
     logger_config: LoggerConfig
     tokenizer_config: TokenizerConfig
+    checkpoint_config: CheckpointConfig
 
     def __post_init__(self):
         # Run validations
