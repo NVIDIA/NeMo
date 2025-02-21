@@ -33,6 +33,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -45,24 +46,6 @@ def main(args):
     mbs = 2
     seq_length = 2048
 
-    # Data configuration
-    data_config = ImageDataConfig(
-        image_folder=args.image_folder,
-        conv_template="plain",
-    )
-
-    # Data module setup
-    data = vlm.NevaLazyDataModule(
-        paths=args.data_path,
-        data_config=data_config,
-        seq_length=seq_length,
-        decoder_seq_length=None,
-        global_batch_size=gbs,
-        micro_batch_size=mbs,
-        tokenizer=None,
-        image_processor=None,
-        num_workers=8,
-    )
     language_transformer_config = llm.Llama2Config7B(
         seq_length=seq_length,
     )
@@ -85,6 +68,65 @@ def main(args):
         freeze_language_model=True,
         freeze_vision_model=True,
     )
+    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile
+
+    if args.data_type == "energon":
+        from transformers import AutoProcessor
+
+        from nemo.collections.multimodal.data.energon import (
+            EnergonMultiModalDataModule,
+            ImageToken,
+            LLaVATemplateConfig,
+            MultiModalSampleConfig,
+        )
+
+        processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
+        tokenizer = processor.tokenizer
+        image_processor = processor.image_processor
+
+        # Configure multimodal samples
+        config = MultiModalSampleConfig(
+            image_token=ImageToken(token_str="<image>", token_id=-200),
+            ignore_place_holder=-100,
+            conversation_template_config=LLaVATemplateConfig(),
+        )
+
+        # Initialize the data module
+        data = EnergonMultiModalDataModule(
+            path=args.data_path,
+            tokenizer=tokenizer,
+            image_processor=image_processor,
+            seq_length=seq_length,
+            micro_batch_size=mbs,
+            global_batch_size=gbs,
+            num_workers=0,
+            multimodal_sample_config=config,
+            task_encoder=MultiModalTaskEncoder(
+                tokenizer=tokenizer,
+                image_processor=image_processor,
+                multimodal_sample_config=config,
+                num_image_embeddings_per_tile=num_image_embeddings_per_tile,
+            ),
+        )
+    else:
+        # Data configuration
+        data_config = ImageDataConfig(
+            image_folder=args.image_folder,
+            conv_template="plain",
+        )
+
+        # Data module setup
+        data = vlm.NevaLazyDataModule(
+            paths=args.data_path,
+            data_config=data_config,
+            seq_length=seq_length,
+            decoder_seq_length=None,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            tokenizer=None,
+            image_processor=None,
+            num_workers=8,
+        )
 
     model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
 
@@ -166,6 +208,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NEVA Model Training Script")
 
     # Argument parsing
+    parser.add_argument("--data_type", type=str, required=False, default="llava", help="energon | llava")
     parser.add_argument("--data_path", type=str, required=True, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=True, help="Path to the image folder")
     parser.add_argument("--log_dir", type=str, required=True, help="Directory for logging and checkpoints")
