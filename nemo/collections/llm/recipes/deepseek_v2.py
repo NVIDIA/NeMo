@@ -17,18 +17,15 @@ from typing import Callable, Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
-import torch
-from megatron.core.distributed import DistributedDataParallelConfig
 
-import nemo.lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2Config
 from nemo.collections.llm.peft import PEFT_STR2CLS
+from nemo.collections.llm.recipes.deepseek import trainer
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "deepseek_v2"
@@ -53,101 +50,11 @@ def model() -> run.Config[pl.LightningModule]:
     conf = run.Config(DeepSeekV2Config)
     return run.Config(DeepSeekModel, config=conf)
 
-
-def trainer(
-    tensor_parallelism: int = 1,
-    pipeline_parallelism: int = 4,
-    pipeline_parallelism_type: Optional[torch.dtype] = torch.bfloat16,
-    virtual_pipeline_parallelism: Optional[int] = 1,
-    context_parallelism: int = 1,
-    expert_parallelism: int = 32,
-    sequence_parallelism: bool = True,
-    account_for_embedding_in_pipeline_split: bool = True,
-    account_for_loss_in_pipeline_split: bool = True,
-    num_nodes: int = 1,
-    num_gpus_per_node: int = 8,
-    max_steps: int = 1168251,
-    callbacks: Optional[list[run.Config[pl.Callback]]] = None,
-) -> run.Config[nl.Trainer]:
-    """
-    Configure the NeMo Lightning Trainer for DeepSeek V2 model.
-
-    This function sets up the distributed training strategy optimized for DeepSeek V2.
-
-    Args:
-        tensor_parallelism (int): Degree of tensor model parallelism.
-        pipeline_parallelism (int): Degree of pipeline model parallelism.
-        pipeline_parallelism_type (Optional[torch.dtype]): Data type for pipeline parallelism.
-        virtual_pipeline_parallelism (Optional[int]): Size of virtual pipeline parallelism.
-        context_parallelism (int): Degree of context parallelism.
-        expert_parallelism (int): Degree of expert parallelism.
-        sequence_parallelism (bool): Whether to use sequence parallelism.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-        max_steps (int): Maximum number of training steps.
-        callbacks (Optional[list[run.Config[Callback]]]): List of callback configurations.
-
-    Returns:
-        run.Config[nl.Trainer]: Configuration for the NeMo Lightning Trainer.
-
-    Examples:
-        CLI usage:
-            $ nemo llm pretrain trainer=deepseek_v2 ...
-
-        Python API usage:
-            >>> trainer_config = trainer(num_nodes=1, num_gpus_per_node=8)
-            >>> print(trainer_config)
-
-    """
-    strategy = run.Config(
-        nl.MegatronStrategy,
-        tensor_model_parallel_size=tensor_parallelism,
-        pipeline_model_parallel_size=pipeline_parallelism,
-        pipeline_dtype=pipeline_parallelism_type,
-        virtual_pipeline_model_parallel_size=virtual_pipeline_parallelism,
-        context_parallel_size=context_parallelism,
-        expert_model_parallel_size=expert_parallelism,
-        sequence_parallel=sequence_parallelism,
-        account_for_embedding_in_pipeline_split=account_for_embedding_in_pipeline_split,
-        account_for_loss_in_pipeline_split=account_for_loss_in_pipeline_split,
-        gradient_as_bucket_view=True,
-        ckpt_async_save=True,
-        ckpt_parallel_load=True,
-        ddp=run.Config(
-            DistributedDataParallelConfig,
-            check_for_nan_in_grad=True,
-            grad_reduce_in_fp32=True,
-            overlap_grad_reduce=True,
-            overlap_param_gather=True,
-            average_in_collective=True,
-        ),
-    )
-
-    trainer = run.Config(
-        nl.Trainer,
-        accelerator="gpu",
-        accumulate_grad_batches=1,
-        callbacks=callbacks,
-        devices=num_gpus_per_node,
-        limit_test_batches=50,
-        limit_val_batches=32,
-        log_every_n_steps=10,
-        max_steps=max_steps,
-        num_nodes=num_nodes,
-        plugins=bf16_mixed(),
-        strategy=strategy,
-        use_distributed_sampler=False,
-        val_check_interval=2000,
-    )
-
-    return trainer
-
-
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
-    num_nodes: int = 1,
+    num_nodes: int = 16,
     num_gpus_per_node: int = 8,
     fn: Callable = pretrain,
 ) -> run.Partial:
@@ -171,10 +78,10 @@ def pretrain_recipe(
     Examples:
         CLI usage:
             $ nemo llm pretrain --factory deepseek_v2
-            $ nemo llm pretrain --factory "deepseek_v2(num_nodes=4, name='my_deepseek_v2')"
+            $ nemo llm pretrain --factory "deepseek_v2(num_nodes=16, name='my_deepseek_v2')"
 
         Python API usage:
-            >>> recipe = pretrain_recipe(name="deepseek_v2_pretrain", num_nodes=4)
+            >>> recipe = pretrain_recipe(name="deepseek_v2_pretrain", num_nodes=16)
             >>> print(recipe)
 
     """
@@ -182,6 +89,8 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
+            pipeline_parallelism=4,
+            expert_parallelism=32,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],

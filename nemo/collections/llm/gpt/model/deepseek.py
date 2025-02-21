@@ -431,6 +431,10 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
                 target_model_name = "deepseek-ai/DeepSeek-V2"
             else:
                 target_model_name = "deepseek-ai/DeepSeek-V2-Lite"
+            logging.info(
+                f"Your model is determined to be {target_model_name} based on the config. If this is not correct, "
+                f"please pass in a local HF checkpoint."
+            )
 
         target = self.init(torch_dtype_from_dict_config(source_config), model_name=target_model_name)
         target = self.convert_state(source, target, source_config)
