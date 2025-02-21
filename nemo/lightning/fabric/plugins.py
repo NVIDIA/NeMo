@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from contextlib import contextmanager
-from typing import Any, TYPE_CHECKING, Generator, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Generator, Literal, TypeVar
 
 import torch
 from lightning.fabric.plugins.precision import MixedPrecision
