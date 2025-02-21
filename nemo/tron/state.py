@@ -30,10 +30,6 @@ from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils.common_utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
 from nemo.utils.import_utils import safe_import
 
-_, HAVE_FT = safe_import("nvidia_resiliency_ext.fault_tolerance")
-if TYPE_CHECKING and HAVE_FT:
-    from nvidia_resiliency_ext.fault_tolerance import RankMonitorClient
-
 
 def _timers_write_to_wandb(
     self,
@@ -128,7 +124,7 @@ class GlobalState:
         self._wandb_logger = None
         self._timers = None
         self._train_state = None
-        self._rank_monitor_client = None
+        self.rank_monitor_client = None
         self._signal_handler = None
         self.start_time = time.time()
         self._ft_state = None
@@ -203,17 +199,6 @@ class GlobalState:
     @train_state.setter
     def train_state(self, value: TrainState):
         self._train_state = value
-
-    @property
-    def rank_monitor_client(self):
-        assert (
-            self._rank_monitor_client is not None
-        ), "Should not attempt to access rank monitor client before fault tolerance setup."
-        return self._rank_monitor_client
-
-    @rank_monitor_client.setter
-    def rank_monitor_client(self, value: "RankMonitorClient"):
-        self._rank_monitor_client = value
 
     @property
     def fault_tolerance_state(self):
