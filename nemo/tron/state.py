@@ -25,6 +25,7 @@ from megatron.core.utils import StragglerDetector
 from torch.distributed.checkpoint.stateful import Stateful
 
 from nemo.tron.config import ConfigContainer
+from nemo.tron.dist_signal_handler import DistributedSignalHandler
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils.common_utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
 from nemo.utils.import_utils import safe_import
@@ -128,6 +129,7 @@ class GlobalState:
         self._timers = None
         self._train_state = None
         self._rank_monitor_client = None
+        self._signal_handler = None
         self.start_time = time.time()
         self._ft_state = None
         self.straggler_timer = StragglerDetector()
@@ -222,3 +224,13 @@ class GlobalState:
     @fault_tolerance_state.setter
     def fault_tolerance_state(self, value: FaultToleranceState):
         self._ft_state = value
+
+    @property
+    def signal_handler(self):
+        if self._signal_handler is None:
+            self._signal_handler = DistributedSignalHandler().__enter__()
+        return self._signal_handler
+
+    @signal_handler.setter
+    def signal_handler(self, value):
+        self._signal_handler = value

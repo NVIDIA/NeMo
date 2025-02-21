@@ -708,23 +708,22 @@ def checkpoint_and_decide_exit(
     # Exit based on signal handler.
     saved_checkpoint = False
 
-    # TODO: add signal handler
-    # if state.cfg.megatron_lm_config.exit_signal_handler:
-    #     signal_handler = get_signal_handler()
-    #     if any(signal_handler.signals_received()):
-    #         if args.save:
-    #             save_checkpoint_and_time(
-    #                 iteration,
-    #                 model,
-    #                 optimizer,
-    #                 opt_param_scheduler,
-    #                 num_floating_point_operations_so_far,
-    #                 checkpointing_context,
-    #                 train_data_iterator=train_data_iterator,
-    #             )
-    #         print_datetime("exiting program after receiving SIGTERM.")
+    if state.cfg.megatron_lm_config.exit_signal_handler:
+        signal_handler = state.signal_handler
+        if any(signal_handler.signals_received()):
+            if state.cfg.checkpoint_config.save:
+                save_checkpoint_and_time(
+                    state,
+                    model,
+                    optimizer,
+                    opt_param_scheduler,
+                    num_floating_point_operations_so_far,
+                    checkpointing_context,
+                    train_data_iterator=train_data_iterator,
+                )
+            print_datetime("exiting program after receiving SIGTERM.")
 
-    #         return True
+            return True
 
     # Regular save (persistent and non-persistent).
     if (
