@@ -226,9 +226,9 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
 
         return HyenaModel(self.config, tokenizer=self.tokenizer)
 
-    def apply(self, output_path: Path, checkpoint_format: str = 'torch_dist') -> Path:
+    def apply(self, output_path: Path, checkpoint_format: str = 'torch_dist', weights_only: bool = True) -> Path:
 
-        source = torch.load(str(self), map_location='cpu')
+        source = torch.load(str(self), map_location='cpu', weights_only=weights_only)
         if 'model' in source:
             source = source['model']
 
@@ -389,6 +389,193 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
 def _import_linear_fc1(w1, w2):
     return torch.cat((w1, w2), axis=0)
 
+@io.model_importer(HyenaModel, "pytorch-vortex")
+class PytorchVortexHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
+
+    def __new__(cls, path: str, model_config=None):
+        instance = super().__new__(cls, path)
+        instance.model_config = model_config
+        return instance
+    
+    def init(self) -> HyenaModel:
+
+        return HyenaModel(self.config, tokenizer=self.tokenizer)
+
+    def apply(self, output_path: Path, checkpoint_format: str = 'torch_dist', weights_only: bool = False) -> Path:
+
+        source = torch.load(str(self), map_location='cpu', weights_only=weights_only)
+        if 'model' in source:
+            source = source['model']
+        config = self.config
+        class ModelState:
+            def __init__(self, state_dict, num_layers):
+                self.num_layers = num_layers
+                state_dict = self.transform_source_dict(state_dict)
+                self._state_dict = state_dict
+
+            def state_dict(self):
+                return self._state_dict
+
+            def to(self, dtype):
+                for k, v in self._state_dict.items():
+                    if "_extra" not in k:
+                        if v.dtype != dtype:
+                            logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
+                        self._state_dict[k] = v.to(dtype)
+
+            def adjust_medium_filter(self, updated_data):
+                # from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
+
+                # for k, v in updated_data.items():
+                #     if "filter.h" in k or "filter.decay" in k:
+                #         updated_data[k] = v[:, : HyenaConfig().hyena_medium_conv_len]
+                return updated_data
+            def squeeze_filters(self, updated_data):
+                for i, symbol in enumerate(config.hybrid_override_pattern):
+                    if symbol == 'D':
+                        # Weak filter decay
+                        log_r_min = -2
+                        log_r_max = 2
+                        d_model = updated_data[f'blocks.{i}.filter.h'].shape[0]
+                        t = torch.linspace(0, 1, 128)[None]
+                        decay = torch.logspace(log_r_min, log_r_max, d_model)[:, None]
+                        decay = torch.exp((-decay * t).cuda())
+                        updated_data[f'blocks.{i}.filter.h'] = updated_data[f'blocks.{i}.filter.h'].squeeze(1) / decay
+                for k, v in updated_data.items():
+                    if "filter.short_filter_weight" in k:
+                        updated_data[k] = v.squeeze(1)
+                return updated_data
+
+            def transform_source_dict(self, source):
+                import re
+
+                layer_map = {i + 2: i for i in range(self.num_layers)}
+                layer_map[self.num_layers + 3] = self.num_layers
+                updated_data = {}
+                if "module" in source:
+                    source_module = source['module']
+                else:
+                    source_module = source
+                for key in list(source_module.keys()):
+                    if "_extra" in key:
+                        source_module.pop(key)
+                    else:
+                        # match = re.search(r'blocks\.(\d+)', key)
+                        # if match:
+                        #     original_layer_num = int(match.group(1))
+                        #     if original_layer_num in layer_map:
+                        #         # Create the updated key by replacing the layer number
+                        #         new_key = re.sub(rf'\b{original_layer_num}\b', str(layer_map[original_layer_num]), key)
+                        #         updated_data[new_key] = source_module[key]
+                        #     else:
+                        #         # Keep the key unchanged if no mapping exists
+                        #         updated_data[key] = source_module[key]
+                        # else:
+                        updated_data[key] = source_module[key]
+                updated_data = self.adjust_medium_filter(updated_data)
+                updated_data = self.squeeze_filters(updated_data)
+                return updated_data
+
+        source = ModelState(source, self.config.num_layers)
+        target = self.init()
+        trainer = self.nemo_setup(target, ckpt_async_save=False, save_ckpt_format=checkpoint_format)
+        source.to(self.config.params_dtype)
+        target.to(self.config.params_dtype)
+        self.convert_state(source, target)
+        self.nemo_save(output_path, trainer)
+
+        logging.info(f"Converted Hyena model to Nemo, model saved to {output_path}")
+
+        teardown(trainer, target)
+        del trainer, target
+
+        return output_path
+
+    def convert_state(self, source, target):
+        mapping = {}
+        # Word embeddings and output layer
+        mapping['embedding_layer.weight'] = 'embedding.word_embeddings.weight'
+        #mapping['unembed.weight'] = 'output_layer.weight'
+        
+        # Final norm
+        mapping['norm.scale'] = 'decoder.final_norm.weight'
+        #mapping['norm.bias'] = 'decoder.final_norm.bias'
+        
+        # Layer mappings
+        for i, symbol in enumerate(self.config.hybrid_override_pattern):
+            
+            # MLP layers and norms for all blocks
+            mapping[f'blocks.{i}.post_norm.scale'] = f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'
+            #mapping[f'blocks.{i}.post_norm.bias'] = f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_bias'
+            # mapping[f'blocks.{i}.mlp.l1.weight'] = f'decoder.layers.{i}.mlp.linear_fc1.weight'  # Partial
+            # mapping[f'blocks.{i}.mlp.l2.weight'] = f'decoder.layers.{i}.mlp.linear_fc1.weight'  # Partial
+            mapping[f'blocks.{i}.mlp.l3.weight'] = f'decoder.layers.{i}.mlp.linear_fc2.weight'
+
+            if symbol != '*':
+                # Common mixer mappings for S/D/H blocks
+                mapping[f'blocks.{i}.filter.short_filter_weight'] = f'decoder.layers.{i}.mixer.hyena_proj_conv.short_conv_weight'
+                mapping[f'blocks.{i}.out_filter_dense.weight'] = f'decoder.layers.{i}.mixer.dense.weight'
+                mapping[f'blocks.{i}.out_filter_dense.bias'] = f'decoder.layers.{i}.mixer.dense.bias'
+                # Pre-norm and projections for all blocks
+                mapping[f'blocks.{i}.pre_norm.scale'] = f'decoder.layers.{i}.mixer.dense_projection.layer_norm_weight'
+                #mapping[f'blocks.{i}.pre_norm.bias'] = f'decoder.layers.{i}.mixer.dense_projection.layer_norm_bias'
+                mapping[f'blocks.{i}.projections.weight'] = f'decoder.layers.{i}.mixer.dense_projection.weight'
+                if symbol == 'S':
+                    mapping[f'blocks.{i}.filter.h'] = (  # This one should not be squeezed.
+                        f'decoder.layers.{i}.mixer.mixer.short_conv.short_conv_weight'
+                    )
+
+                elif symbol == 'D':
+                    mapping[f'blocks.{i}.filter.h'] = f'decoder.layers.{i}.mixer.mixer.filter.h'  # this one should be squeezed
+                    mapping[f'blocks.{i}.filter.D'] = f'decoder.layers.{i}.mixer.mixer.conv_bias'
+
+                elif symbol == 'H':
+                    #mapping[f'blocks.{i}.filter.log_poles'] = f'decoder.layers.{i}.mixer.mixer.filter.gamma'
+                    mapping[f'blocks.{i}.filter.D'] = f'decoder.layers.{i}.mixer.mixer.conv_bias'
+                    mapping[f'blocks.{i}.filter.residues'] = f'decoder.layers.{i}.mixer.mixer.filter.R'
+                    #mapping[f'blocks.{i}.filter.p'] = f'decoder.layers.{i}.mixer.mixer.filter.p'
+
+            elif symbol == '*':
+                # Attention block mappings
+                mapping[f'blocks.{i}.inner_mha_cls.Wqkv.weight'] = f'decoder.layers.{i}.self_attention.linear_qkv.weight'
+                mapping[f'blocks.{i}.inner_mha_cls.out_proj.weight'] = f'decoder.layers.{i}.self_attention.linear_proj.weight'
+                mapping[f'blocks.{i}.inner_mha_cls.out_proj.bias'] = f'decoder.layers.{i}.self_attention.linear_proj.bias'
+            else:
+                raise ValueError(f'Unknown symbol: {symbol}')
+
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_vortex_linear_fc1, _log_poles_and_p_to_gamma])
+
+    @property
+    def tokenizer(self):
+        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+
+        tokenizer = get_nmt_tokenizer(
+            library=self.model_config.tokenizer_library,
+        )
+
+        return tokenizer
+
+    @property
+    def config(self) -> HyenaConfig:
+        return self.model_config
+
+@io.state_transform(
+    source_key=("blocks.*.mlp.l1.weight", "blocks.*.mlp.l2.weight"),
+    target_key="decoder.layers.*.mlp.linear_fc1.weight",
+)
+def _import_vortex_linear_fc1(w1, w2):
+    return torch.cat((w1, w2), axis=0)
+
+@io.state_transform(
+    source_key="blocks.*.filter.log_poles",
+    target_key=("decoder.layers.*.mixer.mixer.filter.gamma", "decoder.layers.*.mixer.mixer.filter.p"),
+)
+def _log_poles_and_p_to_gamma(log_poles):
+    # There are an infinite number of possible p,gamma values that will produce the same log_poles
+    # Here we just choose the simplest one, p = -1, gamma = log(-log_poles) + 1
+    p = -torch.ones_like(log_poles[..., 0])  # shape [d_model, order]
+    gamma = torch.log(-log_poles[..., 0]) + 1  # shape [d_model, order]
+    return gamma, p
 
 @dataclass
 class HyenaTestConfig(HyenaConfig):
