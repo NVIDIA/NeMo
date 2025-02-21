@@ -32,6 +32,7 @@ from nemo.collections import llm
 from nemo.collections.llm.gpt.data import MockDataModule, PreTrainingDataModule
 from nemo.collections.llm.gpt.data.megatron.hyena.config import parse_dataset_config
 from nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset import Evo2Dataset, Evo2DatasetPadEodLossMask
+from nemo.collections.llm.gpt.model.hyena import HYENA_MODEL_OPTIONS
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
     userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192,
@@ -48,17 +49,6 @@ from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils.exp_manager import TimingCallback
 
 torch._dynamo.config.suppress_errors = True
-
-model_options: dict[str, Type[llm.HyenaConfig]] = {
-    "7b": llm.Hyena7bConfig,
-    "7b_arc_longcontext": llm.Hyena7bARCLongContextConfig,
-    "7b_nv": llm.HyenaNV7bConfig,
-    "40b": llm.Hyena40bConfig,
-    "40b_arc_longcontext": llm.Hyena40bARCLongContextConfig,
-    "40b_nv": llm.HyenaNV40bConfig,
-    "test": llm.HyenaTestConfig,
-    "test_nv": llm.HyenaNVTestConfig,
-}
 
 
 def parse_args():
@@ -150,7 +140,7 @@ def parse_args():
     parser.add_argument(
         "--model-size",
         type=str,
-        choices=sorted(model_options.keys()),
+        choices=sorted(HYENA_MODEL_OPTIONS.keys()),
         default="7b",
         help="Model architecture to use, choose between 7b, 40b, or test (a sub-model of 4 layers, less than 1B "
         "parameters). '_arc_1m' models have GLU / FFN dimensions that support 1M context length when trained "
@@ -444,9 +434,9 @@ def main():
     if args.num_layers:
         config_modifiers_init["num_layers"] = args.num_layers
 
-    if args.model_size not in model_options:
+    if args.model_size not in HYENA_MODEL_OPTIONS:
         raise ValueError(f"Invalid model size: {args.model_size}")
-    evo2_config = model_options[args.model_size](**config_modifiers_init)
+    evo2_config = HYENA_MODEL_OPTIONS[args.model_size](**config_modifiers_init)
 
     # Instantiate model.
     model = llm.HyenaModel(evo2_config, tokenizer=data.tokenizer)

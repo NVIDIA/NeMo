@@ -35,6 +35,8 @@ except (ImportError, ModuleNotFoundError):
     logging.warning(
         "The package `megatron.core` was not imported in this environment which is needed for Hyena models."
     )
+from typing import Type
+
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 
@@ -293,6 +295,12 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
         """
         return HyenaModel(self.config, tokenizer=self.tokenizer)
 
+    def get_source_model(self):
+        """
+        Returns the source model.
+        """
+        return torch.load(str(self), map_location='cpu')
+
     def apply(self, output_path: Path, checkpoint_format: str = 'torch_dist') -> Path:
         """
         Applies the model conversion from PyTorch to NeMo format.
@@ -304,7 +312,8 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
         Returns:
             Path: Path to the saved NeMo model
         """
-        source = torch.load(str(self), map_location='cpu')
+        source = self.get_source_model()
+
         if 'model' in source:
             source = source['model']
 
@@ -663,6 +672,18 @@ class Hyena40bARCLongContextConfig(Hyena40bConfig):
     ffn_hidden_size: int = 22528
 
 
+HYENA_MODEL_OPTIONS: dict[str, Type[HyenaConfig]] = {
+    "7b": Hyena7bConfig,
+    "7b_arc_longcontext": Hyena7bARCLongContextConfig,
+    "7b_nv": HyenaNV7bConfig,
+    "40b": Hyena40bConfig,
+    "40b_arc_longcontext": Hyena40bARCLongContextConfig,
+    "40b_nv": HyenaNV40bConfig,
+    "test": HyenaTestConfig,
+    "test_nv": HyenaNVTestConfig,
+}
+
+
 __all__ = [
     "HyenaConfig",
     "Hyena7bConfig",
@@ -673,4 +694,5 @@ __all__ = [
     "Hyena40bARCLongContextConfig",
     "HyenaTestConfig",
     "HyenaNVTestConfig",
+    "HYENA_MODEL_OPTIONS",
 ]
