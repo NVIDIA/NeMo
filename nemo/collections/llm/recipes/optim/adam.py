@@ -67,6 +67,7 @@ def pytorch_adam_with_cosine_annealing(
     constant_steps: int = 0,
     max_lr: float = 1e-5,
     min_lr: Optional[float] = None,
+    weight_decay: float = 0.01,
 ) -> run.Config[PytorchOptimizerModule]:
     from torch.optim import Adam
 
@@ -75,9 +76,10 @@ def pytorch_adam_with_cosine_annealing(
         optimizer_fn=run.Partial(
             Adam,
             lr=max_lr,
-            weight_decay=0.1,
-            betas=(0.9, 0.95),
+            weight_decay=weight_decay,
+            betas=(0.9, 0.999),
             eps=1e-8,
+            foreach=True,
         ),
         lr_scheduler=run.Config(
             CosineAnnealingScheduler,
@@ -91,6 +93,7 @@ def pytorch_adam_with_cosine_annealing(
 @run.cli.factory
 def pytorch_adam_with_flat_lr(
     lr: float = 1e-5,
+    weight_decay: float = 0.01,
 ) -> run.Config[PytorchOptimizerModule]:
     from torch.optim import Adam
 
@@ -99,8 +102,57 @@ def pytorch_adam_with_flat_lr(
         optimizer_fn=run.Partial(
             Adam,
             lr=lr,
-            weight_decay=0.1,
-            betas=(0.9, 0.95),
+            weight_decay=weight_decay,
+            betas=(0.9, 0.999),
             eps=1e-8,
+            foreach=True,
+        ),
+    )
+
+@run.cli.factory
+def te_adam_with_cosine_annealing(
+    warmup_steps: int = 2000,
+    constant_steps: int = 0,
+    max_lr: float = 1e-5,
+    min_lr: Optional[float] = None,
+    weight_decay: float = 0.01,
+) -> run.Config[PytorchOptimizerModule]:
+    from transformer_engine.pytorch.optimizers import FusedAdam as Adam
+
+    return run.Config(
+        PytorchOptimizerModule,
+        optimizer_fn=run.Partial(
+            Adam,
+            lr=max_lr,
+            weight_decay=weight_decay,
+            betas=(0.9, 0.999),
+            eps=1e-8,
+            master_weights=True,
+            foreach=True,
+        ),
+        lr_scheduler=run.Config(
+            CosineAnnealingScheduler,
+            warmup_steps=warmup_steps,
+            constant_steps=constant_steps,
+            min_lr=min_lr or (0.1 * max_lr),
+        ),
+    )
+
+
+@run.cli.factory
+def te_adam_with_flat_lr(
+    lr: float = 1e-5, weight_decay: float = 0.01,
+) -> run.Config[PytorchOptimizerModule]:
+    from transformer_engine.pytorch.optimizers import FusedAdam as Adam
+
+    return run.Config(
+        PytorchOptimizerModule,
+        optimizer_fn=run.Partial(
+            Adam,
+            lr=lr,
+            weight_decay=weight_decay,
+            betas=(0.9, 0.999),
+            eps=1e-8,
+            master_weights=True,
         ),
     )
