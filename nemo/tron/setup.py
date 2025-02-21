@@ -24,6 +24,9 @@ from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
 from nemo.tron import fault_tolerance
+from nemo.utils.import_utils import safe_import
+
+_, HAVE_RESIL = safe_import("nvidia_resiliency_ext.checkpointing")
 
 
 def setup(
@@ -63,7 +66,36 @@ def setup(
     print_rank_0("time to initialize megatron (seconds): {:.3f}".format(time.time() - state.start_time))
     barrier_and_log("after megatron is initialized")
 
-    checkpointing_context = {}
+    # Context used for persisting some state between checkpoint saves.
+    if cfg.checkpoint_config.non_persistent_ckpt_type == "local":
+        if HAVE_RESIL:
+            from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import (
+                LocalCheckpointManager,
+            )
+            from nvidia_resiliency_ext.checkpointing.local.replication.strategies import (
+                CliqueReplicationStrategy,
+            )
+        else:
+            raise RuntimeError(
+                "The 'nvidia_resiliency_ext' module is required for local "
+                "checkpointing but was not found. Please ensure it is installed."
+            )
+        if cfg.checkpoint_config.replication:
+            repl_strategy = CliqueReplicationStrategy.from_replication_params(
+                cfg.checkpoint_config.replication_jump,
+                cfg.checkpoint_config.replication_factor,
+            )
+        else:
+            repl_strategy = None
+
+        checkpointing_context = {
+            "local_checkpoint_manager": LocalCheckpointManager(
+                cfg.checkpoint_config.non_persistent_local_ckpt_dir,
+                repl_strategy=repl_strategy,
+            )
+        }
+    else:
+        checkpointing_context = {}
 
     # Model, optimizer, and learning rate.
     timers("model-and-optimizer-setup", log_level=0).start(barrier=True)
@@ -100,4 +132,12 @@ def setup(
     print_rank_0("done with setup ...")
     timers.log(["model-and-optimizer-setup", "train/valid/test-data-iterators-setup"], barrier=True)
 
-    return model, optimizer, scheduler, train_data_iterator, valid_data_iterator, test_data_iterator
+    return (
+        model,
+        optimizer,
+        scheduler,
+        checkpointing_context,
+        train_data_iterator,
+        valid_data_iterator,
+        test_data_iterator,
+    )

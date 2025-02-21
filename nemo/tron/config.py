@@ -936,6 +936,15 @@ class CheckpointConfig:
     ] = "assume_ok_unexpected"
     """Determine handling of key mismatch during checkpoint load. Check StrictHandling docs for flags meaning. NOTE: This flag controls only distributed checkpoint load from storage, not loading state dict into the model."""
 
+    replication: bool = False
+    """If set, replication of local checkpoints is enabled. Needs to be enabled on all ranks."""
+
+    replication_jump: Optional[int] = None
+    """Specifies `J`, the spacing between ranks storing replicas of a given rank's data. Replicas for rank `n` may be on ranks `n+J`, `n+2J`, ..., or `n-J`, `n-2J`, etc. This flag has an effect only if --replication is used. and must be consistent across all ranks."""
+
+    replication_factor: int = 2
+    """Number of machines storing the replica of a given rank's data."""
+
 
 @dataclass
 class FaultToleranceConfig:
