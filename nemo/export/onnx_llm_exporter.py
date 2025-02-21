@@ -293,7 +293,7 @@ class OnnxLLMExporter(ITritonDeployable):
                 "none": trt.ProfilingVerbosity.NONE,
             }[profiling_verbosity]
         except KeyError:
-            error_msg = f"Unknown profiling verbosity value "
+            error_msg = "Unknown profiling verbosity value."
             raise ValueError(error_msg)
         logging.info(f"Setting Profiling Verbosity to {config.profiling_verbosity}")
 
