@@ -1799,6 +1799,10 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
             raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {malsd_max_symbols_per_step}")
         self.max_symbols = malsd_max_symbols_per_step
         self.preserve_alignments = preserve_alignments
+        
+        self.hash_collisions_count=0
+        self.collisions_count=0
+        self.comparisons_count=0
 
         self.timer = SimpleTimer()
         if search_type == "malsd_batch":
@@ -1875,6 +1879,11 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
             self.timer.start(device=inseq.device)
             hyps = self._decoding_computer(x=inseq, out_len=logitlen)
             self.timer.stop(device=inseq.device)
+            
+            self.hash_collisions_count += self._decoding_computer.hash_collisions
+            self.collisions_count += self._decoding_computer.collisions
+            self.comparisons_count += self._decoding_computer.comparisons
+            
             # hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
             # for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
             #     hyp.dec_state = state

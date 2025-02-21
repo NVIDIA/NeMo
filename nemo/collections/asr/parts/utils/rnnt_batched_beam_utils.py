@@ -1,11 +1,12 @@
 import torch
 from typing import Optional
 from nemo.utils.enum import PrettyStrEnum
+from collections import Counter
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 # https://stackoverflow.com/a/77213071
-MULTIPLIER = 6364136223846793005
+MULTIPLIER = 7
 INCREMENT = 1
 MODULUS = 2**64
 
@@ -73,6 +74,11 @@ class BatchedBeamHyps:
 
         self.next_timestep = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
+        
+        self.count_collision_stats=True
+        self.comparisons_count=0
+        self.collisions_count=0
+        self.hash_collisions_count=0
 
     def clear_(self):
         self.current_lengths_nb.fill_(0)
@@ -166,6 +172,45 @@ class BatchedBeamHyps:
             prev_transcript_prefix_hash,
             out=self.transcript_prefix_hash
         )
+        
+    def update_collision_stats(self):
+        transcript = self.transcript_wb[..., :self.current_lengths_wb.max()].tolist()
+        transcript_wb_prev_ptr = self.transcript_wb_prev_ptr[..., :self.current_lengths_wb.max()].tolist()
+        scores = self.scores.tolist()
+        transcript_hash = self.transcript_hash.tolist()
+        
+        batch_size = self.scores.shape[0]
+        beam_size = self.scores.shape[1]
+        hyp_length = self.current_lengths_wb[0, 0].cpu().item()
+        # TODO: faster parallel aggregation
+        # TODO: timesteps
+        for batch_i in range(batch_size):
+            cur_transcripts_map = dict()
+            for cur in range(beam_size):
+                cur_index = cur
+                cur_transcript=[]
+                # hyp_length = self.last_timestep[i, cur_index]
+                for j in range(hyp_length - 1, -1, -1):
+                    token = transcript[batch_i][cur_index][j]
+                    if token > 0 and token != self.blank_index:
+                        cur_transcript.append(token)
+                    cur_index = transcript_wb_prev_ptr[batch_i][cur_index][j]
+                    
+                hash = transcript_hash[batch_i][cur]
+                if hash in cur_transcripts_map:
+                    cur_transcripts_map[hash].append(tuple(cur_transcript))
+                else:
+                    cur_transcripts_map[hash]=[tuple(cur_transcript)]
+                    
+            for hash in cur_transcripts_map:
+                set_cur_transcripts_map=set(cur_transcripts_map[hash])
+                num_hyps_with_hash=len(set_cur_transcripts_map)
+                
+                unique_length_counts = len(Counter((len(x), x[-1] if x else None) for x in set_cur_transcripts_map))
+                self.hash_collisions_count += num_hyps_with_hash - 1 
+                self.collisions_count += num_hyps_with_hash - 1 - (unique_length_counts - 1)
+                        
+        self.comparisons_count += batch_size * beam_size
 
     def self_recombine_hyps_(self):
         if self.beam_size <= 1:
@@ -188,6 +233,9 @@ class BatchedBeamHyps:
         )
         new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
+        
+        if self.count_collision_stats:
+            self.update_collision_stats()
     
     def remove_duplicates(self, labels, total_logps):
         if self.beam_size <= 1:
@@ -347,6 +395,9 @@ class BatchedBeamHyps:
                     dec_state=None,
                 )
             )
+            
+        # print("Total updates: ", self.comparisons_count)
+        # print("Total collisions: ", self.collisions_count)
         return hypotheses
     
     

@@ -246,6 +246,10 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
     cuda_graphs_mode: Optional[CudaGraphsMode]
     state: Optional[MALSDState]
     ngram_lm_batch: Optional[FastNGramLM]
+    
+    hash_collisions: Optional[int]
+    collisions: Optional[int]
+    comparisons: Optional[int]
 
     def __init__(
         self,
@@ -286,6 +290,10 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.state = None
         self.full_graph = None
         self.separate_graphs = None
+        
+        self.hash_collisions = 0
+        self.collisions = 0
+        self.comparisons = 0
         
         # prprpr
         # self.cuda_graphs_mode = self.CudaGraphsMode("full_graph")
@@ -578,6 +586,9 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             active_mask = time_indices <= last_timesteps
             # torch.cuda.set_sync_debug_mode(0)
 
+        self.hash_collisions+=batched_hyps.hash_collisions_count
+        self.collisions+=batched_hyps.collisions_count
+        self.comparisons+=batched_hyps.comparisons_count
         return batched_hyps.to_hyps_list(score_norm=self.score_norm)
     
     def topk_lm(self, lm_scores, log_probs):

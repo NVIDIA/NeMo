@@ -382,8 +382,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 total_duration += item["duration"]
 
     timer = SimpleTimer()
-    warmup_steps = 1
-    run_steps = 3
+    warmup_steps = 0
+    run_steps = 1
     if (cfg.decoding.strategy in ("maes", "alsd")) or "dev" in cfg.dataset_manifest:
         warmup_steps = 0
         run_steps = 1
@@ -425,6 +425,9 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 if run_step >= warmup_steps:
                     model_measurements.append(timer.total_sec())
                     decoder_measurements.append(asr_model.decoding.decoding.timer.total_sec())
+        logging.info(f"Hash collisions: {asr_model.decoding.decoding.collisions_count}")
+        logging.info(f"Collisions: {asr_model.decoding.decoding.collisions_count}")
+        logging.info(f"Comparisons: {asr_model.decoding.decoding.comparisons_count}")
                     
     model_measurements = np.asarray(model_measurements)
     decoder_measurements = np.asarray(decoder_measurements)
