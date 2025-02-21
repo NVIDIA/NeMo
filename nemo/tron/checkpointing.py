@@ -780,10 +780,6 @@ def generate_state_dict(
     if iteration is not None:
         state_dict["iteration"] = iteration
 
-    # TODO: Remove this hack when we find a way to save/load the config container.
-    state_dict["tensor_model_parallel_size"] = cfg.model_config.tensor_model_parallel_size
-    state_dict["pipeline_model_parallel_size"] = cfg.model_config.pipeline_model_parallel_size
-
     if len(model) == 1:
         state_dict["model"] = (
             model[0].sharded_state_dict() if use_dist_ckpt else model[0].state_dict_for_save_checkpoint()
