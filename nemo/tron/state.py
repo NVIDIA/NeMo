@@ -16,14 +16,16 @@ import os
 import time
 import types
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import torch
 import yaml
 from megatron.core.timers import Timers
+from megatron.core.utils import StragglerDetector
 from torch.distributed.checkpoint.stateful import Stateful
 
 from nemo.tron.config import ConfigContainer
+from nemo.tron.dist_signal_handler import DistributedSignalHandler
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils.common_utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
 
@@ -88,6 +90,18 @@ class TrainState(Stateful):
         self.do_test = state_dict["do_test"].item()
 
 
+@dataclass
+class FaultToleranceState:
+    ft_state_path: Optional[str] = None
+    is_persistent_chkpt_loaded: bool = False
+    is_async_chkpt_enabled: bool = False
+    is_calculating_timeouts: bool = False
+    is_setup_section_open: bool = False
+    seen_checkpoints_cnt: int = 0
+    seen_tr_iters_cnt: int = 0
+    curr_eval_iter_idx: int = 0
+
+
 # replacement for Megatron's global variables, except mbs calc and parallel state
 class GlobalState:
     _instance = None
@@ -109,7 +123,11 @@ class GlobalState:
         self._wandb_logger = None
         self._timers = None
         self._train_state = None
+        self.rank_monitor_client = None
+        self._signal_handler = None
         self.start_time = time.time()
+        self._ft_state = None
+        self._straggler_timer = None
 
     @property
     def cfg(self):
@@ -180,3 +198,29 @@ class GlobalState:
     @train_state.setter
     def train_state(self, value: TrainState):
         self._train_state = value
+
+    @property
+    def fault_tolerance_state(self):
+        if self._ft_state is None:
+            self._ft_state = FaultToleranceState()
+        return self._ft_state
+
+    @fault_tolerance_state.setter
+    def fault_tolerance_state(self, value: FaultToleranceState):
+        self._ft_state = value
+
+    @property
+    def signal_handler(self):
+        if self._signal_handler is None:
+            self._signal_handler = DistributedSignalHandler().__enter__()
+        return self._signal_handler
+
+    @signal_handler.setter
+    def signal_handler(self, value):
+        self._signal_handler = value
+
+    @property
+    def straggler_timer(self):
+        if self._straggler_timer is None:
+            self._straggler_timer = StragglerDetector()
+        return self._straggler_timer

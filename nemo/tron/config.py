@@ -642,20 +642,6 @@ class MegatronLMConfig:
     rotary_scaling_factor: float = 1.0
     """Rotary scaling factor for the rotary embeddings."""
 
-    # ---------------- Straggler config. ----------------
-
-    log_straggler: bool = False
-    """If set, tracks and logs straggler per GPU."""
-
-    enable_straggler_on_startup: bool = True
-    """If set, StragglerDetector is disabled on startup."""
-
-    straggler_ctrlr_port: int = 65535
-    """Port number to toggle StragglerDetector on/off at runtime"""
-
-    straggler_minmax_count: int = 1
-    """Number of ranks to report with high/low estimated throughput"""
-
     # ---------------- Inference config. ----------------
 
     max_tokens_to_oom: int = 12000
@@ -723,11 +709,6 @@ class MegatronLMConfig:
 
     yaml_cfg: Optional[str] = None
     """Config file to add additional arguments"""
-
-    # ---------------- Ft_package config. ----------------
-
-    enable_ft_package: bool = False
-    """If set, Fault Tolerance package is enabled. Note: This feature is for Nvidia internal use only."""
 
     # ---------------- Config logger config. ----------------
 
@@ -955,6 +936,54 @@ class CheckpointConfig:
     ] = "assume_ok_unexpected"
     """Determine handling of key mismatch during checkpoint load. Check StrictHandling docs for flags meaning. NOTE: This flag controls only distributed checkpoint load from storage, not loading state dict into the model."""
 
+    replication: bool = False
+    """If set, replication of local checkpoints is enabled. Needs to be enabled on all ranks."""
+
+    replication_jump: Optional[int] = None
+    """Specifies `J`, the spacing between ranks storing replicas of a given rank's data. Replicas for rank `n` may be on ranks `n+J`, `n+2J`, ..., or `n-J`, `n-2J`, etc. This flag has an effect only if --replication is used. and must be consistent across all ranks."""
+
+    replication_factor: int = 2
+    """Number of machines storing the replica of a given rank's data."""
+
+
+@dataclass
+class FaultToleranceConfig:
+    enable_ft_package: bool = False
+    """If set, Fault Tolerance package is enabled. Note: This feature is for Nvidia internal use only."""
+
+    calc_ft_timeouts: bool = False
+    """If set, FT package will try to automatically compute the timeouts. Note: This feature is for Nvidia internal use only."""
+
+    simulate_fault: bool = False
+    """Sets a simulated fault for fault tolerance. NOTE: This if for fault tolerance testing only."""
+
+    simulated_fault_type: Literal["rank_hung", "rank_killed", "random"] = "random"
+    """How the simulated fault should behave. 'random' will randomly choose one of the other two options."""
+
+    simulated_fault_rank: Optional[int] = None
+    """Rank on which simulated fault should occur."""
+
+    simulated_fault_base_delay: int = 0
+    """Base delay before simulated fault thread is started. A small random delay is added to this."""
+
+
+@dataclass
+class StragglerDetectionConfig:
+    log_straggler: bool = False
+    """If set, tracks and logs straggler per GPU."""
+
+    enable_straggler_on_startup: bool = True
+    """If set, StragglerDetector is disabled on startup."""
+
+    straggler_ctrlr_port: int = 65535
+    """Port number to toggle StragglerDetector on/off at runtime"""
+
+    straggler_minmax_count: int = 1
+    """Number of ranks to report with high/low estimated throughput"""
+
+    disable_straggler_on_startup: bool = False
+    """If set, StragglerDetector is disabled on startup."""
+
 
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass(kw_only=True)
@@ -970,6 +999,8 @@ class ConfigContainer:
     logger_config: LoggerConfig
     tokenizer_config: TokenizerConfig
     checkpoint_config: CheckpointConfig
+    ft_config: FaultToleranceConfig
+    straggler_config: StragglerDetectionConfig
 
     def __post_init__(self):
         # Run validations
