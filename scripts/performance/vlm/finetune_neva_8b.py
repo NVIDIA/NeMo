@@ -73,7 +73,7 @@ if __name__ == "__main__":
     recipe = override_recipe_configs(args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size)
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
-    exp_name = f"{args.finetuning}_{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
         args.account,
