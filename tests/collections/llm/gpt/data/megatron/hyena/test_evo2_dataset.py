@@ -46,7 +46,7 @@ token after the pipe and it is a 'd' character. Make sure tests are consistent w
         with Evo2Preprocessor.preprocessing_context_manager(seed if seed is not None else None):
             return (
                 "|d__{};p__{};c__{};o__{};f__{};g__{};s__{}|".format(
-                    lineage.kingdom if random.random() >= dropout else None,
+                    lineage.domain if random.random() >= dropout else None,
                     lineage.phylum if random.random() >= dropout else None,
                     lineage.clazz if random.random() >= dropout else None,
                     lineage.order if random.random() >= dropout else None,
@@ -949,7 +949,7 @@ def _construct_taxonomy_token(dropout: float = 0.0) -> str:
     """
     # If dropout > 0, randomly drop out segments of the lineage for training on incomplete lineages.
     return "|d__{};p__{};c__{};o__{};f__{};g__{};s__{}|".format(
-        "somekingdom" if random.random() >= dropout else None,
+        "somedomain" if random.random() >= dropout else None,
         "somephylum" if random.random() >= dropout else None,
         "someclass" if random.random() >= dropout else None,
         "someorder" if random.random() >= dropout else None,
