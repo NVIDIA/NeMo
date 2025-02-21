@@ -351,6 +351,18 @@ def parse_args():
         default=False,
         help="Overlap the gradient reduce with the optimizer step.",
     )
+    parser.add_argument(
+        "--hidden-dropout",
+        type=float,
+        default=0.0,
+        help="Dropout probability for the hyena layers",
+    )
+    parser.add_argument(
+        "--attention-dropout",
+        type=float,
+        default=0.0,
+        help="Dropout probability for the attention layers.",
+    )
     recompute_group = parser.add_mutually_exclusive_group(required=False)
     recompute_group.add_argument("--no-activation-checkpointing", action="store_true", default=False)
     recompute_group.add_argument("--selective-activation-checkpointing", action="store_true", default=False)
@@ -418,6 +430,8 @@ def main():
     config_modifiers_init = {
         "tp_comm_overlap": args.use_megatron_comm_overlap_8k,
         "seq_length": args.seq_length,
+        "hidden_dropout": args.hidden_dropout,
+        "attention_dropout": args.attention_dropout,
         "to_upper": "weighted" if args.no_renormalize_loss else "normalized_weighted",
         "distribute_saved_activations": False if args.sequence_parallel else True,
         "cross_entropy_loss_fusion": args.cross_entropy_loss_fusion,
@@ -534,6 +548,8 @@ def main():
                 f"-PEOD{args.eod_pad_in_loss_mask}"
                 f"-BO{args.add_bias_output}"
                 f"-GCLP{args.clip_grad}"
+                f"-HDO{args.hidden_dropout}"
+                f"-ADO{args.attention_dropout}"
                 f"-LR{args.lr}-MINLR{args.min_lr}-WUSTEPS{args.warmup_steps}-WD{args.wd}"
                 f"-GRFP32{args.grad_reduce_in_fp32}-FP8WG{args.fp8_wgrad and args.fp8}"
                 f"-OGR{args.overlap_grad_reduce}-OPG{args.overlap_param_gather}"
