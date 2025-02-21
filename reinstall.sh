@@ -143,7 +143,7 @@ nemo() {
   ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
   echo 'Installing nemo itself'
-  pip install --no-cache-dir --no-build-isolation $NEMO_DIR/.[all]
+  pip install --no-cache-dir -e $NEMO_DIR/.[all]
 }
 
 echo 'Uninstalling stuff'
