@@ -25,7 +25,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo import lightning as nl
 from nemo.collections import vlm
-from nemo.collections.llm.api import finetune
+from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.model.llama import Llama3Config8B
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
