@@ -25,40 +25,31 @@ from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerat
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
 
-def make_squad_hf_dataset(data_path, tokenizer):
-    EOS_TOKEN = tokenizer.eos_token  # Must add EOS_TOKEN
+def make_squad_hf_dataset(tokenizer, data_path=DATA_PATH):
+    def formatting_prompts_func(example):
+        formatted_text = [
+            f"Context: {example['context']} Question: {example['question']} Answer:",
+            f" {example['answers']['text'][0].strip()}",
+        ]
+        context_ids, answer_ids = list(map(tokenizer.text_to_ids, formatted_text))
+        if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id:
+            context_ids.insert(0, tokenizer.bos_id)
+        if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id:
+            answer_ids.append(tokenizer.eos_id)
 
-    def formatting_prompts_func(examples):
-        alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+        return dict(
+            labels=(context_ids + answer_ids)[1:],
+            input_ids=(context_ids + answer_ids)[:-1],
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
+        )
 
-    ### Instruction:
-    {}
-
-    ### Input:
-    {}
-
-    ### Response:
-    {}"""
-        instruction = examples["context"]
-        input = examples["question"]
-        output = examples["answers"]['text']
-        if isinstance(output, list):
-            output = output[0]
-        text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
-        ans = tokenizer(text)
-        ans['labels'] = ans['input_ids']
-        return ans
-
-    tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
-    datamodule = llm.HFDatasetDataModule(data_path, split="train[:100]", pad_token_id=tokenizer.eos_token_id)
-
+    datamodule = llm.HFDatasetDataModule(data_path, split="train[:10]", pad_token_id=tokenizer.eos_id)
     datamodule.map(
         formatting_prompts_func,
         batched=False,
         batch_size=2,
         remove_columns=["id", "title", "context", "question", 'answers'],
     )
-
     return datamodule
 
 
@@ -102,7 +93,7 @@ if __name__ == '__main__':
 
         llm.api.finetune(
             model=model,
-            data=make_squad_hf_dataset(DATA_PATH, tokenizer),
+            data=make_squad_hf_dataset(tokenizer),
             trainer=nl.Trainer(
                 devices=args.devices,
                 max_steps=args.max_steps,
