@@ -722,7 +722,7 @@ def checkpoint_and_decide_exit(
                     checkpointing_context,
                     train_data_iterator=train_data_iterator,
                 )
-            print_datetime("exiting program after receiving SIGTERM.")
+            barrier_and_log("exiting program after receiving SIGTERM.")
 
             return True
 
