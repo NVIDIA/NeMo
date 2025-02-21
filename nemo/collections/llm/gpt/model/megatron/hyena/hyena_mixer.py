@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from transformer_engine.common.recipe import DelayedScaling, Format
-except:
+except ImportError:
     logger.warning("WARNING: transformer_engine not installed. Using default recipe.")
 
 
