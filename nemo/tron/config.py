@@ -642,20 +642,6 @@ class MegatronLMConfig:
     rotary_scaling_factor: float = 1.0
     """Rotary scaling factor for the rotary embeddings."""
 
-    # ---------------- Straggler config. ----------------
-
-    log_straggler: bool = False
-    """If set, tracks and logs straggler per GPU."""
-
-    enable_straggler_on_startup: bool = True
-    """If set, StragglerDetector is disabled on startup."""
-
-    straggler_ctrlr_port: int = 65535
-    """Port number to toggle StragglerDetector on/off at runtime"""
-
-    straggler_minmax_count: int = 1
-    """Number of ranks to report with high/low estimated throughput"""
-
     # ---------------- Inference config. ----------------
 
     max_tokens_to_oom: int = 12000
@@ -972,6 +958,24 @@ class FaultToleranceConfig:
     """Base delay before simulated fault thread is started. A small random delay is added to this."""
 
 
+@dataclass
+class StragglerDetectionConfig:
+    log_straggler: bool = False
+    """If set, tracks and logs straggler per GPU."""
+
+    enable_straggler_on_startup: bool = True
+    """If set, StragglerDetector is disabled on startup."""
+
+    straggler_ctrlr_port: int = 65535
+    """Port number to toggle StragglerDetector on/off at runtime"""
+
+    straggler_minmax_count: int = 1
+    """Number of ranks to report with high/low estimated throughput"""
+
+    disable_straggler_on_startup: bool = False
+    """If set, StragglerDetector is disabled on startup."""
+
+
 # ---------------- Container config (standalone top-level config) ----------------
 @dataclass(kw_only=True)
 class ConfigContainer:
@@ -987,6 +991,7 @@ class ConfigContainer:
     tokenizer_config: TokenizerConfig
     checkpoint_config: CheckpointConfig
     ft_config: FaultToleranceConfig
+    straggler_config: StragglerDetectionConfig
 
     def __post_init__(self):
         # Run validations

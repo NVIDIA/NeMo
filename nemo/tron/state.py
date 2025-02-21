@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Optional
 import torch
 import yaml
 from megatron.core.timers import Timers
+from megatron.core.utils import StragglerDetector
 from torch.distributed.checkpoint.stateful import Stateful
 
 from nemo.tron.config import ConfigContainer
@@ -129,6 +130,7 @@ class GlobalState:
         self._rank_monitor_client = None
         self.start_time = time.time()
         self._ft_state = None
+        self.straggler_timer = StragglerDetector()
 
     @property
     def cfg(self):

@@ -84,6 +84,7 @@ def train(
     model_config = get_model_config(model[0])
     mlm_config = config.megatron_lm_config
     timers = global_state.timers
+    straggler_timer = global_state.straggler_timer
 
     # Turn on training mode which enables dropout.
     for model_module in model:
@@ -136,6 +137,18 @@ def train(
         ), "Manual garbage collection interval should be larger than or equal to 0"
         gc.disable()
         gc.collect()
+
+    if config.straggler_config.log_straggler:
+        world = torch.distributed.get_world_size()
+        rank = torch.distributed.get_rank()
+        mmcnt = config.straggler_config.straggler_minmax_count
+        straggler_timer.configure(
+            world,
+            rank,
+            mmcnt=mmcnt,
+            enabled=not config.straggler_config.disable_straggler_on_startup,
+            port=config.straggler_config.straggler_ctrlr_port,
+        )
 
     num_microbatches = get_num_microbatches()
     eval_duration = 0.0
@@ -350,12 +363,11 @@ def train(
         # Some of these only happen at specific iterations.
         post_training_step_callbacks(
             model,
-            optimizer,
-            scheduler,
+            num_floating_point_operations_since_last_log_event,
+            straggler_timer,
             global_state.train_state.step,
             prof,
-            mlm_config,
-            # num_floating_point_operations_since_last_log_event,
+            config,
             should_toggle_forward_pre_hook,
         )
 
@@ -491,13 +503,28 @@ def train_step(
 
 
 def post_training_step_callbacks(
-    model, optimizer, scheduler, iteration, prof, mlm_config: MegatronLMConfig, should_toggle_forward_pre_hook: bool
+    model,
+    num_floating_point_operations_since_last_log_event,
+    straggler_timer,
+    iteration,
+    prof,
+    config: ConfigContainer,
+    should_toggle_forward_pre_hook: bool,
 ):
     """Run all post-training-step functions (e.g., FT heartbeats, GC)."""
+    mlm_config = config.megatron_lm_config
 
     # Bring CPU and GPU back in sync if on right iteration.
     if mlm_config.train_sync_interval and iteration % mlm_config.train_sync_interval == 0:
         torch.cuda.synchronize()
+
+    # Straggler detector.
+    if iteration % config.logger_config.log_interval == 0 and config.straggler_config.log_straggler:
+        straggler_timer.report(
+            num_floating_point_operations_since_last_log_event,
+            config.logger_config.log_interval,
+        )
+        num_floating_point_operations_since_last_log_event = 0.0
 
     # Check weight hash across DP replicas.
     if (
