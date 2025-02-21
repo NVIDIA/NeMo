@@ -498,7 +498,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
             if self.context_parallel_lm > 1:
-                #_process_embedding_token_parallel expects input in shape bshd for cp
+                # _process_embedding_token_parallel expects input in shape bshd for cp
                 combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
 
             combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
@@ -760,10 +760,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 final_embedding = final_embedding[: self._language_max_sequence_length]
                 if packed_sequence:
                     truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
-                    final_seq_len_padded =  (packed_seq_params.cu_seqlens_q_padded[-1] -
-                                             packed_seq_params.cu_seqlens_q_padded[-2])
-                    final_seq_len_unpadded = (packed_seq_params.cu_seqlens_q[-1] -
-                                             packed_seq_params.cu_seqlens_q[-2])
+                    final_seq_len_padded = (
+                        packed_seq_params.cu_seqlens_q_padded[-1] - packed_seq_params.cu_seqlens_q_padded[-2]
+                    )
+                    final_seq_len_unpadded = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
                     final_padding = final_seq_len_padded - final_seq_len_unpadded
                     truncate_len -= final_padding
                     packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
