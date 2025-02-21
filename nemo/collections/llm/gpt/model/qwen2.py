@@ -89,7 +89,6 @@ class Qwen2Config72B(Qwen2Config):
     ffn_hidden_size: int = 29568
     vocab_size: int = 152064
     layernorm_epsilon: float = 1e-5
-    vocab_size: int = 152064
 
 
 class Qwen2Model(GPTModel):
@@ -163,6 +162,8 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             make_vocab_size_divisible_by=128,
             rotary_base=source.rope_theta,
             share_embeddings_and_output_weights=False,
+            vocab_size=source.vocab_size,
+            seq_length=source.max_position_embeddings,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
