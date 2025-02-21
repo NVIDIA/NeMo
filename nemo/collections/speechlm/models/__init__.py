@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.speechlm.models.hf_auto_model_for_speech_seq2seq import HFAutoModelForSpeechSeq2Seq
+from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTextLLM
