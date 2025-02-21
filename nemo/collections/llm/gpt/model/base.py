@@ -15,6 +15,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 from functools import partial
+from contextlib import nullcontext
 
 import lightning.pytorch as L
 import torch
@@ -221,6 +222,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
         # Set FP8 recipe to DelayedScaling to initialize model with float8 precision.
+        build_model_context = nullcontext
         if self.fp8 is not None:
             assert HAVE_TE, "Transformer Engine is required for FP8 training."
             te_pytorch, _ = safe_import("transformer_engine.pytorch")
