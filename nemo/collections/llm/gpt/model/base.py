@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from functools import partial
-from contextlib import nullcontext
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 
 import lightning.pytorch as L
