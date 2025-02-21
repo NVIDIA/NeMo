@@ -578,7 +578,7 @@ class NGPTStackingSubsampling(torch.nn.Module):
             torch.nn.init.zeros_(self.proj_out.bias)
 
     def normalize_matrices(self):
-        self.proj_out.weight.data.copy_(justnorm_fp32(self.proj_out.weight.data, 1))
+        self.proj_out.weight.data.copy_(justnorm_fp32(self.proj_out.weight.data, 0))
 
     def forward(self, x, lengths):
         b, t, h = x.size()
