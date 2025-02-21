@@ -34,6 +34,7 @@ from megatron.core.pipeline_parallel import get_forward_backward_func
 from megatron.core.rerun_state_machine import get_rerun_state_machine
 from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model_config
 
+from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import ConfigContainer, MegatronLMConfig
 from nemo.tron.eval import evaluate_and_print_results
@@ -84,6 +85,7 @@ def train(
     model_config = get_model_config(model[0])
     mlm_config = config.megatron_lm_config
     timers = global_state.timers
+    straggler_timer = global_state.straggler_timer
 
     # Turn on training mode which enables dropout.
     for model_module in model:
@@ -136,6 +138,18 @@ def train(
         ), "Manual garbage collection interval should be larger than or equal to 0"
         gc.disable()
         gc.collect()
+
+    if config.straggler_config.log_straggler:
+        world = torch.distributed.get_world_size()
+        rank = torch.distributed.get_rank()
+        mmcnt = config.straggler_config.straggler_minmax_count
+        straggler_timer.configure(
+            world,
+            rank,
+            mmcnt=mmcnt,
+            enabled=not config.straggler_config.disable_straggler_on_startup,
+            port=config.straggler_config.straggler_ctrlr_port,
+        )
 
     num_microbatches = get_num_microbatches()
     eval_duration = 0.0
@@ -191,6 +205,10 @@ def train(
                 torch.cuda.cudart().cudaProfilerStart()
                 torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
+        fault_tolerance.on_checkpointing_start(global_state)
+        maybe_finalize_async_save(ckpt_cfg=config.checkpoint_config, blocking=False)
+        fault_tolerance.on_checkpointing_end(global_state=global_state, is_async_finalization=True)
+
         # Update number of microbatches first without consistency check to decide if a
         # checkpoint should be saved. If the number of microbatches is different
         # from the previous iteration, save a checkpoint. Then run consistency check
@@ -227,9 +245,11 @@ def train(
         #     continue
 
         # Run training step.
+        fault_tolerance.on_training_step_start(global_state)
         loss_dict, skipped_iter, should_checkpoint, should_exit, exit_code, grad_norm, num_zeros_in_grad = train_step(
             forward_step_func, train_data_iterator, model, optimizer, scheduler, global_state
         )
+        fault_tolerance.on_training_step_end(global_state)
         if should_checkpoint:
             save_checkpoint_and_time(
                 global_state,
@@ -350,12 +370,11 @@ def train(
         # Some of these only happen at specific iterations.
         post_training_step_callbacks(
             model,
-            optimizer,
-            scheduler,
+            num_floating_point_operations_since_last_log_event,
+            straggler_timer,
             global_state.train_state.step,
             prof,
-            mlm_config,
-            # num_floating_point_operations_since_last_log_event,
+            config,
             should_toggle_forward_pre_hook,
         )
 
@@ -381,19 +400,18 @@ def train(
     if pre_hook_enabled:
         disable_forward_pre_hook(model)
 
-    # ft_integration.on_checkpointing_start()
     # This will finalize all unfinalized async request and terminate
     # a persistent async worker if persistent ckpt worker is enabled
+    fault_tolerance.on_checkpointing_start(global_state)
     maybe_finalize_async_save(ckpt_cfg=config.checkpoint_config, blocking=True, terminate=True)
-    # ft_integration.on_checkpointing_end(is_async_finalization=True)
-    # if args.enable_ft_package and ft_integration.get_rank_monitor_client() is not None:
-    #     ft_integration.get_rank_monitor_client().shutdown_workload_monitoring()
+    fault_tolerance.on_checkpointing_end(global_state=global_state, is_async_finalization=True)
 
     # If any exit conditions (signal handler, duration, iterations) have been reached, exit.
     if should_exit:
         wandb_writer = global_state.wandb_logger
         if wandb_writer:
             wandb_writer.finish()
+        fault_tolerance.shutdown(global_state)
         sys.exit(exit_code)
 
     return global_state.train_state.step
@@ -491,13 +509,28 @@ def train_step(
 
 
 def post_training_step_callbacks(
-    model, optimizer, scheduler, iteration, prof, mlm_config: MegatronLMConfig, should_toggle_forward_pre_hook: bool
+    model,
+    num_floating_point_operations_since_last_log_event,
+    straggler_timer,
+    iteration,
+    prof,
+    config: ConfigContainer,
+    should_toggle_forward_pre_hook: bool,
 ):
     """Run all post-training-step functions (e.g., FT heartbeats, GC)."""
+    mlm_config = config.megatron_lm_config
 
     # Bring CPU and GPU back in sync if on right iteration.
     if mlm_config.train_sync_interval and iteration % mlm_config.train_sync_interval == 0:
         torch.cuda.synchronize()
+
+    # Straggler detector.
+    if iteration % config.logger_config.log_interval == 0 and config.straggler_config.log_straggler:
+        straggler_timer.report(
+            num_floating_point_operations_since_last_log_event,
+            config.logger_config.log_interval,
+        )
+        num_floating_point_operations_since_last_log_event = 0.0
 
     # Check weight hash across DP replicas.
     if (
@@ -676,23 +709,22 @@ def checkpoint_and_decide_exit(
     # Exit based on signal handler.
     saved_checkpoint = False
 
-    # TODO: add signal handler
-    # if state.cfg.megatron_lm_config.exit_signal_handler:
-    #     signal_handler = get_signal_handler()
-    #     if any(signal_handler.signals_received()):
-    #         if args.save:
-    #             save_checkpoint_and_time(
-    #                 iteration,
-    #                 model,
-    #                 optimizer,
-    #                 opt_param_scheduler,
-    #                 num_floating_point_operations_so_far,
-    #                 checkpointing_context,
-    #                 train_data_iterator=train_data_iterator,
-    #             )
-    #         print_datetime("exiting program after receiving SIGTERM.")
+    if state.cfg.megatron_lm_config.exit_signal_handler:
+        signal_handler = state.signal_handler
+        if any(signal_handler.signals_received()):
+            if state.cfg.checkpoint_config.save:
+                save_checkpoint_and_time(
+                    state,
+                    model,
+                    optimizer,
+                    opt_param_scheduler,
+                    num_floating_point_operations_so_far,
+                    checkpointing_context,
+                    train_data_iterator=train_data_iterator,
+                )
+            barrier_and_log("exiting program after receiving SIGTERM.")
 
-    #         return True
+            return True
 
     # Regular save (persistent and non-persistent).
     if (
