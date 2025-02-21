@@ -19,9 +19,10 @@ import lightning.pytorch as pl
 import nemo_run as run
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 
 import nemo.lightning as nl
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+
 
 def trainer(
     tensor_parallelism: int = 4,

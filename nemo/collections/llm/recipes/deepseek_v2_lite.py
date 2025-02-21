@@ -50,6 +50,7 @@ def model() -> run.Config[pl.LightningModule]:
     conf = run.Config(DeepSeekV2LiteConfig)
     return run.Config(DeepSeekModel, config=conf)
 
+
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
     dir: Optional[str] = None,
