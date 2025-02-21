@@ -250,6 +250,9 @@ class AllToAllSingleFunction(Function):
 
     @staticmethod
     def forward(ctx, input_tensor, group, type, with_zigzag_splitting):
+        """
+        Forward pass for the AllToAllSingleFunction.
+        """
         ctx.group = group
         ctx.type = type
         ctx.with_zigzag_splitting = with_zigzag_splitting
@@ -266,6 +269,9 @@ class AllToAllSingleFunction(Function):
 
     @staticmethod
     def backward(ctx, grad_output):
+        """
+        Backward pass for the AllToAllSingleFunction.
+        """
         # The backward pass will perform the reverse communication
         grad_input = all_to_all_single_fn(
             group=ctx.group,
@@ -326,7 +332,9 @@ class ExchangeOverlappingRegionsCausal(Function):
 
     @staticmethod
     def forward(ctx, chunk_a, chunk_b, group, group_rank):
-
+        """
+        Forward pass for the ExchangeOverlappingRegionsCausal function.
+        """
         group_ranks = dist.get_process_group_ranks(group)  # Get all global ranks in the cp_group
         group_world_size = len(group_ranks)  # Size of the cp_group
 
@@ -382,6 +390,9 @@ class ExchangeOverlappingRegionsCausal(Function):
 
     @staticmethod
     def backward(ctx, grad_chunk_a, grad_chunk_b):
+        """
+        Backward pass for the ExchangeOverlappingRegionsCausal function.
+        """
         # chunk_a, chunk_b = ctx.saved_tensors
         group_rank = ctx.group_rank
         group_world_size = ctx.group_world_size

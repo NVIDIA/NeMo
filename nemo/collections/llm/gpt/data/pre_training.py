@@ -299,6 +299,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         ).build()
 
     def setup(self, stage: str = "") -> None:
+        """
+        Setup the data module.
+        """
         assert (
             hasattr(self, "trainer") and self.trainer is not None
         ), "Setup should be completed when trainer and config are attached."
@@ -328,12 +331,21 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
     #     ).build()
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        """
+        Get the train dataloader.
+        """
         return self._create_dataloader(self._train_ds, mode="train")
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        """
+        Get the validation dataloader.
+        """
         return self._create_dataloader(self._validation_ds, mode="validation")
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        """
+        Get the test dataloader.
+        """
         return self._create_dataloader(self._test_ds, mode="test")
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
