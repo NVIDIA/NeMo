@@ -12,29 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import subprocess
 import argparse
-from nemo.utils import logging
-from nemo.collections.llm.evaluation.base import wait_for_server_ready
+import subprocess
+
 from nemo.collections.llm import evaluate
-from nemo.collections.llm.evaluation.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
+from nemo.collections.llm.evaluation.base import wait_for_server_ready
+from nemo.utils import logging
+
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Test evaluation with lm-eval-harness on nemo2 model deployed on PyTriton')
+    parser = argparse.ArgumentParser(
+        description='Test evaluation with lm-eval-harness on nemo2 model deployed on PyTriton'
+    )
     parser.add_argument('--nemo2_ckpt_path', type=str, help="NeMo 2.0 ckpt path")
     parser.add_argument('--max_batch_size', type=int, help="Max BS for the model for deployment")
-    parser.add_argument('--trtllm_dir', type=str, help="Folder for the trt-llm conversion, trt-llm engine gets saved \
-                        in this specified dir")
+    parser.add_argument(
+        '--trtllm_dir',
+        type=str,
+        help="Folder for the trt-llm conversion, trt-llm engine gets saved \
+                        in this specified dir",
+    )
     parser.add_argument('--eval_type', type=str, help="Evaluation benchmark to run from lm-eval-harness")
     parser.add_argument('--limit', type=int, help="Limit evaluation to `limit` num of samples")
 
     return parser.parse_args()
 
+
 def run_deploy(args):
-    return subprocess.Popen(["python", "tests/evaluation/deploy_script.py",
-                             "--nemo2_ckpt_path", args.nemo2_ckpt_path,
-                             "--max_batch_size", str(args.max_batch_size),
-                             "--trtllm_dir", args.trtllm_dir])
+    return subprocess.Popen(
+        [
+            "python",
+            "tests/evaluation/deploy_script.py",
+            "--nemo2_ckpt_path",
+            args.nemo2_ckpt_path,
+            "--max_batch_size",
+            str(args.max_batch_size),
+            "--trtllm_dir",
+            args.trtllm_dir,
+        ]
+    )
+
 
 if __name__ == '__main__':
     args = get_args()

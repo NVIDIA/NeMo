@@ -14,17 +14,25 @@
 
 import argparse
 
-from nemo.utils import logging
 from nemo.collections.llm import api
+from nemo.utils import logging
+
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Test evaluation with lm-eval-harness on nemo2 model deployed on PyTriton')
+    parser = argparse.ArgumentParser(
+        description='Test evaluation with lm-eval-harness on nemo2 model deployed on PyTriton'
+    )
     parser.add_argument('--nemo2_ckpt_path', type=str, help="NeMo 2.0 ckpt path")
     parser.add_argument('--max_batch_size', type=int, help="Max BS for the model")
-    parser.add_argument('--trtllm_dir', type=str, help="Folder for the trt-llm conversion, trt-llm engine gets saved \
-                        in this specified dir")
+    parser.add_argument(
+        '--trtllm_dir',
+        type=str,
+        help="Folder for the trt-llm conversion, trt-llm engine gets saved \
+                        in this specified dir",
+    )
 
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     args = get_args()
@@ -32,7 +40,7 @@ if __name__ == '__main__':
         api.deploy(
             nemo_checkpoint=args.nemo2_ckpt_path,
             max_batch_size=args.max_batch_size,
-            triton_model_repository=args.trtllm_dir
+            triton_model_repository=args.trtllm_dir,
         )
     except Exception as e:
         logging.error(f"Deploy process encountered an error: {e}")
