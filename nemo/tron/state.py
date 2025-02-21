@@ -127,7 +127,7 @@ class GlobalState:
         self._signal_handler = None
         self.start_time = time.time()
         self._ft_state = None
-        self.straggler_timer = StragglerDetector()
+        self._straggler_timer = None
 
     @property
     def cfg(self):
@@ -218,3 +218,9 @@ class GlobalState:
     @signal_handler.setter
     def signal_handler(self, value):
         self._signal_handler = value
+
+    @property
+    def straggler_timer(self):
+        if self._straggler_timer is None:
+            self._straggler_timer = StragglerDetector()
+        return self._straggler_timer
