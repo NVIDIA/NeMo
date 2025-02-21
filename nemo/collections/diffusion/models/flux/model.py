@@ -16,6 +16,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
+import os
+import math
+
 import lightning.pytorch as L
 import numpy as np
 import torch
@@ -42,7 +45,7 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
 )
 from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
 from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
-from nemo.collections.diffusion.utils.flux_ckpt_converter import _import_qkv, _import_qkv_bias
+from nemo.collections.diffusion.utils.flux_ckpt_converter import _import_qkv, _import_qkv_bias, flux_transformer_converter
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderConfig
 from nemo.collections.llm import fn
 from nemo.lightning import io, teardown
@@ -65,7 +68,7 @@ def flux_data_step(dataloader_iter):
 
 @dataclass
 class FluxConfig(TransformerConfig, io.IOMixin):
-    ## transformer related
+    # transformer related
     num_layers: int = 1  # dummy setting
     num_joint_layers: int = 19
     num_single_layers: int = 38

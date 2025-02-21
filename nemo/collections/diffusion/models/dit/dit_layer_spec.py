@@ -18,7 +18,6 @@ from typing import Literal, Union
 
 import torch
 import torch.nn as nn
-from einops import rearrange
 from megatron.core.jit import jit_fuser
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 from megatron.core.transformer.attention import (
