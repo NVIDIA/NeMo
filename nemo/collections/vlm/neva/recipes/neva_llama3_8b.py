@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Optional, Union
 
 import lightning.pytorch as pl
@@ -72,7 +72,7 @@ class NevaConfig8B(vlm.NevaConfig):
     """Llava v1.5 Config 13B"""
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama3Config8B())
-    vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
+    vision_transformer_config: TransformerConfig = field(
         default_factory=lambda: vlm.HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
     )
     vision_projection_config: TransformerConfig = field(
