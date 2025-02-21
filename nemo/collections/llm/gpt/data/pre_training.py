@@ -75,7 +75,7 @@ def validate_dataset_asset_accessibility(paths):
             validate_dataset_asset_accessibility(p)
         return
 
-    if not isinstance(paths, str) and not isisntance(paths, Path):
+    if not isinstance(paths, str) and not isinstance(paths, Path):
         raise ValueError("Expected path to be of string or Path type.")
 
     path = Path(paths)
@@ -423,7 +423,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                     limit_micro_batches = int(dl_len_in_micro_batches * limit_batches)
                     if limit_micro_batches == 0 and limit_batches > 0.0:
                         min_percentage = 1.0 / len(dataloader)
-                        raise MisconfigurationException(
+                        raise ValueError(
                             f"You requested to check {limit_batches} of the val_dataloader but"
                             f" {limit_batches} * {len(dataloader)} < 1. Please increase the"
                             f" `limit_val_batches` argument. Try at least"

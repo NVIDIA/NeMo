@@ -96,8 +96,8 @@ class Evo2Dataset(GPTDataset):
             eod_token_id (int): The token ID for EOD.
 
         Notes:
-        - The tag token is constructed as follows: So note that one way to know you have a tag is if you look at the first
-        token after the pipe and it is a 'd' character. Make sure implementation handles this.
+        - The tag token is constructed as follows: So note that one way to know you have a tag is if you look
+         at the first token after the pipe and it is a 'd' character. Make sure implementation handles this.
             ```
             return (
                 "|d__{};p__{};c__{};o__{};f__{};g__{};s__{}|".format(
@@ -233,5 +233,7 @@ class Evo2Dataset(GPTDataset):
 
 
 class Evo2DatasetPadEodLossMask(Evo2Dataset):
+    """Dataset for training Evo2 with pad and eod loss mask (more standard approach than the Evo2 paper)."""
+
     TO_UPPER_TOKENS: bool = True
     RESET_PAD_EOD_MASK: bool = False

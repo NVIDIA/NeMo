@@ -117,7 +117,8 @@ class Evo2BlendedDatasetConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validate_dataset_prefix(cls, values: dict) -> dict:
-        """Ensure dataset_prefix paths exist and are properly resolved or are relative to base dataset_path if provided.
+        """Ensure dataset_prefix paths exist and are properly resolved or are relative to base dataset_path if
+            provided.
 
         Args:
             values (dict): Dictionary containing dataset_path and dataset_prefix.
