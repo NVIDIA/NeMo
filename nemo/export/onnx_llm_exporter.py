@@ -27,6 +27,7 @@ from transformers import AutoModel, AutoTokenizer
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.utils import get_example_inputs, get_model_device_type, is_nemo2_checkpoint, validate_fp8_network
+from nemo.utils import logging
 
 
 @wrapt.decorator
@@ -44,14 +45,15 @@ batch = noop_decorator
 try:
     from pytriton.decorators import batch
 except Exception:
-    warnings.warn("PyTriton is not available.")
+    logging.warning("PyTriton is not available.")
     use_pytriton = False
+
 
 use_onnxruntime = True
 try:
     import onnxruntime
 except Exception:
-    warnings.warn("onnxruntime is not available.")
+    logging.warning("onnxruntime is not available.")
     use_onnxruntime = False
 
 
@@ -187,7 +189,7 @@ class OnnxLLMExporter(ITritonDeployable):
                 verbose=verbose,
                 opset_version=opset,
             )
-        print(f"Successfully exported PyTorch model to " f"ONNX model ({self.onnx_model_path})")
+        logging.info(f"Successfully exported PyTorch model to " f"ONNX model ({self.onnx_model_path})")
 
         existing_directory_path = Path(self.onnx_model_dir) / "tokenizer"
         existing_directory_path.mkdir(exist_ok=True)
@@ -207,7 +209,7 @@ class OnnxLLMExporter(ITritonDeployable):
         Raises:
             SerializationError: TensorRT engine must serialize properly.
         """
-        print(f"Building TRT engine from ONNX model ({self.onnx_model_path})")
+        logging.info(f"Building TRT engine from ONNX model ({self.onnx_model_path})")
         trt_logger = trt.Logger(trt.Logger.WARNING)
         builder = trt.Builder(trt_logger)
         network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
@@ -217,9 +219,9 @@ class OnnxLLMExporter(ITritonDeployable):
         # we use parse_from_file() instead of parse() because it can be used for both single
         # file models as well as externally stored models (required when model >2GiB)
         if not parser.parse_from_file(self.onnx_model_path):
-            print("ONNX model could not be parsed")
+            logging.warning("ONNX model could not be parsed")
             for error in range(parser.num_errors):
-                print(parser.get_error(error))
+                logging.error(parser.get_error(error))
             return
 
         if profiles:
@@ -238,22 +240,22 @@ class OnnxLLMExporter(ITritonDeployable):
                 config.add_optimization_profile(optimization_profile)
 
         if trt_dtype == "fp16":
-            print("Setting Build Flag FP16")
+            logging.info("Setting Build Flag FP16")
             config.set_flag(trt.BuilderFlag.FP16)
         elif trt_dtype == "fp8":
             # With FP8 export we want to also enable FP16 layers as a fallback instead of FP32
-            print("Setting Build Flag FP8 and FP16")
+            logging.info("Setting Build Flag FP8 and FP16")
             config.set_flag(trt.BuilderFlag.FP8)
             config.set_flag(trt.BuilderFlag.FP16)
             validate_fp8_network(network)
 
         # patch network
         if override_layernorm_precision_to_fp32:
-            print("Overriding TensorRT network LayerNorm precision to float32.")
+            logging.info("Overriding TensorRT network LayerNorm precision to float32.")
             self._override_layernorm_precision_to_fp32(network)
 
         if override_layers_to_fp32:
-            print("Overriding some layers to float32.")
+            logging.info("Overriding some layers to float32.")
             self._override_layers_to_fp32(network, override_layers_to_fp32)
 
         try:
@@ -265,14 +267,14 @@ class OnnxLLMExporter(ITritonDeployable):
         except KeyError:
             error_msg = f"Unknown profiling verbosity value "
             raise ValueError(error_msg)
-        print(f"Setting Profiling Verbosity to {config.profiling_verbosity}")
+        logging.info(f"Setting Profiling Verbosity to {config.profiling_verbosity}")
 
         engine_string = builder.build_serialized_network(network, config)
         if engine_string is None:
             raise Exception("Failed to serialize the TensorRT Engine. Please check the " "TensorRT logs for details")
 
         trt_model_path.write_bytes(engine_string)
-        print(f"Successfully exported ONNX model ({self.onnx_model_path}) " f"to TRT engine ({trt_model_path})")
+        logging.info(f"Successfully exported ONNX model ({self.onnx_model_path}) " f"to TRT engine ({trt_model_path})")
 
     def _override_layer_precision_to_fp32(self, layer: trt.ILayer) -> None:
         """Set TensorRT layer precision and output type to FP32.
@@ -292,9 +294,8 @@ class OnnxLLMExporter(ITritonDeployable):
                 trt.float16,
             }:
                 if layer.type in {trt.LayerType.CAST}:
-                    print(f"Skipping overriding {layer.type} layer {i} {layer_name} dtype")
+                    logging.info(f"Skipping overriding {layer.type} layer {i} {layer_name} dtype")
                     continue
-                print(layer_name)
                 if any(
                     layer.get_input(input_idx).dtype in {trt.float32, trt.float16}
                     for input_idx in range(layer.num_inputs)
@@ -302,11 +303,11 @@ class OnnxLLMExporter(ITritonDeployable):
                     # Note: Assigning to layer.precision (even the same value) sets precision_is_set=True,
                     # which prevents TensorRT from changing this layer's precision
                     layer.precision = trt.float32
-                    print(f"Setting layer {i} {layer_name} (type: {layer.type}) precision to FP32")
+                    logging.info(f"Setting layer {i} {layer_name} (type: {layer.type}) precision to FP32")
                 for j in range(layer.num_outputs):
                     if layer.get_output_type(j) in {trt.float32, trt.float16}:
                         layer.set_output_type(j, trt.float32)
-                        print(f"Setting layer {i} {layer_name} (type: {layer.type}) output type {j} to FP32")
+                        logging.info(f"Setting layer {i} {layer_name} (type: {layer.type}) output type {j} to FP32")
 
     def _override_layernorm_precision_to_fp32(self, network: trt.INetworkDefinition) -> None:
         """Set the precision of LayerNorm subgraphs to FP32 to preserve accuracy.
@@ -403,11 +404,11 @@ class OnnxLLMExporter(ITritonDeployable):
             self.calibration_data = json.load(_file)
 
         self.model.to(self.device, dtype=torch.float16)
-        print("Starting quantization...")
+        logging.info("Starting quantization...")
 
         mtq.quantize(self.model, quant_cfg, forward_loop=self._calibrate_loop)
         self.model.to("cpu").to(torch.float32)
-        print("Done ...")
+        logging.info("Quantization is completed.")
 
         return self.model
 
@@ -432,7 +433,7 @@ class OnnxLLMExporter(ITritonDeployable):
 
     def forward(self, prompt: Union[List, Dict]):
         if self.onnx_runtime_session is None:
-            warnings.warn("ONNX Runtime is not available.")
+            warnings.warn("ONNX Runtime is not available. Please install " "the onnxruntime-gpu and try again.")
             return None
         else:
             if isinstance(prompt, List):
