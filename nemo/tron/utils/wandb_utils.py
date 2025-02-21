@@ -28,14 +28,16 @@ def _get_artifact_name_and_version(save_dir: Path, checkpoint_path: Path) -> Tup
 
 
 def on_save_checkpoint_success(
-    checkpoint_path: str, tracker_filename: str, save_dir: str, iteration: int, wandb_writer
+    checkpoint_path: str,
+    save_dir: str,
+    iteration: int,
+    wandb_writer,
 ) -> None:
     if wandb_writer:
         metadata = {"iteration": iteration}
         artifact_name, artifact_version = _get_artifact_name_and_version(Path(save_dir), Path(checkpoint_path))
         artifact = wandb_writer.Artifact(artifact_name, type="model", metadata=metadata)
         artifact.add_reference(f"file://{checkpoint_path}", checksum=False)
-        artifact.add_file(tracker_filename)
         wandb_writer.run.log_artifact(artifact, aliases=[artifact_version])
         wandb_tracker_filename = _get_wandb_artifact_tracker_filename(save_dir)
         wandb_tracker_filename.write_text(f"{wandb_writer.run.entity}/{wandb_writer.run.project}")
