@@ -131,7 +131,7 @@ nemo() {
   if [[ "$PLATFORM_MACHINE" == "x86_64" ]]; then
     ${PIP} install --no-cache-dir virtualenv &&
       virtualenv $INSTALL_DIR/venv &&
-      $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools &&
+      $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools coverage &&
       $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation \
         -r $NEMO_DIR/requirements/requirements_vllm.txt \
         -r $NEMO_DIR/requirements/requirements_deploy.txt
@@ -140,7 +140,6 @@ nemo() {
   fi
 
   DEPS=(
-    "nvidia-modelopt[torch]~=0.21.0; sys_platform == 'linux'"
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
     "llama-index==0.10.43"
@@ -149,14 +148,16 @@ nemo() {
 
   if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
     echo "Installing NVIDIA Resiliency in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
-    pip install --no-cache-dir "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e ; platform_machine == 'x86_64'"
+    pip install --no-cache-dir \
+      "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e ; platform_machine == 'x86_64'" \
+      -r "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
   fi
 
   echo 'Installing dependencies of nemo'
-  ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
+  ${PIP} install --upgrade --upgrade-strategy only-if-needed --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
 
   echo 'Installing nemo itself'
-  pip install --no-cache-dir --no-build-isolation $NEMO_DIR/.[all]
+  pip install --no-cache-dir -e $NEMO_DIR/.[all]
 }
 
 echo 'Uninstalling stuff'
