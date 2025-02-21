@@ -53,11 +53,7 @@ class EmbedND(nn.Module):
             dim=-1,
         )
         emb = emb.unsqueeze(1).permute(2, 0, 1, 3)
-        emb = torch.stack([emb, emb], dim=-1).reshape(*emb.shape[:-1], -1)
-        even = emb[:, :, :, ::2]
-        odd = emb[:, :, :, 1::2]
-        interleaved_emb = torch.stack((even, odd), dim=-1)
-        return interleaved_emb.view(interleaved_emb.shape[0], interleaved_emb.shape[1], interleaved_emb.shape[2], -1)
+        return torch.stack([emb, emb], dim=-1).reshape(*emb.shape[:-1], -1)
 
 
 class MLPEmbedder(nn.Module):
