@@ -312,28 +312,6 @@ class HyenaStack(MegatronModule):
             if isinstance(hidden_states, tuple):
                 hidden_states = hidden_states[0]
 
-        # # Forward pass.
-        # if self.config.recompute_granularity == 'full' and self.training:
-        #     hidden_states = self._checkpointed_forward(
-        #         hidden_states=hidden_states,
-        #         attention_mask=attention_mask,
-        #         rotary_pos_emb=rotary_pos_emb,
-        #     )
-        # else:
-        #     for layer in self.layers:
-        #         hidden_states = layer(
-        #             hidden_states,
-        #             attention_mask,
-        #             inference_params=inference_params,
-        #             rotary_pos_emb=rotary_pos_emb,
-        #         )
-
-        # # The attention layer (currently a simplified transformer layer)
-        # # outputs a tuple of (hidden_states, context). Context is intended
-        # # for cross-attention, and is not needed in our model.
-        # if isinstance(hidden_states, tuple):
-        #     hidden_states = hidden_states[0]
-
         # Final layer norm.
         if self.post_process and self.post_layer_norm:
             hidden_states = self.final_norm(hidden_states)

@@ -200,7 +200,6 @@ def all_to_all_single_fn(
         """
 
         B, d, L = input.shape
-        D = d * world_size
 
         if with_zigzag_splitting:
             num_chunks = 2 * world_size

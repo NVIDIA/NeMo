@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from dataclasses import dataclass
 from typing import Union
 
@@ -39,10 +40,12 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     divide,
 )
 
+logger = logging.getLogger(__name__)
+
 try:
     from transformer_engine.common.recipe import DelayedScaling, Format
 except:
-    print("WARNING: transformer_engine not installed. Using default recipe.")
+    logger.warning("WARNING: transformer_engine not installed. Using default recipe.")
 
 
 def set_format_recipe():
@@ -237,8 +240,6 @@ class HyenaMixer(MegatronModule):
             _proj_use_cp = True
         else:
             _proj_use_cp = False
-
-        L, B, D = x.size()
 
         features, _ = self.dense_projection(x)
         features = rearrange(features, "l b d -> b l d").contiguous()

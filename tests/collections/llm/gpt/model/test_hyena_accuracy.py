@@ -38,14 +38,6 @@ from nemo.collections import llm
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.io.pl import MegatronCheckpointIO
 
-# from bionemo.llm.utils.weight_utils import (
-#     MegatronModelType,
-#     _key_in_filter,
-#     _munge_key_megatron_to_nemo2,
-#     _munge_sharded_tensor_key_megatron_to_nemo2,
-# )
-# from bionemo.testing.megatron_parallel_state_utils import distributed_model_parallel_state
-
 
 def _munge_key_megatron_to_nemo2(k: str) -> str:
     return f"module.{k}"
@@ -204,7 +196,7 @@ def load_weights_sharded_inplace_nemo2_to_mcore(
     )
 
 
-def test_golden_values():
+def test_golden_values(use_te: bool = True):
     """Step 1:
     # add local .ssh/*.pub key to eos ~/.ssh/authorized_keys
     mkdir -p arc_model/checkpoints/
@@ -214,7 +206,6 @@ def test_golden_values():
     rsync -avz --progress --partial login-eos01.eos.clusters.nvidia.com:/lustre/fsw/healthcareeng_bionemo/arc_evo2/savanna_outputs/interleaved_7b_golden_value.pt arc_model/gold_standards/
     rsync -avz --progress --partial login-eos01.eos.clusters.nvidia.com:/lustre/fsw/healthcareeng_bionemo/arc_evo2/savanna_outputs/final_7b_no_fp8_golden_value.pt arc_model/gold_standards/
     """
-    use_te = True
     if use_te:
         cfg_path = "arc_model/checkpoints/interleaved_hyena_7b/weights"  # TODO interleaved checkpoint
     else:

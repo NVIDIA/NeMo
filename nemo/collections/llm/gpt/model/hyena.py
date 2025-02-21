@@ -31,15 +31,10 @@ try:
     from megatron.core import parallel_state
     from megatron.core.transformer.enums import AttnBackend
     from megatron.core.transformer.transformer_config import TransformerConfig
-
-    HAVE_MEGATRON_CORE_OR_TE = True
-
 except (ImportError, ModuleNotFoundError):
     logging.warning(
         "The package `megatron.core` was not imported in this environment which is needed for Hyena models."
     )
-
-    HAVE_MEGATRON_CORE_OR_TE = False
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 
