@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
         parser = argparse.ArgumentParser()
         parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
-        parser.add_argument('--devices', default=2)
+        parser.add_argument('--devices', default=2, type=int)
         parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
         parser.add_argument('--model-accelerator', default=None, choices=['te'])
         parser.add_argument('--max-steps', type=int, default=5)
@@ -98,7 +98,7 @@ if __name__ == '__main__':
                 devices=args.devices,
                 max_steps=args.max_steps,
                 accelerator=args.accelerator,
-                strategy=nl.FSDP2Strategy(data_parallel_size=2, tensor_parallel_size=1),
+                strategy=nl.FSDP2Strategy(data_parallel_size=args.devices),
                 log_every_n_steps=1,
                 limit_val_batches=0.0,
                 num_sanity_val_steps=0,
