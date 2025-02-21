@@ -44,6 +44,7 @@ from megatron.core.num_microbatches_calculator import update_num_microbatches
 from megatron.core.rerun_state_machine import get_rerun_state_machine
 from megatron.core.utils import is_float8tensor
 
+from nemo.tron import fault_tolerance
 from nemo.tron.config import ConfigContainer
 
 # from . import ft_integration
@@ -422,7 +423,7 @@ def save_checkpoint(
         )
 
     # Monitor for the checkpointing timeout (no-op if FT is not enabled)
-    # ft_integration.on_checkpointing_start()
+    fault_tolerance.on_checkpointing_start(state)
 
     # Only rank zero of the data parallel writes to the disk.
     model = unwrap_model(model)
@@ -689,7 +690,7 @@ def save_checkpoint(
     end_misc = time()
     logger.debug(f"rank: {rank}, takes {end_misc - start_misc} to finalize ckpt save ")
 
-    # ft_integration.on_checkpointing_end(is_async_finalization=False)
+    fault_tolerance.on_checkpointing_end(global_state=state, is_async_finalization=False)
 
 
 def cleanup_old_non_persistent_checkpoint(save_dir, leave_ckpt_num=1, do_async=False):
@@ -1382,6 +1383,6 @@ def load_checkpoint(
     if state.train_state.step > 0:
         # Notify FT that a checkpoint was loaded.
         is_local_chkpt = ckpt_type == CheckpointType.LOCAL
-        # ft_integration.on_checkpoint_loaded(is_local_chkpt=is_local_chkpt)
+        fault_tolerance.on_checkpoint_loaded(is_local_chkpt=is_local_chkpt, global_state=state)
 
     return state.train_state.step, state.train_state.floating_point_operations_so_far

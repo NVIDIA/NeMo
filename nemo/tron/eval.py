@@ -22,6 +22,7 @@ from megatron.core.pipeline_parallel import get_forward_backward_func
 from megatron.core.rerun_state_machine import RerunMode, get_rerun_state_machine
 from megatron.core.utils import get_model_config
 
+from nemo.tron import fault_tolerance
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import is_last_rank, print_rank_0, print_rank_last
 
@@ -70,7 +71,7 @@ def evaluate(
             forward_backward_func = get_forward_backward_func()
             # Don't care about timing during evaluation
             config.timers = None
-            # ft_integration.on_eval_step_start()
+            fault_tolerance.on_eval_step_start(state)
             loss_dicts = forward_backward_func(
                 forward_step_func=forward_step_func,
                 data_iterator=data_iterator,
@@ -80,7 +81,7 @@ def evaluate(
                 micro_batch_size=state.cfg.megatron_lm_config.micro_batch_size,
                 forward_only=True,
             )
-            # ft_integration.on_eval_step_end()
+            fault_tolerance.on_eval_step_end(state)
             config.timers = state.timers
 
             # Empty unused memory
