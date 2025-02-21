@@ -518,7 +518,7 @@ class NGPTHead(NeuralModule):
         num_classes: int,
         base_scale: float = 1 / (1024**0.5),
         use_log_softmax: bool = True,
-        include_blank: bool = False,
+        include_blank: bool = True,
         vocabulary=None,  # ignored, included for compatibility
     ) -> None:
         super().__init__()
