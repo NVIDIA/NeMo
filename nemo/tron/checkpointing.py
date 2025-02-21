@@ -313,6 +313,7 @@ def read_train_state(train_state_filename: str):
     return state_obj[0]
 
 
+@lru_cache()
 def read_run_config(run_config_filename: str):
     """
     Read the run config saved as YAML. On rank 0 load from the file,
@@ -336,7 +337,7 @@ def read_run_config(run_config_filename: str):
         torch.distributed.broadcast_object_list(config_obj, src=0)
 
     if isinstance(config_obj[0], dict) and config_obj[0].get("error", False):
-        return None
+        sys.exit(1)
 
     return config_obj[0]
 
