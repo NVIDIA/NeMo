@@ -5156,8 +5156,12 @@ jobs:
         python tests/evaluation/test_evaluation.py \
         --nemo2_ckpt_path=/home/TestData/nemo2_ckpt/llama3-1b-lingua \
         --max_batch_size=4 \
+        --trtllm_dir='/tmp/trtllm_dir' \
         --eval_type='arc_challenge' \
         --limit=1
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/trtllm_dir
 
   L2_SpeechLM_LoRA_TP1PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
