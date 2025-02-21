@@ -170,8 +170,8 @@ class Evo2Dataset(GPTDataset):
             # Does tag start before the first pipe? This determines the starting state of our state machine.
             first_pipe = pipe_pos[0]
             if first_pipe >= 0 and first_pipe < seg_len - 1:
-                # fastest check is to look at the first token after the pipe, if it is a 'd' then the tag starts _after_
-                # otherwise it starts before.
+                # fastest check is to look at the first token after the pipe, if it is a 'd' then the
+                # tag starts _after_ the pipe, otherwise it starts before.
                 next_tok = seg_seq[first_pipe + 1].item()
                 if next_tok == first_taxonomy_prefix_token:
                     # 'd' character for domain, which is the first part of a phylo tag.

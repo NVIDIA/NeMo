@@ -24,6 +24,7 @@ else:
     from typing import Any
 
     def log_single_rank(logger: logging.Logger, *args: Any, rank: int = 0, **kwargs: Any):
+        """Log a message from the current rank."""
         print(*args[1:], **kwargs)
 
 
@@ -31,6 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 class Symbols:
+    """Symbols for the hybrid layer allocation."""
+
     HYENA_SHORT = 'S'
     HYENA_MEDIUM = 'D'
     HYENA = 'H'
@@ -58,7 +61,7 @@ def allocate_layers(
     total_layers_count: int,
     override_pattern: str,
 ) -> list:
-
+    """Allocate the layers for the hybrid model."""
     layer_type_list = _allocate_override(total_layers_count, override_pattern)
     log_single_rank(logger, logging.INFO, "Using hybrid override pattern")
     actual_hyena_short_layers_count = layer_type_list.count(Symbols.HYENA_SHORT)

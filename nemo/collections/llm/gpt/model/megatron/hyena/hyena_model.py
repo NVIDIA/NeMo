@@ -40,6 +40,9 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
 
 
 class HyenaModel(LanguageModule):
+    """
+    A class for the HyenaModel.
+    """
 
     def __init__(
         self,
@@ -145,8 +148,8 @@ class HyenaModel(LanguageModule):
                 hyena_layer.mlp.activation_func = mlp_no_act_config.activation_func
                 hyena_layer.mlp.config = mlp_no_act_config
 
-        # In some Hyena species, the published checkpoint always has a bias in the linear projection of the self-attention
-        # layers regardless of bias in other linear layers.
+        # In some Hyena species, the published checkpoint always has a bias in the linear projection
+        # of the self-attention layers regardless of bias in other linear layers.
         self.add_attn_proj_bias = add_attn_proj_bias
         if self.add_attn_proj_bias and not self.config.add_bias_linear:
             for layer in self.decoder.layers:
@@ -225,7 +228,7 @@ class HyenaModel(LanguageModule):
         loss_mask: Tensor = None,
         inference_params: InferenceParams = None,
     ) -> Tensor:
-
+        """Forward pass for the HyenaModel."""
         # If decoder_input is provided (not None), then input_ids and position_ids are ignored.
         # Otherwise, apply embedding layer on input_ids and position_ids to get decoder_input.
 

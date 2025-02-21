@@ -26,16 +26,30 @@ class ByteLevelProcessor:
     """
 
     def detokenize(self, tokens: List[str]) -> str:
+        """
+        Detokenize a list of tokens into a string.
+        """
         return ' '.join(tokens)
 
-    def tokenize(self, text) -> str:
-        return text
+    def tokenize(self, text: str) -> List[str]:
+        """
+        Tokenize a string into a list of tokens.
+        """
+        return list(text)
 
-    def normalize(self, text) -> str:
+    def normalize(self, text: str) -> str:
+        """
+        Normalize a string.
+        """
         return text
 
 
 class ByteLevelTokenizer(TokenizerSpec):
+    """
+    A byte-level tokenizer that encodes text as UTF-8 bytes with user control over the EOS, BOS, and PAD
+        tokens as well as the vocabulary size and a mapping of other special tokens to their IDs.
+    """
+
     def __init__(
         self,
         special_tokens: Optional[Union[Dict[str, str], List[str]]] = None,

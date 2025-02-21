@@ -35,7 +35,9 @@ def hyena(config: FLOPSConfig):
     hyena_medium_conv_len = hyena_config.hyena_medium_conv_len
 
     def _hyena_layer_count(model_pattern: Optional[str]):
-        """Count how many small, medium, and large Hyena layers there are in the model. Also, count the number of Attention layers."""
+        """Count how many small, medium, and large Hyena layers there are in the model. Also, count the
+        number of Attention layers.
+        """
         S, D, H, A = 0, 0, 0, 0
         if model_pattern is None:
             return 0, 0, 0, 0
@@ -54,12 +56,14 @@ def hyena(config: FLOPSConfig):
     S, D, H, A = _hyena_layer_count(config.model_pattern)
     # Logits FLOPs per batch for a flattened L x H -> V GEMM.
     logits_fpl = 2 * config.gbs * config.enc_seq_len * config.hs * config.vocab_size
-    # Hyena Mixer Common FLOPs - Pre-Attention QKV Projections, Post-Attention Projections, and GLU FFN FLOPs per layer.
+    # Hyena Mixer Common FLOPs - Pre-Attention QKV Projections, Post-Attention Projections, and
+    #   GLU FFN FLOPs per layer.
     pre_attn_qkv_proj_fpl = 2 * 3 * config.gbs * config.enc_seq_len * config.hs**2
     post_attn_proj_fpl = 2 * config.gbs * config.enc_seq_len * config.hs**2
     # 3 Batched GEMMs: y = A(gelu(Bx) * Cx) where B,C: H -> F and A: F -> H.
     glu_ffn_fpl = 2 * 3 * config.gbs * config.enc_seq_len * config.ffn_hs * config.hs
-    # Transformer (Self) Attention FLOPs - QK Attention Logits ((L, D) x (D, L)) & Attention-Weighted Values FLOPs ((L, L) x (L, D))
+    # Transformer (Self) Attention FLOPs - QK Attention Logits ((L, D) x (D, L)) & Attention-Weighted
+    #   Values FLOPs ((L, L) x (L, D))
     attn_fpl = 2 * 2 * config.gbs * config.hs * config.enc_seq_len**2
     # Hyena Projection
     hyena_proj_fpl = 2 * 3 * config.gbs * config.enc_seq_len * hyena_short_conv_L * config.hs

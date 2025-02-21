@@ -73,6 +73,10 @@ class HyenaStackSubmodules:
 
 
 class HyenaStack(MegatronModule):
+    """
+    A class for the HyenaStack.
+    """
+
     def __init__(
         self,
         transformer_config: TransformerConfig,
@@ -246,7 +250,7 @@ class HyenaStack(MegatronModule):
         inference_params=None,
         rotary_pos_emb: Tensor = None,
     ):
-
+        """Forward pass for the HyenaStack."""
         if not self.pre_process:
             # See set_input_tensor()
             hidden_states = self.input_tensor

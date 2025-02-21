@@ -30,6 +30,8 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConf
 
 @dataclass
 class HyenaLayerSubmodules:
+    """Submodules for the HyenaLayer."""
+
     norm: Union[ModuleSpec, type] = IdentityOp
     mixer: Union[ModuleSpec, type] = IdentityOp
     hyena_bda: Union[ModuleSpec, type] = IdentityOp
@@ -40,6 +42,8 @@ class HyenaLayerSubmodules:
 
 
 class HyenaLayer(MegatronModule):
+    """Top level Hyena Layer."""
+
     def __init__(
         self,
         transformer_config: TransformerConfig,
@@ -99,6 +103,7 @@ class HyenaLayer(MegatronModule):
         inference_params=None,
         rotary_pos_emb: Tensor = None,  # Not used in HyenaLayer
     ):
+        """Forward pass for the HyenaLayer."""
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]
 

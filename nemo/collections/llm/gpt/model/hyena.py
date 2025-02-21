@@ -49,11 +49,25 @@ from nemo.lightning import get_vocab_size, io, teardown
 
 class HyenaModel(GPTModel):
     """
-    This is a wrapper around the MCoreHyenaModel to allow for inference. Our model follows the same API as the GPTModel,
-        but the megatron model class is different so we need to handle the inference wrapper slightly differently.
+    This is a wrapper around the MCoreHyenaModel to allow for inference. Our model follows the same API
+      as the GPTModel, but the megatron model class is different so we need to handle the inference wrapper
+      slightly differently.
     """
 
     def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+        """
+        Gets the inference wrapper for the Hyena model.
+
+        Args:
+            params_dtype: The data type for model parameters
+            inference_batch_times_seqlen_threshold: Threshold for batch size * sequence length during inference
+
+        Returns:
+            GPTInferenceWrapper: The inference wrapper for the model
+
+        Raises:
+            ValueError: If MCoreHyenaModel instance not found or vocab size cannot be determined
+        """
         # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module
         while mcore_model:
@@ -95,6 +109,22 @@ class HyenaModel(GPTModel):
         inference_params=None,
         packed_seq_params=None,
     ) -> torch.Tensor:
+        """
+        Forward pass of the Hyena model.
+
+        Args:
+            input_ids: Input token IDs
+            position_ids: Position IDs for input tokens
+            attention_mask: Optional attention mask
+            labels: Optional labels for loss computation
+            decoder_input: Optional decoder input
+            loss_mask: Optional loss mask
+            inference_params: Optional inference parameters
+            packed_seq_params: Optional parameters for packed sequences
+
+        Returns:
+            torch.Tensor: Output tensor from the model
+        """
         extra_kwargs = {'packed_seq_params': packed_seq_params} if packed_seq_params is not None else {}
         output_tensor = self.module(
             input_ids,
@@ -110,7 +140,20 @@ class HyenaModel(GPTModel):
 
 
 def hyena_forward_step(model, batch) -> torch.Tensor:
+    """
+    Performs a forward step for the Hyena model.
 
+    Args:
+        model: The Hyena model
+        batch: Dictionary containing input batch data with keys:
+            - tokens: Input token IDs
+            - position_ids: Position IDs
+            - labels: Labels for loss computation
+            - loss_mask: Mask for loss computation
+
+    Returns:
+        torch.Tensor: Output from the model forward pass
+    """
     forward_args = {
         "input_ids": batch["tokens"],
         "position_ids": batch["position_ids"],
@@ -183,11 +226,22 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     to_upper: str = "normalized_weighted"  # choose between "weighted" and "normalized_weighted"
 
     def __post_init__(self):
+        """
+        Post-initialization hook that sets up weight decay conditions.
+        """
         super().__post_init__()
         self.hyena_no_weight_decay_cond_fn = hyena_no_weight_decay_cond if self.hyena_filter_no_wd else None
 
     def configure_model(self, tokenizer) -> "MCoreHyenaModel":
+        """
+        Configures and returns a Hyena model instance based on the config settings.
 
+        Args:
+            tokenizer: Tokenizer to use for the model
+
+        Returns:
+            MCoreHyenaModel: Configured Hyena model instance
+        """
         self.bias_activation_fusion = False if self.remove_activation_post_first_layer else self.bias_activation_fusion
 
         model = MCoreHyenaModel(
@@ -216,32 +270,69 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
 
 @io.model_importer(HyenaModel, "pytorch")
 class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
+    """
+    Importer class for converting PyTorch Hyena models to NeMo format.
+    """
 
     def __new__(cls, path: str, model_config=None):
+        """
+        Creates a new importer instance.
+
+        Args:
+            path: Path to the PyTorch model
+            model_config: Optional model configuration
+
+        Returns:
+            PyTorchHyenaImporter instance
+        """
         instance = super().__new__(cls, path)
         instance.model_config = model_config
         return instance
 
     def init(self) -> HyenaModel:
+        """
+        Initializes a new HyenaModel instance.
 
+        Returns:
+            HyenaModel: Initialized model
+        """
         return HyenaModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path, checkpoint_format: str = 'torch_dist') -> Path:
+        """
+        Applies the model conversion from PyTorch to NeMo format.
 
+        Args:
+            output_path: Path to save the converted model
+            checkpoint_format: Format for saving checkpoints
+
+        Returns:
+            Path: Path to the saved NeMo model
+        """
         source = torch.load(str(self), map_location='cpu')
         if 'model' in source:
             source = source['model']
 
         class ModelState:
+            """Wrapper around the source model state dictionary that also handles some weight transformations."""
+
             def __init__(self, state_dict, num_layers):
+                """Wrapper around the source model state dictionary that also handles some weight transformations.
+
+                Args:
+                    state_dict: original state dictionary from the source model
+                    num_layers: number of layers in the source model
+                """
                 self.num_layers = num_layers
                 state_dict = self.transform_source_dict(state_dict)
                 self._state_dict = state_dict
 
             def state_dict(self):
+                """Return the state dictionary."""
                 return self._state_dict
 
             def to(self, dtype):
+                """Convert the state dictionary to the target dtype."""
                 for k, v in self._state_dict.items():
                     if "_extra" not in k:
                         if v.dtype != dtype:
@@ -249,6 +340,7 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
                         self._state_dict[k] = v.to(dtype)
 
             def adjust_medium_filter(self, updated_data):
+                """Adjust the medium filter."""
                 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 
                 for k, v in updated_data.items():
@@ -257,6 +349,10 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
                 return updated_data
 
             def transform_source_dict(self, source):
+                """Transform the source state dictionary, applying some challenging layer name re-mappings and
+                removing extra keys, as well as truncating a filter that didn't need to extend to the full
+                sequence length dim.
+                """
                 import re
 
                 layer_map = {i + 2: i for i in range(self.num_layers)}
@@ -298,7 +394,16 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
         return output_path
 
     def convert_state(self, source, target):
+        """
+        Converts the state dictionary from source format to target format.
 
+        Args:
+            source: Source model state
+            target: Target model
+
+        Returns:
+            Result of applying state transforms
+        """
         mapping = {}
         mapping['sequential.0.word_embeddings.weight'] = 'embedding.word_embeddings.weight'
         mapping[f'sequential.{len(self.config.hybrid_override_pattern)}.norm.weight'] = 'decoder.final_norm.weight'
@@ -369,6 +474,12 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
 
     @property
     def tokenizer(self):
+        """
+        Gets the tokenizer for the model.
+
+        Returns:
+            Tokenizer instance
+        """
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
         tokenizer = get_nmt_tokenizer(
@@ -379,6 +490,12 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
 
     @property
     def config(self) -> HyenaConfig:
+        """
+        Gets the model configuration.
+
+        Returns:
+            HyenaConfig: Model configuration
+        """
         return self.model_config
 
 
@@ -387,11 +504,23 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(w1, w2):
+    """
+    Transforms the linear layer weights by concatenating w1 and w2.
+
+    Args:
+        w1: First weight tensor
+        w2: Second weight tensor
+
+    Returns:
+        torch.Tensor: Concatenated weight tensor
+    """
     return torch.cat((w1, w2), axis=0)
 
 
 @dataclass
 class HyenaTestConfig(HyenaConfig):
+    """Configuration for testing Hyena models."""
+
     hybrid_override_pattern: str = "SDH*"
     num_layers: int = 4
     seq_length: int = 8192
@@ -423,7 +552,8 @@ class HyenaTestConfig(HyenaConfig):
 
 @dataclass
 class HyenaNVTestConfig(HyenaTestConfig):
-    """Several unintentional design choices were made to the original Arc implementation that are required to use the
+    """
+    Several unintentional design choices were made to the original Arc implementation that are required to use the
     original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
     these are the recommended configs.
     """
@@ -467,7 +597,8 @@ class Hyena7bConfig(HyenaConfig):
 
 @dataclass
 class HyenaNV7bConfig(Hyena7bConfig):
-    """Several unintentional design choices were made to the original Arc implementation that are required to use the
+    """
+    Several unintentional design choices were made to the original Arc implementation that are required to use the
     original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
     these are the recommended configs.
     """
@@ -511,7 +642,8 @@ class Hyena40bConfig(HyenaConfig):
 
 @dataclass
 class HyenaNV40bConfig(Hyena40bConfig):
-    """Several unintentional design choices were made to the original Arc implementation that are required to use the
+    """
+    Several unintentional design choices were made to the original Arc implementation that are required to use the
     original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
     these are the recommended configs.
     """

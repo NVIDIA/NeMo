@@ -49,6 +49,9 @@ def is_number_tryexcept(s):
 
 
 def is_zipped_list(paths):
+    """
+    Check if the paths are zipped.
+    """
     # ["30", "path/to/dataset_1_prefix", "70", "path/to/dataset_2_prefix"]
     even = paths[::2]
     if len(even) == 0:
@@ -60,6 +63,9 @@ def is_zipped_list(paths):
 
 
 def validate_dataset_asset_accessibility(paths):
+    """
+    Validate the accessibility of the dataset assets.
+    """
     if paths is None:
         raise ValueError("Expected path to have a value.")
 
@@ -135,9 +141,12 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             to allocate to train, validation, and test sets, respectively. Unused if ``paths`` is a dict.
         index_mapping_dir (Optional[str]): Path to a directory to write index mapping files.
         num_dataset_builder_threads (int): The number of threads to use for dataset building.
-        num_train_samples (Optional[int]): The number of samples to use for training, defaults to total train steps times global batch size.
-        num_val_samples (Optional[int]): The number of samples to use for validation, defaults to total validation steps times global batch size.
-        num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total test steps times global batch size.
+        num_train_samples (Optional[int]): The number of samples to use for training, defaults to total
+            train steps times global batch size.
+        num_val_samples (Optional[int]): The number of samples to use for validation, defaults to total
+            validation steps times global batch size.
+        num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total
+            test steps times global batch size.
         dataset_cls (Optional[Type[MegatronDataset]]): The dataset class to use for the data module.
     """
 
@@ -231,6 +240,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         trainer_limit_val_batches: Union[int, float],
         trainer_limit_test_batches: Union[int, float],
     ):
+        """
+        Build the datasets.
+        """
         from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 
         train_iters = trainer_max_steps
@@ -340,6 +352,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
     @property
     def gpt_dataset_config(self) -> "GPTDatasetConfig":
+        """
+        Get the GPT dataset configuration.
+        """
         from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
 
         return GPTDatasetConfig(
@@ -390,16 +405,21 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.data_sampler.if_first_step = 1
 
     def reconfigure_limit_batches(self):
+        """
+        Reconfigure trainer.limit_train_batches and trainer.limit_val_batches in terms of num of microbatches.
+        """
         # Override limit_train_batches in terms of num of microbatches
         self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds, "train")
-        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
+        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting
+        #   in between a step
         self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_ds, "val")
 
     def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
         Reconfigure trainer.limit_val_batches for pretraining
         """
-        # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
+        # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches
+        #   num of global batches
         try:
             from megatron.core.num_microbatches_calculator import get_num_microbatches
 
