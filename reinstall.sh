@@ -158,6 +158,7 @@ nemo() {
 
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
+  pip install --no-cache-dir --force-reinstall --no-deps -e $NEMO_DIR/.[all]
 }
 
 echo 'Uninstalling stuff'
