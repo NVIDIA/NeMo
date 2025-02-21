@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 from functools import partial
 from contextlib import nullcontext
+from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
 
 import lightning.pytorch as L
 import torch
