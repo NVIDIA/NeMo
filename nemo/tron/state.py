@@ -16,7 +16,7 @@ import os
 import time
 import types
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 import torch
 import yaml
@@ -28,7 +28,6 @@ from nemo.tron.config import ConfigContainer
 from nemo.tron.dist_signal_handler import DistributedSignalHandler
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils.common_utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
-from nemo.utils.import_utils import safe_import
 
 
 def _timers_write_to_wandb(
