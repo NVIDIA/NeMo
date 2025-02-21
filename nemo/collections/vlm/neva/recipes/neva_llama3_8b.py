@@ -56,25 +56,28 @@ class VisionProjectorConfig(vlm.MultimodalProjectorConfig):
     ffn_hidden_size: int = 4096
 
 
+# @dataclass
+# class NevaConfig8B(vlm.NevaConfig):
+#     seq_length: int = 8192
+#     language_transformer_config: Optional[TransformerConfig] = NevaLlama3Config8B
+#     vision_transformer_config: Optional[TransformerConfig] = HFCLIPViTLConfig
+#     vision_projection_config: Optional[TransformerConfig] = VisionProjectorConfig
+
+#     freeze_language_model: bool = False
+#     freeze_vision_model: bool = True
+#     freeze_vision_projection: bool = False
+
 @dataclass
 class NevaConfig8B(vlm.NevaConfig):
-    seq_length: int = 8192
-    language_transformer_config: Optional[TransformerConfig] = NevaLlama3Config8B
-    # vision_transformer_config: Optional[TransformerConfig] = vlm.HFCLIPVisionConfig(
-    #     pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    # )
-    vision_transformer_config: Optional[TransformerConfig] = HFCLIPViTLConfig
-    vision_projection_config: Optional[TransformerConfig] = VisionProjectorConfig
-    # vision_projection_config: Optional[TransformerConfig] = vlm.MultimodalProjectorConfig(
-    #     projector_type="mcore_mlp",
-    #     input_size=vision_transformer_config.hidden_size,
-    #     hidden_size=language_transformer_config.hidden_size,
-    #     ffn_hidden_size=language_transformer_config.hidden_size,
-    # )
+    """Llava v1.5 Config 13B"""
 
-    freeze_language_model: bool = False
-    freeze_vision_model: bool = True
-    freeze_vision_projection: bool = False
+    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama3Config8B())
+    vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
+        default_factory=lambda: vlm.HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+    )
+    vision_projection_config: TransformerConfig = field(
+        default_factory=lambda: vlm.MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+    )
 
 
 @run.cli.factory(name=NAME)
