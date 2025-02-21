@@ -712,9 +712,6 @@ class T5TTSDataset(TextToSpeechDataset):
 
 
 class T5TTSDatasetDPO(T5TTSDataset):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def __len__(self):
         return len(self.data_samples) // 2
 
