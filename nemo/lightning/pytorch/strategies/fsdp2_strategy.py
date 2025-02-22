@@ -22,13 +22,12 @@ import lightning.pytorch as pl
 import torch
 from lightning.fabric.plugins import CheckpointIO
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
+from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from torch.utils.data import DataLoader
 from typing_extensions import override
-from lightning.pytorch.trainer.states import TrainerFn
 
-from nemo.utils import logging
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
@@ -37,6 +36,7 @@ from nemo.lightning.pytorch.strategies.utils import (
     fsdp2_strategy_parallelize,
     setup_data_sampler,
 )
+from nemo.utils import logging
 
 try:
     from torch.distributed.tensor._api import distribute_tensor
@@ -184,8 +184,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self.parallelize_fn is not None:
             # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
             # Apply FSDP2 and TP to the model
-            self.parallelize_fn(
-                self.lightning_module.model, device_mesh=self._device_mesh, mp_policy=self.mp_policy)
+            self.parallelize_fn(self.lightning_module.model, device_mesh=self._device_mesh, mp_policy=self.mp_policy)
             # Apply this only once
             self.parallelize_fn = None
         else:
@@ -229,7 +228,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def optimizer_state(self, optimizer: 'Optimizer'):
-        """ returns the sharded optim state """
+        """returns the sharded optim state"""
         return optimizer.state_dict()
 
     @override
