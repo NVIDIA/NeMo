@@ -73,12 +73,32 @@ def mk_hf_vlm_dataset(processor, mbs, gbs):
     )
 
 
+def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
+    if strategy == 'auto':
+        return pl.strategies.SingleDeviceStrategy(
+            device='cuda:0',
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+        )
+    elif strategy == 'ddp':
+        return pl.strategies.DDPStrategy(
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+        )
+    elif strategy == 'fsdp2':
+        return nl.FSDP2Strategy(
+            data_parallel_size=devices * num_nodes,
+            tensor_parallel_size=1,
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+        )
+    else:
+        raise NotImplementedError("Encountered unknown strategy")
+
+
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='Qwen/Qwen2-VL-2B-Instruct')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
+    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'])
     parser.add_argument('--devices', default=1)
     parser.add_argument('--mbs', default=1)
     parser.add_argument('--gbs', default=1)
@@ -102,15 +122,15 @@ if __name__ == '__main__':
         grad_clip = None
     use_dist_samp = False
     processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
-
+    model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit)
     llm.api.finetune(
-        model=vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit),
+        model=model,
         data=mk_hf_vlm_dataset(processor, args.mbs, args.gbs),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
             accelerator=args.accelerator,
-            strategy=args.strategy,
+            strategy=make_strategy(args.strategy, model, args.devices, 1, adapter_only=True),
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,

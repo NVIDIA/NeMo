@@ -190,3 +190,14 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @property
     def _has_lora_adapter(self):
         return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
+
+    def make_checkpoint_io(self, adapter_only=False):
+        """
+        Creates a checkpoint_io object for this model;
+        the main issue is passing self to the HFCheckpointIO, because it needs
+        to call save_pretrained within.
+        TODO(@akoumparouli): refactor ^
+        """
+        from nemo.lightning.io.hf import HFCheckpointIO
+
+        return HFCheckpointIO(model=self, adapter_only=adapter_only)
