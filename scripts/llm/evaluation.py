@@ -156,11 +156,8 @@ def slurm_executor(
             job_dir=remote_job_dir,
         ),
         nodes=nodes,
-        ntasks_per_node=devices,
-        gpus_per_node=devices,
-        mem="0",
+        ntasks_per_node=1,
         exclusive=True,
-        gres="gpu:8",
         packager=run.GitArchivePackager(),
     )
 
@@ -205,7 +202,7 @@ def main():
                               nemo_triton_http_port=args.triton_http_port)
     eval_target = run.Config(EvaluationTarget, api_endpoint=api_endpoint)
     eval_params = run.Config(ConfigParams, limit_samples=args.limit, num_fewshot=args.num_fewshot)
-    eval_config = run.Config(EvaluationConfig, type='mmlu', params=eval_params)
+    eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params)
 
     eval_fn = run.Partial(
         evaluate,
