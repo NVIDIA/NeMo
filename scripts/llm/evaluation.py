@@ -19,8 +19,7 @@
 # (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
-from functools import partial
-from typing import Any, Optional, Union
+from typing import Optional
 
 import nemo_run as run
 
@@ -210,6 +209,8 @@ def main():
         eval_cfg=eval_config
     )
 
+    executor: run.Executor
+    executor_eval: run.Executor
     if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
