@@ -19,6 +19,10 @@ from torch.utils.data import DataLoader
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from typing import Dict
+import numpy as np
+from torch.utils.data import Dataset
 
 
 def clean_split(name):
@@ -30,8 +34,8 @@ def clean_split(name):
     Returns:
         str: return partition name without any selector (e.g. "train").
     """
-    if '[' in name:
-        return name.split('[')[0]
+    if "[" in name:
+        return name.split("[")[0]
     return name
 
 
@@ -65,7 +69,7 @@ def make_dataset_splits(dataset, split, split_aliases):
     >    "val": Dataset .. (with 10570 rows),
     > }
     """
-    valid_split_names = ['train', 'test', 'val']
+    valid_split_names = ["train", "test", "val"]
     dataset_splits = {_split: None for _split in valid_split_names}
 
     alias_to_split = {}
@@ -75,7 +79,9 @@ def make_dataset_splits(dataset, split, split_aliases):
             alias_to_split[alias] = split_name
 
     if isinstance(dataset, Dataset):
-        assert isinstance(split, str), "Expected split to be a string, but got " + str(type(split))
+        assert isinstance(split, str), "Expected split to be a string, but got " + str(
+            type(split)
+        )
         split = clean_split(split)
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
@@ -96,10 +102,10 @@ def make_dataset_splits(dataset, split, split_aliases):
         logging.info("Loaded HF dataset has a single split.")
         assert not isinstance(dataset, list)
         alias_split_name = split
-        if '+' in alias_split_name:
+        if "+" in alias_split_name:
             raise ValueError("Split concatenation not supported")
-        elif '[' in alias_split_name:
-            alias_split_name = alias_split_name.split('[')[0]
+        elif "[" in alias_split_name:
+            alias_split_name = alias_split_name.split("[")[0]
         split_name = alias_to_split[alias_split_name]
         assert dataset_splits[split_name] is None
         dataset_splits[split_name] = dataset
@@ -108,7 +114,9 @@ def make_dataset_splits(dataset, split, split_aliases):
 
     assert set(valid_split_names) == set(dataset_splits.keys()), dataset_splits.keys()
     num_init_splits = sum(map(lambda x: x is not None, dataset_splits.values()))
-    assert num_init_splits > 0, f"Expected at least one split to have been initialized {num_init_splits}"
+    assert num_init_splits > 0, (
+        f"Expected at least one split to have been initialized {num_init_splits}"
+    )
     return dataset_splits
 
 
@@ -139,7 +147,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         global_batch_size=2,
         pad_token_id=0,
         use_mcore_sampler=False,
-        mcore_dataloader_type='cyclic',
+        mcore_dataloader_type="cyclic",
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
@@ -150,24 +158,35 @@ class HFDatasetDataModule(pl.LightningDataModule):
         # A dataset usually will have several splits (e.g. train, val, test, etc).
         # We map synonym names to canonical names (train, test, val).
         # A synonym can be a prefix/suffixed word e.g. train <> training.
-        split_aliases = {'train': train_aliases, 'test': test_aliases, 'val': val_aliases}
+        split_aliases = {
+            "train": train_aliases,
+            "test": test_aliases,
+            "val": val_aliases,
+        }
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
-            logging.info(f"Loading HF dataset from {path_or_dataset}, this may take a moment.")
+            logging.info(
+                f"Loading HF dataset from {path_or_dataset}, this may take a moment."
+            )
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
-        elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
+        elif isinstance(path_or_dataset, Dataset) or isinstance(
+            path_or_dataset, DatasetDict
+        ):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
             dataset = path_or_dataset
         else:
             raise ValueError(
-                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " + str(type(path_or_dataset))
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got "
+                + str(type(path_or_dataset))
             )
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id
+            )
         else:
             self._collate_fn = collate_fn
 
@@ -188,34 +207,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         dataset = Dataset.from_dict(dataset_dict)
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
-    @staticmethod
-    def collate_fn(batch, pad_token_id=0):
-        """Default batch collator"""
-
-        def batchify(tensor):
-            if tensor.ndim == 1:
-                return tensor.unsqueeze_(0)
-            return tensor
-
-        def extract_key_from_dicts(batch, key):
-            return list(map(lambda x: x[key], batch))
-
-        def pad_within_micro(batch, pad_token_id):
-            max_len = max(map(len, batch))
-            return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
-
-        return {
-            key: batchify(
-                torch.LongTensor(
-                    pad_within_micro(
-                        extract_key_from_dicts(batch, key),
-                        pad_token_id if key != 'loss_mask' else 0,
-                    )
-                )
-            )
-            for key in batch[0].keys()
-        }
-
     def setup(self, stage: str):
         """setups sampler"""
         if not self.use_mcore_sampler:
@@ -232,7 +223,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
 
         if collate_fn is None:
-            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(
+                x, pad_token_id=self.pad_token_id
+            )
 
         return DataLoader(
             dataset,
@@ -246,17 +239,17 @@ class HFDatasetDataModule(pl.LightningDataModule):
     @property
     def train(self):
         """Returns the training partition"""
-        return self.dataset_splits['train']
+        return self.dataset_splits["train"]
 
     @property
     def val(self):
         """Returns the validation partition"""
-        return self.dataset_splits['val']
+        return self.dataset_splits["val"]
 
     @property
     def test(self):
         """Returns the test partition"""
-        return self.dataset_splits['test']
+        return self.dataset_splits["test"]
 
     def train_dataloader(self):
         """Returns the train dataloader"""
@@ -283,6 +276,179 @@ class HFDatasetDataModule(pl.LightningDataModule):
             if subset is None:
                 continue
             dataset_splits[split_name] = subset.map(function, **kwargs)
+
+
+class HFMockDataModule(pl.LightningDataModule):
+    def __init__(
+        self,
+        seq_length: int = 2048,
+        tokenizer=None,
+        micro_batch_size: int = 4,
+        global_batch_size: int = 8,
+        rampup_batch_size=None,
+        num_train_samples: int = 10_000,
+        num_val_samples: int = 10_000,
+        num_test_samples: int = 10_000,
+        num_workers: int = 8,
+        pin_memory: bool = True,
+        persistent_workers: bool = False,
+        create_attention_mask: bool = False,
+        vocab_file=None,
+        merges_file=None,
+    ):
+        super().__init__()
+        self.seq_length = seq_length
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
+        self.num_train_samples = num_train_samples
+        self.num_val_samples = num_val_samples
+        self.num_test_samples = num_test_samples
+        self.num_workers = num_workers
+        self.pin_memory = pin_memory
+        self.persistent_workers = persistent_workers
+        self.create_attention_mask = create_attention_mask
+        self.collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=0)
+
+        if tokenizer is None:
+            self.tokenizer = get_nmt_tokenizer(
+                "megatron",
+                "GPT2BPETokenizer",
+                vocab_file=vocab_file,
+                merges_file=merges_file,
+            )
+        else:
+            self.tokenizer = tokenizer
+
+        self.data_sampler = MegatronDataSampler(
+            seq_len=self.seq_length,
+            micro_batch_size=self.micro_batch_size,
+            global_batch_size=self.global_batch_size,
+            rampup_batch_size=rampup_batch_size,
+        )
+
+    def setup(self, stage: str = None) -> None:
+        self._train_ds = _MockGPTDataset(
+            self.tokenizer,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
+            self.create_attention_mask,
+        )
+        self._val_ds = _MockGPTDataset(
+            self.tokenizer,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
+            self.create_attention_mask,
+        )
+        self._test_ds = _MockGPTDataset(
+            self.tokenizer,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
+            self.create_attention_mask,
+        )
+
+    @staticmethod
+    def collate_fn(batch):
+        return HFDatasetDataModule.collate_fn(batch, pad_token_id=0)
+
+    def train_dataloader(self) -> DataLoader:
+        return self._create_dataloader(self._train_ds)
+
+    def val_dataloader(self) -> DataLoader:
+        return self._create_dataloader(self._val_ds)
+
+    def test_dataloader(self) -> DataLoader:
+        return self._create_dataloader(self._test_ds)
+
+    def _create_dataloader(self, dataset) -> DataLoader:
+        return DataLoader(
+            dataset,
+            batch_size=self.micro_batch_size,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+            persistent_workers=self.persistent_workers,
+            collate_fn=self.collate_fn,
+        )
+
+
+class _MockGPTDataset(Dataset):
+    def __init__(
+        self,
+        tokenizer: "TokenizerSpec",
+        name: str,
+        num_samples: int,
+        seq_length: int,
+        create_attention_mask: bool = False,
+        seed: int = 42,
+    ) -> None:
+        super().__init__()
+        self.name = name
+        self.seq_length = seq_length
+        self.tokenizer = tokenizer
+        self.vocab_size = self.tokenizer.vocab_size
+        self.length = num_samples
+        self.seed = seed
+        self.create_attention_mask = create_attention_mask
+
+        if create_attention_mask:
+            self.attention_mask = torch.tril(
+                torch.ones((self.seq_length, self.seq_length), device="cpu")
+            ).unsqueeze(0)
+            self.attention_mask = self.attention_mask < 0.5
+
+        self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
+        self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
+
+    def __len__(self) -> int:
+        return self.length
+
+    def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        tokens = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
+        )
+        labels = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
+        )
+
+        batch = {
+            "tokens": tokens,
+            "labels": labels,
+            "loss_mask": self.loss_mask,
+            "position_ids": self.position_ids,
+        }
+
+        if self.create_attention_mask:
+            batch["attention_mask"] = self.attention_mask
+
+        return batch
+
+    # def collate_fn(self, batch):
+    #     def batchify(tensor):
+    #         if tensor.ndim == 1:
+    #             return tensor.unsqueeze_(0)
+    #         return tensor
+
+    #     def extract_key_from_dicts(batch, key):
+    #         return list(map(lambda x: x[key], batch))
+
+    #     def pad_within_micro(batch, pad_token_id):
+    #         max_len = max(map(len, batch))
+    #         return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
+
+    #     return {
+    #         key: batchify(
+    #             torch.LongTensor(
+    #                 pad_within_micro(
+    #                     extract_key_from_dicts(batch, key),
+    #                     0 if key == "loss_mask" else self.tokenizer.pad_token,
+    #                 )
+    #             )
+    #         )
+    #         for key in batch[0].keys()
+    #     }
 
 
 class SquadHFDataModule(HFDatasetDataModule):
@@ -344,7 +510,7 @@ class SquadHFDataModule(HFDatasetDataModule):
             loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-    def setup(self, stage):
+    def setup(self, stage=None):
         """
         Prepares the dataset for training and applies formatting.
 
@@ -357,5 +523,5 @@ class SquadHFDataModule(HFDatasetDataModule):
             self.formatting_prompts_func,
             batched=False,
             batch_size=2,
-            remove_columns=["id", "title", "context", "question", 'answers'],
+            remove_columns=["id", "title", "context", "question", "answers"],
         )

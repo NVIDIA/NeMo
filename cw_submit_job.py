@@ -60,7 +60,7 @@ def slurm_executor_yudong(
     partition: str = "batch",
     nodes: int = 1,
     devices: int = 8,
-    time: str = "04:00:00",
+    time: str = "02:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
     container_image: str = "/lustre/fsw/coreai_dlalgo_llm/chcui/nvidia+nemo+24.12.sqsh",
@@ -333,6 +333,27 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     )
 
     # datamodule = run.Config(
+    #     MockDataModule,
+    #     seq_length=seq_length,
+    #     global_batch_size=global_batch_size,
+    #     micro_batch_size=1,
+    # )
+    # finetune.data = datamodule
+    # finetune.data.seq_length = seq_length
+    # finetune.data.global_batch_size = global_batch_size
+    # finetune.data.micro_batch_size = 1
+    finetune.trainer.val_check_interval = 100
+
+    finetune.trainer.strategy = run.Config(
+        nl.FSDP2Strategy,
+        data_parallel_size=num_gpus_per_node * num_nodes,
+        tensor_parallel_size=1,
+    )
+    finetune.trainer.accumulate_grad_batches = (
+        global_batch_size / num_gpus_per_node / num_nodes
+    )
+
+    # datamodule = run.Config(
     #    llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1
     # )
 
@@ -352,7 +373,7 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     finetune.log.wandb = run.Config(
         WandbLogger,
         project="nemo2",
-        name=f"{DATE_STR}-hf-finetune-{model_name}-{num_nodes}-nodes-{wandb_project_name}",
+        name=f"{DATE_STR}-{wandb_project_name}-hf-finetune-{model_name}-{num_nodes}-nodes-seq{seq_length}-gbs{global_batch_size}",
     )
     return finetune
 
@@ -426,14 +447,43 @@ recipes = [
     #     configure_recipe_llama32_1b_pretrain(1, 2, "nemo2"),
     #     "llama32_1b_pretrain_1_node_2_gpu",
     # ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm(1, 2, "nemo2", 2048, 128, dataset="squad"),
-    #     "hf_llama32_1b_pretrain_1_node_2_gpu",
-    # ),
     (
         custom_hf_auto_model_for_causal_lm_finetune(1, 2, "nemo2", 2048, 128),
-        "hf_llama32_1b_finetune_1_node_2_gpu",
+        "hf_llama32_1b_pretrain_1_node_2_gpu",
     ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=1,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=2048,
+    #         global_batch_size=128,
+    #         model_name="meta-llama/Llama-3.1-8B",
+    #     ),
+    #     "perf-llama3_1_8b_finetune-1_node-8_gpu_2048_128",
+    # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=2,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=4096,
+    #         global_batch_size=256,
+    #         model_name="meta-llama/Llama-3.1-8B",
+    #     ),
+    #     "perf-llama3_1_8b_finetune-2_node-8_gpu_4096_128",
+    # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=4,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=4096,
+    #         global_batch_size=256,
+    #         model_name="meta-llama/Llama-3.1-8B",
+    #     ),
+    #     "perf-llama3_1_8b_finetune-4_node-8_gpu_4096_256",
+    # ),
     # (
     #     configure_recipe_llama32_1b_finetune(1, 8, "nemo2", 2048, 128),
     #     f"{DATE_STR}-mcore_llama32_1b_finetune_1_node_8_gpu",
