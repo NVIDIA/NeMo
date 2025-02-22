@@ -20,8 +20,6 @@ import re
 import sys
 import glob
 
-import sphinx_book_theme
-
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -120,7 +118,7 @@ extensions = [
     # "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
     "sphinx_copybutton",
-    "sphinxext.opengraph",
+    # "sphinxext.opengraph",
 ]
 
 bibtex_bibfiles = [
@@ -178,15 +176,12 @@ release = __version__
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "console"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
 exclude_patterns = []
-
-# The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "default"
 
 ### Previous NeMo theme
 # # NVIDIA theme settings.
@@ -223,27 +218,14 @@ htmlhelp_basename = "nemodoc"
 
 # html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
-html_theme = "sphinx_book_theme"
-html_logo = os.path.join('nv_logo.png')
+html_theme = "nvidia_sphinx_theme"
+html_copy_source = False
+html_show_sourcelink = False
+html_show_sphinx = False
 html_title = 'NVIDIA NeMo'
 
 html_theme_options = {
-    'logo_only': False,
-    'display_version': True,
-    # 'prev_next_buttons_location': 'bottom',
-    # 'style_external_links': False,
-    # 'style_nav_header_background': '#000000',
-    # Toc options
-    'collapse_navigation': False,
-    # 'sticky_navigation': False,
-    'navigation_depth': 10,
-    # 'includehidden': False,
-    # 'titles_only': False,
-    # Sphinx Book theme,
-    'repository_url': 'https://github.com/NVIDIA/NeMo',
-    'use_repository_button': True,
-    'show_navbar_depth': 1,
-    'show_toc_level': 10,
+    "icon_links": [],
 }
 
 
@@ -272,8 +254,8 @@ def setup(app):
 # ]
 
 # OpenGraph settings
-ogp_site_url = 'https://nvidia.github.io/NeMo/'
-ogp_image = 'https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png'
+# ogp_site_url = 'https://nvidia.github.io/NeMo/'
+# ogp_image = 'https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png'
 
 # MathJax CDN
 # follow recommendation here https://www.sphinx-doc.org/en/master/usage/extensions/math.html#module-sphinx.ext.mathjax
