@@ -1,25 +1,24 @@
-import nemo_run as run
-from nemo.collections import llm
-from typing import Optional
 import re
-from functools import partial
-from pytorch_lightning.loggers import WandbLogger
 from datetime import datetime
+from functools import partial
+from typing import Optional
 
+import nemo_run as run
+from pytorch_lightning.loggers import WandbLogger
 
-from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo import lightning as nl
-from nemo.collections.llm import SquadDataModule, MockDataModule
+from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.utils.exp_manager import DeltaTimingCallback
+from nemo.collections.llm import MockDataModule, SquadDataModule
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
-
+from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
+from nemo.utils.exp_manager import DeltaTimingCallback
 
 DATE_STR = datetime.today().strftime("%m%d")
 
 NEMO_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/github/NeMo"
 MEGATRON_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/github/Megatron-LM"
-#IMAGE = "nvcr.io/nvidia/nemo:24.12"
+# IMAGE = "nvcr.io/nvidia/nemo:24.12"
 IMAGE = "/lustre/fsw/portfolios/coreai/users/yudong/github/images/nemo-25-02.sqsh"
 HF_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/hf_home"
 MEGATRON_CACHE = "/lustre/fsw/portfolios/coreai/users/yudong/megatron_cache"
@@ -47,9 +46,7 @@ def local_executor_torchrun(devices: int = 2) -> run.LocalExecutor:
         "NVTE_ASYNC_AMAX_REDUCTION": "1",
     }
 
-    executor = run.LocalExecutor(
-        ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars
-    )
+    executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
     env_vars.update(get_secrets())
     return executor
 
@@ -68,9 +65,7 @@ def slurm_executor_yudong(
     container_image: str = "/lustre/fsw/coreai_dlalgo_llm/chcui/nvidia+nemo+24.12.sqsh",
     retries: int = 0,
 ) -> run.SlurmExecutor:
-    if not (
-        user and host and remote_job_dir and account and partition and nodes and devices
-    ):
+    if not (user and host and remote_job_dir and account and partition and nodes and devices):
         raise RuntimeError(
             "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this function."
         )
@@ -127,9 +122,7 @@ def slurm_executor_yudong(
     return executor
 
 
-def configure_recipe_llama3_8b(
-    num_nodes, num_gpus_per_node, peft_scheme, performance_mode, packed_sequence
-):
+def configure_recipe_llama3_8b(num_nodes, num_gpus_per_node, peft_scheme, performance_mode, packed_sequence):
     recipe = llm.llama3_8b.finetune_recipe(
         dir="/chcui/exp/nemorun/checkpoints",  # Path to store checkpoints
         name=f"llama3_8b_{peft_scheme}",
@@ -261,9 +254,7 @@ def configure_recipe_llama32_1b_pretrain(
             seq_length=seq_length,
             global_batch_size=global_batch_size,
             micro_batch_size=1,
-            tokenizer=run.Config(
-                AutoTokenizer, pretrained_model_name="meta-llama/Llama-3.2-1B"
-            ),
+            tokenizer=run.Config(AutoTokenizer, pretrained_model_name="meta-llama/Llama-3.2-1B"),
         )
         recipe.data = datamodule
 
@@ -354,9 +345,7 @@ def custom_hf_auto_model_for_causal_lm_finetune(
         data_parallel_size=num_gpus_per_node * num_nodes,
         tensor_parallel_size=1,
     )
-    finetune.trainer.accumulate_grad_batches = (
-        global_batch_size / num_gpus_per_node / num_nodes
-    )
+    finetune.trainer.accumulate_grad_batches = global_batch_size / num_gpus_per_node / num_nodes
 
     # datamodule = run.Config(
     #    llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1
@@ -561,9 +550,7 @@ def run_finetuning_on_slurm(**slurm_kwargs):
 
     with run.Experiment(f"{DATE_STR}-squad_llama3_2_1b_pretrain") as exp:
         for recipe, exp_name in recipes:
-            exp.add(
-                recipe, executor=executor(nodes=recipe.trainer.num_nodes), name=exp_name
-            )
+            exp.add(recipe, executor=executor(nodes=recipe.trainer.num_nodes), name=exp_name)
         exp.run(sequential=False, tail_logs=False)
 
 
@@ -576,6 +563,6 @@ if __name__ == "__main__":
     #     source="hf://meta-llama/Llama-3.2-1B",
     # )
     print("did you Update CW codebase")
-    #breakpoint()
+    # breakpoint()
     run_finetuning_on_slurm()
-    #run_local()
+    # run_local()

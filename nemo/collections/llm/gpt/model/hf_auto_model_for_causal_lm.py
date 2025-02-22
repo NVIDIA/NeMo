@@ -113,9 +113,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             AutoTokenizer: The tokenizer associated with the model.
         """
         if self._tokenizer is None:
-            self._tokenizer = HFAutoModelForCausalLM.configure_tokenizer(
-                self.model_name, self.trust_remote_code
-            )
+            self._tokenizer = HFAutoModelForCausalLM.configure_tokenizer(self.model_name, self.trust_remote_code)
         return self._tokenizer
 
     @tokenizer.setter
@@ -144,13 +142,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             AutoTokenizer: The instantiated tokenizer.
         """
         try:
-            return AutoTokenizer(
-                model_name, use_fast=use_fast, trust_remote_code=trust_remote_code
-            )
+            return AutoTokenizer(model_name, use_fast=use_fast, trust_remote_code=trust_remote_code)
         except:
-            return AutoTokenizer(
-                model_name, use_fast=not use_fast, trust_remote_code=trust_remote_code
-            )
+            return AutoTokenizer(model_name, use_fast=not use_fast, trust_remote_code=trust_remote_code)
 
     def _configure_model(self, attn_implementation):
         """helper method; see also configure_model."""
@@ -167,9 +161,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         else:
             from transformers import AutoConfig
 
-            config = AutoConfig.from_pretrained(
-                self.model_name, trust_remote_code=self.trust_remote_code
-            )
+            config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
             dtype = getattr(config, "torch_dtype", self.default_dtype)
             return AutoModelForCausalLM.from_config(
                 config,
@@ -191,18 +183,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             Exception: If model configuration fails.
         """
         try:
-            self.model = self._configure_model(
-                attn_implementation=self.attn_implementation
-            )
+            self.model = self._configure_model(attn_implementation=self.attn_implementation)
         except ValueError as e:
             # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
             if "does not support an attention" in str(e):
                 self.model = self._configure_model(attn_implementation="eager")
 
         if self.model_accelerator is not None:
-            from nemo.lightning.pytorch.accelerate.transformer_engine import (
-                te_accelerate,
-            )
+            from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
             te_accelerate(self.model, self.model_accelerator.fp8_autocast)
 
@@ -236,12 +224,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             torch.Tensor: The computed loss for the batch.
         """
         if isinstance(self.trainer.strategy.checkpoint_io, io.pl.MegatronCheckpointIO):
-            logging.warning(
-                "Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO."
-            )
-            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(
-                self._has_lora_adapter
-            )
+            logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
+            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
 
         labels = batch.pop("labels").to(self.model.device)
         loss_mask = batch.pop("loss_mask", None)
@@ -259,9 +243,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits = logits.view(-1, n_cls)
         labels = labels.view(-1)
 
-        assert logits.shape[-2] == labels.shape[-1], (
-            "Expected logits & labels to have the same length"
-        )
+        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
         self.log(
             "reduced_train_loss",
@@ -301,9 +283,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits = logits.view(-1, n_cls)
         labels = labels.view(-1)
 
-        assert logits.shape[-2] == labels.shape[-1], (
-            "Expected logits & labels to have the same length"
-        )
+        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
         self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
 
@@ -344,9 +324,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 state_dict[new_key] = val
 
         if len(io_bytes_state) > 0:
-            logging.warning(
-                "State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`."
-            )
+            logging.warning("State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`.")
             torch.save(io_bytes_state, path / "io_bytes.pt")
 
         self.model.save_pretrained(path, state_dict=state_dict)

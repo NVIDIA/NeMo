@@ -1,7 +1,9 @@
-from transformers import AutoTokenizer
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
+from transformers import AutoTokenizer
+
 from nemo.collections import llm
+
 
 class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
     """Creates a squad dataset with a PT dataloader"""

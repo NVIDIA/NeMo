@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict
+
 import lightning.pytorch as pl
+import numpy as np
 import torch
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-from typing import Dict
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-import numpy as np
 
 
 def clean_split(name):
@@ -206,6 +207,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         def pad_within_micro(batch, pad_token_id):
             max_len = max(map(len, batch))
             return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
+
         return {
             key: batchify(
                 torch.LongTensor(
@@ -474,9 +476,9 @@ class _MockGPTDataset(torch.utils.data.Dataset):
         self.create_attention_mask = create_attention_mask
 
         if create_attention_mask:
-            self.attention_mask = np.tril(
-                np.ones((self.seq_length, self.seq_length), dtype=np.float32)
-            )[np.newaxis, :].tolist()
+            self.attention_mask = np.tril(np.ones((self.seq_length, self.seq_length), dtype=np.float32))[
+                np.newaxis, :
+            ].tolist()
 
         self.loss_mask = np.ones(self.seq_length, dtype=np.float32).tolist()
         self.position_ids = np.arange(self.seq_length, dtype=np.int64).tolist()
