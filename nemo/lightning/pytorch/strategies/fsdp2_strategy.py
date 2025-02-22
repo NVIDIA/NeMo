@@ -170,12 +170,13 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # connect trainer to accelerator.
         self.accelerator.setup(trainer)
         # Parallelize model
-        self.parallelize(trainer)
+        if getattr(self, '_init_model_parallel', True):
+            self.parallelize()
         # setup optim
-        super().setup_optimizers(trainer)
+        if getattr(self, '_setup_optimizers', True):
+            super().setup_optimizers(trainer)
 
-
-    def parallelize(self, trainer):
+    def parallelize(self):
         """Applies fully_shard on model"""
         if self.parallelize_fn is not None:
             # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
