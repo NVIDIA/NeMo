@@ -215,6 +215,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         return loss, {'avg': loss}
 
     @override
+    def optimizer_state(self, optimizer: 'Optimizer'):
+        """ returns the sharded optim state """
+        return optimizer.state_dict()
+
+    @override
     def training_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
         """Defines the training step, logging relevant metrics.
 
