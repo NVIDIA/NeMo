@@ -21,7 +21,8 @@ from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
 from megatron.core.rerun_state_machine import RerunDataIterator
 from megatron.core.transformer import MegatronModule
 
-from nemo.tron.checkpointing import load_checkpoint
+from nemo.tron import fault_tolerance
+from nemo.tron.checkpointing import checkpoint_exists, load_checkpoint
 from nemo.tron.config import ConfigContainer
 from nemo.tron.data.dataset import setup_data_iterators
 from nemo.tron.init import initialize_megatron, set_jit_fusion_options
@@ -29,7 +30,6 @@ from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
-from nemo.tron import fault_tolerance
 from nemo.utils.import_utils import safe_import
 
 _, HAVE_RESIL = safe_import("nvidia_resiliency_ext.checkpointing")
@@ -137,8 +137,13 @@ def setup(
 
     # Load checkpoint if applicable
     if (
-        cfg.checkpoint_config.load is not None or cfg.checkpoint_config.pretrained_checkpoint is not None
-    ) and not cfg.megatron_lm_config.moe_use_upcycling:
+        (cfg.checkpoint_config.load is not None or cfg.checkpoint_config.pretrained_checkpoint is not None)
+        and not cfg.megatron_lm_config.moe_use_upcycling
+        and (
+            checkpoint_exists(cfg.checkpoint_config.load)
+            or checkpoint_exists(cfg.checkpoint_config.pretrained_checkpoint)
+        )
+    ):
         timers("load-checkpoint", log_level=0).start(barrier=True)
 
         load_checkpoint(

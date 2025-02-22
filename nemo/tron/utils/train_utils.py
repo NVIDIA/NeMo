@@ -22,8 +22,8 @@ from megatron.core.utils import get_data_parallel_group_if_dtensor, to_local_if_
 
 from nemo.tron.config import ConfigContainer
 from nemo.tron.state import GlobalState
-from nemo.tron.theoretical_memory_usage import report_theoretical_memory
 from nemo.tron.utils.common_utils import get_world_size_safe, is_last_rank, print_rank_last
+from nemo.tron.utils.theoretical_memory_utils import report_theoretical_memory
 
 try:
     from transformer_engine.pytorch.optimizers import multi_tensor_applier, multi_tensor_l2norm

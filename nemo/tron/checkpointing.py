@@ -75,7 +75,8 @@ try:
 except Exception:
     has_nvidia_modelopt = False
 
-TRACKER_FILE = "train_state.pt"
+TRAIN_STATE_FILE = "train_state.pt"
+TRACKER_PREFIX = "latest"
 CONFIG_FILE = "run_config.yaml"
 _CHECKPOINT_VERSION = None
 
@@ -268,9 +269,9 @@ def find_checkpoint_rank_0(checkpoints_path, iteration, release=False):
 def get_checkpoint_train_state_filename(checkpoints_path, prefix: Optional[str] = None):
     """Tracker file records the latest train state to restart from."""
     if prefix is None:
-        return os.path.join(checkpoints_path, TRACKER_FILE)
+        return os.path.join(checkpoints_path, TRAIN_STATE_FILE)
     else:
-        return os.path.join(checkpoints_path, f"{prefix}_{TRACKER_FILE}")
+        return os.path.join(checkpoints_path, f"{prefix}_{TRAIN_STATE_FILE}")
 
 
 def get_checkpoint_run_config_filename(checkpoints_path):
@@ -281,7 +282,7 @@ def get_checkpoint_run_config_filename(checkpoints_path):
 def checkpoint_exists(checkpoints_path):
     if checkpoints_path is None:
         return False
-    return os.path.exists(os.path.join(checkpoints_path, TRACKER_FILE))
+    return os.path.exists(os.path.join(checkpoints_path, f"{TRACKER_PREFIX}_{TRAIN_STATE_FILE}"))
 
 
 @lru_cache()
@@ -289,7 +290,7 @@ def read_train_state(train_state_filename: str):
     """
     Read the TrainState saved via TrainState.state_dict. On rank 0 load from the file,
     then broadcast the TrainState object (or an error flag) to all processes.
-    If an error occurs on rank 0, all ranks will sys.exit.
+    If an error occurs on rank 0, all ranks will raise an exception.
     """
     state_obj = [None]
 
@@ -300,16 +301,16 @@ def read_train_state(train_state_filename: str):
             ts.load_state_dict(state_dict)
             state_obj[0] = ts
         except Exception as e:
-            error_msg = f"ERROR: Unable to load tracker file {train_state_filename}: {e}"
+            error_msg = f"ERROR: Unable to load train state file {train_state_filename}: {e}"
             sys.stderr.write(error_msg + "\n")
-            state_obj[0] = {"error": True}
+            state_obj[0] = {"error": True, "msg": error_msg}
 
     if torch.distributed.is_initialized():
         print_rank_0(f"Broadcasting TrainState from rank 0 to all {get_world_size_safe()} ranks")
         torch.distributed.broadcast_object_list(state_obj, src=0)
 
     if isinstance(state_obj[0], dict) and state_obj[0].get("error", False):
-        sys.exit(1)
+        raise RuntimeError(state_obj[0]["msg"])
 
     return state_obj[0]
 
@@ -319,7 +320,7 @@ def read_run_config(run_config_filename: str):
     """
     Read the run config saved as YAML. On rank 0 load from the file,
     then broadcast the config object (or an error flag) to all processes.
-    If an error occurs on rank 0, all ranks will sys.exit.
+    If an error occurs on rank 0, all ranks will raise an exception.
     """
     config_obj = [None]
 
@@ -331,14 +332,14 @@ def read_run_config(run_config_filename: str):
         except Exception as e:
             error_msg = f"ERROR: Unable to load config file {run_config_filename}: {e}"
             sys.stderr.write(error_msg + "\n")
-            config_obj[0] = {"error": True}
+            config_obj[0] = {"error": True, "msg": error_msg}
 
     if torch.distributed.is_initialized():
         print_rank_0(f"Broadcasting config from rank 0 to all {get_world_size_safe()} ranks")
         torch.distributed.broadcast_object_list(config_obj, src=0)
 
     if isinstance(config_obj[0], dict) and config_obj[0].get("error", False):
-        sys.exit(1)
+        raise RuntimeError(config_obj[0]["msg"])
 
     return config_obj[0]
 
@@ -624,7 +625,7 @@ def save_checkpoint(
     # And update the latest train state
     if get_rank_safe() == 0:
         train_state_local_filename = get_checkpoint_train_state_filename(checkpoint_name)
-        train_state_global_filename = get_checkpoint_train_state_filename(save_dir, prefix="latest")
+        train_state_global_filename = get_checkpoint_train_state_filename(save_dir, prefix=TRACKER_PREFIX)
         config_filename = get_checkpoint_run_config_filename(checkpoint_name)
         if ckpt_type == CheckpointType.LOCAL:
 
@@ -889,7 +890,7 @@ def _get_non_persistent_iteration(non_persistent_global_dir, cfg: ConfigContaine
     if cfg.checkpoint_config.non_persistent_ckpt_type is None:
         return -1
     elif cfg.checkpoint_config.non_persistent_ckpt_type == "global":
-        train_state_filename = get_checkpoint_train_state_filename(non_persistent_global_dir, prefix="latest")
+        train_state_filename = get_checkpoint_train_state_filename(non_persistent_global_dir, prefix=TRACKER_PREFIX)
         if os.path.isfile(train_state_filename):
             train_state = read_train_state(train_state_filename)
             iteration = train_state.step
@@ -1002,7 +1003,7 @@ def _load_base_checkpoint(
     iteration, release = -1, False
     tracker_filename = "because load directory is not defined"
     if load_dir is not None:
-        tracker_filename = get_checkpoint_train_state_filename(load_dir, prefix="latest")
+        tracker_filename = get_checkpoint_train_state_filename(load_dir, prefix=TRACKER_PREFIX)
         if os.path.isfile(tracker_filename):
             train_state = read_train_state(tracker_filename)
             iteration = train_state.step

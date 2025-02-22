@@ -999,8 +999,8 @@ class ConfigContainer:
     logger_config: LoggerConfig
     tokenizer_config: TokenizerConfig
     checkpoint_config: CheckpointConfig
-    ft_config: FaultToleranceConfig
-    straggler_config: StragglerDetectionConfig
+    ft_config: FaultToleranceConfig = field(default_factory=FaultToleranceConfig)
+    straggler_config: StragglerDetectionConfig = field(default_factory=StragglerDetectionConfig)
 
     def __post_init__(self):
         # Run validations
