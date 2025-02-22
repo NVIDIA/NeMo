@@ -227,7 +227,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         return loss, {'avg': loss}
 
     @override
-    def optimizer_state(self, optimizer: 'Optimizer'):
+    def optimizer_state(self, optimizer):
         """returns the sharded optim state"""
         return optimizer.state_dict()
 
