@@ -12,9 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.export.utils.utils import is_nemo2_checkpoint, torch_dtype_from_precision
+from nemo.export.utils.utils import (
+    get_example_inputs,
+    get_model_device_type,
+    is_nemo2_checkpoint,
+    torch_dtype_from_precision,
+    validate_fp8_network,
+)
 
 __all__ = [
     "is_nemo2_checkpoint",
     "torch_dtype_from_precision",
+    "get_model_device_type",
+    "get_example_inputs",
+    "validate_fp8_network",
 ]
