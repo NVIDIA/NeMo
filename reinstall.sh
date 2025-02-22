@@ -127,6 +127,7 @@ nemo() {
 
   ${PIP} install --no-cache-dir virtualenv &&
     virtualenv /opt/venv &&
+    /opt/venv/bin/pip install --no-cache-dir setuptools &&
     /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
       -r $NEMO_DIR/requirements/requirements_vllm.txt \
       -r $NEMO_DIR/requirements/requirements_deploy.txt
