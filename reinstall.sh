@@ -16,7 +16,7 @@ CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 WHEELS_DIR=${WHEELS_DIR:-'/tmp/wheels'}
 
 PIP=pip
-${PIP} install -U ${PIP}
+${PIP} install -U ${PIP} setuptools
 
 mcore() {
   local mode="$1"
@@ -43,6 +43,7 @@ mcore() {
     fi &&
     pushd $MAMBA_DIR &&
     git checkout -f $MAMBA_TAG &&
+    sed -i "/triton/d" setup.py &&
     popd
 
   MLM_DIR="/opt/Megatron-LM" &&
@@ -53,6 +54,7 @@ mcore() {
     fi &&
     pushd $MLM_DIR &&
     git checkout -f $MLM_TAG &&
+    sed -i "/triton==3.1.0/d" requirements/pytorch_24.10/requirements.txt &&
     popd
 
   if [[ "$mode" == "build" ]]; then
@@ -125,27 +127,39 @@ nemo() {
 
   ${PIP} install --no-cache-dir virtualenv &&
     virtualenv /opt/venv &&
+    /opt/venv/bin/pip install --no-cache-dir setuptools &&
     /opt/venv/bin/pip install --no-cache-dir --no-build-isolation \
       -r $NEMO_DIR/requirements/requirements_vllm.txt \
       -r $NEMO_DIR/requirements/requirements_deploy.txt
 
   DEPS=(
-    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@34259bd3e752fef94045a9a019e4aaf62bd11ce2"
+    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
     "onnxscript @ git+https://github.com/microsoft/onnxscript"
     "llama-index==0.10.43"
     "unstructured==0.14.9"
-    "triton==3.1.0"
   )
 
   if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
     echo "Installing NVIDIA Resiliency in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
-    pip install --no-cache-dir \
-      "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@97aad77609d2e25ed38ac5c99f0c13f93c48464e ; platform_machine == 'x86_64'" \
+    pip install --force-reinstall --no-deps --no-cache-dir \
+      "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'" \
       -r "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
   fi
 
   echo 'Installing dependencies of nemo'
-  ${PIP} install --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
+  ${PIP} install --upgrade --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
+
+  # bitsandbytes does not have wheels built with cuda 12.8 yet
+  # Build and install the version found in requirements/requirements_multimodal.txt
+  echo 'Building and installing bitsandbytes'
+  git clone https://github.com/bitsandbytes-foundation/bitsandbytes.git &&
+    cd bitsandbytes &&
+    git checkout tags/0.45.0 &&
+    cmake -DCOMPUTE_BACKEND=cuda -S . &&
+    make &&
+    cmake -DCOMPUTE_BACKEND=cpu -S . &&
+    make &&
+    pip install .
 
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
