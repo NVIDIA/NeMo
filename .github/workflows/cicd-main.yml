@@ -1476,6 +1476,8 @@ jobs:
         jupyter nbconvert --to script tutorials/llm/hf/peft.ipynb --output _peft
         sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_peft.py
         sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_peft.py
+        cp tutorials/llm/hf/_peft.py /tmp/_peft.py
+        grep -iv push_to_hub /tmp/_peft.py > tutorials/llm/hf/_peft.py
         TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_peft.py
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
@@ -1666,6 +1668,8 @@ jobs:
         jupyter nbconvert --to script tutorials/llm/hf/sft.ipynb --output _sft
         sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_sft.py
         sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_sft.py
+        cp tutorials/llm/hf/_sft.py /tmp/_sft.py
+        grep -iv push_to_hub /tmp/_sft.py > tutorials/llm/hf/_sft.py
         TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_sft.py
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
@@ -2885,6 +2889,23 @@ jobs:
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/vllm_from_nemo2
 
+  L2_NeMo_2_EVAL:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_EVAL')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        python tests/evaluation/test_evaluation.py \
+        --nemo2_ckpt_path=/home/TestData/nemo2_ckpt/llama3-1b-lingua \
+        --max_batch_size=4 \
+        --trtllm_dir='/tmp/trtllm_dir' \
+        --eval_type='arc_challenge' \
+        --limit=1
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/trtllm_dir
+
   L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -3092,6 +3113,7 @@ jobs:
       - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
+      - L2_NeMo_2_EVAL
       - L2_SpeechLM_LoRA_TP1PP1_MBS2
 
     if: always() && github.event != 'push'
