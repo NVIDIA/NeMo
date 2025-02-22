@@ -79,11 +79,13 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     patch_size: int = 1
     guidance_embed: bool = False
     vec_in_dim: int = 768
-    rotary_interleaved: bool = True
+    rotary_interleaved: bool = False
+    apply_rope_fusion: bool = True
     layernorm_epsilon: float = 1e-06
     hidden_dropout: float = 0
     attention_dropout: float = 0
     use_cpu_initialization: bool = True
+    gradient_accumulation_fusion: bool = True
 
     guidance_scale: float = 3.5
     data_step_fn: Callable = flux_data_step
@@ -593,7 +595,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         timesteps = timesteps.to(dtype=latents.dtype)
         sigma = sigmas[step_indices].flatten()
 
-        if len(sigma.shape) < latents.ndim:
+        while len(sigma.shape) < latents.ndim:
             sigma = sigma.unsqueeze(-1)
 
         noisy_model_input = (1.0 - sigma) * latents + sigma * noise
