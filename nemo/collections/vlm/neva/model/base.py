@@ -225,7 +225,8 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         model = MCoreNevaModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage(),
+            pre_process=ps.is_pipeline_first_stage()
+            or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
             add_decoder=ps.is_pipeline_last_stage()
@@ -361,7 +362,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             freeze_vision_projection=config.freeze_vision_projection,
         )
 
-        self.model_type = ModelType.encoder_or_decoder
+        self.model_type = ModelType.encoder_and_decoder
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
 
@@ -369,6 +370,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
         if drop_vision_class_token and vision_transformer_config.add_class_token:
             self._img_seq_len -= vision_transformer_config.class_token_len
+        self._language_hidden_size = language_transformer_config.hidden_size
 
     def forward(
         self,
@@ -426,7 +428,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
         elif self.add_encoder and not has_images:
             vision_param = next(self.vision_model.parameters())
             # If no images provided, use an empty image embeddings tensor.
-            image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(0, 0, 0)
+            image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(
+                self._img_seq_len, 0, self._language_hidden_size
+            )
         elif self.add_encoder and has_images:
             # images is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
@@ -459,8 +463,23 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 )
         else:
             image_embeddings = self.encoder_hidden_state
+            if self.config.encoder_pipeline_model_parallel_size > 0:
+                num_images = len(images) if images is not None else 0
+                image_embeddings = image_embeddings[:, :num_images]
 
         if not self.add_decoder:
+            if self.config.encoder_pipeline_model_parallel_size > 0:
+                _, num_images, _ = image_embeddings.shape
+                pad_amount = max(input_ids.size(0) - num_images, 0)
+                if pad_amount > 0:
+                    pad_tensor = torch.zeros(
+                        self._img_seq_len,
+                        pad_amount,
+                        self._language_hidden_size,
+                        dtype=image_embeddings.dtype,
+                        device=image_embeddings.device,
+                    )
+                    image_embeddings = torch.cat([image_embeddings, pad_tensor], dim=1)
             return image_embeddings
 
         language_embeddings = None

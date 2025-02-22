@@ -43,6 +43,7 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm import ImageDataConfig
+from nemo.lightning.pytorch.callbacks import NsysCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -73,6 +74,8 @@ def main(args):
         input_size=vision_transformer_config.hidden_size,
         hidden_size=language_transformer_config.hidden_size,
         ffn_hidden_size=language_transformer_config.hidden_size,
+        bias=False,
+        bias_activation_fusion=False,
     )
 
     # NEVA model configuration
@@ -84,7 +87,11 @@ def main(args):
         freeze_language_model=False,
         freeze_vision_model=True,
     )
-    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile
+    num_image_embeddings_per_tile = vision_transformer_config.num_image_embeddings_per_tile - int(
+        neva_config.drop_vision_class_token and vision_transformer_config.add_class_token
+    )
+
+    seq_length = num_image_embeddings_per_tile
 
     if args.data_type == "llava":
         # Data configuration
@@ -97,8 +104,8 @@ def main(args):
         data = vlm.NevaPreloadedDataModule(
             paths=args.data_path,
             data_config=data_config,
-            seq_length=decoder_seq_length,
-            decoder_seq_length=None,
+            seq_length=seq_length,
+            decoder_seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
             tokenizer=None,
@@ -133,7 +140,8 @@ def main(args):
             path=args.data_path,
             tokenizer=tokenizer,
             image_processor=image_processor,
-            seq_length=decoder_seq_length,
+            seq_length=seq_length,
+            decoder_seq_length=decoder_seq_length,
             micro_batch_size=mbs,
             global_batch_size=gbs,
             num_workers=0,
@@ -143,14 +151,15 @@ def main(args):
                 image_processor=image_processor,
                 multimodal_sample_config=config,
                 packed_sequence=args.use_packed_sequence,
-                packed_sequence_size=decoder_seq_length,
+                packed_sequence_size=seq_length,
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
             ),
             packing_buffer_size=200 if args.use_packed_sequence else None,
         )
     elif args.data_type == "mock":
         data = vlm.NevaMockDataModule(
-            seq_length=decoder_seq_length,
+            seq_length=seq_length,
+            decoder_seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
             tokenizer=None,
@@ -168,9 +177,10 @@ def main(args):
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
+        encoder_tensor_model_parallel_size=args.encoder_tp_size,
         context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
-        sequence_parallel=True,
+        sequence_parallel=False,
         ddp=DistributedDataParallelConfig(
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
@@ -290,6 +300,7 @@ if __name__ == "__main__":
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
+    parser.add_argument("--encoder_tp_size", type=int, required=False, default=0)
     parser.add_argument("--projector_type", type=str, required=False, default="mcore_mlp")
     parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
     parser.add_argument("--peft", type=str, default='none', help="none | lora")
