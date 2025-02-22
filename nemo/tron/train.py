@@ -36,7 +36,7 @@ from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model
 
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import save_checkpoint
-from nemo.tron.config import ConfigContainer, MegatronLMConfig
+from nemo.tron.config import CheckpointConfig, ConfigContainer, MegatronLMConfig
 from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.state import GlobalState
 from nemo.tron.utils import flop_utils
@@ -414,7 +414,7 @@ def train(
         fault_tolerance.shutdown(global_state)
         sys.exit(exit_code)
 
-    return global_state.train_state.step
+    return global_state.train_state.step, num_floating_point_operations_so_far
 
 
 def train_step(
@@ -804,3 +804,13 @@ def checkpoint_and_decide_exit(
         return True
 
     return False
+
+
+def _finish_pretrain(ckpt_cfg: CheckpointConfig, global_state: GlobalState):
+    if global_state.wandb_logger:
+        global_state.wandb_logger.finish()
+
+    fault_tolerance.on_checkpointing_start(global_state)
+    maybe_finalize_async_save(blocking=True, terminate=True, ckpt_cfg=ckpt_cfg)
+    fault_tolerance.on_checkpointing_end(global_state=global_state, is_async_finalization=True)
+    fault_tolerance.shutdown(global_state)
