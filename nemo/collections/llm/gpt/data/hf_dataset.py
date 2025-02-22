@@ -19,10 +19,9 @@ from torch.utils.data import DataLoader
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from typing import Dict
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 import numpy as np
-from torch.utils.data import Dataset
 
 
 def clean_split(name):
@@ -34,8 +33,8 @@ def clean_split(name):
     Returns:
         str: return partition name without any selector (e.g. "train").
     """
-    if "[" in name:
-        return name.split("[")[0]
+    if '[' in name:
+        return name.split('[')[0]
     return name
 
 
@@ -69,7 +68,7 @@ def make_dataset_splits(dataset, split, split_aliases):
     >    "val": Dataset .. (with 10570 rows),
     > }
     """
-    valid_split_names = ["train", "test", "val"]
+    valid_split_names = ['train', 'test', 'val']
     dataset_splits = {_split: None for _split in valid_split_names}
 
     alias_to_split = {}
@@ -79,9 +78,7 @@ def make_dataset_splits(dataset, split, split_aliases):
             alias_to_split[alias] = split_name
 
     if isinstance(dataset, Dataset):
-        assert isinstance(split, str), "Expected split to be a string, but got " + str(
-            type(split)
-        )
+        assert isinstance(split, str), "Expected split to be a string, but got " + str(type(split))
         split = clean_split(split)
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
@@ -102,10 +99,10 @@ def make_dataset_splits(dataset, split, split_aliases):
         logging.info("Loaded HF dataset has a single split.")
         assert not isinstance(dataset, list)
         alias_split_name = split
-        if "+" in alias_split_name:
+        if '+' in alias_split_name:
             raise ValueError("Split concatenation not supported")
-        elif "[" in alias_split_name:
-            alias_split_name = alias_split_name.split("[")[0]
+        elif '[' in alias_split_name:
+            alias_split_name = alias_split_name.split('[')[0]
         split_name = alias_to_split[alias_split_name]
         assert dataset_splits[split_name] is None
         dataset_splits[split_name] = dataset
@@ -114,9 +111,7 @@ def make_dataset_splits(dataset, split, split_aliases):
 
     assert set(valid_split_names) == set(dataset_splits.keys()), dataset_splits.keys()
     num_init_splits = sum(map(lambda x: x is not None, dataset_splits.values()))
-    assert num_init_splits > 0, (
-        f"Expected at least one split to have been initialized {num_init_splits}"
-    )
+    assert num_init_splits > 0, f"Expected at least one split to have been initialized {num_init_splits}"
     return dataset_splits
 
 
@@ -147,7 +142,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         global_batch_size=2,
         pad_token_id=0,
         use_mcore_sampler=False,
-        mcore_dataloader_type="cyclic",
+        mcore_dataloader_type='cyclic',
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
@@ -158,35 +153,24 @@ class HFDatasetDataModule(pl.LightningDataModule):
         # A dataset usually will have several splits (e.g. train, val, test, etc).
         # We map synonym names to canonical names (train, test, val).
         # A synonym can be a prefix/suffixed word e.g. train <> training.
-        split_aliases = {
-            "train": train_aliases,
-            "test": test_aliases,
-            "val": val_aliases,
-        }
+        split_aliases = {'train': train_aliases, 'test': test_aliases, 'val': val_aliases}
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
-            logging.info(
-                f"Loading HF dataset from {path_or_dataset}, this may take a moment."
-            )
+            logging.info(f"Loading HF dataset from {path_or_dataset}, this may take a moment.")
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
-        elif isinstance(path_or_dataset, Dataset) or isinstance(
-            path_or_dataset, DatasetDict
-        ):
+        elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
             dataset = path_or_dataset
         else:
             raise ValueError(
-                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got "
-                + str(type(path_or_dataset))
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got " + str(type(path_or_dataset))
             )
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
-            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(
-                x, pad_token_id=self.pad_token_id
-            )
+            self._collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
         else:
             self._collate_fn = collate_fn
 
@@ -207,6 +191,33 @@ class HFDatasetDataModule(pl.LightningDataModule):
         dataset = Dataset.from_dict(dataset_dict)
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
+    @staticmethod
+    def collate_fn(batch, pad_token_id=0):
+        """Default batch collator"""
+
+        def batchify(tensor):
+            if tensor.ndim == 1:
+                return tensor.unsqueeze_(0)
+            return tensor
+
+        def extract_key_from_dicts(batch, key):
+            return list(map(lambda x: x[key], batch))
+
+        def pad_within_micro(batch, pad_token_id):
+            max_len = max(map(len, batch))
+            return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
+        return {
+            key: batchify(
+                torch.LongTensor(
+                    pad_within_micro(
+                        extract_key_from_dicts(batch, key),
+                        pad_token_id if key != 'loss_mask' else 0,
+                    )
+                )
+            )
+            for key in batch[0].keys()
+        }
+
     def setup(self, stage: str):
         """setups sampler"""
         if not self.use_mcore_sampler:
@@ -223,9 +234,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
 
         if collate_fn is None:
-            collate_fn = lambda x: HFDatasetDataModule.collate_fn(
-                x, pad_token_id=self.pad_token_id
-            )
+            collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=self.pad_token_id)
 
         return DataLoader(
             dataset,
@@ -239,17 +248,17 @@ class HFDatasetDataModule(pl.LightningDataModule):
     @property
     def train(self):
         """Returns the training partition"""
-        return self.dataset_splits["train"]
+        return self.dataset_splits['train']
 
     @property
     def val(self):
         """Returns the validation partition"""
-        return self.dataset_splits["val"]
+        return self.dataset_splits['val']
 
     @property
     def test(self):
         """Returns the test partition"""
-        return self.dataset_splits["test"]
+        return self.dataset_splits['test']
 
     def train_dataloader(self):
         """Returns the train dataloader"""
@@ -276,6 +285,82 @@ class HFDatasetDataModule(pl.LightningDataModule):
             if subset is None:
                 continue
             dataset_splits[split_name] = subset.map(function, **kwargs)
+
+
+class SquadHFDataModule(HFDatasetDataModule):
+    """
+    A data module for handling the SQuAD dataset using HFDatasetDataModule.
+
+    This class is responsible for tokenizing and formatting the SQuAD dataset for training
+    language models. It extends `HFDatasetDataModule` and implements a prompt-based
+    formatting function suitable for causal language modeling.
+
+    Attributes:
+        tokenizer: A tokenizer instance used to convert text into token IDs.
+    """
+
+    def __init__(self, tokenizer, **kwargs):
+        """
+        Initializes the SquadHFDataModule.
+
+        Args:
+            tokenizer: A tokenizer instance for processing text data.
+            **kwargs: Additional arguments passed to the parent class (`HFDatasetDataModule`).
+        """
+        super().__init__(**kwargs)
+        self.tokenizer = tokenizer
+
+    def formatting_prompts_func(self, example):
+        """
+        Formats a given example into a structured prompt for training.
+
+        This method converts a dataset example (containing context, question, and answer)
+        into a structured format, tokenizes it, and prepares input IDs and labels for
+        training a language model.
+
+        Args:
+            example (dict): A dictionary containing the following keys:
+                - 'context': The passage from which the question is derived.
+                - 'question': The question about the passage.
+                - 'answers': A dictionary with a 'text' key containing the answer(s).
+
+        Returns:
+            dict: A dictionary containing:
+                - 'input_ids': Tokenized input sequence (excluding the last token).
+                - 'labels': Tokenized output sequence (excluding the first token).
+                - 'loss_mask': A mask indicating which tokens contribute to the loss.
+        """
+        formatted_text = [
+            f"Context: {example['context']} Question: {example['question']} Answer:",
+            f" {example['answers']['text'][0].strip()}",
+        ]
+        context_ids, answer_ids = list(map(self.tokenizer.text_to_ids, formatted_text))
+        if len(context_ids) > 0 and context_ids[0] != self.tokenizer.bos_id:
+            context_ids.insert(0, self.tokenizer.bos_id)
+        if len(answer_ids) > 0 and answer_ids[-1] != self.tokenizer.eos_id:
+            answer_ids.append(self.tokenizer.eos_id)
+
+        return dict(
+            labels=(context_ids + answer_ids)[1:],
+            input_ids=(context_ids + answer_ids)[:-1],
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
+        )
+
+    def setup(self, stage):
+        """
+        Prepares the dataset for training and applies formatting.
+
+        Args:
+            stage (str): The stage of training.
+        """
+        super().setup(stage)
+
+        self.map(
+            self.formatting_prompts_func,
+            batched=False,
+            batch_size=2,
+            remove_columns=["id", "title", "context", "question", 'answers'],
+        )
 
 
 class HFMockDataModule(pl.LightningDataModule):
@@ -349,10 +434,6 @@ class HFMockDataModule(pl.LightningDataModule):
             self.create_attention_mask,
         )
 
-    @staticmethod
-    def collate_fn(batch):
-        return HFDatasetDataModule.collate_fn(batch, pad_token_id=0)
-
     def train_dataloader(self) -> DataLoader:
         return self._create_dataloader(self._train_ds)
 
@@ -373,7 +454,7 @@ class HFMockDataModule(pl.LightningDataModule):
         )
 
 
-class _MockGPTDataset(Dataset):
+class _MockGPTDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         tokenizer: "TokenizerSpec",
@@ -393,25 +474,20 @@ class _MockGPTDataset(Dataset):
         self.create_attention_mask = create_attention_mask
 
         if create_attention_mask:
-            self.attention_mask = torch.tril(
-                torch.ones((self.seq_length, self.seq_length), device="cpu")
-            ).unsqueeze(0)
-            self.attention_mask = self.attention_mask < 0.5
+            self.attention_mask = np.tril(
+                np.ones((self.seq_length, self.seq_length), dtype=np.float32)
+            )[np.newaxis, :].tolist()
 
-        self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
-        self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
+        self.loss_mask = np.ones(self.seq_length, dtype=np.float32).tolist()
+        self.position_ids = np.arange(self.seq_length, dtype=np.int64).tolist()
 
     def __len__(self) -> int:
         return self.length
 
-    def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx) -> Dict[str, list]:
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(
-            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
-        )
-        labels = torch.from_numpy(
-            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
-        )
+        tokens = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+        labels = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
 
         batch = {
             "tokens": tokens,
@@ -424,104 +500,3 @@ class _MockGPTDataset(Dataset):
             batch["attention_mask"] = self.attention_mask
 
         return batch
-
-    # def collate_fn(self, batch):
-    #     def batchify(tensor):
-    #         if tensor.ndim == 1:
-    #             return tensor.unsqueeze_(0)
-    #         return tensor
-
-    #     def extract_key_from_dicts(batch, key):
-    #         return list(map(lambda x: x[key], batch))
-
-    #     def pad_within_micro(batch, pad_token_id):
-    #         max_len = max(map(len, batch))
-    #         return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
-
-    #     return {
-    #         key: batchify(
-    #             torch.LongTensor(
-    #                 pad_within_micro(
-    #                     extract_key_from_dicts(batch, key),
-    #                     0 if key == "loss_mask" else self.tokenizer.pad_token,
-    #                 )
-    #             )
-    #         )
-    #         for key in batch[0].keys()
-    #     }
-
-
-class SquadHFDataModule(HFDatasetDataModule):
-    """
-    A data module for handling the SQuAD dataset using HFDatasetDataModule.
-
-    This class is responsible for tokenizing and formatting the SQuAD dataset for training
-    language models. It extends `HFDatasetDataModule` and implements a prompt-based
-    formatting function suitable for causal language modeling.
-
-    Attributes:
-        tokenizer: A tokenizer instance used to convert text into token IDs.
-    """
-
-    def __init__(self, tokenizer, **kwargs):
-        """
-        Initializes the SquadHFDataModule.
-
-        Args:
-            tokenizer: A tokenizer instance for processing text data.
-            **kwargs: Additional arguments passed to the parent class (`HFDatasetDataModule`).
-        """
-        super().__init__(**kwargs)
-        self.tokenizer = tokenizer
-
-    def formatting_prompts_func(self, example):
-        """
-        Formats a given example into a structured prompt for training.
-
-        This method converts a dataset example (containing context, question, and answer)
-        into a structured format, tokenizes it, and prepares input IDs and labels for
-        training a language model.
-
-        Args:
-            example (dict): A dictionary containing the following keys:
-                - 'context': The passage from which the question is derived.
-                - 'question': The question about the passage.
-                - 'answers': A dictionary with a 'text' key containing the answer(s).
-
-        Returns:
-            dict: A dictionary containing:
-                - 'input_ids': Tokenized input sequence (excluding the last token).
-                - 'labels': Tokenized output sequence (excluding the first token).
-                - 'loss_mask': A mask indicating which tokens contribute to the loss.
-        """
-        formatted_text = [
-            f"Context: {example['context']} Question: {example['question']} Answer:",
-            f" {example['answers']['text'][0].strip()}",
-        ]
-        context_ids, answer_ids = list(map(self.tokenizer.text_to_ids, formatted_text))
-        if len(context_ids) > 0 and context_ids[0] != self.tokenizer.bos_id:
-            context_ids.insert(0, self.tokenizer.bos_id)
-        if len(answer_ids) > 0 and answer_ids[-1] != self.tokenizer.eos_id:
-            answer_ids.append(self.tokenizer.eos_id)
-
-        return dict(
-            labels=(context_ids + answer_ids)[1:],
-            input_ids=(context_ids + answer_ids)[:-1],
-            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
-        )
-
-    def setup(self, stage=None):
-        """
-        Prepares the dataset for training and applies formatting.
-
-        Args:
-            stage (str): The stage of training.
-        """
-        super().setup(stage)
-
-        self.map(
-            self.formatting_prompts_func,
-            batched=False,
-            batch_size=2,
-            remove_columns=["id", "title", "context", "question", "answers"],
-        )
