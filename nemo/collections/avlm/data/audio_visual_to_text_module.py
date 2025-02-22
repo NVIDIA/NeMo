@@ -12,7 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations as audio_process_augmentations 
+from functools import lru_cache
+from typing import Any, Dict, List, Union
+
+from megatron.core import parallel_state
+from omegaconf.omegaconf import DictConfig
+
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations as audio_process_augmentations
+from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.speechlm.data.audio_to_text_module import AudioToTextDataModule
 from nemo.collections.speechlm.data.dataset.audio_text_dataset import (
     get_tarred_audio_visual_text_dataset_from_config,
