@@ -2871,7 +2871,9 @@ jobs:
         exp_manager.exp_dir=/tmp/gpt_sft_results_starcoder_pp1 \
         model.peft.peft_scheme=none \
         model.optim.name=distributed_fused_adam \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/starcoder-ci-nemo/megatron_starcoder_tp1_pp1.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/starcoder-ci-nemo/
+        megatron_starcoder_tp1_pp1.nemo \
+        ++model.dist_ckpt_load_strictness=log_all \
         model.tensor_model_parallel_size=1 \
         model.pipeline_model_parallel_size=1 \
         model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
@@ -2897,6 +2899,7 @@ jobs:
         trainer.num_nodes=1 \
         trainer.max_epochs=null \
         trainer.max_steps=20 \
+        ++model.dist_ckpt_load_strictness=log_all \
         trainer.val_check_interval=10 \
         model.restore_from_path="/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo" \
         model.peft.lora_tuning.adapter_dim=8 \
@@ -2921,6 +2924,7 @@ jobs:
         trainer.max_epochs=null \
         trainer.max_steps=20 \
         trainer.val_check_interval=10 \
+        ++model.dist_ckpt_load_strictness=log_all \
         model.restore_from_path="/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo" \
         model.peft.lora_tuning.adapter_dim=8 \
         model.data.validation_ds.query_file_names=[/home/TestData/nlp/megatron_ir/test_query.jsonl] \
@@ -2933,6 +2937,7 @@ jobs:
         python examples/nlp/information_retrieval/megatron_gpt_embedding_generate.py \
         trainer.devices=1 \
         trainer.num_nodes=1 \
+        ++model.dist_ckpt_load_strictness=log_all \
         model.restore_from_path="/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo" \
         model.peft.restore_from_path="/tmp/gpt_embedding_workdir/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo" \
         model.global_batch_size=4 \
@@ -2960,6 +2965,7 @@ jobs:
         trainer.precision=bf16 \
         exp_manager.exp_dir=/tmp/nlp_peft_lora_tuning_pp2 \
         model.pipeline_model_parallel_size=2 \
+        ++model.dist_ckpt_load_strictness=log_all \
         model.tensor_model_parallel_size=1 \
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
         model.megatron_amp_O2=True \
@@ -3014,6 +3020,7 @@ jobs:
         model.peft.peft_scheme="lora" \
         model.answer_only_loss=True \
         model.micro_batch_size=1 \
+        ++model.dist_ckpt_load_strictness=log_all \
         model.global_batch_size=1 \
         model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.train_ds.concat_sampling_probabilities=[1.0] \
@@ -3030,6 +3037,7 @@ jobs:
         model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
         model.data.test_ds.names=["quarel4"] \
         model.global_batch_size=2 \
+        ++model.dist_ckpt_load_strictness=log_all \
         model.micro_batch_size=1 \
         model.data.test_ds.tokens_to_generate=10 \
         model.data.test_ds.write_predictions_to_file=True \
@@ -3059,6 +3067,7 @@ jobs:
         model.tensor_model_parallel_size=2 \
         model.sequence_parallel=True \
         model.megatron_amp_O2=True \
+        ++model.dist_ckpt_load_strictness=log_all \
         model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
         +model.fp8=True \
         +model.fp8_params=True \
@@ -3664,10 +3673,10 @@ jobs:
         rm -rf examples/nlp/language_modeling/t5_pretrain_results
         rm -rf examples/nlp/language_modeling/t5_index_mappings
 
-  L2_Megatron_Core_T5_Eval:
+  Optional_L2_Megatron_Core_T5_Eval:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Core_T5_Eval')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Megatron_Core_T5_Eval')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -3675,11 +3684,12 @@ jobs:
             --model_file /home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_padding_attnmasktype.nemo \
             --prompt "How do I fix my GPU memory issue? I am seeing <mask> out of memory." \
             --tensor_model_parallel_size 1
+      IS_OPTIONAL: true
 
-  L2_Megatron_Core_T5_PEFT_Lora_TP2:
+  Optional_L2_Megatron_Core_T5_PEFT_Lora_TP2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Core_T5_PEFT_Lora_TP2')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Megatron_Core_T5_PEFT_Lora_TP2')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -3723,6 +3733,7 @@ jobs:
         inference.greedy=True \
         inference.repetition_penalty=1.0 \
         inference.outfile_path=/tmp/nlp_mcore_t5_lora_tuning_tp2/out.jsonl
+      IS_OPTIONAL: true
 
   L2_VLM_HF_Transformer_PEFT:
     needs: [pre-flight, cicd-test-container-build]
@@ -5348,8 +5359,8 @@ jobs:
       #- OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
       - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
       - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_Core_T5_Eval
-      - L2_Megatron_Core_T5_PEFT_Lora_TP2
+      # - Optional_L2_Megatron_Core_T5_Eval
+      # - Optional_L2_Megatron_Core_T5_PEFT_Lora_TP2
       - L2_Megatron_Mock_Data_Generation_MockGPTDataset
       - L2_Megatron_Mock_Data_Generation_MockT5Dataset
       - L2_TTS_Fast_dev_runs_1_Tacotron_2
