@@ -17,7 +17,9 @@ import itertools
 import string
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import List, Optional
+from typing import List, Optional, Union
+
+from transformers import PreTrainedTokenizerBase
 
 from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
     get_grapheme_character_set,
@@ -1074,3 +1076,45 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
             ps = [space] + ps + [space]
 
         return [self._token2id[p] for p in ps]
+
+
+class AggregatedTTSTokenizer:
+    def __init__(self, tokenizers: List[Union[BaseTokenizer, PreTrainedTokenizerBase]], tokenizer_names: List[str]):
+        """A simple aggregated tokenizer. Aggregates multiple tokenizers into one by combining (simply concatenating)
+        their tokens into one vocabulary.
+        Args:
+            tokenizers: List of tokenizers to aggregate.
+            tokenizer_names: List of names for each tokenizer (usually the language identifier).
+        """
+        assert len(tokenizers) == len(tokenizer_names), "Number of tokenizers and tokenizer names must be the same."
+        tokens = []
+        toknizer_offsets = {}
+        tokenizer_offset = 0
+        self.tokenizers = {}
+        for idx, tokenizer in enumerate(tokenizers):
+            self.tokenizers[tokenizer_names[idx]] = tokenizer
+            toknizer_offsets[tokenizer_names[idx]] = tokenizer_offset
+            if isinstance(tokenizer, BaseTokenizer):
+                tokens.extend(tokenizer.tokens)
+                num_tokens = len(tokenizer.tokens)
+            elif isinstance(tokenizer, PreTrainedTokenizerBase):
+                _tokens = list(tokenizer.get_vocab().keys())
+                tokens.extend(_tokens)
+                num_tokens = len(_tokens)
+            else:
+                raise ValueError("Tokenizers must be either BaseTokenizer or HuggingFace PreTrainedTokenizerBase.")
+            tokenizer_offset += num_tokens
+
+        self.tokens = tokens
+        self.tokenizer_names = tokenizer_names
+        self.toknizer_offsets = toknizer_offsets
+        self.pad = self.tokenizers[tokenizer_names[0]].pad  # Use the first tokenizer's pad token
+
+    def encode(self, text: str, tokenizer_name: str) -> List[int]:
+        tokenizer = self.tokenizers[tokenizer_name]
+        tokens = tokenizer.encode(text)
+        return [self.toknizer_offsets[tokenizer_name] + token for token in tokens]
+
+    def decode(self, tokens: List[int], tokenizer_name: str) -> str:
+        tokenizer = self.tokenizers[tokenizer_name]
+        return tokenizer.decode([token - self.toknizer_offsets[tokenizer_name] for token in tokens])
