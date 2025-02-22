@@ -58,7 +58,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def __init__(
         self,
-        model_name='gpt2',
+        model_name="gpt2",
         load_pretrained_weights=True,
         tokenizer=None,
         loss_fn=masked_cross_entropy,
@@ -162,7 +162,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             from transformers import AutoConfig
 
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
-            dtype = getattr(config, 'torch_dtype', self.default_dtype)
+            dtype = getattr(config, "torch_dtype", self.default_dtype)
             return AutoModelForCausalLM.from_config(
                 config,
                 torch_dtype=dtype,
@@ -186,7 +186,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             self.model = self._configure_model(attn_implementation=self.attn_implementation)
         except ValueError as e:
             # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
-            if 'does not support an attention' in str(e):
+            if "does not support an attention" in str(e):
                 self.model = self._configure_model(attn_implementation="eager")
 
         if self.model_accelerator is not None:
@@ -227,12 +227,12 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
             self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
 
-        labels = batch.pop('labels').to(self.model.device)
-        loss_mask = batch.pop('loss_mask', None)
+        labels = batch.pop("labels").to(self.model.device)
+        loss_mask = batch.pop("loss_mask", None)
 
         # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if not 'input_ids' in batch and 'tokens' in batch:
-            batch['input_ids'] = batch['tokens']
+        if "input_ids" not in batch and "tokens" in batch:
+            batch["input_ids"] = batch["tokens"]
         batch = self._remove_extra_batch_keys(batch)
 
         outputs = self.forward(batch)
@@ -245,7 +245,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('reduced_train_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log(
+            "reduced_train_loss",
+            loss,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+            sync_dist=False,
+        )
         return loss
 
     @torch.no_grad
@@ -261,12 +268,12 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             batch (dict): A dictionary containing the batch data, including 'labels' and optionally 'loss_mask'.
             batch_idx (int): The index of the batch.
         """
-        labels = batch.pop('labels').to(self.model.device)
-        loss_mask = batch.pop('loss_mask', None)
+        labels = batch.pop("labels").to(self.model.device)
+        loss_mask = batch.pop("loss_mask", None)
 
         # GPTSFTDataset emits `tokens` instead of `input_ids`
-        if not 'input_ids' in batch and 'tokens' in batch:
-            batch['input_ids'] = batch['tokens']
+        if "input_ids" not in batch and "tokens" in batch:
+            batch["input_ids"] = batch["tokens"]
         batch = self._remove_extra_batch_keys(batch)
 
         outputs = self.forward(**batch)
@@ -278,7 +285,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
 
     def save_pretrained(self, path, state_dict):
         """
@@ -296,11 +303,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         assert self.model is not None, "Model has to be created first."
 
-        def pop_fqn_prefix(fqn, expected_prefix='model'):
+        def pop_fqn_prefix(fqn, expected_prefix="model"):
             """pops prefix from FQN"""
-            parts = fqn.split('.')
+            parts = fqn.split(".")
             assert parts[0] == expected_prefix
-            return '.'.join(parts[1:])
+            return ".".join(parts[1:])
 
         # Remove the "model." prefix from FQNs.
         # Context: calling state_dict on an HFAutoModelForCausalLM, will prepend "model." in the
@@ -318,7 +325,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         if len(io_bytes_state) > 0:
             logging.warning("State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`.")
-            torch.save(io_bytes_state, path / 'io_bytes.pt')
+            torch.save(io_bytes_state, path / "io_bytes.pt")
 
         self.model.save_pretrained(path, state_dict=state_dict)
         if self._tokenizer is not None:
@@ -333,7 +340,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         return AutoModelForCausalLM.from_pretrained(
             path,
-            torch_dtype='auto',
+            torch_dtype="auto",
             device_map="cpu",
             trust_remote_code=self.trust_remote_code,
             load_in_4bit=self.load_in_4bit,
@@ -377,7 +384,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         return HFCheckpointIO(model=self, adapter_only=adapter_only)
 
-    def _remove_extra_batch_keys(self, batch, reserved_keys=['labels', 'loss_mask']):
+    def _remove_extra_batch_keys(self, batch, reserved_keys=["labels", "loss_mask"]):
         """Remove extra keys from batch that are not kwargs in model's forward
 
         Args:
@@ -394,4 +401,4 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     @property
     def _has_lora_adapter(self):
-        return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
+        return any(map(lambda x: "lora" in x[0].lower(), self.named_modules()))

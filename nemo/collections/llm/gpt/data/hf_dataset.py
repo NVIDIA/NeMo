@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict
+
 import lightning.pytorch as pl
+import numpy as np
 import torch
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
@@ -359,3 +363,142 @@ class SquadHFDataModule(HFDatasetDataModule):
             batch_size=2,
             remove_columns=["id", "title", "context", "question", 'answers'],
         )
+
+
+class HFMockDataModule(pl.LightningDataModule):
+    def __init__(
+        self,
+        seq_length: int = 2048,
+        tokenizer=None,
+        micro_batch_size: int = 4,
+        global_batch_size: int = 8,
+        rampup_batch_size=None,
+        num_train_samples: int = 10_000,
+        num_val_samples: int = 10_000,
+        num_test_samples: int = 10_000,
+        num_workers: int = 8,
+        pin_memory: bool = True,
+        persistent_workers: bool = False,
+        create_attention_mask: bool = False,
+        vocab_file=None,
+        merges_file=None,
+    ):
+        super().__init__()
+        self.seq_length = seq_length
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
+        self.num_train_samples = num_train_samples
+        self.num_val_samples = num_val_samples
+        self.num_test_samples = num_test_samples
+        self.num_workers = num_workers
+        self.pin_memory = pin_memory
+        self.persistent_workers = persistent_workers
+        self.create_attention_mask = create_attention_mask
+        self.collate_fn = lambda x: HFDatasetDataModule.collate_fn(x, pad_token_id=0)
+
+        if tokenizer is None:
+            self.tokenizer = get_nmt_tokenizer(
+                "megatron",
+                "GPT2BPETokenizer",
+                vocab_file=vocab_file,
+                merges_file=merges_file,
+            )
+        else:
+            self.tokenizer = tokenizer
+
+        # self.data_sampler = MegatronDataSampler(
+        #     seq_len=self.seq_length,
+        #     micro_batch_size=self.micro_batch_size,
+        #     global_batch_size=self.global_batch_size,
+        #     rampup_batch_size=rampup_batch_size,
+        # )
+
+    def setup(self, stage: str = None) -> None:
+        self._train_ds = _MockGPTDataset(
+            self.tokenizer,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
+            self.create_attention_mask,
+        )
+        self._val_ds = _MockGPTDataset(
+            self.tokenizer,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
+            self.create_attention_mask,
+        )
+        self._test_ds = _MockGPTDataset(
+            self.tokenizer,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
+            self.create_attention_mask,
+        )
+
+    def train_dataloader(self) -> DataLoader:
+        return self._create_dataloader(self._train_ds)
+
+    def val_dataloader(self) -> DataLoader:
+        return self._create_dataloader(self._val_ds)
+
+    def test_dataloader(self) -> DataLoader:
+        return self._create_dataloader(self._test_ds)
+
+    def _create_dataloader(self, dataset) -> DataLoader:
+        return DataLoader(
+            dataset,
+            batch_size=self.micro_batch_size,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+            persistent_workers=self.persistent_workers,
+            collate_fn=self.collate_fn,
+        )
+
+
+class _MockGPTDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        tokenizer: "TokenizerSpec",
+        name: str,
+        num_samples: int,
+        seq_length: int,
+        create_attention_mask: bool = False,
+        seed: int = 42,
+    ) -> None:
+        super().__init__()
+        self.name = name
+        self.seq_length = seq_length
+        self.tokenizer = tokenizer
+        self.vocab_size = self.tokenizer.vocab_size
+        self.length = num_samples
+        self.seed = seed
+        self.create_attention_mask = create_attention_mask
+
+        if create_attention_mask:
+            self.attention_mask = np.tril(np.ones((self.seq_length, self.seq_length), dtype=np.float32))[
+                np.newaxis, :
+            ].tolist()
+
+        self.loss_mask = np.ones(self.seq_length, dtype=np.float32).tolist()
+        self.position_ids = np.arange(self.seq_length, dtype=np.int64).tolist()
+
+    def __len__(self) -> int:
+        return self.length
+
+    def __getitem__(self, idx) -> Dict[str, list]:
+        np_gen = np.random.default_rng(seed=(self.seed + idx))
+        tokens = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+        labels = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+
+        batch = {
+            "tokens": tokens,
+            "labels": labels,
+            "loss_mask": self.loss_mask,
+            "position_ids": self.position_ids,
+        }
+
+        if self.create_attention_mask:
+            batch["attention_mask"] = self.attention_mask
+
+        return batch
