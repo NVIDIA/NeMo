@@ -257,6 +257,12 @@ class SaveRestoreConnector:
         """
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
+        logging.info(
+            f'Connector restores from {restore_path} starts - logging'
+        )
+        print(
+            f'Connector restores from {restore_path} starts - print'
+        )
         loaded_params = self.load_config_and_state_dict(
             calling_cls,
             restore_path,
@@ -273,6 +279,12 @@ class SaveRestoreConnector:
         state_dict = self.modify_state_dict(conf, state_dict)
         self.load_instance_with_state_dict(instance, state_dict, strict)
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+        logging.info(
+            f'Connector restores from {restore_path} ends - logging'
+        )
+        print(
+            f'Connector restores from {restore_path} ends - print'
+        )
         return instance
 
     def extract_state_dict_from(self, restore_path: str, save_dir: str, split_by_module: bool = False):
