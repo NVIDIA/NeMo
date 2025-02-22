@@ -124,7 +124,7 @@ class GlobalState:
         self._timers = None
         self._train_state = None
         self.rank_monitor_client = None
-        self._signal_handler = None
+        self._signal_handler = DistributedSignalHandler().__enter__()
         self.start_time = time.time()
         self._ft_state = None
         self._straggler_timer = None
@@ -211,13 +211,7 @@ class GlobalState:
 
     @property
     def signal_handler(self):
-        if self._signal_handler is None:
-            self._signal_handler = DistributedSignalHandler().__enter__()
         return self._signal_handler
-
-    @signal_handler.setter
-    def signal_handler(self, value):
-        self._signal_handler = value
 
     @property
     def straggler_timer(self):
