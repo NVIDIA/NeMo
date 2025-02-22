@@ -189,11 +189,13 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         # TODO: This function doesn't account for parallelism settings currently
 
         inference_params = inference_params or CommonInferenceParams()
-
+        # prompts_enc = [self.mcore_tokenizer.tokenize(prompt=prompt) for prompt in prompts]
+        # new_prompts = [prompt.replace(self.mcore_tokenizer.detokenize([prompt_enc[-1]]), "") for prompt,prompt_enc in zip(prompts, prompts_enc)]
+        # print("---new_prompts---", new_prompts)
         results = inference.generate(
             model=self.inference_wrapped_model,
             tokenizer=self.mcore_tokenizer,
-            prompts=prompts,
+            prompts=prompts,  # new_prompst
             max_batch_size=max_batch_size,
             random_seed=random_seed,
             inference_params=inference_params,
@@ -288,13 +290,14 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             )
 
             results = self.generate(prompts, max_batch_size, inference_params, random_seed)
-
             output_texts = [r.generated_text if text_only else r for r in results]
             output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
             if log_probs:
-                output_log_probs = []
+                output_log_probs = []  ## will have 2 np arrays if 2 prompts are sent
                 for r in results:
-                    lp = r.generated_log_probs.cpu().detach().numpy()
+                    # Convert to torch tensor and then move to cpu as generated_log_probs is a list and cant be moved
+                    # to cpu otherwise
+                    lp = torch.tensor(r.generated_log_probs).cpu().detach().numpy()
                     if len(lp) == 0:
                         output_log_probs.append([0])
                     else:
