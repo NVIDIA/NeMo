@@ -217,6 +217,8 @@ __all__ = [
     "local_layer_spec",
     "HFAutoModelForCausalLM",
     "HyenaTestConfig",
+    "Hyena1bConfig",
+    "HyenaNV1bConfig",
     "Hyena7bConfig",
     "Hyena40bConfig",
     "Hyena7bARCLongContextConfig",

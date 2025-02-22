@@ -16,6 +16,7 @@
 # limitations under the License.
 
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Optional
@@ -25,6 +26,7 @@ import torch
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec, hyena_stack_spec_no_te
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_model import HyenaModel as MCoreHyenaModel
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import hyena_no_weight_decay_cond
+from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.utils import logging
 
 try:
@@ -503,6 +505,81 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
         return self.model_config
 
 
+@io.model_importer(HyenaModel, "hf")
+class HuggingFaceSavannaHyenaImporter(PyTorchHyenaImporter):
+    """
+    Importer class for converting HuggingFace Savanna Hyena models to NeMo format.
+        See: https://huggingface.co/arcinstitute/savanna_evo2_7b for an example of a savanna model that this can
+        import and convert to NeMo format. Any of the Arc models that start with "savanna_" should work.
+    """
+
+    def get_source_model(self):
+        """
+        Returns the source model.
+        """
+        import huggingface_hub.errors
+        from huggingface_hub import hf_hub_download
+
+        if ":" in str(self):
+            repo_id, revision = str(self).split(":")
+        else:
+            repo_id = str(self)
+            revision = None
+        # See HF download logic here:
+        #   https://github.com/ArcInstitute/evo2/blob/96ac9d9cd/evo2/models.py#L191-L231
+        modelname = repo_id.split("/")[-1]
+        download_dir = str(NEMO_MODELS_CACHE / repo_id)
+        weights_filename = f"{modelname}.pt"
+        try:
+            weights_path = hf_hub_download(
+                repo_id=repo_id, local_dir=download_dir, revision=revision, filename=weights_filename
+            )
+        except Exception:
+            # Try downloading multi-part
+            # If file is split, download and join parts
+            logging.warning(f"Single path download failed, try loading checkpoint shards for {modelname}")
+            # If file is split, get the first part's directory to use the same cache location
+            weights_path = os.path.join(download_dir, weights_filename)
+            if os.path.exists(weights_path):
+                logging.info(f"Found {weights_path}")
+            else:
+                # Download and join parts
+                parts = []
+                part_num = 0
+                while True:
+                    try:
+                        part_path = hf_hub_download(
+                            repo_id=repo_id,
+                            local_dir=download_dir,
+                            revision=revision,
+                            filename=f"{modelname}.part{part_num}",
+                        )
+                        parts.append(part_path)
+                        part_num += 1
+                    except huggingface_hub.errors.EntryNotFoundError:
+                        break
+
+                # Join in the same directory
+                with open(weights_path, 'wb') as outfile:
+                    for part in parts:
+                        with open(part, 'rb') as infile:
+                            while True:
+                                chunk = infile.read(8192 * 1024)
+                                if not chunk:
+                                    break
+                                outfile.write(chunk)
+
+                # Cleaning up the parts
+                for part in parts:
+                    try:
+                        os.remove(part)
+                    except OSError as e:
+                        print(f"Error removing {part}: {e}")
+                    print("Cleaned up shards, final checkpoint saved to", weights_path)
+
+        return torch.load(weights_path, map_location='cpu', weights_only=False)
+
+
 @io.state_transform(
     source_key=("sequential.*.mlp.w1.weight", "sequential.*.mlp.w2.weight"),
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
@@ -556,6 +633,51 @@ class HyenaTestConfig(HyenaConfig):
 
 @dataclass
 class HyenaNVTestConfig(HyenaTestConfig):
+    """
+    Several unintentional design choices were made to the original Arc implementation that are required to use the
+    original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
+    these are the recommended configs.
+    """
+
+    remove_activation_post_first_layer: bool = False
+    add_attn_proj_bias: bool = False
+
+
+@dataclass
+class Hyena1bConfig(HyenaConfig):
+    """Config matching the 1b 8k context Evo2 model"""
+
+    hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*"
+    num_layers: int = 25
+    seq_length: int = 8192
+    hidden_size: int = 1920
+    num_groups_hyena: int = 1920
+    num_groups_hyena_medium: int = 128
+    num_groups_hyena_short: int = 128
+    make_vocab_size_divisible_by: int = 8
+    tokenizer_library: str = 'byte-level'
+    mapping_type: str = "base"
+    ffn_hidden_size: int = 5120
+    gated_linear_unit: bool = True
+    num_attention_heads: int = 15
+    use_cpu_initialization: bool = False
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    params_dtype: torch.dtype = torch.bfloat16
+    normalization: str = "RMSNorm"
+    add_qkv_bias: bool = False
+    add_bias_linear: bool = False
+    layernorm_epsilon: float = 1e-6
+    recompute_granularity: str = 'full'
+    recompute_method: str = 'uniform'
+    recompute_num_layers: int = 4
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
+    hyena_filter_no_wd: bool = True
+
+
+@dataclass
+class HyenaNV1bConfig(Hyena1bConfig):
     """
     Several unintentional design choices were made to the original Arc implementation that are required to use the
     original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
@@ -673,6 +795,8 @@ class Hyena40bARCLongContextConfig(Hyena40bConfig):
 
 
 HYENA_MODEL_OPTIONS: dict[str, Type[HyenaConfig]] = {
+    "1b": Hyena1bConfig,
+    "1b_nv": HyenaNV1bConfig,
     "7b": Hyena7bConfig,
     "7b_arc_longcontext": Hyena7bARCLongContextConfig,
     "7b_nv": HyenaNV7bConfig,
@@ -688,6 +812,8 @@ __all__ = [
     "HyenaConfig",
     "Hyena7bConfig",
     "HyenaNV7bConfig",
+    "Hyena1bConfig",
+    "HyenaNV1bConfig",
     "Hyena40bConfig",
     "HyenaNV40bConfig",
     "Hyena7bARCLongContextConfig",
