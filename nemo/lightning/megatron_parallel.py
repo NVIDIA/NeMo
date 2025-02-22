@@ -649,7 +649,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
 
             with init_ddp_context():
-                if HAVE_CUSTOM_FSDP and self.ddp_config.use_custom_fsdp:
+                # Avoid rewrapping the module if it's already wrapped with FSDP
+                if HAVE_CUSTOM_FSDP and self.ddp_config.use_custom_fsdp and not isinstance(module, FullyShardedDataParallel):
                     FSDP = FullyShardedDataParallel
                     dist_module = FSDP(
                         module.config,
@@ -657,7 +658,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         module,
                         disable_bucketing=disable_bucketing,
                     )
-                else:
+                elif not isinstance(module, DDP):
                     dist_module = DDP(
                         module.config,
                         self.ddp_config,
