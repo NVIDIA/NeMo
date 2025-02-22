@@ -80,10 +80,9 @@ def get_parser():
     )
     parser.add_argument(
         "--limit",
-        type=Union[int, float],
+        type=int,
         default=None,
-        help="Limit evaluation to `limit` samples if int. If float it should be a val between 0 and 1 in which case" \ 
-        "limit evaluation to `limit` percentage of the eval dataset. Default: use all samples."
+        help="Limit evaluation to `limit` samples. Default: use all samples."
     )
     parser.add_argument(
         "--num_fewshot",
@@ -112,6 +111,9 @@ def get_parser():
     )
     parser.add_argument('--nodes', type=int, default=2, help="Num nodes for the executor")
     parser.add_argument('--devices', type=int, default=8, help="Num devices per node for the executor")
+    parser.add_argument('--container_image', type=str, default="nvcr.io/nvidia/nemo:dev",
+                        help="Container image for the run, only used in case of slurm runs."
+                        "Can be a path as well in case of .sqsh file.")
     return parser
 
 def slurm_executor(
@@ -122,10 +124,10 @@ def slurm_executor(
     partition: str,
     nodes: int,
     devices: int,
+    container_image: str,
     time: str = "04:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
-    container_image: str = "/lustre/fsw/portfolios/coreai/users/boxiangw/container/25_02_rc1.sqsh",
     retries: int = 0,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
@@ -139,11 +141,8 @@ def slurm_executor(
         mounts.extend(custom_mounts)
 
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
-        "NCCL_NVLS_ENABLE": "0",
-        "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
-        "NVTE_ASYNC_AMAX_REDUCTION": "1",
+        # required for some eval benchmarks from lm-eval-harness
+        "HF_DATASETS_TRUST_REMOTE_CODE": "1"
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -173,18 +172,13 @@ def slurm_executor(
 
     return executor
 
-
-def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
+def local_executor_torchrun() -> run.LocalExecutor:
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
-        "NCCL_NVLS_ENABLE": "0",
-        "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
-        "NVTE_ASYNC_AMAX_REDUCTION": "1",
-        "NVTE_FUSED_ATTN": "0",
+        # required for some eval benchmarks from lm-eval-harness
+        "HF_DATASETS_TRUST_REMOTE_CODE": "1"
     }
 
-    executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
+    executor = run.LocalExecutor(env_vars=env_vars)
 
     return executor
 
@@ -206,7 +200,7 @@ def main():
     )
 
     api_endpoint = run.Config(ApiEndpoint, 
-                              url=f"http://{args.triton_http_address}:str({args.triton_http_port}", 
+                              url=f"http://{args.triton_http_address}:{args.triton_http_port}",
                               nemo_checkpoint_path=args.nemo_checkpoint, 
                               nemo_triton_http_port=args.triton_http_port)
     eval_target = run.Config(EvaluationTarget, api_endpoint=api_endpoint)
@@ -219,8 +213,6 @@ def main():
         eval_cfg=eval_config
     )
 
-    executor: run.Executor
-
     if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
@@ -231,24 +223,30 @@ def main():
             partition="",
             nodes=args.nodes,
             devices=args.devices,
+            container_image=args.container_image,
             custom_mounts=[],
         )
+        executor.srun_args = ["--mpi=pmix", "--overlap", "--ntasks-per-node=1"]
+        executor_eval = executor.clone()
     else:
-        executor = local_executor_torchrun(nodes=args.nodes, devices=args.devices)
+        executor = local_executor_torchrun()
 
     with run.Experiment(f"{exp_name}{args.tag}") as exp:
-        for i in range(1):
+        if args.slurm:
             exp.add(
-                recipe,
-                executor=executor,
+                [deploy_fn, eval_fn],
+                executor=[executor, executor_eval],
                 name=exp_name,
                 tail_logs=True if isinstance(executor, run.LocalExecutor) else False,
             )
+        else:
+            exp.add(deploy_fn, executor=executor, name=f"{exp_name}_deploy")
+            exp.add(eval_fn, executor=executor, name=f"{exp_name}_evaluate")
 
         if args.dryrun:
             exp.dryrun()
         else:
-            exp.run(sequential=True, detach=True)
+            exp.run()
 
 
 if __name__ == "__main__":
