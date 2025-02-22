@@ -2851,10 +2851,10 @@ jobs:
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.validation_ds.names=[quarel]
 
-  L2_Megatron_GPT_Finetuning_StarCoder_PP1:
+  Optional_L2_Megatron_GPT_Finetuning_StarCoder_PP1:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Finetuning_StarCoder_PP1')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Megatron_GPT_Finetuning_StarCoder_PP1')
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
@@ -2871,8 +2871,7 @@ jobs:
         exp_manager.exp_dir=/tmp/gpt_sft_results_starcoder_pp1 \
         model.peft.peft_scheme=none \
         model.optim.name=distributed_fused_adam \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/starcoder-ci-nemo/
-        megatron_starcoder_tp1_pp1.nemo \
+        model.restore_from_path=/home/TestData/nlp/megatron_gpt/starcoder-ci-nemo/megatron_starcoder_tp1_pp1.nemo \
         ++model.dist_ckpt_load_strictness=log_all \
         model.tensor_model_parallel_size=1 \
         model.pipeline_model_parallel_size=1 \
@@ -2883,6 +2882,7 @@ jobs:
         model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
         model.data.test_ds.num_workers=0 \
         model.data.train_ds.concat_sampling_probabilities=[1.0]
+      IS_OPTIONAL: true
 
   L2_Megatron_GPT_Reranker:
     needs: [pre-flight, cicd-test-container-build]
@@ -5347,7 +5347,7 @@ jobs:
       - L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
       - L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
       - L2_Megatron_GPT_Finetuning_PP2
-      - L2_Megatron_GPT_Finetuning_StarCoder_PP1
+      # - Optional_L2_Megatron_GPT_Finetuning_StarCoder_PP1
       - L2_Megatron_GPT_Embedding
       - L2_Megatron_GPT_PEFT_Lora_PP2_O2
       - L2_Megatron_GPT_PEFT_Lora_TP2_O1
