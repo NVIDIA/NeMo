@@ -504,6 +504,7 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
 
             batches, _, dl_idx = next(dataloader_iter)
             metadata = batches.pop('metadata')
+            position_ids = batches.pop('position_ids')
             batches = {k: v.cuda(non_blocking=True) for k, v in batches.items()}
 
             if self.mcore_bert:
