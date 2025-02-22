@@ -219,6 +219,7 @@ def main():
         executor_eval = executor.clone()
     else:
         executor = local_executor_torchrun()
+        executor_eval = None
 
     with run.Experiment(f"{exp_name}{args.tag}") as exp:
         if args.slurm:
