@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import lightning.pytorch as pl
 import torch
+import torch.distributed as dist
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-import os
-import torch.distributed as dist
-from torch.utils.data.distributed import DistributedSampler
+
 
 def clean_split(name):
     """removes split from name
@@ -113,10 +115,12 @@ def make_dataset_splits(dataset, split, split_aliases):
     assert num_init_splits > 0, f"Expected at least one split to have been initialized {num_init_splits}"
     return dataset_splits
 
+
 def has_dist_env_init_or_rank_env_var():
-    """ returns whether it runs on a dist-environment """
+    """returns whether it runs on a dist-environment"""
     env_vars = ['LOCAL_RANK', 'GLOBAL_RANK', 'WORLD_SIZE', 'MASTER_ADDR', 'MASTER_PORT']
     return dist.is_initialized() or any(map(lambda x: x in os.environ, env_vars))
+
 
 class HFDatasetDataModule(pl.LightningDataModule):
     """A PyTorch Lightning DataModule for loading and managing datasets from the `datasets` library.
@@ -166,6 +170,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         environment is detected, HFDatasetDataModule will use a distributed-sampler automatically.
         - If no collation function is provided, a default function with padding using `pad_token_id` is applied.
     """
+
     def __init__(
         self,
         path_or_dataset,
@@ -274,7 +279,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         )
 
     def get_data_sampler(self, dataset):
-        """ returns the data sampler"""
+        """returns the data sampler"""
         if self.use_dist_sampler:
             return DistributedSampler(dataset)
         elif self.use_mcore_sampler:
