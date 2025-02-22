@@ -12,13 +12,15 @@ from nemo import lightning as nl
 from nemo.collections.llm import SquadDataModule, MockDataModule
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.utils.exp_manager import DeltaTimingCallback
+from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 
 
 DATE_STR = datetime.today().strftime("%m%d")
 
 NEMO_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/github/NeMo"
 MEGATRON_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/github/Megatron-LM"
-IMAGE = "nvcr.io/nvidia/nemo:24.12"
+#IMAGE = "nvcr.io/nvidia/nemo:24.12"
+IMAGE = "/lustre/fsw/portfolios/coreai/users/yudong/github/images/nemo-25-02.sqsh"
 HF_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/hf_home"
 MEGATRON_CACHE = "/lustre/fsw/portfolios/coreai/users/yudong/megatron_cache"
 JOB_DIR = "/lustre/fsw/portfolios/coreai/users/yudong/exp/nemorun"
@@ -342,6 +344,9 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     # finetune.data.seq_length = seq_length
     # finetune.data.global_batch_size = global_batch_size
     # finetune.data.micro_batch_size = 1
+
+    datamodule = run.Config(HFMockDataModule, seq_length=seq_length, global_batch_size=128)
+    finetune.data = datamodule
     finetune.trainer.val_check_interval = 100
 
     finetune.trainer.strategy = run.Config(
@@ -447,32 +452,43 @@ recipes = [
     #     configure_recipe_llama32_1b_pretrain(1, 2, "nemo2"),
     #     "llama32_1b_pretrain_1_node_2_gpu",
     # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(1, 1, "nemo2", 2048, 128),
+    #     "hf_llama32_1b_pretrain_1_node_2_gpu",
+    # ),
     (
-        custom_hf_auto_model_for_causal_lm_finetune(1, 2, "nemo2", 2048, 128),
-        "hf_llama32_1b_pretrain_1_node_2_gpu",
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=1,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=1024,
+            global_batch_size=128,
+            model_name="meta-llama/Llama-3.1-8B",
+        ),
+        "perf-llama3_1_8b_finetune-1_node-8_gpu_1024_128",
     ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm_finetune(
-    #         num_nodes=1,
-    #         num_gpus_per_node=8,
-    #         wandb_project_name="perf",
-    #         seq_length=2048,
-    #         global_batch_size=128,
-    #         model_name="meta-llama/Llama-3.1-8B",
-    #     ),
-    #     "perf-llama3_1_8b_finetune-1_node-8_gpu_2048_128",
-    # ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm_finetune(
-    #         num_nodes=2,
-    #         num_gpus_per_node=8,
-    #         wandb_project_name="perf",
-    #         seq_length=4096,
-    #         global_batch_size=256,
-    #         model_name="meta-llama/Llama-3.1-8B",
-    #     ),
-    #     "perf-llama3_1_8b_finetune-2_node-8_gpu_4096_128",
-    # ),
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=1,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=2048,
+            global_batch_size=128,
+            model_name="meta-llama/Llama-3.1-8B",
+        ),
+        "perf-llama3_1_8b_finetune-1_node-8_gpu_2048_128",
+    ),
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=2,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=4096,
+            global_batch_size=128,
+            model_name="meta-llama/Llama-3.1-8B",
+        ),
+        "perf-llama3_1_8b_finetune-2_node-8_gpu_4096_128",
+    ),
     # (
     #     custom_hf_auto_model_for_causal_lm_finetune(
     #         num_nodes=4,
@@ -560,6 +576,6 @@ if __name__ == "__main__":
     #     source="hf://meta-llama/Llama-3.2-1B",
     # )
     print("did you Update CW codebase")
-    breakpoint()
-    # run_finetuning_on_slurm()
-    run_local()
+    #breakpoint()
+    run_finetuning_on_slurm()
+    #run_local()

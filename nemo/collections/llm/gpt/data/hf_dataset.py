@@ -404,12 +404,12 @@ class HFMockDataModule(pl.LightningDataModule):
         else:
             self.tokenizer = tokenizer
 
-        self.data_sampler = MegatronDataSampler(
-            seq_len=self.seq_length,
-            micro_batch_size=self.micro_batch_size,
-            global_batch_size=self.global_batch_size,
-            rampup_batch_size=rampup_batch_size,
-        )
+        # self.data_sampler = MegatronDataSampler(
+        #     seq_len=self.seq_length,
+        #     micro_batch_size=self.micro_batch_size,
+        #     global_batch_size=self.global_batch_size,
+        #     rampup_batch_size=rampup_batch_size,
+        # )
 
     def setup(self, stage: str = None) -> None:
         self._train_ds = _MockGPTDataset(
