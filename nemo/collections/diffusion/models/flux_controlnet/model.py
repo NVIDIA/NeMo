@@ -18,6 +18,7 @@ from typing import Callable
 import torch
 import torch.nn as nn
 from megatron.core.models.common.vision_module.vision_module import VisionModule
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.nn import functional as F
 
@@ -88,7 +89,7 @@ class FluxControlNetConfig(TransformerConfig, io.IOMixin):
     num_mode: int = None
     model_channels: int = 256
     conditioning_embedding_channels: int = None
-    rotary_interleaved: bool = True
+    rotary_interleaved: bool = False
     layernorm_epsilon: float = 1e-06
     hidden_dropout: float = 0
     attention_dropout: float = 0
@@ -161,15 +162,36 @@ class FluxControlNet(VisionModule):
         # ContolNet Blocks
         self.controlnet_double_blocks = nn.ModuleList()
         for _ in range(config.num_joint_layers):
-            self.controlnet_double_blocks.append(zero_module(nn.Linear(self.hidden_size, self.hidden_size)))
+            self.controlnet_double_blocks.append(
+                zero_module(
+                    ColumnParallelLinear(
+                        self.hidden_size,
+                        self.hidden_size,
+                        config=config,
+                        init_method=nn.init.normal_,
+                        gather_output=True,
+                    )
+                )
+            )
 
         self.controlnet_single_blocks = nn.ModuleList()
         for _ in range(config.num_single_layers):
-            self.controlnet_single_blocks.append(zero_module(nn.Linear(self.hidden_size, self.hidden_size)))
+            self.controlnet_single_blocks.append(
+                zero_module(
+                    ColumnParallelLinear(
+                        self.hidden_size,
+                        self.hidden_size,
+                        config=config,
+                        init_method=nn.init.normal_,
+                        gather_output=True,
+                    )
+                )
+            )
 
         if config.conditioning_embedding_channels is not None:
             self.input_hint_block = ControlNetConditioningEmbedding(
-                conditioning_embedding_channels=conditioning_embedding_channels, block_out_channels=(16, 16, 16, 16)
+                conditioning_embedding_channels=config.conditioning_embedding_channels,
+                block_out_channels=(16, 16, 16, 16),
             )
             self.controlnet_x_embedder = torch.nn.Linear(config.in_channels, self.hidden_size)
         else:
@@ -267,12 +289,14 @@ class FluxControlNet(VisionModule):
 
         controlnet_double_block_samples = ()
         for double_block_sample, control_block in zip(double_block_samples, self.controlnet_double_blocks):
-            double_block_sample = control_block(double_block_sample)
+            double_block_sample, bias = control_block(double_block_sample)
+            double_block_sample = double_block_sample + bias if bias else double_block_sample
             controlnet_double_block_samples += (double_block_sample,)
 
         controlnet_single_block_samples = ()
         for single_block_sample, control_block in zip(single_block_samples, self.controlnet_single_blocks):
-            single_block_sample = control_block(single_block_sample)
+            single_block_sample, bias = control_block(single_block_sample)
+            single_block_sample = single_block_sample + bias if bias else single_block_sample
             controlnet_single_block_samples += (single_block_sample,)
 
         controlnet_double_block_samples = [sample * conditioning_scale for sample in controlnet_double_block_samples]
@@ -348,8 +372,8 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             self.configure_vae(self.vae_config)
             self.configure_scheduler()
             self.configure_text_encoders(self.clip_params, self.t5_params)
-            ## Have to disable requiring grads for those params not getting one, otherwise custom fsdp fails at assert
-            ## when there is no single layer, encoder_hidden_states related params are not included in computation graph
+            # Have to disable requiring grads for those params not getting one, otherwise custom fsdp fails at assert
+            # when there is no single layer, encoder_hidden_states related params are not included in computation graph
             for name, param in self.module.named_parameters():
                 if self.flux_controlnet_config.num_single_layers == 0:
                     if 'context' in name or 'added' in name:

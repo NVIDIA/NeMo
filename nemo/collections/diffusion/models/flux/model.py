@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -42,7 +44,11 @@ from nemo.collections.diffusion.models.dit.dit_layer_spec import (
 )
 from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
 from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
-from nemo.collections.diffusion.utils.flux_ckpt_converter import _import_qkv, _import_qkv_bias
+from nemo.collections.diffusion.utils.flux_ckpt_converter import (
+    _import_qkv,
+    _import_qkv_bias,
+    flux_transformer_converter,
+)
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderConfig
 from nemo.collections.llm import fn
 from nemo.lightning import io, teardown
@@ -65,7 +71,7 @@ def flux_data_step(dataloader_iter):
 
 @dataclass
 class FluxConfig(TransformerConfig, io.IOMixin):
-    ## transformer related
+    # transformer related
     num_layers: int = 1  # dummy setting
     num_joint_layers: int = 19
     num_single_layers: int = 38
@@ -79,11 +85,13 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     patch_size: int = 1
     guidance_embed: bool = False
     vec_in_dim: int = 768
-    rotary_interleaved: bool = True
+    rotary_interleaved: bool = False
+    apply_rope_fusion: bool = True
     layernorm_epsilon: float = 1e-06
     hidden_dropout: float = 0
     attention_dropout: float = 0
     use_cpu_initialization: bool = True
+    gradient_accumulation_fusion: bool = True
 
     guidance_scale: float = 3.5
     data_step_fn: Callable = flux_data_step
@@ -729,7 +737,7 @@ class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronF
             patch_size=source_config.patch_size,
             guidance_embed=source_config.guidance_embeds,
             vec_in_dim=source_config.pooled_projection_dim,
-            rotary_interleaved=True,
+            rotary_interleaved=False,
             layernorm_epsilon=1e-06,
             hidden_dropout=0,
             attention_dropout=0,
