@@ -20,6 +20,7 @@ The BPE sub-words are encoded using the Unicode table.
 This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space. 
 The value DEFAULT_TOKEN_OFFSET from nemo.collections.asr.parts.submodules.ctc_beam_decoding is utilized as the offset value.
 """
+from nemo.collections.common.tokenizers import AggregateTokenizer
 
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
@@ -45,6 +46,7 @@ SUPPORTED_MODELS = {
     'EncDecRNNTModel': 'char',
     'EncDecHybridRNNTCTCBPEModel': 'subword',
     'EncDecHybridRNNTCTCModel': 'char',
+    'EncDecMultiTaskModel': 'subword',
 }
 
 
@@ -67,8 +69,8 @@ def get_train_list(args_train_path):
 
 
 def setup_tokenizer(nemo_model_file):
-    """ TOKENIZER SETUP 
-        nemo_model_file (str): The path to the NeMo model file (.nemo).
+    """TOKENIZER SETUP
+    nemo_model_file (str): The path to the NeMo model file (.nemo).
     """
     logging.info(f"Loading nemo model '{nemo_model_file}' ...")
     if nemo_model_file.endswith('.nemo'):
@@ -89,14 +91,32 @@ def setup_tokenizer(nemo_model_file):
         encoding_level = 'char'
 
     if encoding_level == 'subword':
-        if type(model.tokenizer).__name__ == 'AggregateTokenizer':
+        if isinstance(model.tokenizer, AggregateTokenizer):
             is_aggregate_tokenizer = True
 
         tokenizer_nemo = model.tokenizer
 
+    # TODO: more reliable way to get the vocabulary size
+    if isinstance(model, nemo_asr.models.EncDecCTCModelBPE):
+        full_vocab_size = model.decoding.decoding.blank_id
+    elif isinstance(model, nemo_asr.models.EncDecRNNTBPEModel):
+        full_vocab_size = model.decoding.decoding._blank_index
+    elif isinstance(model, nemo_asr.models.EncDecHybridRNNTCTCBPEModel):
+        try:
+            # rnnt head
+            full_vocab_size = model.decoding.decoding._blank_index
+        except AttributeError:
+            # ctc head
+            full_vocab_size = model.decoding.decoding.blank_id
+    elif isinstance(model, nemo_asr.models.EncDecMultiTaskModel):
+        full_vocab_size = model.decoding.decoding.beam_search.num_tokens
+    else:
+        logging.warning(f"Unknown type of model {type(model).__name__}")
+        full_vocab_size = None
+
     del model
 
-    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer
+    return tokenizer_nemo, encoding_level, is_aggregate_tokenizer, full_vocab_size
 
 
 def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, verbose):
@@ -126,7 +146,9 @@ def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_t
 
 
 def read_train_file(
-    path, is_aggregate_tokenizer: bool = False, verbose: int = 0,
+    path,
+    is_aggregate_tokenizer: bool = False,
+    verbose: int = 0,
 ):
     lines_read = 0
     text_dataset, lang_dataset = [], []
@@ -145,7 +167,7 @@ def read_train_file(
         if line:
             if path[-8:] == '.json.gz':  # for Common Crawl dataset
                 line = json.loads(line.decode('utf-8'))['text']
-            elif path.endswith('.json'):
+            elif path.endswith('.json') or path.endswith(".jsonl"):
                 jline = json.loads(line)
                 line = jline['text']
                 if is_aggregate_tokenizer:
