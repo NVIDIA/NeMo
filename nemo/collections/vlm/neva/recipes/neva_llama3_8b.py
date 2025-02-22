@@ -54,6 +54,10 @@ class NevaConfig8B(vlm.NevaConfig):
         default_factory=lambda: vlm.MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
     )
 
+    freeze_language_model: bool = False
+    freeze_vision_model: bool = True
+    freeze_vision_projection: bool = False
+
 
 @run.cli.factory(name=NAME)
 def model(
