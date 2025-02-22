@@ -670,7 +670,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             model_chunk.buffers = (
                 dist_module.buffers
             )  # We need to do this explicitly since this is a attr pytorch uses
-            model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
         no_sync_func, grad_sync_func = extract_ddp_funcs(self.ddp_config, self)
