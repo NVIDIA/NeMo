@@ -28,9 +28,28 @@ def get_args():
     parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
     parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
-    parser.add_argument("-itp", "--inference_tp", "--tensor_parallelism_size", type=int, default=1)
-    parser.add_argument("-ipp", "--inference_pp", "--pipeline_parallelism_size", type=int, default=1)
+    parser.add_argument(
+        "-itp",
+        "--inference_tp",
+        "--tensor_parallelism_size",
+        type=int,
+        default=1,
+        help="TRT-LLM engine TP size. (Only used when `--export_format` is 'trtllm')",
+    )
+    parser.add_argument(
+        "-ipp",
+        "--inference_pp",
+        "--pipeline_parallelism_size",
+        type=int,
+        default=1,
+        help="TRT-LLM engine PP size. (Only used when `--export_format` is 'trtllm')",
+    )
+    parser.add_argument("--devices", type=int, default=None, help="Number of GPUs to use per node")
+    parser.add_argument("-nodes", "--num_nodes", type=int, default=1)
     parser.add_argument('-out', '--export_path', '--output_path', type=str, help='Path for the exported engine')
+    parser.add_argument(
+        "--export_format", default="trtllm", choices=["trtllm", "nemo"], help="Model format to export as"
+    )
     parser.add_argument(
         '-algo',
         '--algorithm',
@@ -68,8 +87,16 @@ def get_args():
     parser.set_defaults(generate_sample=False)
 
     args = parser.parse_args()
+
     if args.export_path is None:
-        args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+        if args.export_format == "trtllm":
+            args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+        else:
+            args.export_path = f"./nemo_{args.algorithm}"
+
+    if args.devices is None:
+        args.devices = "auto"  # Trainer can auto-detect number of devices
+
     return args
 
 
@@ -88,8 +115,8 @@ def main():
         calibration_batch_size=args.batch_size,
         calibration_seq_len=args.seq_len,
     )
-
     export_config = quantization.ExportConfig(
+        export_format=args.export_format,
         path=args.export_path,
         decoder_type=args.decoder_type,
         inference_tp=args.inference_tp,
@@ -97,16 +124,19 @@ def main():
         dtype=args.dtype,
         generate_sample=args.generate_sample,
     )
-
     quantizer = quantization.Quantizer(quantization_config, export_config)
-    model = quantization.load_with_modelopt_layer_spec(
-        args.nemo_checkpoint,
-        args.calibration_tp,
-        args.calibration_pp,
+
+    model, trainer = quantization.load_with_modelopt_layer_spec(
+        nemo_checkpoint_path=args.nemo_checkpoint,
+        tensor_model_parallel_size=args.calibration_tp,
+        pipeline_model_parallel_size=args.calibration_pp,
+        devices=args.devices,
+        num_nodes=args.num_nodes,
         ckpt_load_strictness=args.ckpt_load_strictness,
     )
     model = quantizer.quantize(model)
-    quantizer.export(model, args.nemo_checkpoint)
+
+    quantizer.export(model, args.nemo_checkpoint, trainer)
 
 
 if __name__ == '__main__':
