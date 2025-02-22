@@ -15,7 +15,7 @@
 # NOTE: This script is only an example of using NeMo with NeMo-Run's APIs and is subject to change without notice.
 # This script is used for evaluation on local and slurm executors.
 # It uses deploy method from nemo/llm/collections/api.py to deploy nemo2.0 ckpt on PyTriton server by converting to
-# trtllm, uses evaluate method from nemo/llm/collections/api.py to run evaluation on it and uses NeMo-Run 
+# trtllm, uses evaluate method from nemo/llm/collections/api.py to run evaluation on it and uses NeMo-Run
 # (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
@@ -24,7 +24,7 @@ from typing import Optional
 import nemo_run as run
 
 from nemo.collections.llm import deploy, evaluate
-from nemo.collections.llm.evaluation.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 
 
 def get_parser():
@@ -35,17 +35,9 @@ def get_parser():
         help="NeMo 2.0 checkpoint to be evaluated",
     )
     parser.add_argument(
-        "--triton_http_address",
-        type=str,
-        default="0.0.0.0",
-        help="IP address at which PyTriton server is created"
+        "--triton_http_address", type=str, default="0.0.0.0", help="IP address at which PyTriton server is created"
     )
-    parser.add_argument(
-        "--triton_http_port",
-        type=int,
-        default=8000,
-        help="Port at which PyTriton server is created"
-    )
+    parser.add_argument("--triton_http_port", type=int, default=8000, help="Port at which PyTriton server is created")
     parser.add_argument(
         "--max_input_len",
         type=int,
@@ -75,19 +67,13 @@ def get_parser():
         type=str,
         default="arc_challenge",
         help="Evaluation benchmark to run.",
-        choices=["mmlu", "gsm8k", "lambada_openai", "winogrande", "arc_challenge", "arc_easy", "copa"]
+        choices=["mmlu", "gsm8k", "lambada_openai", "winogrande", "arc_challenge", "arc_easy", "copa"],
     )
     parser.add_argument(
-        "--limit",
-        type=int,
-        default=None,
-        help="Limit evaluation to `limit` samples. Default: use all samples."
+        "--limit", type=int, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
     )
     parser.add_argument(
-        "--num_fewshot",
-        type=int,
-        default=None,
-        help="Number of examples in few-shot context. Default: None."
+        "--num_fewshot", type=int, default=None, help="Number of examples in few-shot context. Default: None."
     )
     parser.add_argument(
         "--tag",
@@ -110,10 +96,15 @@ def get_parser():
     )
     parser.add_argument('--nodes', type=int, default=2, help="Num nodes for the executor")
     parser.add_argument('--devices', type=int, default=8, help="Num devices per node for the executor")
-    parser.add_argument('--container_image', type=str, default="nvcr.io/nvidia/nemo:dev",
-                        help="Container image for the run, only used in case of slurm runs."
-                        "Can be a path as well in case of .sqsh file.")
+    parser.add_argument(
+        '--container_image',
+        type=str,
+        default="nvcr.io/nvidia/nemo:dev",
+        help="Container image for the run, only used in case of slurm runs."
+        "Can be a path as well in case of .sqsh file.",
+    )
     return parser
+
 
 def slurm_executor(
     user: str,
@@ -168,6 +159,7 @@ def slurm_executor(
 
     return executor
 
+
 def local_executor_torchrun() -> run.LocalExecutor:
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
@@ -178,6 +170,7 @@ def local_executor_torchrun() -> run.LocalExecutor:
 
     return executor
 
+
 def main():
     args = get_parser().parse_args()
     if args.tag and not args.tag.startswith("-"):
@@ -186,28 +179,26 @@ def main():
     exp_name = "NeMoEvaluation"
     deploy_fn = run.Partial(
         deploy,
-	    nemo_checkpoint=args.nemo_checkpoint,
+        nemo_checkpoint=args.nemo_checkpoint,
         triton_http_port=args.triton_http_port,
         triton_http_address=args.triton_http_address,
         max_input_len=args.max_input_len,
         tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
-        max_batch_size=args.batch_size
+        max_batch_size=args.batch_size,
     )
 
-    api_endpoint = run.Config(ApiEndpoint, 
-                              url=f"http://{args.triton_http_address}:{args.triton_http_port}",
-                              nemo_checkpoint_path=args.nemo_checkpoint, 
-                              nemo_triton_http_port=args.triton_http_port)
+    api_endpoint = run.Config(
+        ApiEndpoint,
+        url=f"http://{args.triton_http_address}:{args.triton_http_port}",
+        nemo_checkpoint_path=args.nemo_checkpoint,
+        nemo_triton_http_port=args.triton_http_port,
+    )
     eval_target = run.Config(EvaluationTarget, api_endpoint=api_endpoint)
     eval_params = run.Config(ConfigParams, limit_samples=args.limit, num_fewshot=args.num_fewshot)
     eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params)
 
-    eval_fn = run.Partial(
-        evaluate,
-        target_cfg=eval_target,
-        eval_cfg=eval_config
-    )
+    eval_fn = run.Partial(evaluate, target_cfg=eval_target, eval_cfg=eval_config)
 
     executor: run.Executor
     executor_eval: run.Executor
@@ -249,5 +240,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
