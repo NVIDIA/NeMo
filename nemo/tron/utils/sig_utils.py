@@ -15,7 +15,8 @@
 import signal
 
 import torch
-from nemo.tron.utils.common_utils import get_world_size_safe
+
+from nemo.tron.utils.common_utils import get_world_size_safe, print_rank_0
 
 
 def get_device(local_rank=None):
@@ -64,9 +65,11 @@ class DistributedSignalHandler:
         self.original_handler = signal.getsignal(self.sig)
 
         def handler(signum, frame):
+            print_rank_0(f"Received signal {signum}, initiating graceful stop")
             self._signal_received = True
 
         signal.signal(self.sig, handler)
+        print_rank_0(f"Signal handler installed for {self.sig}")
 
         return self
 
