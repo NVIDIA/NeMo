@@ -46,7 +46,9 @@ class NevaConfig8B(vlm.NevaConfig):
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama3Config8B(seq_length=8192))
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: vlm.HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+        default_factory=lambda: vlm.HFCLIPVisionConfig(
+            pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+        )
     )
     vision_projection_config: TransformerConfig = field(
         default_factory=lambda: vlm.MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
