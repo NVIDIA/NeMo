@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import re
 from importlib.metadata import version
 from typing import Optional
@@ -21,8 +22,15 @@ import torch
 from megatron.core import ModelParallelConfig, parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
+from megatron.core.tensor_parallel.mappings import (
+    gather_from_sequence_parallel_region,
+    scatter_to_sequence_parallel_region,
+)
 from torch import nn
 
+from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
+from nemo.collections.common.parts.utils import activation_registry
+from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.utils.import_utils import safe_import_from
 
 TEColumnParallelLinear, HAVE_TE_COL_LINEAR = safe_import_from(
