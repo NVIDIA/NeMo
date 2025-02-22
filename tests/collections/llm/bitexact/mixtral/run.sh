@@ -7,9 +7,28 @@ MERGE_FILE="/home/TestData/nlp/gpt2_tokenizer/merges.txt"
 MCORE_OUTPUT_PATH="/tmp/bex_mixtral_mcore_output/"
 NEMO_OUTPUT_PATH="/tmp/bex_mixtral_nemo_output/"
 
+# Function to check the exit status of commands
+check_exit() {
+    if [ $? -ne 0 ]; then
+        echo "Error: Command failed at line $1"
+        exit 1
+    fi
+}
+
+# Switch paths if primary locations don't exist
+MEGATRON_LM_PATH="/workspace/Megatron-LM"
+if [ ! -d "$MEGATRON_LM_PATH" ]; then
+    MEGATRON_LM_PATH="/opt/megatron-lm"
+fi
+
+NEMO_TESTS_PATH="/workspace/tests"
+if [ ! -d "$NEMO_TESTS_PATH" ]; then
+    NEMO_TESTS_PATH="/opt/NeMo/tests"
+fi
+
 # Run Mcore
 CUDA_DEVICE_MAX_CONNECTIONS=1 CUDA_LAUNCH_BLOCKING=1 TORCH_COMPILE_DISABLE=1 \
-torchrun --nproc-per-node 1 --nnodes 1 /workspace/Megatron-LM/pretrain_gpt.py \
+torchrun --nproc-per-node 1 --nnodes 1 "$MEGATRON_LM_PATH/pretrain_gpt.py" \
     --apply-layernorm-1p --rotary-percent 1.0 --rotary-base 1000000 \
     --no-position-embedding --position-embedding-type rope \
     --swiglu \
@@ -31,16 +50,19 @@ torchrun --nproc-per-node 1 --nnodes 1 /workspace/Megatron-LM/pretrain_gpt.py \
     --save "$MCORE_OUTPUT_PATH" \
     --log-num-zeros-in-grad --distributed-timeout-minutes 6000 --moe-router-topk 1 --num-experts 2 \
     --moe-router-pre-softmax --expert-model-parallel-size 1 --eval-iters=0 --attention-backend unfused
+check_exit $LINENO
 
 # Run NeMo
 CUDA_LAUNCH_BLOCKING=1 TORCH_COMPILE_DISABLE=1 NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=0 \
-python3 /workspace/tests/collections/llm/bitexact/mixtral/pretrain_mini_mixtral.py \
+python3 "$NEMO_TESTS_PATH/collections/llm/bitexact/mixtral/pretrain_mini_mixtral.py" \
     --devices=1 \
     --data-path="$DATA_PATH" \
     --vocab-path="$VOCAB_FILE" \
     --merges-path="$MERGE_FILE" \
     --exp-dir="$NEMO_OUTPUT_PATH"
+check_exit $LINENO
 
 # Compare outputs
-python3 /workspace/tests/collections/llm/bitexact/mixtral/compare_ckpts.py \
+python3 "$NEMO_TESTS_PATH/collections/llm/bitexact/mixtral/compare_ckpts.py" \
   "$NEMO_OUTPUT_PATH/checkpoints/--None=0.0000-epoch=0-consumed_samples=20.0/weights" "$MCORE_OUTPUT_PATH/iter_0000010/"
+check_exit $LINENO
