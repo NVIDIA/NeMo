@@ -38,22 +38,22 @@ from nemo.utils.exp_manager import TimingCallback
 NAME = "neva_llama3_8b"
 
 
-@dataclass
-class NevaLlama3Config8B(Llama3Config8B):
-    seq_length: int = 8192
+# @dataclass
+# class NevaLlama3Config8B(Llama3Config8B):
+#     seq_length: int = 8192
 
 
-@dataclass
-class HFCLIPViTLConfig(vlm.HFCLIPVisionConfig):
-    pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = "openai/clip-vit-large-patch14-336"
+# @dataclass
+# class HFCLIPViTLConfig(vlm.HFCLIPVisionConfig):
+#     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = "openai/clip-vit-large-patch14-336"
 
 
-@dataclass
-class VisionProjectorConfig(vlm.MultimodalProjectorConfig):
-    projector_type: str = "mcore_mlp"
-    input_size: Optional[int] = 1024
-    hidden_size: int = 4096
-    ffn_hidden_size: int = 4096
+# @dataclass
+# class VisionProjectorConfig(vlm.MultimodalProjectorConfig):
+#     projector_type: str = "mcore_mlp"
+#     input_size: Optional[int] = 1024
+#     hidden_size: int = 4096
+#     ffn_hidden_size: int = 4096
 
 
 # @dataclass
@@ -73,7 +73,7 @@ class NevaConfig8B(vlm.NevaConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama3Config8B())
+    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama3Config8B(seq_length=8192))
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
         default_factory=lambda: vlm.HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
     )
