@@ -26,7 +26,9 @@ from lightning.pytorch.utilities.types import STEP_OUTPUT
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from torch.utils.data import DataLoader
 from typing_extensions import override
+from lightning.pytorch.trainer.states import TrainerFn
 
+from nemo.utils import logging
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
@@ -174,7 +176,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if getattr(self, '_init_model_parallel', True):
             self.parallelize()
         # setup optim
-        if getattr(self, '_setup_optimizers', True):
+        if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
             super().setup_optimizers(trainer)
 
     def parallelize(self):
@@ -186,6 +188,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 self.lightning_module.model, device_mesh=self._device_mesh, mp_policy=self.mp_policy)
             # Apply this only once
             self.parallelize_fn = None
+        else:
+            logging.warning("Called parallelize more than once.")
 
     def _get_loss_reduction(self, step_type: str):
         """Retrieves the loss reduction method for a given step type.
