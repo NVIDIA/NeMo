@@ -100,7 +100,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='Qwen/Qwen2-VL-2B-Instruct')
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'])
-    parser.add_argument('--devices', default=1)
+    parser.add_argument('--devices', default=1, type=int)
     parser.add_argument('--mbs', default=1)
     parser.add_argument('--gbs', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
@@ -135,7 +135,7 @@ if __name__ == '__main__':
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
-            accumulate_grad_batches=10,
+            accumulate_grad_batches=2,
             gradient_clip_val=grad_clip,
             use_distributed_sampler=use_dist_samp,
             logger=wandb,
