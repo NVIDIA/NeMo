@@ -1880,14 +1880,10 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
             hyps = self._decoding_computer(x=inseq, out_len=logitlen)
             self.timer.stop(device=inseq.device)
             
-            self.hash_collisions_count += self._decoding_computer.hash_collisions
-            self.collisions_count += self._decoding_computer.collisions
-            self.comparisons_count += self._decoding_computer.comparisons
+            # self.hash_collisions_count += self._decoding_computer.hash_collisions
+            # self.collisions_count += self._decoding_computer.collisions
+            # self.comparisons_count += self._decoding_computer.comparisons
             
-            # hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
-            # for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
-            #     hyp.dec_state = state
-
             # Pack the hypotheses results
             # packed_result = pack_hypotheses(hypotheses, logitlen)
 
