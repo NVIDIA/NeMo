@@ -28,14 +28,17 @@
 
 import copy
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
+from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import (
     HATJointOutput,
@@ -47,9 +50,6 @@ from nemo.collections.asr.parts.utils.rnnt_utils import (
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
-from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
-from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
-from nemo.collections.asr.parts.utils import rnnt_utils
 
 try:
     import kenlm
@@ -1187,7 +1187,7 @@ class BeamRNNTInfer(Typing):
                 prefix_alpha=self.maes_prefix_alpha,
             )  # type: List[Hypothesis]
             kept_hyps = []
-            
+
             for x in hyps:
                 print(f"{t} Score: ", x.score)
                 print(f"{t} Y_sequence: ", x.y_sequence)
@@ -1518,22 +1518,22 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
         }
 
     def __init__(
-            self,
-            decoder_model: rnnt_abstract.AbstractRNNTDecoder,
-            joint_model: rnnt_abstract.AbstractRNNTJoint,
-            blank_index: int,
-            beam_size: int,
-            search_type: str = 'malsd_batch',
-            score_norm: bool = True,
-            maes_num_steps: Optional[int] = None,
-            maes_expansion_gamma: Optional[float] = None,
-            maes_expansion_beta: Optional[int] = None,
-            malsd_max_symbols_per_step: Optional[int] = None,
-            preserve_alignments: bool = False,
-            ngram_lm_model: Optional[str | Path] = None,
-            ngram_lm_alpha: float = 0.0,
-            blank_lm_score_mode: Optional[str] = None,
-            pruning_mode: Optional[str] = None,
+        self,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
+        blank_index: int,
+        beam_size: int,
+        search_type: str = 'malsd_batch',
+        score_norm: bool = True,
+        maes_num_steps: Optional[int] = None,
+        maes_expansion_gamma: Optional[float] = None,
+        maes_expansion_beta: Optional[int] = None,
+        malsd_max_symbols_per_step: Optional[int] = None,
+        preserve_alignments: bool = False,
+        ngram_lm_model: Optional[str | Path] = None,
+        ngram_lm_alpha: float = 0.0,
+        blank_lm_score_mode: Optional[str] = None,
+        pruning_mode: Optional[str] = None,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -1562,7 +1562,7 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
                 ngram_lm_alpha=ngram_lm_alpha,
                 blank_lm_score_mode=blank_lm_score_mode,
                 score_norm=score_norm,
-                pruning_mode=pruning_mode
+                pruning_mode=pruning_mode,
             )
         elif search_type == "maes_batch":
             self._decoding_computer = ModifiedAESBatchedRNNTComputer(
@@ -1578,7 +1578,7 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
                 ngram_lm_alpha=ngram_lm_alpha,
                 blank_lm_score_mode=blank_lm_score_mode,
                 score_norm=score_norm,
-                pruning_mode=pruning_mode
+                pruning_mode=pruning_mode,
             )
 
     @property
@@ -1591,10 +1591,10 @@ class Best1BeamBatchedInfer(Typing, ConfidenceMethodMixin):
 
     @typecheck()
     def forward(
-            self,
-            encoder_output: torch.Tensor,
-            encoded_lengths: torch.Tensor,
-            partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
     ) -> Tuple[list[rnnt_utils.Hypothesis]]:
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-regressively.
