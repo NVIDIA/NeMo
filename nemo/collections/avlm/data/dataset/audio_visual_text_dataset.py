@@ -21,25 +21,30 @@ from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 
 from nemo.core.classes import IterableDataset
 from nemo.utils.distributed import webdataset_split_by_workers
+from nemo.collections.common.parts.preprocessing import manifest
 
 __all__ = [
     'get_tarred_audio_visual_text_dataset_from_config',
 ]
 
-VALID_IMAGE_FILE_FORMATS = ';'.join(['jpg', 'png'])
-VALID_VIDEO_FILE_FORMATS = ';'.join(['mp4'])
-VALID_VISUAL_FILE_FORMATS = VALID_IMAGE_FILE_FORMATS + VALID_VIDEO_FILE_FORMATS
+VALID_COMPRESSED_SEQUENCE_FILE_FORMATS_SET = {'tar'}
+VALID_IMAGE_FILE_FORMATS_SET = {'jpg', 'jpeg', 'png'}
+VALID_VIDEO_FILE_FORMATS_SET = {'mp4'}
+VALID_VISUAL_FILE_FORMATS_SET = VALID_IMAGE_FILE_FORMATS_SET |
+                                VALID_VIDEO_FILE_FORMATS_SET |
+                                VALID_COMPRESSED_SEQUENCE_FILE_FORMATS_SET
 
 
 
 class AVLMAudioVisualTextEntity(object):
     """Class for AVLM dataloader instance."""
 
-    def __init__(self, sid, audio_file, visual_filepath, duration, context, answer, offset, speaker, orig_sr, lang) -> None:
+    def __init__(self, sid, audio_file, visual_filepath: List[str], duration, context, answer, offset, speaker, orig_sr, lang) -> None:
         """Initialize the AudioTextEntity for a AVLM dataloader instance."""
         self.id = sid
         self.audio_file = audio_file
-        self.visual_filepath = visual_filepath
+        """ it is either a single image/video file or a sequence of index named images or empty List"""
+        self.visual_files = visual_files
         self.duration = duration
         self.context = context
         self.answer = answer
@@ -79,7 +84,8 @@ class AVLMAudioVisualText(object):
         Args:
             ids: List of examples positions.
             audio_files: List of audio files.
-            visual_filepaths: List of image/video path(s)
+            visual_filepaths: List of image/video path(s).
+                Each path is either a single file name or an absolute path
             durations: List of float durations.
             context_list: List of raw text transcripts.
             answers: List of raw text transcripts.
@@ -98,7 +104,8 @@ class AVLMAudioVisualText(object):
         if index_by_file_id:
             self.mapping = {}
 
-        for id_, audio_file, visual_files_path, duration, offset, context, answer, speaker, orig_sr, lang in zip(
+        valid_image_file_format_set = set(VALID_IMAGE_FILE_FORMATS.split(';'))
+        for id_, audio_file, visual_filepath, duration, offset, context, answer, speaker, orig_sr, lang in zip(
             ids, audio_files, visual_filepaths, durations, offsets, context_list, answers, speakers, orig_sampling_rates, langs
         ):
             # Duration filters.
@@ -122,14 +129,25 @@ class AVLMAudioVisualText(object):
                 num_filtered += 1
                 continue
 
+            visual_files = []
+            if visual_filepath is not None:
+                if os.path.isfile(visual_filepath):
+                    visual_files = [visual_filepath]
+                elif os.path.isdir(visual_filepath):
+                    visual_files = [f for f in os.listdir(visual_filepath) if 
+                        os.path.splitext(f)[1] in valid_image_file_format_set and 
+                        os.path.splitext(os.path.basename(f))[0].isdigit()]
+                    # sort the files according to the images' names. Assume names are indexes
+                    visual_files.sort(key=lambda x: int(x))
+
             data.append(
-                SpeechLLMAudioTextEntity(id_, audio_file, visual_files_path, duration, context, answer, offset, speaker, orig_sr, lang)
+                AVLMAudioVisualTextEntity(id_, audio_file, visual_files, duration, context, answer, offset, speaker, orig_sr, lang)
             )
-            if index_by_file_id and (audio_file is not None or visual_filepath is not None):
+            if index_by_file_id and (audio_file is not None or visual_files is not []):
                 if audio_file is not None:
                     file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 else:
-                    file_id = os.path.basename(visual_filepath)
+                    file_id, _ = os.path.splitext(os.path.basename(visual_files[0]))
                 if file_id not in self.mapping:
                     self.mapping[file_id] = []
                 self.mapping[file_id].append(len(data) - 1)
@@ -276,8 +294,16 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
         elif 'visual_filepath' not in item:
             item['visual_filepath'] = None
 
-        if item['visual_filepath'] is not None:
-            item['visual_filepath'] = manifest.get_full_path(visual_filepath=item['visual_filepath'], manifest_file=manifest_file)
+        # if visual_filepath is a directory, make sure it exists
+        # Otherwise, try prefix the relative path with the root dir of the manifest file
+        if item['visual_filepath'] is not None and 
+            os.path.isdir(item['visual_filepath']) and
+            not os.path.exists(item['visual_filepath']):
+            abs_path = os.path.join(os.path.dirname(manifest_file), item['visual_filepath'])
+            if not os.path.exists(abs_path):
+                item['visual_filepath'] = None
+            else:
+                item['visual_filepath'] = abs_path
 
         # Duration.
         if 'duration' not in item:
@@ -329,9 +355,61 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
         )
         return item
 
-class TarredAudioVisualTextDataset(IterableDataset):
+class WdsAudioVisualFilter:
     """
-    A Dataset which loads tarred audio and image/video files.
+    filter function for tarred audio and visual files, skip entry if not in manifest
+    """
+
+    def __init__(self, collection, iterator):
+        self.iterator = iterator
+        self.collection = collection
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while True:
+            audio_bytes, visual_bytes, key = next(self.iterator)
+            file_id, _ = os.path.splitext(os.path.basename(key))
+            if file_id in self.collection.mapping:
+                return audio_bytes, visual_bytes, key
+            else:
+                logging.warning(f"key not in manifest: {file_id}", mode=logging_mode.ONCE)
+
+
+class WdsAudioVisualLoopOffsets:
+    """
+    Loop over wds audio and visual files
+    """
+
+    def __init__(self, collection, iterator):
+        self.iterator = iterator
+        self.collection = collection
+        self.current_fid = None
+        self.current_audio_bytes = None
+        self.current_visual_bytes = None
+        self.offset_id = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.current_fn is None:
+            self.current_audio_bytes, self.current_visual_bytes, self.current_fid = next(self.iterator)
+            self.offset_id = 0
+        else:
+            offset_list = self.collection.mapping[self.current_fid]
+            if len(offset_list) == self.offset_id + 1:
+                self.current_audio_bytes, self.current_visual_bytes, self.current_fid = next(self.iterator)
+                self.offset_id = 0
+            else:
+                self.offset_id += 1
+
+        return self.current_audio_bytes, self.current_visual_bytes, self.current_fid, self.offset_id
+
+class AudioVisualTextWebDataset(IterableDataset):
+    """
+    A Dataset which loads webDataset compliant audio and image/video files.
 
     Accepts a single comma-separated JSON manifest file containing paths to audio files, image/videos files, transcripts,
     and durations (in seconds).
@@ -513,8 +591,11 @@ class TarredAudioVisualTextDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(audio_visual=VALID_AUDIO_FILE_FORMATS+VALID_VISUAL_FILE_FORMATS, key='__key__'),
-            wds.to_tuple('audio_visual', 'key'),
+            wds.rename(
+                audio=VALID_AUDIO_FILE_FORMATS, 
+                visual=';'.join(VALID_VISUAL_FILE_FORMATS_SET), 
+                key='__key__'),
+            wds.to_tuple('audio', 'visual', 'key', missing_is_error=False),
             self._filter,
             self._loop_offsets,
             wds.map(self._build_sample),
@@ -527,12 +608,11 @@ class TarredAudioVisualTextDataset(IterableDataset):
         Note that if using multi-GPU training, filtering may lead to an imbalance in samples in each shard,
         which may make your code hang as one process will finish before the other.
         """
-        return TarredAudioFilter(self.collection, iterator)
+        return WdsAudioVisualFilter(self.collection, iterator)
 
     def _loop_offsets(self, iterator):
         """This function is used to iterate through utterances with different offsets for each file."""
-        # TODO
-        return None
+        return WdsAudioVisualLoopOffsets(self.collection, iterator)
 
     def _collate_fn(self, batch):
         # TODO
@@ -544,8 +624,57 @@ class TarredAudioVisualTextDataset(IterableDataset):
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info."""
-        #TODO
-        return None
+        audio_bytes, visual_bytes, key, offset_id = tup
+
+        if key is not None:
+            # Grab manifest entry from self.manifest_preprocessor.collection
+            file_id, _ = os.path.splitext(os.path.basename(key))
+            manifest_idx = self.collection.mapping[file_id][offset_id]
+            manifest_entry = self.collection[manifest_idx]
+
+            # init output dict
+            output = {"idx": manifest_idx}
+
+            offset = manifest_entry.offset
+            if offset is None:
+                offset = 0
+
+            # process audio
+            if audio_bytes is not None:                
+                # Convert audio bytes to IO stream for processing (for SoundFile to read)
+                audio_filestream = io.BytesIO(audio_bytes)
+                features = self.waveform_featurizer.process(
+                    audio_filestream,
+                    offset=offset,
+                    duration=manifest_entry.duration,
+                    trim=self.trim,
+                    orig_sr=manifest_entry.orig_sr,
+                )
+                audio_filestream.close()
+
+                # Audio features
+                output["audio_signal"] = features
+                output["audio_length"] = torch.tensor(features.shape[0]).long()
+            else:
+                # dummy features
+                output["audio_signal"] = torch.zeros([80])
+                # accomodates normalize_batch
+                output["audio_length"] = torch.tensor(80)
+
+            #TODO: process image/video
+
+        # Text features
+        text_data = self.text_processor(context=manifest_entry.context, output=manifest_entry.answer)
+
+        output.update(text_data)
+
+        output['metadata'] = {
+            'audio_filepath': manifest_entry.audio_file,
+            'visual_filepaths': manifest_entry.visual_files,
+            'offset': offset,
+            'duration': manifest_entry.duration,
+        }
+        return output
 
     def get_manifest_sample(self, sample_id):
         """
@@ -571,7 +700,7 @@ class TarredAudioVisualTextDataset(IterableDataset):
     def __len__(self):
         return self.len
 
-def get_tarred_audio_visual_text_dataset_from_config(
+def get_audio_visual_text_webdataset_from_config(
     config: DictConfig,
     text_processor: TextProcessing,
     visual_processor,
