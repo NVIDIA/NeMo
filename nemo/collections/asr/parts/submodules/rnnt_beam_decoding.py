@@ -81,8 +81,8 @@ def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
             hyp.dec_state = _states_to_device(hyp.dec_state)
 
         # Remove -1 from timestep
-        if hyp.timestep is not None and len(hyp.timestep) > 0 and hyp.timestep[0] == -1:
-            hyp.timestep = hyp.timestep[1:]
+        if hyp.timestamp is not None and len(hyp.timestamp) > 0 and hyp.timestamp[0] == -1:
+            hyp.timestamp = hyp.timestamp[1:]
 
     return hypotheses
 
@@ -490,7 +490,7 @@ class BeamRNNTInfer(Typing):
 
         # Construct initial hypothesis
         hyp = Hypothesis(
-            score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=encoded_lengths
+            score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestamp=[-1], length=encoded_lengths
         )
 
         if partial_hypotheses is not None:
@@ -537,7 +537,7 @@ class BeamRNNTInfer(Typing):
                     hyp.y_sequence.append(int(pred))
                     hyp.score += float(logp)
                     hyp.dec_state = state
-                    hyp.timestep.append(i)
+                    hyp.timestamp.append(i)
 
                     # Compute next state and token
                     y, state, _ = self.decoder.score_hypothesis(hyp, cache)
@@ -587,7 +587,7 @@ class BeamRNNTInfer(Typing):
         dec_state = self.decoder.initialize_state(h)
 
         # Initialize first hypothesis for the beam (blank)
-        kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0)]
+        kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestamp=[-1], length=0)]
         cache = {}
 
         if partial_hypotheses is not None:
@@ -636,7 +636,7 @@ class BeamRNNTInfer(Typing):
                         y_sequence=max_hyp.y_sequence[:],
                         dec_state=max_hyp.dec_state,
                         lm_state=max_hyp.lm_state,
-                        timestep=max_hyp.timestep[:],
+                        timestamp=max_hyp.timestamp[:],
                         length=encoded_lengths,
                     )
 
@@ -650,7 +650,7 @@ class BeamRNNTInfer(Typing):
                         # if non-blank token was predicted, update state and sequence and then search more hypothesis
                         new_hyp.dec_state = state
                         new_hyp.y_sequence.append(int(k))
-                        new_hyp.timestep.append(i)
+                        new_hyp.timestamp.append(i)
 
                         hyps.append(new_hyp)
 
@@ -734,7 +734,7 @@ class BeamRNNTInfer(Typing):
                 y_sequence=[self.blank],
                 score=0.0,
                 dec_state=self.decoder.batch_select_state(beam_state, 0),
-                timestep=[-1],
+                timestamp=[-1],
                 length=0,
             )
         ]
@@ -780,7 +780,7 @@ class BeamRNNTInfer(Typing):
                             y_sequence=hyp.y_sequence[:],
                             dec_state=hyp.dec_state,
                             lm_state=hyp.lm_state,
-                            timestep=hyp.timestep[:],
+                            timestamp=hyp.timestamp[:],
                             length=encoded_lengths,
                         )
 
@@ -812,7 +812,7 @@ class BeamRNNTInfer(Typing):
                                 y_sequence=(hyp.y_sequence + [int(k)]),
                                 dec_state=beam_state[j],
                                 lm_state=hyp.lm_state,
-                                timestep=hyp.timestep[:] + [i],
+                                timestamp=hyp.timestamp[:] + [i],
                                 length=encoded_lengths,
                             )
 
@@ -908,7 +908,7 @@ class BeamRNNTInfer(Typing):
                 y_sequence=[self.blank],
                 score=0.0,
                 dec_state=beam_state[0],
-                timestep=[-1],
+                timestamp=[-1],
                 length=0,
             )
         ]
@@ -1004,7 +1004,7 @@ class BeamRNNTInfer(Typing):
                         y_sequence=hyp.y_sequence[:],
                         dec_state=hyp.dec_state,
                         lm_state=hyp.lm_state,
-                        timestep=hyp.timestep[:],
+                        timestamp=hyp.timestamp[:],
                         length=i,
                     )
 
@@ -1041,7 +1041,7 @@ class BeamRNNTInfer(Typing):
                             y_sequence=(hyp.y_sequence[:] + [int(k)]),
                             dec_state=beam_state[h_states_idx],
                             lm_state=hyp.lm_state,
-                            timestep=hyp.timestep[:] + [i],
+                            timestamp=hyp.timestamp[:] + [i],
                             length=i,
                         )
 
@@ -1121,7 +1121,7 @@ class BeamRNNTInfer(Typing):
                 y_sequence=[self.blank],
                 score=0.0,
                 dec_state=self.decoder.batch_select_state(beam_state, 0),
-                timestep=[-1],
+                timestamp=[-1],
                 length=0,
             )
         ]
@@ -1165,7 +1165,7 @@ class BeamRNNTInfer(Typing):
                 dec_out=[beam_dec_out[0]],
                 lm_state=lm_state,
                 lm_scores=lm_scores,
-                timestep=[-1],
+                timestamp=[-1],
                 length=0,
             )
         ]
@@ -1228,7 +1228,7 @@ class BeamRNNTInfer(Typing):
                             dec_state=hyp.dec_state,
                             lm_state=hyp.lm_state,
                             lm_scores=hyp.lm_scores,
-                            timestep=hyp.timestep[:],
+                            timestamp=hyp.timestamp[:],
                             length=t,
                         )
                         if self.ngram_lm:
@@ -1242,7 +1242,7 @@ class BeamRNNTInfer(Typing):
                             # new_hyp.y_sequence.append(int(k))
                             if (new_hyp.y_sequence + [int(k)]) not in duplication_check:
                                 new_hyp.y_sequence.append(int(k))
-                                new_hyp.timestep.append(t)
+                                new_hyp.timestamp.append(t)
 
                                 # Setup ngram LM:
                                 if self.ngram_lm:

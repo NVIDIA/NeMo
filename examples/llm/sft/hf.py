@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import tempfile
+from functools import partial
 
 import fiddle as fdl
 import lightning.pytorch as pl
@@ -19,45 +23,73 @@ from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
-class SquadDataModuleWithPthDataloader(llm.SquadDataModule):
-    """Creates a squad dataset with a PT dataloader"""
+def make_squad_hf_dataset(tokenizer):
+    def formatting_prompts_func(example):
+        formatted_text = [
+            f"Context: {example['context']} Question: {example['question']} Answer:",
+            f" {example['answers']['text'][0].strip()}",
+        ]
+        context_ids, answer_ids = list(map(tokenizer.text_to_ids, formatted_text))
+        if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id:
+            context_ids.insert(0, tokenizer.bos_id)
+        if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id:
+            answer_ids.append(tokenizer.eos_id)
 
-    def _create_dataloader(self, dataset, mode, **kwargs) -> DataLoader:
-        return DataLoader(
-            dataset,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
-            persistent_workers=self.persistent_workers,
-            collate_fn=dataset.collate_fn,
-            batch_size=self.micro_batch_size,
-            **kwargs,
+        return dict(
+            labels=(context_ids + answer_ids)[1:],
+            input_ids=(context_ids + answer_ids)[:-1],
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:10]", pad_token_id=tokenizer.eos_id)
+    datamodule.map(
+        formatting_prompts_func,
+        batched=False,
+        batch_size=2,
+        remove_columns=["id", "title", "context", "question", 'answers'],
+    )
+    return datamodule
 
-def squad(tokenizer) -> pl.LightningDataModule:
-    """Instantiates a SquadDataModuleWithPthDataloader and return it
 
-    Args:
-        tokenizer (AutoTokenizer): the tokenizer to use
+def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
+    if strategy == 'auto':
+        return pl.strategies.SingleDeviceStrategy(
+            device='cuda:0',
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+        )
+    elif strategy == 'ddp':
+        return pl.strategies.DDPStrategy(
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+        )
+    elif strategy == 'fsdp2':
+        return nl.FSDP2Strategy(
+            data_parallel_size=devices * num_nodes,
+            tensor_parallel_size=1,
+            checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+        )
+    else:
+        raise NotImplementedError("Encountered unknown strategy")
 
-    Returns:
-        pl.LightningDataModule: the dataset to train with.
-    """
-    return SquadDataModuleWithPthDataloader(
-        tokenizer=tokenizer,
-        seq_length=512,
-        micro_batch_size=2,
-        global_batch_size=128,  # assert gbs == mbs * accumulate_grad_batches
-        num_workers=0,
-        dataset_kwargs={
-            "sanity_check_dist_workers": False,
-            "pad_to_max_length": True,
-            "get_attention_mask_from_fusion": True,
-        },
+
+def logger(ckpt_folder) -> nl.NeMoLogger:
+    ckpt = nl.ModelCheckpoint(
+        save_last=True,
+        every_n_train_steps=1,
+        monitor="reduced_train_loss",
+        save_top_k=1,
+        save_on_train_epoch_end=True,
+        save_optim_on_train_end=True,
+    )
+
+    return nl.NeMoLogger(
+        name="nemo2_sft",
+        log_dir=ckpt_folder,
+        use_datetime_version=False,  # must be false if using auto resume
+        ckpt=ckpt,
+        wandb=None,
     )
 
 
@@ -66,16 +98,19 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
-    parser.add_argument('--devices', default=1)
-    parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--model-accelerator', default=None, choices=['te'])
+    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.2-1B')
+    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'])
+    parser.add_argument('--devices', type=int, default=1)
+    parser.add_argument('--num-nodes', type=int, default=1)
+    parser.add_argument('--accelerator', type=str, default='gpu', choices=['gpu'])
+    parser.add_argument('--grad-clip', type=float, default=1.0)
+    parser.add_argument('--model-accelerator', type=str, default=None, choices=['te'])
     parser.add_argument('--max-steps', type=int, default=100)
-    parser.add_argument("--fp8-autocast", default=False, action='store_true')
+    parser.add_argument("--fp8-autocast", action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
-    parser.add_argument('--model-save-path', type=str, default=None)
+    parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name)
     parser.add_argument('--use-torch-jit', action='store_true')
+    parser.add_argument('--auto-resume', action='store_true')
     args = parser.parse_args()
 
     wandb = None
@@ -85,59 +120,53 @@ def main():
             project=args.wandb_project,
             name=f'{model}_dev{args.devices}_strat_{args.strategy}',
         )
-    grad_clip = 0.5
-    if args.strategy == 'fsdp':
-        # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81
-        grad_clip = None
-    use_dist_samp = False
 
     model_accelerator = None
     if args.model_accelerator == "te":
-        from functools import partial
         from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
         model_accelerator = partial(te_accelerate, fp8_autocast=args.fp8_autocast)
-
-    from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
-
-    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
-    tokenizer = model.tokenizer
 
     callbacks = []
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
+    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
+    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
+
+    resume = (
+        nl.AutoResume(
+            resume_if_exists=True,
+            resume_ignore_no_checkpoint=False,
+        )
+        if args.auto_resume
+        else None
+    )
+
     llm.api.finetune(
         model=model,
-        data=squad(tokenizer),
+        data=make_squad_hf_dataset(llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)),
         trainer=nl.Trainer(
             devices=args.devices,
+            num_nodes=args.num_nodes,
             max_steps=args.max_steps,
             accelerator=args.accelerator,
-            strategy=args.strategy,
+            strategy=strategy,
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
-            accumulate_grad_batches=10,
-            gradient_clip_val=grad_clip,
-            use_distributed_sampler=use_dist_samp,
+            accumulate_grad_batches=1,
+            gradient_clip_val=args.grad_clip,
+            use_distributed_sampler=False,
             logger=wandb,
             callbacks=callbacks,
             precision="bf16",
         ),
         optim=fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)),
-        log=None,
+        log=logger(args.ckpt_folder),
+        resume=resume,
     )
-
-    if args.model_accelerator:
-        if args.model_accelerator == "te":
-            te_acc = is_te_accelerated(model.model)
-            assert te_acc, "Transformer Engine acceleration was unsuccessful"
-            print("TE Accelerated: ", te_acc)
-
-    if args.model_save_path is not None:
-        model.save_pretrained(args.model_save_path)
 
 
 if __name__ == '__main__':

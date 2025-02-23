@@ -71,6 +71,12 @@ class MixtralConfig(GPTConfig):
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
 
+    # fusions
+    apply_rope_fusion: bool = True
+    bias_activation_fusion: bool = True
+    bias_dropout_fusion: bool = True
+    masked_softmax_fusion: bool = False
+
 
 @dataclass
 class MixtralConfig8x3B(MixtralConfig):
@@ -112,11 +118,13 @@ class MixtralConfig8x22B(MixtralConfig):
     hidden_size: int = 6144
     num_attention_heads: int = 48
     ffn_hidden_size: int = 16384
-    max_position_embeddings: int = 4096
-    seq_length: int = 4096
+    max_position_embeddings: int = 65536
+    seq_length: int = 65536
 
 
 class MixtralModel(GPTModel):
+    """Mcore-based MixtralModel"""
+
     def __init__(
         self,
         config: Optional[Union[MixtralConfig8x7B, MixtralConfig8x22B]] = None,
@@ -124,6 +132,7 @@ class MixtralModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        """Mcore-based MixtralModel ctor"""
         super().__init__(
             config or MixtralConfig8x7B(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
         )
@@ -131,10 +140,14 @@ class MixtralModel(GPTModel):
 
 @io.model_importer(MixtralModel, ext="hf")
 class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
+    """HF to NeMo importer"""
+
     def init(self) -> MixtralModel:
+        """init"""
         return MixtralModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        """Import model from HF"""
         from transformers import MixtralForCausalLM
 
         source = MixtralForCausalLM.from_pretrained(str(self), torch_dtype='auto', use_safetensors=True)
@@ -149,12 +162,13 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
         return output_path
 
     def convert_state(self, source, target):
+        """State-dict converter"""
         mapping = {
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.pre_mlp_layernorm.weight",
             # MoE
-            "model.layers.*.block_sparse_moe.experts.*.w2.weight": "decoder.layers.*.mlp.experts.local_experts.*.linear_fc2.weight",
+            "model.layers.*.block_sparse_moe.experts.*.w2.weight": "decoder.layers.*.mlp.experts.local_experts.*.linear_fc2.weight",  # pylint: disable=line-too-long
             "model.layers.*.block_sparse_moe.gate.weight": "decoder.layers.*.mlp.router.weight",
             # lm-head
             "model.norm.weight": "decoder.final_layernorm.weight",
@@ -169,12 +183,14 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """Configures tokenizer"""
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> MixtralConfig8x7B | MixtralConfig8x22B:
+        """Returns Mcore config from HF"""
         from transformers import MixtralConfig as HfMixtralConfig
 
         config = HfMixtralConfig.from_pretrained(str(self))
@@ -220,6 +236,7 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
     target_key="embedding.word_embeddings.weight",
 )
 def _import_embedding(ctx: io.TransformCTX, embedding):
+    """_import_embedding"""
     embedding_weight = ctx.source.model.embed_tokens.weight
     vocab_size = embedding_weight.shape[0]
     ctx.target_state['embedding.word_embeddings.weight'][:vocab_size, :].copy_(embedding_weight)
@@ -231,6 +248,7 @@ def _import_embedding(ctx: io.TransformCTX, embedding):
     target_key="output_layer.weight",
 )
 def _import_lm_head(ctx: io.TransformCTX, embedding):
+    """import head"""
     lm_head_weight = ctx.source.lm_head.weight
     vocab_size = lm_head_weight.shape[0]
     ctx.target_state['output_layer.weight'][:vocab_size, :].copy_(lm_head_weight)
@@ -246,6 +264,7 @@ def _import_lm_head(ctx: io.TransformCTX, embedding):
     target_key="decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_qkv(ctx: io.TransformCTX, q, k, v):
+    """import qkv"""
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
@@ -287,12 +306,16 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     target_key="decoder.layers.*.mlp.experts.local_experts.*.linear_fc1.weight",
 )
 def _import_moe_w1_w3(gate_proj, up_proj):
+    """_import_moe_w1_w3"""
     return torch.cat((gate_proj, up_proj), axis=0)
 
 
 @io.model_exporter(MixtralModel, "hf")
 class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
+    """NeMo to HF exporter"""
+
     def init(self) -> "MixtralForCausalLM":
+        """HFMixtralExporter initialization"""
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
@@ -300,6 +323,7 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
             return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
+        """export to hf format"""
         # TODO: Make it work with lazy init
         # with torch.device("meta"):
         #     target = self.init()
@@ -315,12 +339,13 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
         return output_path
 
     def convert_state(self, source, target):
+        """convert state"""
         mapping = {
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
             "decoder.layers.*.pre_mlp_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
             # MoE
-            "decoder.layers.*.mlp.experts.local_experts.*.linear_fc2.weight": "model.layers.*.block_sparse_moe.experts.*.w2.weight",
+            "decoder.layers.*.mlp.experts.local_experts.*.linear_fc2.weight": "model.layers.*.block_sparse_moe.experts.*.w2.weight",  # pylint: disable=line-too-long
             "decoder.layers.*.mlp.router.weight": "model.layers.*.block_sparse_moe.gate.weight",
             # lm-head
             "decoder.final_layernorm.weight": "model.norm.weight",
@@ -335,12 +360,14 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
 
     @property
     def tokenizer(self):
-        return io.load_ckpt(str(self)).model.tokenizer.tokenizer
+        """return tokenizer"""
+        return io.load_context(str(self), subpath="model").tokenizer
 
     @property
     def config(self) -> "MixtralConfig":
+        """return hf-config from mcore"""
         # Either MixtralConfig8x7B or MixtralConfig8x22B
-        source: MixtralConfig8x7B = io.load_ckpt(str(self)).model.config
+        source: MixtralConfig8x7B = io.load_context(str(self), subpath="model.config")
 
         from transformers import MixtralConfig as HfMixtralConfig
 
@@ -355,8 +382,8 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
             # transformer config
             num_attention_heads=source.num_attention_heads,
             num_key_value_heads=source.num_query_groups,
-            num_local_experts=config.num_moe_experts,
-            num_experts_per_tok=config.moe_router_topk,
+            num_local_experts=source.num_moe_experts,
+            num_experts_per_tok=source.moe_router_topk,
             # norm
             rms_norm_eps=source.layernorm_epsilon,
             # init
@@ -376,6 +403,7 @@ class HFMixtralExporter(io.ModelConnector[MixtralModel, "MixtralForCausalLM"]):
     ),
 )
 def _export_qkv(ctx: io.TransformCTX, linear_qkv):
+    """_export_qkv"""
     megatron_config = ctx.source.config
 
     head_num = megatron_config.num_attention_heads
@@ -411,6 +439,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     ),
 )
 def _export_moe_w1_w3(linear_fc1):
+    """_export_moe_w1_w3"""
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj
