@@ -1610,17 +1610,16 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
-  Optional_L2_HF_Transformer_SFT_FSDP2_2gpu:
+  L2_HF_Transformer_SFT_FSDP2_2gpu:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_HF_Transformer_SFT_FSDP2_2gpu')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_FSDP2_2gpu')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
-      IS_OPTIONAL: true
 
   L2_HF_Transformer_PT_2gpu:
     needs: [pre-flight, cicd-test-container-build]
@@ -3123,7 +3122,7 @@ jobs:
       - L2_NeMo_2_Export_In_Framework
       - L2_NeMo_2_jit_callback
       - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
-      # - Optional_L2_HF_Transformer_SFT_FSDP2_2gpu
+      - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
       - L2_NeMo_2_EVAL
