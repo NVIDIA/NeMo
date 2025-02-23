@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
+import torch
 import webdataset as wds
 
 from nemo.collections.asr.data.audio_to_text import VALID_FILE_FORMATS as VALID_AUDIO_FILE_FORMATS
@@ -30,8 +32,8 @@ __all__ = [
 VALID_COMPRESSED_SEQUENCE_FILE_FORMATS_SET = {'tar'}
 VALID_IMAGE_FILE_FORMATS_SET = {'jpg', 'jpeg', 'png'}
 VALID_VIDEO_FILE_FORMATS_SET = {'mp4'}
-VALID_VISUAL_FILE_FORMATS_SET = VALID_IMAGE_FILE_FORMATS_SET |
-                                VALID_VIDEO_FILE_FORMATS_SET |
+VALID_VISUAL_FILE_FORMATS_SET = VALID_IMAGE_FILE_FORMATS_SET | \
+                                VALID_VIDEO_FILE_FORMATS_SET | \
                                 VALID_COMPRESSED_SEQUENCE_FILE_FORMATS_SET
 
 
@@ -104,7 +106,6 @@ class AVLMAudioVisualText(object):
         if index_by_file_id:
             self.mapping = {}
 
-        valid_image_file_format_set = set(VALID_IMAGE_FILE_FORMATS.split(';'))
         for id_, audio_file, visual_filepath, duration, offset, context, answer, speaker, orig_sr, lang in zip(
             ids, audio_files, visual_filepaths, durations, offsets, context_list, answers, speakers, orig_sampling_rates, langs
         ):
@@ -134,8 +135,8 @@ class AVLMAudioVisualText(object):
                 if os.path.isfile(visual_filepath):
                     visual_files = [visual_filepath]
                 elif os.path.isdir(visual_filepath):
-                    visual_files = [f for f in os.listdir(visual_filepath) if 
-                        os.path.splitext(f)[1] in valid_image_file_format_set and 
+                    visual_files = [f for f in os.listdir(visual_filepath) if \
+                        os.path.splitext(f)[1] in VALID_IMAGE_FILE_FORMATS_SET and \
                         os.path.splitext(os.path.basename(f))[0].isdigit()]
                     # sort the files according to the images' names. Assume names are indexes
                     visual_files.sort(key=lambda x: int(x))
@@ -591,6 +592,7 @@ class AudioVisualTextWebDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
+            wds.decode('pil', wds.torch_video),
             wds.rename(
                 audio=VALID_AUDIO_FILE_FORMATS, 
                 visual=';'.join(VALID_VISUAL_FILE_FORMATS_SET), 
@@ -643,7 +645,7 @@ class AudioVisualTextWebDataset(IterableDataset):
             if audio_bytes is not None:                
                 # Convert audio bytes to IO stream for processing (for SoundFile to read)
                 audio_filestream = io.BytesIO(audio_bytes)
-                features = self.waveform_featurizer.process(
+                audio_features = self.waveform_featurizer.process(
                     audio_filestream,
                     offset=offset,
                     duration=manifest_entry.duration,
@@ -653,15 +655,19 @@ class AudioVisualTextWebDataset(IterableDataset):
                 audio_filestream.close()
 
                 # Audio features
-                output["audio_signal"] = features
-                output["audio_length"] = torch.tensor(features.shape[0]).long()
+                output["audio_signal"] = audio_features
+                output["audio_length"] = torch.tensor(audio_features.shape[0]).long()
             else:
-                # dummy features
+                # dummy audio_features
                 output["audio_signal"] = torch.zeros([80])
                 # accomodates normalize_batch
                 output["audio_length"] = torch.tensor(80)
 
             #TODO: process image/video
+            if visual_bytes is not None:
+                if self.visual_processor is not None:
+                else:
+                    output["visual_signal"] = torch.from_numpy(visual_bytes)
 
         # Text features
         text_data = self.text_processor(context=manifest_entry.context, output=manifest_entry.answer)

@@ -33,21 +33,10 @@ class AudioVisualToTextDataModule(AudioToTextDataModule):
     Data module for speech-image/video-to-text LLM.
     """
 
-    def __init__(self, config: Union[DictConfig, Dict], tokenizer: TokenizerSpec):
+    def __init__(self, config: Union[DictConfig, Dict], tokenizer: TokenizerSpec, visual_processor = None):
         super().__init__(config, tokenizer)
         # image/video processor
-        self.visual_processor = None
-
-    def get_vision_processor():
-        # TODO: implement vision processor
-        return None
-
-    def setup(self, stage=None):
-        """
-        build datasets, data sample processor and data sampler
-        """
-        self.visual_processor = self.get_vision_processor()
-        super().setup(stage)
+        self.visual_processor = visual_processor
         
     @lru_cache
     def _create_dataset(self, mode: str):
