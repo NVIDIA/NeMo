@@ -1,4 +1,10 @@
+import logging
 from typing import Callable
+
+from nemo.tron.utils.log_utils import CustomHandler
+
+# Make default logging level INFO, but filter out all log messages not from MCore.
+logging.basicConfig(handlers=[CustomHandler()], level=logging.INFO)
 
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import save_checkpoint
