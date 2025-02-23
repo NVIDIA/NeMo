@@ -15,6 +15,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Tuple, Union
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -33,6 +34,7 @@ from nemo.core.utils.cuda_python_utils import (
 )
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 
 try:
     from cuda import cudart

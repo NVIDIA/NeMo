@@ -234,13 +234,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
             if self.big_blank_durations is not None and self.big_blank_durations != []:
                 raise ValueError("duration and big_blank_durations can't both be not None")
-            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam', 'maes']:
+            if self.cfg.strategy not in ['greedy', 'greedy_batch', 'beam', 'maes', "malsd_batch"]:
                 raise ValueError(
                     "currently only greedy, greedy_batch, beam and maes inference is supported for TDT models"
                 )
 
         if (
-            self.big_blank_durations is not None and self.big_blank_durations != []
+                self.big_blank_durations is not None and self.big_blank_durations != []
         ):  # this means it's a multi-blank model.
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(vocabs) for multi-blank RNN-T models")
@@ -249,7 +249,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     "currently only greedy and greedy_batch inference is supported for multi-blank models"
                 )
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes', 'malsd_batch', "maes_batch"]
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
@@ -287,9 +287,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         # Confidence estimation is not implemented for these strategies
         if (
-            not self.preserve_frame_confidence
-            and self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']
-            and self.cfg.beam.get('preserve_frame_confidence', False)
+                not self.preserve_frame_confidence
+                and self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']
+                and self.cfg.beam.get('preserve_frame_confidence', False)
         ):
             raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
 
@@ -301,8 +301,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         joint_model=joint,
                         blank_index=self.blank_id,
                         max_symbols_per_step=(
-                            self.cfg.greedy.get('max_symbols', None)
-                            or self.cfg.greedy.get('max_symbols_per_step', None)
+                                self.cfg.greedy.get('max_symbols', None)
+                                or self.cfg.greedy.get('max_symbols_per_step', None)
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
@@ -315,8 +315,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         blank_index=self.blank_id,
                         durations=self.durations,
                         max_symbols_per_step=(
-                            self.cfg.greedy.get('max_symbols', None)
-                            or self.cfg.greedy.get('max_symbols_per_step', None)
+                                self.cfg.greedy.get('max_symbols', None)
+                                or self.cfg.greedy.get('max_symbols_per_step', None)
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
@@ -331,7 +331,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     blank_index=self.blank_id,
                     big_blank_durations=self.big_blank_durations,
                     max_symbols_per_step=(
-                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
                     ),
                     preserve_alignments=self.preserve_alignments,
                     preserve_frame_confidence=self.preserve_frame_confidence,
@@ -346,8 +346,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         joint_model=joint,
                         blank_index=self.blank_id,
                         max_symbols_per_step=(
-                            self.cfg.greedy.get('max_symbols', None)
-                            or self.cfg.greedy.get('max_symbols_per_step', None)
+                                self.cfg.greedy.get('max_symbols', None)
+                                or self.cfg.greedy.get('max_symbols_per_step', None)
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
@@ -364,8 +364,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         blank_index=self.blank_id,
                         durations=self.durations,
                         max_symbols_per_step=(
-                            self.cfg.greedy.get('max_symbols', None)
-                            or self.cfg.greedy.get('max_symbols_per_step', None)
+                                self.cfg.greedy.get('max_symbols', None)
+                                or self.cfg.greedy.get('max_symbols_per_step', None)
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
@@ -384,7 +384,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     blank_index=self.blank_id,
                     big_blank_durations=self.big_blank_durations,
                     max_symbols_per_step=(
-                        self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                            self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
                     ),
                     preserve_alignments=self.preserve_alignments,
                     preserve_frame_confidence=self.preserve_frame_confidence,
@@ -463,6 +463,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                         hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
                         hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
+                        use_kenlm=self.cfg.beam.get('use_kenlm', True),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', 'early')
                     )
                 else:
                     self.decoding = tdt_beam_decoding.BeamTDTInfer(
@@ -482,8 +484,62 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                         ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
                     )
+        elif self.cfg.strategy == 'malsd_batch':
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='malsd_batch',
+                        malsd_max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
+                    )
+                else:
+                    self.decoding = tdt_beam_decoding.Best1BeamBatchedTDTInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        blank_index=self.blank_id,
+                        durations=self.durations,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='malsd_batch',
+                        malsd_max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                        allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
+                    )    
+        elif self.cfg.strategy == 'maes_batch':
+            if self.big_blank_durations is None or self.big_blank_durations == []:
+                if not self._is_tdt:
+                    self.decoding = rnnt_beam_decoding.Best1BeamBatchedInfer(
+                        decoder_model=decoder,
+                        joint_model=joint,
+                        # durations=self.durations,
+                        blank_index=self.blank_id,
+                        beam_size=self.cfg.beam.beam_size,
+                        search_type='maes_batch',
+                        maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                        maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2),
+                        maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                        preserve_alignments=self.preserve_alignments,
+                        ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                        ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                        blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', None),
+                        pruning_mode=self.cfg.beam.get('pruning_mode', None),
+                        score_norm=self.cfg.beam.get('score_norm', True),
+                    )
         else:
-
             raise ValueError(
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
                 f"but was provided {self.cfg.strategy}"
@@ -563,7 +619,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             if return_hypotheses:
                 # greedy decoding, can get high-level confidence scores
                 if self.preserve_frame_confidence and (
-                    self.preserve_word_confidence or self.preserve_token_confidence
+                        self.preserve_word_confidence or self.preserve_token_confidence
                 ):
                     hypotheses = self.compute_confidence(hypotheses)
                 return hypotheses
@@ -919,7 +975,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     @staticmethod
     def _compute_offsets(
-        hypothesis: Hypothesis, token_repetitions: List[int], rnnt_token: int
+            hypothesis: Hypothesis, token_repetitions: List[int], rnnt_token: int
     ) -> List[Dict[str, Union[str, int]]]:
         """
         Utility method that calculates the indidual time indices where a token starts and ends.
@@ -1017,7 +1073,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     @staticmethod
     def _get_word_offsets_chars(
-        offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
+            offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of character time stamps.
@@ -1068,10 +1124,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     @staticmethod
     def _get_word_offsets_subwords_sentencepiece(
-        offsets: Dict[str, Union[str, float]],
-        hypothesis: Hypothesis,
-        decode_ids_to_tokens: Callable[[List[int]], str],
-        decode_tokens_to_str: Callable[[List[int]], str],
+            offsets: Dict[str, Union[str, float]],
+            hypothesis: Hypothesis,
+            decode_ids_to_tokens: Callable[[List[int]], str],
+            decode_tokens_to_str: Callable[[List[int]], str],
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of sub-word time stamps.
@@ -1412,11 +1468,11 @@ class RNNTDecoding(AbstractRNNTDecoding):
     """
 
     def __init__(
-        self,
-        decoding_cfg,
-        decoder,
-        joint,
-        vocabulary,
+            self,
+            decoding_cfg,
+            decoder,
+            joint,
+            vocabulary,
     ):
         # we need to ensure blank is the last token in the vocab for the case of RNNT and Multi-blank RNNT.
         blank_id = len(vocabulary) + joint.num_extra_outputs

@@ -18,6 +18,7 @@ from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
+from pathlib import Path
 
 from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -562,7 +563,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             if self._repeated_symbols_allowed:
                 # is_blank = (labels == self.blank_id)
                 # torch.where(is_blank, labels, labels_w_lm, out=labels)
-                blank_or_repeated = (labels == self.blank_id) | (labels == last_labels) | (labels_w_lm == last_labels)
+                blank_or_repeated = ((labels == self.blank_id) | (labels == last_labels) | (labels_w_lm == last_labels))
                 torch.where(blank_or_repeated, labels, labels_w_lm, out=labels)
                 blank_or_repeated = (labels == self.blank_id) | (labels == last_labels)
                 torch.where(
@@ -637,6 +638,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
+
 
 
 @dataclass

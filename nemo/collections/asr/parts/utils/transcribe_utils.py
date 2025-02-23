@@ -349,8 +349,8 @@ def read_and_maybe_sort_manifest(path: str, try_sort: bool = False) -> List[dict
 
 
 def restore_transcription_order(manifest_path: str, transcriptions: list) -> list:
-    with open(manifest_path) as f:
-        items = [(idx, json.loads(l)) for idx, l in enumerate(f) if l.strip() != ""]
+    with open(manifest_path, encoding='utf-8') as f:
+        items = [(idx, json.loads(l)) for idx, l in enumerate(f)]
     if not all("duration" in item[1] and item[1]["duration"] is not None for item in items):
         return transcriptions
     new2old = [item[0] for item in sorted(items, reverse=True, key=lambda it: it[1]["duration"])]

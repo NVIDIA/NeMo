@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import List
 
 from omegaconf import MISSING
-
+from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 import kenlm_utils
 

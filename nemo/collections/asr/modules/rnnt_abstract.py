@@ -206,6 +206,22 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def initialize_state_like(self, batch: int, dtype: torch.dtype, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Initialize the state of the RNN layers, with same dtype and device as input `y`.
+
+        Args:
+            y: A torch.Tensor whose device the generated states will be placed on.
+
+        Returns:
+            List of torch.Tensor, each of shape [L, B, H], where
+                L = Number of RNN layers
+                B = Batch size
+                H = Hidden size of RNN.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def score_hypothesis(
         self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]
     ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
@@ -276,11 +292,20 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     @classmethod
+    def batch_rearrange_states(
+        cls,
+        src_states: Tuple[torch.Tensor, torch.Tensor],
+        indices: torch.Tensor,
+    ):
+        raise NotImplementedError()
+
+    @classmethod
     def batch_replace_states_mask(
         cls,
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
         mask: torch.Tensor,
+        src_states2: Optional[list[torch.Tensor]],
     ):
         """Replace states in dst_states with states from src_states using the mask, in a way that does not synchronize with the CPU"""
         raise NotImplementedError()
