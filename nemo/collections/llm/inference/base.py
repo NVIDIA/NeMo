@@ -25,9 +25,7 @@ from megatron.core.inference.engines.mcore_engine import MCoreEngine
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
     AbstractModelInferenceWrapper,
 )
-from megatron.core.inference.text_generation_controllers.simple_text_generation_controller import (
-    SimpleTextGenerationController,
-)
+from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.core.transformer.module import MegatronModule
 
 import nemo.lightning as nl
@@ -149,6 +147,7 @@ def _setup_trainer_and_restore_model(path: Path, trainer: nl.Trainer, model: pl.
     trainer.strategy._setup_optimizers = False
     trainer.ckpt_path = None
     trainer.strategy.connect(model)
+    model.trainer = trainer
     if trainer.strategy.launcher is not None:
         trainer.strategy.launcher.launch(lambda: None, trainer=trainer)
     trainer.strategy.setup_environment()
@@ -241,7 +240,7 @@ def generate(
             inference_wrapped_model=model, tokenizer=tokenizer
         )
     else:
-        text_generation_controller = SimpleTextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
+        text_generation_controller = TextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
     mcore_engine = MCoreEngine(
         text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
     )
