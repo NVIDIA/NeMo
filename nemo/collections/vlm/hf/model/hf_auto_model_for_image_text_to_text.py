@@ -20,6 +20,7 @@ from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import masked_cross_entropy
 from nemo.lightning import io
 from nemo.utils import logging
+import _io
 
 
 class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
