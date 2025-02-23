@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+import os
 import sys
 from logging import LogRecord, StreamHandler
 
+from nemo.tron.config import ConfigContainer
+
 BLACKLISTED_MODULES = ["torch.distributed"]
+logger = logging.getLogger(__name__)
 
 
 class CustomHandler(StreamHandler):
@@ -34,3 +39,28 @@ class CustomHandler(StreamHandler):
             if record.name.startswith(blacklisted_module):
                 return False
         return True
+
+
+def setup_logging(cfg: ConfigContainer) -> None:
+    """Sets the default logging level based on cmdline args and env vars.
+
+    Precedence:
+    1. Command line argument `--logging-level`
+    2. Env var `MEGATRON_LOGGING_LEVEL`
+    3. Default logging level (INFO)
+
+    Returns: None
+    """
+    logging_level = None
+    env_logging_level = os.getenv("MEGATRON_LOGGING_LEVEL", None)
+    if env_logging_level is not None:
+        logging_level = int(env_logging_level)
+    if cfg.logger_config.logging_level is not None:
+        logging_level = cfg.logger_config.logging_level
+
+    if logging_level is not None:
+        logger.info(f"Setting logging level to {logging_level}")
+        logging.getLogger().setLevel(logging_level)
+
+        # Make default logging level INFO, but filter out all log messages not from MCore.
+        logging.basicConfig(handlers=[CustomHandler()], level=logging.INFO)
