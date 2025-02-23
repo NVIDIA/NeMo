@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import fiddle as fdl
+import lightning.pytorch as pl
 import torch
 from lightning.pytorch.loggers import WandbLogger
-import lightning.pytorch as pl
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
