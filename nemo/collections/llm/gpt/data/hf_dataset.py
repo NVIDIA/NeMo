@@ -127,8 +127,10 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     Args:
         path_or_dataset (str | Dataset | DatasetDict): The dataset name from HF or a preloaded dataset.
-        split (str | list, optional): The dataset split(s) to load (e.g., "train" or ["train", "validation"]). Defaults to None.
-        collate_fn (callable, optional): Custom function for batching data; defaults to a padding-based collation. Defaults to None.
+        split (str | list, optional): The dataset split(s) to load (e.g., "train" or ["train", "validation"]).
+            Defaults to None.
+        collate_fn (callable, optional): Custom function for batching data; defaults to a padding-based collation.
+            Defaults to None.
         num_workers (int, optional): Number of workers for data loading. Defaults to 2.
         pin_memory (bool, optional): Whether to use pinned memory for faster GPU transfers. Defaults to True.
         persistent_workers (bool, optional): Whether to keep worker threads alive between epochs. Defaults to True.
@@ -136,12 +138,14 @@ class HFDatasetDataModule(pl.LightningDataModule):
         micro_batch_size (int, optional): Batch size per device. Defaults to 2.
         global_batch_size (int, optional): Total batch size across all devices. Defaults to 2.
         pad_token_id (int, optional): Token ID used for padding sequences. Defaults to 0.
-        use_mcore_sampler (bool, optional): Whether to use NVIDIA MCore sampler for efficient data loading. Defaults to False.
+        use_mcore_sampler (bool, optional): Whether to use NVIDIA MCore sampler for efficient data loading.
+            Defaults to False.
         use_dist_sampler (bool, optional): Whether to enable distributed sampling. Defaults to False.
         mcore_dataloader_type (str, optional): Dataloader type when using MCore sampling. Defaults to 'cyclic'.
         train_aliases (list, optional): Alternative names for the training split. Defaults to ["train", "training"].
         test_aliases (list, optional): Alternative names for the test split. Defaults to ["test", "testing"].
-        val_aliases (list, optional): Alternative names for the validation split. Defaults to ["val", "validation", "valid", "eval"].
+        val_aliases (list, optional): Alternative names for the validation split.
+            Defaults to ["val", "validation", "valid", "eval"].
         **kwargs: Additional arguments passed to `datasets.load_dataset`.
 
     Raises:
