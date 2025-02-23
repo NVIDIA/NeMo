@@ -235,7 +235,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         # Turn-on dist-sampler if the user is running inside a dist-env.
         if not use_dist_sampler and not use_mcore_sampler and has_dist_env_init_or_rank_env_var():
             self.use_dist_sampler = True
-            logging.info(f"Turning on distributed data sampler")
+            logging.info("Turning on distributed data sampler")
 
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
