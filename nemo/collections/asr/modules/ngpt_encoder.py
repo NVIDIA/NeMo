@@ -157,8 +157,8 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
             )
         self.ngpt = GPT(
             config=GPTConfig(
-                n_layer=n_layers,
-                n_head=n_heads,
+                n_layers=n_layers,
+                n_heads=n_heads,
                 n_embd=d_model,
                 base_scale=base_scale,
                 use_nGPT=use_nGPT,
@@ -298,23 +298,23 @@ class Block(nn.Module):
         k = self.key(hin)
         v = self.value(hin)
 
-        q = q.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
-        k = k.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
-        v = v.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
+        q = q.view(B, T, self.config.n_heads, self.config.n_embd // self.config.n_heads)
+        k = k.view(B, T, self.config.n_heads, self.config.n_embd // self.config.n_heads)
+        v = v.view(B, T, self.config.n_heads, self.config.n_embd // self.config.n_heads)
 
-        sinusoidal_pos = get_sinusoidal_embeddings(T, self.config.n_embd // self.config.n_head, device=q.device)
+        sinusoidal_pos = get_sinusoidal_embeddings(T, self.config.n_embd // self.config.n_heads, device=q.device)
         q, k = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2), k.transpose(1, 2))
         q = q.transpose(2, 1)
         k = k.transpose(2, 1)
 
         if self.config.use_nGPT == 1:
             sqk = (self.sqk * (self.sqk_init_value / self.sqk_init_scaling)).view(
-                1, 1, self.config.n_head, self.config.n_embd // self.config.n_head
+                1, 1, self.config.n_heads, self.config.n_embd // self.config.n_heads
             )
             q = sqk * justnorm(q)
             k = sqk * justnorm(k)
 
-        sqrt_head_dim = (self.config.n_embd / self.config.n_head) ** 0.5
+        sqrt_head_dim = (self.config.n_embd / self.config.n_heads) ** 0.5
         if self.config.use_nGPT == 0:
             softmax_scale = 1.0 / sqrt_head_dim
         if self.config.use_nGPT == 1:
@@ -377,8 +377,8 @@ class Block(nn.Module):
 
 @dataclass
 class GPTConfig:
-    n_layer: int = 12
-    n_head: int = 12
+    n_layers: int = 12
+    n_heads: int = 12
     n_embd: int = 1024
     base_scale: float = 1.0 / (1024.0**0.5)  # 1 / sqrt(n_embd)
     use_nGPT: int = 0
@@ -411,7 +411,7 @@ class GPT(nn.Module):
             dict(
                 # wte=nn.Embedding(config.vocab_size, config.n_embd),
                 # drop=nn.Dropout(config.dropout),
-                h=nn.ModuleList([Block(config, il) for il in range(config.n_layer)])
+                h=nn.ModuleList([Block(config, il) for il in range(config.n_layers)])
             )
         )
         # self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
@@ -427,7 +427,7 @@ class GPT(nn.Module):
         # apply special scaled init to the residual projections, per GPT-2 paper
         for pn, p in self.named_parameters():
             if pn.endswith('c_proj.weight'):
-                torch.nn.init.normal_(p, mean=0.0, std=config.base_scale / math.sqrt(2 * config.n_layer))
+                torch.nn.init.normal_(p, mean=0.0, std=config.base_scale / math.sqrt(2 * config.n_layers))
         # report number of parameters
         logging.info("[nGPT] number of parameters: %.2fM" % (self.get_num_params() / 1e6,))
 
@@ -499,7 +499,7 @@ class GPT(nn.Module):
         transformer = self.transformer
         module = self
 
-        for layer_idx in range(0, module.config.n_layer):
+        for layer_idx in range(0, module.config.n_layers):
             block = transformer["h"][layer_idx]
 
             block.query.weight.data.copy_(justnorm_fp32(block.query.weight.data, 1))  # n_proj, n_embd

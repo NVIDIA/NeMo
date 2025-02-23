@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch.nn as nn
-import torch
 import math
+
+import torch
+import torch.nn as nn
 
 try:
     from flash_attn import flash_attn_func
@@ -59,18 +60,19 @@ class RMSNorm(torch.nn.Module):
         xnorm = xnorm.to(dtype=dtype)
         return xnorm * self.weight
 
-def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
-    # Split the sinusoidal_pos into sin and cos parts
+def apply_rotary_position_embeddings(sinusoidal_pos, tensor):
+    """Applies rotary embeddings to the given tensor (Q or K)."""
+    # Split sinusoidal_pos into sin and cos parts
     sin, cos = sinusoidal_pos.chunk(2, dim=-1)
-    # Apply the rotary embeddings to the query and key
-    q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
-    k_rot = torch.stack((-k[..., 1::2], k[..., ::2]), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    k_rot = torch.reshape(k_rot, k.shape[:-1] + (k.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape)
-    k_rot = torch.reshape(k_rot, k.shape)
-    return q_rot.to(q.dtype), k_rot.to(k.dtype)
 
+    # Create rotated tensor
+    tensor_rot = torch.stack((-tensor[..., 1::2], tensor[..., ::2]), dim=-1)
+
+    # Reshape and apply RoPE
+    tensor_rot = torch.reshape(tensor_rot, tensor.shape[:-1] + (tensor.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
+    tensor_rot = torch.reshape(tensor_rot, tensor.shape)
+
+    return tensor_rot.to(tensor.dtype)
 
 def get_sinusoidal_embeddings(n_positions, dim, device):
     """Generate sinusoidal positional embeddings."""
@@ -112,7 +114,8 @@ class AttentionBlock(nn.Module):
     def forward(self, query, key, value, mask):
         # Query from Decoder, Key, Value from Encoder
         # order: SA -> Norm -> Proj -> Res 
-        B, T, C = query.size()
+        B, Tq, C = query.size()
+        _, Tk, _ = key.size()
 
         hin = query
 
@@ -120,26 +123,34 @@ class AttentionBlock(nn.Module):
         q = self.query(query)
         k = self.key(key)
         v = self.value(value)
+        # import ipdb; ipdb.set_trace()
 
-        # Divide the embeddings into n_head
-        q = q.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
-        k = k.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
-        v = v.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
+        # Divide the embeddings into n_heads
+        q = q.view(B, Tq, self.config.n_heads, self.config.n_embd // self.config.n_heads)
+        k = k.view(B, Tk, self.config.n_heads, self.config.n_embd // self.config.n_heads)
+        v = v.view(B, Tk, self.config.n_heads, self.config.n_embd // self.config.n_heads)
 
         # Apply the sinusoidal positional embeddings
-        sinusoidal_pos = get_sinusoidal_embeddings(T, self.config.n_embd // self.config.n_head, device=q.device)
-        q, k = apply_rotary_position_embeddings(sinusoidal_pos, q.transpose(1, 2), k.transpose(1, 2))
-        q = q.transpose(2, 1)
-        k = k.transpose(2, 1)
+        sinusoidal_pos_q = get_sinusoidal_embeddings(Tq, self.config.n_embd // self.config.n_heads, device=q.device)
+        sinusoidal_pos_k = get_sinusoidal_embeddings(Tk, self.config.n_embd // self.config.n_heads, device=k.device)
+        
+        q = apply_rotary_position_embeddings(sinusoidal_pos_q, q.transpose(1, 2)).transpose(2, 1)
+        k = apply_rotary_position_embeddings(sinusoidal_pos_k, k.transpose(1, 2)).transpose(2, 1)
 
         # Scale the query and key
         sqk = (self.sqk * (self.sqk_init_value / self.sqk_init_scaling)).view(
-            1, 1, self.config.n_head, self.config.n_embd // self.config.n_head
+            1, 1, self.config.n_heads, self.config.n_embd // self.config.n_heads
         )
+        # import ipdb; ipdb.set_trace()
         q = sqk * justnorm(q)
         k = sqk * justnorm(k)
 
-        sqrt_head_dim = (self.config.n_embd / self.config.n_head) ** 0.5
+        sqrt_head_dim = (self.config.n_embd / self.config.n_heads) ** 0.5
+
+
+        q = q.permute(0, 2, 1, 3)
+        k = k.permute(0, 2, 1, 3)
+        v = v.permute(0, 2, 1, 3)
 
         softmax_scale = sqrt_head_dim
         y = flash_attn_func(
@@ -154,7 +165,7 @@ class AttentionBlock(nn.Module):
             deterministic=False,
         )
         y = y.to(dtype=q.dtype)
-        y = y.contiguous().view(B, T, self.config.n_embd)
+        y = y.permute(0, 2, 1, 3).contiguous().view(B, Tq, self.config.n_embd)
 
         h_att = self.att_c_proj(y)
 
@@ -177,6 +188,7 @@ class MLPBlock(nn.Module):
 
     def __init__(self, config):
         super().__init__()
+        self.config = config
 
         self.c_fc = nn.Linear(config.n_embd, 2 * 4 * config.n_embd, bias=config.bias)
         self.silu = nn.SiLU()

@@ -178,7 +178,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         with open_dict(transf_decoder_cfg_dict):
             if 'config_dict' in transf_decoder_cfg_dict:
                 transf_decoder_cfg_dict['config_dict']['vocab_size'] = vocab_size
-
+        
+        transf_decoder_cfg_dict.vocab_size = vocab_size
         self.transf_decoder = EncDecMultiTaskModel.from_config_dict(transf_decoder_cfg_dict)
 
         # Setup token classifier
