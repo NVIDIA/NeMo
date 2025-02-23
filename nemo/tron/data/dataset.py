@@ -263,7 +263,7 @@ def build_train_valid_test_data_iterators(
         train_data_iterator = None
 
     if valid_dataloader is not None:
-        valid_data_iterator = _get_iterator(dl_type, valid_dataloader)
+        valid_data_iterator = _get_iterator("cyclic", valid_dataloader)
     else:
         valid_data_iterator = None
 
