@@ -39,6 +39,7 @@ class Qwen2Config(GPTConfig):
     """
     Base config for Qwen 2 Models
     """
+
     normalization: str = "RMSNorm"
     activation_func: Callable = F.silu
     gated_linear_unit: bool = True
@@ -60,6 +61,7 @@ class Qwen2Config500M(Qwen2Config):
     """
     Config for Qwen 2 0.5B: https://huggingface.co/Qwen/Qwen2-0.5B
     """
+
     num_layers: int = 24
     hidden_size: int = 896
     num_attention_heads: int = 14
@@ -72,6 +74,7 @@ class Qwen2Config1P5B(Qwen2Config):
     """
     Config for Qwen 2 1.5B: https://huggingface.co/Qwen/Qwen2-1.5B
     """
+
     num_layers: int = 28
     hidden_size: int = 1536
     num_attention_heads: int = 12
@@ -84,6 +87,7 @@ class Qwen2Config7B(Qwen2Config):
     """
     Config for Qwen 2 7B: https://huggingface.co/Qwen/Qwen2-7B
     """
+
     num_layers: int = 28
     hidden_size: int = 3584
     num_attention_heads: int = 28
@@ -97,6 +101,7 @@ class Qwen2Config72B(Qwen2Config):
     """
     Config for Qwen 2 72B: https://huggingface.co/Qwen/Qwen2-72B
     """
+
     num_layers: int = 80
     hidden_size: int = 8192
     num_attention_heads: int = 64
@@ -110,6 +115,7 @@ class Qwen2Model(GPTModel):
     """
     Base model for Qwen 2
     """
+
     def __init__(
         self,
         config: Annotated[Optional[Qwen2Config], Config[Qwen2Config]] = None,
