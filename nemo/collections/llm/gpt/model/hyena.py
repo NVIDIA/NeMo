@@ -552,7 +552,7 @@ class HuggingFaceSavannaHyenaImporter(PyTorchHyenaImporter):
                             repo_id=repo_id,
                             local_dir=download_dir,
                             revision=revision,
-                            filename=f"{modelname}.part{part_num}",
+                            filename=f"{weights_filename}.part{part_num}",
                         )
                         parts.append(part_path)
                         part_num += 1
