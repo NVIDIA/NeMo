@@ -62,7 +62,7 @@ def slurm_executor_yudong(
     partition: str = "batch",
     nodes: int = 1,
     devices: int = 8,
-    time: str = "02:00:00",
+    time: str = "04:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
     container_image: str = "/lustre/fsw/coreai_dlalgo_llm/chcui/nvidia+nemo+24.12.sqsh",
@@ -323,7 +323,7 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     num_gpus_per_node,
     wandb_project_name=None,
     seq_length=4096,
-    global_batch_size=512,
+    global_batch_size=32,
     model_name="meta-llama/Llama-3.2-1B",
 ):
     finetune = hf_auto_model_for_causal_lm.finetune_recipe(
@@ -345,7 +345,7 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     # finetune.data.global_batch_size = global_batch_size
     # finetune.data.micro_batch_size = 1
 
-    datamodule = run.Config(HFMockDataModule, seq_length=seq_length, global_batch_size=128)
+    datamodule = run.Config(HFMockDataModule, seq_length=seq_length, global_batch_size=global_batch_size)
     finetune.data = datamodule
     finetune.trainer.val_check_interval = 100
 
@@ -456,39 +456,39 @@ recipes = [
     #     custom_hf_auto_model_for_causal_lm_finetune(1, 1, "nemo2", 2048, 128),
     #     "hf_llama32_1b_pretrain_1_node_2_gpu",
     # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=1,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=4096,
+    #         global_batch_size=32,
+    #         model_name="meta-llama/Meta-Llama-3-8B",
+    #     ),
+    #     "perf-llama3_8b_finetune-1_node-8_gpu_4096_32",
+    # ),
     (
         custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=1,
-            num_gpus_per_node=8,
-            wandb_project_name="perf",
-            seq_length=1024,
-            global_batch_size=128,
-            model_name="meta-llama/Llama-3.1-8B",
-        ),
-        "perf-llama3_1_8b_finetune-1_node-8_gpu_1024_128",
-    ),
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=1,
-            num_gpus_per_node=8,
-            wandb_project_name="perf",
-            seq_length=2048,
-            global_batch_size=128,
-            model_name="meta-llama/Llama-3.1-8B",
-        ),
-        "perf-llama3_1_8b_finetune-1_node-8_gpu_2048_128",
-    ),
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=2,
+            num_nodes=4,
             num_gpus_per_node=8,
             wandb_project_name="perf",
             seq_length=4096,
-            global_batch_size=128,
-            model_name="meta-llama/Llama-3.1-8B",
+            global_batch_size=32,
+            model_name="meta-llama/Meta-Llama-3-70B",
         ),
-        "perf-llama3_1_8b_finetune-2_node-8_gpu_4096_128",
+        "perf-llama3_70b_finetune-4_node-32_gpu_4096_32",
     ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=1,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=128,
+    #         global_batch_size=128,
+    #         model_name="meta-llama/Llama-3.1-8B",
+    #     ),
+    #     "perf-llama3_1_8b_finetune-2_node-8_gpu_128_128",
+    # ),
     # (
     #     custom_hf_auto_model_for_causal_lm_finetune(
     #         num_nodes=4,
@@ -541,12 +541,9 @@ def run_local():
 
 
 def run_finetuning_on_slurm(**slurm_kwargs):
-    num_nodes = 1
-    num_gpus_per_node = 8
 
     executor = partial(
         slurm_executor_yudong,
-        # container_image="/lustre/fsw/coreai_dlalgo_llm/chcui/nemo24.12_upgradeTE.sqsh",
         container_image=IMAGE,
         custom_mounts=[
             f"{NEMO_HOME}:/opt/NeMo",
