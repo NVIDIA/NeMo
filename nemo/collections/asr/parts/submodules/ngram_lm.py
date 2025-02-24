@@ -47,7 +47,7 @@ def _log_10_to_e(score):
     return score / np.log10(np.e)
 
 
-class KenLMWrapper:
+class KenLMBatchedWrapper:
     """
     KenLM model wrapper for single element and batched queries (slow) for reference decoding and testing purposes.
     """
@@ -172,6 +172,10 @@ _EOS_ID = -2
 
 @dataclass
 class SuffixTreeStorage:
+    """
+    NumPy-based storage for suffix tree (weighted acceptor) for N-Gram LM
+    """
+
     num_states_max: InitVar[int]
     num_arcs_max: InitVar[int]
 
@@ -474,6 +478,7 @@ class FastNGramLM(ModelPT):
 
         self._final_resolved = False
 
+    @classmethod
     def list_available_models(cls):
         return []
 

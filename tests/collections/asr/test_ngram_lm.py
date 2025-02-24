@@ -19,7 +19,7 @@ import pytest
 import torch
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMWrapper
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMBatchedWrapper
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE
 
 
@@ -38,7 +38,7 @@ class TestFastNGramLM:
         vocab_size = 1024
         device = torch.device("cpu")
         lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
-        kenlm_wrapper = KenLMWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
+        kenlm_wrapper = KenLMBatchedWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
         batch_size = 3
         for bos in [True, False]:
             init_states = lm.get_init_states(batch_size=batch_size, bos=bos)
@@ -78,7 +78,7 @@ class TestFastNGramLM:
         vocab_size = 1024
         device = torch.device("cpu")
         lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
-        kenlm_wrapper = KenLMWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
+        kenlm_wrapper = KenLMBatchedWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
         # TODO: make sentences
         for sentence in [[25, 70, 12], [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999]]:
             for bos in [True, False]:
