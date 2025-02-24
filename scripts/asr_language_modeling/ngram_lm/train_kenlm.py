@@ -47,7 +47,7 @@ from omegaconf import MISSING
 sys.path.append(str(Path(__file__).parent))
 import kenlm_utils
 
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, DEFAULT_TOKEN_OFFSET
+from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET, FastNGramLM
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
