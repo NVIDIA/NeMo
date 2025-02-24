@@ -285,7 +285,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         optim = self.optimizers()
         if isinstance(optim, list):
             optim = optim[0]
-        lr = optim.param_groups[0]['lr']
         self.log('lr', optim.param_groups[0]['lr'], prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
     @torch.no_grad
