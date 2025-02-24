@@ -187,14 +187,14 @@ class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
 class TransformerLayerWithPostLNSupport(TransformerLayer):
     def __init__(self, *args, **kwargs):
         super(TransformerLayerWithPostLNSupport, self).__init__(*args, **kwargs)
-        ## [Module add: Post attention LN]
+        # [Module add: Post attention LN]
         self.post_att_layernorm = build_module(
             self.submodules_config.post_att_layernorm,
             config=self.config,
             hidden_size=self.config.hidden_size,
             eps=self.config.layernorm_epsilon,
         )
-        ## [Module add: Post MLP LN]
+        # [Module add: Post MLP LN]
         self.post_mlp_layernorm = build_module(
             self.submodules_config.post_mlp_layernorm,
             config=self.config,
