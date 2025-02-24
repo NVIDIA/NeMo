@@ -107,8 +107,6 @@ class EvaluationConfig(transcribe_speech.TranscriptionConfig):
             rm_punctuation=False,
         )
     )
-    
-    normalize: bool = True
 
 
 @hydra_runner(config_name="EvaluationConfig", schema=EvaluationConfig)
@@ -151,11 +149,9 @@ def main(cfg: EvaluationConfig):
             if "pred_text" not in data:
                 invalid_manifest = True
                 break
-            gt_text = data[cfg.gt_text_attr_name]
-            pred_text = data["pred_text"]
-            
-            ground_truth_text.append(gt_text)
-            predicted_text.append(pred_text)
+            ground_truth_text.append(data[cfg.gt_text_attr_name])
+
+            predicted_text.append(data["pred_text"])
 
     pc = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
     if cfg.text_processing.separate_punctuation:
@@ -225,7 +221,7 @@ def main(cfg: EvaluationConfig):
     with open_dict(cfg):
         cfg.metric_name = metric_name
         cfg.metric_value = metric_value
-            
+
     return cfg
 
 
