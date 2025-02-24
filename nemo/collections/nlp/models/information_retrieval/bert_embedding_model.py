@@ -36,11 +36,12 @@ except (ImportError, ModuleNotFoundError):
 
 
 class BertEmbeddingHead(nn.Module):
-    """Performs mean pooling on the token embeddings.
-    """
+    """Performs mean pooling on the token embeddings."""
 
     def __init__(
-        self, word_embedding_dimension: int, pooling_mode_mean_tokens: bool = True,
+        self,
+        word_embedding_dimension: int,
+        pooling_mode_mean_tokens: bool = True,
     ):
         super(BertEmbeddingHead, self).__init__()
 
@@ -86,7 +87,8 @@ class MCoreBertEmbeddingModel(MCoreBertModelWrapperWithPostLNSupport):
         self.encoder.final_layernorm = None
         self.encoder.post_process = False
         self.embedding_head = BertEmbeddingHead(
-            word_embedding_dimension=self.config.hidden_size, pooling_mode_mean_tokens=True,
+            word_embedding_dimension=self.config.hidden_size,
+            pooling_mode_mean_tokens=True,
         )
 
     def forward(
@@ -125,7 +127,8 @@ class NeMoBertEmbeddingModel(NeMoBertModel):
         )
         super().__init__(*args, **kwargs)
         self.embedding_head = BertEmbeddingHead(
-            word_embedding_dimension=self.config.hidden_size, pooling_mode_mean_tokens=True,
+            word_embedding_dimension=self.config.hidden_size,
+            pooling_mode_mean_tokens=True,
         )
 
     def forward(

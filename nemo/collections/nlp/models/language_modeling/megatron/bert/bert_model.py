@@ -387,7 +387,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         tokentype_ids: Tensor = None,
         lm_labels: Tensor = None,
         inference_params=None,
-        **kwargs
+        **kwargs,
     ):
         """Forward function of BERT model
 
