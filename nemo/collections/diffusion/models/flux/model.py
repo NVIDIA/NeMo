@@ -71,7 +71,9 @@ def flux_data_step(dataloader_iter):
 
 @dataclass
 class FluxConfig(TransformerConfig, io.IOMixin):
-    # transformer related
+    """
+    transformer related Flux Config
+    """
     num_layers: int = 1  # dummy setting
     num_joint_layers: int = 19
     num_single_layers: int = 38
@@ -106,12 +108,18 @@ class FluxConfig(TransformerConfig, io.IOMixin):
 
 @dataclass
 class T5Config:
+    """
+    T5 Config
+    """
     version: Optional[str] = "google/t5-v1_1-xxl"
     max_length: Optional[int] = 512
 
 
 @dataclass
 class ClipConfig:
+    """
+    Clip Config
+    """
     version: Optional[str] = "openai/clip-vit-large-patch14"
     max_length: Optional[int] = 77
     always_return_pooled: Optional[bool] = True
@@ -119,6 +127,9 @@ class ClipConfig:
 
 @dataclass
 class FluxModelParams:
+    """
+    Flux Model Params
+    """
     flux_config: FluxConfig = FluxConfig()
     vae_config: AutoEncoderConfig = AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
     clip_params: ClipConfig = ClipConfig()
