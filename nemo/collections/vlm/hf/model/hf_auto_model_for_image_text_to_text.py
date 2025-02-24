@@ -12,25 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import _io
 import lightning.pytorch as pl
 import torch
-import torch.nn.functional as F
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor
 
 from nemo.collections.llm import fn
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import masked_cross_entropy
 from nemo.lightning import io
-from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 from nemo.utils import logging
-
-
-def masked_cross_entropy(logits, targets, mask=None):
-    """Cross entropy with optional mask"""
-    if mask is not None:
-        loss = F.cross_entropy(logits, targets, reduction='none')
-        return torch.mean(loss * mask)
-    else:
-        return F.cross_entropy(logits, targets)
 
 
 class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
@@ -47,11 +37,6 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
-        param_dtype=torch.bfloat16,
-        reduce_dtype=torch.float32,
-        output_dtype=None,
-        cast_forward_inputs=True,
-        parallelize_fn=None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -65,13 +50,6 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.model_transform = model_transform
         self.trust_remote_code = trust_remote_code
         self.load_in_4bit = load_in_4bit
-        self.mp_policy = MixedPrecisionPolicy(
-            param_dtype=param_dtype,
-            reduce_dtype=reduce_dtype,
-            output_dtype=output_dtype,
-            cast_forward_inputs=cast_forward_inputs,
-        )
-        self.parallelize_fn = parallelize_fn
 
     @property
     def processor(self):
@@ -110,13 +88,6 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
             )
 
-        # Apply FSDP2 and TP to the model
-        if self.device_mesh is not None:
-            if self.parallelize_fn is not None:
-                self.parallelize_fn(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
-            else:
-                fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
-
         self.model.train()
 
     def forward(self, batch):
@@ -125,6 +96,10 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def training_step(self, batch, batch_idx=None):
         """Run one training step"""
+        if isinstance(self.trainer.strategy.checkpoint_io, io.pl.MegatronCheckpointIO):
+            logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
+            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
+
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
@@ -158,10 +133,47 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
 
-    def save_pretrained(self, path):
-        """Saves checkpoint using HF"""
+    def save_pretrained(self, path, state_dict):
+        """
+        Save the pretrained model and tokenizer to a specified path.
+
+        This method ensures that the model state is gathered (especially in distributed settings)
+        and then saves the state dict and tokenizer. Only rank 0 or the appropriate FSDP module saves
+        the files to avoid race conditions.
+
+        Args:
+            path (str): The directory path where the model and tokenizer should be saved.
+
+        Raises:
+            AssertionError: If the model has not been created prior to saving.
+        """
         assert self.model is not None, "Model has to be created first."
-        self.model.save_pretrained(path)
+
+        def pop_fqn_prefix(fqn, expected_prefix='model'):
+            """pops prefix from FQN"""
+            parts = fqn.split('.')
+            assert parts[0] == expected_prefix
+            return '.'.join(parts[1:])
+
+        # Remove the "model." prefix from FQNs.
+        # Context: calling state_dict on an HFAutoModelForCausalLM, will prepend "model." in the
+        # state-dict keys. One solution would be to override HFAutoModelForCausalLM's state_dict
+        # and `return self.model.state_dict()`, however FSDP2 uses FQNs to acecss modules, therefore
+        # removing "model." at the state_dict function level will cause issues with FSDP2.
+        keys = list(state_dict.keys())
+        io_bytes_state = {}
+        for key, new_key in map(lambda x: (x, pop_fqn_prefix(x)), keys):
+            val = state_dict.pop(key)
+            if isinstance(val, _io.BytesIO):
+                io_bytes_state[new_key] = val
+            else:
+                state_dict[new_key] = val
+
+        if len(io_bytes_state) > 0:
+            logging.warning("State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`.")
+            torch.save(io_bytes_state, path / 'io_bytes.pt')
+
+        self.model.save_pretrained(path, state_dict=state_dict)
         if self._processor is not None:
             self._processor.save_pretrained(path)
         else:
@@ -211,3 +223,18 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if str(val) in PAD_TOKENS:
                 skipped_token_ids.append(key)
         return torch.IntTensor(list(set(skipped_token_ids)))
+
+    @property
+    def _has_lora_adapter(self):
+        return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
+
+    def make_checkpoint_io(self, adapter_only=False):
+        """
+        Creates a checkpoint_io object for this model;
+        the main issue is passing self to the HFCheckpointIO, because it needs
+        to call save_pretrained within.
+        TODO(@akoumparouli): refactor ^
+        """
+        from nemo.lightning.io.hf import HFCheckpointIO
+
+        return HFCheckpointIO(model=self, adapter_only=adapter_only)

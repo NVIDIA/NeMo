@@ -15,10 +15,10 @@ name: "CICD NeMo"
 on:
   pull_request:
     branches:
-      - 'main'
-      - 'r**'
-      - 'weekly-bump'
-    types: [ labeled ]
+      - "main"
+      - "r**"
+      - "weekly-bump"
+    types: [labeled]
   push:
     branches:
       - main
@@ -34,12 +34,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-
 jobs:
   pre-flight:
     runs-on: ubuntu-latest
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
+      build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -54,23 +54,23 @@ jobs:
           # For manual dispatch, we replace `all` with the actual job names          
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" == "all" ]]; then
             TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
-          
+
           # For manual dispatch with provided list of tests, do nothing
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" != "all" ]]; then
             TESTS_TO_RUN=$TESTS_TO_RUN
-          
+
           # For correctly labeled PR, we replace `all` with the actual job names          
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" == "true" ]]; then
-              TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
+            TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
           # For incorrectly labeled PR, run no tests
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" != "true" ]]; then
             TESTS_TO_RUN=""
             
-          # For push events, run only unit tests. This is so that we can generate coverage
+          # For push events, run all tests. This is so that we can generate coverage
           # on branch `main`.
           elif [[ "$EVENT_NAME" == "push" ]]; then
-            TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[]] | [.[] | select(.key == "L0_Unit*") | .key] | join(",")')
+            TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
           else
             echo "Unsupported event_name $EVENT_NAME provided".
@@ -79,7 +79,25 @@ jobs:
 
           parsed_string=$(echo "$TESTS_TO_RUN" | jq -c --raw-input 'split(",")')
           echo "main=${parsed_string}" | tee -a "$GITHUB_OUTPUT"
-  
+
+      - name: Parse manifest.json
+        id: manifest
+        run: |
+          BUILD_ARGS=$(cat << EOF
+          BASE_IMAGE=$(cat requirements/manifest.json | jq -r '."ngc-pytorch"')
+          MLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".repo')
+          MLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".ref')
+          TE_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.repo')
+          TE_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.ref')
+          APEX_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.repo')
+          APEX_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.ref')
+          EOF
+          )
+
+          echo "BUILD_ARGS<<EOF" >> $GITHUB_OUTPUT
+          echo "$BUILD_ARGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
   cicd-test-container-build:
     if: ${{ needs.pre-flight.outputs.test_to_run != '' }}
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.14.0
@@ -90,27 +108,30 @@ jobs:
       image-label: nemo-core
       build-args: |
         IMAGE_LABEL=nemo-core
+        NEMO_TAG=${{ github.sha }}
+        NEMO_REPO=https://github.com/NVIDIA/NeMo
+        ${{ needs.pre-flight.outputs.BUILD_ARGS }}
       prune-filter-timerange: 24h
-      
+
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '' }}
     needs: [cicd-test-container-build, pre-flight]
     runs-on: self-hosted-azure-gpus-1
     steps:
-    - name: Run some checks
-      run: |
-        docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
-          # PyTorch Lightning version
-          python -c "import lightning.pytorch; print(lightning.pytorch.__version__)"
+      - name: Run some checks
+        run: |
+          docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
+            # PyTorch Lightning version
+            python -c "import lightning.pytorch; print(lightning.pytorch.__version__)"
 
-          # PyTorch Lightning DDP Checks
-          CUDA_VISIBLE_DEVICES="0,1" Gotchapython "tests/core_ptl/check_for_ranks.py"
+            # PyTorch Lightning DDP Checks
+            CUDA_VISIBLE_DEVICES="0,1" Gotchapython "tests/core_ptl/check_for_ranks.py"
 
-          # Basic Import Checks
-          python tests/core_ptl/check_imports.py --domain asr
-          python tests/core_ptl/check_imports.py --domain nlp
-          python tests/core_ptl/check_imports.py --domain tts        '
-  
+            # Basic Import Checks
+            python tests/core_ptl/check_imports.py --domain asr
+            python tests/core_ptl/check_imports.py --domain nlp
+            python tests/core_ptl/check_imports.py --domain tts        '
+
   # L0: GPU unit tests
   L0_Unit_Tests_GPU_ASR:
     needs: [pre-flight, cicd-test-container-build]
@@ -121,7 +142,7 @@ jobs:
       TIMEOUT: 20
       # TODO: remove this hack
       SCRIPT: |
-        python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/asr -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_GPU_Audio:
     needs: [pre-flight, cicd-test-container-build]
@@ -130,9 +151,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/audio -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_GPU_Common:
     needs: [pre-flight, cicd-test-container-build]
@@ -140,9 +160,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Common')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest tests/collections/common -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/common -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_GPU_LLM:
     needs: [pre-flight, cicd-test-container-build]
@@ -150,9 +169,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_LLM')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest tests/collections/llm -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/llm -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_GPU_Multimodal:
     needs: [pre-flight, cicd-test-container-build]
@@ -160,19 +178,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Multimodal')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_NLP:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_NLP')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/multimodal -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_GPU_TTS:
     needs: [pre-flight, cicd-test-container-build]
@@ -180,21 +187,18 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_TTS')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/tts -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
-  OPTIONAL_L0_Unit_Tests_GPU_Core:
+  L0_Unit_Tests_GPU_Core:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'OPTIONAL_L0_Unit_Tests_GPU_Core')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Core')
     with:
       RUNNER: self-hosted-azure-gpus-1
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest tests/core -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
-      IS_OPTIONAL: true
+        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/core -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_GPU_Hydra:
     needs: [pre-flight, cicd-test-container-build]
@@ -202,9 +206,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Hydra')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest tests/hydra -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/hydra -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_GPU_Lightning:
     needs: [pre-flight, cicd-test-container-build]
@@ -212,9 +215,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Lightning')
     with:
       RUNNER: self-hosted-azure
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest tests/lightning -m "not pleasefixme" --with_downloads --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0,1 pytest tests/lightning -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_GPU_Others:
     needs: [pre-flight, cicd-test-container-build]
@@ -222,9 +224,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Others')
     with:
       RUNNER: self-hosted-azure-gpus-1
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --with_downloads \
+        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest -m "not pleasefixme" --with_downloads \
         --ignore=tests/collections/asr \
         --ignore=tests/collections/audio \
         --ignore=tests/collections/common \
@@ -237,7 +238,7 @@ jobs:
         --ignore=tests/hydra \
         --ignore=tests/lightning \
         --ignore=tests/utils \
-        --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        --cov-branch --cov-report=xml --cov=nemo
 
   # L0: CPU unit tests
   L0_Unit_Tests_CPU_ASR:
@@ -247,9 +248,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_Audio:
     needs: [pre-flight, cicd-test-container-build]
@@ -257,9 +257,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Audio')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_Common:
     needs: [pre-flight, cicd-test-container-build]
@@ -268,9 +267,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/common -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/common -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_LLM:
     needs: [pre-flight, cicd-test-container-build]
@@ -278,9 +276,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_LLM')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/llm -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/llm -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_Multimodal:
     needs: [pre-flight, cicd-test-container-build]
@@ -288,20 +285,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Multimodal')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_NLP:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_NLP')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/nlp -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_TTS:
     needs: [pre-flight, cicd-test-container-build]
@@ -309,9 +294,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_TTS')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_Core:
     needs: [pre-flight, cicd-test-container-build]
@@ -320,9 +304,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure-cpu
       TIMEOUT: 20
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_Hydra:
     needs: [pre-flight, cicd-test-container-build]
@@ -330,9 +313,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Hydra')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/hydra -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/hydra -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_Lightning:
     needs: [pre-flight, cicd-test-container-build]
@@ -340,9 +322,8 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Lightning')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/lightning -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
+        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/lightning -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
 
   L0_Unit_Tests_CPU_Others:
     needs: [pre-flight, cicd-test-container-build]
@@ -350,7 +331,6 @@ jobs:
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Others')
     with:
       RUNNER: self-hosted-azure-cpu
-      SAVE_COVERAGE_REPORT: true
       SCRIPT: |
         CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat \
         --ignore=tests/collections/asr \
@@ -365,118 +345,7 @@ jobs:
         --ignore=tests/hydra \
         --ignore=tests/lightning \
         --ignore=tests/utils \
-        --cov-report=term  --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_Coverage:
-    runs-on: self-hosted-azure-cpu
-    container: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-    needs:
-      - L0_Unit_Tests_GPU_ASR
-      - L0_Unit_Tests_GPU_Audio
-      - L0_Unit_Tests_GPU_Common
-      - L0_Unit_Tests_GPU_LLM
-      - L0_Unit_Tests_GPU_Multimodal
-      - L0_Unit_Tests_GPU_NLP
-      - L0_Unit_Tests_GPU_TTS
-      - L0_Unit_Tests_GPU_Hydra
-      - L0_Unit_Tests_GPU_Lightning
-      - L0_Unit_Tests_GPU_Others
-      - L0_Unit_Tests_CPU_ASR
-      - L0_Unit_Tests_CPU_Audio
-      - L0_Unit_Tests_CPU_Common
-      - L0_Unit_Tests_CPU_LLM
-      - L0_Unit_Tests_CPU_Multimodal
-      - L0_Unit_Tests_CPU_NLP
-      - L0_Unit_Tests_CPU_TTS
-      - L0_Unit_Tests_CPU_Core
-      - L0_Unit_Tests_CPU_Hydra
-      - L0_Unit_Tests_CPU_Lightning
-      - L0_Unit_Tests_CPU_Others
-    steps:
-      - name: Download coverage reports of current branch
-        uses: actions/download-artifact@v4
-        with:
-          path: ${{ github.run_id }}/current
-
-      - name: Get total coverage of current branch
-        shell: bash -x -e -u -o pipefail {0}
-        if: always()
-        id: total-current-branch
-        run: |
-          cd ${{ github.run_id }}/current
-          ls -al .
-          ls -al coverage-*/
-          coverage combine --keep $(ls coverage-*/.coverage)
-          coverage report
-
-          REPORT=$(coverage report)
-          TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
-          echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
-      
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          directory: ${{ github.run_id }}/current
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-summary-${{ github.run_id }}
-          path: ${{ github.run_id }}/current/.coverage
-          include-hidden-files: true
-
-      # Enable this after we have a first successful run on `main`
-      # - name: Get last successful run of main
-      #   id: get_run_id
-      #   env:
-      #     GH_TOKEN: ${{ github.token }}
-      #   run: |
-      #     WORKFLOWS=$(curl -L \
-      #       -H "Accept: application/vnd.github+json" \
-      #       -H "Authorization: Bearer $GH_TOKEN" \
-      #       -H "X-GitHub-Api-Version: 2022-11-28" \
-      #       https://api.github.com/repos/NVIDIA/NeMo/actions/workflows)
-
-      #     WORKFLOW_ID=$(echo -E "$WORKFLOWS" | jq '.workflows[] | select(.path==".github/workflows/cicd-main.yml") | .id')
-
-      #     RUNS=$(curl -L \
-      #       -H "Accept: application/vnd.github+json" \
-      #       -H "Authorization: Bearer $GH_TOKEN" \
-      #       -H "X-GitHub-Api-Version: 2022-11-28" \
-      #       "https://api.github.com/repos/NVIDIA/NeMo/actions/workflows/$WORKFLOW_ID/runs?branch=main&status=success")
-
-      #     RUN_ID=$(echo -E "$RUNS" | jq '.workflow_runs[0].id')
-
-      #     echo "main=$RUN_ID" | tee -a "$GITHUB_OUTPUT"
-
-      # - name: Download coverage summary of main branch
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     path: ${{ github.run_id }}/main
-      #     run-id: ${{ steps.get_run_id.outputs.main }}
-
-      # - name: Get total coverage of main branch
-      #   shell: bash -x -e -u -o pipefail {0}
-      #   if: always()
-      #   id: total-main-branch
-      #   run: |
-      #     cd ${{ github.run_id }}/main
-      #     coverage combine --keep $(ls coverage-summary-*/.coverage)
-      #     coverage report 
-
-      #     REPORT=$(coverage report)
-      #     TOTAL=$(echo "$REPORT" | grep "TOTAL" | awk '{print substr($NF, 1, length($NF)-1)}')
-      #     echo "main=${TOTAL}" | tee -a "$GITHUB_OUTPUT"
-
-      # - name: Compare coverage change
-      #   shell: bash -x -e -u -o pipefail {0}
-      #   run: |
-      #     TOTAL_MAIN_BRANCH=${{ steps.total-main-branch.outputs.main }}
-      #     TOTAL_CURRENT_BRANCH=${{ steps.total-current-branch.outputs.main }}
-
-      #     test $TOTAL_CURRENT_BRANCH -ge $TOTAL_MAIN_BRANCH
+        --cov-branch --cov-report=xml --cov=nemo
 
   L0_Setup_Test_Data_And_Models:
     needs: [pre-flight, cicd-test-container-build]
@@ -489,78 +358,6 @@ jobs:
 
   #     - name: L2: Multimodal Imagen Train
 
-  # L2: Community LLM Checkpoints tests
-  L2_Community_LLM_Checkpoints_tests_Bert:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Community_LLM_Checkpoints_tests_Bert')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-          python scripts/checkpoint_converters/convert_bert_hf_to_nemo.py  \
-          --input_name_or_path /home/TestData/nlp/megatron_ir/sbert/hf_model/bert-base-uncased \
-          --output_path /tmp/nlp_megatron_ir_sbert/sbert.nemo
-
-  L2_Community_LLM_Checkpoints_tests_Mamba2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Community_LLM_Checkpoints_tests_Mamba2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-          python scripts/checkpoint_converters/convert_mamba2_pyt_to_nemo.py  \
-          --input_name_or_path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt \
-          --output_path /tmp/nlp_megatron_mamba/converted_mamba.nemo \
-          --precision=bf16 \
-          --mamba_ssm_ngroups 1
-
-  L2_Community_LLM_Checkpoints_tests_Llama:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Community_LLM_Checkpoints_tests_Llama')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
-          --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf-tiny \
-          --output_path=/tmp/nlp_megatron_llama/llama_ci.nemo \
-          --precision=16
-
-  L2_Community_LLM_Checkpoints_tests_Llama3:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Community_LLM_Checkpoints_tests_Llama3')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
-          --input_name_or_path=/home/TestData/nlp/megatron_llama/llama3-ci-hf \
-          --output_path=/tmp/nlp_megatron_llama_llama3-ci-hf/llama3_ci.nemo \
-          --precision=16
-
-  L2_Community_LLM_Checkpoints_tests_StarCoder:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Community_LLM_Checkpoints_tests_StarCoder')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        mkdir -p /tmp/nlp_megatron_gpt_starcoder-ci-hf/
-        python scripts/checkpoint_converters/convert_starcoder_hf_to_nemo.py \
-        --input_name_or_path /home/TestData/nlp/megatron_gpt/starcoder-ci-hf \
-        --output_path /tmp/nlp_megatron_gpt_starcoder-ci-hf/
-
-  L2_Community_LLM_Checkpoints_tests_Falcon:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Community_LLM_Checkpoints_tests_Falcon')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-          python scripts/checkpoint_converters/convert_falcon_hf_to_nemo.py \
-          --input_name_or_path /home/TestData/nlp/megatron_gpt/falcon-ci-hf \
-          --output_path /tmp/nlp_megatron_gpt_falcon-ci-hf/falcon_ci.nemo
-  
   # L2: Community llava multimodal Checkpoints tests
   L2_Community_vita_Checkpoints_tests_Llama3:
     needs: [pre-flight, cicd-test-container-build]
@@ -589,12 +386,12 @@ jobs:
   #   runs-on: self-hosted-azure
   #   container:
   #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-  #     options: 
+  #     options:
   #       # --user 0:128
   #       --device=/dev/nvidia0
   #       --gpus all
   #       --shm-size=8g
-  #       --env TRANSFORMERS_OFFLINE=0 
+  #       --env TRANSFORMERS_OFFLINE=0
   #       --env HYDRA_FULL_ERROR=1
   #       --volume /mnt/datadrive/TestData:/home/TestData
   #   steps:
@@ -607,135 +404,6 @@ jobs:
   #           rm -f /home/TestData/nlp/megatron_gpt/Baichuan2-7B-Base/ci.nemo
   #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
   #         if: "failure()"
-
-  L2_PTQ_Llama2_FP8:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_PTQ_Llama2_FP8')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES=0 python scripts/checkpoint_converters/convert_llama_hf_to_nemo.py \
-          --input_name_or_path=/home/TestData/nlp/megatron_llama/llama-ci-hf-tiny \
-          --output_path=/tmp/nlp_megatron_llama/llama_ci.nemo \
-          --precision=16
-
-        python examples/nlp/language_modeling/megatron_gpt_ptq.py \
-          model.restore_from_path=/tmp/nlp_megatron_llama/llama_ci.nemo \
-          model.tensor_model_parallel_size=2 \
-          trainer.devices=2 \
-          quantization.calib_dataset=/home/TestData/nlp/test_quantization/test.json \
-          quantization.algorithm=fp8 \
-          quantization.num_calib_size=8 \
-          inference.batch_size=2 \
-          export.inference_tensor_parallel=2 \
-          export.sample_output=False \
-          export.save_path=/tmp/nlp_megatron_llama_eo/ci_fp8.qnemo
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/nlp_megatron_llama_eo/ci_fp8.qnemo
-
-  # OPTIONAL_L2_QAT_Llama2_INT4:
-  #    needs: [pre-flight, cicd-test-container-build]
-  #    runs-on: self-hosted-azure
-  #    timeout-minutes: 10
-  #    container:
-  #      image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-  #      options:
-  #        # --user 0:128
-  #        --device=/dev/nvidia0
-  #        --gpus all
-  #        --shm-size=8g
-  #        --env TRANSFORMERS_OFFLINE=0
-  #        --env HYDRA_FULL_ERROR=1
-  #        --volume /mnt/datadrive/TestData:/home/TestData
-  #    steps:
-  #        - name: Checkout repository
-  #          uses: actions/checkout@v4
-  #        - run: |
-  #           python examples/nlp/language_modeling/tuning/megatron_gpt_qat.py \
-  #           quantization.algorithm=int4 \
-  #           quantization.num_calib_size=8 \
-  #           trainer.devices=1 \
-  #           trainer.num_nodes=1 \
-  #           trainer.max_steps=4 \
-  #           trainer.val_check_interval=4 \
-  #           +trainer.limit_val_batches=2 \
-  #           exp_manager.explicit_log_dir=llama2_qat_results \
-  #           model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-  #           model.tensor_model_parallel_size=1 \
-  #           model.pipeline_model_parallel_size=1 \
-  #           model.global_batch_size=2 \
-  #           model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-  #           model.data.train_ds.concat_sampling_probabilities=[1.0] \
-  #           model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl]
-
-  #           rm -rf llama2_qat_results
-
-  L2_Distill_Llama2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Distill_Llama2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_distillation.py \
-          trainer.devices=2 \
-          trainer.num_nodes=1 \
-          trainer.precision=bf16 \
-          trainer.max_steps=5 \
-          trainer.log_every_n_steps=5 \
-          trainer.val_check_interval=5 \
-          trainer.limit_val_batches=2 \
-          model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-          model.kd_teacher_restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-          model.tensor_model_parallel_size=2 \
-          model.pipeline_model_parallel_size=1 \
-          model.micro_batch_size=1 \
-          model.global_batch_size=4 \
-          model.optim.name=distributed_fused_adam \
-          model.optim.sched.warmup_steps=1 \
-          model.data.data_prefix=[1.0,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-          model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings \
-          exp_manager.exp_dir=/tmp/megatron_llama_distill
-
-  L2_Prune_Width_Llama2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Prune_Width_Llama2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_prune.py \
-          trainer.devices=2 \
-          trainer.num_nodes=1 \
-          trainer.precision=bf16 \
-          model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-          model.tensor_model_parallel_size=1 \
-          model.pipeline_model_parallel_size=2 \
-          prune.num_calib_size=8 \
-          prune.ffn_hidden_size=192 \
-          prune.num_attention_heads=2 \
-          prune.num_query_groups=2 \
-          prune.hidden_size=128 \
-          export.save_path=/tmp/ci_prune_width.nemo
-
-  L2_Prune_Depth_Llama2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Prune_Depth_Llama2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_prune.py \
-          trainer.devices=2 \
-          trainer.num_nodes=1 \
-          trainer.precision=bf16 \
-          model.restore_from_path=/home/TestData/nlp/megatron_llama/llama_ci.nemo \
-          model.tensor_model_parallel_size=2 \
-          model.pipeline_model_parallel_size=1 \
-          'prune.drop_layers=[1]' \
-          export.save_path=/tmp/ci_prune_depth.nemo
 
   # L2: ASR dev run
   ASR_dev_run_Speech_to_Text:
@@ -991,7 +659,7 @@ jobs:
         model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/eesd_train_tiny.json \
         model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
         exp_manager.exp_dir=/tmp/speaker_diarization_results \
-        +trainer.fast_dev_run=True 
+        +trainer.fast_dev_run=True
 
   L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
     needs: [pre-flight, cicd-test-container-build]
@@ -1003,7 +671,7 @@ jobs:
         python examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \
         model_path=/home/TestData/an4_diarizer/diar_sortformer_4spk-v1-tiny.nemo \
         dataset_manifest=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
-        batch_size=1 
+        batch_size=1
 
   L2_Speaker_dev_run_Speech_to_Label:
     needs: [pre-flight, cicd-test-container-build]
@@ -1226,10 +894,10 @@ jobs:
           -b "[[5.0,30],[5.0,45],[10.0,57],[10.0,71]]"
 
   # L2: OOMptimizer Canary (has a different batch schema)
-  L2_Speech_Batch_Size_OOMptimizer_Canary:
+  Optional_L2_Speech_Batch_Size_OOMptimizer_Canary:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Batch_Size_OOMptimizer_Canary')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Batch_Size_OOMptimizer_Canary')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1237,6 +905,7 @@ jobs:
           -c /home/TestData/oomptimizer/fast-conformer_aed.yaml \
           -m nemo.collections.asr.models.EncDecMultiTaskModel \
           -b "[[5.0,30],[5.0,45],[10.0,57],[10.0,71]]"
+      IS_OPTIONAL: true
 
   # L2: Speech Transcription
   L2_Speech_Transcription_Speech_to_Text_Transcribe:
@@ -1253,10 +922,10 @@ jobs:
         amp=true
 
   # L2: Speech Transcription
-  L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
+  Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1271,11 +940,12 @@ jobs:
         matmul_precision=medium
       AFTER_SCRIPT: |
         rm -rf /tmp/preds.json transcribe.log
+      IS_OPTIONAL: true
 
-  L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
+  Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1294,11 +964,12 @@ jobs:
         +prompt.pnc="no"
       AFTER_SCRIPT: |
         rm -rf preds.json transcribe.log
+      IS_OPTIONAL: true
 
-  L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
+  Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -1313,6 +984,7 @@ jobs:
         matmul_precision=medium
       AFTER_SCRIPT: |
         rm -rf preds.json
+      IS_OPTIONAL: true
 
   # L2: Segmentation Tool
   L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
@@ -1434,67 +1106,6 @@ jobs:
                 pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
                 output_manifest=preds.json
 
-  # L2: Parallel Pretraining BERT pretraining from Text/Preprocessed
-  L2_Pretraining_BERT_pretraining_from_Text:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Pretraining_BERT_pretraining_from_Text')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        cd examples/nlp/language_modeling && \
-        python bert_pretraining.py \
-        --config-name=bert_pretraining_from_text_config.yaml \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        trainer.precision=16 \
-        +trainer.fast_dev_run=true \
-        model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-        model.train_ds.batch_size=32 \
-        model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-        model.validation_ds.batch_size=32 \
-        model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
-        model.optim.lr=0.01 \
-        model.optim.sched.warmup_ratio=0.1 \
-        model.tokenizer.tokenizer_name=sentencepiece \
-        model.tokenizer.tokenizer_model=/home/TestData/nlp/wikitext-2/tokenizer_bpe_v3193/tokenizer.model \
-        model.mask_prob=0.15 \
-        model.short_seq_prob=0.1 \
-        exp_manager.exp_dir=/tmp/PretrainingBERTFromText;
-#      AFTER_SCRIPT: |
-#        rm -f /home/TestData/nlp/wikitext-2/*.pkl
-        #rm -rf examples/nlp/language_modeling/PretrainingBERTFromText
-
-  L2_Pretraining_BERT_from_Preprocessed:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Pretraining_BERT_from_Preprocessed')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        cd examples/nlp/language_modeling && \
-            python bert_pretraining.py \
-            --config-name=bert_pretraining_from_preprocessed_config.yaml \
-            trainer.devices=1 \
-            trainer.accelerator="gpu" \
-            trainer.precision=16 \
-            +trainer.fast_dev_run=false \
-            +trainer.max_epochs=1 \
-            +trainer.limit_val_batches=0 \
-            +trainer.limit_train_batches=1 \
-            model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
-            model.train_ds.batch_size=8 \
-            model.language_model.lm_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
-            model.language_model.config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
-            model.optim.lr=0.875e-4 \
-            model.optim.weight_decay=0.01 \
-            model.optim.sched.warmup_ratio=0.01 \
-            exp_manager.exp_dir=PretrainingBERTFromPreprocessed \
-            exp_manager.create_checkpoint_callback=False  \
-
-            #rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed
-
-
   # TODO: remove +model.optim.capturable=True when Pytorch fix: https://github.com/pytorch/pytorch/pull/81858
   # is in the release container
   # L2: NMT Attention is All You Need Training
@@ -1561,7 +1172,7 @@ jobs:
           +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
           +exp_manager.create_checkpoint_callback=true \
           +exp_manager.resume_if_exists=True
-      AFTER_SCRIPT: |    
+      AFTER_SCRIPT: |
         rm -rf examples/nlp/machine_translation/nmt_results
   L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN:
     needs: [pre-flight, cicd-test-container-build]
@@ -1810,1958 +1421,6 @@ jobs:
         model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model
       AFTER_SCRIPT: |
         rm -rf examples/nlp/machine_translation/megatron_nmt_results
-        
-  L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_bert_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=bf16 \
-        model.megatron_amp_O2=True \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method=block \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
-
-        python examples/nlp/language_modeling/megatron_bert_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=20 \
-        trainer.precision=bf16 \
-        model.megatron_amp_O2=True \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method=block \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
-
-  L2_Megatron_Core_Bert_Pretraining_and_Resume_Training:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Core_Bert_Pretraining_and_Resume_Training')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_bert_pretraining.py \
-          trainer.devices=2 \
-          trainer.accelerator=gpu \
-          trainer.log_every_n_steps=1 \
-          trainer.val_check_interval=10 \
-          trainer.limit_val_batches=2 \
-          trainer.accumulate_grad_batches=1 \
-          trainer.max_steps=10 \
-          trainer.gradient_clip_val=1.0 \
-          exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
-          model.mcore_bert=True \
-          model.tensor_model_parallel_size=2 \
-          model.optim.name=fused_adam \
-          model.optim.lr=2e-4 \
-          model.sequence_parallel=True \
-          model.optim.sched.warmup_steps=2 \
-          model.optim.sched.constant_steps=2 \
-          model.optim.sched.min_lr=8e-5 \
-          model.max_position_embeddings=128 \
-          model.encoder_seq_length=128 \
-          model.data.seq_length=128 \
-          model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
-          model.num_layers=8 \
-          model.hidden_size=256 \
-          model.num_attention_heads=8 \
-          model.activations_checkpoint_method="block" \
-          model.activations_checkpoint_num_layers=1 \
-          model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
-          model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
-
-          python examples/nlp/language_modeling/megatron_bert_pretraining.py \
-          trainer.devices=2 \
-          trainer.accelerator=gpu \
-          trainer.log_every_n_steps=1 \
-          trainer.val_check_interval=10 \
-          trainer.limit_val_batches=2 \
-          trainer.accumulate_grad_batches=1 \
-          trainer.max_steps=20 \
-          trainer.gradient_clip_val=1.0 \
-          exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
-          exp_manager.resume_if_exists=True \
-          model.mcore_bert=True \
-          model.tensor_model_parallel_size=2 \
-          model.optim.name=fused_adam \
-          model.optim.lr=2e-4 \
-          model.optim.sched.warmup_steps=2 \
-          model.optim.sched.constant_steps=2 \
-          model.optim.sched.min_lr=8e-5 \
-          model.max_position_embeddings=128 \
-          model.encoder_seq_length=128 \
-          model.data.seq_length=128 \
-          model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
-          model.num_layers=8 \
-          model.hidden_size=256 \
-          model.num_attention_heads=8 \
-          model.activations_checkpoint_method="block" \
-          model.activations_checkpoint_num_layers=1 \
-          model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence] \
-          model.data.index_mapping_dir=examples/nlp/language_modeling/bert_index_mappings
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/bert_pretrain_results
-        rm -rf examples/nlp/language_modeling/bert_index_mappings
-
-  L2_RAG_Pipeline_Indexing:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_RAG_Pipeline_Indexing')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/rag/rag_indexing.py \
-        trainer.num_nodes=1 \
-        trainer.devices=1 \
-        trainer.precision="bf16-mixed" \
-        indexing.embedder.model_path="/home/TestData/nlp/rag_pipeline/testing_models/embedders/sbert_nemo.nemo" \
-        indexing.embedder.embed_batch_size=128 \
-        indexing.data.data_path="/home/TestData/nlp/rag_pipeline/testing_data/corpus_data/sample_data" \
-        indexing.data.chunk_size=256 \
-        indexing.data.chunk_overlap=10 \
-        indexing.index_path="/home/TestData/nlp/rag_pipeline/testing_data/saved_index/sample_index"
-
-  L2_RAG_Pipeline_Generating:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_RAG_Pipeline_Generating')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/rag/rag_generating.py \
-        trainer.devices=1 \
-        trainer.precision="bf16-mixed" \
-        indexing.embedder.model_path="/home/TestData/nlp/rag_pipeline/testing_models/embedders/sbert_nemo.nemo" \
-        indexing.index_path="/home/TestData/nlp/rag_pipeline/testing_data/saved_index/sample_index" \
-        generating.llm.model_path="/home/TestData/nlp/rag_pipeline/testing_models/llms/megatron_gpt_125m.nemo" \
-        generating.inference.tokens_to_generate=50 \
-        generating.inference.greedy=False \
-        generating.inference.temperature=1.0 \
-        generating.query="Which art schools did I applied to?"
-
-  L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure-gpus-2-h100
-      SCRIPT: |
-        # This is to improve p2p overlap on H100
-        export NVTE_FWD_LAYERNORM_SM_MARGIN=8
-        export NVTE_BWD_LAYERNORM_SM_MARGIN=8
-        export TORCH_NCCL_AVOID_RECORD_STREAMS=1
-        export NCCL_MIN_NCHANNELS=4
-        # TP overlap is not supported in docker environment
-        #NVTE_UB_SPLIT_RS: 0
-        #NVTE_UB_ATOMIC_GEMM_RS: 1
-        #NVTE_RS_STRIDED_ATOMIC: 1
-        #NVTE_UB_FP8_RS: 1
-        # Increase p2p chunksize to 2MB
-        export NCCL_P2P_NET_CHUNKSIZE=2097152
-        # Disable gc when switching to/from validation steps
-        export NEMO_MANUAL_GC_IN_VALIDATION=0
-        
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=3 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=/tmp/examples_gpt_pretrain_results_te_autocast \
-        ++model.transformer_engine=True \
-        ++model.fp8=True \
-        ++model.fp8_hybrid=True \
-        ++model.fp8_amax_history_len=1024 \
-        ++model.fp8_amax_compute_algo=max \
-        ++model.reduce_amax=True \
-        ++model.use_te_rng_tracker=True \
-        ++model.name=megatron_gpt_full_te_layer_autocast \
-        model.ub_tp_comm_overlap=False \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=distributed_fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=1 \
-        model.optim.sched.constant_steps=1 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.bias=False \
-        model.bias_activation_fusion=False \
-        model.bias_dropout_add_fusion=False \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=2 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method=block \
-        model.activations_checkpoint_granularity=full \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.validation_drop_last=False \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=/tmp/examples_gpt_pretrain_results_te_autocast/gpt_mapping
-
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=6 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=/tmp/examples_gpt_pretrain_results_te_autocast \
-        exp_manager.resume_if_exists=True \
-        ++model.transformer_engine=True \
-        ++model.fp8=True \
-        ++model.fp8_hybrid=True \
-        ++model.fp8_amax_history_len=1024 \
-        ++model.fp8_amax_compute_algo=max \
-        ++model.reduce_amax=True \
-        ++model.use_te_rng_tracker=True \
-        ++model.name=megatron_gpt_full_te_layer_autocast \
-        model.ub_tp_comm_overlap=False \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=distributed_fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.bias=False \
-        model.bias_activation_fusion=False \
-        model.bias_dropout_add_fusion=False \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=2 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method=block \
-        model.activations_checkpoint_granularity=full \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.validation_drop_last=False \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=/tmp/examples_gpt_pretrain_results_te_autocast/gpt_mapping
-
-
-  L2_Megatron_GPT_Skip_Train:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Skip_Train')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        model.skip_train=True \
-        model.tensor_model_parallel_size=2 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.data.data_prefix=[] \
-        model.data.data_impl=mock \
-        model.dist_ckpt_format=torch_dist
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_pretrain_results
-        rm -rf examples/nlp/language_modeling/gpt_index_mappings
-
-  L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=3 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=1 \
-        model.optim.sched.constant_steps=1 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.position_embedding_type=rope \
-        model.rotary_percentage=0.5 \
-        model.bias=False \
-        model.bias_activation_fusion=False \
-        model.bias_dropout_add_fusion=False \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method=block \
-        model.activations_checkpoint_granularity=full \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-    
-        #  commented out to save time on github ci @adithyare
-        # python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        # trainer.devices=2 \
-        # trainer.accelerator=gpu \
-        # trainer.log_every_n_steps=1 \
-        # trainer.val_check_interval=2 \
-        # trainer.limit_val_batches=1 \
-        # trainer.accumulate_grad_batches=1 \
-        # trainer.max_steps=6 \
-        # trainer.gradient_clip_val=1.0 \
-        # exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        # exp_manager.resume_if_exists=True \
-        # model.tensor_model_parallel_size=2 \
-        # model.optim.name=fused_adam \
-        # model.optim.lr=2e-4 \
-        # model.optim.sched.warmup_steps=2 \
-        # model.optim.sched.constant_steps=2 \
-        # model.optim.sched.min_lr=8e-5 \
-        # model.max_position_embeddings=128 \
-        # model.encoder_seq_length=128 \
-        # model.data.seq_length=128 \
-        # model.position_embedding_type=rope \
-        # model.rotary_percentage=0.5 \
-        # model.normalization=rmsnorm \
-        # model.bias=False \
-        # model.bias_activation_fusion=False \
-        # model.bias_dropout_add_fusion=False \
-        # model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        # model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        # model.num_layers=8 \
-        # model.hidden_size=256 \
-        # model.num_attention_heads=8 \
-        # model.activations_checkpoint_method=block \
-        # model.activations_checkpoint_granularity=full \
-        # model.activations_checkpoint_num_layers=1 \
-        # model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        # model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_pretrain_results
-        rm -rf examples/nlp/language_modeling/gpt_index_mappings
-
-    #  This test requires Ampere but some of the test GPUs are Volta
-    #  Need to add a check for compute capability before uncommenting this test
-    #  - name: L2: Megatron GPT with Rope Pretraining using Flash Attention and Resume Training TP=2
-    #    when {
-    #      anyOf {
-    #        branch main
-    #        changeRequest target: main
-    #      }
-    #    }
-    #    failFast true
-    #    - run: |
-    #      python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-    #      trainer.devices=2 \
-    #      trainer.accelerator=gpu \
-    #      trainer.log_every_n_steps=1 \
-    #      trainer.val_check_interval=2 \
-    #      trainer.limit_val_batches=2 \
-    #      trainer.accumulate_grad_batches=1 \
-    #      trainer.max_steps=3 \
-    #      trainer.precision=16 \
-    #      trainer.gradient_clip_val=1.0 \
-    #      exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-    #      model.tensor_model_parallel_size=2 \
-    #      model.optim.name=fused_adam \
-    #      model.optim.lr=2e-4 \
-    #      model.optim.sched.warmup_steps=1 \
-    #      model.optim.sched.constant_steps=1 \
-    #      model.optim.sched.min_lr=8e-5 \
-    #      model.max_position_embeddings=128 \
-    #      model.encoder_seq_length=128 \
-    #      model.data.seq_length=128 \
-    #      model.position_embedding_type=rope \
-    #      model.rotary_percentage=0.5 \
-    #      model.normalization=rmsnorm \
-    #      model.bias=False \
-    #      model.bias_activation_fusion=False \
-    #      model.bias_dropout_add_fusion=False \
-    #      model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-    #      model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-    #      model.num_layers=8 \
-    #      model.hidden_size=256 \
-    #      model.num_attention_heads=8 \
-    #      model.activations_checkpoint_method=block \
-    #      model.activations_checkpoint_granularity=full \
-    #      model.activations_checkpoint_num_layers=1 \
-    #      model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-    #      model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings \
-    #      model.use_flash_attention=True "
-    #      #  commented out to save time on github ci @adithyare
-    #      # python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-    #      # trainer.devices=2 \
-    #      # trainer.accelerator=gpu \
-    #      # trainer.log_every_n_steps=1 \
-    #      # trainer.val_check_interval=2 \
-    #      # trainer.limit_val_batches=1 \
-    #      # trainer.accumulate_grad_batches=1 \
-    #      # trainer.max_steps=6 \
-    #      # trainer.precision=16 \
-    #      # trainer.gradient_clip_val=1.0 \
-    #      # exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-    #      # exp_manager.resume_if_exists=True \
-    #      # model.tensor_model_parallel_size=2 \
-    #      # model.optim.name=fused_adam \
-    #      # model.optim.lr=2e-4 \
-    #      # model.optim.sched.warmup_steps=2 \
-    #      # model.optim.sched.constant_steps=2 \
-    #      # model.optim.sched.min_lr=8e-5 \
-    #      # model.max_position_embeddings=128 \
-    #      # model.encoder_seq_length=128 \
-    #      # model.data.seq_length=128 \
-    #      # model.position_embedding_type=rope \
-    #      # model.rotary_percentage=0.5 \
-    #      # model.normalization=rmsnorm \
-    #      # model.bias=False \
-    #      # model.bias_activation_fusion=False \
-    #      # model.bias_dropout_add_fusion=False \
-    #      # model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-    #      # model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-    #      # model.num_layers=8 \
-    #      # model.hidden_size=256 \
-    #      # model.num_attention_heads=8 \
-    #      # model.activations_checkpoint_method=block \
-    #      # model.activations_checkpoint_granularity=full \
-    #      # model.activations_checkpoint_num_layers=1 \
-    #      # model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-    #      # model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings \
-    #      # model.use_flash_attention=True"
-    #      rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
-    #      rm -rf examples/nlp/language_modeling/gpt_index_mappings"
-    #    }
-    #  }
-
-  L2_Megatron_LM_To_NeMo_Conversion:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_LM_To_NeMo_Conversion')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        CUDA_DEVICE_MAX_CONNECTIONS=1 torchrun --nproc_per_node=1 Megatron-LM/pretrain_gpt.py \
-          --mock-data \
-          --distributed-timeout-minutes 60 \
-          --use-mcore-models \
-          --no-mmap-bin-files \
-          --untie-embeddings-and-output-weights \
-          --disable-bias-linear \
-          --train-samples 80 \
-          --init-method-std 0.014 \
-          --position-embedding-type rope \
-          --rotary-base 1000000 \
-          --rotary-percent 1.0 \
-          --squared-relu \
-          --num-layers 4 \
-          --hidden-size 384 \
-          --num-attention-heads 8 \
-          --group-query-attention \
-          --num-query-groups 8 \
-          --ffn-hidden-size 1536 \
-          --kv-channels 128 \
-          --normalization RMSNorm \
-          --attention-dropout 0.0 \
-          --hidden-dropout 0.0 \
-          --exit-duration-in-mins 5750 \
-          --tensor-model-parallel-size 1 \
-          --pipeline-model-parallel-size 1 \
-          --seq-length 8192 \
-          --max-position-embeddings 8192 \
-          --micro-batch-size 1 \
-          --global-batch-size 8 \
-          --lr 6e-4 \
-          --min-lr 6e-6 \
-          --weight-decay 0.1 \
-          --clip-grad 1.0 \
-          --lr-decay-style cosine \
-          --log-interval 1 \
-          --eval-iters 1 \
-          --eval-interval 10 \
-          --tokenizer-type GPT2BPETokenizer \
-          --tokenizer-model /home/TestData/nlp/gpt2_tokenizer \
-          --vocab-file /home/TestData/nlp/gpt2_tokenizer/vocab.json \
-          --merge-file /home/TestData/nlp/gpt2_tokenizer/merges.txt \
-          --save /tmp/mlm_conversion_ckpt \
-          --save-interval 10 \
-          --ckpt-format torch_dist \
-          --ckpt-fully-parallel-save \
-          --ckpt-fully-parallel-load \
-          --async-save \
-          --ckpt-assume-constant-structure \
-          --timing-log-option minmax \
-          --log-params-norm \
-          --log-num-zeros-in-grad \
-          --log-throughput \
-          --bf16 \
-          --adam-beta1 0.9 \
-          --adam-beta2 0.95 \
-          --use-distributed-optimizer \
-          --overlap-grad-reduce \
-          --overlap-param-gather \
-          --manual-gc \
-          --num-workers 2
-        
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-          model.data.data_impl=mock \
-          model.data.data_prefix=[] \
-          model.skip_train=True \
-          model.transformer_engine=True \
-          model.use_flash_attention=False \
-          model.normalization=rmsnorm \
-          model.num_layers=4 \
-          model.hidden_size=384 \
-          model.ffn_hidden_size=1536 \
-          model.num_attention_heads=8 \
-          model.num_query_groups=8 \
-          model.bias=False \
-          model.bias_activation_fusion=False \
-          model.bias_dropout_add_fusion=True \
-          model.masked_softmax_fusion=True \
-          model.encoder_seq_length=8192 \
-          model.max_position_embeddings=8192 \
-          model.data.seq_length=8192 \
-          model.activation=squared-relu \
-          model.transformer_block_type=True \
-          model.micro_batch_size=1 \
-          model.global_batch_size=8 \
-          ++model.rotary_base=1000000 \
-          model.rotary_percentage=1.0 \
-          model.apply_query_key_layer_scaling=False \
-          ++model.group_query_attention=True \
-          model.apply_rope_fusion=True \
-          model.kv_channels=128 \
-          ++model.bert_binary_head=True \
-          ++model.position_embedding_type=rope \
-          ++model.add_position_embedding=True \
-          trainer.limit_val_batches=1 \
-          exp_manager.exp_dir=/tmp/nemo_conversion_ckpt
-
-        python -m torch.distributed.launch --nproc_per_node=1 examples/nlp/language_modeling/megatron_ckpt_to_nemo.py \
-          --checkpoint_folder /tmp/mlm_conversion_ckpt \
-          --checkpoint_name iter_0000010 \
-          --nemo_file_path /tmp/mlm_to_nemo_test.nemo \
-          --tensor_model_parallel_size 1 \
-          --pipeline_model_parallel_size 1 \
-          --gpus_per_node 1 \
-          --model_type gpt \
-          --hparams_file /tmp/nemo_conversion_ckpt/megatron_gpt/version_0/hparams.yaml \
-          --convert_mlm
-
-  L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=3 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=3 \
-        trainer.precision=bf16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        model.tensor_model_parallel_size=2 \
-        model.megatron_amp_O2=True \
-        model.optim.name=distributed_fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-    
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=3 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=6 \
-        trainer.precision=bf16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.reset_lr=True \
-        model.tensor_model_parallel_size=2 \
-        model.megatron_amp_O2=True \
-        model.optim.name=distributed_fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_pretrain_results
-        rm -rf examples/nlp/language_modeling/gpt_index_mappings
-
-  L2_Megatron_GPT_with_Drop_Optimizer_States_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_with_Drop_Optimizer_States_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=6 \
-        trainer.precision=bf16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        exp_manager.checkpoint_callback_params.save_last_n_optim_states=1 \
-        model.dist_ckpt_format="torch_dist" \
-        model.tensor_model_parallel_size=2 \
-        model.megatron_amp_O2=True \
-        model.optim.name=distributed_fused_adam \
-        model.optim.lr=2e-4 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_pretrain_results
-        rm -rf examples/nlp/language_modeling/gpt_index_mappings
-
-  L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=3 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=1 \
-        model.optim.sched.constant_steps=1 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.position_embedding_type=alibi \
-        model.bias=False \
-        model.bias_activation_fusion=False \
-        model.bias_dropout_add_fusion=False \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method=block \
-        model.activations_checkpoint_granularity=full \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-    
-        # not testing resume functionality to save time on ci @adithyare
-        #python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        #trainer.devices=2 \
-        #trainer.accelerator=gpu \
-        #trainer.log_every_n_steps=1 \
-        #trainer.val_check_interval=2 \
-        #trainer.limit_val_batches=1 \
-        #trainer.accumulate_grad_batches=1 \
-        #trainer.max_steps=6 \
-        #trainer.gradient_clip_val=1.0 \
-        #exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        #exp_manager.resume_if_exists=True \
-        #model.tensor_model_parallel_size=2 \
-        #model.optim.name=fused_adam \
-        #model.optim.lr=2e-4 \
-        #model.optim.sched.warmup_steps=2 \
-        #model.optim.sched.constant_steps=2 \
-        #model.optim.sched.min_lr=8e-5 \
-        #model.max_position_embeddings=128 \
-        #model.encoder_seq_length=128 \
-        #model.data.seq_length=128 \
-        #model.position_embedding_type=alibi \
-        #model.normalization=rmsnorm \
-        #model.bias=False \
-        #model.bias_activation_fusion=False \
-        #model.bias_dropout_add_fusion=False \
-        #model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        #model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        #model.num_layers=8 \
-        #model.hidden_size=256 \
-        #model.num_attention_heads=8 \
-        #model.activations_checkpoint_method=block \
-        #model.activations_checkpoint_granularity=full \
-        #model.activations_checkpoint_num_layers=1 \
-        #model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        #model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_pretrain_results
-        rm -rf examples/nlp/language_modeling/gpt_index_mappings
-
-  L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=3 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        model.tensor_model_parallel_size=2 \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=1 \
-        model.optim.sched.constant_steps=1 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.data.seq_length=128 \
-        model.position_embedding_type=kerple \
-        model.bias=False \
-        model.bias_activation_fusion=False \
-        model.bias_dropout_add_fusion=False \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method=block \
-        model.activations_checkpoint_granularity=full \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-        
-        # commented out to save time on github ci @adithyare
-        #python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        #trainer.devices=2 \
-        #trainer.accelerator=gpu \
-        #trainer.log_every_n_steps=1 \
-        #trainer.val_check_interval=2 \
-        #trainer.limit_val_batches=1 \
-        #trainer.accumulate_grad_batches=1 \
-        #trainer.max_steps=6 \
-        #trainer.precision=16 \
-        #trainer.gradient_clip_val=1.0 \
-        #exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        #exp_manager.resume_if_exists=True \
-        #model.tensor_model_parallel_size=2 \
-        #model.optim.name=fused_adam \
-        #model.optim.lr=2e-4 \
-        #model.optim.sched.warmup_steps=2 \
-        #model.optim.sched.constant_steps=2 \
-        #model.optim.sched.min_lr=8e-5 \
-        #model.max_position_embeddings=128 \
-        #model.encoder_seq_length=128 \
-        #model.data.seq_length=128 \
-        #model.position_embedding_type=kerple \
-        #model.normalization=rmsnorm \
-        #model.bias=False \
-        #model.bias_activation_fusion=False \
-        #model.bias_dropout_add_fusion=False \
-        #model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        #model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        #model.num_layers=8 \
-        #model.hidden_size=256 \
-        #model.num_attention_heads=8 \
-        #model.activations_checkpoint_method=block \
-        #model.activations_checkpoint_granularity=full \
-        #model.activations_checkpoint_num_layers=1 \
-        #model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        #model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_pretrain_results
-        rm -rf examples/nlp/language_modeling/gpt_index_mappings
-
-  OPTIONAL_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'OPTIONAL_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2')
-    with:
-      RUNNER: self-hosted-azure-gpus-2-h100
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=3 \
-        trainer.precision=bf16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        ++model.transformer_engine=True \
-        ++model.fp8=True \
-        ++model.fp8_hybrid=True \
-        ++model.fp8_amax_history_len=1024 \
-        ++model.fp8_amax_compute_algo=max \
-        ++model.reduce_amax=True \
-        ++model.use_te_rng_tracker=True \
-        ++model.name=megatron_gpt_full_te_layer_autocast \
-        model.ub_tp_comm_overlap=False \
-        model.pipeline_model_parallel_size=2 \
-        model.tensor_model_parallel_size=1 \
-        model.mcore_gpt=True \
-        model.megatron_amp_O2=True \
-        model.optim.name=distributed_fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=1 \
-        model.optim.sched.constant_steps=1 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.activation=fast-swiglu \
-        model.bias_activation_fusion=False \
-        model.hidden_dropout=0.0 \
-        model.attention_dropout=0.0 \
-        model.transformer_block_type=normformer \
-        model.headscale=True \
-        model.data.seq_length=128 \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method=block \
-        model.activations_checkpoint_granularity=full \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.validation_drop_last=False \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=6 \
-        trainer.precision=bf16 \
-        trainer.gradient_clip_val=1.0 \
-        model.mcore_gpt=True \
-        model.megatron_amp_O2=True \
-        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        ++model.transformer_engine=True \
-        ++model.fp8=True \
-        ++model.fp8_hybrid=True \
-        ++model.fp8_amax_history_len=1024 \
-        ++model.fp8_amax_compute_algo=max \
-        ++model.reduce_amax=True \
-        ++model.use_te_rng_tracker=True \
-        ++model.name=megatron_gpt_full_te_layer_autocast \
-        model.ub_tp_comm_overlap=False \
-        model.pipeline_model_parallel_size=2 \
-        model.tensor_model_parallel_size=1 \
-        model.optim.name=distributed_fused_adam \
-        model.optim.lr=2e-4 \
-        model.optim.sched.warmup_steps=2 \
-        model.optim.sched.constant_steps=2 \
-        model.optim.sched.min_lr=8e-5 \
-        model.max_position_embeddings=128 \
-        model.encoder_seq_length=128 \
-        model.activation=fast-swiglu \
-        model.bias_activation_fusion=False \
-        model.hidden_dropout=0.0 \
-        model.attention_dropout=0.0 \
-        model.transformer_block_type=normformer \
-        model.headscale=True \
-        model.data.seq_length=128 \
-        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        model.num_layers=8 \
-        model.hidden_size=256 \
-        model.num_attention_heads=8 \
-        model.activations_checkpoint_method=block \
-        model.activations_checkpoint_granularity=full \
-        model.activations_checkpoint_num_layers=1 \
-        model.data.validation_drop_last=False \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/gpt_pretrain_results
-        rm -rf examples/nlp/language_modeling/gpt_index_mappings
-      IS_OPTIONAL: true
-
-  L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        mkdir examples/llm/auto_configurator/auto_conf_logs
-
-        python examples/llm/auto_configurator/auto_config.py \
-        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
-        --run_number=1
-
-        python examples/llm/auto_configurator/auto_config.py \
-        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
-        --run_number=2
-
-        python examples/llm/auto_configurator/auto_config.py \
-        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
-        --run_number=3
-
-        python examples/llm/auto_configurator/auto_config.py \
-        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
-        --get_results
-      AFTER_SCRIPT: |
-        rm -rf examples/llm/auto_configurator/auto_conf_logs
-
-  L2_Megatron_GPT_Finetuning_PP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Finetuning_PP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
-        trainer.devices=2 \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=2 \
-        +trainer.limit_val_batches=2 \
-        trainer.max_steps=3 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=/tmp/gpt_finetuning_pp2_megatron \
-        model.pipeline_model_parallel_size=2 \
-        model.tensor_model_parallel_size=1 \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.peft.peft_scheme=null \
-        model.data.train_ds.micro_batch_size=1 \
-        model.data.train_ds.global_batch_size=4 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-        model.data.train_ds.concat_sampling_probabilities=[0.3,0.7] \
-        model.data.train_ds.num_workers=0 \
-        model.data.test_ds.micro_batch_size=1 \
-        model.data.test_ds.global_batch_size=1 \
-        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.test_ds.names=[quarel] \
-        model.data.validation_ds.micro_batch_size=1 \
-        model.data.validation_ds.global_batch_size=1 \
-        model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.names=[quarel]
-
-        python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
-        trainer.devices=2 \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=1 \
-        +trainer.limit_val_batches=2 \
-        trainer.max_steps=3 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=/tmp/gpt_finetuning_pp2_megatron \
-        model.pipeline_model_parallel_size=2 \
-        model.tensor_model_parallel_size=1 \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
-        model.optim.name=fused_adam \
-        model.optim.lr=2e-4 \
-        model.peft.peft_scheme=null \
-        model.data.train_ds.micro_batch_size=1 \
-        model.data.train_ds.global_batch_size=4 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl,/home/TestData/nlp/megatron_sft/trec.jsonl] \
-        model.data.train_ds.concat_sampling_probabilities=[0.3,0.7] \
-        model.data.train_ds.num_workers=0 \
-        model.data.test_ds.micro_batch_size=1 \
-        model.data.test_ds.global_batch_size=1 \
-        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.test_ds.names=[quarel] \
-        model.data.validation_ds.micro_batch_size=1 \
-        model.data.validation_ds.global_batch_size=1 \
-        model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.names=[quarel]
-
-  L2_Megatron_GPT_Finetuning_StarCoder_PP1:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Finetuning_StarCoder_PP1')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
-        trainer.devices=1 \
-        trainer.num_nodes=1 \
-        trainer.precision=bf16 \
-        trainer.max_steps=4 \
-        trainer.val_check_interval=4 \
-        trainer.enable_checkpointing=False \
-        +trainer.limit_val_batches=2 \
-        +trainer.limit_test_batches=2 \
-        exp_manager.checkpoint_callback_params.save_best_model=False \
-        exp_manager.exp_dir=/tmp/gpt_sft_results_starcoder_pp1 \
-        model.peft.peft_scheme=none \
-        model.optim.name=distributed_fused_adam \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/starcoder-ci-nemo/megatron_starcoder_tp1_pp1.nemo \
-        model.tensor_model_parallel_size=1 \
-        model.pipeline_model_parallel_size=1 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.train_ds.num_workers=0 \
-        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.test_ds.num_workers=0 \
-        model.data.train_ds.concat_sampling_probabilities=[1.0]
-
-  L2_Megatron_GPT_Reranker:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Reranker')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/information_retrieval/megatron_gpt_reranker_finetuning.py \
-        exp_manager.exp_dir="/tmp/gpt_reranker_workdir/" \
-        model.global_batch_size=4 \
-        model.micro_batch_size=4 \
-        trainer.devices=1 \
-        trainer.num_nodes=1 \
-        trainer.max_epochs=null \
-        trainer.max_steps=20 \
-        trainer.val_check_interval=10 \
-        model.restore_from_path="/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo" \
-        model.peft.lora_tuning.adapter_dim=8 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl] \
-        model.data.validation_ds.write_embeddings_to_file=True \
-        model.data.validation_ds.output_file_path_prefix="/home/TestData/nlp/megatron_ir/working_dir/val_embs" \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl]
-
-  L2_Megatron_GPT_Embedding:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Embedding')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/information_retrieval/megatron_gpt_embedding_finetuning.py \
-        exp_manager.exp_dir="/tmp/gpt_embedding_workdir/" \
-        model.global_batch_size=4 \
-        model.micro_batch_size=4 \
-        trainer.devices=1 \
-        trainer.num_nodes=1 \
-        trainer.max_epochs=null \
-        trainer.max_steps=20 \
-        trainer.val_check_interval=10 \
-        model.restore_from_path="/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo" \
-        model.peft.lora_tuning.adapter_dim=8 \
-        model.data.validation_ds.query_file_names=[/home/TestData/nlp/megatron_ir/test_query.jsonl] \
-        model.data.validation_ds.doc_file_names=[/home/TestData/nlp/megatron_ir/test_doc.jsonl] \
-        model.data.validation_ds.write_embeddings_to_file=True \
-        model.data.validation_ds.output_file_path_prefix="/tmp/gpt_embedding_workdir/val_embs/" \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_ir/train.jsonl]
-
-
-        python examples/nlp/information_retrieval/megatron_gpt_embedding_generate.py \
-        trainer.devices=1 \
-        trainer.num_nodes=1 \
-        model.restore_from_path="/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo" \
-        model.peft.restore_from_path="/tmp/gpt_embedding_workdir/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo" \
-        model.global_batch_size=4 \
-        model.micro_batch_size=4 \
-        model.peft.lora_tuning.adapter_dim=8 \
-        model.data.test_ds.write_embeddings_to_file=True \
-        model.data.test_ds.output_file_path_prefix="/tmp/gpt_embedding_workdir/test_embs" \
-        model.data.test_ds.query_file_names=[/home/TestData/nlp/megatron_ir/test_query.jsonl] \
-        model.data.test_ds.doc_file_names=[/home/TestData/nlp/megatron_ir/test_doc.jsonl]
-
-  L2_Megatron_GPT_PEFT_Lora_PP2_O2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_PEFT_Lora_PP2_O2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
-        trainer.devices=2 \
-        trainer.log_every_n_steps=1 \
-        trainer.max_epochs=9999 \
-        trainer.max_steps=3 \
-        trainer.val_check_interval=3 \
-        ++trainer.limit_val_batches=2 \
-        trainer.precision=bf16 \
-        exp_manager.exp_dir=/tmp/nlp_peft_lora_tuning_pp2 \
-        model.pipeline_model_parallel_size=2 \
-        model.tensor_model_parallel_size=1 \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
-        model.megatron_amp_O2=True \
-        model.peft.peft_scheme=lora \
-        model.answer_only_loss=True \
-        model.micro_batch_size=1 \
-        model.global_batch_size=1 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.train_ds.concat_sampling_probabilities=[1.0] \
-        model.data.train_ds.num_workers=0 \
-        model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.names=[quarel]
-        
-        python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
-        model.peft.restore_from_path=/tmp/nlp_peft_lora_tuning_pp2/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
-        model.pipeline_model_parallel_size=2 \
-        model.tensor_model_parallel_size=1 \
-        trainer.devices=2 \
-        model.megatron_amp_O2=True \
-        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
-        model.data.test_ds.names=["quarel4"] \
-        model.global_batch_size=2 \
-        model.micro_batch_size=1 \
-        model.data.test_ds.tokens_to_generate=10 \
-        model.data.test_ds.write_predictions_to_file=True \
-        model.data.test_ds.output_file_path_prefix="/tmp/nlp_peft_lora_tuning_pp2/out" \
-        inference.greedy=True \
-        inference.repetition_penalty=1.0 \
-        inference.outfile_path="/tmp/nlp_peft_lora_tuning_pp2/out.jsonl"
-
-  L2_Megatron_GPT_PEFT_Lora_TP2_O1:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_PEFT_Lora_TP2_O1')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
-        trainer.devices=2 \
-        trainer.log_every_n_steps=1 \
-        trainer.max_epochs=9999 \
-        trainer.max_steps=3 \
-        trainer.val_check_interval=3 \
-        ++trainer.limit_val_batches=2 \
-        trainer.precision=bf16 \
-        exp_manager.exp_dir=/tmp/nlp_peft_lora_tuning_pp2_o1 \
-        model.pipeline_model_parallel_size=1 \
-        model.tensor_model_parallel_size=2 \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
-        model.peft.peft_scheme="lora" \
-        model.answer_only_loss=True \
-        model.micro_batch_size=1 \
-        model.global_batch_size=1 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.train_ds.concat_sampling_probabilities=[1.0] \
-        model.data.train_ds.num_workers=0 \
-        model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.names=[quarel]
-
-        python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
-        model.peft.restore_from_path=/tmp/nlp_peft_lora_tuning_pp2_o1/megatron_gpt_peft_lora_tuning/checkpoints/megatron_gpt_peft_lora_tuning.nemo \
-        model.tensor_model_parallel_size=2 \
-        trainer.devices=2 \
-        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
-        model.data.test_ds.names=["quarel4"] \
-        model.global_batch_size=2 \
-        model.micro_batch_size=1 \
-        model.data.test_ds.tokens_to_generate=10 \
-        model.data.test_ds.write_predictions_to_file=True \
-        model.data.test_ds.output_file_path_prefix="/tmp/nlp_peft_lora_tuning_pp2_o1/out" \
-        inference.greedy=True \
-        inference.repetition_penalty=1.0 \
-        inference.outfile_path="/tmp/nlp_peft_lora_tuning_pp2_o1/out.jsonl"
-
-  L2_Megatron_GPT_PEFT_Lora_TP2SP1:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_PEFT_Lora_TP2SP1')
-    with:
-      RUNNER: self-hosted-azure-gpus-2-h100
-      SCRIPT: |
-        CUDA_DEVICE_MAX_CONNECTIONS=1 python examples/nlp/language_modeling/tuning/megatron_gpt_finetuning.py \
-        trainer.devices=2 \
-        trainer.log_every_n_steps=1 \
-        trainer.max_epochs=9999 \
-        trainer.max_steps=3 \
-        trainer.val_check_interval=3 \
-        ++trainer.limit_val_batches=2 \
-        trainer.precision=bf16 \
-        exp_manager.exp_dir=/tmp/nlp_lora_tuning_tp2_sp1 \
-        +model.mcore_gpt=True \
-        model.pipeline_model_parallel_size=1 \
-        model.tensor_model_parallel_size=2 \
-        model.sequence_parallel=True \
-        model.megatron_amp_O2=True \
-        model.restore_from_path=/home/TestData/nlp/megatron_gpt/mcore_45M/megatron_llama.nemo \
-        +model.fp8=True \
-        +model.fp8_params=True \
-        +model.fp8_hybrid=True \
-        +model.fp8_e4m3=False \
-        +model.fp8_interval=1 \
-        +model.fp8_margin=0 \
-        +model.fp8_amax_history_len=32 \
-        +model.fp8_amax_compute_algo=max \
-        +model.reduce_amax=False \
-        +model.ub_tp_comm_overlap=False \
-        +model.tp_comm_overlap_ag=False \
-        +model.tp_comm_overlap_rs=False \
-        +model.tp_comm_overlap_disable_qkv=True \
-        +model.attention_backend="unfused" \
-        model.peft.peft_scheme="lora" \
-        model.peft.lora_tuning.adapter_dim=16 \
-        model.peft.lora_tuning.alpha=32 \
-        model.peft.lora_tuning.column_init_method="kaiming" \
-        +model.peft.lora_tuning.dropout_position="pre" \
-        model.peft.lora_tuning.target_modules=["attention"] \
-        model.peft.lora_tuning.adapter_dropout=0.1 \
-        +model.peft.lora_tuning.a2a_experimental=1 \
-        model.answer_only_loss=True \
-        model.micro_batch_size=1 \
-        model.global_batch_size=1 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.train_ds.concat_sampling_probabilities=[1.0] \
-        model.data.train_ds.num_workers=0 \
-        model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.names=[quarel]
-
-  L2_Megatron_GPT_Eval:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Eval')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_eval.py \
-            gpt_model_file=/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
-            prompts=["How to fix GPU memory? A:"] \
-            tensor_model_parallel_size=1 \
-            inference.tokens_to_generate=32 \
-            trainer.precision=32
-
-  L2_Megatron_GPT_Eval_PP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_Eval_PP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_eval.py \
-            gpt_model_file=/home/TestData/nlp/megatron_gpt/PP2/gpt_pp2_tp1.nemo \
-            server=False \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=2 \
-            trainer.devices=2 \
-            trainer.num_nodes=1 \
-            trainer.precision=32
-
-  L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/tuning/megatron_gpt_generate.py \
-            model.restore_from_path=/home/TestData/nlp/megatron_gpt_sft/megatron_gpt_rope_sft.nemo \
-            model.peft.restore_from_path=null \
-            model.data.test_ds.file_names=[/home/TestData/nlp/megatron_gpt_sft/sample.jsonl] \
-            model.data.test_ds.names=[test] \
-            model.data.test_ds.global_batch_size=1 \
-            model.data.test_ds.micro_batch_size=1 \
-            model.data.test_ds.tokens_to_generate=30 \
-            model.data.test_ds.max_seq_length=6000 \
-            model.data.test_ds.write_predictions_to_file=True \
-            model.data.test_ds.output_file_path_prefix=examples/nlp/language_modeling/out \
-            inference.greedy=True \
-            inference.repetition_penalty=1.0 \
-            inference.outfile_path=examples/nlp/language_modeling/out.jsonl 
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/out.jsonl
-
-    # TODO: Add this test back. Test was failing on CI machines due to HW error
-    # - name: L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval
-    #   when {
-    #     anyOf {
-    #       branch main
-    #       changeRequest target: main
-    #     }
-    #   }
-    #   failFast true
-    #   - run: |
-    #     python -m torch.distributed.launch --nproc_per_node=2 \
-    #     examples/nlp/language_modeling/megatron_lm_ckpt_to_nemo.py \
-    #     --checkpoint_folder=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700 \
-    #     --checkpoint_name=model_optim_rng.pt \
-    #     --hparams_file=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700/hparams.yaml \
-    #     --nemo_file_path=examples/nlp/language_modeling/small_gpt.nemo \
-    #     --model_type=gpt \
-    #     --pipeline_model_parallel_size=1 \
-    #     --gpus_per_node=2 \
-    #     --tensor_model_parallel_size=2"
-    #     python examples/nlp/language_modeling/megatron_gpt_eval.py \
-    #     --gpt_model_file=examples/nlp/language_modeling/small_gpt.nemo \
-    #     --tokens_to_generate=32 \
-    #     --tensor_model_parallel_size=2 \
-    #     --prompt=This is a test.
-    #     rm examples/nlp/language_modeling/small_gpt.nemo
-  
-  # L2_Megatron_Change_Partitions
-  L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_change_num_partitions.py \
-            --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-            --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo \
-            --tensor_model_parallel_size 2 \
-            --target_tensor_model_parallel_size 1 \
-            --pipeline_model_parallel_size 1 \
-            --target_pipeline_model_parallel_size 2
-      AFTER_SCRIPT: |
-        rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-reduce.nemo
-
-  L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_change_num_partitions.py \
-            --model_file /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-            --target_file /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo \
-            --tensor_model_parallel_size 2 \
-            --target_tensor_model_parallel_size 4 \
-            --pipeline_model_parallel_size 1 \
-            --target_pipeline_model_parallel_size 1
-      AFTER_SCRIPT: |
-        rm /home/TestData/nlp/megatron_gpt/TP2-Temp/test-increase.nemo
-
-  L2_Megatron_Core_T5_Pretraining_and_Resume_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Core_T5_Pretraining_and_Resume_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.log_every_n_steps=1 \
-        trainer.max_epochs=null \
-        trainer.max_steps=10 \
-        trainer.val_check_interval=10 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.precision=bf16 \
-        model.megatron_amp_O2=True \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        model.mcore_t5=True \
-        model.transformer_engine=True \
-        model.tensor_model_parallel_size=2 \
-        model.micro_batch_size=4 \
-        model.global_batch_size=4 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.decoder.num_layers=4 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.encoder.transformer_block_type="pre_ln" \
-        model.decoder.transformer_block_type="pre_ln" \
-        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-        model.data.data_impl=text_mmap \
-        +model.data.data_impl_kwargs.newline_int=10 \
-        +model.data.data_impl_kwargs.header_lines=0 \
-        +model.data.data_impl_kwargs.workers=null \
-        +model.data.data_impl_kwargs.sort_dataset_paths=False
-
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.log_every_n_steps=1 \
-        trainer.max_epochs=null \
-        trainer.max_steps=10 \
-        trainer.val_check_interval=10 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.precision=bf16 \
-        model.megatron_amp_O2=True \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.mcore_t5=True \
-        model.transformer_engine=True \
-        model.tensor_model_parallel_size=2 \
-        model.micro_batch_size=4 \
-        model.global_batch_size=4 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.decoder.num_layers=4 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.encoder.transformer_block_type="pre_ln" \
-        model.decoder.transformer_block_type="pre_ln" \
-        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-        model.data.data_impl=text_mmap \
-        +model.data.data_impl_kwargs.newline_int=10 \
-        +model.data.data_impl_kwargs.header_lines=0 \
-        +model.data.data_impl_kwargs.workers=null \
-        +model.data.data_impl_kwargs.sort_dataset_paths=False
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/t5_pretrain_results
-        rm -rf examples/nlp/language_modeling/t5_index_mappings
-
-  L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation=swiglu \
-        model.encoder.masked_softmax_fusion=False \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method=block \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.encoder.position_embedding_type=alibi \
-        model.decoder.num_layers=2 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation=swiglu \
-        model.decoder.masked_softmax_fusion=False \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method=block \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.encoder.transformer_block_type=pre_ln \
-        model.decoder.transformer_block_type=pre_ln \
-        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-        model.data.data_impl=text_mmap \
-        +model.data.data_impl_kwargs.newline_int=10 \
-        +model.data.data_impl_kwargs.header_lines=0 \
-        +model.data.data_impl_kwargs.workers=null \
-        +model.data.data_impl_kwargs.sort_dataset_paths=False \
-        model.share_token_embeddings=False \
-        model.share_decoder_tokens_head_embeddings=False
-
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=1 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation=swiglu \
-        model.encoder.masked_softmax_fusion=False \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method=block \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.encoder.position_embedding_type=alibi \
-        model.decoder.num_layers=2 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation=swiglu \
-        model.decoder.masked_softmax_fusion=False \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method=block \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.encoder.transformer_block_type=pre_ln \
-        model.decoder.transformer_block_type=pre_ln \
-        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-        model.data.data_impl=text_mmap \
-        +model.data.data_impl_kwargs.newline_int=10 \
-        +model.data.data_impl_kwargs.header_lines=0 \
-        +model.data.data_impl_kwargs.workers=null \
-        +model.data.data_impl_kwargs.sort_dataset_paths=False \
-        model.share_token_embeddings=False \
-        model.share_decoder_tokens_head_embeddings=False
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/t5_pretrain_results
-        rm -rf examples/nlp/language_modeling/t5_index_mappings
-
-  L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation=swiglu \
-        model.encoder.masked_softmax_fusion=False \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method=block \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.encoder.position_embedding_type=kerple \
-        model.decoder.num_layers=2 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation=swiglu \
-        model.decoder.masked_softmax_fusion=False \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method=block \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.encoder.transformer_block_type=pre_ln \
-        model.decoder.transformer_block_type=pre_ln \
-        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-        model.data.data_impl=text_mmap \
-        +model.data.data_impl_kwargs.newline_int=10 \
-        +model.data.data_impl_kwargs.header_lines=0 \
-        +model.data.data_impl_kwargs.workers=null \
-        +model.data.data_impl_kwargs.sort_dataset_paths=False \
-        model.share_token_embeddings=False \
-        model.share_decoder_tokens_head_embeddings=False
-
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=1 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation=swiglu \
-        model.encoder.masked_softmax_fusion=False \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method=block \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.encoder.position_embedding_type=kerple \
-        model.decoder.num_layers=2 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation=swiglu \
-        model.decoder.masked_softmax_fusion=False \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method=block \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.encoder.transformer_block_type=pre_ln \
-        model.decoder.transformer_block_type=pre_ln \
-        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-        model.data.data_impl=text_mmap \
-        +model.data.data_impl_kwargs.newline_int=10 \
-        +model.data.data_impl_kwargs.header_lines=0 \
-        +model.data.data_impl_kwargs.workers=null \
-        +model.data.data_impl_kwargs.sort_dataset_paths=False \
-        model.share_token_embeddings=False \
-        model.share_decoder_tokens_head_embeddings=False
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/t5_pretrain_results
-        rm -rf examples/nlp/language_modeling/t5_index_mappings
-
-  OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        model.pipeline_model_parallel_size=2 \
-        model.pipeline_model_parallel_split_rank=1 \
-        model.seq_length=256 \
-        model.encoder.num_layers=4 \
-        model.decoder.num_layers=1 \
-        model.encoder.hidden_size=64 \
-        model.decoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.ffn_hidden_size=2048 \
-        model.encoder.activation=gelu \
-        model.encoder.activations_checkpoint_method=block \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.encoder.transformer_block_type=pre_ln \
-        model.decoder.transformer_block_type=post_ln \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings
-
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=1 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.pipeline_model_parallel_size=2 \
-        model.pipeline_model_parallel_split_rank=1 \
-        model.seq_length=256 \
-        model.encoder.num_layers=4 \
-        model.decoder.num_layers=1 \
-        model.encoder.hidden_size=64 \
-        model.decoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.ffn_hidden_size=2048 \
-        model.encoder.activation=gelu \
-        model.encoder.activations_checkpoint_method=block \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.encoder.transformer_block_type=pre_ln \
-        model.decoder.transformer_block_type=post_ln \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/t5_pretrain_results
-        rm -rf examples/nlp/language_modeling/t5_index_mappings
-      IS_OPTIONAL: true
-
-  L2_Megatron_T5_w_Mixture_of_Expert_Pretraining:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_T5_w_Mixture_of_Expert_Pretraining')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        model.pipeline_model_parallel_split_rank=0 \
-        model.seq_length=256 \
-        model.encoder.num_layers=4 \
-        model.decoder.num_layers=1 \
-        model.encoder.num_moe_experts=4 \
-        model.decoder.num_moe_experts=4 \
-        model.encoder.moe_frequency=3 \
-        model.decoder.moe_frequency=1 \
-        model.encoder.hidden_size=64 \
-        model.decoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.ffn_hidden_size=2048 \
-        model.encoder.activation=gelu \
-        model.encoder.activations_checkpoint_method=block \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.encoder.transformer_block_type=pre_ln \
-        model.decoder.transformer_block_type=post_ln \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/t5_pretrain_results
-        rm -rf examples/nlp/language_modeling/t5_index_mappings
-
-  L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py -cn megatron_ul2_config \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation=swiglu \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method=block \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.encoder.transformer_block_type=normformer \
-        model.encoder.headscale=True \
-        model.decoder.num_layers=4 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation=geglu \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method=block \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.decoder.transformer_block_type=normformer \
-        model.decoder.headscale=False \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings
-
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=1 \
-        trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        exp_manager.resume_if_exists=True \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation=swiglu \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method=block \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.encoder.transformer_block_type=normformer \
-        model.encoder.headscale=True \
-        model.decoder.num_layers=4 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation=geglu \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method=block \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.decoder.transformer_block_type=normformer \
-        model.decoder.headscale=False \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/t5_pretrain_results
-        rm -rf examples/nlp/language_modeling/t5_index_mappings
-
-  L2_Megatron_Core_T5_Eval:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Core_T5_Eval')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_t5_eval.py \
-            --model_file /home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_padding_attnmasktype.nemo \
-            --prompt "How do I fix my GPU memory issue? I am seeing <mask> out of memory." \
-            --tensor_model_parallel_size 1
-
-  L2_Megatron_Core_T5_PEFT_Lora_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Core_T5_PEFT_Lora_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/tuning/megatron_t5_finetuning.py \
-        trainer.devices=2 \
-        trainer.log_every_n_steps=1 \
-        trainer.max_epochs=9999 \
-        trainer.max_steps=3 \
-        trainer.val_check_interval=3 \
-        ++trainer.limit_val_batches=2 \
-        trainer.precision=16 \
-        exp_manager.exp_dir=/tmp/nlp_mcore_t5_lora_tuning_tp2 \
-        model.pipeline_model_parallel_size=1 \
-        model.tensor_model_parallel_size=2 \
-        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_padding_attnmasktype.nemo \
-        model.peft.peft_scheme=lora \
-        model.answer_only_loss=True \
-        model.micro_batch_size=1 \
-        model.global_batch_size=1 \
-        model.data.train_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.train_ds.concat_sampling_probabilities=[1.0] \
-        model.data.train_ds.num_workers=0 \
-        model.data.validation_ds.num_workers=0 \
-        model.data.validation_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel.jsonl] \
-        model.data.validation_ds.names=[quarel]
-
-        python examples/nlp/language_modeling/tuning/megatron_t5_generate.py \
-        model.restore_from_path=/home/TestData/nlp/megatron_t5/220m/megatron_mcore_t5_220m_padding_attnmasktype.nemo \
-        model.peft.restore_from_path=/tmp/nlp_mcore_t5_lora_tuning_tp2/megatron_t5_peft_lora_tuning/checkpoints/megatron_t5_peft_lora_tuning.nemo \
-        model.peft.restore_from_ckpt_name=null \
-        model.peft.restore_from_hparams_path=null \
-        model.tensor_model_parallel_size=2 \
-        trainer.devices=2 \
-        model.data.test_ds.file_names=[/home/TestData/nlp/megatron_sft/quarel_4.jsonl] \
-        model.data.test_ds.names=[quarel4] \
-        model.global_batch_size=1 \
-        model.micro_batch_size=1 \
-        model.data.test_ds.tokens_to_generate=10 \
-        model.data.test_ds.write_predictions_to_file=True \
-        model.data.test_ds.output_file_path_prefix=/tmp/nlp_mcore_t5_lora_tuning_tp2/out \
-        inference.greedy=True \
-        inference.repetition_penalty=1.0 \
-        inference.outfile_path=/tmp/nlp_mcore_t5_lora_tuning_tp2/out.jsonl
 
   L2_VLM_HF_Transformer_PEFT:
     needs: [pre-flight, cicd-test-container-build]
@@ -3774,14 +1433,14 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
-  L2_VLM_HF_Transformer_PEFT_FSDP:
+  L2_VLM_HF_Transformer_PEFT_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_FSDP')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_FSDP2')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --strategy fsdp --devices 2
+        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --strategy fsdp2 --devices 2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3801,9 +1460,25 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_SFT_FSDP2')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: self-hosted-azure
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/sft_fsdp2.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_PEFT_notebook:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_notebook')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        jupyter nbconvert --to script tutorials/llm/hf/peft.ipynb --output _peft
+        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_peft.py
+        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_peft.py
+        cp tutorials/llm/hf/_peft.py /tmp/_peft.py
+        grep -iv push_to_hub /tmp/_peft.py > tutorials/llm/hf/_peft.py
+        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_peft.py
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3814,7 +1489,9 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 --ckpt-folder /tmp/hf_peft_ckpt
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3825,7 +1502,8 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py \
+        --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3836,7 +1514,42 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy ddp \
+          --ckpt-folder /tmp/hf_peft_ckpt_ddp
+
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy ddp \
+          --ckpt-folder /tmp/hf_peft_ckpt_ddp --auto-resume
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_PEFT_2gpu_FSDP2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+         --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+         --max-steps 3 \
+         --devices 2 \
+         --strategy fsdp2 \
+         --ckpt-folder /tmp/hf_peft_ckpt_fsdp2
+
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy fsdp2 \
+          --ckpt-folder /tmp/hf_peft_ckpt_fsdp2 --auto-resume
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3858,10 +1571,45 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp --auto-resume
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
-  
+
+  L2_HF_Transformer_SFT_2gpu_FSDP2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2
+        TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2 --auto-resume
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_SFT_2gpu_nemorun:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
+  L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
   L2_HF_Transformer_SFT_FSDP2_2gpu:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -3881,28 +1629,6 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_2gpu_nemorun:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-  
-  L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3939,6 +1665,22 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
+  L2_HF_Transformer_SFT_notebook:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_notebook')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        jupyter nbconvert --to script tutorials/llm/hf/sft.ipynb --output _sft
+        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_sft.py
+        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_sft.py
+        cp tutorials/llm/hf/_sft.py /tmp/_sft.py
+        grep -iv push_to_hub /tmp/_sft.py > tutorials/llm/hf/_sft.py
+        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_sft.py
+      AFTER_SCRIPT: |
+        rm -rf nemo_experiments
+
   L2_HF_Transformer_SFT:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -3946,7 +1688,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -3968,9 +1710,10 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --model-accelerator te --max-steps 10
+        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --model-accelerator te --max-steps 3
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
+      IS_OPTIONAL: true
 
   L2_HF_Transformer_PT_TE_Acceleration:
     needs: [pre-flight, cicd-test-container-build]
@@ -3994,40 +1737,6 @@ jobs:
         TRANSFORMERS_OFFLINE=1 python tests/collections/speechlm/hf/sft.py --model /home/TestData/speechlm/whisper-small/ --max-steps 10 --devices 2 --strategy ddp
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
-
-  # L2: Megatron Mock Data Generation
-  L2_Megatron_Mock_Data_Generation_MockGPTDataset:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Mock_Data_Generation_MockGPTDataset')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-            trainer.max_steps=10 \
-            trainer.limit_val_batches=7 \
-            trainer.val_check_interval=10 \
-            exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-            model.mcore_gpt=True \
-            model.data.data_impl=mock \
-            model.data.data_prefix=[]
-
-  L2_Megatron_Mock_Data_Generation_MockT5Dataset:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_Mock_Data_Generation_MockT5Dataset')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/language_modeling/megatron_t5_pretraining.py \
-        trainer.max_steps=10 \
-        trainer.limit_val_batches=3 \
-        trainer.val_check_interval=10 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-        model.data.data_impl=mock \
-        model.data.data_prefix=[]
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/language_modeling/t5_pretrain_results
 
   # L2: TTS Fast dev runs 1
   L2_TTS_Fast_dev_runs_1_Tacotron_2:
@@ -4414,7 +2123,8 @@ jobs:
         --devices 1 \
         --max-steps 10 \
         --experiment-dir /tmp/nlp_megatron_mamba_nemo-ux-mamba_cicd_test_sft/${{ github.run_id }} \
-        --model-path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt
+        --model-path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt \
+        --ckpt_load_strictness log_all
 
   L2_NeMo_2_HF_MODEL_IMPORT:
     needs: [pre-flight, cicd-test-container-build]
@@ -4533,15 +2243,15 @@ jobs:
         --experiment-dir=/tmp/nemo2_mllama_results/${{ github.run_id }}
 
   L2_NeMo_2_Mixtral_Pretraining:
-      needs: [pre-flight, cicd-test-container-build]
-      uses: ./.github/workflows/_test_template.yml
-      if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_Pretraining')
-      with:
-        RUNNER: self-hosted-azure
-        SCRIPT: |
-          python3 tests/collections/llm/megatron_mixtral_pretraining.py \
-          --experiment-dir=/tmp/mixtral_pretrain_results \
-          --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_Pretraining')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python3 tests/collections/llm/megatron_mixtral_pretraining.py \
+        --experiment-dir=/tmp/mixtral_pretrain_results \
+        --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
@@ -4552,7 +2262,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4560,9 +2270,9 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4570,7 +2280,6 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1
-
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -4581,7 +2290,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4589,9 +2298,9 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 2
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4599,7 +2308,6 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 2
-
 
   L2_NeMo_2_GPT_SFT_TP1PP2_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -4610,7 +2318,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4618,9 +2326,9 @@ jobs:
         --tp_size 1 \
         --pp_size 2 \
         --mbs 2
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4628,7 +2336,6 @@ jobs:
         --tp_size 1 \
         --pp_size 2 \
         --mbs 2
-
 
   L2_NeMo_2_GPT_SFT_TP2PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -4639,7 +2346,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4647,9 +2354,9 @@ jobs:
         --tp_size 2 \
         --pp_size 1 \
         --mbs 2
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4657,7 +2364,6 @@ jobs:
         --tp_size 2 \
         --pp_size 1 \
         --mbs 2
-
 
   L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED:
     needs: [pre-flight, cicd-test-container-build]
@@ -4668,7 +2374,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4676,9 +2382,9 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 --packed
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4686,7 +2392,6 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 --packed
-
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
@@ -4697,7 +2402,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4705,9 +2410,9 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4715,7 +2420,6 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1
-
 
   L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -4726,7 +2430,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4734,9 +2438,9 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 2
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4744,7 +2448,6 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 2
-
 
   L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -4755,7 +2458,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4763,9 +2466,9 @@ jobs:
         --tp_size 1 \
         --pp_size 2 \
         --mbs 2
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4773,7 +2476,6 @@ jobs:
         --tp_size 1 \
         --pp_size 2 \
         --mbs 2
-
 
   L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -4784,7 +2486,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4792,9 +2494,9 @@ jobs:
         --tp_size 2 \
         --pp_size 1 \
         --mbs 2
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4812,7 +2514,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4820,9 +2522,9 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 --packed
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4840,7 +2542,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4848,9 +2550,9 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 --packed
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4867,7 +2569,7 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4875,9 +2577,9 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 --packed
-        
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4895,7 +2597,7 @@ jobs:
       SCRIPT: |
 
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 3 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4903,10 +2605,10 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 \
-        --chat_dataset_path /home/TestData/nemo2_data/chat
-        
+        --dataset chat
+
         python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v2 \
+        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
         --devices 2 \
         --max_steps 6 \
         --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
@@ -4914,7 +2616,23 @@ jobs:
         --tp_size 1 \
         --pp_size 1 \
         --mbs 1 \
-        --chat_dataset_path /home/TestData/nemo2_data/chat
+        --dataset chat
+
+  L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/lora_mistralai.py \
+        --max-steps 3 \
+        --ep 1 \
+        --tp 2 \
+        --mbs 1 \
+        --model mixtral \
+        --use-exclude
 
   L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
     needs: [pre-flight, cicd-test-container-build]
@@ -4945,10 +2663,10 @@ jobs:
         --model mixtral \
         --dist-opt
 
-  OPTIONAL_L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1:
+  L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'OPTIONAL_L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -4959,7 +2677,6 @@ jobs:
         --mbs 1 \
         --model mixtral \
         --dist-opt
-      IS_OPTIONAL: true
 
   L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
@@ -4976,6 +2693,23 @@ jobs:
         --model mistral \
         --dist-opt
 
+  L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+
+        python tests/collections/llm/lora_mistralai.py \
+        --max-steps 3 \
+        --ep 1 \
+        --tp 2 \
+        --mbs 1 \
+        --model mistral \
+        --dist-opt \
+        --use-exclude
+
   L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -4990,7 +2724,7 @@ jobs:
         --mbs 1 \
         --model mistral \
         --dist-opt
-  
+
   L2_NEMO_2_LoRA_MERGE:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -5001,7 +2735,8 @@ jobs:
 
         python tests/collections/llm/peft/lora_merge.py \
         --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
-        --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }}
+        --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }} \
+        --legacy_ckpt
 
   L2_NEMO_2_LoRA_Export:
     needs: [pre-flight, cicd-test-container-build]
@@ -5022,7 +2757,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |
-        
+
         python scripts/llm/generate.py \
           --model_path /home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
           --tp 1 \
@@ -5030,7 +2765,8 @@ jobs:
           --devices 1 \
           --top_p 0.0 \
           --top_k 1 \
-          --num_tokens_to_generate 3
+          --num_tokens_to_generate 3 \
+          --legacy_ckpt
 
   L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact:
     needs: [pre-flight, cicd-test-container-build]
@@ -5050,11 +2786,46 @@ jobs:
       SCRIPT: |
         python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
 
-        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_engine
+        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_engine --ckpt_load_strictness log_all
 
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/nemo2_ptq_engine
+
+  L2_NeMo_2_Distill_Llama3_TP1PP2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Distill_Llama3_TP1PP2') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
+
+        python scripts/llm/gpt_distillation.py \
+          --name nemo2_llama_distill \
+          --teacher_path /tmp/nemo2_ckpt \
+          --student_path /tmp/nemo2_ckpt \
+          --tokenizer gpt2 \
+          --tp_size 1 \
+          --cp_size 1 \
+          --pp_size 2 \
+          --devices 2 \
+          --log_dir /tmp/distill_logs \
+          --max_steps 5 \
+          --gbs 4 \
+          --mbs 1 \
+          --data_paths 1.0 /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
+          --index_mapping_dir examples/nlp/language_modeling/gpt_index_mappings \
+          --seq_length 2048 \
+          --warmup_steps 1 \
+          --val_check_interval 5 \
+          --log_interval 5 \
+          --limit_val_batches 2 \
+          --legacy_ckpt
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_ckpt
+        rm -rf /tmp/distill_logs
 
   L2_NeMo_2_Export_In_Framework:
     needs: [pre-flight, cicd-test-container-build]
@@ -5130,8 +2901,86 @@ jobs:
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/vllm_from_nemo2
 
+  L2_NeMo_2_EVAL:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_EVAL')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        python tests/evaluation/test_evaluation.py \
+        --nemo2_ckpt_path=/home/TestData/nemo2_ckpt/llama3-1b-lingua \
+        --max_batch_size=4 \
+        --trtllm_dir='/tmp/trtllm_dir' \
+        --eval_type='arc_challenge' \
+        --limit=1
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/trtllm_dir
+
+  L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        mkdir examples/llm/auto_configurator/auto_conf_logs
+
+        python examples/llm/auto_configurator/auto_config.py \
+        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
+        --run_number=1
+
+        python examples/llm/auto_configurator/auto_config.py \
+        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
+        --run_number=2
+
+        python examples/llm/auto_configurator/auto_config.py \
+        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
+        --run_number=3
+
+        python examples/llm/auto_configurator/auto_config.py \
+        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
+        --get_results
+      AFTER_SCRIPT: |
+        rm -rf examples/llm/auto_configurator/auto_conf_logs
+
+  L2_SpeechLM_LoRA_TP1PP1_MBS2:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_SpeechLM_LoRA_TP1PP1_MBS2') || needs.pre-flight.outputs.all == 'true'
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python tests/collections/speechlm/speech_to_text_llm_train.py \
+          --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
+          --val_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
+          --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+          --devices 2 \
+          --max_steps 500 \
+          --experiment_dir /tmp/nemo2_speechlm_lora/${{ github.run_id }} \
+          --peft lora \
+          --tp_size 1 \
+          --pp_size 1 \
+          --mbs 2
+
+        python tests/collections/speechlm/speech_to_text_llm_train.py \
+          --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
+          --val_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
+          --restore_path /home/TestData/nemo2_ckpt/llama_68M \
+          --devices 2 \
+          --max_steps 600 \
+          --experiment_dir /tmp/nemo2_speechlm_lora/${{ github.run_id }} \
+          --peft lora \
+          --tp_size 1 \
+          --pp_size 1 \
+          --mbs 2
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_speechlm_lora/${{ github.run_id }}
+
   Nemo_CICD_Test:
-    needs: 
+    needs:
       - pre-flight
       - cicd-import-tests
 
@@ -5140,9 +2989,8 @@ jobs:
       - L0_Unit_Tests_GPU_Common
       - L0_Unit_Tests_GPU_LLM
       - L0_Unit_Tests_GPU_Multimodal
-      - L0_Unit_Tests_GPU_NLP
       - L0_Unit_Tests_GPU_TTS
-      #- OPTIONAL_L0_Unit_Tests_GPU_Core
+      - L0_Unit_Tests_GPU_Core
       - L0_Unit_Tests_GPU_Hydra
       - L0_Unit_Tests_GPU_Lightning
       - L0_Unit_Tests_GPU_Others
@@ -5152,20 +3000,12 @@ jobs:
       - L0_Unit_Tests_CPU_Common
       - L0_Unit_Tests_CPU_LLM
       - L0_Unit_Tests_CPU_Multimodal
-      - L0_Unit_Tests_CPU_NLP
       - L0_Unit_Tests_CPU_TTS
       - L0_Unit_Tests_CPU_Core
       - L0_Unit_Tests_CPU_Hydra
       - L0_Unit_Tests_CPU_Lightning
       - L0_Unit_Tests_CPU_Others
 
-      - L2_Community_LLM_Checkpoints_tests_Bert
-      - L2_Community_LLM_Checkpoints_tests_Mamba2
-      - L2_Community_LLM_Checkpoints_tests_Llama
-      - L2_Community_LLM_Checkpoints_tests_StarCoder
-      - L2_Community_LLM_Checkpoints_tests_Falcon
-      - L2_Community_vita_Checkpoints_tests_Llama3
-      #- OPTIONAL_L2_Community_LLM_Checkpoints_tests_Baichuan2
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_-_CitriNet
       - ASR_dev_run_Speech_Pre-training_-_CitriNet
@@ -5192,8 +3032,6 @@ jobs:
       - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
       - L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
       - L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
-      - L2_Pretraining_BERT_pretraining_from_Text
-      - L2_Pretraining_BERT_from_Preprocessed
       - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
       - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
       - L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
@@ -5202,41 +3040,6 @@ jobs:
       - L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation
       - L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
       - L2_Megatron_NMT_Training_TP2
-      - L2_Megatron_Bert_Pretraining_and_Resume_Training_with_Pipeline_Parallelism
-      - L2_Megatron_Core_Bert_Pretraining_and_Resume_Training
-      - L2_RAG_Pipeline_Indexing
-      - L2_RAG_Pipeline_Generating
-      - L2_Megatron_GPT_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_GPT_Skip_Train
-      - L2_Megatron_LM_To_NeMo_Conversion
-      - L2_Megatron_GPT_with_Rope_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_GPT_with_ResetLR_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_GPT_with_Drop_Optimizer_States_TP2
-      - L2_Megatron_GPT_with_ALiBi_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_GPT_with_KERPLE_Pretraining_and_Resume_Training_TP2
-      #- OPTIONAL_L2_Megatron_GPT_Pretraining_and_Resume_Training_PP2
-      - L2_Megatron_GPT_Auto_Configurator_TP1_PP1_MBS124
-      - L2_Megatron_GPT_Finetuning_PP2
-      - L2_Megatron_GPT_Finetuning_StarCoder_PP1
-      - L2_Megatron_GPT_Embedding
-      - L2_Megatron_GPT_PEFT_Lora_PP2_O2
-      - L2_Megatron_GPT_PEFT_Lora_TP2_O1
-      - L2_Megatron_GPT_PEFT_Lora_TP2SP1
-      - L2_Megatron_GPT_Eval
-      - L2_Megatron_GPT_Eval_PP2
-      - L2_Megatron_GPT_SFT_Eval_inference_seq_len_greaterThan_training_seq_len
-      - L2_Megatron_Change_Partitions_Reduce_TP_Num_Partitions_-2_to_1-_and_PP_Num_Partitions_-1_to_2
-      - L2_Megatron_Change_Partitions_Increase_TP_Num_Partitions_-2_to_4-_and_PP_Num_Partitions_-1_to_2
-      - L2_Megatron_Core_T5_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_T5_with_ALiBi_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_T5_with_KERPLE_Pretraining_and_Resume_Training_TP2
-      #- OPTIONAL_L2_Megatron_T5_Pretraining_and_Resume_Training_PP2
-      - L2_Megatron_T5_w_Mixture_of_Expert_Pretraining
-      - L2_Megatron_UL2_Pretraining_and_Resume_Training_TP2
-      - L2_Megatron_Core_T5_Eval
-      - L2_Megatron_Core_T5_PEFT_Lora_TP2
-      - L2_Megatron_Mock_Data_Generation_MockGPTDataset
-      - L2_Megatron_Mock_Data_Generation_MockT5Dataset
       - L2_TTS_Fast_dev_runs_1_Tacotron_2
       - L2_TTS_Fast_dev_runs_1_WaveGlow
       - L2_TTS_Fast_dev_runs_1_FastPitch
@@ -5253,15 +3056,19 @@ jobs:
       - L2_NeMo_2_llama3_pretraining_recipe
       - L2_NeMo_2_llama3_fault_tolerance_plugin
       - L2_NeMo_2_llama3_straggler_detection
+      - L2_HF_Transformer_PEFT_notebook
       - L2_HF_Transformer_PEFT
       - L2_HF_Transformer_PEFT_nemorun
       - L2_HF_Transformer_PEFT_2gpu
+      - L2_HF_Transformer_PEFT_2gpu_FSDP2
       - L2_HF_Transformer_PEFT_2gpu_nemorun
+      - L2_HF_Transformer_SFT_notebook
       - L2_HF_Transformer_SFT
       - L2_HF_Transformer_SFT_nemorun
       - L2_HF_Transformer_SFT_2gpu
+      - L2_HF_Transformer_SFT_2gpu_FSDP2
       - L2_VLM_HF_Transformer_PEFT
-      - L2_VLM_HF_Transformer_PEFT_FSDP
+      - L2_VLM_HF_Transformer_PEFT_FSDP2
       - L2_VLM_HF_Transformer_PEFT_4bit
       - L2_VLM_HF_Transformer_SFT_FSDP2
       - L2_HF_Transformer_SFT_2gpu_nemorun
@@ -5292,34 +3099,35 @@ jobs:
       - L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
       - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
       - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
-      #- OPTIONAL_L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
+      - L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
       - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
       - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
+      - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude
+      - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude
       - L2_NEMO_2_LoRA_MERGE
       - L2_NEMO_2_LoRA_Export
       - L2_NEMO_2_LoRA_Inference
       - L2_NeMo_2_Mixtral_Pretraining
-      - L2_PTQ_Llama2_FP8
-      - L2_Community_LLM_Checkpoints_tests_Llama3
-      - L2_Distill_Llama2
-      - L2_Prune_Width_Llama2
-      - L2_Prune_Depth_Llama2
+      - L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124
       - L2_Speech_to_Text_AED
       - L2_Speech_Estimate_Duration_Bins
       - L2_Speech_Batch_Size_OOMptimizer
-      - L2_Speech_Batch_Size_OOMptimizer_Canary
-      - L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
-      - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
-      - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
-      - L2_Megatron_GPT_Reranker
+      # - Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_With_Prompt
+      # - Optional_L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
       - L2_NeMo_2_PTQ_Llama2_FP8
+      - L2_NeMo_2_Distill_Llama3_TP1PP2
       - L2_NeMo_2_Export_In_Framework
       - L2_NeMo_2_jit_callback
       - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
       - L2_HF_Transformer_SFT_FSDP2_2gpu
       - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
       - L2_NeMo_2_VLLM_EXPORT
+      - L2_NeMo_2_EVAL
+      - L2_SpeechLM_LoRA_TP1PP1_MBS2
+
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
     steps:
@@ -5330,7 +3138,7 @@ jobs:
           # Slack notifications are send only on test failure (not cancelled):
           FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') }}
           echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
-          
+
           # Mark as successful if no job was cancelled:
           SUCCESS=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
           echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
@@ -5351,7 +3159,7 @@ jobs:
           issue-number: ${{ github.event.number }}
           body: |
             [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
-            
+
             We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully
 
             So it might be time to merge this PR or get some approvals
@@ -5383,7 +3191,7 @@ jobs:
           )
           PR_URL=$(echo -E $PR_INFO | jq '.html_url' | tr -d '"')
           PR_TITLE=$(echo -E $PR_INFO | jq '.title' | tr -d '"')
-          
+
           PIPELINE_URL=$SERVER_URL/$REPOSITORY/actions/runs/$RUN_ID
           BASE_MESSAGE='
             {
@@ -5412,7 +3220,7 @@ jobs:
               PAGE=$(( PAGE + 1))
             fi
           done
-          
+
           SUMMARY="[]"
           echo "Failed jobs: " | tee -a $GITHUB_STEP_SUMMARY
           while IFS= read -r JOB; do
@@ -5456,3 +3264,38 @@ jobs:
       - name: "Pipeline not successful, set exit code to 1"
         if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
         run: exit 1
+
+  Coverage:
+    runs-on: ubuntu-latest
+    needs: [Nemo_CICD_Test]
+    strategy:
+      matrix:
+        flag: [unit-test, e2e]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage reports of current branch
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-${{ matrix.flag }}-*
+
+      - name: Get total coverage of current branch
+        shell: bash -x -e -u -o pipefail {0}
+        if: always()
+        run: |
+          pip install coverage
+
+          ls -al .
+          ls -al coverage-*/
+          coverage combine --keep $(ls coverage-*/.coverage)
+          coverage report
+          rm -rf coverage-*
+          ls -al
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+          flags: ${{ matrix.flag }}
