@@ -13,23 +13,21 @@ def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor
     return prev_hash * MULTIPLIER + INCREMENT + add_labels
 
 class BlankLMScoreMode(PrettyStrEnum):
-    # No score for blank
+    """
+        Defines the strategies for handling blank token scores in a external Ngram LM
+        when combined with an automatic speech recognition (ASR) model.
+    """
     NO_SCORE = "no_score"
-    # If the blank label is in the top-k, keep it 
-    # and select the top-k-1 labels based on their combined label and LM scores. 
-    # Otherwise, select the top-k labels based on combined scores.
-    PRESERVE_BLANK = "preserve_blank"
-    # Blank score is obtained from Transducer model and weighted by LM weight.
-    LM_WEIGHTED = "lm_weighted"
-    
+    """No score for blank."""
     LM_WEIGHTED_FULL = "lm_weighted_full"
-    LM_WEIGHTED_FULL_FIXED_BLANK = "lm_weighted_full_fixed_blank"
-    LM_MAX = "lm_max"
-    LM_TOP_MAX = "lm_top_max"
-    
+    """Blank score for LM is set equal to blank score from ASR model; non-blank LM scores are reweighted to sum to 1."""  
+
 class PruningMode(PrettyStrEnum):
+    """Specifies when pruning is applied external Ngram LM shallow fusion.."""
     EARLY = "early"
+    """Hyps are pruned based on ASR probs, then rescored with LM"""
     LATE = "late"
+    """Hyps are scored based on combined ASR and LM probs., then pruned"""
     
 class BatchedBeamHyps:
     """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""

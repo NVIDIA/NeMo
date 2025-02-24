@@ -392,6 +392,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         last_timesteps = (encoder_output_length - 1)[:, None].expand_as(batch_indices)
         active_mask = time_indices <= last_timesteps
 
+        # setup N-gram LM if available
         if self.ngram_lm_batch is not None:
             self.ngram_lm_batch.to(device)
             
