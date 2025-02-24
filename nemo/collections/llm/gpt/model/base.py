@@ -203,7 +203,7 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
 
 def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
-    """Convert MCore config precision settings to PyTorch dtype.
+    """Refer to a MCore config and return the PyTorch dtype.
 
     Args:
         config: Transformer configuration object
@@ -220,6 +220,14 @@ def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
 
 
 def torch_dtype_from_dict_config(config: Dict[str, Any]) -> torch.dtype:
+    """Refer to a dictionary config and return the PyTorch dtype.
+
+    Args:
+        config: Dictionary containing config settings
+
+    Returns:
+        PyTorch dtype corresponding to config precision settings
+    """
     if config['fp16']:
         return torch.float16
     elif config['bf16']:
