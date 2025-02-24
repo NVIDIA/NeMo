@@ -175,7 +175,7 @@ def full_model_tp2_dp4_mock() -> run.Partial:
     recipe.model.flux_params.device = 'cuda'
     recipe.trainer.strategy.tensor_model_parallel_size = 2
     recipe.trainer.devices = 8
-    recipe.trainer.max_steps = 1000
+    recipe.data.global_batch_size = 8
     return recipe
 
 
