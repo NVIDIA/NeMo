@@ -1,8 +1,9 @@
 NeMo Evaluation User Guide
 =======================
 
-This guide provides details about how to evaluate NeMo 2.0 checkpoints with lm-eval-harness (url) that is integrated
-with NeMo Framework. Benchmarks supported: ``MMLU``, ``GSM8k``, ``lambada_openai``, ``winogrande``, ``arc_challenge``, 
+This guide provides details about how to evaluate NeMo 2.0 checkpoints with `lm-evaluation-harness
+<https://github.com/EleutherAI/lm-evaluation-harness>`__ that is integrated with NeMo Framework.
+Benchmarks supported: ``MMLU``, ``GSM8k``, ``lambada_openai``, ``winogrande``, ``arc_challenge``,
 ``arc_easy``, ``copa``
 
 Introduction
@@ -19,7 +20,7 @@ However, to run on clusters its recommended to use NeMo-Run for the ease of use.
 The entrypoint to deploy is the ``deploy`` method defined in ``nemo/collections/llm/api.py``. 
 An example command to deploy is as below:
 
-.. code-block:: bash
+.. code-block:: python
     from nemo.collections.llm import deploy
 
     if __name__ == "__main__":
@@ -34,7 +35,7 @@ evaluations on the deployed model above, use the following command. Open a new t
 run this. For evaluations taking longer, it's a good idea to run deploy and evaluate in tmux sessions to avoid the 
 process from getting killed and aborting the runs.
 
-.. code-block:: bash
+.. code-block:: python
     from nemo.collections.llm import evaluate
     from nemo.collections.llm.evaluation.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
