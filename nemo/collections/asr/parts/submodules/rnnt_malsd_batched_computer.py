@@ -385,7 +385,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             [batch_size, self.beam_size], fill_value=self._SOS, device=device, dtype=torch.long
         )
 
-        batch_indices = torch.arange(batch_size, dtype=torch.long, device=device).unsqueeze(-1).expand(batch_size, self.beam_size)
+        batch_indices = torch.arange(batch_size, device=device, dtype=torch.long).unsqueeze(1).repeat(1, self.beam_size)
             
         time_indices = torch.zeros_like(batch_indices)
         safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
