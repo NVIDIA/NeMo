@@ -21,6 +21,7 @@ The entrypoint to deploy is the ``deploy`` method defined in ``nemo/collections/
 An example command to deploy is as below:
 
 .. code-block:: python
+
     from nemo.collections.llm import deploy
 
     if __name__ == "__main__":
@@ -36,6 +37,7 @@ run this. For evaluations taking longer, it's a good idea to run deploy and eval
 process from getting killed and aborting the runs.
 
 .. code-block:: python
+
     from nemo.collections.llm import evaluate
     from nemo.collections.llm.evaluation.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
@@ -64,7 +66,9 @@ and ``evaluate`` are launched as two separate jobs with NeMo-Run. The evaluate m
 is accessible and the model is deployed before starting to run evaluations.
 
 Example command to run locally with NeMo-Run:
+
 .. code-block:: bash
+
     python scripts/llm/evaluation.py --nemo_checkpoint='/workspace/hf_llama3_8b_nemo2.nemo'
 
 Note: With the local executor run, it is required to manually kill 
@@ -72,6 +76,8 @@ Note: With the local executor run, it is required to manually kill
 To run on slurm based clusters, please pass the ``--slurm`` flag to the command and add all custom parameters to the 
 script like user, host, remote_job_dir, account, mounts etc., Please refer to the script for details. 
 Example command below:
+
 .. code-block:: bash
+
     python scripts/llm/evaluation.py --nemo_checkpoint='/workspace/hf_llama3_8b_nemo2.nemo' --slurm --nodes 1 
     --devices 8 --container_image "nvcr.io/nvidia/nemo:dev" --tensor_parallelism_size 8
