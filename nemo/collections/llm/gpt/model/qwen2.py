@@ -315,7 +315,6 @@ def _import_qkv_bias(ctx: io.TransformCTX, q, k, v):
     head_num = megatron_config.num_attention_heads
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
     head_size = megatron_config.kv_channels
 
     new_q_tensor_shape = (head_num, head_size)
@@ -387,7 +386,6 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     head_num = megatron_config.num_attention_heads
     num_query_groups = megatron_config.num_query_groups
     heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
     head_size = megatron_config.kv_channels
     qkv_total_dim = head_num + 2 * num_query_groups
 
