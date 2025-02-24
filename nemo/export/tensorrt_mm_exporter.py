@@ -22,7 +22,7 @@ from typing import List
 import numpy as np
 import wrapt
 
-from tensorrt_llm.runtime import MultimodalModelRunner
+from tensorrt_llm.runtime import MultimodalModelRunner as TRTLLMRunner
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.multimodal.build import (
@@ -32,7 +32,7 @@ from nemo.export.multimodal.build import (
     build_mllama_engine,
     extract_lora_ckpt,
 )
-from nemo.export.multimodal.run import SpeechllmModelRunner
+from nemo.export.multimodal.run import MultimodalModelRunner, SpeechllmModelRunner
 from nemo.export.tarutils import unpack_tarball
 
 use_deploy = True
@@ -211,27 +211,34 @@ class TensorRTMMExporter(ITritonDeployable):
                 "A nemo checkpoint should be exported and " "then it should be loaded first to run inference."
             )
 
-        # input_media = self.runner.load_test_media(input_media)
-        self.runner.args.image_path = input_media
-        self.runner.args.batch_size = batch_size
-        self.runner.args.top_k = top_k
-        self.runner.args.top_p = top_p
-        self.runner.args.temperature = temperature
-        self.runner.args.repetition_penalty = repetition_penalty
-        self.runner.args.num_beams = num_beams
-        raw_image = self.runner.load_test_image()
-        return self.runner.run(
-            input_text,
-            raw_image,
-            max_output_len,
-            # batch_size,
-            # top_k,
-            # top_p,
-            # temperature,
-            # repetition_penalty,
-            # num_beams,
-            # lora_uids,
-        )
+        if isinstance(self.runner, TRTLLMRunner):
+            self.runner.args.image_path = input_media
+            self.runner.args.batch_size = batch_size
+            self.runner.args.top_k = top_k
+            self.runner.args.top_p = top_p
+            self.runner.args.temperature = temperature
+            self.runner.args.repetition_penalty = repetition_penalty
+            self.runner.args.num_beams = num_beams
+            raw_image = self.runner.load_test_data(input_media)
+            return self.runner.run(
+                input_text,
+                raw_image,
+                max_output_len,
+            )[1]
+        else:
+            input_media = self.runner.load_test_media(input_media)
+            return self.runner.run(
+                input_text,
+                input_media,
+                max_output_len,
+                batch_size,
+                top_k,
+                top_p,
+                temperature,
+                repetition_penalty,
+                num_beams,
+                lora_uids,
+            )
 
     def get_input_media_tensors(self):
         if self.modality == "vision":
@@ -277,7 +284,7 @@ class TensorRTMMExporter(ITritonDeployable):
 
             infer_input = {"input_text": str_ndarray2list(inputs.pop("input_text")[0])}
             video_model_list = ["video-neva", "lita", "vita"]
-            if self.runner.model_type == "neva" or self.runner.model_type == "vila":
+            if self.runner.model_type in ["neva", "vila", "mllama"]:
                 infer_input["input_image"] = ndarray2img(inputs.pop("input_media")[0])[0]
             elif self.runner.model_type in video_model_list:
                 infer_input["input_image"] = inputs.pop("input_media")[0]
@@ -302,7 +309,16 @@ class TensorRTMMExporter(ITritonDeployable):
                 lora_uids = np.char.decode(inputs.pop("lora_uids").astype("bytes"), encoding="utf-8")
                 infer_input["lora_uids"] = lora_uids[0].tolist()
 
-            output_texts = self.runner.run(**infer_input)
+            if isinstance(self.runner, TRTLLMRunner):
+                self.runner.args.batch_size = infer_input.pop("batch_size")
+                self.runner.args.top_k = infer_input.pop("top_k")
+                self.runner.args.top_p = infer_input.pop("top_p")
+                self.runner.args.temperature = infer_input.pop("temperature")
+                self.runner.args.repetition_penalty = infer_input.pop("repetition_penalty")
+                self.runner.args.num_beams = infer_input.pop("num_beams")
+                output_texts = self.runner.run(**infer_input)[1]
+            else:
+                output_texts = self.runner.run(**infer_input)
             output = cast_output(output_texts, np.bytes_)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
@@ -315,21 +331,27 @@ class TensorRTMMExporter(ITritonDeployable):
         if not os.path.exists(llm_dir):
             return
         if self.modality == "vision":
+            import json
             visual_dir = os.path.join(self.model_dir, "visual_engine")
-            from types import SimpleNamespace
-            args = SimpleNamespace(
-                visual_engine_dir=visual_dir,
-                visual_engine_name="visual_encoder.engine",
-                llm_engine_dir=llm_dir,
-                hf_model_dir='meta-llama/Llama-3.2-11B-Vision-Instruct',
-                use_py_session=True,
-                cross_kv_cache_fraction=0.5,
-                enable_context_fmha_fp32_acc=None,
-                enable_chunked_context=False,
-                kv_cache_free_gpu_memory_fraction=0.9,
-                multi_block_mode=True,
-            )
-            self.runner = MultimodalModelRunner(args)
+            with open(os.path.join(visual_dir, "config.json"), "r") as f:
+                config = json.load(f)
+            if config["builder_config"]["model_type"] == "mllama":
+                from types import SimpleNamespace
+                args = SimpleNamespace(
+                    visual_engine_dir=visual_dir,
+                    visual_engine_name="visual_encoder.engine",
+                    llm_engine_dir=llm_dir,
+                    hf_model_dir='meta-llama/Llama-3.2-11B-Vision-Instruct',
+                    use_py_session=True,
+                    cross_kv_cache_fraction=0.5,
+                    enable_context_fmha_fp32_acc=None,
+                    enable_chunked_context=False,
+                    kv_cache_free_gpu_memory_fraction=0.9,
+                    multi_block_mode=True,
+                )
+                self.runner = TRTLLMRunner(args)
+            else:
+                self.runner = MultimodalModelRunner(visual_dir, llm_dir, self.modality)
         elif self.modality == "audio":
             perception_dir = os.path.join(self.model_dir, "perception_engine")
             self.runner = SpeechllmModelRunner(perception_dir, llm_dir, self.modality)

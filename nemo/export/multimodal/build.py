@@ -27,7 +27,7 @@ import torch
 import yaml
 from omegaconf import OmegaConf
 from tensorrt_llm.builder import Builder, BuildConfig
-from tensorrt_llm.models import MLLaMAModel
+from tensorrt_llm.models import MLLaMAForCausalLM
 from tensorrt_llm.mapping import Mapping
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.plugin import PluginConfig
@@ -128,7 +128,7 @@ def build_mllama_trtllm_engine(
         'max_seq_len': max_seq_len,
         'max_num_tokens': max_num_tokens,
         'opt_num_tokens': opt_num_tokens,
-        'strongly_typed': False,
+        'strongly_typed': True,
         'builder_opt': None,
     }
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
@@ -137,7 +137,7 @@ def build_mllama_trtllm_engine(
         mapping = Mapping(world_size=tensor_parallelism_size,
                           rank=rank,
                           tp_size=tensor_parallelism_size)
-        model = MLLaMAModel.from_hugging_face(
+        model = MLLaMAForCausalLM.from_hugging_face(
             hf_model_path,
             dtype,
             mapping=mapping,
@@ -623,6 +623,9 @@ def build_mllama_visual_engine(
     shapes = [
         {k: list(v.shape)for k, v in inputs.items()}
     ] * 3
+    shapes[2] = shapes[0].copy()
+    for k, v in shapes[2].items():
+        shapes[2][k] = [vision_max_batch_size] + v[1:]
     build_trt_engine(
         "mllama",
         shapes,

@@ -14,7 +14,9 @@
 
 import numpy as np
 import soundfile as sf
+import requests
 from PIL import Image
+from io import BytesIO
 
 from nemo.deploy.utils import str_list2numpy
 
@@ -69,8 +71,13 @@ class NemoQueryMultimodal:
             subsample_len = self.frame_len(frames)
             sub_frames = self.get_subsampled_frames(frames, subsample_len)
             return np.array(sub_frames)
-        elif self.model_type == "neva" or self.model_type == "vila":
-            media = Image.open(input_media).convert('RGB')
+        elif self.model_type in ["neva", "vila", "mllama"]:
+            if input_media.startswith("http") or input_media.startswith(
+                    "https"):
+                response = requests.get(input_media, timeout=5)
+                media = Image.open(BytesIO(response.content)).convert("RGB")
+            else:
+                media = Image.open(input_media).convert('RGB')
             return np.expand_dims(np.array(media), axis=0)
         elif self.model_type == "salm":
             waveform, sample_rate = sf.read(input_media, dtype=np.float32)
