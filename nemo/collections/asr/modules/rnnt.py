@@ -314,19 +314,6 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             torch.full([batch, self.context_size - 1], fill_value=self.blank_idx, dtype=torch.long, device=y.device)
         ]
         return state
-    
-    def initialize_state_like(self, batch: int, device: torch.device) -> List[torch.Tensor]:
-        # state contains context_size - 1 elements for each utterance in batch,
-        # consistent with the state returned from StatelessNet.forward
-        state = [
-            torch.full(
-                [batch, self.context_size - 1],
-                fill_value=self.blank_idx,
-                dtype=torch.long,
-                device=device
-            )
-        ]
-        return state
 
     def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]):
         """
@@ -395,11 +382,22 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
         mask: torch.Tensor,
-        src_states2: Optional[list[torch.Tensor]] = None,
+        other_src_states: Optional[list[torch.Tensor]] = None,
     ):
-        """Replace states in dst_states with states from src_states using the mask"""
-        if src_states2:
-            torch.where(mask.unsqueeze(-1), src_states[0], src_states2[0], out=dst_states[0])
+        """
+        Replaces elements in `dst_states` with elements from `src_states` based on the given `mask`.
+
+        Args:
+            mask (torch.Tensor): When True, selects values from `src_states`, otherwise `out` or `other_src_states`(if provided).
+            src_states (list[torch.Tensor]): Values selected at indices where `mask` is True.
+            dst_states (list[torch.Tensor]), optional): The output states.
+            other_src_states (Optional[list[torch.Tensor]]: Values selected at indices where `mask` is False.
+
+        Note:
+            This operation is performed non-blocking using `torch.where`.
+        """
+        if other_src_states:
+            torch.where(mask.unsqueeze(-1), src_states[0], other_src_states[0], out=dst_states[0])
         # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
         torch.where(mask.unsqueeze(-1), src_states[0], dst_states[0], out=dst_states[0])
 
@@ -875,36 +873,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             state = (
                 torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
                 torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
-            )
-        return state
-
-    def initialize_state_like(self, batch: int, dtype: torch.dtype, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Initialize the state of the LSTM layers, with same dtype and device as input `y`.
-        LSTM accepts a tuple of 2 tensors as a state.
-
-        Args:
-            y: A torch.Tensor whose device the generated states will be placed on.
-
-        Returns:
-            Tuple of 2 tensors, each of shape [L, B, H], where
-
-                L = Number of RNN layers
-
-                B = Batch size
-
-                H = Hidden size of RNN.
-        """
-        if self.random_state_sampling and self.training:
-            state = (
-                torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=dtype, device=device),
-                torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=dtype, device=device),
-            )
-
-        else:
-            state = (
-                torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=dtype, device=device),
-                torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=dtype, device=device),
             )
         return state
 

@@ -206,22 +206,6 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def initialize_state_like(self, batch: int, dtype: torch.dtype, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Initialize the state of the RNN layers, with same dtype and device as input `y`.
-
-        Args:
-            y: A torch.Tensor whose device the generated states will be placed on.
-
-        Returns:
-            List of torch.Tensor, each of shape [L, B, H], where
-                L = Number of RNN layers
-                B = Batch size
-                H = Hidden size of RNN.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
     def score_hypothesis(
         self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]
     ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
