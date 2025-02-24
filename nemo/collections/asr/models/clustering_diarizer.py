@@ -25,7 +25,7 @@ import torch
 from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
-
+from nemo.core.connectors import SaveRestoreConnector 
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
@@ -460,11 +460,6 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             verbose=self.verbose,
         )
 
-    @staticmethod
-    def __make_nemo_file_from_folder(filename, source_dir):
-        with tarfile.open(filename, "w:gz") as tar:
-            tar.add(source_dir, arcname="./")
-
     @rank_zero_only
     def save_to(self, save_path: str):
         """
@@ -490,17 +485,8 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 vad_model = os.path.join(tmpdir, _VAD_MODEL)
                 self._vad_model.save_to(vad_model)
             self._speaker_model.save_to(spkr_model)
-            self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
-
-    @staticmethod
-    def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
-        if not os.path.exists(path2file):
-            raise FileNotFoundError(f"{path2file} does not exist")
-        tar = tarfile.open(path2file, "r:gz")
-        tar.extractall(path=out_folder)
-        tar.close()
-        return out_folder
-
+            SaveRestoreConnector._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+            
     @classmethod
     def restore_from(
         cls,
@@ -515,7 +501,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                tmpdir = SaveRestoreConnector._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
                     config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
