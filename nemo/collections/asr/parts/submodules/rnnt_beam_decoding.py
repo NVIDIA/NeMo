@@ -45,6 +45,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import (
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
+from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
 
 try:
     import kenlm
@@ -1492,8 +1493,6 @@ class BeamRNNTInfer(Typing):
         """
         # TOKEN_OFFSET for BPE-based models
         if decoding_type == 'subword':
-            from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
-
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
 

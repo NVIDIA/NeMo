@@ -17,7 +17,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import InitVar, dataclass, field
 from pathlib import Path
-from typing import List, NamedTuple, Optional, cast
+from typing import NamedTuple, cast
 
 import numpy as np
 import torch
@@ -31,6 +31,8 @@ from nemo.core import ModelPT, PretrainedModelInfo
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
 from nemo.utils import logging
 
+DEFAULT_TOKEN_OFFSET = 100  # Default token offset for building ARPA LM
+
 if KENLM_AVAILABLE:
     import kenlm
 
@@ -41,52 +43,39 @@ if TRITON_AVAILABLE:
 
 
 def _log_10_to_e(score):
+    """Convert logarithm with base 10 to natural"""
     return score / np.log10(np.e)
-
-
-try:
-    from numba import njit
-
-    NUMBA_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    NUMBA_AVAILABLE = False
-
-if NUMBA_AVAILABLE:
-
-    @njit
-    def _find_state_numba(to_states, ilabels, state_start_arcs, state_end_arcs, symbols, bos_id) -> int:
-        assert len(symbols) >= 1
-        label = symbols[0]
-        if label == bos_id:
-            state = 1
-        elif label >= 0:
-            state = to_states[label]
-            assert ilabels[label] == label
-        else:
-            raise NotImplementedError
-
-        for label in symbols[1:]:
-            arc_id = (
-                np.searchsorted(ilabels[state_start_arcs[state] : state_end_arcs[state]], label, side='left')
-                + state_start_arcs[state]
-            )
-            assert ilabels[arc_id] == label
-            state = to_states[arc_id]
-        return state
 
 
 class KenLMWrapper:
     """
-    KenLM model wrapper for single element and batched queries for decoding (reference) and testing purposes.
+    KenLM model wrapper for single element and batched queries (slow) for reference decoding and testing purposes.
     """
 
     @kenlm_required
-    def __init__(self, lm_path: Path | str, vocab_size: int, token_offset: int = 100):
+    def __init__(self, lm_path: Path | str, vocab_size: int, token_offset: int = DEFAULT_TOKEN_OFFSET):
+        """
+        Constructor from KenLM (binary) or ARPA (text) model
+
+        Args:
+            lm_path: path to the LM file (binary KenLM or text ARPA model)
+            vocab_size: full vocabulary size for the LM
+            token_offset: offset for the tokens used for building LM
+        """
         self.ngram_lm = kenlm.Model(str(lm_path))
         self.token_offset = token_offset
         self.vocab_size = vocab_size
 
-    def get_init_state(self, bos=True):
+    def get_init_state(self, bos=True) -> "kenlm.State":
+        """
+        Get initial state for the LM (KenLM)
+
+        Args:
+            bos: use begin-of-sentence (start-of-sentence) state, default True
+
+        Returns:
+            initial state
+        """
         init_lm_state = kenlm.State()
 
         if not bos:
@@ -95,7 +84,17 @@ class KenLMWrapper:
         self.ngram_lm.BeginSentenceWrite(init_lm_state)
         return init_lm_state
 
-    def get_init_states(self, batch_size: int, bos=True):
+    def get_init_states(self, batch_size: int, bos=True) -> list["kenlm.State"]:
+        """
+        Get initial states for the LM (KenLM) for batched queries
+
+        Args:
+            batch_size: batch size
+            bos: use begin-of-sentence (start-of-sentence) state, default True
+
+        Returns:
+            batch (list) of states
+        """
         return [self.get_init_state(bos=bos) for _ in range(batch_size)]
 
     def advance(self, states: list["kenlm.State"]) -> tuple[torch.Tensor, list[list["kenlm.State"]]]:
@@ -513,7 +512,7 @@ class FastNGramLM(ModelPT):
         lm_path: Path | str,
         vocab_size: int,
         normalize_unk: bool = True,
-        token_offset: int = 100,
+        token_offset: int = DEFAULT_TOKEN_OFFSET,
         use_triton: bool | None = None,
     ) -> "FastNGramLM":
         if not isinstance(lm_path, Path):
@@ -534,7 +533,7 @@ class FastNGramLM(ModelPT):
         lm_path: Path | str,
         vocab_size: int,
         normalize_unk: bool = True,
-        token_offset: int = 100,
+        token_offset: int = DEFAULT_TOKEN_OFFSET,
         use_triton: bool | None = None,
     ) -> "FastNGramLM":
         """

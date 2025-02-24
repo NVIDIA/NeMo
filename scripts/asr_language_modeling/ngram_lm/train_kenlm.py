@@ -47,7 +47,7 @@ from omegaconf import MISSING
 sys.path.append(str(Path(__file__).parent))
 import kenlm_utils
 
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, DEFAULT_TOKEN_OFFSET
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -159,8 +159,6 @@ def main(args: TrainKenlmConfig):
         logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
         kenlm_p = subprocess.Popen(kenlm_args, stdout=sys.stdout, stdin=subprocess.PIPE, stderr=sys.stderr)
         if args.add_all_unigrams:
-            from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
-
             for token in range(tokenizer.vocab_size):
                 kenlm_p.stdin.write(f"{chr(token+DEFAULT_TOKEN_OFFSET)}\n".encode())
         kenlm_utils.iter_files(

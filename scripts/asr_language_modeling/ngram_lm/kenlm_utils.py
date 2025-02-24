@@ -35,7 +35,7 @@ from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
+from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
 from nemo.utils import logging
 
 # List of the supported models to be used with N-gram LM and beam search decoding
