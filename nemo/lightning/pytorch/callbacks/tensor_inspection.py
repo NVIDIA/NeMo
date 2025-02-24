@@ -4,10 +4,11 @@ from typing import Any, Dict
 import lightning.pytorch as pl
 import nvdlfw_inspect.api as nvinspect_api
 from lightning.pytorch.callbacks import Callback
+from lightning.pytorch.loggers import WandbLogger as PLWandbLogger
 from megatron.core.parallel_state import get_tensor_and_data_parallel_group
 
 from nemo.utils import logging
-
+from typing import Dict, Optional
 
 class TensorInspectConfig:
     """Python-based configuration for tensor inspection tool.
@@ -52,17 +53,33 @@ class TensorInspectCallback(Callback):
         super().__init__()
         self.config = config
         self.debug_setup_done = False
+        self.statistics_logger = None
 
         nvinspect_api.initialize(
             config_file=self.config.features,
             feature_dirs=self.config.feature_dirs,
             log_dir=self.config.log_dir,
-            statistics_logger=None,
+            statistics_logger=self.statistics_logger,
         )
         logging.info("nvinspect_api initialized with Python configuration.")
 
     def on_train_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         if not self.debug_setup_done:
+            # Configure additional loggers from available trainer loggers
+            for logger in trainer.loggers:
+                if isinstance(logger, PLWandbLogger):
+                    from nvdlfw_inspect.logging import wrap_wandb_logger, MetricLogger
+                    wandb_logger = wrap_wandb_logger(logger)
+                    MetricLogger.add_logger(wandb_logger)
+                    logging.info("Added WandB logger to nvdlfw_inspect for tensor statistics")
+                
+                # Also check for TensorBoard loggers
+                elif hasattr(logger, 'experiment') and 'SummaryWriter' in str(type(logger.experiment)):
+                    from nvdlfw_inspect.logging import wrap_tensorboard_writer, MetricLogger
+                    tb_logger = wrap_tensorboard_writer(logger.experiment)
+                    MetricLogger.add_logger(tb_logger)
+                    logging.info("Added TensorBoard logger to nvdlfw_inspect for tensor statistics")
+            
             nvinspect_api.infer_and_assign_layer_names(pl_module)
             nvinspect_api.set_tensor_reduction_group(get_tensor_and_data_parallel_group())
             self.debug_setup_done = True
