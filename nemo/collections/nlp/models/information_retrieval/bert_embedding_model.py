@@ -53,7 +53,7 @@ class BertEmbeddingHead(nn.Module):
         self.pooling_mode_mean_tokens = pooling_mode_mean_tokens
 
     def forward(self, token_embeddings: Tensor, attention_mask: Tensor):
-
+        # pylint: disable=C0116
         token_embeddings = token_embeddings.permute(1, 0, 2)
         input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
         sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
@@ -72,10 +72,12 @@ class BertEmbeddingHead(nn.Module):
         return "Pooling({}) and Normalize".format(self.get_config_dict())
 
     def get_config_dict(self):
+        # pylint: disable=C0116
         return {key: self.__dict__[key] for key in self.config_keys}
 
 
 class MCoreBertEmbeddingModel(MCoreBertModelWrapperWithPostLNSupport):
+    """BertEmbeddingModel that wraps a BertEmbeddingHead and MCoreBertEmbeddingModel"""
     def __init__(self, *args, **kwargs):
 
         super(MCoreBertEmbeddingModel, self).__init__(*args, **kwargs)
