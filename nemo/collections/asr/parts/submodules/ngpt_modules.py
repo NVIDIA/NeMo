@@ -33,7 +33,11 @@ except ImportError:
         deterministic=False,
     ):
         """Quick and dirty implementation for prototyping."""
-        return nn.functional.softmax(q @ (k * softmax_scale).transpose(2, 3), dim=-1) @ v
+        q = q.permute(0, 2, 1, 3)
+        k = k.permute(0, 2, 1, 3)
+        v = v.permute(0, 2, 1, 3)
+        out = nn.functional.softmax(q @ (k * softmax_scale).transpose(2, 3), dim=-1) @ v
+        return out.permute(0, 2, 1, 3)
 
 
 def justnorm(x, fp32: bool = False, idim: int = -1):
@@ -147,11 +151,6 @@ class AttentionBlock(nn.Module):
 
         sqrt_head_dim = (self.config.n_embd / self.config.n_heads) ** 0.5
 
-
-        q = q.permute(0, 2, 1, 3)
-        k = k.permute(0, 2, 1, 3)
-        v = v.permute(0, 2, 1, 3)
-
         softmax_scale = sqrt_head_dim
         y = flash_attn_func(
             q,
@@ -165,7 +164,7 @@ class AttentionBlock(nn.Module):
             deterministic=False,
         )
         y = y.to(dtype=q.dtype)
-        y = y.permute(0, 2, 1, 3).contiguous().view(B, Tq, self.config.n_embd)
+        y = y.contiguous().view(B, Tq, self.config.n_embd)
 
         h_att = self.att_c_proj(y)
 
