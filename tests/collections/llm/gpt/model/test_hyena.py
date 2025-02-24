@@ -593,7 +593,7 @@ def main():
         log_every_n_steps=args.log_every_n_steps,
         limit_val_batches=args.limit_val_batches,
         num_sanity_val_steps=0,
-        use_distributed_sampler=True,
+        use_distributed_sampler=False,
         plugins=nl.MegatronMixedPrecision(
             precision="bf16-mixed",
             params_dtype=torch.bfloat16,
