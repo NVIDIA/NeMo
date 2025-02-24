@@ -287,16 +287,12 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.full_graph = None
         self.separate_graphs = None
         
-        # prprpr
-        # self.cuda_graphs_mode = self.CudaGraphsMode("full_graph")
-        # self.cuda_graphs_mode = self.CudaGraphsMode("no_while_loops")
-        # self.cuda_graphs_mode = self.CudaGraphsMode("no_graphs")
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
         
         if ngram_lm_model is not None:
             assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
-            # self.ngram_lm_batch = FastNGramLM.from_arpa(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+            
             self.ngram_lm_batch = FastNGramLM.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
             
             self.pruning_mode = (
@@ -375,7 +371,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         encoder_output_projected = self.joint.project_encoder(encoder_output)
         float_dtype = encoder_output_projected.dtype
 
-        # init output structures: BatchedHyps (for results), BatchedAlignments + last decoder state
         # init empty batched hypotheses
         batched_hyps = BatchedBeamHyps(
             batch_size=batch_size,
@@ -390,11 +385,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             [batch_size, self.beam_size], fill_value=self._SOS, device=device, dtype=torch.long
         )
 
-        batch_indices = (
-            torch.arange(batch_size, dtype=torch.long, device=device)[:, None]
-            .expand(batch_size, self.beam_size)
-            .clone()
-        )
+        batch_indices = torch.arange(batch_size, dtype=torch.long, device=device).unsqueeze(-1).expand(batch_size, self.beam_size)
+            
         time_indices = torch.zeros_like(batch_indices)
         safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
         last_timesteps = (encoder_output_length - 1)[:, None].expand_as(batch_indices)
@@ -1127,7 +1119,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             src_states=self.state.prev_decoder_state, 
             dst_states=self.state.decoder_state,
             mask=preserve_state.view(-1),
-            src_states2=decoder_state
+            other_src_states=decoder_state
         )
         
         if self.ngram_lm_batch is not None:

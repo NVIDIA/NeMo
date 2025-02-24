@@ -73,6 +73,8 @@ class BatchedBeamHyps:
 
         self.next_timestep = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
         self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
+        
+        self.batch_indices = torch.arange(self.batch_size, device=device)
 
     def clear_(self):
         self.current_lengths_nb.fill_(0)
@@ -322,14 +324,13 @@ class BatchedBeamHyps:
                 
         scores = self.scores[self.batch_indices, best_hyp_index].tolist()
         
-        tokens_list = []
         max_idx = self.current_lengths_wb.max() - 1
+        tokens_list = []
         ptr = best_hyp_index
-        while max_idx >= 0:
-            tokens = self.transcript_wb[self.batch_indices, ptr, max_idx]
-            ptr = self.transcript_wb_prev_ptr[self.batch_indices, ptr, max_idx]
+        for idx in range(max_idx, -1, -1):
+            tokens = self.transcript_wb[self.batch_indices, ptr, idx]
+            ptr = self.transcript_wb_prev_ptr[self.batch_indices, ptr, idx]
 
-            max_idx -= 1
             tokens_list.insert(0, tokens)
         
         transcripts = torch.stack(tokens_list, dim=1).cpu().detach().numpy()
@@ -337,7 +338,7 @@ class BatchedBeamHyps:
             Hypothesis(
                 score=scores[i],
                 y_sequence=transcripts[i][transcripts[i] >= 0],
-                timestep=[],
+                timestamp=[],
                 alignments=None,
                 dec_state=None,
             )
