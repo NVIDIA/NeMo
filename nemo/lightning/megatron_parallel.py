@@ -19,6 +19,7 @@ import inspect
 import queue
 from collections import defaultdict
 from contextlib import contextmanager, nullcontext
+from copy import copy
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -670,12 +671,19 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             model_chunk.buffers = (
                 dist_module.buffers
             )  # We need to do this explicitly since this is a attr pytorch uses
+            model_chunk.original_getattr = copy(model_chunk.__getattr__)
+            model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
         no_sync_func, grad_sync_func = extract_ddp_funcs(self.ddp_config, self)
         for module in self:
             module.config.no_sync_func = no_sync_func
             module.config.grad_sync_func = grad_sync_func
+
+    def teardown_ddp(self):
+        for model_chunk in self:
+            if hasattr(model_chunk, "original_getattr"):
+                model_chunk.__class__.__getattr__ = model_chunk.original_getattr  # type: ignore
 
     def _setup_module(self, function, **kwargs) -> None:
         if hasattr(function, "setup"):
