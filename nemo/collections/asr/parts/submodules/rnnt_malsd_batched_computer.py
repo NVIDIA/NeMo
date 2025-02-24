@@ -509,22 +509,23 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             # TODO: move state aggregation to decoder + support stateless decoder:
             #  self.decoder.batch_aggregate_states_beam(...)
             # state: tuple, each is of [Layers, (BxBeam), Dim]
-            prev_decoder_state = (
-                torch.gather(
-                    decoder_state[0].view(decoder_state[0].shape[0], batch_size, self.beam_size, -1),
-                    dim=2,
-                    index=hyps_indices[None, :, :, None].expand(
-                        decoder_state[0].shape[0], batch_size, self.beam_size, decoder_state[0].shape[-1]
-                    ),
-                ).view(decoder_state[0].shape[0], batch_size * self.beam_size, -1),
-                torch.gather(
-                    decoder_state[1].view(decoder_state[1].shape[0], batch_size, self.beam_size, -1),
-                    dim=2,
-                    index=hyps_indices[None, :, :, None].expand(
-                        decoder_state[1].shape[0], batch_size, self.beam_size, decoder_state[1].shape[-1]
-                    ),
-                ).view(decoder_state[1].shape[0], batch_size * self.beam_size, -1),
-            )
+            prev_decoder_state = self.decoder.batch_rearrange_states(decoder_state, hyps_indices.flatten())
+            # prev_decoder_state = (
+            #     torch.gather(
+            #         decoder_state[0].view(decoder_state[0].shape[0], batch_size, self.beam_size, -1),
+            #         dim=2,
+            #         index=hyps_indices[None, :, :, None].expand(
+            #             decoder_state[0].shape[0], batch_size, self.beam_size, decoder_state[0].shape[-1]
+            #         ),
+            #     ).view(decoder_state[0].shape[0], batch_size * self.beam_size, -1),
+            #     torch.gather(
+            #         decoder_state[1].view(decoder_state[1].shape[0], batch_size, self.beam_size, -1),
+            #         dim=2,
+            #         index=hyps_indices[None, :, :, None].expand(
+            #             decoder_state[1].shape[0], batch_size, self.beam_size, decoder_state[1].shape[-1]
+            #         ),
+            #     ).view(decoder_state[1].shape[0], batch_size * self.beam_size, -1),
+            # )
 
             decoder_output, decoder_state, *_ = self.decoder.predict(
                 last_labels_wb.view(-1).unsqueeze(1),
@@ -580,60 +581,11 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )
-            elif self.blank_lm_score_mode is BlankLMScoreMode.PRESERVE_BLANK:
-                _, labels_top_k_no_lm = torch.topk(log_probs, self.beam_size, dim=-1, largest=True, sorted=True)
-                log_probs[..., :-1] += lm_scores
-                _, labels_with_lm_nb_top_k = torch.topk(
-                        log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                    # [(BxBeam), beam]
-                    # if blank was in labels_top_k -> add blank (last in beam)
-                labels_top_k = labels_with_lm_nb_top_k
-                labels_top_k[..., -1] = torch.where(
-                        (labels_top_k_no_lm == self._blank_index).any(dim=-1),
-                        self._blank_index,
-                        labels_top_k[..., -1],
-                    )
-                log_probs_top_k = torch.gather(log_probs, dim=-1, index=labels_top_k)
-            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED:
-                log_probs[..., :-1] += lm_scores
-                log_probs[..., -1] *= 1 + self.ngram_lm_alpha
-                log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
             elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL:
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
                 log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
                 log_probs[..., -1] *= 1 + self.ngram_lm_alpha
-                log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_WEIGHTED_FULL_FIXED_BLANK:
-                blank_logprob = log_probs[..., -1]
-                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
-                log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) + lm_scores # blank prob - the same
-                log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_MAX:
-                log_probs[..., :-1] += lm_scores
-                log_probs[..., -1] += lm_scores.max(dim=-1, keepdim=False).values
-                log_probs_top_k, labels_top_k = torch.topk(
-                        log_probs, self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-            elif self.blank_lm_score_mode is BlankLMScoreMode.LM_TOP_MAX:
-                log_probs[..., :-1] += lm_scores
-                _, labels_with_lm_nb_top_k = torch.topk(
-                        log_probs[..., :-1], self.beam_size, dim=-1, largest=True, sorted=True
-                    )
-                    # [(BxBeam), beam]
-                lm_only_scores = torch.gather(
-                        lm_scores,
-                        dim=-1,
-                        index=labels_with_lm_nb_top_k,
-                    )
-                log_probs[..., -1] += lm_only_scores.max(dim=-1, keepdim=False).values
                 log_probs_top_k, labels_top_k = torch.topk(
                         log_probs, self.beam_size, dim=-1, largest=True, sorted=True
                     )

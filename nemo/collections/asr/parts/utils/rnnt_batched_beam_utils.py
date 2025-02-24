@@ -30,7 +30,7 @@ class PruningMode(PrettyStrEnum):
     """Hyps are scored based on combined ASR and LM probs., then pruned"""
     
 class BatchedBeamHyps:
-    """Class to store batched hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
+    """Class to store batch of beam hypotheses (labels, time_indices, scores) for efficient RNNT decoding"""
 
     def __init__(
         self,
