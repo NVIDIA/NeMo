@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import io
+import numpy as np
 import torch
+import torchvision
+from PIL import Image
 import webdataset as wds
 
 from nemo.collections.asr.data.audio_to_text import VALID_FILE_FORMATS as VALID_AUDIO_FILE_FORMATS
@@ -29,12 +32,8 @@ __all__ = [
     'get_tarred_audio_visual_text_dataset_from_config',
 ]
 
-VALID_COMPRESSED_SEQUENCE_FILE_FORMATS_SET = {'tar'}
-VALID_IMAGE_FILE_FORMATS_SET = {'jpg', 'jpeg', 'png'}
+VALID_IMAGE_FILE_FORMATS_SET = {ex for ex, f in Image.registered_extensions().items() if f in Image.OPEN}
 VALID_VIDEO_FILE_FORMATS_SET = {'mp4'}
-VALID_VISUAL_FILE_FORMATS_SET = VALID_IMAGE_FILE_FORMATS_SET | \
-                                VALID_VIDEO_FILE_FORMATS_SET | \
-                                VALID_COMPRESSED_SEQUENCE_FILE_FORMATS_SET
 
 
 
@@ -370,10 +369,10 @@ class WdsAudioVisualFilter:
 
     def __next__(self):
         while True:
-            audio_bytes, visual_bytes, key = next(self.iterator)
+            audio_bytes, image_pixels, video_bytes, key = next(self.iterator)
             file_id, _ = os.path.splitext(os.path.basename(key))
             if file_id in self.collection.mapping:
-                return audio_bytes, visual_bytes, key
+                return audio_bytes, image_pixels, video_bytes, key
             else:
                 logging.warning(f"key not in manifest: {file_id}", mode=logging_mode.ONCE)
 
@@ -388,7 +387,8 @@ class WdsAudioVisualLoopOffsets:
         self.collection = collection
         self.current_fid = None
         self.current_audio_bytes = None
-        self.current_visual_bytes = None
+        self.current_image_pixels = None
+        self.current_video_bytes = None
         self.offset_id = 0
 
     def __iter__(self):
@@ -396,17 +396,19 @@ class WdsAudioVisualLoopOffsets:
 
     def __next__(self):
         if self.current_fn is None:
-            self.current_audio_bytes, self.current_visual_bytes, self.current_fid = next(self.iterator)
+            self.current_audio_bytes, self.current_image_pixels, self.current_video_bytes, self.current_fid = \
+                next(self.iterator)
             self.offset_id = 0
         else:
             offset_list = self.collection.mapping[self.current_fid]
             if len(offset_list) == self.offset_id + 1:
-                self.current_audio_bytes, self.current_visual_bytes, self.current_fid = next(self.iterator)
+                self.current_audio_bytes, self.current_image_pixels, self.current_video_bytes, self.current_fid = \
+                    next(self.iterator)
                 self.offset_id = 0
             else:
                 self.offset_id += 1
 
-        return self.current_audio_bytes, self.current_visual_bytes, self.current_fid, self.offset_id
+        return self.current_audio_bytes, self.current_image_pixels, self.current_video_bytes, self.current_fid, self.offset_id
 
 class AudioVisualTextWebDataset(IterableDataset):
     """
@@ -592,12 +594,13 @@ class AudioVisualTextWebDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.decode('pil', wds.torch_video),
+            wds.decode('pil'),
             wds.rename(
                 audio=VALID_AUDIO_FILE_FORMATS, 
-                visual=';'.join(VALID_VISUAL_FILE_FORMATS_SET), 
+                image=';'.join(VALID_IMAGE_FILE_FORMATS_SET),
+                video=';'.join(VALID_VIDEO_FILE_FORMATS_SET), 
                 key='__key__'),
-            wds.to_tuple('audio', 'visual', 'key', missing_is_error=False),
+            wds.to_tuple('audio', 'image', 'video', 'key', missing_is_error=False),
             self._filter,
             self._loop_offsets,
             wds.map(self._build_sample),
@@ -626,7 +629,7 @@ class AudioVisualTextWebDataset(IterableDataset):
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info."""
-        audio_bytes, visual_bytes, key, offset_id = tup
+        audio_bytes, image_pixels, video_bytes, key, offset_id = tup
 
         if key is not None:
             # Grab manifest entry from self.manifest_preprocessor.collection
@@ -663,16 +666,33 @@ class AudioVisualTextWebDataset(IterableDataset):
                 # accomodates normalize_batch
                 output["audio_length"] = torch.tensor(80)
 
-            #TODO: process image/video
-            if visual_bytes is not None:
+            # process image
+            # TODO: dummy image output
+            if image_pixels is not None:
+                # convert to torch tensor
+                image_pixels = torchvision.transforms.functional.pil_to_tensor(image_pixels)
+                
+                # process image
                 if self.visual_processor is not None:
+                    output["visual_signal"] = self.visual_processor(image_pixels[i])
                 else:
-                    output["visual_signal"] = torch.from_numpy(visual_bytes)
+                    output["visual_signal"] = image_pixels.unsqueeze(0)
+
+                output["num_media_tiles"] = output["visual_signal"].shape[0]
+                height = image_pixels.shape[1]
+                width = image_pixels.shape[2]
+                output["image_sizes"] = torch.tensor([[height, width]], dtype=torch.long)
+
+            # TODO: process video. For videos we have to read the raw bytes and deocde it here since 
+            # we need to know the offset and the duration
 
         # Text features
         text_data = self.text_processor(context=manifest_entry.context, output=manifest_entry.answer)
 
         output.update(text_data)
+
+        if image_pixels is not None or video_bytes is not None:
+            output["attention_mask"] = torch.ones(len(text_data), dtype=torch.long)
 
         output['metadata'] = {
             'audio_filepath': manifest_entry.audio_file,
