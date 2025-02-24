@@ -34,8 +34,6 @@ from nemo.collections.diffusion.models.flux.model import (
     T5Config,
 )
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
-from nemo.lightning.pytorch.callbacks.flops_callback import MM_FLOPsMeasurementCallback
-from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.utils.exp_manager import TimingCallback
 
 
@@ -75,7 +73,6 @@ def flux_mock_datamodule() -> pl.LightningDataModule:
 @run.cli.factory(target=llm.train)
 def flux_training() -> run.Partial:
     """Flux Controlnet Training Config"""
-
     return run.Partial(
         llm.train,
         model=run.Config(
@@ -177,21 +174,9 @@ def full_model_tp2_dp4_mock() -> run.Partial:
     )
     recipe.model.flux_params.device = 'cuda'
     recipe.trainer.strategy.tensor_model_parallel_size = 2
-    recipe.trainer.callbacks.append(run.Config(NsysCallback, start_step=25, end_step=26, gen_shape=True))
     recipe.trainer.devices = 8
-    recipe.data.global_batch_size = 8
-    recipe.data.micro_batch_size = 1
     recipe.trainer.max_steps = 1000
-    recipe.trainer.log_every_n_steps = 10
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MM_FLOPsMeasurementCallback,
-            model_name_config_dict={'flux': recipe.model.flux_params.flux_config},
-            data_config=recipe.data,
-        )
-    )
     return recipe
-
 
 @run.cli.factory(target=llm.train)
 def unit_test() -> run.Partial:
