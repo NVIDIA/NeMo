@@ -149,7 +149,7 @@ def main(cfg: EvaluationConfig):
             if "pred_text" not in data:
                 invalid_manifest = True
                 break
-            
+
             ground_truth_text.append(data[cfg.gt_text_attr_name])
 
             predicted_text.append(data["pred_text"])
