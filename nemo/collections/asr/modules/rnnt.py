@@ -385,7 +385,7 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         other_src_states: Optional[list[torch.Tensor]] = None,
     ):
         """
-        Replaces elements in `dst_states` with elements from `src_states` based on the given `mask`.
+        Replaces states in `dst_states` with states from `src_states` based on the given `mask`.
 
         Args:
             mask (torch.Tensor): When True, selects values from `src_states`, otherwise `out` or `other_src_states`(if provided).
@@ -396,10 +396,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         Note:
             This operation is performed non-blocking using `torch.where`.
         """
-        if other_src_states:
-            torch.where(mask.unsqueeze(-1), src_states[0], other_src_states[0], out=dst_states[0])
+        other = other_src_states if other_src_states is not None else dst_states
         # same as `dst_states[0][mask] = src_states[0][mask]`, but non-blocking
-        torch.where(mask.unsqueeze(-1), src_states[0], dst_states[0], out=dst_states[0])
+        torch.where(mask.unsqueeze(-1), src_states[0], other[0], out=dst_states[0])
 
     @classmethod
     def batch_replace_states_all(
@@ -1043,8 +1042,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
     ):
         dtype = src_states[0].dtype
         indices = indices.flatten()
-        return (torch.index_select(src_states[0].to(dtype), dim=1, index=indices),
-                torch.index_select(src_states[1].to(dtype), dim=1, index=indices))
+        return (
+            torch.index_select(src_states[0].to(dtype), dim=1, index=indices),
+            torch.index_select(src_states[1].to(dtype), dim=1, index=indices)
+        )
 
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         """Concatenate a batch of decoder state to a packed state.
@@ -1079,19 +1080,30 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
     @classmethod
     def batch_replace_states_mask(
         cls,
-        src_states: Tuple[torch.Tensor, torch.Tensor],
-        dst_states: Tuple[torch.Tensor, torch.Tensor],
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
         mask: torch.Tensor,
-        src_states2: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        other_src_states: Optional[list[torch.Tensor]] = None,
     ):
-        """Replace states in dst_states with states from src_states using the mask"""
+        """
+        Replaces states in `dst_states` with states from `src_states` based on the given `mask`.
+
+        Args:
+            mask (torch.Tensor): When True, selects values from `src_states`, otherwise `out` or `other_src_states`(if provided).
+            src_states (list[torch.Tensor]): Values selected at indices where `mask` is True.
+            dst_states (list[torch.Tensor]), optional): The output states.
+            other_src_states (Optional[list[torch.Tensor]]: Values selected at indices where `mask` is False.
+
+        Note:
+            This operation is performed non-blocking using `torch.where`.
+        """
         # same as `dst_states[i][mask] = src_states[i][mask]`, but non-blocking
         # we need to cast, since LSTM is calculated in fp16 even if autocast to bfloat16 is enabled 
         
-        second = src_states2 if src_states2 is not None else dst_states
+        other = other_src_states if other_src_states is not None else dst_states
         dtype = dst_states[0].dtype
-        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), second[0], out=dst_states[0])
-        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), second[1], out=dst_states[1])
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), other[0], out=dst_states[0])
+        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), other[1], out=dst_states[1])
 
 
     @classmethod

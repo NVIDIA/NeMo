@@ -342,7 +342,7 @@ class BatchedBeamHyps:
                 Hypothesis(
                     score=scores[batch_i][end_indices[batch_i]],
                     y_sequence=cur_transcript[::-1],
-                    timestep=[],
+                    timestamp=[],
                     alignments=None,
                     dec_state=None,
                 )

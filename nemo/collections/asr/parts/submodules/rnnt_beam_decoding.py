@@ -55,7 +55,7 @@ from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import Mod
 from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
 
 from nemo.utils.timers import SimpleTimer
-from nemo.collections.asr.parts.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 
 try:
     import kenlm

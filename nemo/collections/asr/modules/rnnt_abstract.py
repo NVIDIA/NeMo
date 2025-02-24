@@ -289,9 +289,20 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
         mask: torch.Tensor,
-        src_states2: Optional[list[torch.Tensor]],
+        other_src_states: Optional[list[torch.Tensor]] = None,
     ):
-        """Replace states in dst_states with states from src_states using the mask, in a way that does not synchronize with the CPU"""
+        """
+        Replaces states in `dst_states` with states from `src_states` based on the given `mask`.
+
+        Args:
+            mask (torch.Tensor): When True, selects values from `src_states`, otherwise `out` or `other_src_states`(if provided).
+            src_states (list[torch.Tensor]): Values selected at indices where `mask` is True.
+            dst_states (list[torch.Tensor]), optional): The output states.
+            other_src_states (Optional[list[torch.Tensor]]: Values selected at indices where `mask` is False.
+
+        Note:
+            This operation is performed non-blocking using `torch.where`.
+        """
         raise NotImplementedError()
 
     @classmethod
