@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 import _io
 import lightning.pytorch as pl
 import torch
@@ -34,18 +36,18 @@ def masked_cross_entropy(logits, targets, mask=None):
     Args:
         logits (torch.Tensor): The predicted logits with shape (N, C) where C is the number of classes.
         targets (torch.Tensor): The ground truth class indices with shape (N,).
-        mask (torch.Tensor, optional): A tensor that masks the loss computation. Must be broadcastable
-            to the shape of the loss. Defaults to None.
+        mask (torch.Tensor, optional): A tensor that masks the loss computation. Items marked with
+            1 will be used to calculate loss, otherwise ignored. Must be broadcastable to the shape
+            of the loss. Defaults to None.
 
     Returns:
         torch.Tensor: The computed loss as a scalar tensor.
     """
     if mask is not None:
-        loss = F.cross_entropy(logits, targets, reduction='none')
-        loss = torch.mean(loss * mask.view(-1))
-    else:
-        loss = F.cross_entropy(logits, targets)
-    return loss
+        with torch.no_grad():
+            targets.masked_fill_(mask.view(-1) == 0, -100)
+            del mask
+    return F.cross_entropy(logits, targets)
 
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
@@ -100,6 +102,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
+        # holds loss values until optim step.
+        self.loss_buffer = []
+        self.n_tok = 0
+        self.timestamp = None
 
     @property
     def tokenizer(self):
@@ -223,6 +229,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Returns:
             torch.Tensor: The computed loss for the batch.
         """
+        # logging
+        if self.timestamp is None:
+            self.timestamp = time.perf_counter()
+
+        if isinstance(self.trainer.strategy.checkpoint_io, io.pl.MegatronCheckpointIO):
+            logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
+            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
+
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
@@ -241,8 +255,30 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('reduced_train_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        # logging
+        self.loss_buffer.append(loss.item())
+        self.n_tok += labels.numel()
         return loss
+
+    def on_before_optimizer_step(self, optimizer) -> None:
+        """Hook triggered befored the optimizer step.
+        Used for calculating the average loss across all gradient accumulation steps.
+
+        Args:
+            optimizer (torch.optim.Optimizer): the optimizer; unused.
+        """
+        # Excluding the first/last iter, time_delta is calculated as follows
+        # fwd 0 | opt 0 | fwd 1 | opt 1 | fwd 2
+        #        ^              ^
+        s = time.perf_counter()
+        time_delta = s - self.timestamp
+        self.timestamp = s
+
+        mean_loss = sum(self.loss_buffer) / len(self.loss_buffer)
+        self.loss_buffer = []
+        self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log('tps', self.n_tok / time_delta, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.n_tok = 0
 
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
@@ -387,3 +423,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         fwd_signature = inspect.signature(self.model.forward)
         allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
         return {k: batch[k] for k in allowed_keys if k in batch}
+
+    @property
+    def _has_lora_adapter(self):
+        return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
