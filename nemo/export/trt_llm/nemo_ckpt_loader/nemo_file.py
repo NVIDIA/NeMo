@@ -51,6 +51,27 @@ LOGGER = logging.getLogger("NeMo")
 
 EXTRA_STATE = "extra_state"
 
+try:
+    from megatron.core.dist_checkpointing.strategies.torch import MCoreSavePlan
+except (ImportError, ModuleNotFoundError):
+    LOGGER.warning("Mocking megatron.core is not available, mocking megatron.core.dist_checkpointing.strategies.torch with dummy module")
+    import types
+    import sys
+
+    def dummy_getattr(name):
+        """Dummy getter for megatron.core."""
+        class _Dummy:
+            pass
+        return _Dummy
+
+    megatron = types.ModuleType('megatron')
+    megatron.__getattr__ = dummy_getattr
+    sys.modules['megatron'] = megatron
+    sys.modules['megatron.core'] = megatron
+    sys.modules['megatron.core.dist_checkpointing'] = megatron
+    sys.modules['megatron.core.dist_checkpointing.strategies'] = megatron
+    sys.modules['megatron.core.dist_checkpointing.strategies.torch'] = megatron
+
 
 def is_nemo_file(path):
     """Checks if the path is NeMo tarfile."""
