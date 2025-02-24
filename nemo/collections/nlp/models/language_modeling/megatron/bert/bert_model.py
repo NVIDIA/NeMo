@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=C0115
+# pylint: disable=C0116
 
 """BERT model."""
 
@@ -79,7 +81,8 @@ def bert_extended_attention_mask(attention_mask):
     extended_attention_mask = attention_mask_bss.unsqueeze(1)
 
     # HF Masking is equivalent to the one below
-    # extended_attention_mask = (attention_mask.unsqueeze(1) * torch.ones_like(attention_mask).unsqueeze(2)).unsqueeze(1)
+    # extended_attention_mask =
+    #              (attention_mask.unsqueeze(1) * torch.ones_like(attention_mask).unsqueeze(2)).unsqueeze(1)
 
     # Convert attention mask to binary:
     extended_attention_mask = extended_attention_mask < 0.5
