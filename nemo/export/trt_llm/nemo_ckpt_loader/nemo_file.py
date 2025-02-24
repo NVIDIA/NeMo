@@ -54,14 +54,18 @@ EXTRA_STATE = "extra_state"
 try:
     from megatron.core.dist_checkpointing.strategies.torch import MCoreSavePlan
 except (ImportError, ModuleNotFoundError):
-    LOGGER.warning("Mocking megatron.core is not available, mocking megatron.core.dist_checkpointing.strategies.torch with dummy module")
-    import types
+    LOGGER.warning(
+        "Mocking megatron.core is not available, mocking megatron.core.dist_checkpointing.strategies.torch with dummy module"
+    )
     import sys
+    import types
 
     def dummy_getattr(name):
         """Dummy getter for megatron.core."""
+
         class _Dummy:
             pass
+
         return _Dummy
 
     megatron = types.ModuleType('megatron')

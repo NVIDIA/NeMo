@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import builtins
 import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import pytest
-import builtins
 
 from nemo.collections import llm
 
@@ -26,18 +27,23 @@ OUTPUT_PATH = '/tmp/imported_nemo2'
 dummy_module = MagicMock()
 dummy_module.torch_to_numpy = lambda torch_tensor: torch_tensor.detach().cpu().numpy()
 
+
 class DummyMCore:
     """
     Allow only for MCoreSavePlan import from megatron.core.dist_checkpointing.strategies.torch
     """
+
     def __getattr__(self, name):
         if name.startswith('__'):
             return MagicMock()
         if name == 'MCoreSavePlan':
+
             class Dummy:
                 pass
+
             return Dummy
         raise ModuleNotFoundError(f"Module {name} is not available")
+
 
 dummy_module_mcore = DummyMCore()
 
@@ -64,9 +70,11 @@ def test_model_loading() -> None:
     original_import = builtins.__import__
 
     def custom_import(name, globals=None, locals=None, fromlist=(), level=0):
-        """ Disables megatron imports. """
+        """Disables megatron imports."""
         if name == "megatron.core.dist_checkpointing.strategies.torch":
-            return original_import('megatron.core.dist_checkpointing.strategies.torch', globals, locals, fromlist, level)
+            return original_import(
+                'megatron.core.dist_checkpointing.strategies.torch', globals, locals, fromlist, level
+            )
         if name == "megatron" or name.startswith("megatron."):
             raise ModuleNotFoundError(f"Module {name} is not available!")
         return original_import(name, globals, locals, fromlist, level)
