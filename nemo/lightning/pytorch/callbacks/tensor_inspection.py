@@ -1,15 +1,17 @@
 import os
-from typing import Any
+from typing import Any, Dict
+
 import lightning.pytorch as pl
+import nvdlfw_inspect.api as nvinspect_api
 from lightning.pytorch.callbacks import Callback
 from megatron.core.parallel_state import get_tensor_and_data_parallel_group
-import nvdlfw_inspect.api as nvinspect_api
+
 from nemo.utils import logging
-from typing import Dict
+
 
 class TensorInspectConfig:
     """Python-based configuration for tensor inspection tool.
-    
+
     Args:
         features (Dict[str, Dict]): Dictionary of feature configurations.
             Each feature should contain:
@@ -19,19 +21,20 @@ class TensorInspectConfig:
         log_dir (str): Directory path for storing logs
         feature_dirs (list): List of directories containing feature implementations
     """
+
     def __init__(self, features: Dict[str, Dict], log_dir: str, feature_dirs: list):
         self.features = features
         self.log_dir = log_dir
         self.feature_dirs = feature_dirs
-        
+
         # Validate that each feature has required base fields
         for feature_name, feature_config in features.items():
             if not isinstance(feature_config, dict):
                 raise ValueError(f"Feature {feature_name} configuration must be a dictionary")
-            
+
             if 'enabled' not in feature_config:
                 raise ValueError(f"Feature {feature_name} must have 'enabled' field")
-            
+
             if 'layers' not in feature_config:
                 raise ValueError(f"Feature {feature_name} must have 'layers' configuration")
 
@@ -42,7 +45,8 @@ class TensorInspectConfig:
     @property
     def transformer_engine(self):
         return self.features.get('transformer_engine', {})
-       
+
+
 class TensorInspectCallback(Callback):
     def __init__(self, config: TensorInspectConfig):
         super().__init__()
