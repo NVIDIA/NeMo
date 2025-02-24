@@ -78,6 +78,7 @@ class BertEmbeddingHead(nn.Module):
 
 class MCoreBertEmbeddingModel(MCoreBertModelWrapperWithPostLNSupport):
     """BertEmbeddingModel that wraps a BertEmbeddingHead and MCoreBertEmbeddingModel"""
+
     def __init__(self, *args, **kwargs):
 
         super(MCoreBertEmbeddingModel, self).__init__(*args, **kwargs)
