@@ -317,36 +317,32 @@ class BatchedBeamHyps:
         return scores.view(self.batch_size, self.beam_size, self.beam_size)
 
     def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
-        transcript = self.transcript_wb[..., :self.current_lengths_wb.max()].tolist()
-        transcript_wb_prev_ptr = self.transcript_wb_prev_ptr[..., :self.current_lengths_wb.max()].tolist()
-        if score_norm:
-            end_indices = torch.argmax(self.scores / self.current_lengths_nb.to(self.scores.dtype).add_(1), dim=-1).tolist()
-        else:
-            end_indices = torch.argmax(self.scores, dim=-1).tolist()
-        scores = self.scores.tolist()
-        batch_size = self.scores.shape[0]
-        hyp_length = self.current_lengths_wb[0, 0].cpu().item()
-        # TODO: faster parallel aggregation
-        # TODO: timesteps
-        hypotheses: list[Hypothesis] = []
-        for batch_i in range(batch_size):
-            cur_transcript = []
-            cur_index = end_indices[batch_i]
-            # hyp_length = self.last_timestep[i, cur_index]
-            for j in range(hyp_length - 1, -1, -1):
-                token = transcript[batch_i][cur_index][j]
-                if token > 0 and token != self.blank_index:
-                    cur_transcript.append(token)
-                cur_index = transcript_wb_prev_ptr[batch_i][cur_index][j]
-            hypotheses.append(
-                Hypothesis(
-                    score=scores[batch_i][end_indices[batch_i]],
-                    y_sequence=cur_transcript[::-1],
-                    timestamp=[],
-                    alignments=None,
-                    dec_state=None,
-                )
+        normalized_scores = self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
+        _, best_hyp_index = torch.max(normalized_scores, dim=-1)
+                
+        scores = self.scores[self.batch_indices, best_hyp_index].tolist()
+        
+        tokens_list = []
+        max_idx = self.current_lengths_wb.max() - 1
+        ptr = best_hyp_index
+        while max_idx >= 0:
+            tokens = self.transcript_wb[self.batch_indices, ptr, max_idx]
+            ptr = self.transcript_wb_prev_ptr[self.batch_indices, ptr, max_idx]
+
+            max_idx -= 1
+            tokens_list.insert(0, tokens)
+        
+        transcripts = torch.stack(tokens_list, dim=1).cpu().detach().numpy()
+        hypotheses = [
+            Hypothesis(
+                score=scores[i],
+                y_sequence=transcripts[i][transcripts[i] >= 0],
+                timestep=[],
+                alignments=None,
+                dec_state=None,
             )
+            for i, _ in enumerate(range(self.batch_size))
+        ]
         return hypotheses
     
     
