@@ -769,6 +769,7 @@ class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronF
         return output
 
     def convert_state(self, source, target):
+        # pylint: disable=C0301
         mapping = {
             'transformer_blocks.*.norm1.linear.weight': 'double_blocks.*.adaln.adaLN_modulation.1.weight',
             'transformer_blocks.*.norm1.linear.bias': 'double_blocks.*.adaln.adaLN_modulation.1.bias',
