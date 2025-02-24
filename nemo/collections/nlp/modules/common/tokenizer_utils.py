@@ -156,6 +156,7 @@ def get_nmt_tokenizer(
     delimiter: Optional[str] = None,
     trust_remote_code: Optional[bool] = False,
     chat_template: Optional[Dict] = None,
+    vocab_size: Optional[int] = None,
 ):
     """
     Args:
@@ -172,7 +173,7 @@ def get_nmt_tokenizer(
     import omegaconf
     from omegaconf import OmegaConf
 
-    if isinstance(special_tokens, omegaconf.listconfig.ListConfig):
+    if isinstance(special_tokens, (omegaconf.listconfig.ListConfig, omegaconf.dictconfig.DictConfig)):
         special_tokens = OmegaConf.to_container(special_tokens)
     if special_tokens is None:
         special_tokens_dict = {}
@@ -246,8 +247,13 @@ def get_nmt_tokenizer(
         from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
 
         return TiktokenTokenizer(vocab_file=vocab_file)
+    elif library == 'null':
+        assert vocab_size is not None
+        from nemo.collections.common.tokenizers.null_tokenizer import NullTokenizer
+
+        return NullTokenizer(vocab_size)
     else:
         raise NotImplementedError(
-            'Currently we only support "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'
-            'libraries.'
+            'Currently we only support "huggingface", "sentencepiece", "megatron", "byte-level", "regex", "tabular",'
+            '"tiktoken", and "null" tokenizer libraries.'
         )

@@ -16,10 +16,10 @@ import json
 from pathlib import Path
 from typing import Tuple, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
+from lightning.pytorch.trainer.states import TrainerFn
 from megatron.core import dist_checkpointing
-from pytorch_lightning.trainer.states import TrainerFn
 from rich.console import Console
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -36,6 +36,7 @@ from nemo.utils import logging
 
 @factory
 def gpt_lora() -> PEFT:
+    """ """
     return LoRA()
 
 
@@ -75,6 +76,7 @@ def export_lora(
 def merge_lora(
     lora_checkpoint_path: str,
     output_path: str,
+    legacy_ckpt: bool = False,
 ) -> None:
     """
     Merges the LoRA adapter weights into the base model's weights.
@@ -100,6 +102,10 @@ def merge_lora(
         accelerator="cpu",
         strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()),
     )
+
+    # Load ckpt saved with TE < 1.14
+    if legacy_ckpt:
+        trainer.strategy.ckpt_load_strictness = False
 
     model, lora = _load_base_model_and_lora(lora_checkpoint_path)
     _setup_trainer_and_restore_model_and_adapter(Path(lora_checkpoint_path), trainer, model, lora)
