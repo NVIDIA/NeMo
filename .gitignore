@@ -184,3 +184,6 @@ slurm*.out
 
 evaluation_transcripts*.json
 lightning_logs
+
+tutorials/asr/datasets/*
+tutorials/asr/experiments/*

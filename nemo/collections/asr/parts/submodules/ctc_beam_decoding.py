@@ -27,7 +27,10 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
+from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import CTCBatchedBeamHyps
 from nemo.utils import logging
+
+from nemo.utils.timers import SimpleTimer
 
 DEFAULT_TOKEN_OFFSET = 100
 
@@ -240,6 +243,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self.return_best_hypothesis = return_best_hypothesis
         self.preserve_alignments = preserve_alignments
         self.compute_timestamps = compute_timestamps
+        
+        self.timer = SimpleTimer()
 
         if self.compute_timestamps:
             raise ValueError("Currently this flag is not supported for beam search algorithms.")
@@ -252,6 +257,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             self.search_algorithm = self._pyctcdecode_beam_search
         elif search_type == "flashlight":
             self.search_algorithm = self.flashlight_beam_search
+        elif search_type == "batch_beam":
+            self.search_algorithm = self.batch_beam_search
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
@@ -317,7 +324,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
             # determine type of input - logprobs or labels
             out_len = decoder_lengths if decoder_lengths is not None else None
+            self.timer.start(device=decoder_lengths.device)
             hypotheses = self.search_algorithm(prediction_tensor, out_len)
+            self.timer.stop(device=decoder_lengths.device)
 
             # Pack results into Hypotheses
             packed_result = pack_hypotheses(hypotheses, decoder_lengths)
@@ -421,6 +430,112 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             nbest_hypotheses.append(hypotheses)
 
         return nbest_hypotheses
+
+    @torch.no_grad()
+    def batch_beam_search(
+        self, x: torch.Tensor, out_len: torch.Tensor
+    ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
+        """
+        Open Seq2Seq Beam Search Algorithm (DeepSpeed)
+
+        Args:
+            x: Tensor of shape [B, T, V+1], where B is the batch size, T is the maximum sequence length,
+                and V is the vocabulary size. The tensor contains log-probabilities.
+            out_len: Tensor of shape [B], contains lengths of each sequence in the batch.
+
+        Returns:
+            A list of NBestHypotheses objects, one for each sequence in the batch.
+        """
+        # x: [B, T, D]
+        # out_len: [B]
+
+        batch_size = x.shape[0]
+        max_time = x.shape[1]
+
+        predictions = x
+        # In CTC greedy decoding, each output maximum likelihood token
+        # is calculated independent of the other tokens.
+        predictions_logprobs, predictions_labels = predictions.topk(self.beam_size, dim=-1)
+
+        # Since predictions_logprobs is a padded matrix in the time
+        # dimension, we consider invalid timesteps to be "blank".
+        time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).unsqueeze(-1).expand(batch_size, max_time,  self.beam_size)
+        # non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1).unsqueeze(1))
+        # # Sum the non-blank labels to compute the score of the
+        # # transcription. This follows from Eq. (3) of "Connectionist
+        # # Temporal Classification: Labelling Unsegmented Sequence Data
+        # # with Recurrent Neural Networks".
+        # scores = torch.where(non_blank_ids_mask, predictions_logprobs, 0.0).sum(axis=1)
+        
+        batched_beam_hyps = CTCBatchedBeamHyps(
+            batch_size=batch_size,
+            beam_size=self.beam_size,
+            blank_index=self.blank_id,
+            init_length=max_time + 1,
+            device=x.device,
+            float_dtype=x.dtype,
+        )
+        
+        beam_indices = torch.arange(self.beam_size, device=x.device)
+        expansion_beam_indices = beam_indices.unsqueeze(0).unsqueeze(-1).repeat(batch_size, 1, self.beam_size)
+        
+        expansion_indices = beam_indices[None, :, None].expand(
+            batch_size, -1, self.beam_size
+        )
+        for t in range(max_time):
+            time_step = time_steps[:, t, :]
+            active_mask = time_step < out_len.unsqueeze(1)
+            
+            labels = predictions_labels[:, t, :]
+            probs = predictions_logprobs[:, t, :]
+            
+            total_scores = batched_beam_hyps.scores[:, :, None] + probs[:, None, :]
+            
+            hyps_scores, hyps_candidates_indices = torch.topk(total_scores.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True)
+            hyps_indices = hyps_candidates_indices // self.beam_size # torch.gather(expansion_indices.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
+            next_labels = torch.gather(labels.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices % self.beam_size)
+            
+            next_labels = torch.where(active_mask, next_labels, -1)
+            batched_beam_hyps.add_results_(hyps_indices, next_labels, hyps_scores)
+
+        nbest_hypotheses = []
+        for x in batched_beam_hyps.to_hyps_list():
+            # Wrap the result in NBestHypothesis.
+            hypotheses = rnnt_utils.NBestHypotheses([x])
+            nbest_hypotheses.append(hypotheses)
+            
+        return nbest_hypotheses
+
+        # scores = scores.cpu()
+        # predictions_labels = predictions_labels.cpu()
+        # out_len = out_len.cpu()
+
+        # hypotheses = []
+
+        # # This mimics the for loop in GreedyCTCInfer::forward.
+        # for i in range(batch_size):
+        #     hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
+        #     hypothesis.score = scores[i]
+
+        #     prediction_labels_no_padding = predictions_labels[i, : out_len[i]].tolist()
+
+        #     assert predictions_labels.dtype == torch.int64
+        #     hypothesis.y_sequence = prediction_labels_no_padding
+
+        #     if self.preserve_alignments:
+        #         hypothesis.alignments = (
+        #             predictions[i, : out_len[i], :].clone(),
+        #             predictions_labels[i, : out_len[i]].clone(),
+        #         )
+        #     if self.compute_timestamps:
+        #         # TOOD: Could do this in a vectorized manner... Would
+        #         # prefer to have nonzero_static, though, for sanity.
+        #         # Or do a prefix sum on out_len
+        #         hypothesis.timestamp = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
+            
+        #     hypotheses.append(hypothesis)
+            
+        # return hypotheses
 
     @torch.no_grad()
     def _pyctcdecode_beam_search(

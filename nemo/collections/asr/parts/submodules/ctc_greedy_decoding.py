@@ -27,6 +27,7 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging, logging_mode
 
+from nemo.utils.timers import SimpleTimer
 
 def pack_hypotheses(
     hypotheses: List[rnnt_utils.Hypothesis],
@@ -386,6 +387,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
         self._repeated_symbols_allowed = True
+        
+        self.timer = SimpleTimer()
 
     @typecheck()
     def forward(
@@ -421,6 +424,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         # tensors are already on the same device, this is a no-op.
         decoder_lengths = decoder_lengths.to(decoder_output.device)
 
+        self.timer.start(device=decoder_output.device)
         if decoder_output.ndim == 2:
             if self.ngram_lm_batch is not None:
                 raise NotImplementedError
@@ -431,6 +435,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             else:
                 self.ngram_lm_batch.to(decoder_output.device)
                 hypotheses = self._greedy_decode_logprobs_batched_lm(decoder_output, decoder_lengths)
+        self.timer.stop(device=decoder_output.device)
         packed_result = pack_hypotheses(hypotheses, input_decoder_lengths)
         return (packed_result,)
 
