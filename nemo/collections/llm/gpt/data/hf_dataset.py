@@ -233,7 +233,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.mcore_dataloader_type = mcore_dataloader_type
         self.use_dist_sampler = use_dist_sampler
 
-
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
         """wraps Dataset's from_dict method"""
