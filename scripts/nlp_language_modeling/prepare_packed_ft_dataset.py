@@ -320,7 +320,7 @@ def main(cfg: 'DictConfig') -> None:
         logging.info("Writing final npy files")
         os.makedirs(args.output_dir, exist_ok=True)
         base_path = os.path.join(args.output_dir, f'packed_{pack_size}_seed{args.seed}')
-        os.makedirs(base_path,exist_ok=True)
+        os.makedirs(base_path, exist_ok=True)
 
         np.save(os.path.join(base_path, 'input_ids.npy'), all_input_ids)
         np.save(os.path.join(base_path, 'loss_mask.npy'), all_loss_mask)

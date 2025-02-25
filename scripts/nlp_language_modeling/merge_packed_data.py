@@ -51,7 +51,10 @@ def merge_packed_arrays(prefixes, output_prefix):
         os.path.join(output_prefix, "loss_mask.npy"), mode='w+', dtype=np.bool_, shape=(total_samples, max_input_len)
     )
     merged_seq_start_id = np.lib.format.open_memmap(
-        os.path.join(output_prefix, "seq_start_id.npy"), mode='w+', dtype=np.int32, shape=(total_samples, max_seq_starts)
+        os.path.join(output_prefix, "seq_start_id.npy"),
+        mode='w+',
+        dtype=np.int32,
+        shape=(total_samples, max_seq_starts),
     )
     # Initialize with default values
     merged_input_ids[:] = -1
