@@ -325,13 +325,14 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     seq_length=4096,
     global_batch_size=32,
     model_name="meta-llama/Llama-3.2-1B",
+    peft_scheme=None,
 ):
     finetune = hf_auto_model_for_causal_lm.finetune_recipe(
         model_name=model_name,
         num_nodes=num_nodes,
         num_gpus_per_node=num_gpus_per_node,
         max_steps=10000,
-        peft_scheme=None,
+        peft_scheme=peft_scheme,
     )
 
     # datamodule = run.Config(
@@ -374,11 +375,13 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     #    global_batch_size / num_gpus_per_node / num_nodes
     # )  # Change gradient accumulation steps here
 
+    peft_scheme = "finetune" if peft_scheme is None else peft_scheme
+
     finetune.trainer.callbacks = [run.Config(DeltaTimingCallback)]
     finetune.log.wandb = run.Config(
         WandbLogger,
         project="nemo2",
-        name=f"{DATE_STR}-{wandb_project_name}-hf-finetune-{model_name}-{num_nodes}-nodes-seq{seq_length}-gbs{global_batch_size}",
+        name=f"{DATE_STR}-{wandb_project_name}-hf-{peft_scheme}-{model_name}-{num_nodes}-nodes-seq{seq_length}-gbs{global_batch_size}",
     )
     return finetune
 
@@ -467,17 +470,17 @@ recipes = [
     #     ),
     #     "perf-llama3_8b_finetune-1_node-8_gpu_4096_32",
     # ),
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=4,
-            num_gpus_per_node=8,
-            wandb_project_name="perf",
-            seq_length=4096,
-            global_batch_size=32,
-            model_name="meta-llama/Meta-Llama-3-70B",
-        ),
-        "perf-llama3_70b_finetune-4_node-32_gpu_4096_32",
-    ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=4,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=4096,
+    #         global_batch_size=32,
+    #         model_name="meta-llama/Meta-Llama-3-70B",
+    #     ),
+    #     "perf-llama3_70b_finetune-4_node-32_gpu_4096_32",
+    # ),
     # (
     #     custom_hf_auto_model_for_causal_lm_finetune(
     #         num_nodes=1,
@@ -528,6 +531,78 @@ recipes = [
     #     custom_hf_auto_model_for_causal_lm(4, 8, "nemo2", 2048, 128),
     #     "hf_llama32_1b_pretrain_4_node_8_gpu",
     # ),
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=1,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=4096,
+            global_batch_size=8,
+            model_name="meta-llama/Meta-Llama-3-8B",
+            peft_scheme="lora",
+        ),
+        "perf-llama3_8b_lora-1_node-8_gpu_4096_16",
+    ),
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=1,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=4096,
+            global_batch_size=8,
+            model_name="meta-llama/Meta-Llama-3-70B",
+            peft_scheme="lora",
+        ),
+        "perf-llama3_70b_lora-1_node-8_gpu_4096_16",
+    ),
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=1,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=2048,
+            global_batch_size=32,
+            model_name="meta-llama/Meta-Llama-3-8B",
+            peft_scheme="lora",
+        ),
+        "perf-llama3_8b_lora-1_node-8_gpu_2048_32",
+    ),
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=1,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=2048,
+            global_batch_size=32,
+            model_name="meta-llama/Meta-Llama-3-70B",
+            peft_scheme="lora",
+        ),
+        "perf-llama3_70b_lora-1_node-8_gpu_2048_32",
+    ),
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=1,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=1024,
+            global_batch_size=32,
+            model_name="meta-llama/Meta-Llama-3-8B",
+            peft_scheme="lora",
+        ),
+        "perf-llama3_8b_lora-1_node-8_gpu_1024_32",
+    ),
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=1,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=1024,
+            global_batch_size=32,
+            model_name="meta-llama/Meta-Llama-3-70B",
+            peft_scheme="lora",
+        ),
+        "perf-llama3_70b_lora-1_node-8_gpu_1024_32",
+    ),
 ]
 
 

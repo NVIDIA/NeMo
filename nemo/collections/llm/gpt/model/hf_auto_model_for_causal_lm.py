@@ -156,14 +156,15 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """helper method; see also configure_model."""
         # create all your layers here
         if self.load_pretrained_weights:
-            return AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-                torch_dtype=torch.bfloat16,
-                device_map="cpu",
-                trust_remote_code=self.trust_remote_code,
-                load_in_4bit=self.load_in_4bit,
-                attn_implementation=attn_implementation,
-            )
+            with torch.device("cpu"):
+                return AutoModelForCausalLM.from_pretrained(
+                    self.model_name,
+                    torch_dtype=torch.bfloat16,
+                    device_map="cpu",
+                    trust_remote_code=self.trust_remote_code,
+                    load_in_4bit=self.load_in_4bit,
+                    attn_implementation=attn_implementation,
+                )
         else:
             from transformers import AutoConfig
 
