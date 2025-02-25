@@ -12,32 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import io
+import copy
 import numpy as np
 import torch
 import torchvision
 from PIL import Image
 import webdataset as wds
+from typing import Dict, List, Optional, Union
 
+from megatron.core import parallel_state
+from omegaconf.omegaconf import DictConfig, ListConfig, open_dict
+
+from nemo.collections.common.parts.preprocessing import manifest
+from nemo.collections.common.data.dataset import ConcatDataset
+
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import TextProcessing
+
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 from nemo.collections.asr.data.audio_to_text import VALID_FILE_FORMATS as VALID_AUDIO_FILE_FORMATS
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
-
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 
 from nemo.core.classes import IterableDataset
+from nemo.utils import logging, logging_mode
 from nemo.utils.distributed import webdataset_split_by_workers
-from nemo.collections.common.parts.preprocessing import manifest
+
 
 __all__ = [
-    'get_tarred_audio_visual_text_dataset_from_config',
+    'get_tarred_audio_video_images_text_dataset_from_config',
 ]
 
 VALID_IMAGE_FILE_FORMATS_SET = {ex for ex, f in Image.registered_extensions().items() if f in Image.OPEN}
-VALID_VIDEO_FILE_FORMATS_SET = {'mp4'}
+VALID_VIDEO_FILE_FORMATS_SET = {}
 
 
-
-class AVLMAudioVisualTextEntity(object):
+class MediaDataEntity(object):
     """Class for AVLM dataloader instance."""
 
     def __init__(self, sid, audio_file, video_file, image_files: List[str], duration, context, answer, offset, speaker, orig_sr, lang) -> None:
@@ -54,7 +65,8 @@ class AVLMAudioVisualTextEntity(object):
         self.orig_sr = orig_sr
         self.lang = lang
 
-class AVLMAudioVisualText(object):
+
+class MediaDataset(object):
     """List of audio-transcript text correspondence with preprocessing.
 
     All of the audio, duration, context, answer are optional.
@@ -131,7 +143,7 @@ class AVLMAudioVisualText(object):
                 continue
 
             data.append(
-                AVLMAudioVisualTextEntity(id_, audio_file, video_file, image_files, duration, context, answer, offset, speaker, orig_sr, lang)
+                MediaDataEntity(id_, audio_file, video_file, image_files, duration, context, answer, offset, speaker, orig_sr, lang)
             )
             if index_by_file_id and (audio_file is not None or video_files is not None or image_files is not []):
                 if audio_file is not None:
@@ -181,10 +193,11 @@ class AVLMAudioVisualText(object):
     def __len__(self):
         return len(self.data)
 
-class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
-    """`AVLMAudioVisualText` collector from SpeechLLM json files.
 
-    This collector also keeps backward compatibility with AVLMAudioVisualText.
+class MediaDataCollection(MediaDataset):
+    """`MediaDataset` collector from SpeechLLM json files.
+
+    This collector also keeps backward compatibility with MediaDataset.
     """
 
     def __init__(
@@ -250,7 +263,7 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
             video_files.append(item['video_file'])
-            image_samples.append(item['image_samples'])
+            image_samples.append(item['image_sample'])
             durations.append(item['duration'])
             context_list.append(item['context'])
             answers.append(item['answer'])
@@ -284,7 +297,7 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
         elif 'video_files' not in item:
             item['video_file'] = None
 
-        if self.video_extension is not None and item['video_file'] is not None:
+        if self.video_extension is None and item['video_file'] is not None:
             _, self.video_extension = os.path.splitext(item['video_file'])
 
         # image file(s)
@@ -293,20 +306,20 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
         # or multiple images serving different purposes as long as their extensions are differnt.
         # e.g. 0001.left_view.png, 0001.right_view.png, 0001.depth_map.png 
         if 'image_filename' in item:
-            item['image_samples'] = item.pop('image_filename')
+            item['image_sample'] = item.pop('image_filename')
         if 'image_filenames' in item:
-            item['image_samples'] = item.pop('image_filenames')
+            item['image_sample'] = item.pop('image_filenames')
         elif 'image_filepath' in item:
-            item['image_samples'] = item.pop('image_filepath')
-        elif 'image_samples' not in item:
-            item['image_samples'] = None
+            item['image_sample'] = item.pop('image_filepath')
+        elif 'image_sample' not in item:
+            item['image_sample'] = None
 
         # split into a list of images
-        if item['image_samples'] is not None:
-            item['image_samples'] = item['image_samples'].replace(" ", "").split(',')
+        if item['image_sample'] is not None:
+            item['image_sample'] = item['image_sample'].replace(" ", "").split(',')
             # do this for every sample in case the number of frames is different
             self.image_extensions = self.image_extensions | \
-                set([img[img.find('.')+1:] for img in item['image_samples']])
+                set([img[img.find('.')+1:] for img in item['image_sample']])
 
         # Duration.
         if 'duration' not in item:
@@ -347,7 +360,8 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
 
         item = dict(
             audio_file=item['audio_file'],
-            visual_filepath=item['visual_filepath'],
+            video_file=item['video_file'],
+            image_sample=item['image_sample'],
             duration=item['duration'],
             context=str(item['context']),
             answer=str(item['answer']),
@@ -358,9 +372,10 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
         )
         return item
 
-class WdsAudioVisualFilter:
+
+class WdsFilter:
     """
-    filter function for tarred audio and visual files, skip entry if not in manifest
+    filter function for tarred audio, video, and/or images files, skip entry if not in manifest
     """
 
     def __init__(self, collection, iterator):
@@ -381,9 +396,9 @@ class WdsAudioVisualFilter:
                 logging.warning(f"key not in manifest: {file_id}", mode=logging_mode.ONCE)
 
 
-class WdsAudioVisualLoopOffsets:
+class WdsLoopOffsets:
     """
-    Loop over wds audio and visual files
+    Loop over wds audio, video, and/or images files
     """
 
     def __init__(self, collection, iterator):
@@ -412,7 +427,8 @@ class WdsAudioVisualLoopOffsets:
 
         return self.current_others + (self.current_fid, self.offset_id)
 
-class AudioVisualTextWebDataset(IterableDataset):
+
+class MediaWebDataset(IterableDataset):
     """
     A Dataset which loads webDataset compliant dataset which may have one, two or all of the followings: audio, image and video files.
 
@@ -443,9 +459,9 @@ class AudioVisualTextWebDataset(IterableDataset):
     and the image/video files within the tarball.
     ...
 
-    Valid formats for the audio_visual_tar_filepaths argument include:
-    (1) a single string that can be brace-expanded, e.g. 'path/to/audio_visual.tar' or 'path/to/audio_visual_{1..100}.tar.gz', or
-    (2) a list of file paths that will not be brace-expanded, e.g. ['audio_visual_1.tar', 'audio_visual_2.tar', ...].
+    Valid formats for the media_tar_filepaths argument include:
+    (1) a single string that can be brace-expanded, e.g. 'path/to/audio_video_images.tar' or 'path/to/audio_video_images_{1..100}.tar.gz', or
+    (2) a list of file paths that will not be brace-expanded, e.g. ['audio_video_images_1.tar', 'audio_video_images_2.tar', ...].
 
     Note: For brace expansion in (1), there may be cases where `{x..y}` syntax can't be used due to shell.
     This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
@@ -464,14 +480,16 @@ class AudioVisualTextWebDataset(IterableDataset):
     after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
 
     Args:
-        audio_visual_tar_filepaths: Either a list of audio tarball filepaths, or a
+        media_tar_filepaths: Either a list of media tarball filepaths, or a
             string (can be brace-expandable).
         manifest_filepath (str): Path to the manifest.
         text_processor: TextProcessing object,
+        image_processor: Image processor object,
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
         audio_augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
             object used to augment loaded audio
+        image_augmentor: Image data augmentor,
         shuffle_n (int): How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
             Defaults to 0.
@@ -538,14 +556,14 @@ class AudioVisualTextWebDataset(IterableDataset):
 
     def __init__(
         self,
-        audio_visual_tar_filepaths: Union[str, List[str]],
+        media_tar_filepaths: Union[str, List[str]],
         manifest_filepath: str,
         text_processor: TextProcessing,
-        visual_processor,
+        image_processor,
         sample_rate: int,
         int_values: bool = False,
         audio_augmentor: Optional['nemo.collections.asr.parts.perturb.AudioAugmentor'] = None,
-        visual_augmentor = None,
+        image_augmentor = None,
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -564,7 +582,7 @@ class AudioVisualTextWebDataset(IterableDataset):
     ):
         super().__init__()
         self.text_processor = text_processor
-        self.visual_processor = visual_processor
+        self.image_processor = image_processor
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
         self.is_megatron_iterable = True
@@ -572,7 +590,7 @@ class AudioVisualTextWebDataset(IterableDataset):
         self.tokens_to_generate = tokens_to_generate
         self.pad_to_max_length = pad_to_max_length
 
-        self.collection = AVLMAudioVisualTextCollection(
+        self.collection = MediaDataCollection(
             manifests_files=manifest_filepath,
             min_duration=min_duration,
             max_duration=max_duration,
@@ -587,22 +605,22 @@ class AudioVisualTextWebDataset(IterableDataset):
         self.waveform_featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, audio_augmentor=audio_augmentor)
         self.trim = trim
 
-        audio_visual_tar_filepaths = expand_sharded_filepaths(
-            sharded_filepaths=audio_visual_tar_filepaths,
+        media_tar_filepaths = expand_sharded_filepaths(
+            sharded_filepaths=media_tar_filepaths,
             shard_strategy=shard_strategy,
             world_size=world_size,
             global_rank=global_rank,
         )
 
         # Put together WebDataset
-        self._dataset = wds.WebDataset(urls=audio_visual_tar_filepaths, nodesplitter=None)
+        self._dataset = wds.WebDataset(urls=media_tar_filepaths, nodesplitter=None)
 
         if shuffle_n == 0:
             logging.info("WebDataset will not shuffle files within the tar files.")
 
         # Put together WebDataset pipeline
         self._dataset = wds.DataPipeline(
-            wds.SimpleShardList(urls=audio_visual_tar_filepaths),
+            wds.SimpleShardList(urls=media_tar_filepaths),
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
@@ -625,11 +643,11 @@ class AudioVisualTextWebDataset(IterableDataset):
         Note that if using multi-GPU training, filtering may lead to an imbalance in samples in each shard,
         which may make your code hang as one process will finish before the other.
         """
-        return WdsAudioVisualFilter(self.collection, iterator)
+        return WdsFilter(self.collection, iterator)
 
     def _loop_offsets(self, iterator):
         """This function is used to iterate through utterances with different offsets for each file."""
-        return WdsAudioVisualLoopOffsets(self.collection, iterator)
+        return WdsLoopOffsets(self.collection, iterator)
 
     def _collate_fn(self, batch):
         # TODO
@@ -646,6 +664,8 @@ class AudioVisualTextWebDataset(IterableDataset):
         image_pixels = tup[2:-2]
         key = tup[-2]
         offset_id = tup[-1]
+
+        processed_images = []
 
         if key is not None:
             # Grab manifest entry from self.manifest_preprocessor.collection
@@ -684,22 +704,21 @@ class AudioVisualTextWebDataset(IterableDataset):
 
             # process image
             # TODO: dummy image output
-            processed_images = []
             output["image_sizes"] = None
             for image_pixel in image_pixels:
                 if image_pixel is not None:
                     if output["image_sizes"] is None:
                         # TODO: each image has the same size?
-                        height = image_pixels.shape[1]
-                        width = image_pixels.shape[2]
+                        height = image_pixel.shape[1]
+                        width = image_pixel.shape[2]
                         output["image_sizes"].append(torch.tensor([[height, width]], dtype=torch.long))
 
                     # convert to torch tensor
-                    processed_image = torchvision.transforms.functional.pil_to_tensor(image_pixels)
+                    processed_image = torchvision.transforms.functional.pil_to_tensor(image_pixel)
                     
                     # process image
-                    if self.visual_processor is not None:
-                        processed_image = self.visual_processor(processed_image)
+                    if self.image_processor is not None:
+                        processed_image = self.image_processor(processed_image)
                     else:
                         processed_image = torch.to_tensor(processed_image).unsqueeze(0)
 
@@ -707,7 +726,7 @@ class AudioVisualTextWebDataset(IterableDataset):
 
             if processed_images is not []:
                 # concatenate all image tiles along the first dimension
-                processed_images = torch.cat(processed_images, 0)
+                processed_images = torch.cat(processed_images)
                 output["image_signal"] = processed_images
                 output["num_image_tiles"] = output["image_signal"].shape[0]
 
@@ -719,7 +738,7 @@ class AudioVisualTextWebDataset(IterableDataset):
 
         output.update(text_data)
 
-        if image_pixels is not None or video_bytes is not None:
+        if processed_images is not [] or video_bytes is not None:
             output["attention_mask"] = torch.ones(len(text_data), dtype=torch.long)
 
         output['metadata'] = {
@@ -754,17 +773,197 @@ class AudioVisualTextWebDataset(IterableDataset):
     def __len__(self):
         return self.len
 
-def get_audio_visual_text_webdataset_from_config(
+
+def get_media_webdataset(
+    config,
+    text_processor,
+    image_processor,
+    audio_augmentor,
+    image_augmentor,
+    global_rank=0,
+    world_size=1,
+    shuffle_n=0,
+):
+    """
+    Get media to text webdataset
+    """
+    media_tar_filepaths = config['media_tar_filepaths']
+    manifest_filepaths = config['manifest_filepath']
+    datasets = []
+    media_tar_filepaths = convert_to_config_list(media_tar_filepaths)
+    manifest_filepaths = convert_to_config_list(manifest_filepaths)
+
+    bucketing_weights = config.get('bucketing_weights', None)  # For upsampling buckets
+    if bucketing_weights:
+        for idx, weight in enumerate(bucketing_weights):
+            if not isinstance(weight, int) or weight <= 0:
+                raise ValueError(f"bucket weights must be positive integers")
+
+    if len(manifest_filepaths) != len(media_tar_filepaths):
+        raise ValueError(
+            f"manifest_filepaths (length={len(manifest_filepaths)}) and media_tar_filepaths",
+            f"(length={len(media_tar_filepaths)}) need to have the same number of buckets.",
+        )
+
+    if 'labels' not in config:
+        logging.warning(f"dataset does not have explicitly defined labels")
+
+    if 'max_utts' in config:
+        raise ValueError('"max_utts" parameter is not supported for tarred datasets')
+
+    for dataset_idx, (media_tar_filepath, manifest_filepath) in enumerate(
+        zip(media_tar_filepaths, manifest_filepaths)
+    ):
+        if len(media_tar_filepath) == 1:
+            media_tar_filepath = media_tar_filepath[0]
+        if len(manifest_filepath) == 1:
+            manifest_filepath = manifest_filepath[0]
+
+        dataset = TarredAudioTextDataset(
+            media_tar_filepath=media_tar_filepath,
+            manifest_filepath=manifest_filepath,
+            text_processor=text_processor,
+            image_processor=image_processor,
+            sample_rate=config['sample_rate'],
+            int_values=config.get('int_values', False),
+            audio_augmentor=audio_augmentor,
+            image_augmentor=image_augmentor,
+            shuffle_n=shuffle_n,
+            max_duration=config.get('max_duration', None),
+            min_duration=config.get('min_duration', None),
+            trim=config.get('trim_silence', False),
+            shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
+            shard_manifests=config.get('shard_manifests', False),
+            global_rank=global_rank,
+            world_size=world_size,
+            max_seq_length=config.max_seq_length,
+            min_seq_length=config.min_seq_length,
+            tokens_to_generate=config.get('tokens_to_generate', 0),
+            pad_to_max_length=config.get('pad_to_max_length', False),
+            context_key=config.get('context_key', 'context'),
+            answer_key=config.get('answer_key', 'answer'),
+            context_file=config.get('context_file', None),
+        )
+
+        if bucketing_weights:
+            [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]
+        else:
+            datasets.append(dataset)
+
+    with open_dict(config):  # patch for bucketing tarred datasets
+        config['batch_size'] = config.get("micro_batch_size", 1)
+    return get_chain_dataset(datasets=datasets, ds_config=config, rank=global_rank)
+
+
+def get_concat_media_webdataset(
+    config,
+    text_processor,
+    image_processor,
+    audio_augmentor,
+    image_augmentor,
+    global_rank=0,
+    world_size=1,
+    shuffle_n=0,
+):
+    """
+    Get concat tarred audio to text dataset
+    """
+    media_tar_filepaths = config['media_tar_filepaths']
+    manifest_filepaths = config['manifest_filepath']
+    datasets = []
+    for dataset_idx, (media_tar_filepath, manifest_filepath) in enumerate(
+        zip(media_tar_filepaths, manifest_filepaths)
+    ):
+        conf = copy.deepcopy(config)
+        conf['manifest_filepath'] = manifest_filepath
+        conf['media_tar_filepaths'] = media_tar_filepath
+        context_files = config.get('context_file', None)
+        if isinstance(context_files, ListConfig) and len(context_files) == len(manifest_filepaths):
+            conf['context_file'] = context_files[dataset_idx]
+        else:
+            conf['context_file'] = context_files
+        dataset = get_media_webdataset(
+            config=conf,
+            text_processor=text_processor,
+            image_processor=image_processor,
+            audio_augmentor=audio_augmentor,
+            image_augmentor=image_augmentor,
+            shuffle_n=shuffle_n,
+            global_rank=global_rank,
+            world_size=world_size,
+        )
+        datasets.append(dataset)
+
+    concat_sampling_probabilities = config.get('concat_sampling_probabilities', None)
+    if not isinstance(concat_sampling_probabilities, ListConfig) or len(concat_sampling_probabilities) != len(
+        datasets
+    ):
+        logging.info(
+            f"concat_sampling_probabilities is not provided or is not of the same size as datasets,"
+            f"using uniform sampling: concat_sampling_probabilities={concat_sampling_probabilities}"
+        )
+        concat_sampling_probabilities = [1.0 / len(datasets)] * len(datasets)
+
+    dataset = ConcatDataset(
+        datasets,
+        sampling_technique=config.get('concat_sampling_technique', 'temperature'),
+        sampling_temperature=config.get('concat_sampling_temperature', 5),
+        sampling_scale=config.get('concat_sampling_scale', 1),
+        sampling_probabilities=concat_sampling_probabilities,
+        shuffle=config.get('concat_shuffle', True),
+        seed=config.get('concat_sampling_seed', None),
+        global_rank=global_rank,
+        world_size=world_size,
+    )
+    return dataset
+
+
+def get_media_webdataset_from_config(
     config: DictConfig,
     text_processor: TextProcessing,
-    visual_processor,
+    image_processor,
     audio_augmentor,
-    visual_augmentor,
+    image_augmentor,
     global_rank: int = 0,
     world_size: int = 1,
 ):
     """
-    Get tarred dataset from config
+    Get wds dataset from config
     """
-    # TODO: to be implemented
-    return None
+    
+    is_concat = config.get('is_concat', False)
+    if is_concat:
+        if 'concat_sampling_technique' in config and config['concat_sampling_technique'] is None:
+            logging.warning(
+                f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}"
+            )
+            return None
+
+    data_parallel_size = parallel_state.get_data_parallel_world_size()
+    num_micro_batches = config.global_batch_size // (config.micro_batch_size * data_parallel_size)
+    global_batch_size_on_this_data_parallel_rank = num_micro_batches * config.micro_batch_size
+    shuffle = config['shuffle']
+    shuffle_n = config.get('shuffle_n', 4 * global_batch_size_on_this_data_parallel_rank) if shuffle else 0
+    if is_concat:
+        dataset = get_concat_media_webdataset(
+            config=config,
+            text_processor=text_processor,
+            image_processor=image_processor,
+            audio_augmentor=audio_augmentor,
+            image_augmentor=image_augmentor,
+            shuffle_n=shuffle_n,
+            global_rank=global_rank,
+            world_size=world_size,
+        )
+    else:
+        dataset = get_media_webdataset(
+            config=config,
+            text_processor=text_processor,
+            image_processor=image_processor,
+            audio_augmentor=audio_augmentor,
+            image_augmentor=image_augmentor,
+            shuffle_n=shuffle_n,
+            global_rank=global_rank,
+            world_size=world_size,
+        )
+    return dataset

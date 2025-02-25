@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from functools import lru_cache
-from typing import Any, Dict, List, Union
+from typing import Dict, Union
 
 from megatron.core import parallel_state
 from omegaconf.omegaconf import DictConfig
@@ -21,22 +21,22 @@ from omegaconf.omegaconf import DictConfig
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations as audio_process_augmentations
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.speechlm.data.audio_to_text_module import AudioToTextDataModule
-from nemo.collections.speechlm.data.dataset.audio_text_dataset import (
-    get_audio_visual_text_webdataset_from_config,
+from nemo.collections.avlm.data.dataset.media_text_dataset import (
+    get_media_webdataset_from_config,
 )
 
 from nemo.utils import logging
 
 
-class AudioVisualToTextDataModule(AudioToTextDataModule):
+class MediaToTextDataModule(AudioToTextDataModule):
     """
     Data module for speech-image/video-to-text LLM.
     """
 
-    def __init__(self, config: Union[DictConfig, Dict], tokenizer: TokenizerSpec, visual_processor = None):
+    def __init__(self, config: Union[DictConfig, Dict], tokenizer: TokenizerSpec, image_processor = None):
         super().__init__(config, tokenizer)
-        # image/video processor
-        self.visual_processor = visual_processor
+        # image processor
+        self.image_processor = image_processor
         
     @lru_cache
     def _create_dataset(self, mode: str):
@@ -56,8 +56,8 @@ class AudioVisualToTextDataModule(AudioToTextDataModule):
                 world_size=parallel_state.get_data_parallel_world_size(),
             )
 
-        # TODO: implement the image/video augmentor
-        visual_augmentor = None            
+        # TODO: implement the image augmentor
+        image_augmentor = None            
 
         # Notably, the data weights are controlled by either bucketing_weights
         # or concat_sampling_probabilities depending on the dataset type.
@@ -70,17 +70,17 @@ class AudioVisualToTextDataModule(AudioToTextDataModule):
         # Notably, the data weights are controlled by either bucketing_weights
         # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get('is_wds', False):
-            dataset = get_audio_visual_text_webdataset_from_config(
+            dataset = get_media_webdataset_from_config(
                 config=data_cfg,
                 text_processor=self.text_processor,
-                visual_processor=self.visual_processor,
+                image_processor=self.image_processor,
                 audio_augmentor=audio_augmentor,
-                visual_augmentor=visual_augmentor,
+                image_augmentor=image_augmentor,
                 global_rank=parallel_state.get_data_parallel_rank(),
                 world_size=parallel_state.get_data_parallel_world_size(),
             )
         else:
-            # TODO: implement get_audio_text_dataset_from_config for non wds compliant dataset
+            # TODO: implement get_media_dataset_from_config for non wds compliant dataset
             logging.info(f"None webdataset compliant data is not yet supported. Skipping {mode} dataset creation.")
             return None
 
