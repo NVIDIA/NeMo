@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable
+import inspect
+from functools import partial
+from typing import Callable, Optional
 
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import ConfigContainer
@@ -38,6 +40,11 @@ def megatron_pretrain(
     valid_data_iterator = setup_output.valid_data_iterator
     test_data_iterator = setup_output.test_data_iterator
     ckpt_context = setup_output.checkpointing_context
+
+    if "state" in inspect.getfullargspec(forward_step_func).args:
+        mcore_forward_step = partial(forward_step_func, state=state)
+    if "cfg" in inspect.getfullargspec(forward_step_func).args:
+        mcore_forward_step = partial(forward_step_func, cfg=full_config)
 
     ## TRAINING ##
     if not config.megatron_lm_config.skip_train:
