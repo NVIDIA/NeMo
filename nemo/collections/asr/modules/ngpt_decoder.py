@@ -80,7 +80,7 @@ class Decoder(nn.Module):
                 cached_mems_list = memory_states.unsqueeze(0)
 
         for i, decoder_block in enumerate(self.decoder_blocks):
-            decoder_state = decoder_block(decoder_state, decoder_mask, decoder_state, encoder_embeddings, encoder_mask)
+            decoder_state = decoder_block(decoder_state, decoder_mask, memory_states, encoder_embeddings, encoder_mask)
             memory_states = self._get_memory_states(decoder_state, decoder_mems_list, i+1)
             if return_mems:
                 if return_mem_as_list:
@@ -90,7 +90,7 @@ class Decoder(nn.Module):
         # import ipdb; ipdb.set_trace()
         if return_mems:
             return cached_mems_list
-        return decoder_state
+        return memory_states
 
 class NGPTDecoder(nn.Module):
     def __init__(self, vocab_size: int, hidden_size: int, n_layers: int, n_heads: int, max_seq_len: int, learn_positional_encodings: bool):
