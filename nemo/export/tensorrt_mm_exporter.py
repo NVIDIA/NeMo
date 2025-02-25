@@ -44,6 +44,7 @@ except Exception:
 @wrapt.decorator
 def noop_decorator(func):
     """No op decorator"""
+
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
