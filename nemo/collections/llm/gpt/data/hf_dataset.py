@@ -232,10 +232,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.use_mcore_sampler = use_mcore_sampler
         self.mcore_dataloader_type = mcore_dataloader_type
         self.use_dist_sampler = use_dist_sampler
-        # Turn-on dist-sampler if the user is running inside a dist-env.
-        if not use_dist_sampler and not use_mcore_sampler and has_dist_env_init_or_rank_env_var():
-            self.use_dist_sampler = True
-            logging.info("Turning on distributed data sampler")
+
 
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
@@ -273,14 +270,17 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str):
         """setups sampler"""
-        if not self.use_mcore_sampler:
-            return
-        self.mcore_data_sampler = MegatronDataSampler(
-            seq_len=self.seq_length,
-            micro_batch_size=self.micro_batch_size,
-            global_batch_size=self.global_batch_size,
-            dataloader_type=self.mcore_dataloader_type,
-        )
+        # Turn-on dist-sampler if the user is running inside a dist-env.
+        if not self.use_dist_sampler and not self.use_mcore_sampler and has_dist_env_init_or_rank_env_var():
+            self.use_dist_sampler = True
+            logging.info("Turning on distributed data sampler")
+        elif self.use_mcore_sampler:
+            self.mcore_data_sampler = MegatronDataSampler(
+                seq_len=self.seq_length,
+                micro_batch_size=self.micro_batch_size,
+                global_batch_size=self.global_batch_size,
+                dataloader_type=self.mcore_dataloader_type,
+            )
 
     def get_data_sampler(self, dataset):
         """returns the data sampler"""
