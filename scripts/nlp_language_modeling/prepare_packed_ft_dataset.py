@@ -14,31 +14,35 @@
 
 import os
 from dataclasses import dataclass
+from functools import partial
+from multiprocessing import Pool
 from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
-
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
+from tqdm import tqdm
+
+PACKING_ALGOS = ['first_fit_decreasing', 'first_fit_shuffle']
 
 if TYPE_CHECKING:
     from omegaconf import DictConfig
 
-""" 
+"""
 Script to prepare packed dataset from a SFT/PEFT dataset in the jsonl format.
 Two main steps are run in this script:
-1. The online processing code in GPTSFTDataset is run (including prompt template manipulation, 
-sequence length truncation, tokenization, etc) and the result is an array of tokenized sequences, 
-represented by indices). 
+1. The online processing code in GPTSFTDataset is run (including prompt template manipulation,
+sequence length truncation, tokenization, etc) and the result is an array of tokenized sequences,
+represented by indices).
 2. The sequences are grouped by length, and a packing algorithm is run. (https://en.wikipedia.org/wiki/Bin_packing_problem#Offline_algorithms)
 Currently, two variants of "first fit" are supported.
-"first_fit_decreasing" sorts the sequences in decreasing order before applying first-fit. 
+"first_fit_decreasing" sorts the sequences in decreasing order before applying first-fit.
 It generates a more optimal packing, but it tends to keep all short sequences together, which may affect convergence.
 "first_fit_shuffle" runs first-fit in a random order. Packing is less optimal but it keeps the dataset order random.
-The recommendation is to run "first_fit_shuffle" and check the packed sequence lengths in the printout. 
+The recommendation is to run "first_fit_shuffle" and check the packed sequence lengths in the printout.
 If they are similar to the target length (i.e. packing is efficient), then use shuffle. Otherwise try first_fit_decreasing.
 
 Example usage:
@@ -49,7 +53,7 @@ python scripts/nlp_language_modeling/prepare_packed_ft_dataset.py \
    +tokenizer_path=<see note 1 below> \
    +output_dir=/path/to/output_folder \
    +pack_sizes=[2048,4096,8192]
-   
+
 when using context parallelism (CP) with packed dataset, CP size needs to be set in the command:
 
 python scripts/nlp_language_modeling/prepare_packed_ft_dataset.py \
@@ -60,9 +64,9 @@ python scripts/nlp_language_modeling/prepare_packed_ft_dataset.py \
     +output_dir=/path/to/output_folder \
     +pack_sizes=[4096]
 
-Note: 
-  - Tokenizer path supports SentencePiece tokenizer and HF tokenizer. 
-    For SentencePiece tokenizer, specify the file /path/to/tokenizer.model 
+Note:
+  - Tokenizer path supports SentencePiece tokenizer and HF tokenizer.
+    For SentencePiece tokenizer, specify the file /path/to/tokenizer.model
     For HF tokenizer, specify a folder /path/to/hf_folder which contains tokenizer.json, tokenizer_config.json
     and special_tokens_map.json
 
@@ -83,6 +87,20 @@ Note:
     can fill the GPU memory without exceeding it. Adjusting ``pack_size`` is analogous to adjusting the micro batch size in
     the unpacked case.
 """
+
+
+def _process_chunk(indices, dataset):
+    return [dataset[i] for i in indices]
+
+
+def parallel_convert_dataset(dataset, num_workers=100):
+    chunk_size = max(len(dataset) // num_workers, 1)
+    chunks = [range(i, min(i + chunk_size, len(dataset))) for i in range(0, len(dataset), chunk_size)]
+
+    with Pool(num_workers) as pool:
+        results = pool.map(partial(_process_chunk, dataset=dataset), chunks)
+
+    return np.array([item for chunk in results for item in chunk])
 
 
 def tokenize_dataset(cfg: 'DictConfig'):
@@ -147,7 +165,7 @@ def tokenize_dataset(cfg: 'DictConfig'):
     pad_id = dataset.tokenizer.eos_id
     tokenizer = dataset.tokenizer
     pad_seq_length_to_mult = dataset.pad_seq_length_to_mult
-    dataset = np.array([dataset[i] for i in range(len(dataset))])
+    dataset = parallel_convert_dataset(dataset)
     if cp_size > 1:
 
         def pre_pad_dataset(data, max_seq_length, max_length_to_pad, pad_id):
@@ -197,27 +215,119 @@ class PackingArgs:
         return self
 
 
+def process_dataset_chunk(
+    chunk_data: np.array, pack_size: int, tokenizer, packing_algorithm: str, max_seq_length: int
+):
+    """
+    Process a chunk of the dataset independently.
+
+    Args:
+        chunk_data: NumPy array containing a subset of the tokenized dataset
+        pack_size: The maximum capacity of each bin
+        tokenizer: The tokenizer instance
+        packing_algorithm: The packing algorithm to use
+
+    Returns:
+        Dictionary containing packed sequences split into input_ids, loss_mask, and seq_start_id arrays
+    """
+    sequences, histogram = create_hist(chunk_data, max_seq_length)
+    assignments, _ = create_packing_strategy(histogram, pack_size, packing_algorithm)
+    packed_data = fill_packing_strategy(assignments, sequences, pack_size, tokenizer.eos_id)
+    # Return list of dicts
+    return packed_data
+
+
+def process_chunk_wrapper(args):
+    """
+    Wrapper function for parallel processing of chunks.
+
+    Args:
+        args: Tuple containing (chunk_data, pack_size, tokenizer, packing_algorithm, chunk_id)
+
+    Returns:
+        Tuple of (chunk_id, processed_chunk_data)
+    """
+    chunk_data, pack_size, tokenizer, packing_algorithm, chunk_id, max_seq_length = args
+    logging.info(f"Processing chunk {chunk_id}")
+    result = process_dataset_chunk(chunk_data, pack_size, tokenizer, packing_algorithm, max_seq_length)
+    return chunk_id, result
+
+
 @hydra_runner(
     config_path="../../examples/nlp/language_modeling/tuning/conf", config_name="megatron_gpt_finetuning_config"
 )
 def main(cfg: 'DictConfig') -> None:
     args = PackingArgs().from_config(cfg)
     dataset, tokenizer = tokenize_dataset(cfg)
-    sequences, histogram = create_hist(dataset, cfg.model.data.train_ds.max_seq_length)
-    for pack_size in args.pack_sizes:
-        assignments = create_packing_strategy(histogram, pack_size, args.packing_algorithm)
-        output_data = fill_packing_strategy(assignments, sequences, pack_size, tokenizer.eos_id)
+    split_packing_length = cfg.split_packing_length
 
-        # save output data
+    # Split dataset into chunks
+    n_samples = len(dataset)
+    n_chunks = (n_samples + split_packing_length - 1) // split_packing_length
+    chunks = np.array_split(dataset, n_chunks)
+
+    num_workers = cfg.get("num_workers", min(os.cpu_count() // 2, n_chunks))
+    logging.info(
+        f"Processing dataset in {n_chunks} chunks of {split_packing_length} samples using {num_workers} workers"
+    )
+
+    for pack_size in args.pack_sizes:
+        # Prepare arguments for parallel processing
+        chunk_args = [
+            (chunk, pack_size, tokenizer, args.packing_algorithm, i, cfg.model.data.train_ds.max_seq_length)
+            for i, chunk in enumerate(chunks)
+        ]
+
+        # Process chunks in parallel
+        with Pool(num_workers) as pool:
+            results = list(
+                tqdm(
+                    pool.imap(process_chunk_wrapper, chunk_args),
+                    total=len(chunk_args),
+                    desc=f"Processing chunks for pack_size={pack_size}",
+                )
+            )
+
+        logging.info("Gathering all packed_data from chunk results...")
+        all_packed_data = []
+        for _, chunk_result in tqdm(results, desc="Collecting chunk results"):
+            all_packed_data.extend(chunk_result)
+
+        logging.info("Computing global maximum sequence lengths...")
+        N = len(all_packed_data)
+        P, M = 0, 0
+        for sample in tqdm(all_packed_data, desc="Finding P, M"):
+            P = max(P, len(sample['input_ids']))
+            M = max(M, len(sample['seq_start_id']))
+
+        logging.info("Pre-allocating arrays...")
+        all_input_ids = -np.ones((N, P), dtype=np.int32)
+        all_loss_mask = np.ones((N, P), dtype=np.bool_)
+        all_seq_start_id = -np.ones((N, M), dtype=np.int32)
+
+        logging.info("Filling arrays to max len...")
+        for i, sample in tqdm(enumerate(all_packed_data), desc="Filling arrays", total=len(all_packed_data)):
+            seq_len_ids = len(sample['input_ids'])
+            seq_len_mask = len(sample['loss_mask'])
+            seq_len_starts = len(sample['seq_start_id'])
+
+            all_input_ids[i, :seq_len_ids] = sample['input_ids']
+            all_loss_mask[i, :seq_len_mask] = sample['loss_mask']
+            all_seq_start_id[i, :seq_len_starts] = sample['seq_start_id']
+
+        # Save arrays
+        logging.info("Writing final npy files")
         os.makedirs(args.output_dir, exist_ok=True)
-        output_path = os.path.join(args.output_dir, f'packed_{pack_size}_seed{args.seed}.npy')
-        np.save(output_path, output_data)
-        logging.info(f"Done, output written to {output_path}")
+        base_path = os.path.join(args.output_dir, f'packed_{pack_size}_seed{args.seed}')
+        np.save(f'{base_path}.input_ids.npy', all_input_ids)
+        np.save(f'{base_path}.loss_mask.npy', all_loss_mask)
+        np.save(f'{base_path}.seq_start_id.npy', all_seq_start_id)
+        logging.info(f"Done, output written to {base_path}.[input_ids|loss_mask|seq_start_id].npy")
 
     logging.info(
         f"""
-✅ Packed datasets with pack sizes {args.pack_sizes} are prepared successfully. 
-To train with packed sequences, you need to make changes to the SFT/PEFT config file. See NeMo Documentation 
+✅ Packed datasets with pack sizes {args.pack_sizes} are prepared successfully.
+To train with packed sequences, you need to make changes to the SFT/PEFT config file. See NeMo Documentation
 for more details: <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/features/throughput_optimizations.html#sequence-packing-for-sft-peft>
 """
     )
