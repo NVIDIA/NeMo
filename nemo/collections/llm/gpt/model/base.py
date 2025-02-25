@@ -66,10 +66,10 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     required_host_keys = set()
 
     required_device_keys.add("attention_mask")
-    if 'cu_seqlens' in _batch:
-        required_device_keys.add('cu_seqlens')
-        required_host_keys.add('cu_seqlens_argmin')
-        required_host_keys.add('max_seqlen')
+    if "cu_seqlens" in _batch:
+        required_device_keys.add("cu_seqlens")
+        required_host_keys.add("cu_seqlens_argmin")
+        required_host_keys.add("max_seqlen")
 
     if parallel_state.is_pipeline_first_stage():
         required_device_keys.update(("tokens", "position_ids"))
@@ -98,16 +98,16 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
         "labels": batch["labels"],
     }
 
-    if 'attention_mask' not in batch:
+    if "attention_mask" not in batch:
         assert (
             HAVE_TE
         ), "The dataloader did not provide an attention mask, however Transformer Engine was not detected. \
             This requires Transformer Engine's implementation of fused or flash attention."
     else:
-        forward_args["attention_mask"] = batch['attention_mask']
+        forward_args["attention_mask"] = batch["attention_mask"]
 
-    if 'cu_seqlens' in batch:
-        forward_args['packed_seq_params'] = get_packed_seq_params(batch)
+    if "cu_seqlens" in batch:
+        forward_args["packed_seq_params"] = get_packed_seq_params(batch)
 
     return model(**forward_args)
 
@@ -159,9 +159,9 @@ def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
 
 
 def torch_dtype_from_dict_config(config: Dict[str, Any]) -> torch.dtype:
-    if config['fp16']:
+    if config["fp16"]:
         return torch.float16
-    elif config['bf16']:
+    elif config["bf16"]:
         return torch.bfloat16
     else:
         return torch.float
@@ -193,17 +193,19 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
+    vocab_size: Optional[int] = None
+
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         if self.enable_cuda_graph:
             assert HAVE_TE, "Transformer Engine is required for cudagraphs."
-            assert getattr(self, 'use_te_rng_tracker', False), (
+            assert getattr(self, "use_te_rng_tracker", False), (
                 "Transformer engine's RNG tracker is required for cudagraphs, it can be "
                 "enabled with use_te_rng_tracker=True'."
             )
 
         vp_size = self.virtual_pipeline_model_parallel_size
-        is_pipeline_asymmetric = getattr(self, 'account_for_embedding_in_pipeline_split', False) or getattr(
-            self, 'account_for_loss_in_pipeline_split', False
+        is_pipeline_asymmetric = getattr(self, "account_for_embedding_in_pipeline_split", False) or getattr(
+            self, "account_for_loss_in_pipeline_split", False
         )
         if vp_size and not is_pipeline_asymmetric:
             p_size = self.pipeline_model_parallel_size
@@ -217,7 +219,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
-        if hasattr(self, 'vocab_size'):
+        if hasattr(self, "vocab_size") and self.vocab_size is not None:
             vocab_size = self.vocab_size
             if tokenizer is not None:
                 logging.info(
@@ -382,7 +384,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         inference_params=None,
         packed_seq_params=None,
     ) -> torch.Tensor:
-        extra_kwargs = {'packed_seq_params': packed_seq_params} if packed_seq_params is not None else {}
+        extra_kwargs = {"packed_seq_params": packed_seq_params} if packed_seq_params is not None else {}
         output_tensor = self.module(
             input_ids,
             position_ids,
@@ -423,12 +425,12 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         vocab_size = None
         if self.tokenizer is not None:
             vocab_size = self.tokenizer.vocab_size
-        elif hasattr(self.config, 'vocab_size'):
+        elif hasattr(self.config, "vocab_size") and self.config.vocab_size is not None:
             vocab_size = self.config.vocab_size
         else:
             raise ValueError(
-                'Unable to find vocab size.'
-                ' Either pass in a tokenizer with vocab size, or set vocab size in the model config'
+                "Unable to find vocab size."
+                " Either pass in a tokenizer with vocab size, or set vocab size in the model config"
             )
 
         inference_wrapper_config = InferenceWrapperConfig(
@@ -461,13 +463,13 @@ def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
 
     if (cp_size := parallel_state.get_context_parallel_world_size()) > 1:
         num_valid_tokens_in_ub = None
-        if 'loss_mask' in batch and batch['loss_mask'] is not None:
-            num_valid_tokens_in_ub = batch['loss_mask'].sum()
+        if "loss_mask" in batch and batch["loss_mask"] is not None:
+            num_valid_tokens_in_ub = batch["loss_mask"].sum()
 
         cp_rank = parallel_state.get_context_parallel_rank()
         for key, val in batch.items():
             if val is not None:
-                seq_dim = 1 if key != 'attention_mask' else 2
+                seq_dim = 1 if key != "attention_mask" else 2
                 _val = val.view(
                     *val.shape[0:seq_dim],
                     2 * cp_size,
@@ -480,23 +482,23 @@ def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
                 _val = _val.index_select(seq_dim, index)
                 _val = _val.view(*val.shape[0:seq_dim], -1, *_val.shape[(seq_dim + 2) :])
                 batch[key] = _val
-        batch['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
+        batch["num_valid_tokens_in_ub"] = num_valid_tokens_in_ub
     return batch
 
 
 def get_packed_seq_params(batch):
     from megatron.core.packed_seq_params import PackedSeqParams
 
-    cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
+    cu_seqlens = batch["cu_seqlens"].squeeze()  # remove batch size dimension (mbs=1)
     # remove -1 "paddings" added in collate_fn
-    if (cu_seqlens_argmin := batch.get('cu_seqlens_argmin', None)) is not None:
+    if (cu_seqlens_argmin := batch.get("cu_seqlens_argmin", None)) is not None:
         # pre-compute cu_seqlens_argmin in dataset class for perf
         cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
     else:
         cu_seqlens = cu_seqlens[: torch.argmin(cu_seqlens)]
 
     # pre-compute max_seqlens in dataset class for perf
-    max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
+    max_seqlen = batch["max_seqlen"].squeeze() if "max_seqlen" in batch else None
 
     # these args are passed eventually into TEDotProductAttention.forward()
     return PackedSeqParams(
@@ -504,7 +506,7 @@ def get_packed_seq_params(batch):
         cu_seqlens_kv=cu_seqlens,
         max_seqlen_q=max_seqlen,
         max_seqlen_kv=max_seqlen,
-        qkv_format='thd',
+        qkv_format="thd",
     )
 
 
