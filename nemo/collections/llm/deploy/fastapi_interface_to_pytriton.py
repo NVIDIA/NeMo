@@ -145,6 +145,7 @@ async def chat_completions_v1(request: CompletionRequest):
     try:
         url = f"http://{triton_settings.triton_service_ip}:{triton_settings.triton_service_port}"
         nq = NemoQueryLLMPyTorch(url=url, model_name=request.model)
+        print("----request--", request)
         prompts = request.messages
         if not isinstance(request.messages, list):
             prompts = [request.messages]
@@ -159,6 +160,12 @@ async def chat_completions_v1(request: CompletionRequest):
             max_length=request.max_tokens,
             init_timeout=300
         )
+        # Add 'role' as 'assistant' key to the output dict
+        output["choices"][0]["messages"] = {"role": "assistant",
+                                        "content": output["choices"][0]["text"]
+                                        }
+
+        del output["choices"][0]["text"]
 
         # Convert NumPy arrays in output to lists
         def convert_numpy(obj):
@@ -173,9 +180,9 @@ async def chat_completions_v1(request: CompletionRequest):
 
         output_serializable = convert_numpy(output)
         ## #TODO Temp WAR
-        output_serializable["choices"][0]["text"] = output_serializable["choices"][0]["text"][0][0]
-        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
-        output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
+        output_serializable["choices"][0]["messages"]["content"]= output_serializable["choices"][0]["messages"]["content"][0][0]
+        # output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
+        # output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
         print("--output--", output_serializable)
         return output_serializable
     except Exception as error:
