@@ -386,6 +386,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         )
 
         batch_indices = torch.arange(batch_size, device=device, dtype=torch.long).unsqueeze(1).repeat(1, self.beam_size)
+        batch_indices_scaled = self.beam_size * batch_indices
             
         time_indices = torch.zeros_like(batch_indices)
         safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
@@ -509,7 +510,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             # TODO: move state aggregation to decoder + support stateless decoder:
             #  self.decoder.batch_aggregate_states_beam(...)
             # state: tuple, each is of [Layers, (BxBeam), Dim]
-            prev_decoder_state = self.decoder.batch_rearrange_states(decoder_state, hyps_indices.flatten())
+            prev_decoder_state = self.decoder.batch_rearrange_states(decoder_state, (batch_indices_scaled + hyps_indices).flatten())
             # prev_decoder_state = (
             #     torch.gather(
             #         decoder_state[0].view(decoder_state[0].shape[0], batch_size, self.beam_size, -1),
@@ -531,7 +532,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 last_labels_wb.view(-1).unsqueeze(1),
                 prev_decoder_state,
                 add_sos=False,
-                batch_size=batch_size * self.beam_size,
+                batch_size = batch_size * self.beam_size,
             )
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
 
