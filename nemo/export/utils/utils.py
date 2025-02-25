@@ -34,33 +34,27 @@ def is_nemo2_checkpoint(checkpoint_path: str) -> bool:
     return (ckpt_path / 'context').is_dir()
 
 
-def prepare_directory_for_export(model_dir: str, delete_existing_files: bool) -> None:
+def prepare_directory_for_export(model_dir: Union[str, Path], delete_existing_files: bool) -> None:
     """
-    Prepares model_dir path for the TRT-LLM/vLLM export.
-    Makes sure, that the model_dir directory exists and is empty.
+    Prepares model_dir path for the TensorRTT-LLM / vLLM export.
+    Makes sure that the model_dir directory exists and is empty.
 
     Args:
         model_dir (str): Path to the target directory for the export.
         delete_existing_files (bool): Attempt to delete existing files if they exist.
+
     Returns:
         None
     """
+    model_path = Path(model_dir)
 
-    if Path(model_dir).exists():
-        if delete_existing_files and len(os.listdir(model_dir)) > 0:
-            for files in os.listdir(model_dir):
-                path = os.path.join(model_dir, files)
-                try:
-                    shutil.rmtree(path)
-                except OSError:
-                    os.remove(path)
+    if model_path.exists():
+        if delete_existing_files:
+            shutil.rmtree(model_path)
+        elif any(model_path.iterdir()):
+            raise RuntimeError(f"There are files in {model_path} folder: try setting delete_existing_files=True.")
 
-            if len(os.listdir(model_dir)) > 0:
-                raise Exception("Couldn't delete all files in the target model directory.")
-        elif len(os.listdir(model_dir)) > 0:
-            raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
-
-    Path(model_dir).mkdir(parents=True, exist_ok=True)
+    model_path.mkdir(parents=True, exist_ok=True)
 
 
 def is_nemo_tarfile(path: str) -> bool:
