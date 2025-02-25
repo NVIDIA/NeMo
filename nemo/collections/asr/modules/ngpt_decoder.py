@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from dataclasses import dataclass
 from typing import Optional
 
@@ -60,6 +61,7 @@ class Decoder(nn.Module):
 
         self.decoder_blocks = nn.ModuleList([DecoderBlock(config) for _ in range(config.n_layers)])
     
+    
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
         if decoder_mems_list is not None:
             inp1 = torch.transpose(decoder_mems_list[i], 1, 2)  # Putting seq_len to last dim to handle export cases
@@ -70,7 +72,7 @@ class Decoder(nn.Module):
             memory_states = decoder_states
         return memory_states
 
-    def forward(self, decoder_state, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems_list=None, return_mems=False, return_mem_as_list=True):
+    def forward(self, decoder_state, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems_list=None, return_mems=False, return_mem_as_list=True,):
         # Decoder
         memory_states = self._get_memory_states(decoder_state, decoder_mems_list, 0)
         if return_mems:
@@ -87,13 +89,13 @@ class Decoder(nn.Module):
                     cached_mems_list.append(memory_states)
                 else:
                     cached_mems_list = torch.cat([cached_mems_list, memory_states.unsqueeze(0)], dim=0)
-        # import ipdb; ipdb.set_trace()
+        
         if return_mems:
             return cached_mems_list
         return memory_states
 
 class NGPTDecoder(nn.Module):
-    def __init__(self, vocab_size: int, hidden_size: int, n_layers: int, n_heads: int, max_seq_len: int, learn_positional_encodings: bool):
+    def __init__(self, vocab_size: int, hidden_size: int, n_layers: int, n_heads: int, max_seq_len: int, learn_positional_encodings: bool, base_scale: float = None):
         super().__init__()
         
         self._vocab_size = vocab_size
@@ -102,6 +104,7 @@ class NGPTDecoder(nn.Module):
         self._n_heads = n_heads
         self._max_seq_len = max_seq_len
         self._learned_pos_enc = learn_positional_encodings
+        self._base_scale = base_scale if base_scale is not None else hidden_size ** -0.5
 
         self._embedding = TransformerEmbedding(
             vocab_size=self._vocab_size,
@@ -124,6 +127,20 @@ class NGPTDecoder(nn.Module):
 
         self._decoder = Decoder(config)
 
+        self.apply(self._init_weights) 
+
+        for pn, p in self.named_parameters():
+            if pn.endswith('c_proj.weight'):
+                torch.nn.init.normal_(p, mean=0.0, std=self._base_scale / math.sqrt(2 * self._n_layers))
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=self._base_scale)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=self._base_scale)
+
     def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
         # Decoder
 
@@ -132,6 +149,16 @@ class NGPTDecoder(nn.Module):
 
         decoder_state = self._decoder(decoder_state, decoder_mask, encoder_embeddings, encoder_mask)
         return decoder_state
+    
+
+    def normalize_matrices(self):
+
+        decoder = self._decoder
+        for block in decoder.decoder_blocks:
+            block.attn.normalize_matrices()
+            block.cross_attn.normalize_matrices()
+            block.mlp.normalize_matrices()
+
 
     @property
     def hidden_size(self):

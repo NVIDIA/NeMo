@@ -49,6 +49,8 @@ def justnorm(x, fp32: bool = False, idim: int = -1):
         res = x / x.norm(p=2, dim=idim, keepdim=True)
     return res
 
+def justnorm_fp32(x, idim: int = -1):
+    return justnorm(x, idim=idim, fp32=True)
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, embdim: int, eps: float = 1e-6) -> None:
@@ -180,6 +182,13 @@ class AttentionBlock(nn.Module):
         h = justnorm(res)
 
         return h
+    
+    def normalize_matrices(self):
+        
+        self.query.weight.data.copy_(justnorm_fp32(self.query.weight.data), 1)
+        self.key.weight.data.copy_(justnorm_fp32(self.key.weight.data), 1)
+        self.value.weight.data.copy_(justnorm_fp32(self.value.weight.data), 1)
+        self.att_c_proj.weight.data.copy_(justnorm_fp32(self.att_c_proj.weight.data), 0)
 
 
 class MLPBlock(nn.Module):
@@ -235,3 +244,8 @@ class MLPBlock(nn.Module):
 
         return h
 
+
+    def normalize_matrices(self):
+        
+        self.c_fc.weight.data.copy_(justnorm_fp32(self.c_fc.weight.data), 1)
+        self.mlp_c_proj.weight.data.copy_(justnorm_fp32(self.mlp_c_proj.weight.data), 0)
