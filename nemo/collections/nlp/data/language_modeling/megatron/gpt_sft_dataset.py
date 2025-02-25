@@ -609,9 +609,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
     def _load_dataset(self):
         try:
-            filepath_stripped = self.file_path.replace(".npy", "")
-            if os.path.exists(filepath_stripped + ".input_ids.npy"):
-                self.indexed_dataset = self._load_dataset_efficient(filepath_stripped)
+            if os.path.is_dir(self.file_path):
+                self.indexed_dataset = self._load_dataset_efficient()
             elif os.path.exists(self.file_path):
                 self.indexed_dataset = np.load(self.file_path, allow_pickle=True)
             else:
@@ -623,10 +622,10 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             )
             exit(1)
 
-    def _load_dataset_efficient(self, filepath_stripped) -> _PackedDataset:
-        input_ids = np.load(filepath_stripped + ".input_ids.npy", mmap_mode="r")
-        loss_mask = np.load(filepath_stripped + ".loss_mask.npy", mmap_mode="r")
-        seq_start_id = np.load(filepath_stripped + ".seq_start_id.npy", mmap_mode="r")
+    def _load_dataset_efficient(self) -> _PackedDataset:
+        input_ids = np.load(os.path.join(self.file_path, "input_ids.npy"), mmap_mode="r")
+        loss_mask = np.load(os.path.join(self.file_path, "loss_mask.npy"), mmap_mode="r")
+        seq_start_id = np.load(os.path.join(self.file_path, "seq_start_id.npy"), mmap_mode="r")
         return _PackedDataset(input_ids, loss_mask, seq_start_id)
 
     def _build_samples_mapping(self):

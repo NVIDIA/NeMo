@@ -42,15 +42,16 @@ def merge_packed_arrays(prefixes, output_prefix):
         max_seq_starts = max(max_seq_starts, seq_start_id.shape[1])
 
     print("Initializing merged arrays with total samples:", total_samples)
+    os.makedirs(output_prefix, exist_ok=True)
     # Allocate merged arrays as memory-mapped files
     merged_input_ids = np.lib.format.open_memmap(
-        f"{output_prefix}.input_ids.npy", mode='w+', dtype=np.int32, shape=(total_samples, max_input_len)
+        os.path.join(output_prefix, "input_ids.npy"), mode='w+', dtype=np.int32, shape=(total_samples, max_input_len)
     )
     merged_loss_mask = np.lib.format.open_memmap(
-        f"{output_prefix}.loss_mask.npy", mode='w+', dtype=np.bool_, shape=(total_samples, max_input_len)
+        os.path.join(output_prefix, "loss_mask.npy"), mode='w+', dtype=np.bool_, shape=(total_samples, max_input_len)
     )
     merged_seq_start_id = np.lib.format.open_memmap(
-        f"{output_prefix}.seq_start_id.npy", mode='w+', dtype=np.int32, shape=(total_samples, max_seq_starts)
+        os.path.join(output_prefix, "seq_start_id.npy"), mode='w+', dtype=np.int32, shape=(total_samples, max_seq_starts)
     )
     # Initialize with default values
     merged_input_ids[:] = -1
@@ -70,7 +71,7 @@ def merge_packed_arrays(prefixes, output_prefix):
             merged_seq_start_id[sample_idx, : len(curr_seq_start)] = curr_seq_start
             sample_idx += 1
 
-    print(f"Merged arrays saved with prefix '{output_prefix}'.")
+    print(f"Merged arrays saved to directory '{output_prefix}'.")
 
 
 def main():
