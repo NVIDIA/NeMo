@@ -97,10 +97,12 @@ def get_adapter_attributes_from_linear(m: nn.Module):
         in_features = m.input_size
         out_features = m.output_size
     elif HAVE_TE and isinstance(m, te.Linear):
+        tp_size = getattr(m, 'tp_size', 1)
+        assert isinstance(tp_size, int), "Expected tp_size to be an int"
+        assert tp_size == 1, 'te.Linear only supports TP=1'
         input_is_parallel = False
         in_features = m.in_features
         out_features = m.out_features
-        assert getattr(m, 'tp_size', 1) == 1, 'te.Linear only supports TP=1'
     else:
         raise NotImplementedError(f"Layer type is unrecognized for LoRA: {type(m)}")
 
