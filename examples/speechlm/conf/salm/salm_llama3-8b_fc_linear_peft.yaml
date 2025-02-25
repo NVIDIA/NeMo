@@ -118,6 +118,12 @@ model:
   speech_encoder:
     pretrained_model: "stt_en_fastconformer_transducer_large"
     target_module: "encoder"
+    spec_augment_config:
+      _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+      freq_masks: 0 # set to zero to disable it
+      time_masks: 0 # set to zero to disable it
+      freq_width: 27
+      time_width: 0.05
 
   modality_adapter:
     input_key_from: "d_model"  # attribute of model dim in the speech model
