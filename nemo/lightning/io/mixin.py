@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import dataclasses
+
 import functools
 import inspect
 import json
@@ -20,6 +20,7 @@ import threading
 import types
 import uuid
 from copy import deepcopy
+from dataclasses import is_dataclass
 from pathlib import Path
 from pydoc import locate
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
@@ -55,13 +56,6 @@ def _ordered_arguments_with_default(data: config_lib.Config) -> Dict[Union[int, 
         if isinstance(arg, config_lib.Config):
             ordered_arg = _ordered_arguments_with_default(arg)
             result[key] = ordered_arg
-        elif arg == dataclasses._HAS_DEFAULT_FACTORY:
-            if dataclasses.is_dataclass(data.__fn_or_cls__):
-                fields = dataclasses.fields(data.__fn_or_cls__)
-                for field in fields:
-                    if field.name == key:
-                        result[key] = field.default_factory()
-                        break
 
     if "__fn_or_cls__" in result:
         raise ValueError(
@@ -530,7 +524,7 @@ def _io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
     for key in config_kwargs:
         if isinstance(config_kwargs[key], IOProtocol):
             config_kwargs[key] = config_kwargs[key].__io__
-        if dataclasses.is_dataclass(config_kwargs[key]):
+        if is_dataclass(config_kwargs[key]):
             config_kwargs[key] = fdl_dc.convert_dataclasses_to_configs(config_kwargs[key], allow_post_init=True)
             # Check if the arg is a factory (dataclasses.field)
         if config_kwargs[key].__class__.__name__ == "_HAS_DEFAULT_FACTORY_CLASS":
@@ -654,7 +648,7 @@ def _artifact_transform_save(instance, cfg: fdl.Config, output_path: Path, relat
             if artifact.required:
                 raise ValueError(f"Artifact '{artifact.attr}' is required but not provided")
             continue
-        # dump artifact and return the relative path
+        ## dump artifact and return the relative path
         new_val = artifact.dump(instance, current_val, output_path, relative_dir)
         setattr(cfg, artifact.attr, new_val)
 
@@ -698,7 +692,7 @@ def _artifact_transform_load(cfg: fdl.Config, path: Path):
         # __init__ arguments can be None
         if current_val is None:
             continue
-        # replace local path with absolute one
+        ## replace local path with absolute one
         new_val = str(Path(path) / current_val)
         setattr(cfg, artifact.attr, new_val)
 
@@ -784,7 +778,7 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
     if subpath:
         subpath = "<root>." + subpath
 
-    # add IO functionality to custom objects present in the json file
+    ## add IO functionality to custom objects present in the json file
     with open(_path) as f:
         j = json.load(f)
     for obj, val in j.get("objects", {}).items():
