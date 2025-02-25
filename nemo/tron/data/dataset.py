@@ -27,6 +27,7 @@ from nemo.tron.config import ConfigContainer
 from nemo.tron.data.samplers import build_pretraining_data_loader
 from nemo.tron.state import TrainState
 from nemo.tron.utils.common_utils import print_rank_0
+from nemo.tron.utils.sig_utils import DistributedSignalHandler
 
 
 def get_blend_and_blend_per_split(
@@ -175,6 +176,12 @@ def build_train_valid_test_data_loaders(
     train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
         cfg=cfg, build_train_valid_test_datasets_provider=build_train_valid_test_datasets_provider
     )
+
+    def worker_init_fn(_):
+        DistributedSignalHandler().__enter__()
+
+    maybe_worker_init_fn = worker_init_fn if cfg.megatron_lm_config.exit_signal_handler_for_dataloader else None
+
     # Build dataloders.
     train_dataloader = build_pretraining_data_loader(
         train_ds,
@@ -183,6 +190,7 @@ def build_train_valid_test_data_loaders(
         cfg.megatron_lm_config.micro_batch_size,
         cfg.megatron_lm_config.num_workers,
         cfg.megatron_lm_config.data_sharding,
+        worker_init_fn=maybe_worker_init_fn,
     )
     if cfg.megatron_lm_config.skip_train:
         valid_dataloader = build_pretraining_data_loader(
@@ -192,6 +200,7 @@ def build_train_valid_test_data_loaders(
             cfg.megatron_lm_config.micro_batch_size,
             cfg.megatron_lm_config.num_workers,
             cfg.megatron_lm_config.data_sharding,
+            worker_init_fn=maybe_worker_init_fn,
         )
     else:
         valid_dataloader = build_pretraining_data_loader(
@@ -201,6 +210,7 @@ def build_train_valid_test_data_loaders(
             cfg.megatron_lm_config.micro_batch_size,
             cfg.megatron_lm_config.num_workers,
             cfg.megatron_lm_config.data_sharding,
+            worker_init_fn=maybe_worker_init_fn,
         )
     test_dataloader = build_pretraining_data_loader(
         test_ds,
