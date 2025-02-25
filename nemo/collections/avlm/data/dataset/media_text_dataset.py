@@ -15,6 +15,7 @@
 import os
 import io
 import copy
+import pathlib
 import numpy as np
 import torch
 import torchvision
@@ -44,8 +45,9 @@ __all__ = [
     'get_tarred_audio_video_images_text_dataset_from_config',
 ]
 
+VALID_AUDIO_FILE_FORMATS_SET = set(VALID_AUDIO_FILE_FORMATS.split(';'))
 VALID_IMAGE_FILE_FORMATS_SET = {ex for ex, f in Image.registered_extensions().items() if f in Image.OPEN}
-VALID_VIDEO_FILE_FORMATS_SET = {}
+VALID_VIDEO_FILE_FORMATS_SET = {'mp4'}
 
 
 class MediaDataEntity(object):
@@ -219,9 +221,15 @@ class MediaDataCollection(MediaDataset):
         """
         self.context_key = context_key
         self.answer_key = answer_key
-        self.audio_extension = None
-        self.video_extension = None
-        self.image_extensions = {}
+        self.audio_extension = {}
+        self.video_extension = {}
+        # keys: image file's non-extension suffixes which is used for identify different files
+        #   with the same extension in a sample
+        # value: list of extensions used by the images with the same non-extension suffixes
+        # key is an empty string if the image has no non-extension suffix
+        # e.g.: {'0001': ['png', 'ppm', 'jpg'], '0002': ['jpg'], ...}
+        # e.g.: {'': ['png']}
+        self.image_extensions = dict()
 
         (
             ids,
@@ -286,8 +294,13 @@ class MediaDataCollection(MediaDataset):
         elif 'audio_file' not in item:
             item['audio_file'] = None
 
-        if self.audio_extension is None and item['audio_file'] is not None:
-            _, self.audio_extension = os.path.splitext(item['audio_file'])
+        if item['audio_file'] is not None:
+            _, audio_extension = os.path.splitext(item['audio_file'])
+            audio_extension = audio_extension[1:]
+            if audio_extension in VALID_AUDIO_FILE_FORMATS_SET:
+                self.audio_extension = self.audio_extension | audio_extension
+            else:
+                item['audio_file'] = None
 
         # video file
         if 'video_filename' in item:
@@ -297,8 +310,13 @@ class MediaDataCollection(MediaDataset):
         elif 'video_files' not in item:
             item['video_file'] = None
 
-        if self.video_extension is None and item['video_file'] is not None:
-            _, self.video_extension = os.path.splitext(item['video_file'])
+        if item['video_file'] is not None:
+            _, video_extension = os.path.splitext(item['video_file'])
+            video_extension = video_extension[1:]
+            if video_extension in VALID_VIDEO_FILE_FORMATS_SET:
+                self.video_extension = self.video_extension | video_extension
+            else:
+                item['video_file'] = None
 
         # image file(s)
         # it could be frames of a video sequence, each with a sequence index as part of its extension:
@@ -316,10 +334,25 @@ class MediaDataCollection(MediaDataset):
 
         # split into a list of images
         if item['image_sample'] is not None:
+            image_sample_valid = True
             item['image_sample'] = item['image_sample'].replace(" ", "").split(',')
             # do this for every sample in case the number of frames is different
-            self.image_extensions = self.image_extensions | \
-                set([img[img.find('.')+1:] for img in item['image_sample']])
+            img_suffixes = [pathlib.Path(img).suffixes for img in item['image_sample']]
+            for (suffixes,) in zip(img_suffixes):
+                non_ext = ''.join(suffixes[:-1])[1:]
+                ext = suffixes[-1][1:]
+                if ext in VALID_IMAGE_FILE_FORMATS_SET:
+                    if non_ext not in self.image_extensions:
+                        self.image_extensions[non_ext] = [ext]
+                    else:
+                        self.image_extensions[non_ext].append(ext)
+                else:
+                    image_sample_valid = False
+                    break
+
+            if not image_sample_valid:
+                item['image_sample'] = None
+
 
         # Duration.
         if 'duration' not in item:
@@ -619,18 +652,26 @@ class MediaWebDataset(IterableDataset):
             logging.info("WebDataset will not shuffle files within the tar files.")
 
         # Put together WebDataset pipeline
+        # prepare the to_tuple arguments as a string. 
+        # If the valid audio, video or image files exist, then their extensions are retrieved from
+        # self.collection. If they do not exist, to_tuple will return None
+        audio_ext = ';'.join(self.collection.audio_extension) or next(iter(VALID_AUDIO_FILE_FORMATS_SET))
+        video_ext = ';'.join(self.collection.video_extension) or next(iter(VALID_VIDEO_FILE_FORMATS_SET))
+        image_exts = ' '.join([
+                        ';'.join([
+                                non_ext+'.'+ext if non_ext else ext for ext in self.image_extensions[non_ext]
+                                ]) for non_ext in self.image_extensions
+                             ]) or \
+                     next(iter(VALID_IMAGE_FILE_FORMATS_SET))
+        to_tuple_args = ' '.join([audio_ext, video_ext, image_exts, '__key__'])
+
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(urls=media_tar_filepaths),
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.decode('pil'),
-            wds.rename(
-                audio=self.collection.audio_extension or VALID_AUDIO_FILE_FORMATS,
-                video=self.collection.video_extension or ';'.join(VALID_VIDEO_FILE_FORMATS_SET),
-                images=';'.join(self.collection.image_extensions or VALID_IMAGE_FILE_FORMATS_SET),
-                key='__key__'),
-            wds.to_tuple('audio', 'video', 'images', 'key', missing_is_error=False),
+            wds.decode('pil'), # only images will be decoded
+            wds.to_tuple(to_tuple_args, missing_is_error=False),
             self._filter,
             self._loop_offsets,
             wds.map(self._build_sample),
