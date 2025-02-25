@@ -14,6 +14,8 @@
 
 import argparse
 
+from megatron.core.dist_checkpointing.validation import StrictHandling
+
 from nemo.collections.llm import quantization
 
 
@@ -83,7 +85,12 @@ def get_args():
     parser.add_argument(
         '--generate_sample', help='Generate sample model output after performing PTQ', action='store_true'
     )
-    parser.add_argument('--ckpt_load_strictness', type=str, help='Defines handling of checkpoint load mismatch')
+    parser.add_argument(
+        '--ckpt_load_strictness',
+        type=str,
+        default=StrictHandling.LOG_ALL,
+        help='Defines handling of checkpoint load mismatch',
+    )
     parser.set_defaults(generate_sample=False)
 
     args = parser.parse_args()
