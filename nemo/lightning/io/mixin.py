@@ -648,7 +648,7 @@ def _artifact_transform_save(instance, cfg: fdl.Config, output_path: Path, relat
             if artifact.required:
                 raise ValueError(f"Artifact '{artifact.attr}' is required but not provided")
             continue
-        ## dump artifact and return the relative path
+        # dump artifact and return the relative path
         new_val = artifact.dump(instance, current_val, output_path, relative_dir)
         setattr(cfg, artifact.attr, new_val)
 
@@ -692,7 +692,7 @@ def _artifact_transform_load(cfg: fdl.Config, path: Path):
         # __init__ arguments can be None
         if current_val is None:
             continue
-        ## replace local path with absolute one
+        # replace local path with absolute one
         new_val = str(Path(path) / current_val)
         setattr(cfg, artifact.attr, new_val)
 
@@ -778,7 +778,7 @@ def load(path: Path, output_type: Type[CkptType] = Any, subpath: Optional[str] =
     if subpath:
         subpath = "<root>." + subpath
 
-    ## add IO functionality to custom objects present in the json file
+    # add IO functionality to custom objects present in the json file
     with open(_path) as f:
         j = json.load(f)
     for obj, val in j.get("objects", {}).items():
