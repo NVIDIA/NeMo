@@ -57,11 +57,3 @@ try:
 except ImportError:
     # Tokenizers are not available, no need to track it.
     pass
-
-try:
-    from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
-
-    track_io(WandbLogger)
-    track_io(TensorBoardLogger)
-except ImportError:
-    pass

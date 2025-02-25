@@ -19,31 +19,23 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal, Optional
+from typing import Callable, Literal, Optional, Type
 
 import torch
+from megatron.core import parallel_state
+from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.transformer.enums import AttnBackend
+from megatron.core.transformer.transformer_config import TransformerConfig
 
+from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec, hyena_stack_spec_no_te
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_model import HyenaModel as MCoreHyenaModel
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import hyena_no_weight_decay_cond
-from nemo.lightning.base import NEMO_MODELS_CACHE
-from nemo.utils import logging
-
-try:
-    from megatron.core import parallel_state
-    from megatron.core.transformer.enums import AttnBackend
-    from megatron.core.transformer.transformer_config import TransformerConfig
-except (ImportError, ModuleNotFoundError):
-    logging.warning(
-        "The package `megatron.core` was not imported in this environment which is needed for Hyena models."
-    )
-from typing import Type
-
-from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
-from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
-
-from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.lightning import get_vocab_size, io, teardown
+from nemo.lightning.base import NEMO_MODELS_CACHE
+from nemo.lightning.io.state import TransformFns
+from nemo.utils import logging
 
 
 class HyenaModel(GPTModel):
@@ -267,6 +259,202 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
         return model
 
 
+@dataclass
+class HyenaTestConfig(HyenaConfig):
+    """Configuration for testing Hyena models."""
+
+    hybrid_override_pattern: str = "SDH*"
+    num_layers: int = 4
+    seq_length: int = 8192
+    hidden_size: int = 4096
+    num_groups_hyena: int = 4096
+    num_groups_hyena_medium: int = 256
+    num_groups_hyena_short: int = 256
+    make_vocab_size_divisible_by: int = 8
+    tokenizer_library: str = 'byte-level'
+    mapping_type: str = "base"
+    ffn_hidden_size: int = 11008
+    gated_linear_unit: bool = True
+    num_attention_heads: int = 32
+    use_cpu_initialization: bool = False
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    params_dtype: torch.dtype = torch.bfloat16
+    normalization: str = "RMSNorm"
+    add_qkv_bias: bool = False
+    add_bias_linear: bool = False
+    layernorm_epsilon: float = 1e-6
+    recompute_granularity: str = 'full'
+    recompute_method: str = 'uniform'
+    recompute_num_layers: int = 2
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
+    hyena_filter_no_wd: bool = True
+
+
+@dataclass
+class HyenaNVTestConfig(HyenaTestConfig):
+    """
+    Several unintentional design choices were made to the original Arc implementation that are required to use the
+    original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
+    these are the recommended configs.
+    """
+
+    remove_activation_post_first_layer: bool = False
+    add_attn_proj_bias: bool = False
+
+
+@dataclass
+class Hyena1bConfig(HyenaConfig):
+    """Config matching the 1b 8k context Evo2 model"""
+
+    hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*"
+    num_layers: int = 25
+    seq_length: int = 8192
+    hidden_size: int = 1920
+    num_groups_hyena: int = 1920
+    num_groups_hyena_medium: int = 128
+    num_groups_hyena_short: int = 128
+    make_vocab_size_divisible_by: int = 8
+    tokenizer_library: str = 'byte-level'
+    mapping_type: str = "base"
+    ffn_hidden_size: int = 5120
+    gated_linear_unit: bool = True
+    num_attention_heads: int = 15
+    use_cpu_initialization: bool = False
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    params_dtype: torch.dtype = torch.bfloat16
+    normalization: str = "RMSNorm"
+    add_qkv_bias: bool = False
+    add_bias_linear: bool = False
+    layernorm_epsilon: float = 1e-6
+    recompute_granularity: str = 'full'
+    recompute_method: str = 'uniform'
+    recompute_num_layers: int = 4
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
+    hyena_filter_no_wd: bool = True
+
+
+@dataclass
+class HyenaNV1bConfig(Hyena1bConfig):
+    """
+    Several unintentional design choices were made to the original Arc implementation that are required to use the
+    original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
+    these are the recommended configs.
+    """
+
+    remove_activation_post_first_layer: bool = False
+    add_attn_proj_bias: bool = False
+
+
+@dataclass
+class Hyena7bConfig(HyenaConfig):
+    """Config matching the 7b 8k context Evo2 model"""
+
+    hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*SDHSDH*"
+    num_layers: int = 32
+    seq_length: int = 8192
+    hidden_size: int = 4096
+    num_groups_hyena: int = 4096
+    num_groups_hyena_medium: int = 256
+    num_groups_hyena_short: int = 256
+    make_vocab_size_divisible_by: int = 8
+    tokenizer_library: str = 'byte-level'
+    mapping_type: str = "base"
+    ffn_hidden_size: int = 11008
+    gated_linear_unit: bool = True
+    num_attention_heads: int = 32
+    use_cpu_initialization: bool = False
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    params_dtype: torch.dtype = torch.bfloat16
+    normalization: str = "RMSNorm"
+    add_qkv_bias: bool = False
+    add_bias_linear: bool = False
+    layernorm_epsilon: float = 1e-6
+    recompute_granularity: str = 'full'
+    recompute_method: str = 'uniform'
+    recompute_num_layers: int = 4
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
+    hyena_filter_no_wd: bool = True
+
+
+@dataclass
+class HyenaNV7bConfig(Hyena7bConfig):
+    """
+    Several unintentional design choices were made to the original Arc implementation that are required to use the
+    original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
+    these are the recommended configs.
+    """
+
+    remove_activation_post_first_layer: bool = False
+    add_attn_proj_bias: bool = False
+
+
+@dataclass
+class Hyena40bConfig(HyenaConfig):
+    """Config matching the 40b 8k context Evo2 model"""
+
+    hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*SDHSDH*SDH*SDHSDH*SDHSDH*"
+    num_layers: int = 50
+    seq_length: int = 8192
+    hidden_size: int = 8192
+    num_groups_hyena: int = 8192
+    num_groups_hyena_medium: int = 512
+    num_groups_hyena_short: int = 512
+    make_vocab_size_divisible_by: int = 8
+    tokenizer_library: str = 'byte-level'
+    mapping_type: str = "base"
+    ffn_hidden_size: int = 21888
+    gated_linear_unit: bool = True
+    num_attention_heads: int = 64
+    use_cpu_initialization: bool = False
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    params_dtype: torch.dtype = torch.bfloat16
+    normalization: str = "RMSNorm"
+    add_qkv_bias: bool = False
+    add_bias_linear: bool = False
+    layernorm_epsilon: float = 1e-6
+    recompute_granularity: str = 'full'
+    recompute_method: str = 'uniform'
+    recompute_num_layers: int = 2
+    hyena_init_method: str = 'small_init'
+    hyena_output_layer_init_method: str = 'wang_init'
+    hyena_filter_no_wd: bool = True
+
+
+@dataclass
+class HyenaNV40bConfig(Hyena40bConfig):
+    """
+    Several unintentional design choices were made to the original Arc implementation that are required to use the
+    original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
+    these are the recommended configs.
+    """
+
+    remove_activation_post_first_layer: bool = False
+    add_attn_proj_bias: bool = False
+
+
+@dataclass
+class Hyena7bARCLongContextConfig(Hyena7bConfig):
+    """The checkpoint from ARC requires padding to the FFN dim
+    due to constraintes from large TP size for training."""
+
+    ffn_hidden_size: int = 11264
+
+
+@dataclass
+class Hyena40bARCLongContextConfig(Hyena40bConfig):
+    """The checkpoint from ARC requires padding to the FFN dim
+    due to constraintes from large TP size for training."""
+
+    ffn_hidden_size: int = 22528
+
+
 @io.model_importer(HyenaModel, "pytorch")
 class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
     """
@@ -476,7 +664,19 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
             else:
                 raise ValueError(f'Unknown symbol: {symbol}')
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_linear_fc1])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[
+                # Transforms that are more complicated than a simple mapping of an old key name to a new one:
+                io.state_transform(
+                    source_key=("sequential.*.mlp.w1.weight", "sequential.*.mlp.w2.weight"),
+                    target_key="decoder.layers.*.mlp.linear_fc1.weight",
+                    fn=TransformFns.merge_fc1,
+                )
+            ],
+        )
 
     @property
     def tokenizer(self):
@@ -578,220 +778,6 @@ class HuggingFaceSavannaHyenaImporter(PyTorchHyenaImporter):
                     print("Cleaned up shards, final checkpoint saved to", weights_path)
 
         return torch.load(weights_path, map_location='cpu', weights_only=False)
-
-
-@io.state_transform(
-    source_key=("sequential.*.mlp.w1.weight", "sequential.*.mlp.w2.weight"),
-    target_key="decoder.layers.*.mlp.linear_fc1.weight",
-)
-def _import_linear_fc1(w1, w2):
-    """
-    Transforms the linear layer weights by concatenating w1 and w2.
-
-    Args:
-        w1: First weight tensor
-        w2: Second weight tensor
-
-    Returns:
-        torch.Tensor: Concatenated weight tensor
-    """
-    return torch.cat((w1, w2), axis=0)
-
-
-@dataclass
-class HyenaTestConfig(HyenaConfig):
-    """Configuration for testing Hyena models."""
-
-    hybrid_override_pattern: str = "SDH*"
-    num_layers: int = 4
-    seq_length: int = 8192
-    hidden_size: int = 4096
-    num_groups_hyena: int = 4096
-    num_groups_hyena_medium: int = 256
-    num_groups_hyena_short: int = 256
-    make_vocab_size_divisible_by: int = 8
-    tokenizer_library: str = 'byte-level'
-    mapping_type: str = "base"
-    ffn_hidden_size: int = 11008
-    gated_linear_unit: bool = True
-    num_attention_heads: int = 32
-    use_cpu_initialization: bool = False
-    hidden_dropout: float = 0.0
-    attention_dropout: float = 0.0
-    params_dtype: torch.dtype = torch.bfloat16
-    normalization: str = "RMSNorm"
-    add_qkv_bias: bool = False
-    add_bias_linear: bool = False
-    layernorm_epsilon: float = 1e-6
-    recompute_granularity: str = 'full'
-    recompute_method: str = 'uniform'
-    recompute_num_layers: int = 2
-    hyena_init_method: str = 'small_init'
-    hyena_output_layer_init_method: str = 'wang_init'
-    hyena_filter_no_wd: bool = True
-
-
-@dataclass
-class HyenaNVTestConfig(HyenaTestConfig):
-    """
-    Several unintentional design choices were made to the original Arc implementation that are required to use the
-    original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
-    these are the recommended configs.
-    """
-
-    remove_activation_post_first_layer: bool = False
-    add_attn_proj_bias: bool = False
-
-
-@dataclass
-class Hyena1bConfig(HyenaConfig):
-    """Config matching the 1b 8k context Evo2 model"""
-
-    hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*"
-    num_layers: int = 25
-    seq_length: int = 8192
-    hidden_size: int = 1920
-    num_groups_hyena: int = 1920
-    num_groups_hyena_medium: int = 128
-    num_groups_hyena_short: int = 128
-    make_vocab_size_divisible_by: int = 8
-    tokenizer_library: str = 'byte-level'
-    mapping_type: str = "base"
-    ffn_hidden_size: int = 5120
-    gated_linear_unit: bool = True
-    num_attention_heads: int = 15
-    use_cpu_initialization: bool = False
-    hidden_dropout: float = 0.0
-    attention_dropout: float = 0.0
-    params_dtype: torch.dtype = torch.bfloat16
-    normalization: str = "RMSNorm"
-    add_qkv_bias: bool = False
-    add_bias_linear: bool = False
-    layernorm_epsilon: float = 1e-6
-    recompute_granularity: str = 'full'
-    recompute_method: str = 'uniform'
-    recompute_num_layers: int = 4
-    hyena_init_method: str = 'small_init'
-    hyena_output_layer_init_method: str = 'wang_init'
-    hyena_filter_no_wd: bool = True
-
-
-@dataclass
-class HyenaNV1bConfig(Hyena1bConfig):
-    """
-    Several unintentional design choices were made to the original Arc implementation that are required to use the
-    original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
-    these are the recommended configs.
-    """
-
-    remove_activation_post_first_layer: bool = False
-    add_attn_proj_bias: bool = False
-
-
-@dataclass
-class Hyena7bConfig(HyenaConfig):
-    """Config matching the 7b 8k context Evo2 model"""
-
-    hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*SDHSDH*"
-    num_layers: int = 32
-    seq_length: int = 8192
-    hidden_size: int = 4096
-    num_groups_hyena: int = 4096
-    num_groups_hyena_medium: int = 256
-    num_groups_hyena_short: int = 256
-    make_vocab_size_divisible_by: int = 8
-    tokenizer_library: str = 'byte-level'
-    mapping_type: str = "base"
-    ffn_hidden_size: int = 11008
-    gated_linear_unit: bool = True
-    num_attention_heads: int = 32
-    use_cpu_initialization: bool = False
-    hidden_dropout: float = 0.0
-    attention_dropout: float = 0.0
-    params_dtype: torch.dtype = torch.bfloat16
-    normalization: str = "RMSNorm"
-    add_qkv_bias: bool = False
-    add_bias_linear: bool = False
-    layernorm_epsilon: float = 1e-6
-    recompute_granularity: str = 'full'
-    recompute_method: str = 'uniform'
-    recompute_num_layers: int = 4
-    hyena_init_method: str = 'small_init'
-    hyena_output_layer_init_method: str = 'wang_init'
-    hyena_filter_no_wd: bool = True
-
-
-@dataclass
-class HyenaNV7bConfig(Hyena7bConfig):
-    """
-    Several unintentional design choices were made to the original Arc implementation that are required to use the
-    original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
-    these are the recommended configs.
-    """
-
-    remove_activation_post_first_layer: bool = False
-    add_attn_proj_bias: bool = False
-
-
-@dataclass
-class Hyena40bConfig(HyenaConfig):
-    """Config matching the 40b 8k context Evo2 model"""
-
-    hybrid_override_pattern: str = "SDH*SDHSDH*SDHSDH*SDHSDH*SDHSDH*SDH*SDHSDH*SDHSDH*"
-    num_layers: int = 50
-    seq_length: int = 8192
-    hidden_size: int = 8192
-    num_groups_hyena: int = 8192
-    num_groups_hyena_medium: int = 512
-    num_groups_hyena_short: int = 512
-    make_vocab_size_divisible_by: int = 8
-    tokenizer_library: str = 'byte-level'
-    mapping_type: str = "base"
-    ffn_hidden_size: int = 21888
-    gated_linear_unit: bool = True
-    num_attention_heads: int = 64
-    use_cpu_initialization: bool = False
-    hidden_dropout: float = 0.0
-    attention_dropout: float = 0.0
-    params_dtype: torch.dtype = torch.bfloat16
-    normalization: str = "RMSNorm"
-    add_qkv_bias: bool = False
-    add_bias_linear: bool = False
-    layernorm_epsilon: float = 1e-6
-    recompute_granularity: str = 'full'
-    recompute_method: str = 'uniform'
-    recompute_num_layers: int = 2
-    hyena_init_method: str = 'small_init'
-    hyena_output_layer_init_method: str = 'wang_init'
-    hyena_filter_no_wd: bool = True
-
-
-@dataclass
-class HyenaNV40bConfig(Hyena40bConfig):
-    """
-    Several unintentional design choices were made to the original Arc implementation that are required to use the
-    original Arc checkpoints, but may result in less stable model training. If you are training from scratch,
-    these are the recommended configs.
-    """
-
-    remove_activation_post_first_layer: bool = False
-    add_attn_proj_bias: bool = False
-
-
-@dataclass
-class Hyena7bARCLongContextConfig(Hyena7bConfig):
-    """The checkpoint from ARC requires padding to the FFN dim
-    due to constraintes from large TP size for training."""
-
-    ffn_hidden_size: int = 11264
-
-
-@dataclass
-class Hyena40bARCLongContextConfig(Hyena40bConfig):
-    """The checkpoint from ARC requires padding to the FFN dim
-    due to constraintes from large TP size for training."""
-
-    ffn_hidden_size: int = 22528
 
 
 HYENA_MODEL_OPTIONS: dict[str, Type[HyenaConfig]] = {
