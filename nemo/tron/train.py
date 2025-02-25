@@ -806,7 +806,7 @@ def checkpoint_and_decide_exit(
     return False
 
 
-def _finish_pretrain(ckpt_cfg: CheckpointConfig, global_state: GlobalState):
+def _finish_train(ckpt_cfg: CheckpointConfig, global_state: GlobalState):
     if global_state.wandb_logger:
         global_state.wandb_logger.finish()
 

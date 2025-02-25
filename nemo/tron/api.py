@@ -18,7 +18,7 @@ from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import ConfigContainer
 from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.setup import setup
-from nemo.tron.train import _finish_pretrain, train
+from nemo.tron.train import _finish_train, train
 from nemo.tron.utils.common_utils import barrier_and_log, print_rank_0
 
 
@@ -108,4 +108,4 @@ def megatron_pretrain(
             non_loss_data_func=non_loss_data_func,
         )
 
-    _finish_pretrain(full_config.checkpoint_config, state)
+    _finish_train(full_config.checkpoint_config, state)
