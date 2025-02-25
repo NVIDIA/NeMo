@@ -363,15 +363,6 @@ class TensorRTLLM(ITritonDeployable):
                     # MCore export supports some default conversion dictionaries
                     mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT
 
-                    # TODO: remove after adding this mapping to mcore
-                    from megatron.core.export.trtllm.trtllm_layers import TRTLLMLayers
-
-                    mcore_model_conversion_dict |= {
-                        'decoder.layers.mlp.experts.experts.linear_fc1.weight': TRTLLMLayers.mlp_fc_weight_mixture_of_experts,
-                        'decoder.layers.mlp.experts.experts.linear_fc2.weight': TRTLLMLayers.mlp_projection_weight_mixture_of_experts,
-                        'decoder.layers.mlp.router.weight': TRTLLMLayers.mlp_router_weight,
-                    }
-
                     # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models start with "model.decoder.layers.4.blahblah". so we append model. to the keys
                     nemo_model_conversion_dict = {
                         f'model.{key}': value for key, value in mcore_model_conversion_dict.items()
@@ -687,7 +678,8 @@ class TensorRTLLM(ITritonDeployable):
         if vp_size > 1:  # consolidate params across model chunks
             for idx, model_chunk in enumerate(model):
                 for key, val in model_chunk.state_dict().items():
-                    if torch.is_tensor(val):
+                    # TODO: currently fp8 is not supported
+                    if torch.is_tensor(val) and '_extra_state' not in key:
                         if 'layers' in key:
                             key2 = rename_layer_num(key, get_layer_num(key) + idx * pp_size * layers_per_chunk)
                             tl_params[key2] = val
@@ -695,7 +687,8 @@ class TensorRTLLM(ITritonDeployable):
                             model_level_params[key] = val
         else:
             for key, val in model.state_dict().items():
-                if torch.is_tensor(val):
+                # TODO: currently fp8 is not supported
+                if torch.is_tensor(val) and '_extra_state' not in key:
                     if 'decoder.layers' in key:
                         tl_params[key] = val
                     else:
