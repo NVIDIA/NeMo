@@ -1186,15 +1186,9 @@ class SpeechToTextLLM(SpeechLanguageModel):
             )
 
             # Check if the user provided a prefix path to the file(s) they want to write.
-            if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
-                raise ValueError(
-                    f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
-                )
-            filename_log_key = self._determine_log_key(dataloader_idx, None, mode)
+            filename_log_key = self._determine_log_key(dataloader_idx, metric_name, mode)
             output_dir = data_cfg.get("output_dir", "./")
-            self.write_predictions_to_file(
-                deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}", output_dir
-            )
+            self.write_predictions_to_file(deduplicated_outputs, f"speechlm_pred_{filename_log_key}", output_dir)
 
     # consistent with speech models
     @rank_zero_only
