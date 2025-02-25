@@ -1,3 +1,18 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import torch
 from transformers import AutoProcessor, MllamaConfig
 from transformers.models.mllama.configuration_mllama import MllamaTextConfig, MllamaVisionConfig
@@ -7,6 +22,7 @@ from nemo.collections import vlm
 
 
 def split_qkv_weight(qkv_weight, model_config):
+    """Split attention qkv from nemo to hf format"""
     hidden_size = model_config.hidden_size
     head_num = model_config.num_attention_heads
     num_query_groups = model_config.num_query_groups or head_num
@@ -32,6 +48,7 @@ def split_qkv_weight(qkv_weight, model_config):
 
 
 def split_kv_weight(kv_weight, model_config):
+    """Split cross attention qkv from nemo to hf format"""
     hidden_size = model_config.hidden_size
     head_num = model_config.num_attention_heads
     num_query_groups = model_config.num_query_groups or head_num
@@ -51,12 +68,14 @@ def split_kv_weight(kv_weight, model_config):
 
 
 def split_gate_weight(gate_weight):
+    """Split linear fc to gate"""
     gate_weight = torch.chunk(gate_weight, 2, axis=0)
 
     return [('gate_proj', gate_weight[0]), ('up_proj', gate_weight[1])]
 
 
 def convert_mllama_config(source_vision, source_text):
+    """Convert nemo mllama config to hf config"""
     vision_config = MllamaVisionConfig(
         num_hidden_layers=source_vision.num_layers,
         hidden_size=source_vision.hidden_size,
@@ -93,6 +112,7 @@ def convert_mllama_config(source_vision, source_text):
 
 
 def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
+    """Convert nemo mllama to hf state dict and config"""
     processor = AutoProcessor.from_pretrained(processor_name)
 
     strategy = nl.MegatronStrategy(

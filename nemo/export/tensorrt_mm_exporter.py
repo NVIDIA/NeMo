@@ -43,6 +43,7 @@ except Exception:
 
 @wrapt.decorator
 def noop_decorator(func):
+    """No op decorator"""
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
@@ -115,6 +116,7 @@ class TensorRTMMExporter(ITritonDeployable):
         lora_checkpoint_path: str = None,
         max_lora_rank: int = 64,
     ):
+        """Export multimodal models to TRTLLM"""
         if Path(self.model_dir).exists():
             if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
                 for files in os.listdir(self.model_dir):
@@ -208,6 +210,7 @@ class TensorRTMMExporter(ITritonDeployable):
         num_beams: int = 1,
         lora_uids: List[str] = None,
     ):
+        """Run forward with loaded TRTLLM engine"""
         if self.runner is None:
             raise Exception(
                 "A nemo checkpoint should be exported and " "then it should be loaded first to run inference."
@@ -243,6 +246,7 @@ class TensorRTMMExporter(ITritonDeployable):
             )
 
     def get_input_media_tensors(self):
+        """Get input media tensors"""
         if self.modality == "vision":
             return [Tensor(name="input_media", shape=(-1, -1, -1, 3), dtype=np.uint8)]
         elif self.modality == "audio":

@@ -61,6 +61,7 @@ def build_trtllm_engine(
     max_lora_rank: int = 64,
     lora_ckpt_list: List[str] = None,
 ):
+    """Build TRTLLM engine by nemo export"""
     trt_llm_exporter = TensorRTLLM(model_dir=model_dir, lora_ckpt_list=lora_ckpt_list, load_model=False)
     trt_llm_exporter.export(
         nemo_checkpoint_path=visual_checkpoint_path if llm_checkpoint_path is None else llm_checkpoint_path,
@@ -92,6 +93,7 @@ def build_mllama_trtllm_engine(
     max_lora_rank: int = 64,
     lora_ckpt_list: List[str] = None,
 ):
+    """Build mllama TRTLLM engine from HF"""
     if max_batch_size < 4:
         print(
             "TensorRT LLM may hit a runtime issue with batch size is smaller than 4 on some models." " Force set to 4"
@@ -148,6 +150,7 @@ def build_mllama_trtllm_engine(
 def export_visual_wrapper_onnx(
     visual_wrapper, input, output_dir, input_names=['input'], dynamic_axes={'input': {0: 'batch'}}
 ):
+    """Export visual wrapper to ONNX"""
     logger.log(trt.Logger.INFO, "Exporting onnx")
     os.makedirs(f'{output_dir}/onnx', exist_ok=True)
     torch.onnx.export(
@@ -174,6 +177,7 @@ def export_perception_wrapper_onnx(
         'encoded_length': {0: 'batch'},
     },
 ):
+    """Export perception wrapper to ONNX"""
     logger.log(trt.Logger.INFO, "Exporting onnx")
     os.makedirs(f'{output_dir}/onnx', exist_ok=True)
     torch.onnx.export(
@@ -198,6 +202,7 @@ def build_trt_engine(
     nemo_config=None,
     part_name='visual_encoder',
 ):
+    """Build TRT engine from onnx"""
     onnx_file = '%s/onnx/%s.onnx' % (output_dir, part_name)
     engine_file = '%s/%s.engine' % (output_dir, part_name)
     config_file = '%s/%s' % (output_dir, "config.json")
@@ -292,6 +297,7 @@ def build_neva_engine(
     visual_checkpoint_path: str,
     vision_max_batch_size: int = 1,
 ):
+    """Build neva visual engine"""
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
     if os.path.isdir(visual_checkpoint_path):
@@ -436,6 +442,7 @@ def build_video_neva_engine(
     visual_checkpoint_path: str,
     vision_max_batch_size: int = 1,
 ):
+    """Build video neva visual engine"""
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     # extract NeMo checkpoint
     with tarfile.open(visual_checkpoint_path) as tar:
@@ -514,6 +521,7 @@ def build_perception_engine(
     model_type: str = "salm",
     max_batch_size: int = 1,
 ):
+    """Build perception engine"""
     assert model_type == "salm", f"Invalid model type {model_type}"
 
     def load_perception_model(perception_checkpoint_path):
@@ -584,6 +592,7 @@ def build_mllama_visual_engine(
     processor_name: str = "meta-llama/Llama-3.2-11B-Vision-Instruct",
     vision_max_batch_size: int = 1,
 ):
+    """Build mllama visual engine"""
     hf_model = MllamaForConditionalGeneration.from_pretrained(hf_model_path, torch_dtype="auto", device_map="auto")
     model_dtype = hf_model.dtype
 
@@ -624,6 +633,7 @@ def build_visual_engine(
     model_type: str = "neva",
     vision_max_batch_size: int = 1,
 ):
+    """Build visual engine"""
     model_list = ['neva', 'lita', 'vila', 'vita']
     if model_type in model_list:
         build_neva_engine(model_type, model_dir, visual_checkpoint_path, vision_max_batch_size)
@@ -637,6 +647,7 @@ def extract_lora_ckpt(
     lora_ckpt: str,
     output_dir: str,
 ):
+    """Extrace lora from checkpoint"""
     if os.path.exists(os.path.join(lora_ckpt, "model_weights.ckpt")):
         model_weight = torch.load(os.path.join(lora_ckpt, "model_weights.ckpt"))
     elif os.path.exists(os.path.join(lora_ckpt, "mp_rank_00", "model_weights.ckpt")):
@@ -683,6 +694,7 @@ def build_mllama_engine(
     max_lora_rank: int = 64,
     lora_ckpt_list: List[str] = None,
 ):
+    """Build mllama engine"""
     new_state_dict, config = convert_mllama_nemo_to_hf(checkpoint_path, processor_name)
 
     hf_model = MllamaForConditionalGeneration(config)
