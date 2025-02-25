@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import Counter
 import shutil
-
+from collections import Counter
 from pathlib import Path
 from typing import Dict, Union
 
