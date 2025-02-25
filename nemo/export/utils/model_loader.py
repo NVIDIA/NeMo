@@ -22,7 +22,7 @@ from typing import Any, Dict, Union
 import numpy
 
 # tenosrstore is needed to register 'bfloat16' dtype with numpy for zarr compatibility
-import tensorstore   # noqa: F401 pylint: disable=unused-import
+import tensorstore  # noqa: F401 pylint: disable=unused-import
 import torch
 import zarr
 from torch.distributed.checkpoint import FileSystemReader, load
