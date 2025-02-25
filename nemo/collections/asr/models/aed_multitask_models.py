@@ -33,6 +33,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
 )
 from nemo.collections.asr.metrics import BLEU, WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.modules.ngpt_decoder import NGPTDecoderHead
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin, ASRTranscriptionMixin
 from nemo.collections.asr.parts.mixins.transcription import (
     GenericTranscriptionType,
@@ -365,10 +366,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # Weight tying - if using TokenClassifier only
         if isinstance(self.log_softmax, TokenClassifier):
             self.log_softmax.mlp.layer0.weight = self.transf_decoder.embedding.token_embedding.weight
-
-        # Initialize weights of token classifier
-        std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden**0.5
-        self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
+            std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden**0.5 
+            self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
+        elif isinstance(self.log_softmax, NGPTDecoderHead):
+            self.log_softmax.lm_head.weight = self.transf_decoder.embedding.tok_emb.weight
+        else:
+            raise ValueError(f"Unsupported head type: {type(self.log_softmax)}")
+        
 
         # Setup Decoding class
         if decoding_cfg is None:

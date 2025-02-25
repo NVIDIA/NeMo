@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Optional
 
@@ -21,7 +22,7 @@ import torch.nn as nn
 
 from nemo.collections.asr.modules.ngpt_encoder import GPTConfig
 from nemo.collections.asr.modules.transformer.transformer_modules import TransformerEmbedding
-from nemo.collections.asr.parts.submodules.ngpt_modules import AttentionBlock, MLPBlock
+from nemo.collections.asr.parts.submodules.ngpt_modules import AttentionBlock, MLPBlock, justnorm_fp32
 
 
 @dataclass
@@ -94,6 +95,80 @@ class Decoder(nn.Module):
             return cached_mems_list
         return memory_states
 
+class NGPTDecoderHead(nn.Module):
+    def __init__(
+        self,
+        hidden_size: int,
+        num_classes: int,
+        num_layers: int,
+        activation: str = 'relu',
+        log_softmax: bool = True,
+        dropout: float = 0.0,
+        use_transformer_init: bool = True,
+    ) -> None:
+        super().__init__()
+        self.base_scale = hidden_size ** -0.5
+        self._num_classes = num_classes
+        self._hidden_size = hidden_size
+        self.lm_head = nn.Linear(hidden_size, self._num_classes, bias=False)
+        self.sz_init_scaling = self.base_scale
+        self.sz = torch.nn.Parameter(self.sz_init_scaling * torch.ones(self._num_classes, dtype=torch.float32))
+        self.log_softmax = log_softmax
+
+        self._init_weights()
+
+    def _init_weights(self):
+        torch.nn.init.normal_(self.lm_head.weight, mean=0.0, std=self.base_scale)
+
+    def normalize_matrices(self):
+        self.lm_head.weight.data.copy_(justnorm_fp32(self.lm_head.weight.data, 1))
+
+    def forward(self, hidden_states): # assumes B x T x C
+        logits = self.lm_head(hidden_states)
+        sz = self.sz * (1.0 / self.sz_init_scaling)
+        logits = sz * logits
+        if self.log_softmax:
+            logits = nn.functional.log_softmax(logits, dim=-1)
+        return logits
+    
+    @property
+    def mlp(self): # for compatibility with Transformer Generator
+        return self.lm_head
+    
+    @contextmanager
+    def with_log_softmax_enabled(self, value: bool) -> "NGPTDecoderHead":
+        prev = self.log_softmax
+        self.log_softmax = value
+        yield self
+        self.log_softmax = prev
+
+
+class Embedding(nn.Module):
+    # Embedding layer for the nGPT decoder for both tokens and positional encodings
+    def __init__(self, vocab_size=8192, n_embd=1024):
+        super().__init__()
+        self.tok_emb = nn.Embedding(vocab_size, n_embd)
+        self.base_scale = n_embd ** -0.5
+        
+        self.drop = nn.Dropout(0.1)
+
+        self._init_weights()
+
+    def forward(self, x, start_pos=0):
+        # Embedding layer
+        x = self.tok_emb(x)
+        # x = x + self.pos_emb[:, start_pos : start_pos + x.size(1)]
+        x = self.drop(x)
+        return x
+    
+    def _init_weights(self):
+        torch.nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.base_scale
+        )
+
+    def normalize_matrices(self):
+        self.tok_emb.weight.data.copy_(justnorm_fp32(self.tok_emb.weight.data, 1))        
+
+
 class NGPTDecoder(nn.Module):
     def __init__(self, vocab_size: int, hidden_size: int, n_layers: int, n_heads: int, max_seq_len: int, learn_positional_encodings: bool, base_scale: float = None):
         super().__init__()
@@ -106,12 +181,13 @@ class NGPTDecoder(nn.Module):
         self._learned_pos_enc = learn_positional_encodings
         self._base_scale = base_scale if base_scale is not None else hidden_size ** -0.5
 
-        self._embedding = TransformerEmbedding(
-            vocab_size=self._vocab_size,
-            hidden_size=self._hidden_size,
-            max_sequence_length=self._max_seq_len,
-            learn_positional_encodings=self._learned_pos_enc,
-        )
+        # self._embedding = TransformerEmbedding(
+        #     vocab_size=self._vocab_size,
+        #     hidden_size=self._hidden_size,
+        #     max_sequence_length=self._max_seq_len,
+        #     learn_positional_encodings=self._learned_pos_enc,
+        # )
+        self._embedding = Embedding(vocab_size=self._vocab_size, n_embd=self._hidden_size)
 
         config = NGPTDecoderConfig(
             vocab_size=self._vocab_size,
@@ -153,6 +229,8 @@ class NGPTDecoder(nn.Module):
 
     def normalize_matrices(self):
 
+        self._embedding.normalize_matrices()
+          
         decoder = self._decoder
         for block in decoder.decoder_blocks:
             block.attn.normalize_matrices()

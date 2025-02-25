@@ -116,7 +116,11 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         self.preserve_step_confidence = preserve_step_confidence
 
         # set confidence calculation method
-        self.num_tokens = getattr(self.classifier.mlp, f'layer{self.classifier.mlp.layers - 1}').out_features
+        # if no layer in the classifier, use the last layer of the mlp
+        if hasattr(self.classifier, 'mlp') and hasattr(self.classifier.mlp, 'out_features'):
+            self.num_tokens = getattr(self.classifier, 'mlp').out_features # ngpt Decoder
+        else:
+            self.num_tokens = getattr(self.classifier.mlp, f'layer{self.classifier.mlp.layers - 1}').out_features
         self._init_confidence_method(confidence_method_cfg)
 
     def _one_step_forward(
