@@ -609,7 +609,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
 
     def _load_dataset(self):
         try:
-            if os.path.is_dir(self.file_path):
+            if os.path.isdir(self.file_path):
                 self.indexed_dataset = self._load_dataset_efficient()
             elif os.path.exists(self.file_path):
                 self.indexed_dataset = np.load(self.file_path, allow_pickle=True)
@@ -617,7 +617,8 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 raise FileNotFoundError(f"File not found: {self.file_path}")
         except Exception as e:
             logging.error(
-                f"Failed to load packed dataset. The dataset should be a `.npy` file. "
+                f"Failed to load packed dataset. The dataset should be either a single `.npy` file, "
+                f"or a directory containing 'input_ids.npy', 'loss_mask.npy', and 'seq_start_id.npy'. "
                 f"Please check if the packed dataset was prepared correctly. The original error was:\n {e}",
             )
             exit(1)

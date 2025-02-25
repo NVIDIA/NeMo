@@ -21,9 +21,9 @@ from tqdm import tqdm
 
 def load_packed_arrays(prefix):
     # Load using memory mapping for constant memory usage
-    input_ids = np.load(f"{prefix}.input_ids.npy", mmap_mode='r')
-    loss_mask = np.load(f"{prefix}.loss_mask.npy", mmap_mode='r')
-    seq_start_id = np.load(f"{prefix}.seq_start_id.npy", mmap_mode='r')
+    input_ids = np.load(os.path.join(prefix, "input_ids.npy"), mmap_mode='r')
+    loss_mask = np.load(os.path.join(prefix, "loss_mask.npy"), mmap_mode='r')
+    seq_start_id = np.load(os.path.join(prefix, "seq_start_id.npy"), mmap_mode='r')
     return input_ids, loss_mask, seq_start_id
 
 
@@ -83,7 +83,7 @@ def main():
         "--input_prefixes",
         nargs="+",
         required=True,
-        help="List of file prefixes to merge (each prefix should have .input_ids.npy, .loss_mask.npy, .seq_start_id.npy)",
+        help="List of file prefixes to merge (each prefix should have input_ids.npy, loss_mask.npy, seq_start_id.npy)",
     )
     parser.add_argument("--output_prefix", required=True, help="Output file prefix for the merged arrays")
     args = parser.parse_args()
