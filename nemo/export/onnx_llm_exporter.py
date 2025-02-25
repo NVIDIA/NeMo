@@ -75,7 +75,7 @@ class OnnxLLMExporter(ITritonDeployable):
             output_names=["embeddings"],
         )
 
-        output = trt_llm_exporter.forward(["Hi, how are you?", "I am good, thanks, how about you?"])
+        output = onnx_llm_exporter.forward(["Hi, how are you?", "I am good, thanks, how about you?"])
         print("output: ", output)
     """
 
@@ -112,7 +112,7 @@ class OnnxLLMExporter(ITritonDeployable):
 
         if self.model_name_or_path is not None:
             if model is not None:
-                warnings.warn("A model was also passed but it will be overridden.")
+                raise ValueError("A model was also passed but it will be overridden.")
 
             if Path(self.model_name_or_path).is_dir():
                 if is_nemo2_checkpoint(self.model_name_or_path):
@@ -392,74 +392,6 @@ class OnnxLLMExporter(ITritonDeployable):
                     layer.__class__ = getattr(trt, "IElementWiseLayer")
                     if layer.op == trt.ElementWiseOperation.PROD:
                         self._override_layer_precision_to_fp32(layer)
-
-    def ptq(
-        self,
-        calibration_data: str,
-        quantization_type="fp8",
-        max_batch_size=32,
-    ) -> None:
-        """
-        Runs a calibration loop on the model using a calibration dataset.
-
-        Args:
-            calibration_data (str): path for the calibration data for PTQ.
-            quantization_type (str): Choices are int8, int8_sq, fp8, int4_awq, w4a8_awq.
-            max_batch_size (int): max batch size.
-        """
-
-        if Path(self.model_name_or_path).is_dir():
-            if is_nemo2_checkpoint(self.model_name_or_path):
-                raise NotImplementedError("NeMo 2.0 model is not currently supported.")
-
-        self.quant_max_batch_size = max_batch_size
-
-        quant_cfg_choices = {
-            "int8": mtq.INT8_DEFAULT_CFG,
-            "int8_sq": mtq.INT8_SMOOTHQUANT_CFG,
-            "fp8": mtq.FP8_DEFAULT_CFG,
-            "int4_awq": mtq.INT4_AWQ_CFG,
-            "w4a8_awq": mtq.W4A8_AWQ_BETA_CFG,
-        }
-        quant_cfg = quant_cfg_choices[quantization_type]
-
-        # Enable FP8 kv cache to save memory footprint
-        quant_cfg["quant_cfg"]["*output_quantizer"] = {
-            "num_bits": (8 if quantization_type == "int8_sq" or quantization_type == "int8" else (4, 3)),
-            "axis": None,
-            "enable": True,
-        }
-
-        with open(calibration_data, mode="r") as _file:
-            self.calibration_data = json.load(_file)
-
-        self.model.to(self.device, dtype=torch.float16)
-        logging.info("Starting quantization...")
-
-        mtq.quantize(self.model, quant_cfg, forward_loop=self._calibrate_loop)
-        self.model.to("cpu").to(torch.float32)
-        logging.info("Quantization is completed.")
-
-        return self.model
-
-    def _calibrate_loop(self, model) -> None:
-
-        def chunk(iterable: List, n: int) -> Generator:
-            for i in range(0, len(iterable), n):
-                yield iterable[i : i + n]  # noqa: E203
-
-        pbar = tqdm(total=len(self.calibration_data), desc="Running calibration loop")
-
-        for batch in chunk(self.calibration_data, self.quant_max_batch_size):
-            inputs = [f"question:{query} \n \n passage:{passage}" for query, passage in batch]
-            batch = self.tokenizer(inputs, padding=True, truncation=True, return_tensors="pt")
-            batch = {k: v.to(self.device) for k, v in batch.items()}
-            with torch.no_grad():
-                model(**batch)
-            torch.cuda.empty_cache()
-            del batch
-            pbar.update(self.quant_max_batch_size)
-            pbar.refresh()
 
     def forward(self, prompt: Union[List, Dict]):
         """Run inference for a given prompt."""
