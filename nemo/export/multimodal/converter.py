@@ -1,9 +1,10 @@
+import torch
 from transformers import AutoProcessor, MllamaConfig
-from transformers.models.mllama.configuration_mllama import MllamaVisionConfig, MllamaTextConfig
+from transformers.models.mllama.configuration_mllama import MllamaTextConfig, MllamaVisionConfig
+
 from nemo import lightning as nl
 from nemo.collections import vlm
 
-import torch
 
 def split_qkv_weight(qkv_weight, model_config):
     hidden_size = model_config.hidden_size
@@ -29,6 +30,7 @@ def split_qkv_weight(qkv_weight, model_config):
 
     return [('q_proj', q_weight), ('k_proj', k_weight), ('v_proj', v_weight)]
 
+
 def split_kv_weight(kv_weight, model_config):
     hidden_size = model_config.hidden_size
     head_num = model_config.num_attention_heads
@@ -47,10 +49,12 @@ def split_kv_weight(kv_weight, model_config):
 
     return [('k_proj', k_weight), ('v_proj', v_weight)]
 
+
 def split_gate_weight(gate_weight):
     gate_weight = torch.chunk(gate_weight, 2, axis=0)
 
     return [('gate_proj', gate_weight[0]), ('up_proj', gate_weight[1])]
+
 
 def convert_mllama_config(source_vision, source_text):
     vision_config = MllamaVisionConfig(
@@ -63,12 +67,11 @@ def convert_mllama_config(source_vision, source_text):
     )
 
     cross_attention_layers = [
-        x + i
-        for i, x in enumerate(source_text._init_fusion_schedule(source_text.num_cross_attention_layers))
+        x + i for i, x in enumerate(source_text._init_fusion_schedule(source_text.num_cross_attention_layers))
     ]
     text_config = MllamaTextConfig(
         rope_theta=source_text.rotary_base,
-        num_hidden_layers=source_text.num_layers+source_text.num_cross_attention_layers,
+        num_hidden_layers=source_text.num_layers + source_text.num_cross_attention_layers,
         cross_attention_layers=cross_attention_layers,
         hidden_size=source_text.hidden_size,
         intermediate_size=source_text.ffn_hidden_size,
@@ -80,7 +83,7 @@ def convert_mllama_config(source_vision, source_text):
             "high_freq_factor": 4.0,
             "low_freq_factor": 1.0,
             "original_max_position_embeddings": 8192,
-            "rope_type": "llama3"
+            "rope_type": "llama3",
         },
         eos_token_id=[128001, 128008, 128009],
         torch_dtype="bfloat16",
@@ -88,13 +91,14 @@ def convert_mllama_config(source_vision, source_text):
 
     return MllamaConfig(vision_config, text_config, torch_dtype="bfloat16")
 
+
 def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
     processor = AutoProcessor.from_pretrained(processor_name)
 
     strategy = nl.MegatronStrategy(
-            tensor_model_parallel_size=1,
-            ckpt_load_optimizer=False,
-            ckpt_save_optimizer=False,
+        tensor_model_parallel_size=1,
+        ckpt_load_optimizer=False,
+        ckpt_save_optimizer=False,
     )
     trainer = nl.Trainer(
         devices=1,
@@ -123,7 +127,10 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
     key_map = [
         ("vision_model.class_embedding", f"{v}.class_embedding"),
         ("vision_model.gated_positional_embedding.embedding", f"{v}.positional_embedding"),
-        ("vision_model.gated_positional_embedding.tile_embedding.weight", f"{v}.gated_tile_positional_embedding.weight"),
+        (
+            "vision_model.gated_positional_embedding.tile_embedding.weight",
+            f"{v}.gated_tile_positional_embedding.weight",
+        ),
         ("vision_model.gated_positional_embedding.gate", f"{v}.gated_positional_embedding_gate"),
         ("vision_model.layernorm_post.bias", f"{v}.ln_post.bias"),
         ("vision_model.layernorm_post.weight", f"{v}.ln_post.weight"),
@@ -142,32 +149,92 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
     for i in range(vision_model_config.num_layers):
         key_map.extend(
             [
-                (f"vision_model.transformer.layers.{i}.self_attn.o_proj.weight", f"{v}.transformer.layers.{i}.self_attention.linear_proj.weight"),
-                (f"vision_model.transformer.layers.{i}.input_layernorm.bias", f"{v}.transformer.layers.{i}.input_layernorm.bias"),
-                (f"vision_model.transformer.layers.{i}.input_layernorm.weight", f"{v}.transformer.layers.{i}.input_layernorm.weight"),
-                (f"vision_model.transformer.layers.{i}.post_attention_layernorm.bias", f"{v}.transformer.layers.{i}.pre_mlp_layernorm.bias"),
-                (f"vision_model.transformer.layers.{i}.post_attention_layernorm.weight", f"{v}.transformer.layers.{i}.pre_mlp_layernorm.weight"),
-                (f"vision_model.transformer.layers.{i}.mlp.fc1.bias", f"{v}.transformer.layers.{i}.mlp.linear_fc1.bias"),
-                (f"vision_model.transformer.layers.{i}.mlp.fc1.weight", f"{v}.transformer.layers.{i}.mlp.linear_fc1.weight"),
-                (f"vision_model.transformer.layers.{i}.mlp.fc2.bias", f"{v}.transformer.layers.{i}.mlp.linear_fc2.bias"),
-                (f"vision_model.transformer.layers.{i}.mlp.fc2.weight", f"{v}.transformer.layers.{i}.mlp.linear_fc2.weight"),
+                (
+                    f"vision_model.transformer.layers.{i}.self_attn.o_proj.weight",
+                    f"{v}.transformer.layers.{i}.self_attention.linear_proj.weight",
+                ),
+                (
+                    f"vision_model.transformer.layers.{i}.input_layernorm.bias",
+                    f"{v}.transformer.layers.{i}.input_layernorm.bias",
+                ),
+                (
+                    f"vision_model.transformer.layers.{i}.input_layernorm.weight",
+                    f"{v}.transformer.layers.{i}.input_layernorm.weight",
+                ),
+                (
+                    f"vision_model.transformer.layers.{i}.post_attention_layernorm.bias",
+                    f"{v}.transformer.layers.{i}.pre_mlp_layernorm.bias",
+                ),
+                (
+                    f"vision_model.transformer.layers.{i}.post_attention_layernorm.weight",
+                    f"{v}.transformer.layers.{i}.pre_mlp_layernorm.weight",
+                ),
+                (
+                    f"vision_model.transformer.layers.{i}.mlp.fc1.bias",
+                    f"{v}.transformer.layers.{i}.mlp.linear_fc1.bias",
+                ),
+                (
+                    f"vision_model.transformer.layers.{i}.mlp.fc1.weight",
+                    f"{v}.transformer.layers.{i}.mlp.linear_fc1.weight",
+                ),
+                (
+                    f"vision_model.transformer.layers.{i}.mlp.fc2.bias",
+                    f"{v}.transformer.layers.{i}.mlp.linear_fc2.bias",
+                ),
+                (
+                    f"vision_model.transformer.layers.{i}.mlp.fc2.weight",
+                    f"{v}.transformer.layers.{i}.mlp.linear_fc2.weight",
+                ),
             ]
         )
 
     for i in range(vision_model_config.num_global_layers):
         key_map.extend(
             [
-                (f"vision_model.global_transformer.layers.{i}.self_attn.o_proj.weight", f"{v}.global_transformer.layers.{i}.self_attention.linear_proj.weight"),
-                (f"vision_model.global_transformer.layers.{i}.gate_attn", f"{v}.global_transformer.layers.{i}.gate_attn"),
-                (f"vision_model.global_transformer.layers.{i}.gate_ffn", f"{v}.global_transformer.layers.{i}.gate_ffn"),
-                (f"vision_model.global_transformer.layers.{i}.input_layernorm.bias", f"{v}.global_transformer.layers.{i}.input_layernorm.bias"),
-                (f"vision_model.global_transformer.layers.{i}.input_layernorm.weight", f"{v}.global_transformer.layers.{i}.input_layernorm.weight"),
-                (f"vision_model.global_transformer.layers.{i}.post_attention_layernorm.bias", f"{v}.global_transformer.layers.{i}.pre_mlp_layernorm.bias"),
-                (f"vision_model.global_transformer.layers.{i}.post_attention_layernorm.weight", f"{v}.global_transformer.layers.{i}.pre_mlp_layernorm.weight"),
-                (f"vision_model.global_transformer.layers.{i}.mlp.fc1.bias", f"{v}.global_transformer.layers.{i}.mlp.linear_fc1.bias"),
-                (f"vision_model.global_transformer.layers.{i}.mlp.fc1.weight", f"{v}.global_transformer.layers.{i}.mlp.linear_fc1.weight"),
-                (f"vision_model.global_transformer.layers.{i}.mlp.fc2.bias", f"{v}.global_transformer.layers.{i}.mlp.linear_fc2.bias"),
-                (f"vision_model.global_transformer.layers.{i}.mlp.fc2.weight", f"{v}.global_transformer.layers.{i}.mlp.linear_fc2.weight"),
+                (
+                    f"vision_model.global_transformer.layers.{i}.self_attn.o_proj.weight",
+                    f"{v}.global_transformer.layers.{i}.self_attention.linear_proj.weight",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.gate_attn",
+                    f"{v}.global_transformer.layers.{i}.gate_attn",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.gate_ffn",
+                    f"{v}.global_transformer.layers.{i}.gate_ffn",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.input_layernorm.bias",
+                    f"{v}.global_transformer.layers.{i}.input_layernorm.bias",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.input_layernorm.weight",
+                    f"{v}.global_transformer.layers.{i}.input_layernorm.weight",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.post_attention_layernorm.bias",
+                    f"{v}.global_transformer.layers.{i}.pre_mlp_layernorm.bias",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.post_attention_layernorm.weight",
+                    f"{v}.global_transformer.layers.{i}.pre_mlp_layernorm.weight",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.mlp.fc1.bias",
+                    f"{v}.global_transformer.layers.{i}.mlp.linear_fc1.bias",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.mlp.fc1.weight",
+                    f"{v}.global_transformer.layers.{i}.mlp.linear_fc1.weight",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.mlp.fc2.bias",
+                    f"{v}.global_transformer.layers.{i}.mlp.linear_fc2.bias",
+                ),
+                (
+                    f"vision_model.global_transformer.layers.{i}.mlp.fc2.weight",
+                    f"{v}.global_transformer.layers.{i}.mlp.linear_fc2.weight",
+                ),
             ]
         )
 
@@ -180,38 +247,64 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
             xattn_index = cross_num * cross_attention_frequency + 3
             key_map.extend(
                 [
-                    (f"language_model.model.layers.{i}.cross_attn.o_proj.weight",
-                     f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_proj.weight"),
-                    (f"language_model.model.layers.{i}.cross_attn.q_proj.weight",
-                     f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_q.weight"),
-                    (f"language_model.model.layers.{i}.cross_attn.k_norm.weight",
-                     f"{l}.xattn_layers.{xattn_index}.cross_attention.k_layernorm.weight"),
-                    (f"language_model.model.layers.{i}.input_layernorm.weight",
-                     f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_q.layer_norm_weight"),
-                    (f"language_model.model.layers.{i}.cross_attn.q_norm.weight",
-                     f"{l}.xattn_layers.{xattn_index}.cross_attention.q_layernorm.weight"),
-                    (f"language_model.model.layers.{i}.post_attention_layernorm.weight",
-                     f"{l}.xattn_layers.{xattn_index}.mlp.linear_fc1.layer_norm_weight"),
-                    (f"language_model.model.layers.{i}.mlp.down_proj.weight",
-                     f"{l}.xattn_layers.{xattn_index}.mlp.linear_fc2.weight"),
-                    (f"language_model.model.layers.{i}.cross_attn_attn_gate",
-                     f"{l}.xattn_layers.{xattn_index}.gate_attn"),
-                    (f"language_model.model.layers.{i}.cross_attn_mlp_gate",
-                     f"{l}.xattn_layers.{xattn_index}.gate_ffn"),
+                    (
+                        f"language_model.model.layers.{i}.cross_attn.o_proj.weight",
+                        f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_proj.weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.cross_attn.q_proj.weight",
+                        f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_q.weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.cross_attn.k_norm.weight",
+                        f"{l}.xattn_layers.{xattn_index}.cross_attention.k_layernorm.weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.input_layernorm.weight",
+                        f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_q.layer_norm_weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.cross_attn.q_norm.weight",
+                        f"{l}.xattn_layers.{xattn_index}.cross_attention.q_layernorm.weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.post_attention_layernorm.weight",
+                        f"{l}.xattn_layers.{xattn_index}.mlp.linear_fc1.layer_norm_weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.mlp.down_proj.weight",
+                        f"{l}.xattn_layers.{xattn_index}.mlp.linear_fc2.weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.cross_attn_attn_gate",
+                        f"{l}.xattn_layers.{xattn_index}.gate_attn",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.cross_attn_mlp_gate",
+                        f"{l}.xattn_layers.{xattn_index}.gate_ffn",
+                    ),
                 ]
             )
         else:
             attn_index = i - cross_num - 1
             key_map.extend(
                 [
-                    (f"language_model.model.layers.{i}.self_attn.o_proj.weight",
-                     f"{l}.layers.{attn_index}.self_attention.linear_proj.weight"),
-                    (f"language_model.model.layers.{i}.post_attention_layernorm.weight",
-                     f"{l}.layers.{attn_index}.mlp.linear_fc1.layer_norm_weight"),
-                    (f"language_model.model.layers.{i}.mlp.down_proj.weight",
-                     f"{l}.layers.{attn_index}.mlp.linear_fc2.weight"),
-                    (f"language_model.model.layers.{i}.input_layernorm.weight",
-                     f"{l}.layers.{attn_index}.self_attention.linear_qkv.layer_norm_weight"),
+                    (
+                        f"language_model.model.layers.{i}.self_attn.o_proj.weight",
+                        f"{l}.layers.{attn_index}.self_attention.linear_proj.weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.post_attention_layernorm.weight",
+                        f"{l}.layers.{attn_index}.mlp.linear_fc1.layer_norm_weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.mlp.down_proj.weight",
+                        f"{l}.layers.{attn_index}.mlp.linear_fc2.weight",
+                    ),
+                    (
+                        f"language_model.model.layers.{i}.input_layernorm.weight",
+                        f"{l}.layers.{attn_index}.self_attention.linear_qkv.layer_norm_weight",
+                    ),
                 ]
             )
 
@@ -224,14 +317,18 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
 
         new_state_dict = {}
         for i in range(vision_model_config.num_layers):
-            qkv_weights = state_dict[f"vision_model.vision_encoder.transformer.layers.{i}.self_attention.linear_qkv.weight"]
+            qkv_weights = state_dict[
+                f"vision_model.vision_encoder.transformer.layers.{i}.self_attention.linear_qkv.weight"
+            ]
 
             for name, weight in split_qkv_weight(qkv_weights, vision_model_config):
                 new_key = f'vision_model.transformer.layers.{i}.self_attn.{name}.weight'
                 new_state_dict[new_key] = weight.reshape(-1, hidden_size)
 
         for i in range(vision_model_config.num_global_layers):
-            qkv_weights = state_dict[f"vision_model.vision_encoder.global_transformer.layers.{i}.self_attention.linear_qkv.weight"]
+            qkv_weights = state_dict[
+                f"vision_model.vision_encoder.global_transformer.layers.{i}.self_attention.linear_qkv.weight"
+            ]
 
             for name, weight in split_qkv_weight(qkv_weights, vision_model_config):
                 new_key = f'vision_model.global_transformer.layers.{i}.self_attn.{name}.weight'
@@ -240,11 +337,8 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
         return new_state_dict
 
     def convert_patch_embeding(state_dict):
-        conv1_weight=state_dict["vision_model.vision_encoder.conv1._linear.weight"]
-        return {
-            "vision_model.patch_embedding.weight":
-            conv1_weight.reshape(conv1_weight.shape[0], 3, 14, 14)
-        }
+        conv1_weight = state_dict["vision_model.vision_encoder.conv1._linear.weight"]
+        return {"vision_model.patch_embedding.weight": conv1_weight.reshape(conv1_weight.shape[0], 3, 14, 14)}
 
     def convert_language_qkv_weight(state_dict, language_model_config):
         hidden_size = language_model_config.hidden_size
@@ -278,8 +372,8 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
                 gate_weight = state_dict[f"{l}.layers.{attn_index}.mlp.linear_fc1.weight"]
 
             for name, weight in split_gate_weight(gate_weight):
-                    new_key = f"language_model.model.layers.{i}.mlp.{name}.weight"
-                    new_state_dict[new_key] = weight
+                new_key = f"language_model.model.layers.{i}.mlp.{name}.weight"
+                new_state_dict[new_key] = weight
 
         return new_state_dict
 
@@ -287,10 +381,7 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
         word_embeddings = state_dict["language_model.embedding.word_embeddings.weight"]
         learnable_embedding = state_dict["language_model.learnable_embedding.weight"]
 
-        return {
-            "language_model.model.embed_tokens.weight":
-            torch.cat((word_embeddings, learnable_embedding), dim=0)
-        }
+        return {"language_model.model.embed_tokens.weight": torch.cat((word_embeddings, learnable_embedding), dim=0)}
 
     new_state_dict.update(convert_vision_qkv_weight(state_dict, vision_model_config))
     new_state_dict.update(convert_patch_embeding(state_dict))

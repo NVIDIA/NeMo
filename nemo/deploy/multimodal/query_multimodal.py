@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import soundfile as sf
-import requests
-from PIL import Image
 from io import BytesIO
+
+import numpy as np
+import requests
+import soundfile as sf
+from PIL import Image
 
 from nemo.deploy.utils import str_list2numpy
 
@@ -72,8 +73,7 @@ class NemoQueryMultimodal:
             sub_frames = self.get_subsampled_frames(frames, subsample_len)
             return np.array(sub_frames)
         elif self.model_type in ["neva", "vila", "mllama"]:
-            if input_media.startswith("http") or input_media.startswith(
-                    "https"):
+            if input_media.startswith("http") or input_media.startswith("https"):
                 response = requests.get(input_media, timeout=5)
                 media = Image.open(BytesIO(response.content)).convert("RGB")
             else:

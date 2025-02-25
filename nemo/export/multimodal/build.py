@@ -20,24 +20,25 @@ import tempfile
 from pathlib import Path
 from time import time
 from typing import List
-from PIL import Image
 
 import tensorrt as trt
 import torch
 import yaml
 from omegaconf import OmegaConf
-from tensorrt_llm.builder import Builder, BuildConfig
-from tensorrt_llm.models import MLLaMAForCausalLM
-from tensorrt_llm.mapping import Mapping
-from tensorrt_llm.commands.build import build as build_trtllm
-from tensorrt_llm.plugin import PluginConfig
+from PIL import Image
 from tensorrt_llm._common import check_max_num_tokens
-from transformers import AutoModel, MllamaForConditionalGeneration, AutoProcessor
+from tensorrt_llm.builder import BuildConfig, Builder
+from tensorrt_llm.commands.build import build as build_trtllm
+from tensorrt_llm.mapping import Mapping
+from tensorrt_llm.models import MLLaMAForCausalLM
+from tensorrt_llm.plugin import PluginConfig
+from transformers import AutoModel, AutoProcessor, MllamaForConditionalGeneration
 
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
 from nemo.core.classes.common import typecheck
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
+
 from .converter import convert_mllama_nemo_to_hf
 
 logger = trt.Logger(trt.Logger.INFO)
@@ -93,8 +94,7 @@ def build_mllama_trtllm_engine(
 ):
     if max_batch_size < 4:
         print(
-            "TensorRT LLM may hit a runtime issue with batch size is smaller than 4 on some models."
-            " Force set to 4"
+            "TensorRT LLM may hit a runtime issue with batch size is smaller than 4 on some models." " Force set to 4"
         )
         max_batch_size = 4
 
@@ -134,9 +134,7 @@ def build_mllama_trtllm_engine(
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 
     for rank in range(tensor_parallelism_size):
-        mapping = Mapping(world_size=tensor_parallelism_size,
-                          rank=rank,
-                          tp_size=tensor_parallelism_size)
+        mapping = Mapping(world_size=tensor_parallelism_size, rank=rank, tp_size=tensor_parallelism_size)
         model = MLLaMAForCausalLM.from_hugging_face(
             hf_model_path,
             dtype,
@@ -145,6 +143,7 @@ def build_mllama_trtllm_engine(
 
         engine = build_trtllm(model, build_config)
         engine.save(model_dir)
+
 
 def export_visual_wrapper_onnx(
     visual_wrapper, input, output_dir, input_names=['input'], dynamic_axes={'input': {0: 'batch'}}
@@ -578,16 +577,16 @@ def build_perception_engine(
         part_name='perception_encoder',
     )
 
+
 def build_mllama_visual_engine(
     model_dir: str,
     hf_model_path: str,
     processor_name: str = "meta-llama/Llama-3.2-11B-Vision-Instruct",
     vision_max_batch_size: int = 1,
 ):
-    hf_model = MllamaForConditionalGeneration.from_pretrained(hf_model_path,
-                                                              torch_dtype="auto",
-                                                              device_map="auto")
+    hf_model = MllamaForConditionalGeneration.from_pretrained(hf_model_path, torch_dtype="auto", device_map="auto")
     model_dtype = hf_model.dtype
+
     class MLLaMAVisionWrapper(torch.nn.Module):
         def __init__(self, vision_model, output_proj):
             super().__init__()
@@ -595,44 +594,29 @@ def build_mllama_visual_engine(
             self.output_proj = output_proj
 
         def forward(self, pixel_values, aspect_ratio_ids, aspect_ratio_mask):
-            out = self.vision_model(pixel_values, aspect_ratio_ids,
-                                    aspect_ratio_mask).last_hidden_state
+            out = self.vision_model(pixel_values, aspect_ratio_ids, aspect_ratio_mask).last_hidden_state
             out = self.output_proj(out)
             return out
 
-    wrapper = MLLaMAVisionWrapper(
-        hf_model.vision_model,
-        hf_model.multi_modal_projector
-    )
+    wrapper = MLLaMAVisionWrapper(hf_model.vision_model, hf_model.multi_modal_projector)
 
     processor = AutoProcessor.from_pretrained(processor_name)
     image = Image.new('RGB', [2048, 2688])
-    inputs = processor(images=image,
-        return_tensors="pt").to(model_dtype)
+    inputs = processor(images=image, return_tensors="pt").to(model_dtype)
 
     export_visual_wrapper_onnx(
         wrapper,
         tuple([value for _, value in inputs.items()]),
         model_dir,
         input_names=[key for key in inputs],
-        dynamic_axes={
-            key: {0: "batch"}
-            for key in inputs
-        },
+        dynamic_axes={key: {0: "batch"} for key in inputs},
     )
-    shapes = [
-        {k: list(v.shape)for k, v in inputs.items()}
-    ] * 3
+    shapes = [{k: list(v.shape) for k, v in inputs.items()}] * 3
     shapes[2] = shapes[0].copy()
     for k, v in shapes[2].items():
         shapes[2][k] = [vision_max_batch_size] + v[1:]
-    build_trt_engine(
-        "mllama",
-        shapes,
-        model_dir,
-        vision_max_batch_size,
-        model_dtype
-    )
+    build_trt_engine("mllama", shapes, model_dir, vision_max_batch_size, model_dtype)
+
 
 def build_visual_engine(
     model_dir: str,

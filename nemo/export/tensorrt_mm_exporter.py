@@ -21,15 +21,14 @@ from typing import List
 
 import numpy as np
 import wrapt
-
 from tensorrt_llm.runtime import MultimodalModelRunner as TRTLLMRunner
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.multimodal.build import (
+    build_mllama_engine,
     build_perception_engine,
     build_trtllm_engine,
     build_visual_engine,
-    build_mllama_engine,
     extract_lora_ckpt,
 )
 from nemo.export.multimodal.run import MultimodalModelRunner, SpeechllmModelRunner
@@ -184,7 +183,10 @@ class TensorRTMMExporter(ITritonDeployable):
             else:
                 visual_dir = os.path.join(self.model_dir, "visual_engine")
                 build_visual_engine(
-                    visual_dir, visual_checkpoint_path if lora_dir is None else lora_dir, model_type, vision_max_batch_size
+                    visual_dir,
+                    visual_checkpoint_path if lora_dir is None else lora_dir,
+                    model_type,
+                    vision_max_batch_size,
                 )
 
             if tmp_dir is not None:
@@ -332,11 +334,13 @@ class TensorRTMMExporter(ITritonDeployable):
             return
         if self.modality == "vision":
             import json
+
             visual_dir = os.path.join(self.model_dir, "visual_engine")
             with open(os.path.join(visual_dir, "config.json"), "r") as f:
                 config = json.load(f)
             if config["builder_config"]["model_type"] == "mllama":
                 from types import SimpleNamespace
+
                 args = SimpleNamespace(
                     visual_engine_dir=visual_dir,
                     visual_engine_name="visual_encoder.engine",
