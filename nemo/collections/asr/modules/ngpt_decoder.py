@@ -15,6 +15,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
+import torch
 import torch.nn as nn
 
 from nemo.collections.asr.modules.ngpt_encoder import GPTConfig
@@ -58,13 +59,37 @@ class Decoder(nn.Module):
         self._config = config
 
         self.decoder_blocks = nn.ModuleList([DecoderBlock(config) for _ in range(config.n_layers)])
+    
+    def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
+        if decoder_mems_list is not None:
+            inp1 = torch.transpose(decoder_mems_list[i], 1, 2)  # Putting seq_len to last dim to handle export cases
+            inp2 = torch.transpose(decoder_states, 1, 2)
+            memory_states = torch.cat((inp1, inp2), dim=2)
+            memory_states = torch.transpose(memory_states, 1, 2)  # Transposing back
+        else:
+            memory_states = decoder_states
+        return memory_states
 
-    def forward(self, decoder_state, decoder_mask, encoder_embeddings, encoder_mask):
+    def forward(self, decoder_state, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems_list=None, return_mems=False, return_mem_as_list=True):
         # Decoder
+        memory_states = self._get_memory_states(decoder_state, decoder_mems_list, 0)
+        if return_mems:
+            if return_mem_as_list:
+                cached_mems_list = [memory_states]
+            else:
+                cached_mems_list = memory_states.unsqueeze(0)
 
-        for decoder_block in self.decoder_blocks:
+        for i, decoder_block in enumerate(self.decoder_blocks):
             decoder_state = decoder_block(decoder_state, decoder_mask, decoder_state, encoder_embeddings, encoder_mask)
-
+            memory_states = self._get_memory_states(decoder_state, decoder_mems_list, i+1)
+            if return_mems:
+                if return_mem_as_list:
+                    cached_mems_list.append(memory_states)
+                else:
+                    cached_mems_list = torch.cat([cached_mems_list, memory_states.unsqueeze(0)], dim=0)
+        # import ipdb; ipdb.set_trace()
+        if return_mems:
+            return cached_mems_list
         return decoder_state
 
 class NGPTDecoder(nn.Module):
