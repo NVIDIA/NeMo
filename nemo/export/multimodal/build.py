@@ -320,6 +320,7 @@ def build_neva_engine(
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 
     class DownSampleBlock(torch.nn.Module):
+        # pylint: disable=C0115,C0116
         def forward(self, x):
             vit_embeds = x
             h = w = int(vit_embeds.shape[1] ** 0.5)
@@ -342,7 +343,7 @@ def build_neva_engine(
             return x
 
     class VisionEncoderWrapper(torch.nn.Module):
-
+        # pylint: disable=C0115,C0116
         def __init__(self, encoder, connector):
             super().__init__()
             self.encoder = encoder
@@ -457,7 +458,7 @@ def build_video_neva_engine(
     vision_config = nemo_config["mm_cfg"]["vision_encoder"]
 
     class VisionEncoderWrapper(torch.nn.Module):
-
+        # pylint: disable=C0115,C0116
         def __init__(self, encoder, connector):
             super().__init__()
             self.encoder = encoder
@@ -550,6 +551,7 @@ def build_perception_engine(
     feature_extractor.export(dump_path, (input_signal, input_signal_length))
 
     class PerceptionWrapper(torch.nn.Module):
+        # pylint: disable=C0115,C0116
         def __init__(self, encoder, modality_adapter, proj):
             super().__init__()
             self.encoder = encoder
@@ -597,6 +599,7 @@ def build_mllama_visual_engine(
     model_dtype = hf_model.dtype
 
     class MLLaMAVisionWrapper(torch.nn.Module):
+        # pylint: disable=C0115,C0116
         def __init__(self, vision_model, output_proj):
             super().__init__()
             self.vision_model = vision_model
