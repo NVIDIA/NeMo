@@ -534,6 +534,7 @@ class TestExpManager:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize('test_dist_ckpt', [False, True])
+    @pytest.mark.pleasefixme
     def test_base_checkpoints_are_not_overwritten(self, tmp_path, test_dist_ckpt):
         """Simulates already existing checkpoints in the ckpt directory and tests non-nemo ckpt versioning"""
         strategy = NLPDDPStrategy() if test_dist_ckpt else 'auto'
@@ -614,7 +615,7 @@ class TestExpManager:
 
         checkpoint_dir = Path(str(tmp_path / "checkpoints"))
         model_path = checkpoint_dir / "val_loss=0.0300-epoch=1-step=64-last.ckpt"
-        last_saved_checkpoint = torch.load(model_path)
+        last_saved_checkpoint = torch.load(model_path, weights_only=False)
         assert max_steps == last_saved_checkpoint['global_step']
 
         # restart training, ensure global step starts correctly

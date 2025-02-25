@@ -14,11 +14,11 @@
 
 import logging
 import os.path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import safetensors.torch
 import torch
-from vllm.config import CacheConfig, DeviceConfig, LoRAConfig, ModelConfig, ParallelConfig, SchedulerConfig
+from vllm.config import ModelConfig
 from vllm.model_executor.model_loader.loader import BaseModelLoader, _initialize_model
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 
@@ -42,30 +42,26 @@ class NemoModelLoader(BaseModelLoader):
         LOGGER.info(f'Loading weights from {nemo_file}...')
         return load_model_weights(nemo_file)
 
-    def download_model(self, model_config: ModelConfig) -> None:
-        # pylint: disable=C0116
+    def download_model(self, model_config: ModelConfig) -> None:  # pylint: disable=missing-function-docstring
         raise NotImplementedError
 
     def load_model(
         self,
         *,
-        model_config: NemoModelConfig,
-        device_config: DeviceConfig,
-        lora_config: Optional[LoRAConfig],
-        parallel_config: ParallelConfig,
-        scheduler_config: SchedulerConfig,
-        cache_config: CacheConfig,
+        vllm_config: NemoModelConfig,
     ) -> torch.nn.Module:
         """
         Overrides the load_model function from BaseModelLoader to convert Nemo weights at load time.
         """
+        model_config = vllm_config.model_config
+        device_config = vllm_config.device_config
 
         assert isinstance(model_config, NemoModelConfig)
         state_dict = NemoModelLoader._load_nemo_checkpoint_state(model_config.nemo_checkpoint)
 
         with set_default_torch_dtype(model_config.dtype):
             with torch.device(device_config.device):
-                model = _initialize_model(model_config, self.load_config, lora_config, cache_config)
+                model = _initialize_model(vllm_config)
 
             config = model_config.nemo_model_config
             if 'config' in config:

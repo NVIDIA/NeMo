@@ -30,6 +30,7 @@ from nemo.collections.llm.gpt.model.base import (
     transformer_engine_layer_spec,
 )
 from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig, ChatGLMModel
+from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2Config, DeepSeekV3Config
 from nemo.collections.llm.gpt.model.gemma import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
@@ -63,7 +64,9 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama32Config3B,
     LlamaConfig,
     LlamaModel,
+    MLPerfLoRALlamaModel,
 )
+from nemo.collections.llm.gpt.model.llama_embedding import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
 from nemo.collections.llm.gpt.model.mixtral import (
     MixtralConfig,
@@ -111,9 +114,16 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
 
 __all__ = [
     "GPTConfig",
+    "GPTConfig5B",
+    "GPTConfig7B",
+    "GPTConfig20B",
+    "GPTConfig40B",
+    "GPTConfig126M",
+    "GPTConfig175B",
     "GPTModel",
     "MistralConfig7B",
     "MistralModel",
+    "MistralNeMoConfig12B",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
@@ -145,6 +155,8 @@ __all__ = [
     "Nemotron3Config22B",
     "Nemotron4Config340B",
     "NemotronModel",
+    "LlamaEmbeddingModel",
+    "Llama32EmbeddingConfig1B",
     "Phi3Config",
     "Phi3ConfigMini",
     "Phi3Model",
@@ -164,6 +176,7 @@ __all__ = [
     "Gemma2Config9B",
     "Gemma2Model",
     "LlamaModel",
+    "MLPerfLoRALlamaModel",
     "Baichuan2Config",
     "Baichuan2Config7B",
     "Baichuan2Model",
@@ -185,6 +198,9 @@ __all__ = [
     "BaseMambaConfig2_7B",
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
+    "DeepSeekModel",
+    "DeepSeekV2Config",
+    "DeepSeekV3Config",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",

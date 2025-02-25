@@ -14,22 +14,15 @@
 
 import lightning.pytorch as pl
 import torch
-import torch.nn.functional as F
+from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm import fn
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import masked_cross_entropy
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 from nemo.utils import logging
-
-
-def masked_cross_entropy(logits, targets, mask=None):
-    if mask is not None:
-        loss = F.cross_entropy(logits, targets, reduction='none')
-        return torch.mean(loss[mask == 1])
-    else:
-        return F.cross_entropy(logits, targets)
 
 
 class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
@@ -42,6 +35,11 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         model_transform=None,
         model_accelerator=None,
         trust_remote_code=False,
+        param_dtype=torch.bfloat16,
+        reduce_dtype=torch.float32,
+        output_dtype=None,
+        cast_forward_inputs=True,
+        parallelize_fn=None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -55,6 +53,13 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.model_transform = model_transform
         self.model_accelerator = model_accelerator
         self.trust_remote_code = trust_remote_code
+        self.mp_policy = MixedPrecisionPolicy(
+            param_dtype=param_dtype,
+            reduce_dtype=reduce_dtype,
+            output_dtype=output_dtype,
+            cast_forward_inputs=cast_forward_inputs,
+        )
+        self.parallelize_fn = parallelize_fn
 
     @property
     def tokenizer(self):
@@ -97,7 +102,10 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         # Apply FSDP2 and TP to the model
         if self.device_mesh is not None:
-            fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh, model_type="speech_seq2seq")
+            if self.parallelize_fn is not None:
+                self.parallelize_fn(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
+            else:
+                fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
 
         if train:
             self.model.train()

@@ -26,6 +26,9 @@ from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
+from nemo.collections.llm.distillation import DistillationGPTModel
+from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
+from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
 from nemo.lightning import (
     AutoResume,
@@ -264,6 +267,83 @@ def validate(
     return app_state.exp_dir
 
 
+@run.cli.entrypoint(name="distill", namespace="llm")
+def distill(
+    student_model_path: AnyPath,
+    teacher_model_path: AnyPath,
+    data: pl.LightningDataModule,
+    trainer: Trainer,
+    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
+    optim: Optional[OptimizerModule] = None,
+    tokenizer: Optional[TokenizerType] = None,
+    model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
+) -> Path:
+    """
+    Distills a teacher model into a student model using special Knowledge-Distillation losses.
+
+    Note that this requires an existing NeMo 2.0 checkpoint of the student model as well, as
+    the model class is not known beforehand.
+    This script currently supports instances of ``nemo.collections.llm.GPTModel`` for now.
+
+    Args:
+        student_model_path (Path): Path to student model NeMo checkpoint to be trained.
+        teacher_model_path (Path): Path to teacher model NeMo checkpoint to distill from.
+        data (pl.LightningDataModule): The data module containing training data.
+        trainer (Trainer): The trainer instance configured with a MegatronStrategy.
+        log (NeMoLogger): A nemologger instance.
+        resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
+        optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
+            from the model will be used.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
+            or an instance of TokenizerSpec.
+        export (Optional[str]): Filename to save the exported checkpoint after training.
+        model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
+
+    Returns
+    -------
+        Path: The directory path where training artifacts are saved.
+
+    Examples
+    --------
+        >>> from nemo.collections import llm
+        >>> from nemo import lightning as nl
+        >>> student = "/path/to/student/nemo/ckpt"  # <-- change me
+        >>> teacher = "/path/to/teacher/nemo/ckpt"  # <-- change me
+        >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+        >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
+        >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
+        >>> llm.distill(student, teacher, data, trainer, tokenizer="model")
+        PosixPath('/path/to/log_dir')
+    """
+    _student_model = io.load_context(student_model_path, subpath="model")
+    _teacher_model = io.load_context(teacher_model_path, subpath="model")
+    assert isinstance(_student_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+    assert isinstance(_teacher_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+
+    if tokenizer is None:
+        tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
+        assert tokenizer is not None, "Tokenizer neither provided nor found in models."
+
+    model = DistillationGPTModel(
+        _student_model.config,
+        _teacher_model.config,
+        teacher_ckpt_path=teacher_model_path,
+    )
+    model.__io__ = _student_model.__io__
+
+    return train(
+        model=model,
+        data=data,
+        optim=optim,
+        tokenizer=tokenizer,
+        trainer=trainer,
+        log=log,
+        resume=resume,
+        model_transform=model_transform,
+    )
+
+
 @run.cli.entrypoint(name="ptq", namespace="llm")
 def ptq(
     nemo_checkpoint: str,
@@ -376,8 +456,8 @@ def deploy(
         Needs to be True to be able to run evaluation. Default: True.
         openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
         be True while running evaluation. Default: True.
-        output_context_logits (bool): If True builds trtllm engine with gather_context_logits set to True. Default: True.
-        context_logits are used to compute the logProb of the output token in case of multi token prediction benchmarks.
+        output_context_logits (bool): If True builds trtllm engine with 'gather_context_logits=True'. Default: True.
+            context_logits are used to compute the logProb of the output token in multi-token prediction benchmarks.
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token in case of single token prediction
         benchmarks (like MMLU, lambada). Default: True.
@@ -386,11 +466,6 @@ def deploy(
     from nemo.deploy import DeployPyTriton
 
     unset_environment_variables()
-
-    if not isinstance(nemo_checkpoint, Path):
-        nemo_checkpoint = Path(nemo_checkpoint)
-    if not isinstance(triton_model_repository, Path):
-        triton_model_repository = Path(triton_model_repository)
 
     triton_deployable = get_trtllm_deployable(
         nemo_checkpoint,
@@ -437,54 +512,22 @@ def deploy(
 
 
 def evaluate(
-    nemo_checkpoint_path: AnyPath,
-    url: str = "grpc://0.0.0.0:8001",
-    triton_http_port: int = 8000,
-    model_name: str = "triton_model",
-    eval_task: str = "gsm8k",
-    num_fewshot: Optional[int] = None,
-    limit: Optional[Union[int, float]] = None,
-    bootstrap_iters: int = 100000,
-    # inference params
-    temperature: Optional[float] = 0.000000001,
-    top_p: Optional[float] = 0.0,
-    top_k: Optional[int] = 1,
-    add_bos: Optional[bool] = False,
+    target_cfg: EvaluationTarget,
+    eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
 ):
     """
     Evaluates nemo model deployed on PyTriton server (via trtllm) using lm-evaluation-harness
     (https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
 
     Args:
-        nemo_checkpoint_path (Path): Path for nemo 2.0 checkpoint. This is used to get the tokenizer from the ckpt
-        which is required to tokenize the evaluation input and output prompts.
-        url (str): grpc service url that were used in the deploy method above
-            in the format: grpc://{grpc_service_ip}:{grpc_port}.
-        triton_http_port (int): HTTP port that was used for the PyTriton server in the deploy method. Default: 8000.
-        Please pass the triton_http_port if using a custom port in the deploy method.
-        model_name (str): Name of the model that is deployed on PyTriton server. It should be the same as
-        triton_model_name passed to the deploy method above to be able to launch evaluation. Deafult: "triton_model".
-        eval_task (str): task to be evaluated on. For ex: "gsm8k", "gsm8k_cot", "mmlu", "lambada". Default: "gsm8k".
-        These are the tasks that are supported currently. Any other task of type generate_until or loglikelihood from
-        lm-evaluation-harness can be run, but only the above mentioned ones are tested. Tasks of type
-        loglikelihood_rolling are not supported yet.
-        num_fewshot (int): number of examples in few-shot context. Default: None.
-        limit (Union[int, float]): Limit the number of examples per task. If <1 (i.e float val between 0 and 1), limit
-        is a percentage of the total number of examples. If int say x, then run evaluation only on x number of samples
-        from the eval dataset. Default: None, which means eval is run the entire dataset.
-        bootstrap_iters (int): Number of iterations for bootstrap statistics, used when calculating stderrs. Set to 0
-        for no stderr calculations to be performed. Default: 100000.
-        # inference params
-        temperature: Optional[float]: float value between 0 and 1. temp of 0 indicates greedy decoding, where the token
-        with highest prob is chosen. Temperature can't be set to 0.0 currently, due to a bug with TRTLLM
-        (# TODO to be investigated). Hence using a very samll value as the default. Default: 0.000000001.
-        top_p: Optional[float]: float value between 0 and 1. limits to the top tokens within a certain probability.
-        top_p=0 means the model will only consider the single most likely token for the next prediction. Default: 0.0.
-        top_k: Optional[int]: limits to a certain number (K) of the top tokens to consider. top_k=1 means the model
-        will only consider the single most likely token for the next prediction. Default: 1
-        add_bos: Optional[bool]: whether a special token representing the beginning of a sequence should be added when
-        encoding a string. Default: False since typically for CausalLM its set to False. If needed set add_bos to True.
+        target_cfg (EvaluationTarget): target of the evaluation. Providing nemo_checkpoint_path, model_id, and
+            url in EvaluationTarget.api_endpoint is required to run evaluations.
+        eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
     """
+
+    if target_cfg.api_endpoint.nemo_checkpoint_path is None:
+        raise ValueError("Please provide nemo_checkpoint_path in your target_cfg.")
+
     try:
         # lm-evaluation-harness import
         from lm_eval import evaluator
@@ -493,23 +536,37 @@ def evaluate(
             "Please ensure that lm-evaluation-harness is installed in your env as it is required " "to run evaluations"
         )
 
-    from nemo.collections.llm import evaluation
-
-    if not isinstance(nemo_checkpoint_path, Path):
-        nemo_checkpoint_path = Path(nemo_checkpoint_path)
+    from nemo.collections.llm.evaluation.base import NeMoFWLMEval, wait_for_server_ready
 
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
-    tokenizer = io.load_context(nemo_checkpoint_path + "/context", subpath="model.tokenizer")
+    endpoint = target_cfg.api_endpoint
+    tokenizer = io.load_context(endpoint.nemo_checkpoint_path + "/context", subpath="model.tokenizer")
+
     # Wait for server to be ready before starting evaluation
-    evaluation.wait_for_server_ready(url=url, triton_http_port=triton_http_port, model_name=model_name)
+    wait_for_server_ready(
+        url=endpoint.url, triton_http_port=endpoint.nemo_triton_http_port, model_name=endpoint.model_id
+    )
     # Create an object of the NeMoFWLM which is passed as a model to evaluator.simple_evaluate
-    model = evaluation.NeMoFWLMEval(model_name, url, tokenizer, temperature, top_p, top_k, add_bos)
+    params = eval_cfg.params
+    model = NeMoFWLMEval(
+        model_name=endpoint.model_id,
+        api_url=endpoint.url,
+        tokenizer=tokenizer,
+        batch_size=params.batch_size,
+        max_tokens_to_generate=params.max_new_tokens,
+        temperature=params.temperature,
+        top_p=params.top_p,
+        top_k=params.top_k,
+        add_bos=params.add_bos,
+    )
+
+    eval_task = eval_cfg.type
     results = evaluator.simple_evaluate(
         model=model,
         tasks=eval_task,
-        limit=limit,
-        num_fewshot=num_fewshot,
-        bootstrap_iters=bootstrap_iters,
+        limit=params.limit_samples,
+        num_fewshot=params.num_fewshot,
+        bootstrap_iters=params.bootstrap_iters,
     )
 
     print("score", results["results"][eval_task])
@@ -593,6 +650,7 @@ def import_ckpt(
 
 
 def load_connector_from_trainer_ckpt(path: AnyPath, target: str) -> io.ModelConnector:
+    # pylint: disable=C0116
     if not isinstance(path, Path):
         path = Path(path)
     return io.load_context(path, subpath="model").exporter(target, path)
@@ -605,6 +663,7 @@ def export_ckpt(
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
+    **kwargs,
 ) -> Path:
     """
     Exports a checkpoint from a model using the model's associated exporter, typically for
@@ -658,7 +717,7 @@ def export_ckpt(
     if output_path and not isinstance(output_path, Path):
         output_path = Path(output_path)
 
-    output = io.export_ckpt(path, target, output_path, overwrite, load_connector)
+    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
 
     console = Console()
     console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
@@ -898,7 +957,7 @@ def _validate_config(
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
 ) -> None:
 
-    ## Model validation
+    # Model validation
     if hasattr(model, "config"):
         assert getattr(model.config, "seq_length", 1) > 0
         assert getattr(model.config, "max_position_embeddings", 1) > 0
@@ -913,7 +972,7 @@ def _validate_config(
     else:
         assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
 
-    ## Data validation
+    # Data validation
     assert data.micro_batch_size > 0
     assert data.global_batch_size > 0
     assert data.seq_length > 0
@@ -922,7 +981,7 @@ def _validate_config(
         data.global_batch_size % data.micro_batch_size == 0
     ), "Global batch size must be divisible by micro batch size in data module."
 
-    ## Trainer validation
+    # Trainer validation
 
     # MegatronStrategy validation
     if isinstance(trainer.strategy, nl.MegatronStrategy):
