@@ -116,6 +116,7 @@ def flux_training() -> run.Partial:
                     every_n_train_steps=1000,
                     save_top_k=3,
                     mode='max',
+                    save_last=False,
                 ),
                 run.Config(TimingCallback),
             ],
@@ -177,6 +178,40 @@ def full_model_tp2_dp4_mock() -> run.Partial:
     recipe.data.global_batch_size = 8
     return recipe
 
+@run.cli.factory(target=llm.train)
+def fp8_test() -> run.Partial:
+    '''
+    Basic functional test, with mock dataset,
+    text/vae encoders not initialized, ddp strategy,
+    frozen and trainable layers both set to 1
+    '''
+    recipe = flux_training()
+    recipe.trainer.devices = 8
+    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
+    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    recipe.model.flux_params.vae_config = (
+        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    )
+    recipe.model.flux_params.device = 'cuda'
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig,
+        num_joint_layers=10,
+        num_single_layers=20,
+        fp8='hybrid',
+        fp8_amax_history_len=1024,
+        fp8_amax_compute_algo='max',
+        fp8_dot_product_attention=True,
+        fp8_multi_head_attention=True
+    )
+    recipe.data.global_batch_size = 8
+    recipe.trainer.strategy.ddp = run.Config(
+        DistributedDataParallelConfig,
+        check_for_nan_in_grad=True,
+        grad_reduce_in_fp32=True,
+    )
+    recipe.trainer.max_steps = 100
+    return recipe
+
 
 @run.cli.factory(target=llm.train)
 def unit_test() -> run.Partial:
@@ -199,7 +234,7 @@ def unit_test() -> run.Partial:
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
     )
-    recipe.trainer.max_steps = 10
+    recipe.trainer.max_steps = 100
     return recipe
 
 
