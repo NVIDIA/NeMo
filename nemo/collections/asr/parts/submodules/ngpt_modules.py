@@ -185,10 +185,10 @@ class AttentionBlock(nn.Module):
     
     def normalize_matrices(self):
         
-        self.query.weight.data.copy_(justnorm_fp32(self.query.weight.data), 1)
-        self.key.weight.data.copy_(justnorm_fp32(self.key.weight.data), 1)
-        self.value.weight.data.copy_(justnorm_fp32(self.value.weight.data), 1)
-        self.att_c_proj.weight.data.copy_(justnorm_fp32(self.att_c_proj.weight.data), 0)
+        self.query.weight.data.copy_(justnorm_fp32(self.query.weight.data, 1))
+        self.key.weight.data.copy_(justnorm_fp32(self.key.weight.data, 1))
+        self.value.weight.data.copy_(justnorm_fp32(self.value.weight.data, 1))
+        self.att_c_proj.weight.data.copy_(justnorm_fp32(self.att_c_proj.weight.data, 0))
 
 
 class MLPBlock(nn.Module):
@@ -247,5 +247,5 @@ class MLPBlock(nn.Module):
 
     def normalize_matrices(self):
         
-        self.c_fc.weight.data.copy_(justnorm_fp32(self.c_fc.weight.data), 1)
-        self.mlp_c_proj.weight.data.copy_(justnorm_fp32(self.mlp_c_proj.weight.data), 0)
+        self.c_fc.weight.data.copy_(justnorm_fp32(self.c_fc.weight.data, 1))
+        self.mlp_c_proj.weight.data.copy_(justnorm_fp32(self.mlp_c_proj.weight.data, 0))
