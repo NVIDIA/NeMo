@@ -16,18 +16,26 @@ import math
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 
 import torch
 import torch.nn.functional as F
+import yaml
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import (
+    GPTConfig,
+    GPTModel,
+    torch_dtype_from_dict_config,
+    torch_dtype_from_mcore_config,
+)
 from nemo.collections.llm.utils import Config
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
-from nemo.lightning.io.state import TransformFns
+from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
@@ -291,7 +299,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
     def apply(self, output_path: Path) -> Path:
         from transformers import LlamaForCausalLM
 
-        source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
+        source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype="auto")
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -338,7 +346,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
                 base //= 2
             return base
 
-        if getattr(source, 'rope_scaling', None) is not None and source.rope_scaling.get('rope_type') == 'llama3':
+        if getattr(source, "rope_scaling", None) is not None and source.rope_scaling.get("rope_type") == "llama3":
             # Apply Llama3.1 customize rope scaling
             cls = partial(Llama31Config, scale_factor=source.rope_scaling.get("factor", 8.0))
         else:
@@ -363,6 +371,38 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         return output
 
 
+def get_mcore_state_dict(dist_ckpt_folder: Path):
+    import os
+
+    import torch.distributed as dist
+    from megatron.core import parallel_state
+    from megatron.core.dist_checkpointing.strategies.torch import TorchDistLoadShardedStrategy
+    from omegaconf import OmegaConf
+
+    from instantiate import instantiate
+    from nemo.lightning import _strategy_lib
+
+    cfg = OmegaConf.load(dist_ckpt_folder / "run_config.yaml")
+    cfg = cfg.model_config
+    model_cfg = instantiate(cfg)
+    model_cfg.params_dtype = torch.bfloat16
+    if "MASTER_ADDR" not in os.environ:
+        os.environ["MASTER_ADDR"] = "localhost"
+    if "MASTER_PORT" not in os.environ:
+        os.environ["MASTER_PORT"] = "12355"
+    dist.init_process_group(backend="gloo", world_size=1, rank=0)
+    parallel_state.initialize_model_parallel()
+    with _strategy_lib.megatron_cpu_init_context(model_cfg):
+        model = model_cfg.configure_model(None)
+
+    strategy = TorchDistLoadShardedStrategy()
+    state_dict = strategy.load(model.sharded_state_dict(), Path(dist_ckpt_folder))
+    del model
+    parallel_state.destroy_model_parallel()
+    dist.destroy_process_group()
+    return state_dict
+
+
 @io.model_exporter(LlamaModel, "hf")
 class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
     def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
@@ -372,9 +412,53 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         with no_init_weights(True):
             return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
 
+    def ckpt_load(self, path: Path) -> tuple[dict, dict]:
+        """
+        This function loads the state dict directly from a distributed checkpoint, and modify the state dict
+        so that it is consistent with the key names you would get from loading the checkpoint into a model.
+        This is a more memory-efficient method to obtain a state dict without initializing the nemo model.
+
+        Args:
+            path (Path): The path from which the model will be loaded.
+
+        Returns
+        -------
+            Tuple[Dict, Dict]: The loaded state dict and the yaml config dict.
+        """
+        tron_yaml = path / "run_config.yaml"
+        if tron_yaml.exists():
+            with open(tron_yaml, "r") as stream:
+                config = yaml.safe_load(stream)
+            config = config["model_config"]
+        else:
+            model_yaml = path / "context" / "model.yaml"
+            if not model_yaml.exists():
+                raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
+            with open(model_yaml, "r") as stream:
+                config = yaml.safe_load(stream)
+            config = config["config"]
+
+        dist_ckpt_folder = path / "weights" if (path / "weights").exists() else path
+        state_dict = {}
+        state_dict = get_mcore_state_dict(dist_ckpt_folder)
+        # for k, v in load_distributed_model_weights(dist_ckpt_folder, True).items():
+        #     if "_extra_state" in k:
+        #         continue
+        #     new_k = k.replace("module.", "")
+        #     if ".experts.experts." in k:
+        #         # split experts into multiple tensors
+        #         for i in range(v.size(0)):
+        #             state_dict[new_k.replace(".experts.experts.", ".experts.") + str(i)] = v[i]
+        #     else:
+        #         state_dict[new_k] = v
+        return state_dict, config
+
     def apply(self, output_path: Path) -> Path:
-        source, _ = self.nemo_load(str(self))
-        target = self.init(torch_dtype_from_mcore_config(source.config))
+        logging.info("Loading Llama checkpoint. This may take a while...")
+        source, source_config = self.ckpt_load(self)
+        self._source_config = source_config
+        logging.info("Llama checkpoint loaded.")
+        target = self.init(torch_dtype_from_dict_config(source_config))
         target = self.convert_state(source, target)
 
         target = target.cpu()
@@ -398,8 +482,10 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         if not self.config.tie_word_embeddings:
             transforms.append(_export_head)
 
+        _source = _ModelState(source)
+        _source.config = SimpleNamespace(**self._source_config)
         return io.apply_transforms(
-            source,
+            _source,
             target,
             mapping=mapping,
             transforms=transforms,
@@ -411,7 +497,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
 
     @property
     def config(self) -> "HFLlamaConfig":
-        source: LlamaConfig = io.load_context(str(self), subpath="model.config")
+        source = SimpleNamespace(**self._source_config)
 
         from transformers import LlamaConfig as HFLlamaConfig
 
@@ -425,7 +511,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
             rope_theta=source.rotary_base,
-            vocab_size=self.tokenizer.vocab_size,
+            vocab_size=source.vocab_size,
             tie_word_embeddings=source.share_embeddings_and_output_weights,
         )
 
@@ -440,8 +526,8 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         # Infer base model checkpoint from checkpoint metadata file
         adapter_meta_path = ckpt_to_weights_subdir(str(self), is_saving=False) / ADAPTER_META_FILENAME
         with open(adapter_meta_path, "r") as f:
-            model_ckpt_path = json.load(f)['model_ckpt_path']
-        model.name_or_path = '/'.join(model_ckpt_path.split("/")[-2:])
+            model_ckpt_path = json.load(f)["model_ckpt_path"]
+        model.name_or_path = "/".join(model_ckpt_path.split("/")[-2:])
 
         return get_peft_model(model, self.peft_config, autocast_adapter_dtype=False)
 
@@ -557,19 +643,19 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
 
         assert (
             not self.peft_obj.dropout
-            or self.peft_obj.dropout_position == 'pre' "LoRA dropout_position must be 'pre' to convert to HF."
+            or self.peft_obj.dropout_position == "preLoRA dropout_position must be 'pre' to convert to HF."
         )
 
         NEMO2HF = {
-            'linear_q': ['q_proj'],
-            'linear_k': ['k_proj'],
-            'linear_v': ['v_proj'],
-            'linear_qkv': ['q_proj', 'k_proj', 'v_proj'],
-            'linear_proj': ['o_proj'],
-            'linear_fc1_up': ['up_proj'],
-            'linear_fc1_gate': ['gate_proj'],
-            'linear_fc1': ['up_proj', 'gate_proj'],
-            'linear_fc2': ['down_proj'],
+            "linear_q": ["q_proj"],
+            "linear_k": ["k_proj"],
+            "linear_v": ["v_proj"],
+            "linear_qkv": ["q_proj", "k_proj", "v_proj"],
+            "linear_proj": ["o_proj"],
+            "linear_fc1_up": ["up_proj"],
+            "linear_fc1_gate": ["gate_proj"],
+            "linear_fc1": ["up_proj", "gate_proj"],
+            "linear_fc2": ["down_proj"],
         }
 
         # Infer HF target modules from NeMo target modules
