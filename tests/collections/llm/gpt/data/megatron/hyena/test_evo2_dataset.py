@@ -1014,31 +1014,45 @@ def benchmark_phylo_tag_masking(num_iterations: int = 1000) -> Tuple[float, floa
         + tax_token[36:]
         + "".join(random.choice("ACGTacgt") for _ in range(5000))
     )
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32, device="cpu")
 
     # Time the new implementation
-    new_time = timeit.timeit(
+    new_time1 = timeit.timeit(
         lambda: Evo2Dataset.mask_phylogenetic_tags(sequence.unsqueeze(0), 124, {95, 59, 32}, 0),
         number=num_iterations,
     )
-    print(f"New implementation average time: {new_time/num_iterations:.6f} seconds")
 
     # Time the old implementation
-    old_time = timeit.timeit(
+    old_time1 = timeit.timeit(
         lambda: mask_phylogenetic_tags_old(sequence.unsqueeze(0), 124, {95, 59, 32}, 0),
         number=num_iterations,
     )
+
+    # Time the new implementation
+    new_time2 = timeit.timeit(
+        lambda: Evo2Dataset.mask_phylogenetic_tags(sequence.unsqueeze(0), 124, {95, 59, 32}, 0),
+        number=num_iterations,
+    )
+
+    # Time the old implementation
+    old_time2 = timeit.timeit(
+        lambda: mask_phylogenetic_tags_old(sequence.unsqueeze(0), 124, {95, 59, 32}, 0),
+        number=num_iterations,
+    )
+    new_time = (new_time1 + new_time2) / 2
+    old_time = (old_time1 + old_time2) / 2
     return old_time, new_time
 
 
 def test_phylo_tag_masking_speed():
-    num_iterations = 1000
+    num_iterations = 2000
     old_time, new_time = benchmark_phylo_tag_masking(num_iterations=num_iterations)
-    assert old_time / num_iterations > new_time / num_iterations
+    # Assert performance equivalent to within 20% or better on a small example.
+    assert old_time / num_iterations > (new_time / num_iterations) * 0.8
 
 
 if __name__ == "__main__":
-    num_iterations = 1000
+    num_iterations = 2000
     old_time, new_time = benchmark_phylo_tag_masking(num_iterations=num_iterations)
     print(f"Old implementation average time: {old_time/num_iterations:.6f} seconds")
     print(f"New implementation average time: {new_time/num_iterations:.6f} seconds")

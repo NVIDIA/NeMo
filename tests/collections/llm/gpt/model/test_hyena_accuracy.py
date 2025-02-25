@@ -26,6 +26,7 @@ from typing import Any, Iterator, Literal, Optional, Set, TypeVar
 
 import lightning.pytorch as pl
 import megatron.core.num_microbatches_calculator
+import pytest
 import torch
 import torch.distributed
 from megatron.core import parallel_state
@@ -196,6 +197,7 @@ def load_weights_sharded_inplace_nemo2_to_mcore(
     )
 
 
+@pytest.mark.skip(reason="Skipping test due to slow runtime and non-availability of model/test data in CI.")
 def test_golden_values(use_te: bool = True):
     """Step 1:
     # add local .ssh/*.pub key to eos ~/.ssh/authorized_keys
