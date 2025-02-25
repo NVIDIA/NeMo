@@ -569,7 +569,7 @@ class MegatronBaseModel(NLPModel):
             'attention_backend': attention_backend,
         }
 
-        transformer_confg_cls = TransformerConfig
+        transformer_config_cls = TransformerConfig
         if self.cfg.get('name', None) == 'decoder_block_gpt':
             transformer_config_cls = MLATransformerConfig
 
