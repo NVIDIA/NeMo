@@ -26,12 +26,13 @@ import torch
 # hack to avoid the "not enough disk space" error in some slurm cluster
 datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
 from datasets import load_dataset
+from numpy._typing import NDArray
+
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, OnlineSampleMapping
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-from numpy._typing import NDArray
 
 # patched version of https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_dataset.py
 # to support fast packing without oom

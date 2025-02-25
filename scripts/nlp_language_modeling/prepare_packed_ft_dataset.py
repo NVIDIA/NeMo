@@ -19,12 +19,13 @@ from multiprocessing import Pool
 from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
+from tqdm import tqdm
+
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
-from tqdm import tqdm
 
 PACKING_ALGOS = ['first_fit_decreasing', 'first_fit_shuffle']
 
