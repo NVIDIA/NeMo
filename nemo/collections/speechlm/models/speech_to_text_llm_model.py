@@ -190,6 +190,8 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
     data_config: Optional[DictConfig] = None
 
+    resume_from_path: Optional[str] = None
+
     def _freeze_module(self, module: nn.Module) -> None:
         for param in module.parameters():
             param.requires_grad = False
@@ -229,6 +231,53 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")
         return model
 
+    def _maybe_load_asr_and_modality_adapter(
+        self, asr_model: ASRModel, modality_adapter: nn.Module
+    ) -> Tuple[ASRModel, nn.Module]:
+        if not self.resume_from_path:
+            return asr_model, modality_adapter
+
+        def load_dcp(ckpt_dir, torch_tensor=True):
+            from pathlib import Path
+            import torch
+            import torch.distributed.checkpoint as dcp
+            from torch.distributed.checkpoint import FileSystemReader
+
+            if not isinstance(ckpt_dir, Path):
+                ckpt_dir = Path(ckpt_dir)
+            fs_reader = FileSystemReader(ckpt_dir)
+            metadata = fs_reader.read_metadata()
+
+            state_dict = {
+                k: torch.empty(tp.size, dtype=tp.properties.dtype)
+                for k, tp in metadata.state_dict_metadata.items()
+                if type(tp).__name__ == 'TensorStorageMetadata'
+            }
+
+            dcp.load(
+                state_dict,
+                storage_reader=fs_reader,
+            )
+            return state_dict, metadata
+
+        logging.info(f"Loading speech model weights from {self.resume_from_path}")
+        ckpt_dir = ckpt_to_weights_subdir(self.resume_from_path, is_saving=False)
+        state_dict, metadata = load_dcp(ckpt_dir)
+
+        speech_state_dict = {}
+        modality_adapter_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith('module.speech_model.'):
+                speech_state_dict[k[len('module.speech_model.') :]] = v
+            elif k.startswith('module.modality_adapter.'):
+                modality_adapter_state_dict[k[len('module.modality_adapter.') :]] = v
+
+        # set strict=False to avoid errors in missing preprocessor state_dict and batch norm running stats
+        asr_model.load_state_dict(speech_state_dict, strict=False)
+        modality_adapter.load_state_dict(modality_adapter_state_dict, strict=False)
+
+        return asr_model, modality_adapter
+
     def _propagate_model_configs(self) -> TransformerConfig:
         """
         propagate key attributes to the language/speech model config
@@ -244,6 +293,12 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         self.speech_model_config.sequence_parallel = self.sequence_parallel
         self.speech_model_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
         self.speech_model_config.context_parallel_size = self.context_parallel_size
+
+        # modality adapter
+        self.modality_adapter_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.modality_adapter_config.sequence_parallel = self.sequence_parallel
+        self.modality_adapter_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.modality_adapter_config.context_parallel_size = self.context_parallel_size
 
     def configure_model(
         self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
@@ -269,6 +324,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         modality_adapter = self.modality_adapter_config.configure_model()
         modality_adapter.set_input_tensor = MethodType(set_input_tensor, modality_adapter)
 
+        speech_model, modality_adapter = self._maybe_load_asr_and_modality_adapter(speech_model, modality_adapter)
         model = MCoreSpeechToTextLLM(
             config=self,
             language_model=language_model,
@@ -832,12 +888,10 @@ class SpeechToTextLLM(SpeechLanguageModel):
         labels_text = []
         inputs_text = []
         if metric_name != "loss":
-            # We need _inference_config to get generation params
-            # add_BOS and tokens_to_generate are set in dataset
+            # We need _inference_config to get generation params, tokens_to_generate are set in dataset
             if self.get_inference_config() is None:
                 logging.warning(f'inference_config is not set. Use default: {default_inference_config}')
                 self.set_inference_config(inference_config=default_inference_config)
-            self._inference_config['add_BOS'] = data_cfg.add_bos
             self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
 
             output = self.predict_step(batch, batch_idx, dataloader_idx)
@@ -915,7 +969,6 @@ class SpeechToTextLLM(SpeechLanguageModel):
             inference_config['inputs'] = batch
             inference_config['tokens_to_generate'] = 1
             inference_config['all_probs'] = True
-            inference_config['add_BOS'] = False
             inference_config['greedy'] = True
             response = generate(self, **inference_config)
             response = get_computeprob_response(self.tokenizer, response, batch)
