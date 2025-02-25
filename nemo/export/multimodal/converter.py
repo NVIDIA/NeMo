@@ -260,7 +260,7 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
 
     cross_attention_frequency = language_model_config.num_layers // language_model_config.num_cross_attention_layers
     toal_num_layer = language_model_config.num_layers + language_model_config.num_cross_attention_layers
-    l = "language_model.decoder"
+    prefix = "language_model.decoder"
     for i in range(toal_num_layer):
         cross_num = (i - 3) // (cross_attention_frequency + 1)
         if (i - 3) % (cross_attention_frequency + 1) == 0:
@@ -269,39 +269,39 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
                 [
                     (
                         f"language_model.model.layers.{i}.cross_attn.o_proj.weight",
-                        f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_proj.weight",
+                        f"{prefix}.xattn_layers.{xattn_index}.cross_attention.linear_proj.weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.cross_attn.q_proj.weight",
-                        f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_q.weight",
+                        f"{prefix}.xattn_layers.{xattn_index}.cross_attention.linear_q.weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.cross_attn.k_norm.weight",
-                        f"{l}.xattn_layers.{xattn_index}.cross_attention.k_layernorm.weight",
+                        f"{prefix}.xattn_layers.{xattn_index}.cross_attention.k_layernorm.weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.input_layernorm.weight",
-                        f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_q.layer_norm_weight",
+                        f"{prefix}.xattn_layers.{xattn_index}.cross_attention.linear_q.layer_norm_weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.cross_attn.q_norm.weight",
-                        f"{l}.xattn_layers.{xattn_index}.cross_attention.q_layernorm.weight",
+                        f"{prefix}.xattn_layers.{xattn_index}.cross_attention.q_layernorm.weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.post_attention_layernorm.weight",
-                        f"{l}.xattn_layers.{xattn_index}.mlp.linear_fc1.layer_norm_weight",
+                        f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc1.layer_norm_weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.mlp.down_proj.weight",
-                        f"{l}.xattn_layers.{xattn_index}.mlp.linear_fc2.weight",
+                        f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc2.weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.cross_attn_attn_gate",
-                        f"{l}.xattn_layers.{xattn_index}.gate_attn",
+                        f"{prefix}.xattn_layers.{xattn_index}.gate_attn",
                     ),
                     (
                         f"language_model.model.layers.{i}.cross_attn_mlp_gate",
-                        f"{l}.xattn_layers.{xattn_index}.gate_ffn",
+                        f"{prefix}.xattn_layers.{xattn_index}.gate_ffn",
                     ),
                 ]
             )
@@ -311,19 +311,19 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
                 [
                     (
                         f"language_model.model.layers.{i}.self_attn.o_proj.weight",
-                        f"{l}.layers.{attn_index}.self_attention.linear_proj.weight",
+                        f"{prefix}.layers.{attn_index}.self_attention.linear_proj.weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.post_attention_layernorm.weight",
-                        f"{l}.layers.{attn_index}.mlp.linear_fc1.layer_norm_weight",
+                        f"{prefix}.layers.{attn_index}.mlp.linear_fc1.layer_norm_weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.mlp.down_proj.weight",
-                        f"{l}.layers.{attn_index}.mlp.linear_fc2.weight",
+                        f"{prefix}.layers.{attn_index}.mlp.linear_fc2.weight",
                     ),
                     (
                         f"language_model.model.layers.{i}.input_layernorm.weight",
-                        f"{l}.layers.{attn_index}.self_attention.linear_qkv.layer_norm_weight",
+                        f"{prefix}.layers.{attn_index}.self_attention.linear_qkv.layer_norm_weight",
                     ),
                 ]
             )
@@ -367,13 +367,13 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
             cross_num = (i - 3) // (cross_attention_frequency + 1)
             if (i - 3) % (cross_attention_frequency + 1) == 0:
                 xattn_index = cross_num * cross_attention_frequency + 3
-                kv_weights = state_dict[f"{l}.xattn_layers.{xattn_index}.cross_attention.linear_kv.weight"]
+                kv_weights = state_dict[f"{prefix}.xattn_layers.{xattn_index}.cross_attention.linear_kv.weight"]
                 for name, weight in split_kv_weight(kv_weights, language_model_config):
                     new_key = f"language_model.model.layers.{i}.cross_attn.{name}.weight"
                     new_state_dict[new_key] = weight.reshape(-1, hidden_size)
             else:
                 attn_index = i - cross_num - 1
-                qkv_weights = state_dict[f"{l}.layers.{attn_index}.self_attention.linear_qkv.weight"]
+                qkv_weights = state_dict[f"{prefix}.layers.{attn_index}.self_attention.linear_qkv.weight"]
                 for name, weight in split_qkv_weight(qkv_weights, language_model_config):
                     new_key = f"language_model.model.layers.{i}.self_attn.{name}.weight"
                     new_state_dict[new_key] = weight.reshape(-1, hidden_size)
@@ -386,10 +386,10 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
             cross_num = (i - 3) // (cross_attention_frequency + 1)
             if (i - 3) % (cross_attention_frequency + 1) == 0:
                 xattn_index = cross_num * cross_attention_frequency + 3
-                gate_weight = state_dict[f"{l}.xattn_layers.{xattn_index}.mlp.linear_fc1.weight"]
+                gate_weight = state_dict[f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc1.weight"]
             else:
                 attn_index = i - cross_num - 1
-                gate_weight = state_dict[f"{l}.layers.{attn_index}.mlp.linear_fc1.weight"]
+                gate_weight = state_dict[f"{prefix}.layers.{attn_index}.mlp.linear_fc1.weight"]
 
             for name, weight in split_gate_weight(gate_weight):
                 new_key = f"language_model.model.layers.{i}.mlp.{name}.weight"
