@@ -6,7 +6,7 @@ data:
   common:
     global_batch_size: 2
     micro_batch_size: 2
-    max_seq_length: 2048
+    max_seq_length: 4096
     min_seq_length: 1
     sample_rate: 16000
     end_string: null

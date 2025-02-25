@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 from omegaconf import DictConfig, OmegaConf
@@ -41,6 +42,19 @@ class PipelineComponents:
     peft: Optional[SpeechToTextLLMPEFT] = None
     resume: Optional[AutoResume] = None
     logger: Optional[nl.NeMoLogger] = None
+    cfg: Optional[dict] = None
+
+
+def dump_config(cfg: dict, logger: nl.NeMoLogger):
+    log_dir = logger.explicit_log_dir if logger.explicit_log_dir else logger.log_dir
+    if log_dir is None:
+        log_dir = str(Path.cwd() / "nemo_experiments")
+
+    name = logger.name if logger.name else "default"
+    output_dir = Path(log_dir) / name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with open(output_dir / "config.yaml", "w") as f:
+        f.write(OmegaConf.to_yaml(cfg))
 
 
 def build_components(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None) -> PipelineComponents:
@@ -122,6 +136,7 @@ def build_components(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None)
         peft=peft,
         resume=resume,
         logger=logger,
+        cfg=cfg,
     )
 
 
@@ -129,6 +144,9 @@ def speech_to_text_llm_train(cfg: DictConfig, tokenizer: Optional[AutoTokenizer]
     """Train the model using provided config."""
 
     components = build_components(cfg, tokenizer)
+
+    # save config to log_dir
+    dump_config(components.cfg, components.logger)
 
     finetune(
         model=components.model,
@@ -139,6 +157,7 @@ def speech_to_text_llm_train(cfg: DictConfig, tokenizer: Optional[AutoTokenizer]
         peft=components.peft,
         resume=components.resume,
     )
+
     return components.logger.log_dir
 
 
