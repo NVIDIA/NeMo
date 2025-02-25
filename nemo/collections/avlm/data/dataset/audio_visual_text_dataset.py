@@ -40,12 +40,12 @@ VALID_VIDEO_FILE_FORMATS_SET = {'mp4'}
 class AVLMAudioVisualTextEntity(object):
     """Class for AVLM dataloader instance."""
 
-    def __init__(self, sid, audio_file, visual_filepath: List[str], duration, context, answer, offset, speaker, orig_sr, lang) -> None:
+    def __init__(self, sid, audio_file, video_file, image_files: List[str], duration, context, answer, offset, speaker, orig_sr, lang) -> None:
         """Initialize the AudioTextEntity for a AVLM dataloader instance."""
         self.id = sid
         self.audio_file = audio_file
-        """ it is either a single image/video file or a sequence of index named images or empty List"""
-        self.visual_files = visual_files
+        self.video_file = video_file
+        self.image_files = image_files
         self.duration = duration
         self.context = context
         self.answer = answer
@@ -65,7 +65,8 @@ class AVLMAudioVisualText(object):
         self,
         ids: List[int],
         audio_files: List[str],
-        visual_filepaths: List[str],
+        video_files: List[str],
+        image_samples: List[List[str]],
         durations: List[float],
         context_list: List[str],
         answers: List[str],
@@ -85,8 +86,8 @@ class AVLMAudioVisualText(object):
         Args:
             ids: List of examples positions.
             audio_files: List of audio files.
-            visual_filepaths: List of image/video path(s).
-                Each path is either a single file name or an absolute path
+            video_files: List of video files.
+            image_samples: List of multiple image names as an sample.
             durations: List of float durations.
             context_list: List of raw text transcripts.
             answers: List of raw text transcripts.
@@ -105,8 +106,8 @@ class AVLMAudioVisualText(object):
         if index_by_file_id:
             self.mapping = {}
 
-        for id_, audio_file, visual_filepath, duration, offset, context, answer, speaker, orig_sr, lang in zip(
-            ids, audio_files, visual_filepaths, durations, offsets, context_list, answers, speakers, orig_sampling_rates, langs
+        for id_, audio_file, video_file, image_files, duration, offset, context, answer, speaker, orig_sr, lang in zip(
+            ids, audio_files, video_files, image_samples, durations, offsets, context_list, answers, speakers, orig_sampling_rates, langs
         ):
             # Duration filters.
             if duration is not None:
@@ -129,25 +130,17 @@ class AVLMAudioVisualText(object):
                 num_filtered += 1
                 continue
 
-            visual_files = []
-            if visual_filepath is not None:
-                if os.path.isfile(visual_filepath):
-                    visual_files = [visual_filepath]
-                elif os.path.isdir(visual_filepath):
-                    visual_files = [f for f in os.listdir(visual_filepath) if \
-                        os.path.splitext(f)[1] in VALID_IMAGE_FILE_FORMATS_SET and \
-                        os.path.splitext(os.path.basename(f))[0].isdigit()]
-                    # sort the files according to the images' names. Assume names are indexes
-                    visual_files.sort(key=lambda x: int(x))
-
             data.append(
-                AVLMAudioVisualTextEntity(id_, audio_file, visual_files, duration, context, answer, offset, speaker, orig_sr, lang)
+                AVLMAudioVisualTextEntity(id_, audio_file, video_file, image_files, duration, context, answer, offset, speaker, orig_sr, lang)
             )
-            if index_by_file_id and (audio_file is not None or visual_files is not []):
+            if index_by_file_id and (audio_file is not None or video_files is not None or image_files is not []):
                 if audio_file is not None:
                     file_id, _ = os.path.splitext(os.path.basename(audio_file))
+                elif video_file is not None:
+                    file_id, _ = os.path.splitext(os.path.basename(video_file))
                 else:
-                    file_id, _ = os.path.splitext(os.path.basename(visual_files[0]))
+                    basename = os.path.basename(image_files[0])
+                    file_id = basename[:basename.find('.')]
                 if file_id not in self.mapping:
                     self.mapping[file_id] = []
                 self.mapping[file_id].append(len(data) - 1)
@@ -213,11 +206,15 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
         """
         self.context_key = context_key
         self.answer_key = answer_key
+        self.audio_extension = None
+        self.video_extension = None
+        self.image_extensions = {}
 
         (
             ids,
             audio_files,
-            visual_filepaths,
+            video_files,
+            image_samples,
             durations,
             context_list,
             answers,
@@ -252,7 +249,8 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
-            visual_filepaths.append(item['visual_filepath'])
+            video_files.append(item['video_file'])
+            image_samples.append(item['image_samples'])
             durations.append(item['duration'])
             context_list.append(item['context'])
             answers.append(item['answer'])
@@ -261,7 +259,7 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
             orig_srs.append(item['orig_sr'])
             langs.append(item['lang'])
         super().__init__(
-            ids, audio_files, visual_filepaths, durations, context_list, answers, offsets, speakers, orig_srs, langs, *args, **kwargs
+            ids, audio_files, video_files, image_samples, durations, context_list, answers, offsets, speakers, orig_srs, langs, *args, **kwargs
         )
 
     def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
@@ -275,35 +273,40 @@ class AVLMAudioVisualTextCollection(AVLMAudioVisualText):
         elif 'audio_file' not in item:
             item['audio_file'] = None
 
-        # If the audio path is a relative path and does not exist,
-        # try to attach the parent directory of manifest to the audio path.
-        # Revert to the original path if the new path still doesn't exist.
-        # Assume that the audio path is like "wavs/xxxxxx.wav".
-        if item['audio_file'] is not None:
-            item['audio_file'] = manifest.get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+        if self.audio_extension is None and item['audio_file'] is not None:
+            _, self.audio_extension = os.path.splitext(item['audio_file'])
 
-        # Visual file
-        if 'image_filename' in item:
-            item['visual_filepath'] = item.pop('image_filename')
-        elif 'image_filepath' in item:
-            item['visual_filepath'] = item.pop('image_filepath')
-        elif 'video_filename' in item:
-            item['visual_filepath'] = item.pop('video_filename')
+        # video file
+        if 'video_filename' in item:
+            item['video_file'] = item.pop('video_filename')
         elif 'video_filepath' in item:
-            item['visual_filepath'] = item.pop('video_filepath')
-        elif 'visual_filepath' not in item:
-            item['visual_filepath'] = None
+            item['video_file'] = item.pop('video_filepath')
+        elif 'video_files' not in item:
+            item['video_file'] = None
 
-        # if visual_filepath is a directory, make sure it exists
-        # Otherwise, try prefix the relative path with the root dir of the manifest file
-        if item['visual_filepath'] is not None and 
-            os.path.isdir(item['visual_filepath']) and
-            not os.path.exists(item['visual_filepath']):
-            abs_path = os.path.join(os.path.dirname(manifest_file), item['visual_filepath'])
-            if not os.path.exists(abs_path):
-                item['visual_filepath'] = None
-            else:
-                item['visual_filepath'] = abs_path
+        if self.video_extension is not None and item['video_file'] is not None:
+            _, self.video_extension = os.path.splitext(item['video_file'])
+
+        # image file(s)
+        # it could be frames of a video sequence, each with a sequence index as part of its extension:
+        # e.g. 0001.1.png, 0001.2.png, ..., 0001.7.png
+        # or multiple images serving different purposes as long as their extensions are differnt.
+        # e.g. 0001.left_view.png, 0001.right_view.png, 0001.depth_map.png 
+        if 'image_filename' in item:
+            item['image_samples'] = item.pop('image_filename')
+        if 'image_filenames' in item:
+            item['image_samples'] = item.pop('image_filenames')
+        elif 'image_filepath' in item:
+            item['image_samples'] = item.pop('image_filepath')
+        elif 'image_samples' not in item:
+            item['image_samples'] = None
+
+        # split into a list of images
+        if item['image_samples'] is not None:
+            item['image_samples'] = item['image_samples'].replace(" ", "").split(',')
+            # do this for every sample in case the number of frames is different
+            self.image_extensions = self.image_extensions | \
+                set([img[img.find('.')+1:] for img in item['image_samples']])
 
         # Duration.
         if 'duration' not in item:
@@ -369,10 +372,11 @@ class WdsAudioVisualFilter:
 
     def __next__(self):
         while True:
-            audio_bytes, image_pixels, video_bytes, key = next(self.iterator)
+            sample = next(self.iterator)
+            key = sample[-1]
             file_id, _ = os.path.splitext(os.path.basename(key))
             if file_id in self.collection.mapping:
-                return audio_bytes, image_pixels, video_bytes, key
+                return sample
             else:
                 logging.warning(f"key not in manifest: {file_id}", mode=logging_mode.ONCE)
 
@@ -386,9 +390,7 @@ class WdsAudioVisualLoopOffsets:
         self.iterator = iterator
         self.collection = collection
         self.current_fid = None
-        self.current_audio_bytes = None
-        self.current_image_pixels = None
-        self.current_video_bytes = None
+        self.current_others = None      
         self.offset_id = 0
 
     def __iter__(self):
@@ -396,39 +398,49 @@ class WdsAudioVisualLoopOffsets:
 
     def __next__(self):
         if self.current_fn is None:
-            self.current_audio_bytes, self.current_image_pixels, self.current_video_bytes, self.current_fid = \
-                next(self.iterator)
+            sample = next(self.iterator)
+            self.current_others, self.current_fid = sample[:-1], sample[-1]
             self.offset_id = 0
         else:
             offset_list = self.collection.mapping[self.current_fid]
             if len(offset_list) == self.offset_id + 1:
-                self.current_audio_bytes, self.current_image_pixels, self.current_video_bytes, self.current_fid = \
-                    next(self.iterator)
+                sample = next(self.iterator)
+                self.current_others, self.current_fid = sample[:-1], sample[-1]
                 self.offset_id = 0
             else:
                 self.offset_id += 1
 
-        return self.current_audio_bytes, self.current_image_pixels, self.current_video_bytes, self.current_fid, self.offset_id
+        return self.current_others + (self.current_fid, self.offset_id)
 
 class AudioVisualTextWebDataset(IterableDataset):
     """
-    A Dataset which loads webDataset compliant audio and image/video files.
+    A Dataset which loads webDataset compliant dataset which may have one, two or all of the followings: audio, image and video files.
 
-    Accepts a single comma-separated JSON manifest file containing paths to audio files, image/videos files, transcripts,
-    and durations (in seconds).
+    Accepts a single comma-separated JSON manifest file containing paths to transcripts and audio files and/or images and/or videos files.
+    For audio and video files, the manifest file should also provide offsets and durations (in seconds).
     Each new line is a different sample. Example below:
 
     .. code-block:: json
+        
+        SpeechLM:
+        {"audio_filepath": "1.wav", "duration": 1.12, "question": "what is the capital of France?", "answer": "Paris"}
+        {"audio_filepath": "2.wav", "duration": 2.15, "question": "what is the capital of Italy?", "answer": "Rome"}
 
-        {"audio_filepath": "1.wav", "visual_filepath": "1/*.jpg", "duration": 1.12, "question": "what is the capital of France?", "answer": "Paris"}
-        {"audio_filepath": "2.wav", "visual_filepath": "2/*.jpg", "duration": 2.15, "question": "what is the capital of Italy?", "answer": "Rome"}
-    as well as the path(s) to the tarball(s) containing the wav, jpg/png/mp4 files. Each line of the manifest should
-    contain the information for one audio file, one image/video file or path to sequence of images including at least the transcript and name of the audio
-    and the image/video files within the tarball. 
-    The visual_filepath can be of a path to a sequence of images belonging to a single sample or a single file:
-    "visual_filepath": "1/*.jpg"
-    "visual_filepath": "1.jpg"
-    "visual_filepath": "1.mp4"
+        VQA:
+        {"video_filepath": "1.mp4", "duration": 1.12, "question": "what is the capital of France?", "answer": "Paris"}
+        {"video_filepath": "2.mp4", "duration": 2.15, "question": "what is the capital of Italy?", "answer": "Rome"}
+
+        or 
+        {"image_names": "1.1.png,1.2.png.1.3.png,1.4.png,1.5.png,1.6.png,1.7.png", "question": "what is the capital of France?", "answer": "Paris"}
+        {"image_names": "2.1.png,2.2.png,2.3.png,2.4.png,2.5.png,2.6.png,2.7.png", "question": "what is the capital of Italy?", "answer": "Rome"}
+
+        3D:
+        {"image_names": "1.left_view.png,1.right_view.png,1.depth_map.png", "question": "what is the capital of France?", "answer": "Paris"}
+        {"image_names": "2.left_view.png,2.right_view.png,2.depth_map.png", "question": "what is the capital of Italy?", "answer": "Rome"}
+
+    as well as the path(s) to the tarball(s) containing the wav, jpg/*png/mp4 files. Each line of the manifest should
+    contain the information for one audio file, one video file or image(s) including at least the transcript and name of the audio
+    and the image/video files within the tarball.
     ...
 
     Valid formats for the audio_visual_tar_filepaths argument include:
@@ -596,11 +608,11 @@ class AudioVisualTextWebDataset(IterableDataset):
             wds.tarfile_to_samples(),
             wds.decode('pil'),
             wds.rename(
-                audio=VALID_AUDIO_FILE_FORMATS, 
-                image=';'.join(VALID_IMAGE_FILE_FORMATS_SET),
-                video=';'.join(VALID_VIDEO_FILE_FORMATS_SET), 
+                audio=self.collection.audio_extension or VALID_AUDIO_FILE_FORMATS,
+                video=self.collection.video_extension or ';'.join(VALID_VIDEO_FILE_FORMATS_SET),
+                images=';'.join(self.collection.image_extensions or VALID_IMAGE_FILE_FORMATS_SET),
                 key='__key__'),
-            wds.to_tuple('audio', 'image', 'video', 'key', missing_is_error=False),
+            wds.to_tuple('audio', 'video', 'images', 'key', missing_is_error=False),
             self._filter,
             self._loop_offsets,
             wds.map(self._build_sample),
@@ -629,7 +641,11 @@ class AudioVisualTextWebDataset(IterableDataset):
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info."""
-        audio_bytes, image_pixels, video_bytes, key, offset_id = tup
+        audio_bytes = tup[0]
+        video_bytes = tup[1]
+        image_pixels = tup[2:-2]
+        key = tup[-2]
+        offset_id = tup[-1]
 
         if key is not None:
             # Grab manifest entry from self.manifest_preprocessor.collection
@@ -668,20 +684,32 @@ class AudioVisualTextWebDataset(IterableDataset):
 
             # process image
             # TODO: dummy image output
-            if image_pixels is not None:
-                # convert to torch tensor
-                image_pixels = torchvision.transforms.functional.pil_to_tensor(image_pixels)
-                
-                # process image
-                if self.visual_processor is not None:
-                    output["visual_signal"] = self.visual_processor(image_pixels[i])
-                else:
-                    output["visual_signal"] = image_pixels.unsqueeze(0)
+            processed_images = []
+            output["image_sizes"] = None
+            for image_pixel in image_pixels:
+                if image_pixel is not None:
+                    if output["image_sizes"] is None:
+                        # TODO: each image has the same size?
+                        height = image_pixels.shape[1]
+                        width = image_pixels.shape[2]
+                        output["image_sizes"].append(torch.tensor([[height, width]], dtype=torch.long))
 
-                output["num_media_tiles"] = output["visual_signal"].shape[0]
-                height = image_pixels.shape[1]
-                width = image_pixels.shape[2]
-                output["image_sizes"] = torch.tensor([[height, width]], dtype=torch.long)
+                    # convert to torch tensor
+                    processed_image = torchvision.transforms.functional.pil_to_tensor(image_pixels)
+                    
+                    # process image
+                    if self.visual_processor is not None:
+                        processed_image = self.visual_processor(processed_image)
+                    else:
+                        processed_image = torch.to_tensor(processed_image).unsqueeze(0)
+
+                    processed_images.append(processed_image)
+
+            if processed_images is not []:
+                # concatenate all image tiles along the first dimension
+                processed_images = torch.cat(processed_images, 0)
+                output["image_signal"] = processed_images
+                output["num_image_tiles"] = output["image_signal"].shape[0]
 
             # TODO: process video. For videos we have to read the raw bytes and deocde it here since 
             # we need to know the offset and the duration
