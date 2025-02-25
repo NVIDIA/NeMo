@@ -166,6 +166,8 @@ def pareto_rank(items):
     # A helper function to check if item A is dominated by item B
     # A: (cerA, ssimA), B: (cerB, ssimB)
     def is_dominated(A, B):
+        assert len(A) == 2
+        assert len(B) == 2        
         return (B[0] <= A[0]) and (B[1] >= A[1]) and (B != A)
         # Equivalently, check at least one strict inequality:
         # (B[0] < A[0]) or (B[1] > A[1])
@@ -185,7 +187,7 @@ def pareto_rank(items):
             dominated = False
             for j in range(len(remaining)):
                 if i != j:
-                    if is_dominated(remaining[i], remaining[j]):
+                    if is_dominated(remaining[i][:2], remaining[j][:2]):
                         dominated = True
                         break
             if not dominated:
