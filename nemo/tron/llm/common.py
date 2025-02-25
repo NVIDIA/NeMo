@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Iterable
+from typing import Dict, Iterable
 import torch
 from megatron.core import parallel_state
 from nemo.tron.config import ConfigContainer
@@ -61,17 +61,17 @@ def get_batch_on_this_tp_rank(data_iterator: Iterable, cfg: ConfigContainer) -> 
     else:
         mlm_config = cfg.megatron_lm_config
         tokens = torch.empty(
-            (mlm_config.micro_batch_size, mlm_config.seq_length),
+            (mlm_config.micro_batch_size, cfg.model_config.seq_length),
             dtype=torch.int64,
             device=torch.cuda.current_device(),
         )
         labels = torch.empty(
-            (mlm_config.micro_batch_size, mlm_config.seq_length),
+            (mlm_config.micro_batch_size, cfg.model_config.seq_length),
             dtype=torch.int64,
             device=torch.cuda.current_device(),
         )
         loss_mask = torch.empty(
-            (mlm_config.micro_batch_size, mlm_config.seq_length),
+            (mlm_config.micro_batch_size, cfg.model_config.seq_length),
             dtype=torch.float32,
             device=torch.cuda.current_device(),
         )
@@ -80,8 +80,8 @@ def get_batch_on_this_tp_rank(data_iterator: Iterable, cfg: ConfigContainer) -> 
                 (
                     mlm_config.micro_batch_size,
                     1,
-                    mlm_config.seq_length,
-                    mlm_config.seq_length,
+                    cfg.model_config.seq_length,
+                    cfg.model_config.seq_length,
                 ),
                 dtype=torch.bool,
                 device=torch.cuda.current_device(),
@@ -89,7 +89,7 @@ def get_batch_on_this_tp_rank(data_iterator: Iterable, cfg: ConfigContainer) -> 
         else:
             attention_mask = None
         position_ids = torch.empty(
-            (mlm_config.micro_batch_size, mlm_config.seq_length),
+            (mlm_config.micro_batch_size, cfg.model_config.seq_length),
             dtype=torch.int64,
             device=torch.cuda.current_device(),
         )

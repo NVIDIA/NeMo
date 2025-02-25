@@ -44,7 +44,7 @@ def get_batch(data_iterator, cfg: ConfigContainer):
     return batch.values()
 
 
-def loss_func(loss_mask: torch.Tensor, output_tensor: torch.Tensor, cfg: ConfigContainer):
+def loss_func(cfg: ConfigContainer, loss_mask: torch.Tensor, output_tensor: torch.Tensor):
     """Loss function.
 
     Args:
@@ -144,4 +144,4 @@ def forward_step(
     else:
         output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
 
-    return output_tensor, partial(loss_func, loss_mask=loss_mask, cfg=cfg)
+    return output_tensor, partial(loss_func, cfg, loss_mask)

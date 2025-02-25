@@ -42,9 +42,9 @@ def megatron_pretrain(
     ckpt_context = setup_output.checkpointing_context
 
     if "state" in inspect.getfullargspec(forward_step_func).args:
-        mcore_forward_step = partial(forward_step_func, state=state)
+        forward_step_func = partial(forward_step_func, state=state)
     if "cfg" in inspect.getfullargspec(forward_step_func).args:
-        mcore_forward_step = partial(forward_step_func, cfg=full_config)
+        forward_step_func = partial(forward_step_func, cfg=full_config)
 
     ## TRAINING ##
     if not config.megatron_lm_config.skip_train:
