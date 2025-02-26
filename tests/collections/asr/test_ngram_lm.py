@@ -90,16 +90,20 @@ class TestFastNGramLM:
             [25, 70, 12],
             [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999],
         ]
-        scores_ref = kenlm_wrapper.score_sentences(sentences, bos=bos).to(device)
-        scores_lm_not_batched = torch.zeros_like(scores_ref)
-        for i, sentence in enumerate(sentences):
-            current_score_lm = n_gpu_lm(torch.LongTensor([sentence]).to(device), bos=bos)
-            scores_lm_not_batched[i] += current_score_lm.squeeze()
-        assert torch.allclose(scores_lm_not_batched, scores_ref)
+        # non-batched
+        for sentence in sentences:
+            scores_ref = kenlm_wrapper.score_sentences([sentence], bos=bos).to(device)
+            scores_lm = n_gpu_lm(
+                labels=torch.LongTensor([sentence]).to(device),
+                bos=bos,
+            )
+            assert torch.allclose(scores_ref, scores_lm), "Non-batched scores do not match"
 
-        scores_lm_batched = n_gpu_lm(
+        # batched
+        scores_ref = kenlm_wrapper.score_sentences(sentences, bos=bos).to(device)
+        scores_lm = n_gpu_lm(
             labels=pad_sequence([torch.LongTensor(sentence) for sentence in sentences], batch_first=True).to(device),
-            labels_lengths=torch.LongTensor([len(sentence) for sentence in sentences], device=device),
+            labels_lengths=torch.LongTensor([len(sentence) for sentence in sentences]).to(device),
             bos=bos,
         )
-        assert torch.allclose(scores_lm_batched, scores_ref)
+        assert torch.allclose(scores_lm, scores_ref), "Batched scores do not match"

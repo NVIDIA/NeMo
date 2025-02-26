@@ -22,6 +22,7 @@ from typing import NamedTuple, cast
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.nn.utils.rnn import pad_sequence
 from lightning.pytorch import Trainer
 from omegaconf import MISSING, DictConfig, OmegaConf
 from tqdm.auto import tqdm
@@ -157,7 +158,7 @@ class KenLMBatchedWrapper:
         Returns:
             Tensor [B, L] with scores for each sentence
         """
-        return torch.stack([self.score_sentence(sentence, bos=bos) for sentence in sentences], dim=0)
+        return pad_sequence([self.score_sentence(sentence, bos=bos) for sentence in sentences], batch_first=True)
 
 
 class NGram(NamedTuple):
