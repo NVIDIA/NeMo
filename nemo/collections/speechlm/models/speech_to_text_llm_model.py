@@ -279,7 +279,6 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
     ) -> "MCoreSpeechToTextLLM":
         self._propagate_model_configs()
-
         language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: "MCoreGPTModel"
         language_model = self._maybe_load_pretrained_llm(language_model)
 
