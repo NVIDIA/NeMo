@@ -16,6 +16,7 @@ class JointSelfAttentionSubmodules:
     """
     Submodules for Joint Self-attention layer.
     """
+
     linear_qkv: Union[ModuleSpec, type] = None
     added_linear_qkv: Union[ModuleSpec, type] = None
     core_attention: Union[ModuleSpec, type] = None

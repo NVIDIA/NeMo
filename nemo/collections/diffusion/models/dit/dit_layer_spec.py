@@ -55,6 +55,7 @@ class DiTWithAdaLNSubmodules(TransformerLayerSubmodules):
     """
     Submodules for DiT with AdaLN.
     """
+
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
@@ -64,6 +65,7 @@ class STDiTWithAdaLNSubmodules(TransformerLayerSubmodules):
     """
     Submodules for STDiT with AdaLN.
     """
+
     spatial_self_attention: Union[ModuleSpec, type] = IdentityOp
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
@@ -73,6 +75,7 @@ class RMSNorm(nn.Module):
     """
     RMSNorm Module.
     """
+
     def __init__(self, hidden_size: int, config, eps: float = 1e-6):
         super().__init__()
         self.eps = eps
@@ -653,6 +656,7 @@ class FluxSingleTransformerBlock(TransformerLayer):
     """
     Flux Single Transformer Block.
     """
+
     def __init__(
         self,
         config: TransformerConfig,
