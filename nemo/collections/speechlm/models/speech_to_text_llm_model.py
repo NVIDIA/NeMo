@@ -54,7 +54,7 @@ from nemo.collections.speechlm.data.dataset.data_utils import build_position_ids
 from nemo.collections.speechlm.models.base import SpeechLanguageModel
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
-from nemo.collections.speechlm.utils.io import import_ckpt
+from nemo.collections.speechlm.utils.io import import_ckpt, load_distributed_ckpt
 from nemo.collections.speechlm.utils.text_generation.audio_text_generation_strategy import (
     SpeechToTextGenerationStrategy,
 )
@@ -190,7 +190,8 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
     data_config: Optional[DictConfig] = None
 
-    resume_from_path: Optional[str] = None
+    resume_speech_model_from_path: Optional[str] = None
+    resume_modality_adapter_from_path: Optional[str] = None
 
     def _freeze_module(self, module: nn.Module) -> None:
         for param in module.parameters():
@@ -234,47 +235,21 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
     def _maybe_load_asr_and_modality_adapter(
         self, asr_model: ASRModel, modality_adapter: nn.Module
     ) -> Tuple[ASRModel, nn.Module]:
-        if not self.resume_from_path:
-            return asr_model, modality_adapter
+        if self.resume_speech_model_from_path:
+            logging.info(f"Loading speech model weights from {self.resume_from_path}")
+            state_dict, _ = load_distributed_ckpt(self.resume_from_path)
+            prefix = 'module.speech_model.'
+            speech_state_dict = {k[len(prefix) :]: v for k, v in state_dict.items() if k.startswith(prefix)}
+            asr_model.load_state_dict(speech_state_dict, strict=True)
+            logging.info(f"Restored speech model weights from {self.resume_from_path}")
 
-        def load_dcp(ckpt_dir, torch_tensor=True):
-            from pathlib import Path
-            import torch
-            import torch.distributed.checkpoint as dcp
-            from torch.distributed.checkpoint import FileSystemReader
-
-            if not isinstance(ckpt_dir, Path):
-                ckpt_dir = Path(ckpt_dir)
-            fs_reader = FileSystemReader(ckpt_dir)
-            metadata = fs_reader.read_metadata()
-
-            state_dict = {
-                k: torch.empty(tp.size, dtype=tp.properties.dtype)
-                for k, tp in metadata.state_dict_metadata.items()
-                if type(tp).__name__ == 'TensorStorageMetadata'
-            }
-
-            dcp.load(
-                state_dict,
-                storage_reader=fs_reader,
-            )
-            return state_dict, metadata
-
-        logging.info(f"Loading speech model weights from {self.resume_from_path}")
-        ckpt_dir = ckpt_to_weights_subdir(self.resume_from_path, is_saving=False)
-        state_dict, metadata = load_dcp(ckpt_dir)
-
-        speech_state_dict = {}
-        modality_adapter_state_dict = {}
-        for k, v in state_dict.items():
-            if k.startswith('module.speech_model.'):
-                speech_state_dict[k[len('module.speech_model.') :]] = v
-            elif k.startswith('module.modality_adapter.'):
-                modality_adapter_state_dict[k[len('module.modality_adapter.') :]] = v
-
-        # set strict=False to avoid errors in missing preprocessor state_dict and batch norm running stats
-        asr_model.load_state_dict(speech_state_dict, strict=False)
-        modality_adapter.load_state_dict(modality_adapter_state_dict, strict=False)
+        if self.resume_modality_adapter_from_path:
+            logging.info(f"Loading modality adapter weights from {self.resume_modality_adapter_from_path}")
+            state_dict, _ = load_distributed_ckpt(self.resume_modality_adapter_from_path)
+            prefix = 'module.modality_adapter.'
+            modality_adapter_state_dict = {k[len(prefix) :]: v for k, v in state_dict.items() if k.startswith(prefix)}
+            modality_adapter.load_state_dict(modality_adapter_state_dict, strict=True)
+            logging.info(f"Restored modality adapter weights from {self.resume_modality_adapter_from_path}")
 
         return asr_model, modality_adapter
 
@@ -797,6 +772,32 @@ class SpeechToTextLLM(SpeechLanguageModel):
         while not hasattr(module, "modality_adapter"):
             module = module.module
         self.unfreeze_module(module.modality_adapter)
+
+    def trainable_parameters(self) -> List[Tuple[str, torch.Tensor]]:
+        """
+        This function returns all trainable parameters of the model,
+        including some params that don't require gradients (e.g., batchnorm).
+        This function is used for PEFT to determine what parameters to load/save.
+        See `nemo/collections/speechlm/utils/model_transform.py` for more details.
+        The name of this function is set to align with the PEFT API.
+        """
+        trainable_params = []
+        # must use state_dict() to include params like batchnorm running mean/var
+        for name, param in self.state_dict().items():
+            if name.startswith("module.speech_model.") and not self.config.freeze_speech_model:
+                trainable_params.append((name, param))
+            elif name.startswith("module.modality_adapter.") and not self.config.freeze_modality_adapter:
+                trainable_params.append((name, param))
+            elif name.startswith("module.language_model.") and not self.config.freeze_language_model:
+                trainable_params.append((name, param))
+            elif (
+                name.startswith("module.language_model.")
+                and self.config.freeze_language_model
+                and (".adapter." in name or name.endswith(".adapters"))
+            ):
+                trainable_params.append((name, param))
+
+        return trainable_params
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
         return self.config.data_step_fn(dataloader_iter)

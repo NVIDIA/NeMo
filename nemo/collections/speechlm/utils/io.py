@@ -16,8 +16,12 @@ from pathlib import Path
 from typing import Optional
 
 import lightning.pytorch as pl
+import torch
+import torch.distributed.checkpoint as dcp
+from torch.distributed.checkpoint import FileSystemReader
 
 from nemo.lightning.io.mixin import ConnectorMixin, ModelConnector
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
 
 def import_ckpt(
@@ -88,3 +92,27 @@ def import_ckpt(
     if on_import_ckpt:
         importer.on_import_ckpt(model)
     return ckpt_path
+
+
+def load_distributed_ckpt(ckpt_dir: Path) -> tuple[dict[str, torch.Tensor], dict]:
+    """
+    Load a distributed checkpoint from a directory, return as pytorch state dict.
+    """
+    if not isinstance(ckpt_dir, Path):
+        ckpt_dir = Path(ckpt_dir)
+
+    ckpt_dir = ckpt_to_weights_subdir(ckpt_dir, is_saving=False)
+    fs_reader = FileSystemReader(ckpt_dir)
+    metadata = fs_reader.read_metadata()
+
+    state_dict = {
+        k: torch.empty(tp.size, dtype=tp.properties.dtype)
+        for k, tp in metadata.state_dict_metadata.items()
+        if type(tp).__name__ == 'TensorStorageMetadata'
+    }
+
+    dcp.load(
+        state_dict,
+        storage_reader=fs_reader,
+    )
+    return state_dict, metadata

@@ -85,7 +85,8 @@ def build_components(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None)
         freeze_speech_model=cfg['model']['freeze_speech_model'],
         freeze_modality_adapter=cfg['model']['freeze_modality_adapter'],
         data_config=cfg['data']['common'],
-        resume_from_path=cfg['model'].get('resume_from_path', None),
+        resume_speech_model_from_path=cfg['model'].get('resume_speech_model_from_path', None),
+        resume_modality_adapter_from_path=cfg['model'].get('resume_modality_adapter_from_path', None),
     )
 
     model = SpeechToTextLLM(config=model_config, tokenizer=tokenizer)

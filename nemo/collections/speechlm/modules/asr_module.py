@@ -119,7 +119,14 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
         else:
             cfg = OmegaConf.create(self.config)
             asr_model = imported_cls(cfg=cfg)  # type: nemo_asr.models.ASRModel
-            asr_model.maybe_init_from_pretrained_checkpoint(self)
+            init_cfg = OmegaConf.create(
+                {
+                    "init_from_pretrained_model": self.init_from_pretrained_model,
+                    "init_from_nemo_model": self.init_from_nemo_model,
+                    "init_from_ptl_ckpt": self.init_from_ptl_ckpt,
+                }
+            )
+            asr_model.maybe_init_from_pretrained_checkpoint(init_cfg)
 
         model = asr_model
         if self.target_module is not None:
