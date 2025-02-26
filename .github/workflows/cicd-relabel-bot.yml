@@ -2,7 +2,6 @@
 # since there's no CI event attached to the commit anymore.
 # This workflow re-attaches the label after a push, if the PR
 # was already labeled prior to the push.
-
 name: CICD Relabel bot
 
 on:
