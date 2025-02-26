@@ -147,6 +147,16 @@ class KenLMBatchedWrapper:
         return torch.FloatTensor(scores)
 
     def score_sentences(self, sentences: list[list[int]], bos=True) -> torch.Tensor:
+        """
+        Compute log-probabilities for all labels in utterances using N-Gram LM.
+
+        Args:
+            sentences: list of sequences of tokens
+            bos: start with BOS symbol
+
+        Returns:
+            Tensor [B, L] with scores for each sentence
+        """
         return torch.stack([self.score_sentence(sentence, bos=bos) for sentence in sentences], dim=0)
 
 

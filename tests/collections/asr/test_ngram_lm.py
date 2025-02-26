@@ -21,6 +21,12 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMBatchedWrapper
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE
+from torch.nn.utils.rnn import pad_sequence
+
+DEVICES = [torch.device("cpu")]
+
+if torch.cuda.is_available():
+    DEVICES.append('cuda')
 
 
 class TestFastNGramLM:
@@ -33,39 +39,39 @@ class TestFastNGramLM:
     @pytest.mark.with_downloads
     @pytest.mark.unit
     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
-    def test_initial_states(self, test_data_dir):
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize("batch_size", [1, 3])
+    @pytest.mark.parametrize("bos", [True, False])
+    def test_initial_states(self, test_data_dir, bos: bool, batch_size: int, device: torch.device):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         vocab_size = 1024
-        device = torch.device("cpu")
-        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
+        n_gpu_lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False).to(device)
         kenlm_wrapper = KenLMBatchedWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
-        batch_size = 3
-        for bos in [True, False]:
-            init_states = lm.get_init_states(batch_size=batch_size, bos=bos)
-            init_states_kenlm = kenlm_wrapper.get_init_states(batch_size=batch_size, bos=bos)
-            scores_lm, _ = lm.advance(init_states)
-            scores_ref, _ = kenlm_wrapper.advance(init_states_kenlm)
-            assert torch.allclose(scores_lm, scores_ref.to(device))
+
+        init_states = n_gpu_lm.get_init_states(batch_size=batch_size, bos=bos)
+        init_states_kenlm = kenlm_wrapper.get_init_states(batch_size=batch_size, bos=bos)
+        scores_lm, _ = n_gpu_lm.advance(init_states)
+        scores_ref, _ = kenlm_wrapper.advance(init_states_kenlm)
+        assert torch.allclose(scores_lm, scores_ref.to(device))
 
     @pytest.mark.with_downloads
     @pytest.mark.unit
     @pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton is not available")
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
-    def test_triton_vs_pytorch_random_states(self, test_data_dir):
-        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        vocab_size = 1024
-        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
-        batch_size = 2
-        device = torch.device("cuda")
+    def test_triton_vs_pytorch_random_states(self, test_data_dir, batch_size=2, num_iterations=100):
+        """Randomly initializes the states and compares the scores from Triton and PyTorch implementations."""
         torch.manual_seed(777)
-        lm = lm.to(device)
-        for _ in tqdm(range(10000)):
-            start_state = random.randint(0, lm.num_states - 1)
+        device = torch.device("cuda")
+        vocab_size = 1024
+        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        n_gpu_lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False).to(device)
+        for _ in tqdm(range(num_iterations)):
+            start_state = random.randint(0, n_gpu_lm.num_states - 1)
             with torch.no_grad():
-                scores1, states1 = lm._advance_pytorch(
+                scores1, states1 = n_gpu_lm._advance_pytorch(
                     states=torch.full([batch_size], fill_value=start_state, device=device, dtype=torch.int64)
                 )
-                scores2, states2 = lm._advance_triton(
+                scores2, states2 = n_gpu_lm._advance_triton(
                     states=torch.full([batch_size], fill_value=start_state, device=device, dtype=torch.int64)
                 )
             assert (states1 == states2).all()
@@ -73,15 +79,27 @@ class TestFastNGramLM:
 
     @pytest.mark.unit
     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
-    def test_sentences(self, test_data_dir):
+    @pytest.mark.parametrize("device", DEVICES)
+    @pytest.mark.parametrize("bos", [True, False])
+    def test_sentences(self, test_data_dir, bos: bool, device: torch.device):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         vocab_size = 1024
-        device = torch.device("cpu")
-        lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
+        n_gpu_lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False).to(device)
         kenlm_wrapper = KenLMBatchedWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
-        # TODO: make sentences
-        for sentence in [[25, 70, 12], [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999]]:
-            for bos in [True, False]:
-                score_lm = lm(torch.LongTensor([sentence]), bos=bos)
-                score_ref = kenlm_wrapper.score_sentence(sentence, bos=bos)
-                assert torch.allclose(score_lm[0], score_ref.to(device))
+        sentences = [
+            [25, 70, 12],
+            [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999],
+        ]
+        scores_ref = kenlm_wrapper.score_sentences(sentences, bos=bos).to(device)
+        scores_lm_not_batched = torch.zeros_like(scores_ref)
+        for i, sentence in enumerate(sentences):
+            current_score_lm = n_gpu_lm(torch.LongTensor([sentence]).to(device), bos=bos)
+            scores_lm_not_batched[i] += current_score_lm.squeeze()
+        assert torch.allclose(scores_lm_not_batched, scores_ref)
+
+        scores_lm_batched = n_gpu_lm(
+            labels=pad_sequence([torch.LongTensor(sentence) for sentence in sentences], batch_first=True).to(device),
+            labels_lengths=torch.LongTensor([len(sentence) for sentence in sentences], device=device),
+            bos=bos,
+        )
+        assert torch.allclose(scores_lm_batched, scores_ref)
