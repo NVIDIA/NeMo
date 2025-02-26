@@ -397,6 +397,9 @@ def finetune_performance_optimizations(
             )
         )
     else:
+        recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
+        recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
+
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.trainer.strategy.pipeline_model_parallel_size = 6
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 7
