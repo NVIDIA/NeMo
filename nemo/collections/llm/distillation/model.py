@@ -166,6 +166,8 @@ class DistillationGPTModel(llm.GPTModel):
         self._teacher_ckpt_path = teacher_ckpt_path
         self._train_called = False
 
+        if not isinstance(student_config, llm.GPTConfig) or not isinstance(teacher_config, llm.GPTConfig):
+            raise ValueError("Student and Teacher must both be subclasses of `llm.GPTModel`")
         if self.config.virtual_pipeline_model_parallel_size is not None:
             raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
 
@@ -235,7 +237,7 @@ class DistillationGPTModel(llm.GPTModel):
         # pylint: disable=C0116
         state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
         # `super()` would go to `nn.Module` and skip the Context Manager in `mtd.DistillationModel.load_state_dict()`
-        return self.core_module.load_state_dict(state_dict, *args, *kwargs)
+        return self.core_module.load_state_dict(state_dict, *args, **kwargs)
 
     @property
     def core_module(self):
