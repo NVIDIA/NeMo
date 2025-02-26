@@ -36,8 +36,9 @@ from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model
 
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import save_checkpoint
-from nemo.tron.config import ConfigContainer, MegatronLMConfig
+from nemo.tron.config import CheckpointConfig, ConfigContainer, MegatronLMConfig
 from nemo.tron.eval import evaluate_and_print_results
+from nemo.tron.init import destroy_global_state
 from nemo.tron.state import GlobalState
 from nemo.tron.utils import flop_utils
 from nemo.tron.utils.async_utils import maybe_finalize_async_save
@@ -76,10 +77,10 @@ def train(
     scheduler,
     train_data_iterator,
     valid_data_iterator,
-    process_non_loss_data_func,
     global_state: GlobalState,
     checkpointing_context,
-    non_loss_data_func,
+    process_non_loss_data_func=None,
+    non_loss_data_func=None,
 ):
     config: ConfigContainer = global_state.cfg
     model_config = get_model_config(model[0])
@@ -294,7 +295,8 @@ def train(
             assert num_skipped_samples_in_batch == 0
         global_state.train_state.skipped_train_samples += num_skipped_samples_in_batch
         num_floating_point_operations_in_batch = flop_utils.num_floating_point_operations(config, batch_size)
-        num_floating_point_operations_so_far += num_floating_point_operations_in_batch
+        global_state.train_state.num_floating_point_operations_so_far += num_floating_point_operations_in_batch
+        num_floating_point_operations_so_far = global_state.train_state.floating_point_operations_so_far
         num_floating_point_operations_since_last_log_event += num_floating_point_operations_in_batch
 
         # Logging.
@@ -348,10 +350,10 @@ def train(
                 forward_step_func,
                 valid_data_iterator,
                 model,
-                process_non_loss_data_func,
                 model_config,
                 verbose=False,
                 write_to_tensorboard=True,
+                process_non_loss_data_func=process_non_loss_data_func,
                 non_loss_data_func=non_loss_data_func,
             )
             eval_duration += timers("eval-time").elapsed()
@@ -413,8 +415,6 @@ def train(
             wandb_writer.finish()
         fault_tolerance.shutdown(global_state)
         sys.exit(exit_code)
-
-    return global_state.train_state.step
 
 
 def train_step(
@@ -804,3 +804,17 @@ def checkpoint_and_decide_exit(
         return True
 
     return False
+
+
+def _finish_train(global_state: GlobalState):
+    ckpt_cfg = global_state.cfg.checkpoint_config
+
+    fault_tolerance.on_checkpointing_start(global_state)
+    maybe_finalize_async_save(blocking=True, terminate=True, ckpt_cfg=ckpt_cfg)
+    fault_tolerance.on_checkpointing_end(global_state=global_state, is_async_finalization=True)
+    fault_tolerance.shutdown(global_state)
+
+    if global_state.wandb_logger:
+        global_state.wandb_logger.finish()
+
+    destroy_global_state()

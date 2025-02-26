@@ -153,10 +153,10 @@ def evaluate_and_print_results(
     forward_step_func,
     data_iterator,
     model,
-    process_non_loss_data_func,
     config,
     verbose=False,
     write_to_tensorboard=True,
+    process_non_loss_data_func=None,
     non_loss_data_func=None,
 ):
     """Helper function to evaluate and dump results on screen."""

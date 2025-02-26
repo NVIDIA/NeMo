@@ -24,7 +24,10 @@ from megatron.core import parallel_state, tensor_parallel
 from megatron.core.fusions.fused_bias_dropout import bias_dropout_add_fused_train
 from megatron.core.fusions.fused_bias_gelu import bias_gelu
 from megatron.core.fusions.fused_bias_swiglu import bias_swiglu
-from megatron.core.num_microbatches_calculator import init_num_microbatches_calculator
+from megatron.core.num_microbatches_calculator import (
+    destroy_num_microbatches_calculator,
+    init_num_microbatches_calculator,
+)
 from megatron.core.utils import get_te_version, is_te_min_version, is_torch_min_version
 
 from nemo.tron.config import ConfigContainer, RerunStateMachineConfig
@@ -398,3 +401,12 @@ def _warmup_jit_function(state: GlobalState):
             output = bias_dropout_add_fused_train([input, bias], residual, dropout_rate)
     del bias, input, residual, output
     torch.cuda.empty_cache()
+
+
+def destroy_global_state():
+    from megatron.core.rerun_state_machine import destroy_rerun_state_machine
+
+    destroy_num_microbatches_calculator()
+    parallel_state.destroy_global_memory_buffer()
+    parallel_state.destroy_model_parallel()
+    destroy_rerun_state_machine()
