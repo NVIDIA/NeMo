@@ -116,6 +116,7 @@ def main(args):
         vision_transformer_config=vision_transformer_config,
         vision_projection_config=vision_projection_config,
         language_model_from_pretrained=args.language_model_path,
+        pipeline_dtype=torch.bfloat16,
         freeze_language_model=True,
         freeze_vision_model=True,
     )

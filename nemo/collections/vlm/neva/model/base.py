@@ -955,8 +955,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
             assert (
                 combined_embeddings.shape[seq_dim] % shard_factor == 0
-            ), f"Sequence length should be divisible by {shard_factor} for \
-                Sequence/Context parallelism"
+            ), (f"Sequence length should be divisible by {shard_factor} for \
+                Sequence/Context parallelism, but got combined_embeddings.shape = "
+                f"{combined_embeddings.shape}, {shard_factor= }, {seq_dim= }")
             if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
                 assert (
                     combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
@@ -984,7 +985,24 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
                 batch = get_batch_on_this_cp_rank(batch)
             else:
-                batch = _get_data_on_this_cp_rank.apply(batch, packed_seq_params)
+                # batch = _get_data_on_this_cp_rank.apply(batch, packed_seq_params)
+                torch.distributed.breakpoint(0)
+                assert False, "Not implemented yet"
+                try:
+                    import transformer_engine_torch as tex
+                except ModuleNotFoundError as e:
+                    logging.error(
+                        "Please update Transformer Engine to >= 1.10 to use \
+                            Context Parallel with THD format data"
+                    )
+                    raise e
+                cp_size = ps.get_context_parallel_world_size()
+                cp_rank = ps.get_context_parallel_rank()
+                for key, data in batch.items():
+                    index = tex.thd_get_partitioned_indices(
+                        packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
+                    )
+                    batch[key] = data.index_select(1, index)
 
             if self.pre_process:
                 combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
