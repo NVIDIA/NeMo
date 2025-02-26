@@ -89,7 +89,7 @@ class FluxControlNetConfig(TransformerConfig, io.IOMixin):
     num_mode: int = None
     model_channels: int = 256
     conditioning_embedding_channels: int = None
-    rotary_interleaved: bool = False
+    rotary_interleaved: bool = True
     layernorm_epsilon: float = 1e-06
     hidden_dropout: float = 0
     attention_dropout: float = 0

@@ -752,7 +752,7 @@ class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronF
             patch_size=source_config.patch_size,
             guidance_embed=source_config.guidance_embeds,
             vec_in_dim=source_config.pooled_projection_dim,
-            rotary_interleaved=False,
+            rotary_interleaved=True,
             layernorm_epsilon=1e-06,
             hidden_dropout=0,
             attention_dropout=0,
