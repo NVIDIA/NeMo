@@ -118,6 +118,7 @@ model:
   speech_encoder:
     pretrained_model: "stt_en_fastconformer_transducer_large"
     target_module: "encoder"
+    sample_rate: ${data.common.sample_rate}
     spec_augment_config:
       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
       freq_masks: 0 # set to zero to disable it

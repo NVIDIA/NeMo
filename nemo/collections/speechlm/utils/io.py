@@ -116,3 +116,15 @@ def load_distributed_ckpt(ckpt_dir: Path) -> tuple[dict[str, torch.Tensor], dict
         storage_reader=fs_reader,
     )
     return state_dict, metadata
+
+
+def get_nested_attr(obj, attr):
+    """
+    Get nested attribute of an object.
+    """
+    original_obj = obj
+    for key in attr.split('.'):
+        if not hasattr(obj, key):
+            raise AttributeError(f"Object {original_obj.__class__} does not have attribute {attr}, failed at {key}")
+        obj = getattr(obj, key)
+    return obj

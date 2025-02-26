@@ -120,6 +120,7 @@ model:
     _target_: nemo.collections.asr.models.EncDecMultiTaskModel
     pretrained_model: "nvidia/canary-1b"
     target_module: "encoder"
+    sample_rate: ${data.common.sample_rate}
     spec_augment_config:
       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
       freq_masks: 0 # set to zero to disable it

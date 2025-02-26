@@ -52,9 +52,9 @@ from nemo.collections.llm.gpt.model.base import (
 )
 from nemo.collections.speechlm.data.dataset.data_utils import build_position_ids, pad_or_trim_to_max_length
 from nemo.collections.speechlm.models.base import SpeechLanguageModel
-from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
+from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig, HFWrappedEncoder
 from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
-from nemo.collections.speechlm.utils.io import import_ckpt, load_distributed_ckpt
+from nemo.collections.speechlm.utils.io import get_nested_attr, import_ckpt, load_distributed_ckpt
 from nemo.collections.speechlm.utils.text_generation.audio_text_generation_strategy import (
     SpeechToTextGenerationStrategy,
 )
@@ -285,7 +285,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
 
         if speech_model is None:
             # propagate key attributes to the speech model config
-            speech_model = self.speech_model_config.configure_model()
+            speech_model = self.speech_model_config.configure_model()  # type: MCoreASRModel
         speech_model.set_input_tensor = MethodType(set_input_tensor, speech_model)
 
         self.modality_adapter_config.output_dim = self.language_model_config.hidden_size
@@ -293,8 +293,11 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         if input_key:
             if hasattr(self.speech_model_config.config, input_key):
                 self.modality_adapter_config.input_dim = getattr(self.speech_model_config.config, input_key)
-            elif hasattr(speech_model.encoder, input_key):
-                self.modality_adapter_config.input_dim = getattr(speech_model.encoder, input_key)
+            else:
+                if isinstance(speech_model.encoder, HFWrappedEncoder):
+                    self.modality_adapter_config.input_dim = get_nested_attr(speech_model.encoder.encoder, input_key)
+                else:
+                    self.modality_adapter_config.input_dim = get_nested_attr(speech_model.encoder, input_key)
 
         modality_adapter = self.modality_adapter_config.configure_model()
         modality_adapter.set_input_tensor = MethodType(set_input_tensor, modality_adapter)
