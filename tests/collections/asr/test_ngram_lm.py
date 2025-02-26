@@ -129,8 +129,7 @@ class TestFastNGramLM:
         assert (n_gpu_lm_loaded.ilabels == n_gpu_lm.ilabels).all()
 
         # states data
-        assert (n_gpu_lm_loaded.state_start_arcs == n_gpu_lm.state_start_arcs).all()
-        assert (n_gpu_lm_loaded.state_end_arcs == n_gpu_lm.state_end_arcs).all()
+        assert (n_gpu_lm_loaded.start_end_arcs == n_gpu_lm.start_end_arcs).all()
         assert (n_gpu_lm_loaded.state_order == n_gpu_lm.state_order).all()
         assert (n_gpu_lm_loaded.backoff_to_states == n_gpu_lm.backoff_to_states).all()
         assert torch.allclose(n_gpu_lm_loaded.backoff_weights, n_gpu_lm.backoff_weights)
@@ -152,8 +151,7 @@ class TestFastNGramLM:
         assert (n_gpu_lm_loaded.ilabels == n_gpu_lm.ilabels).all()
 
         # states data
-        assert (n_gpu_lm_loaded.state_start_arcs == n_gpu_lm.state_start_arcs).all()
-        assert (n_gpu_lm_loaded.state_end_arcs == n_gpu_lm.state_end_arcs).all()
+        assert (n_gpu_lm_loaded.start_end_arcs == n_gpu_lm.start_end_arcs).all()
         assert (n_gpu_lm_loaded.state_order == n_gpu_lm.state_order).all()
         assert (n_gpu_lm_loaded.backoff_to_states == n_gpu_lm.backoff_to_states).all()
         assert torch.allclose(n_gpu_lm_loaded.backoff_weights, n_gpu_lm.backoff_weights)

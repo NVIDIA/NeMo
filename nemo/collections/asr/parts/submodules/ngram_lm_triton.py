@@ -26,8 +26,7 @@ def ngram_advance_triton_kernel(
     to_states_ptr,
     ilabels_ptr,
     arcs_weights_ptr,
-    state_start_arcs_ptr,
-    state_end_arcs_ptr,
+    start_end_arcs_ptr,
     backoff_to_states_ptr,
     backoff_weights_ptr,
     BLOCK_SIZE: "tl.constexpr",
@@ -64,8 +63,10 @@ def ngram_advance_triton_kernel(
     # loop until we process start state; it should be guaranteed that in the start state we have all vocabulary tokens
     while start_state_not_processed:
         tl.debug_barrier()  # force threads synchronization
-        start_idx = tl.load(state_start_arcs_ptr + cur_state)
-        end_idx = tl.load(state_end_arcs_ptr + cur_state)
+        start_idx, end_idx = tl.load(start_end_arcs_ptr + cur_state * 2 + tl.arange(0, 2)).split()
+        # TODO: check if this is more effective
+        # start_idx = tl.load(start_end_arcs_ptr + cur_state * 2)
+        # end_idx = tl.load(start_end_arcs_ptr + cur_state * 2 + 1)
         indices = start_idx + vocab_offsets
         mask = indices < end_idx
 

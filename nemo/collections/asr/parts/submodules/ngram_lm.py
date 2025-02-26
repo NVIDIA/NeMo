@@ -503,8 +503,7 @@ class FastNGramLM(ModelPT):
 
         # states data
         self.register_buffer("backoff_to_states", torch.zeros([self.num_states], dtype=int_dtype))
-        self.register_buffer("state_start_arcs", torch.zeros([self.num_states], dtype=int_dtype))
-        self.register_buffer("state_end_arcs", torch.zeros([self.num_states], dtype=int_dtype))
+        self.register_buffer("start_end_arcs", torch.zeros([self.num_states, 2], dtype=int_dtype))
         self.register_buffer("state_order", torch.zeros([self.num_states], dtype=int_dtype))
 
         self._final_resolved = False
@@ -723,8 +722,8 @@ class FastNGramLM(ModelPT):
         self.ilabels.data.copy_(torch.from_numpy(suffix_tree_np.arcs["ilabel"][: self.num_arcs_extended]))
         self.backoff_to_states.data.copy_(torch.from_numpy(suffix_tree_np.states["backoff_to"][: self.num_states]))
 
-        self.state_start_arcs.data.copy_(torch.from_numpy(suffix_tree_np.states["arcs_start"][: self.num_states]))
-        self.state_end_arcs.data.copy_(torch.from_numpy(suffix_tree_np.states["arcs_end"][: self.num_states]))
+        self.start_end_arcs.data[:, 0].copy_(torch.from_numpy(suffix_tree_np.states["arcs_start"][: self.num_states]))
+        self.start_end_arcs.data[:, 1].copy_(torch.from_numpy(suffix_tree_np.states["arcs_end"][: self.num_states]))
         self.state_order.data.copy_(torch.from_numpy(suffix_tree_np.states["order"][: self.num_states]))
 
         # sanity check
@@ -835,9 +834,8 @@ class FastNGramLM(ModelPT):
         while lm_not_done.any():
             assert num_iterations <= self.max_order, "Infinite loop in LM advance"
             num_iterations += 1
-            start = self.state_start_arcs[current_states]
+            start, end = self.start_end_arcs[current_states].unbind(dim=1)
             indices = start[:, None] + all_labels[None, :]
-            end = self.state_end_arcs[current_states]
             mask = indices < end[:, None]
             mask &= lm_not_done[:, None]
             mask_flat = mask.view(-1)
@@ -887,8 +885,7 @@ class FastNGramLM(ModelPT):
             to_states_ptr=self.to_states,
             ilabels_ptr=self.ilabels,
             arcs_weights_ptr=self.arcs_weights,
-            state_start_arcs_ptr=self.state_start_arcs,
-            state_end_arcs_ptr=self.state_end_arcs,
+            start_end_arcs_ptr=self.start_end_arcs,
             backoff_to_states_ptr=self.backoff_to_states,
             backoff_weights_ptr=self.backoff_weights,
             BLOCK_SIZE=triton.next_power_of_2(self.vocab_size),
