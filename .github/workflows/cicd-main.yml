@@ -3162,7 +3162,7 @@ jobs:
         id: pipeline-conclusion
         run: |
           # Slack notifications are send only on test failure (not cancelled):
-          FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') && github.event.label.name == 'Run CICD'}}
+          FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') && github.event.label.name == 'Run CICD' }}
           echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
 
           # Mark as successful if no job was cancelled:
@@ -3173,7 +3173,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Remove label if not cancelled
-        if: ${{ !contains(needs.*.result, 'cancelled') }}
+        if: ${{ !contains(needs.*.result, 'cancelled') && github.event.label.name == 'Run CICD' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number }}
