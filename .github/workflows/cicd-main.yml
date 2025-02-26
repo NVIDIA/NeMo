@@ -3162,7 +3162,7 @@ jobs:
         id: pipeline-conclusion
         run: |
           # Slack notifications are send only on test failure (not cancelled):
-          FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') }}
+          FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') && github.event.label.name == 'Run CICD'}}
           echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
 
           # Mark as successful if no job was cancelled:
