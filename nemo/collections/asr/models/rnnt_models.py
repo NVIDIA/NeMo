@@ -574,7 +574,16 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+            if (
+                self._trainer is not None
+                and isinstance(self._trainer.limit_train_batches, float)
+                and (hasattr(self._train_dl.dataset, 'dataset') and isinstance(self._train_dl.dataset.dataset, LhotseSpeechToTextBpeDataset))
+            ):
+                logging.warning(f"Lhotse dataset don't have length attribute, limit_train_batches is ignored.")
+            elif (
+                self._trainer is not None
+                and isinstance(self._trainer.limit_train_batches, float)
+            ):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
                     * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
