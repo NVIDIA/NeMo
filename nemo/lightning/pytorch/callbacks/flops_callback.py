@@ -72,6 +72,8 @@ class FLOPsMeasurementCallback(Callback):
         ffn_hs = self.model_cfg.ffn_hidden_size
         attention_heads = self.model_cfg.num_attention_heads
         moe_router_topk = self.model_cfg.moe_router_topk
+        model_pattern = getattr(self.model_cfg, "hybrid_override_pattern", None)
+        vocab_size = self.data_cfg.tokenizer.vocab_size if hasattr(self.data_cfg, "tokenizer") else None
 
         # this handles both- 1. key is present, value is None; 2. key is absent
         query_groups = self.model_cfg.num_query_groups
@@ -87,6 +89,8 @@ class FLOPsMeasurementCallback(Callback):
             attention_heads=attention_heads,
             moe_router_topk=moe_router_topk,
             query_groups=query_groups,
+            vocab_size=vocab_size,
+            model_pattern=model_pattern,
         )
 
         self.model = self.model.lower() if self.model is not None else self.model
