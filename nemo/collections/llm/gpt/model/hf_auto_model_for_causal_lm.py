@@ -285,11 +285,13 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             if is_ddp:
                 group = dist.group.WORLD  # Default DDP process group
             else:
-                group = self._device_mesh.get_process_group()
-            mean_loss = torch.tensor([mean_loss])
-            mean_loss = dist.all_reduce(mean_loss, group=group)
-            tps = torch.LongTensor([tps])
-            tps = dist.all_reduce(tps, group=group, op=dist.ReduceOp.SUM)
+                group = self._device_mesh.get_group()
+            mean_loss = torch.tensor([mean_loss], device=self.device).detach()
+            dist.all_reduce(mean_loss, group=group, op=dist.ReduceOp.AVG)
+            mean_loss = mean_loss.item()
+            tps = torch.tensor([tps], device=self.device, dtype=torch.int64)
+            dist.all_reduce(tps, group=group, op=dist.ReduceOp.SUM)
+            tps = tps.item()
 
         self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
         self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
