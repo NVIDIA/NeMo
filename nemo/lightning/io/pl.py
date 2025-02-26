@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,14 +39,12 @@ from typing_extensions import Self, override
 from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
+from nemo.utils import logging
 
 try:
     from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 except ImportError:
     AsyncCompatibleCheckpointIO = CheckpointIO
-
-
-log = logging.getLogger(__name__)
 
 
 LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
@@ -324,7 +321,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         fs = get_filesystem(path)
         if fs.exists(path):
             fs.rm(path, recursive=True)
-            log.debug(f"Removed checkpoint: {path}")
+            logging.debug(f"Removed checkpoint: {path}")
 
     def _determine_dist_ckpt_save_strategy(self):
         """Determine the saving strategy based on constructor args.
