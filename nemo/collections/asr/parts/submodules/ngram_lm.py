@@ -27,7 +27,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from tqdm.auto import tqdm
 
 from nemo.collections.common.parts import NEG_INF
-from nemo.core import ModelPT, PretrainedModelInfo
+from nemo.core import ModelPT
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
 from nemo.utils import logging
 
@@ -98,6 +98,14 @@ class KenLMBatchedWrapper:
         return [self.get_init_state(bos=bos) for _ in range(batch_size)]
 
     def advance(self, states: list["kenlm.State"]) -> tuple[torch.Tensor, list[list["kenlm.State"]]]:
+        """
+        Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab
+        Args:
+            states: batch of states
+
+        Returns:
+            tuple containing next states and scores
+        """
         batch_size = len(states)
         new_states = [[] for _ in range(len(states))]
         scores = torch.zeros(batch_size, self.vocab_size)
@@ -113,8 +121,8 @@ class KenLMBatchedWrapper:
         """
         Computes the score with KenLM N-gram language model for `label` given `state`
         Args:
-            state: kenLM state
-            label: text unit
+            state: KenLM state
+            label: text token
 
         Returns:
             tuple: score, next state
@@ -126,20 +134,11 @@ class KenLMBatchedWrapper:
 
         next_state = kenlm.State()
         lm_score = self.ngram_lm.BaseScore(state, label, next_state)
-        lm_score *= 1.0 / np.log10(np.e)
+        lm_score /= np.log10(np.e)
 
         return lm_score, next_state
 
     def score_sentence(self, sentence: list[int], bos=True) -> torch.Tensor:
-        """
-        Compute
-        Args:
-            labels:
-            bos: start with BOS (begin-of-sentence) symbol
-
-        Returns:
-
-        """
         state = self.get_init_state(bos=bos)
         scores = []
         for label in sentence:
@@ -284,6 +283,15 @@ class SuffixTreeStorage:
         )
 
     def find_state(self, symbols: tuple[int, ...], bos_id: int) -> int:
+        """
+        Find the state given sequence of symbols
+        Args:
+            symbols: sequence of symbols
+            bos_id: ID of the Begin-of-Sentence symbol
+
+        Returns:
+            state in tree for the last symbol
+        """
         if len(symbols) > 1:
             return self._arc_cache[tuple(symbols)]
         assert len(symbols) == 1
@@ -305,7 +313,7 @@ class SuffixTreeStorage:
                 assert ilabel == -2
                 self.states[from_state]["final"] = ngram["weight"]
                 continue
-            assert 0 <= ilabel < self.vocab_size
+            assert ilabel < self.vocab_size
             backoff_state = self.find_state(symbols[1:], bos_id=bos_id)
 
             arc_id = self.num_arcs
@@ -851,7 +859,7 @@ class FastNGramLM(ModelPT):
 
     def advance(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        Advance `states` [B]: return next states [B, V] and scores [B, V] for full vocab
+        Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab
         Args:
             states: batch of states
 

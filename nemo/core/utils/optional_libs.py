@@ -36,7 +36,7 @@ TRITON_INSTALLATION_MESSAGE = "Try installing triton with `pip install triton`"
 
 
 try:
-    from nemo.core.utils.k2_guard import k2 as _
+    from nemo.core.utils.k2_guard import k2 as _  # noqa: F401
 
     K2_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
