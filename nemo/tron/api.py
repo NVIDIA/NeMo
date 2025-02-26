@@ -98,4 +98,4 @@ def megatron_pretrain(
             write_to_tensorboard=not config.megatron_lm_config.skip_train,
         )
 
-    _finish_train(config.checkpoint_config, state)
+    _finish_train(state)

@@ -806,7 +806,9 @@ def checkpoint_and_decide_exit(
     return False
 
 
-def _finish_train(ckpt_cfg: CheckpointConfig, global_state: GlobalState):
+def _finish_train(global_state: GlobalState):
+    ckpt_cfg = global_state.cfg.checkpoint_config
+
     fault_tolerance.on_checkpointing_start(global_state)
     maybe_finalize_async_save(blocking=True, terminate=True, ckpt_cfg=ckpt_cfg)
     fault_tolerance.on_checkpointing_end(global_state=global_state, is_async_finalization=True)
