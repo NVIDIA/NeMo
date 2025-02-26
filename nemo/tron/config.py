@@ -26,7 +26,7 @@ from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.tron.utils.common_utils import get_world_size_safe
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RNGConfig:
     seed: int = 1234
     """Random seed used for python, numpy, pytorch, and cuda."""
@@ -39,7 +39,7 @@ class RNGConfig:
     """Use a random number generator configured for inference."""
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RerunStateMachineConfig:
     error_injection_rate: int = 0
     """Rate at which to inject unexpected results, e.g. 1000 means
@@ -53,12 +53,22 @@ class RerunStateMachineConfig:
     on variability of computations due to non-deterministic algorithms."""
 
 
-@dataclass
+@dataclass(kw_only=True)
 class TokenizerConfig:
+    # ---------------- Tokenizer config. ----------------
+
     vocab_size: Optional[int] = None
+    """Size of vocab before EOD or padding."""
+
     vocab_file: Optional[str] = None
+    """Path to the vocab file."""
+
     merge_file: Optional[str] = None
+    """Path to the BPE merge file."""
+
     vocab_extra_ids: int = 0
+    """Number of additional vocabulary tokens. They are used for span masking in the T5 model"""
+
     tokenizer_type: Optional[
         Literal[
             "BertWordPieceLowerCase",
@@ -73,20 +83,25 @@ class TokenizerConfig:
             "NullTokenizer",
         ]
     ] = None
+    """What type of tokenizer to use."""
+
     tokenizer_model: Optional[str] = None
+    """Sentencepiece tokenizer model."""
+
     tiktoken_pattern: Optional[str] = None
+    """Which tiktoken pattern to use. Options: [v1, v2]"""
+
     tiktoken_num_special_tokens: int = 1000
+    """Number of special tokens in tiktoken tokenizer"""
+
     tiktoken_special_tokens: Optional[List[str]] = None
-    tokenizer_prompt_format: Optional[str] = None
-    special_tokens: Optional[List[str]] = None
-    image_tag_type: Optional[str] = None
-    padded_vocab_size: Optional[int] = None
+    """List of tiktoken special tokens, needs to have ["<unk>", "<s>", "</s>"]"""
 
 
 # TODO (maanug): split this up into modular components
 
 
-@dataclass
+@dataclass(kw_only=True)
 class MegatronLMConfig:
     """MegatronLM config."""
 
@@ -242,7 +257,7 @@ class MegatronLMConfig:
     """Dynamically save the checkpoint and shutdown the training if SIGTERM is received"""
 
     exit_signal_handler_for_dataloader: bool = False
-    """Use signal handler for dataloader workers"""
+    """Create signal handler for dataloader workers"""
 
     bias_gelu_fusion: bool = True
     """Disable bias and GeLU fusion."""
@@ -446,48 +461,6 @@ class MegatronLMConfig:
     create_attention_mask_in_dataloader: bool = True
     """If set, do not create attention_masks in dataloader."""
 
-    # ---------------- Tokenizer config. ----------------
-
-    vocab_size: Optional[int] = None
-    """Size of vocab before EOD or padding."""
-
-    vocab_file: Optional[str] = None
-    """Path to the vocab file."""
-
-    merge_file: Optional[str] = None
-    """Path to the BPE merge file."""
-
-    vocab_extra_ids: int = 0
-    """Number of additional vocabulary tokens. They are used for span masking in the T5 model"""
-
-    tokenizer_type: Optional[
-        Literal[
-            "BertWordPieceLowerCase",
-            "BertWordPieceCase",
-            "GPT2BPETokenizer",
-            "SentencePieceTokenizer",
-            "GPTSentencePieceTokenizer",
-            "HuggingFaceTokenizer",
-            "Llama2Tokenizer",
-            "TikTokenizer",
-            "MultimodalTokenizer",
-            "NullTokenizer",
-        ]
-    ] = None
-    """What type of tokenizer to use."""
-
-    tokenizer_model: Optional[str] = None
-    """Sentencepiece tokenizer model."""
-
-    tiktoken_pattern: Optional[str] = None
-    """Which tiktoken pattern to use. Options: [v1, v2]"""
-
-    tiktoken_num_special_tokens: int = 1000
-    """Number of special tokens in tiktoken tokenizer"""
-
-    tiktoken_special_tokens: Optional[List[str]] = None
-    """List of tiktoken special tokens, needs to have ["<unk>", "<s>", "</s>"]"""
-
     # ---------------- Autoresume config. ----------------
 
     adlr_autoresume: bool = False
@@ -663,38 +636,6 @@ class MegatronLMConfig:
 
     fp8_param_gather: bool = False
     """Keep the compute param in fp8 (do not use any other intermediate dtype) and perform the param all-gather in fp8."""
-
-    # ---------------- Retro config. ----------------
-
-    retro_project_dir: Optional[str] = None
-    """Retro project directory, which contains the preprocessed data for pretraining. This directory is built during preprocessing (see tools/retro/README.md), and contains subdirectories for the chunk database and pretraining neighbors."""
-
-    retro_add_retriever: bool = False
-    """Add a retriever to the transformer, for use in pretraining a Retro model."""
-
-    retro_cyclic_train_iters: Optional[int] = None
-    """Set number of training iterations for cyclic Retro training."""
-
-    retro_encoder_layers: int = 2
-    """Number of layers to use for the retrieval encoder."""
-
-    retro_encoder_hidden_dropout: float = 0.1
-    """Hidden dropout for retrieval encoder."""
-
-    retro_encoder_attention_dropout: float = 0.1
-    """Attention dropout for retrieval encoder."""
-
-    retro_num_neighbors: int = 2
-    """Number of neighbors to retrieve during pretraining."""
-
-    retro_num_retrieved_chunks: int = 2
-    """Number of chunks to retrieve from the retrieval database."""
-
-    retro_attention_gate: float = 1
-    """Gated cross attention."""
-
-    retro_verify_neighbor_count: bool = True
-    """Skip verifying that len(GPT dataset) == len(saved neighbors)."""
 
     # ---------------- Experimental config. ----------------
 
