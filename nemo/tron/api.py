@@ -16,6 +16,7 @@ from typing import Callable, Optional
 
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import ConfigContainer
+from nemo.tron.data.dataset import train_valid_test_datasets_provider
 from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.setup import setup
 from nemo.tron.train import _finish_train, train
@@ -25,7 +26,7 @@ from nemo.tron.utils.common_utils import barrier_and_log, print_rank_0
 def megatron_pretrain(
     config: ConfigContainer,
     forward_step_func: Callable,
-    dataset_provider: Callable,
+    dataset_provider: Callable = train_valid_test_datasets_provider,
     get_embedding_ranks: Optional[Callable] = None,
     get_position_embedding_ranks: Optional[Callable] = None,
     process_non_loss_data_func: Optional[Callable] = None,
