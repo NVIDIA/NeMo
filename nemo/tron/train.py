@@ -807,10 +807,10 @@ def checkpoint_and_decide_exit(
 
 
 def _finish_train(ckpt_cfg: CheckpointConfig, global_state: GlobalState):
-    if global_state.wandb_logger:
-        global_state.wandb_logger.finish()
-
     fault_tolerance.on_checkpointing_start(global_state)
     maybe_finalize_async_save(blocking=True, terminate=True, ckpt_cfg=ckpt_cfg)
     fault_tolerance.on_checkpointing_end(global_state=global_state, is_async_finalization=True)
     fault_tolerance.shutdown(global_state)
+
+    if global_state.wandb_logger:
+        global_state.wandb_logger.finish()
