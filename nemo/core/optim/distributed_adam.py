@@ -705,7 +705,6 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             return
 
         # Cast local data to FP8
-        fp8_params_shards = dict()
         for bucket_id, param_bucket in params_buckets.items():
             state_bucket = self.state["buckets"][bucket_id]
             if state_bucket.param_sync_dtype != torch.uint8:
