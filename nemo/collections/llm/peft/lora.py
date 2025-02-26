@@ -205,13 +205,6 @@ def patch_linear_module(
     cls = orig_linear.__class__
     new_cls = type('PatchedLinearAdapter', (LinearAdapter, cls), {})
     orig_linear.__class__ = new_cls
-
-    if hasattr(orig_linear.weight.data, '_local_tensor'):
-        from torch.distributed._composable.fsdp.fully_shard import fully_shard
-
-        fully_shard(orig_linear.lora_a, reshard_after_forward=False)
-        fully_shard(orig_linear.lora_b, reshard_after_forward=False)
-
     return orig_linear
 
 
@@ -286,7 +279,7 @@ class LoRA(PEFT, ModuleMatcher):
         Returns:
             nn.Module: The modified module with LoRA applied, or the original module if not a target.
         """
-        from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
+        from nemo.collections.llm.peft.utils import ParallelLinearAdapter
 
         if (ans := self.match(m, name, prefix)) is not None:
             (match, full_name) = ans
@@ -309,7 +302,7 @@ class LoRA(PEFT, ModuleMatcher):
                     lora_dtype=self.lora_dtype,
                 )
 
-            input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
             logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,
@@ -328,6 +321,7 @@ class LoRA(PEFT, ModuleMatcher):
                 alpha=self.alpha,
                 is_expert=is_expert_linear(full_name),
                 a2a_experimental=self.a2a_experimental,
+                disable_sequence_parallel_comm=disable_sp_comm,
             )
             return LoRALinear(m, adapter)
         return m
