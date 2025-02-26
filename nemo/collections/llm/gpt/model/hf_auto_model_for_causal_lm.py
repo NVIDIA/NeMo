@@ -17,6 +17,7 @@ import time
 import _io
 import lightning.pytorch as pl
 import torch
+import torch.distributed as dist
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
 
@@ -24,7 +25,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
-import torch.distributed as dist
+
 
 def masked_cross_entropy(logits, targets, mask=None):
     """
