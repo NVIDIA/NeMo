@@ -691,7 +691,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
             # Ensure that if using custom FSDP, gradient_accumulation_fusion is disabled on the model config.
             if self.ddp_config.use_custom_fsdp:
-                assert module.config.gradient_accumulation_fusion == False, "gradient_accumulation_fusion must be False when using custom FSDP"
+                assert (
+                    module.config.gradient_accumulation_fusion == False
+                ), "gradient_accumulation_fusion must be False when using custom FSDP"
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
         no_sync_func, grad_sync_func = extract_ddp_funcs(self.ddp_config, self)
