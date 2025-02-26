@@ -140,6 +140,16 @@ class KenLMBatchedWrapper:
         return lm_score, next_state
 
     def score_sentence(self, sentence: list[int], bos=True) -> torch.Tensor:
+        """
+        Compute log-probabilities for all labels in the sentence using N-Gram LM.
+
+        Args:
+            sentence: list of tokens
+            bos: start with BOS symbol
+
+        Returns:
+            Tensor [L] with scores for the sentence
+        """
         state = self.get_init_state(bos=bos)
         scores = []
         for label in sentence:
@@ -149,7 +159,7 @@ class KenLMBatchedWrapper:
 
     def score_sentences(self, sentences: list[list[int]], bos=True) -> torch.Tensor:
         """
-        Compute log-probabilities for all labels in utterances using N-Gram LM.
+        Compute log-probabilities for all labels in sentences using N-Gram LM.
 
         Args:
             sentences: list of sequences of tokens
