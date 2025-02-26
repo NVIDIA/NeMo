@@ -457,16 +457,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         # is calculated independent of the other tokens.
         predictions_logprobs, predictions_labels = predictions.topk(self.beam_size, dim=-1)
 
-        # Since predictions_logprobs is a padded matrix in the time
-        # dimension, we consider invalid timesteps to be "blank".
-        time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).unsqueeze(-1).expand(batch_size, max_time,  self.beam_size)
-        # non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1).unsqueeze(1))
-        # # Sum the non-blank labels to compute the score of the
-        # # transcription. This follows from Eq. (3) of "Connectionist
-        # # Temporal Classification: Labelling Unsegmented Sequence Data
-        # # with Recurrent Neural Networks".
-        # scores = torch.where(non_blank_ids_mask, predictions_logprobs, 0.0).sum(axis=1)
-        
         batched_beam_hyps = CTCBatchedBeamHyps(
             batch_size=batch_size,
             beam_size=self.beam_size,
@@ -476,15 +466,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             float_dtype=x.dtype,
         )
         
-        beam_indices = torch.arange(self.beam_size, device=x.device)
-        expansion_beam_indices = beam_indices.unsqueeze(0).unsqueeze(-1).repeat(batch_size, 1, self.beam_size)
-        
-        expansion_indices = beam_indices[None, :, None].expand(
-            batch_size, -1, self.beam_size
-        )
         for t in range(max_time):
-            time_step = time_steps[:, t, :]
-            active_mask = time_step < out_len.unsqueeze(1)
+            active_mask = out_len.unsqueeze(1) > t
             
             labels = predictions_labels[:, t, :]
             probs = predictions_logprobs[:, t, :]
@@ -497,6 +480,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             
             next_labels = torch.where(active_mask, next_labels, -1)
             batched_beam_hyps.add_results_(hyps_indices, next_labels, hyps_scores)
+            
+            batched_beam_hyps.self_recombine_hyps_()
 
         nbest_hypotheses = []
         for x in batched_beam_hyps.to_hyps_list():
@@ -505,37 +490,6 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             nbest_hypotheses.append(hypotheses)
             
         return nbest_hypotheses
-
-        # scores = scores.cpu()
-        # predictions_labels = predictions_labels.cpu()
-        # out_len = out_len.cpu()
-
-        # hypotheses = []
-
-        # # This mimics the for loop in GreedyCTCInfer::forward.
-        # for i in range(batch_size):
-        #     hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
-        #     hypothesis.score = scores[i]
-
-        #     prediction_labels_no_padding = predictions_labels[i, : out_len[i]].tolist()
-
-        #     assert predictions_labels.dtype == torch.int64
-        #     hypothesis.y_sequence = prediction_labels_no_padding
-
-        #     if self.preserve_alignments:
-        #         hypothesis.alignments = (
-        #             predictions[i, : out_len[i], :].clone(),
-        #             predictions_labels[i, : out_len[i]].clone(),
-        #         )
-        #     if self.compute_timestamps:
-        #         # TOOD: Could do this in a vectorized manner... Would
-        #         # prefer to have nonzero_static, though, for sanity.
-        #         # Or do a prefix sum on out_len
-        #         hypothesis.timestamp = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
-            
-        #     hypotheses.append(hypothesis)
-            
-        # return hypotheses
 
     @torch.no_grad()
     def _pyctcdecode_beam_search(

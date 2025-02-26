@@ -341,7 +341,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 kenlm_path=self.cfg.beam.get('kenlm_path', None),
             )
 
-            self.decoding.override_fold_consecutive_value = False
+            self.decoding.override_fold_consecutive_value = True
             
         elif self.cfg.strategy == 'wfst':
 

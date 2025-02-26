@@ -44,23 +44,14 @@ class CTCBatchedBeamHyps:
         self.transcript_wb_prev_ptr = torch.full(
             (batch_size, self.beam_size, self._max_length), fill_value=self.INIT_POINTER_VALUE, device=device, dtype=torch.long
         )
-        self.transcript_hash = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
-        self.transcript_prefix_hash = torch.full([batch_size, self.beam_size], device=device, dtype=torch.long, fill_value=self.INIT_PREFIX_HASH_VALUE)
         self.last_label = torch.full([batch_size, self.beam_size], fill_value=self.NON_EXISTENT_LABEL_VALUE, device=device, dtype=torch.long)
+        self.transcript_hash = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
         self.timesteps = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
         
         self.scores = torch.zeros([batch_size, self.beam_size], device=device, dtype=float_dtype)
         self.scores.fill_(self.INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
 
-        self.next_timestep = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
-        self.last_timestep_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
-        
-        self.count_collision_stats=False
-        self.comparisons_count=0
-        self.collisions_count=0
-        self.hash_collisions_count=0
-        
         self.batch_indices = torch.arange(self.batch_size, device=device)
         self.ZERO_TENSOR = torch.tensor(0, device=device, dtype=torch.long)  
 
@@ -71,14 +62,11 @@ class CTCBatchedBeamHyps:
         self.timesteps.fill_(0)
         self.scores.fill_(self.INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
-        self.next_timestep.fill_(0)
-        self.last_timestep_lasts.fill_(0)
         
         self.transcript_wb.fill_(0)
         self.transcript_wb_prev_ptr.fill_(self.INIT_POINTER_VALUE)
         
         self.transcript_hash.fill_(0)
-        self.transcript_prefix_hash.fill_(self.INIT_PREFIX_HASH_VALUE)
 
     def _allocate_more(self):
         self.transcript_wb = torch.cat((self.transcript_wb, torch.zeros_like(self.transcript_wb)), dim=-1)
@@ -111,6 +99,7 @@ class CTCBatchedBeamHyps:
         next_hyps_prob,
     ):
         # TODO: timesteps
+        # TODO: sdelat' chtom esli next_labels = -1, tut ne obnovlyalos nichego!
         self.scores.copy_(next_hyps_prob)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(
@@ -125,37 +114,16 @@ class CTCBatchedBeamHyps:
             torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
         )
 
-        self.next_timestep.copy_(self.current_lengths_wb - self.current_lengths_nb)
-        self.last_timestep_lasts.copy_(torch.where(
-            extended_with_blank,
-            0,
-            torch.gather(self.last_timestep_lasts, dim=-1, index=hyps_indices) + extended_with_label,
-        ))
-
-        prev_transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
-        prev_transcript_prefix_hash = torch.gather(self.transcript_prefix_hash, dim=-1, index=hyps_indices)
-        last_labels=torch.gather(self.last_label, dim=-1, index=hyps_indices)
-        # track last label
-        torch.where(
-            extended_with_label,
-            next_labels,
-            last_labels,
-            out=self.last_label,
-        )
-        
+        mask_to_update_mask = torch.logical_and(next_labels != self.blank_index, next_labels != self.last_label)
         # update hashes and prefix hashes
         torch.where(
-            extended_with_label,
-            hash_text(prev_transcript_hash, next_labels),
-            prev_transcript_hash,
+            mask_to_update_mask,
+            hash_text(self.transcript_hash, next_labels),
+            self.transcript_hash,
             out=self.transcript_hash
         )
-        torch.where(
-            extended_with_label,
-            prev_transcript_hash,
-            prev_transcript_prefix_hash,
-            out=self.transcript_prefix_hash
-        )
+        
+        self.last_label.copy_(next_labels)
     
     def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
         normalized_scores = self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
@@ -185,3 +153,24 @@ class CTCBatchedBeamHyps:
             for i, _ in enumerate(range(self.batch_size))
         ]
         return hypotheses
+    
+    def self_recombine_hyps_(self):
+        if self.beam_size <= 1:
+            return
+        # TODO: separate lm scores
+        hyps_equal = (
+            (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :])
+            & (self.last_label[:, :, None] == self.last_label[:, None, :])
+        )
+
+        scores_matrix = torch.where(
+            hyps_equal,
+            self.scores[:, None, :].expand(self.batch_size, self.beam_size, self.beam_size),
+            self.INACTIVE_SCORE_TENSOR,
+        )
+        scores_argmax = scores_matrix.argmax(-1, keepdim=False)
+        scores_to_keep = (
+            torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
+        )
+        new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
+        torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
