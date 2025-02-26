@@ -637,8 +637,7 @@ class ExplicitSingleDecayFilter(nn.Module):
         small_init=True,
     ):
         super().__init__()
-        with get_cuda_rng_tracker().fork():
-            h = torch.randn(d_model, L_cache) / math.sqrt(L_cache)
+
         assert decay_preset in ["strong", "normal", "weak"]
         if decay_preset == "strong":
             log_r_min = 0
@@ -649,19 +648,32 @@ class ExplicitSingleDecayFilter(nn.Module):
         elif decay_preset == "weak":
             log_r_min = -2
             log_r_max = 2
-
-        if small_init:
-            h = h * 1e-5
-        if unit_passthrough:
-            h[:, :1] = 1.0
-        self.h = nn.Parameter(h)
         t = torch.linspace(0, 1, L_cache)[None]
         self.log_r_min = log_r_min
         self.log_r_max = log_r_max
         decay = torch.logspace(log_r_min, log_r_max, d_model)[:, None]
         decay = torch.exp((-decay * t).cuda())
         self.register_buffer("decay", decay)
+
+        # Initialize h with He initialization accounting for decay
+        with get_cuda_rng_tracker().fork():
+            # Calculate compensation factor for decay
+            global_avg_decay = decay.mean()  # Average decay per channel
+            # He init standard deviation with compensation for decay
+            he_std = math.sqrt(2.0 / L_cache) / global_avg_decay.clamp(min=1e-3)
+            h = torch.randn(d_model, L_cache) * he_std
+            if small_init:
+                h = h * 1e-5
+            if unit_passthrough:
+                h[:, :1] = 1.0
+
+        if small_init:
+            h = h * 1e-5
+        if unit_passthrough:
+            h[:, :1] = 1.0
+        self.h = nn.Parameter(h)
         setattr(self.h, 'tensor_model_parallel', True)
+
 
     def forward(self, L, *args, **kwargs):
         """
