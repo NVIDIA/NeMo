@@ -38,6 +38,7 @@ from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import CheckpointConfig, ConfigContainer, MegatronLMConfig
 from nemo.tron.eval import evaluate_and_print_results
+from nemo.tron.init import destroy_global_state
 from nemo.tron.state import GlobalState
 from nemo.tron.utils import flop_utils
 from nemo.tron.utils.async_utils import maybe_finalize_async_save
@@ -814,3 +815,5 @@ def _finish_train(ckpt_cfg: CheckpointConfig, global_state: GlobalState):
 
     if global_state.wandb_logger:
         global_state.wandb_logger.finish()
+
+    destroy_global_state()

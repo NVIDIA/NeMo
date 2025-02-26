@@ -24,7 +24,7 @@ from nemo.tron.utils.common_utils import barrier_and_log, print_rank_0
 
 def megatron_pretrain(
     forward_step_func: Callable,
-    full_config: ConfigContainer,  # TODO: leave as is, or accept modular cfgs as well?
+    full_config: ConfigContainer,
     dataset_provider: Callable,
     get_embedding_ranks: Optional[Callable] = None,
     get_position_embedding_ranks: Optional[Callable] = None,
