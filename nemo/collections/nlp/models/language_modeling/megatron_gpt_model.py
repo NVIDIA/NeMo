@@ -2211,10 +2211,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.cfg.get('account_for_embedding_in_pipeline_split', False)
             and self.cfg.get('account_for_loss_in_pipeline_split', False)
         ):
-            if self.cfg.num_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
+            # Check that number of layers is compatible with pipeline parallelism
+            num_layers_first = self.cfg.get('num_layers_in_first_pipeline_stage', 0)
+            num_layers_last = self.cfg.get('num_layers_in_last_pipeline_stage', 0)
+            remaining_layers = self.cfg.num_layers - num_layers_first - num_layers_last
+            if remaining_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
                 raise ValueError(
-                    f"num_layers ({self.cfg.num_layers}) should be divisible by "
-                    f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})"
+                    f"num_layers ({self.cfg.num_layers}) minus num_layers_in_first_pipeline_stage ({num_layers_first}) "
+                    f"and num_layers_in_last_pipeline_stage ({num_layers_last}) should be divisible by "
+                    f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})."
                 )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
