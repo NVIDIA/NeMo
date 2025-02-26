@@ -59,6 +59,9 @@
   fp8_param_gather: bool = False # If true, keep the compute param in fp8 (do not use any other intermediate dtype) and perform the param all-gather in fp8
   use_custom_fsdp: bool = False # If true, use MCore's custom FSDP implementation. recipe.model.config.gradient_accumulation_fusion must be False when using this
   data_parallel_sharding_strategy: str = "no_shard" # Sharding strategy when using custom FSDP, choices=['no_shard', 'optim', 'optim_grads', 'optim_grads_params']
+  suggested_communication_unit_size: int = 400_000_000 # When using custom FSDP and batch communication is needed across multiple buckets, this variable guides the size of communication unit size
+  preserve_fp32_weights: bool = True # If true, preserve fp32 weights in the custom FSDP ParamAndGradBuffer
+  keep_fp8_transpose_cache_when_using_custom_fsdp: bool = False # If true, keep the fp8 transpose cache when using custom FSDP
   ```  
   </blockquote>
   </details>
