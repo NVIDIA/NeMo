@@ -875,14 +875,13 @@ class FastNGramLM(ModelPT):
             new_states_ptr=new_states,
             scores_ptr=scores,
             start_state=self.START_STATE,
-            max_order=self.max_order,
-            backoff_to_states_ptr=self.backoff_to_states,
-            backoff_weights_ptr=self.backoff_weights,
-            state_start_arcs_ptr=self.state_start_arcs,
-            state_end_arcs_ptr=self.state_end_arcs,
             to_states_ptr=self.to_states,
             ilabels_ptr=self.ilabels,
             arcs_weights_ptr=self.arcs_weights,
+            state_start_arcs_ptr=self.state_start_arcs,
+            state_end_arcs_ptr=self.state_end_arcs,
+            backoff_to_states_ptr=self.backoff_to_states,
+            backoff_weights_ptr=self.backoff_weights,
             BLOCK_SIZE=triton.next_power_of_2(self.vocab_size),
         )
 
