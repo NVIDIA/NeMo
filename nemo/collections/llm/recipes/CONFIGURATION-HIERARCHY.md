@@ -58,7 +58,7 @@
   average_in_collective: bool = False # If true, compute average in collective directly, as opposed to dividing by the dp_size first and then computing sum in the collective
   fp8_param_gather: bool = False # If true, keep the compute param in fp8 (do not use any other intermediate dtype) and perform the param all-gather in fp8
   use_custom_fsdp: bool = False # If true, use MCore's custom FSDP implementation. recipe.model.config.gradient_accumulation_fusion must be False when using this
-  data_parallel_sharding_strategy: str = "no_shard" # Data parallel sharding strategy, choices=['no_shard', 'optim', 'optim_grads', 'optim_grads_params']
+  data_parallel_sharding_strategy: str = "no_shard" # Sharding strategy when using custom FSDP, choices=['no_shard', 'optim', 'optim_grads', 'optim_grads_params']
   ```  
   </blockquote>
   </details>
