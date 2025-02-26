@@ -12,55 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import re
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional
 
 import lightning.pytorch as L
 import torch
 import torch.distributed
-import torch.nn.functional as F
 from megatron.core import InferenceParams, dist_checkpointing
 from megatron.core import parallel_state as ps
 from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
-from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
-from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
-
-HAVE_TE = True
-try:
-    from megatron.core.transformer.custom_layers.transformer_engine import (
-        TEColumnParallelLinear,
-        TENorm,
-        TERowParallelLinear,
-    )
-except ImportError:
-    from nemo.utils import logging
-
-    # These Defaults are needed to make sure the code compiles
-    TEColumnParallelLinear = None
-    TENorm = None
-    TERowParallelLinear = None
-    logging.warning(
-        "Failed to import Transformer Engine dependencies. "
-        "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
-        "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
-    )
-
-from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
-from transformers import CLIPVisionConfig, CLIPVisionModel
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-from nemo.collections.llm.gpt.model import transformer_engine_layer_spec
+
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
@@ -105,7 +75,29 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     return num_patches + (class_token_len if add_class_token else 0)
 
 
+def restore_model_weights(model, checkpoint_path, strict=False):
+    """
+    Restores model weights from a checkpoint.
+
+    Args:
+        model: The model to restore weights for.
+        checkpoint_path: Path to the checkpoint.
+        strict: Whether to restore weights even if they are not the same.
+    """
+    if checkpoint_path is not None:
+        sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
+        loaded_state_dict = dist_checkpointing.load(
+            sharded_state_dict=sharded_state_dict,
+            checkpoint_dir=ckpt_to_weights_subdir(checkpoint_path, is_saving=False),
+            validate_access_integrity=False,
+            **({"strict": "log_all"} if not strict else {}),
+        )
+        loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+        model.load_state_dict(loaded_state_dict, strict=strict)
+
+
 def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+    """Neva Data Step"""
     from megatron.core import parallel_state
 
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
@@ -157,6 +149,7 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 
 def neva_forward_step(model, batch) -> torch.Tensor:
+    """Neva Forward Step"""
     forward_args = {
         "images": batch["media"],
         "input_ids": batch["tokens"],
@@ -172,155 +165,10 @@ def neva_forward_step(model, batch) -> torch.Tensor:
     return model(**forward_args)
 
 
-def set_input_tensor(self, tensor):
-    pass
-
-
-@dataclass
-class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
-    """
-    For MLP, fc1 in shape of input_size, ffn_hidden_size, fc2 in shape of ffn_hidden_size, hidden_size
-    """
-
-    projector_type: str = "mlp2x_gelu"
-    layer_spec: Optional[MLPSubmodules] = None
-    input_size: Optional[int] = 1024
-    hidden_size: int = 1024
-    ffn_hidden_size: int = 1024
-    activation_func: Callable = F.gelu
-    bias: bool = True
-    bias_activation_fusion: bool = True
-    num_layers: int = 1  # placeholder, NOT used!
-    num_attention_heads: int = 8  # placeholder, NOT used!
-
-    def configure_model(self) -> "MCoreMultimodalProjector":
-        if self.projector_type.startswith("mcore") and self.layer_spec is None:
-            if self.projector_type == "mcore_mlp":
-                self.projector_type = "mlp"  # strip "mcore_" for mcore init
-                self.layer_spec = ModuleSpec(
-                    module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=TEColumnParallelLinear,
-                        linear_fc2=TERowParallelLinear,
-                    ),
-                )
-                self.layer_spec = self.layer_spec.submodules
-            elif self.projector_type == "mcore_affine":
-                self.projector_type = "affine"  # strip "mcore_" for mcore init
-                self.layer_spec = MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=None)
-            else:
-                raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
-
-            return MCoreMultimodalProjector(
-                self,
-                self.layer_spec,
-                projector_type=self.projector_type,
-                input_size=self.input_size,
-            )
-
-        # e.g. "mlp2x_gelu"
-        mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', self.projector_type)
-        if mlp_gelu_match:
-            mlp_depth = int(mlp_gelu_match.group(1))
-            modules = [torch.nn.Linear(self.input_size, self.hidden_size, bias=True)]
-            for _ in range(1, mlp_depth):
-                modules.append(torch.nn.GELU())
-                modules.append(torch.nn.Linear(self.hidden_size, self.hidden_size, bias=True))
-            model = torch.nn.Sequential(*modules)
-            from types import MethodType
-
-            model.set_input_tensor = MethodType(set_input_tensor, model)
-        else:
-            raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
-
-        return model
-
-
-@dataclass
-class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
-    """
-    https://github.com/huggingface/transformers/blob/v4.44.0/src/transformers/models/clip/configuration_clip.py#L261
-    """
-
-    hidden_size: int = 1024
-    num_image_embeddings_per_tile: Optional[int] = None
-    pretrained_model_name_or_path: Optional[Union[str, os.PathLike]] = None
-
-    def __post_init__(self, *args, **kwargs) -> None:
-        CLIPVisionConfig.__init__(self, *args, **kwargs, hidden_size=self.hidden_size)
-        if self.pretrained_model_name_or_path is not None:
-            config = CLIPVisionConfig.from_pretrained(self.pretrained_model_name_or_path)
-            for key, value in config.to_dict().items():
-                setattr(self, key, value)
-        self.num_image_embeddings_per_tile = get_image_sequence_length(
-            img_h=self.image_size,
-            img_w=self.image_size,
-            patch_dim=self.patch_size,
-            add_class_token=False,
-            class_token_len=1,
-        )
-
-    def configure_model(self) -> "CLIPVisionModel":
-        # Monkey patch the method to the vision encoder
-        CLIPVisionModel.set_input_tensor = set_input_tensor
-
-        if self.pretrained_model_name_or_path is None:
-            model = CLIPVisionModel(self)
-        else:
-            model = CLIPVisionModel.from_pretrained(self.pretrained_model_name_or_path)
-        return model
-
-
-@dataclass
-class CLIPViTConfig(TransformerConfig, io.IOMixin):
-    ln_pre_impl: Union[ModuleSpec, type] = TENorm
-    ln_post_impl: Union[ModuleSpec, type] = TENorm
-    add_class_token: bool = True
-    class_token_len: int = 1
-    patch_dim: int = 14
-    img_h: int = 336
-    img_w: int = 336
-    vision_model_type: str = "clip"  # ["clip", "siglip"]
-    num_image_embeddings_per_tile: Optional[int] = None
-    transformer_layer_spec: ModuleSpec = transformer_engine_layer_spec
-
-    num_layers: int = 1  # Placeholder, NOT used!
-    num_attention_heads: int = 8  # Placeholder, NOT used!
-
-    def __post_init__(self):
-        if self.vision_model_type == "siglip":
-            self.add_class_token = False
-            self.class_token_len = 0
-        self.num_image_embeddings_per_tile = get_image_sequence_length(
-            img_h=self.img_h,
-            img_w=self.img_w,
-            patch_dim=self.patch_dim,
-            add_class_token=self.add_class_token,
-            class_token_len=self.class_token_len,
-        )
-
-    def configure_model(self) -> "CLIPViTModel":
-        transformer_layer_spec = self.transformer_layer_spec
-        if not isinstance(transformer_layer_spec, ModuleSpec):
-            from nemo.collections.vlm.layer_specs import get_layer_spec_te
-
-            transformer_layer_spec = get_layer_spec_te(is_vit=True)
-        return CLIPViTModel(
-            self,
-            transformer_layer_spec,
-            ln_pre_impl=self.ln_pre_impl,
-            ln_post_impl=self.ln_post_impl,
-            add_class_token=self.add_class_token,
-            class_token_len=self.class_token_len,
-            patch_dim=self.patch_dim,
-            img_h=self.img_h,
-            img_w=self.img_w,
-            model_subtype=self.vision_model_type,
-        )
-
-
 @dataclass
 class NevaConfig(TransformerConfig, io.IOMixin):
+    """Neva Model Base Config"""
+
     language_transformer_config: Optional[TransformerConfig] = None
     vision_transformer_config: Optional[TransformerConfig] = None
     vision_projection_config: Optional[TransformerConfig] = None
@@ -336,7 +184,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     seq_length: int = 1024
 
     language_model_from_pretrained: Optional[str] = None
-    vision_model_from_pretrained: Optional[str] = None  # TODO
+    vision_model_from_pretrained: Optional[str] = None
     vision_projection_from_pretrained: Optional[str] = None  # TODO
 
     freeze_language_model: bool = False
@@ -347,11 +195,13 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     data_step_fn: Callable = neva_data_step
 
     def __post_init__(self):
+        # pylint: disable=C0115,C0116
         if self.language_transformer_config is not None:
             for attr in MODEL_CONFIG_ATTR:
                 setattr(self, attr, getattr(self.language_transformer_config, attr))
 
     def configure_model(self, tokenizer) -> "MCoreNevaModel":
+        # pylint: disable=C0115,C0116
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
@@ -385,76 +235,9 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         return model
 
 
-class CLIPViTModel(MCoreCLIPViTModel):
-    """CLIP ViT vision model."""
-
-    def forward(
-        self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
-    ) -> torch.Tensor:
-        if num_unused_layers > 0:
-            unused_layers = self.decoder.layers[-num_unused_layers:]
-            self.decoder.layers = self.decoder.layers[:-num_unused_layers]
-            x = super().forward(x, attention_mask)
-            self.decoder.layers.append(unused_layers)
-            return x
-
-        return super().forward(x, attention_mask)
-
-
-class _get_data_on_this_cp_rank(torch.autograd.Function):
-    """Performs sharding for Context Parallelism in THD format
-
-    In the forward pass, indices are selected for each CP rank and remaining tokens are dropped.
-    In the backward pass, this class takes care of managing gradients for dropped tokens on each
-    CP rank.
-    """
-
-    @staticmethod
-    # def forward(ctx, decoder_embeddings, labels, loss_mask, packed_seq_params):
-    def forward(ctx, batch, packed_seq_params):
-        cp_size = ps.get_context_parallel_world_size()
-        if cp_size > 1:
-            try:
-                import transformer_engine_torch as tex
-            except ModuleNotFoundError as e:
-                logging.error(
-                    "Please update Transformer Engine to >= 1.10 to use \
-                        Context Parallel with THD format data"
-                )
-                raise e
-            cp_rank = ps.get_context_parallel_rank()
-            for key, data in batch.items():
-                index = tex.thd_get_partitioned_indices(
-                    packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
-                )
-                if key == "combined_embeddings":
-                    ctx.decoder_emb_index = index
-                    ctx.decoder_emb_seqlen = data.size(1)
-                batch[key] = data.index_select(1, index)
-
-        return batch
-
-    @staticmethod
-    def backward(ctx, grad_out, grad_label, grad_loss):
-        seqlen = ctx.decoder_emb_seqlen
-        index = ctx.decoder_emb_index
-        assert grad_out.size(1) == index.size(
-            0
-        ), f"Shape mismatch in incoming gradient {grad_out.shape} and \
-                index from THD CP sharding {index.shape}"
-        grad_in = torch.zeros(
-            grad_out.size(0),
-            seqlen,
-            *grad_out.size()[2:],
-            dtype=grad_out.dtype,
-            device=grad_out.device,
-        )
-        grad_in[:, ctx.decoder_emb_index, :] = grad_out
-
-        return (grad_in, None, None, None)
-
-
 class MCoreNevaModel(MCoreLLaVAModel):
+    """Neva Model Base Model Class"""
+
     def __init__(
         self,
         config: NevaConfig,
@@ -463,8 +246,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
         post_process: bool = True,
         add_encoder: bool = True,
         add_decoder: bool = True,
-        drop_vision_class_token: bool = False,
+        drop_vision_class_token: bool = True,
     ) -> None:
+        # pylint: disable=C0115,C0116
         super(MCoreLLaVAModel, self).__init__(config=config)
 
         language_transformer_config = config.language_transformer_config
@@ -497,16 +281,9 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
             self._language_max_sequence_length = self.language_model.max_sequence_length
             self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
-            if config.language_model_from_pretrained is not None:
-                sharded_state_dict = dict(state_dict=self.language_model.sharded_state_dict(prefix="module."))
-                loaded_state_dict = dist_checkpointing.load(
-                    sharded_state_dict=sharded_state_dict,
-                    checkpoint_dir=ckpt_to_weights_subdir(config.language_model_from_pretrained, is_saving=False),
-                    validate_access_integrity=False,
-                )
-                loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
-                self.language_model.load_state_dict(loaded_state_dict)
-                logging.info(f"Restored language model weights from {config.language_model_from_pretrained}")
+            restore_model_weights(self.language_model, config.language_model_from_pretrained)
+            logging.info(f"Restored language model weights from {config.language_model_from_pretrained}")
+
         else:
             if config.language_model_from_pretrained is not None:
                 dist_checkpointing.load(
@@ -519,6 +296,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self.vision_model = vision_transformer_config.configure_model()
             self.vision_projection = vision_projection_config.configure_model()
             self._drop_vision_class_token = drop_vision_class_token
+            restore_model_weights(self.vision_model, config.vision_model_from_pretrained)
+            logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
 
         self.freeze(
             freeze_language_model=config.freeze_language_model,
@@ -532,6 +311,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         self.vision_model_from_hf = hasattr(vision_transformer_config, "image_size")
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
+        if drop_vision_class_token and vision_transformer_config.add_class_token:
+            self._img_seq_len -= vision_transformer_config.class_token_len
 
     def forward(
         self,
@@ -548,6 +329,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         image_token_mask: Optional[torch.Tensor] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
+        # pylint: disable=C0301
         """Forward function of the LLaVA model.
 
         Args:
@@ -630,34 +412,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
             input_ids_text = input_ids.clone()
             # MultiModal Token indices are assumed to be values
             input_ids_text[input_ids_text < 0] = 0
-            # Note: This adds absolute position embedding but not RoPE.
-            # Each image is counted as one position.
-            # RoPE is added in language_model forward. Each image embedding is one position.
-            if self.sequence_parallel_lm:
-                # Pad to nearest multiple of TP world size for embedding.
-                tp_world_size = ps.get_tensor_model_parallel_world_size()
-                padded_seq_len = (
-                    int((input_ids_text.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size)
-                    - input_ids_text.shape[1]
-                )
-                if padded_seq_len != 0:
-                    input_ids_text = torch.nn.functional.pad(input_ids_text, (0, padded_seq_len))
-                    if position_ids is not None:
-                        position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
+
             language_embeddings = self.language_model.embedding(
                 input_ids=input_ids_text, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
-            if self.sequence_parallel_lm:
-                # Gather the language embeddings back.
-                # We use the full embedding to insert image embeddings
-                # and then scatter to avoid load imbalance.
-                language_embeddings = gather_from_sequence_parallel_region(
-                    language_embeddings, tensor_parallel_output_grad=False
-                )
-                # Remove the padding done for SP as we'll need new padding calculation
-                # after image embeddings are inserted.
-                if padded_seq_len != 0:
-                    language_embeddings = language_embeddings[:-padded_seq_len]
+
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
         # Assume 1 tile per image if the number of tiles is not provided.
@@ -681,6 +440,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
+            if self.context_parallel_lm > 1:
+                # _process_embedding_token_parallel expects input in shape bshd for cp
+                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
+
             combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
                 self._process_embedding_token_parallel(
                     combined_embeddings, final_labels, final_loss_mask, packed_seq_params
@@ -933,14 +696,19 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
 
         if final_embedding is not None:
-            if self.context_parallel_lm == 1:
-                # Transpose to [s,b,h] if not using CP or not using packed_sequence/THD format
-                final_embedding = final_embedding.transpose(1, 0).contiguous()
+            # transpose final_embeddings to sbhd
+            final_embedding = final_embedding.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
             if final_embedding.shape[0] > self._language_max_sequence_length:
                 final_embedding = final_embedding[: self._language_max_sequence_length]
                 if packed_sequence:
                     truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
+                    final_seq_len_padded = (
+                        packed_seq_params.cu_seqlens_q_padded[-1] - packed_seq_params.cu_seqlens_q_padded[-2]
+                    )
+                    final_seq_len_unpadded = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
+                    final_padding = final_seq_len_padded - final_seq_len_unpadded
+                    truncate_len -= final_padding
                     packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
                     packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
                     packed_seq_params.cu_seqlens_q[-1] -= truncate_len
@@ -1000,7 +768,21 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
                 batch = get_batch_on_this_cp_rank(batch)
             else:
-                batch = _get_data_on_this_cp_rank.apply(batch, packed_seq_params)
+                try:
+                    import transformer_engine_torch as tex
+                except ModuleNotFoundError as e:
+                    logging.error(
+                        "Please update Transformer Engine to >= 1.10 to use \
+                            Context Parallel with THD format data"
+                    )
+                    raise e
+                cp_size = ps.get_context_parallel_world_size()
+                cp_rank = ps.get_context_parallel_rank()
+                for key, data in batch.items():
+                    index = tex.thd_get_partitioned_indices(
+                        packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
+                    )
+                    batch[key] = data.index_select(1, index)
 
             if self.pre_process:
                 combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
@@ -1018,6 +800,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
 
 class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+    """Lightning Wrapper for Neva Model"""
+
     def __init__(
         self,
         config: NevaConfig,
@@ -1035,6 +819,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self._validation_loss_reduction = None
 
     def configure_model(self) -> None:
+        # pylint: disable=C0115,C0116
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
 
@@ -1053,6 +838,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         image_token_mask: Optional[torch.Tensor] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         output_tensor = self.module(
             images=images,
             input_ids=input_ids,
@@ -1071,22 +857,27 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         return output_tensor
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
+        # pylint: disable=C0115,C0116
         return self.config.data_step_fn(dataloader_iter)
 
     def forward_step(self, batch) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         return self.config.forward_step_fn(self, batch)
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
 
         return self.forward_step(batch)
 
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
+        # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
             self._training_loss_reduction = MaskedTokenLossReductionWithLossMask()
 
@@ -1094,6 +885,7 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     @property
     def validation_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
+        # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
 
