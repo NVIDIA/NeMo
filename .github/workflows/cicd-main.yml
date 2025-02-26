@@ -99,6 +99,8 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
   code-linting:
+    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
+    needs: [pre-flight]
     uses: ./.github/workflows/code-linting.yml
 
   cicd-test-container-build:
