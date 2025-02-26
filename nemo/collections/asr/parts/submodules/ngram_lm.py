@@ -803,11 +803,17 @@ class FastNGramLM(ModelPT):
         assert self.state_order.min().item() == 1
         assert self.state_order.max().item() == self.max_order
 
-    @classmethod
-    def _log_e_score(cls, score):
-        return score / np.log10(np.e)
+    def get_init_states(self, batch_size: int, bos=True) -> torch.Tensor:
+        """
+        Get batch of the initial states
 
-    def get_init_states(self, batch_size: int, bos=True):
+        Args:
+            batch_size: batch size
+            bos: use begin-of-sentence state
+
+        Returns:
+            tensor [B] of initial states
+        """
         device = self.arcs_weights.device
         return torch.full(
             [batch_size], fill_value=self.BOS_STATE if bos else self.START_STATE, device=device, dtype=torch.long
@@ -870,61 +876,17 @@ class FastNGramLM(ModelPT):
             return self._advance_triton(states=states)
         return self._advance_pytorch(states=states)
 
-    @triton_required
-    def _advance_triton(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        batch_size = states.shape[0]
-        device = states.device
-        scores = torch.empty([batch_size, self.vocab_size], device=device, dtype=self.arcs_weights.dtype)
-        new_states = torch.empty([batch_size, self.vocab_size], dtype=torch.long, device=device)
-
-        ngram_advance_triton_kernel[batch_size,](
-            vocab_size=self.vocab_size,
-            states_ptr=states,
-            new_states_ptr=new_states,
-            scores_ptr=scores,
-            start_state=self.START_STATE,
-            to_states_ptr=self.to_states,
-            ilabels_ptr=self.ilabels,
-            arcs_weights_ptr=self.arcs_weights,
-            state_start_arcs_ptr=self.state_start_arcs,
-            state_end_arcs_ptr=self.state_end_arcs,
-            backoff_to_states_ptr=self.backoff_to_states,
-            backoff_weights_ptr=self.backoff_weights,
-            BLOCK_SIZE=triton.next_power_of_2(self.vocab_size),
-        )
-
-        return scores, new_states
-
-    def get_final(self, states: torch.Tensor) -> torch.Tensor:
-        # TODO: add Triton kernel
-        if self._final_resolved:
-            return self.final_weights[states]
-        logging.warning("Final weights are not resolved; using slow implementation")
-        return self._get_final_pytorch(states=states)
-
-    def resolve_final(self):
-        if self._final_resolved:
-            return
-        with torch.no_grad():
-            self.final_weights.data.copy_(
-                self._get_final_pytorch(states=torch.arange(self.num_states, device=self.final_weights.device))
-            )
-        self._final_resolved = True
-
-    def _get_final_pytorch(self, states: torch.Tensor) -> torch.Tensor:
-        cur_states = states.clone().detach()
-        out_scores = self.final_weights[cur_states]
-        accumulated_backoff = torch.zeros_like(out_scores)
-        while (out_scores <= NEG_INF).any() and (cur_states != self.START_STATE).any():
-            accumulated_backoff += self.backoff_weights[cur_states]
-            cur_states = self.backoff_to_states[cur_states]
-            cur_final = self.final_weights[cur_states]
-            out_scores = torch.where(
-                (out_scores > NEG_INF) | (cur_final <= NEG_INF), out_scores, accumulated_backoff + cur_final
-            )
-        return out_scores
-
     def _advance_pytorch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab.
+        PyTorch implementation (slow, differentiable).
+
+        Args:
+            states: batch of states
+
+        Returns:
+            tuple of scores and next states
+        """
         batch_size = states.shape[0]
         device = states.device
         current_states = states.clone()
@@ -968,3 +930,85 @@ class FastNGramLM(ModelPT):
             accumulated_backoff += self.backoff_weights[current_states] * lm_not_done
             torch.where(lm_not_done, self.backoff_to_states[current_states], current_states, out=current_states)
         return out_scores, out_states
+
+    @triton_required
+    def _advance_triton(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab.
+        Triton implementation. Currently not differentiable.
+
+        Args:
+            states: batch of states
+
+        Returns:
+            tuple of scores and next states
+        """
+        batch_size = states.shape[0]
+        device = states.device
+        scores = torch.empty([batch_size, self.vocab_size], device=device, dtype=self.arcs_weights.dtype)
+        new_states = torch.empty([batch_size, self.vocab_size], dtype=torch.long, device=device)
+
+        ngram_advance_triton_kernel[batch_size,](
+            vocab_size=self.vocab_size,
+            states_ptr=states,
+            new_states_ptr=new_states,
+            scores_ptr=scores,
+            start_state=self.START_STATE,
+            to_states_ptr=self.to_states,
+            ilabels_ptr=self.ilabels,
+            arcs_weights_ptr=self.arcs_weights,
+            state_start_arcs_ptr=self.state_start_arcs,
+            state_end_arcs_ptr=self.state_end_arcs,
+            backoff_to_states_ptr=self.backoff_to_states,
+            backoff_weights_ptr=self.backoff_weights,
+            BLOCK_SIZE=triton.next_power_of_2(self.vocab_size),
+        )
+
+        return scores, new_states
+
+    def get_final(self, states: torch.Tensor) -> torch.Tensor:
+        """
+        Get final weights for states
+
+        Args:
+            states: batch of states
+
+        Returns:
+            tensor [B] with final weights for each state
+        """
+        if self._final_resolved:
+            return self.final_weights[states]
+        logging.warning("Final weights are not resolved; using slow implementation")
+        return self._get_final_pytorch(states=states)
+
+    def resolve_final(self):
+        """Resolve final weights for all states by iterating over backoffs"""
+        if self._final_resolved:
+            return
+        with torch.no_grad():
+            self.final_weights.data.copy_(
+                self._get_final_pytorch(states=torch.arange(self.num_states, device=self.final_weights.device))
+            )
+        self._final_resolved = True
+
+    def _get_final_pytorch(self, states: torch.Tensor) -> torch.Tensor:
+        """
+        Get final weights for states, resolving backoffs
+
+        Args:
+            states: batch of states
+
+        Returns:
+            batch of final weights
+        """
+        cur_states = states.clone().detach()
+        out_scores = self.final_weights[cur_states]
+        accumulated_backoff = torch.zeros_like(out_scores)
+        while (out_scores <= NEG_INF).any() and (cur_states != self.START_STATE).any():
+            accumulated_backoff += self.backoff_weights[cur_states]
+            cur_states = self.backoff_to_states[cur_states]
+            cur_final = self.final_weights[cur_states]
+            out_scores = torch.where(
+                (out_scores > NEG_INF) | (cur_final <= NEG_INF), out_scores, accumulated_backoff + cur_final
+            )
+        return out_scores
