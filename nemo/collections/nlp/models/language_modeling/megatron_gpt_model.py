@@ -2195,12 +2195,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         For attributes in TransformerConfig that are not in the nemo model config, we add custom logic.
         """
 
-        # TODO(yifu): add proper check with num_layers_in_first_pipeline_stage and num_layers_in_last_pipeline_stage
-        # if self.cfg.num_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
-        #     raise ValueError(
-        #         f"num_layers ({self.cfg.num_layers}) should be divisible by "
-        #         f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})"
-        #     )
+        # Check that number of layers is compatible with pipeline parallelism
+        num_layers_first = self.cfg.get('num_layers_in_first_pipeline_stage', 0)
+        num_layers_last = self.cfg.get('num_layers_in_last_pipeline_stage', 0)
+        remaining_layers = self.cfg.num_layers - num_layers_first - num_layers_last
+        if remaining_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
+            raise ValueError(
+                f"num_layers ({self.cfg.num_layers}) minus num_layers_in_first_pipeline_stage ({num_layers_first}) "
+                f"and num_layers_in_last_pipeline_stage ({num_layers_last}) should be divisible by "
+                f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})."
+            )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
         layernorm_zero_centered_gamma = self.cfg.get('normalization', 'layernorm') == 'layernorm1p' or self.cfg.get(
