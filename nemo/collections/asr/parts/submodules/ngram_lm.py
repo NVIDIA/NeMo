@@ -22,9 +22,9 @@ from typing import NamedTuple, cast
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence
 from lightning.pytorch import Trainer
 from omegaconf import MISSING, DictConfig, OmegaConf
+from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
 from nemo.collections.common.parts import NEG_INF
