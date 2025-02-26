@@ -157,20 +157,6 @@ def build_train_valid_test_data_loaders(
 
     print_rank_0("> building train, validation, and test datasets ...")
 
-    # Backward compatibility, assume fixed batch size.
-    if train_state.step > 0 and train_state.consumed_train_samples == 0:
-        assert (
-            cfg.megatron_lm_config.train_samples is None
-        ), "Only backward compatiblity support for iteration-based training"
-        train_state.consumed_train_samples = train_state.step * cfg.megatron_lm_config.global_batch_size
-    if train_state.step > 0 and train_state.consumed_valid_samples == 0:
-        if cfg.megatron_lm_config.train_samples is None:
-            train_state.consumed_valid_samples = (
-                (train_state.step // cfg.megatron_lm_config.eval_interval)
-                * cfg.megatron_lm_config.eval_iters
-                * cfg.megatron_lm_config.global_batch_size
-            )
-
     # Construct the data pipeline
     # Build datasets.
     train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
@@ -206,7 +192,7 @@ def build_train_valid_test_data_loaders(
         valid_dataloader = build_pretraining_data_loader(
             valid_ds,
             train_state.consumed_valid_samples,
-            cfg.megatron_lm_config.dataloader_type,
+            "cyclic",
             cfg.megatron_lm_config.micro_batch_size,
             cfg.megatron_lm_config.num_workers,
             cfg.megatron_lm_config.data_sharding,
