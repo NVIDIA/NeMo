@@ -173,7 +173,7 @@ def full_model_tp2_dp4_mock() -> run.Partial:
         None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
     )
     recipe.model.flux_params.device = 'cuda'
-    recipe.trainer.strategy.tensor_model_parallel_size = 1
+    recipe.trainer.strategy.tensor_model_parallel_size = 2
     recipe.trainer.devices = 8
     recipe.data.global_batch_size = 8
     return recipe

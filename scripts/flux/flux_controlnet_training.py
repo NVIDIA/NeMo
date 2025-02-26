@@ -204,12 +204,12 @@ def full_model_tp2_dp4_mock() -> run.Partial:
     recipe.model.flux_params.clip_params = None
     recipe.model.flux_params.vae_config = None
     recipe.model.flux_params.device = 'cuda'
-    recipe.trainer.strategy.tensor_model_parallel_size = 1
+    recipe.trainer.strategy.tensor_model_parallel_size = 2
     recipe.trainer.devices = 8
     recipe.data.global_batch_size = 8
     recipe.trainer.callbacks.append(run.Config(NsysCallback, start_step=10, end_step=11, gen_shape=True))
-    recipe.model.flux_controlnet_config.num_single_layers = 38
-    recipe.model.flux_controlnet_config.num_joint_layers = 19
+    recipe.model.flux_controlnet_config.num_single_layers = 10
+    recipe.model.flux_controlnet_config.num_joint_layers = 4
     return recipe
 
 

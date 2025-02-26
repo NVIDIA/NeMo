@@ -88,8 +88,8 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     patch_size: int = 1
     guidance_embed: bool = False
     vec_in_dim: int = 768
-    rotary_interleaved: bool = False
-    apply_rope_fusion: bool = True
+    rotary_interleaved: bool = True
+    apply_rope_fusion: bool = False
     layernorm_epsilon: float = 1e-06
     hidden_dropout: float = 0
     attention_dropout: float = 0
