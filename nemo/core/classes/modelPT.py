@@ -619,7 +619,7 @@ class ModelPT(LightningModule, Model):
             weight_decay=optim_config['weight_decay'],
             adam_beta1=optim_config['betas'][0],
             adam_beta2=optim_config['betas'][1],
-            adam_eps=optim_config['eps'],
+            adam_eps=optim_config.get('eps', OptimizerConfig.adam_eps),
             clip_grad=self.trainer.gradient_clip_val,
             use_distributed_optimizer=self.use_mcore_dist_optim,
             overlap_param_gather_with_optimizer_step=self.cfg.optim.get(
