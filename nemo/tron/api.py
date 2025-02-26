@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional
+from typing import Callable
 
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import ConfigContainer
@@ -27,13 +27,9 @@ def megatron_pretrain(
     config: ConfigContainer,
     forward_step_func: Callable,
     dataset_provider: Callable = train_valid_test_datasets_provider,
-    get_embedding_ranks: Optional[Callable] = None,
-    get_position_embedding_ranks: Optional[Callable] = None,
-    process_non_loss_data_func: Optional[Callable] = None,
-    non_loss_data_func: Optional[Callable] = None,
 ):
     ## SETUP ##
-    setup_output = setup(config, dataset_provider, get_embedding_ranks, get_position_embedding_ranks)
+    setup_output = setup(config, dataset_provider)
     state = setup_output.state
     model = setup_output.model
     optimizer = setup_output.optimizer
@@ -55,10 +51,8 @@ def megatron_pretrain(
                 scheduler,
                 train_data_iterator,
                 valid_data_iterator,
-                process_non_loss_data_func,
                 state,
                 ckpt_context,
-                non_loss_data_func,
             )
 
         barrier_and_log("after training is done")
@@ -88,11 +82,9 @@ def megatron_pretrain(
             forward_step_func,
             valid_data_iterator,
             model,
-            process_non_loss_data_func,
             config.model_config,
             verbose=True,
             write_to_tensorboard=not config.megatron_lm_config.skip_train,
-            non_loss_data_func=non_loss_data_func,
         )
     if state.train_state.do_test:
         prefix = f"iteration {iteration} on test set"
@@ -102,11 +94,9 @@ def megatron_pretrain(
             forward_step_func,
             test_data_iterator,
             model,
-            process_non_loss_data_func,
             config.model_config,
             verbose=True,
             write_to_tensorboard=not config.megatron_lm_config.skip_train,
-            non_loss_data_func=non_loss_data_func,
         )
 
     _finish_train(config.checkpoint_config, state)

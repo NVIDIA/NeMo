@@ -77,10 +77,10 @@ def train(
     scheduler,
     train_data_iterator,
     valid_data_iterator,
-    process_non_loss_data_func,
     global_state: GlobalState,
     checkpointing_context,
-    non_loss_data_func,
+    process_non_loss_data_func=None,
+    non_loss_data_func=None,
 ):
     config: ConfigContainer = global_state.cfg
     model_config = get_model_config(model[0])
@@ -349,10 +349,10 @@ def train(
                 forward_step_func,
                 valid_data_iterator,
                 model,
-                process_non_loss_data_func,
                 model_config,
                 verbose=False,
                 write_to_tensorboard=True,
+                process_non_loss_data_func=process_non_loss_data_func,
                 non_loss_data_func=non_loss_data_func,
             )
             eval_duration += timers("eval-time").elapsed()
