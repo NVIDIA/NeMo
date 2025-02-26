@@ -3153,6 +3153,7 @@ jobs:
 
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
+    permissions: write-all
     steps:
       - name: Evaluate conclusion
         if: ${{ always() }}
@@ -3165,6 +3166,16 @@ jobs:
           # Mark as successful if no job was cancelled:
           SUCCESS=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
           echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
+
+      - name: Checkout for GH CLI
+        uses: actions/checkout@v4
+
+      - name: Remove label if not cancelled
+        if: ${{ !contains(needs.*.result, 'cancelled') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: gh pr edit "$PR_NUMBER" --remove-label "Run CICD"
 
       # This should depend on all the tests so we block/unblock based on all tests passing
       - name: Pipeline successful, set exit code to 0

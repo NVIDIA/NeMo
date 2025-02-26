@@ -12,13 +12,20 @@ on:
 jobs:
   relabel:
     runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ github.event.number }}
+      GH_TOKEN: ${{ secrets.PAT }}
+      HOSTNAME: ${{ github.server_url }}
+    permissions: write-all
+    environment: main
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Check if PR was already labeled with `Run CICD`
         id: pre-flight
-        env:
-          GH_TOKEN: ${{ secrets.NEMO_REFORMAT_TOKEN }}
         run: |
-          LABELS=$(gh pr view --json labels)
+          LABELS=$(gh pr view "$PR_NUMBER" --json labels)
           HAS_LABEL=$(echo $LABELS \
             | jq '[.labels[].name] | any(. == "Run CICD")'
           )
@@ -28,5 +35,5 @@ jobs:
       - name: Relabel PR
         if: ${{ steps.pre-flight.outputs.has-label == 'true' }}
         run: |
-          gh pr edit --remove-label "Run CICD"
-          gh pr edit --add-label "Run CICD"
+          gh pr edit "$PR_NUMBER" --remove-label "Run CICD"
+          gh pr edit "$PR_NUMBER" --add-label "Run CICD"
