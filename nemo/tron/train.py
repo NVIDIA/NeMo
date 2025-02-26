@@ -295,7 +295,7 @@ def train(
             assert num_skipped_samples_in_batch == 0
         global_state.train_state.skipped_train_samples += num_skipped_samples_in_batch
         num_floating_point_operations_in_batch = flop_utils.num_floating_point_operations(config, batch_size)
-        global_state.train_state.num_floating_point_operations_so_far += num_floating_point_operations_in_batch
+        global_state.train_state.floating_point_operations_so_far += num_floating_point_operations_in_batch
         num_floating_point_operations_so_far = global_state.train_state.floating_point_operations_so_far
         num_floating_point_operations_since_last_log_event += num_floating_point_operations_in_batch
 
