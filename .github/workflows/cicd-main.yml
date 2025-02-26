@@ -98,10 +98,13 @@ jobs:
           echo "$BUILD_ARGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+  code-linting:
+    uses: ./.github/workflows/code-linting.yml
+
   cicd-test-container-build:
     if: ${{ needs.pre-flight.outputs.test_to_run != '' }}
     uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.14.0
-    needs: pre-flight
+    needs: [pre-flight, code-linting]
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
