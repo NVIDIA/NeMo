@@ -23,8 +23,8 @@ from nemo.tron.utils.common_utils import barrier_and_log, print_rank_0
 
 
 def megatron_pretrain(
+    config: ConfigContainer,
     forward_step_func: Callable,
-    full_config: ConfigContainer,
     dataset_provider: Callable,
     get_embedding_ranks: Optional[Callable] = None,
     get_position_embedding_ranks: Optional[Callable] = None,
@@ -32,7 +32,7 @@ def megatron_pretrain(
     non_loss_data_func: Optional[Callable] = None,
 ):
     ## SETUP ##
-    setup_output = setup(full_config, dataset_provider, get_embedding_ranks, get_position_embedding_ranks)
+    setup_output = setup(config, dataset_provider, get_embedding_ranks, get_position_embedding_ranks)
     state = setup_output.state
     model = setup_output.model
     optimizer = setup_output.optimizer
@@ -43,10 +43,10 @@ def megatron_pretrain(
     ckpt_context = setup_output.checkpointing_context
 
     ## TRAINING ##
-    if not full_config.megatron_lm_config.skip_train:
+    if not config.megatron_lm_config.skip_train:
         print_rank_0("training ...")
         iteration = state.train_state.step
-        if state.train_state.do_train and full_config.megatron_lm_config.train_iters > 0:
+        if state.train_state.do_train and config.megatron_lm_config.train_iters > 0:
             iteration, num_floating_point_operations_so_far = train(
                 forward_step_func,
                 model,
@@ -61,7 +61,7 @@ def megatron_pretrain(
             )
 
         barrier_and_log("after training is done")
-        ckpt_config = full_config.checkpoint_config
+        ckpt_config = config.checkpoint_config
         if ckpt_config.save and state.train_state.step != 0 and ckpt_config.save_interval != 0:
             save_checkpoint(
                 state,
@@ -69,7 +69,7 @@ def megatron_pretrain(
                 optimizer,
                 scheduler,
                 num_floating_point_operations_so_far,
-                full_config,
+                config,
                 ckpt_context,
                 train_data_iterator=train_data_iterator,
             )
@@ -88,9 +88,9 @@ def megatron_pretrain(
             valid_data_iterator,
             model,
             process_non_loss_data_func,
-            full_config.model_config,
+            config.model_config,
             verbose=True,
-            write_to_tensorboard=not full_config.megatron_lm_config.skip_train,
+            write_to_tensorboard=not config.megatron_lm_config.skip_train,
             non_loss_data_func=non_loss_data_func,
         )
     if state.train_state.do_test:
@@ -102,10 +102,10 @@ def megatron_pretrain(
             test_data_iterator,
             model,
             process_non_loss_data_func,
-            full_config.model_config,
+            config.model_config,
             verbose=True,
-            write_to_tensorboard=not full_config.megatron_lm_config.skip_train,
+            write_to_tensorboard=not config.megatron_lm_config.skip_train,
             non_loss_data_func=non_loss_data_func,
         )
 
-    _finish_train(full_config.checkpoint_config, state)
+    _finish_train(config.checkpoint_config, state)
