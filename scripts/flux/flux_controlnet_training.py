@@ -93,7 +93,7 @@ def flux_controlnet_training() -> run.Partial:
                 ddp=run.Config(
                     DistributedDataParallelConfig,
                     use_custom_fsdp=True,
-                    data_parallel_sharding_strategy='MODEL_AND_OPTIMIZER_STATES',
+                    data_parallel_sharding_strategy='optim_grads_params',
                     check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
                     overlap_grad_reduce=True,
