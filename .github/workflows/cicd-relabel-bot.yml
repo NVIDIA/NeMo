@@ -14,10 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PR_NUMBER: ${{ github.event.number }}
-      GH_TOKEN: ${{ secrets.PAT }}
+      GH_TOKEN: ${{ secrets.NEMO_RELABEL_TOKEN }}
       HOSTNAME: ${{ github.server_url }}
     permissions: write-all
-    environment: main
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
