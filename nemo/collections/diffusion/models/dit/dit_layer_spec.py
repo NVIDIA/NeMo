@@ -52,18 +52,27 @@ from nemo.collections.diffusion.models.dit.dit_attention import (
 # pylint: disable=C0116
 @dataclass
 class DiTWithAdaLNSubmodules(TransformerLayerSubmodules):
+    """
+    Submodules for DiT with AdaLN.
+    """
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
 
 @dataclass
 class STDiTWithAdaLNSubmodules(TransformerLayerSubmodules):
+    """
+    Submodules for STDiT with AdaLN.
+    """
     spatial_self_attention: Union[ModuleSpec, type] = IdentityOp
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
 
 class RMSNorm(nn.Module):
+    """
+    RMSNorm Module.
+    """
     def __init__(self, hidden_size: int, config, eps: float = 1e-6):
         super().__init__()
         self.eps = eps
@@ -140,7 +149,7 @@ class AdaLN(MegatronModule):
         # DiT block specific
         return self.modulate(input_layernorm_output, shift, scale)
 
-    # @jit_fuser
+    @jit_fuser
     def scaled_modulated_layernorm(self, residual, x, gate, shift, scale, layernorm_idx=0):
         hidden_states = self.scale_add(residual, x, gate)
         shifted_pre_mlp_layernorm_output = self.modulated_layernorm(hidden_states, shift, scale, layernorm_idx)
@@ -641,6 +650,9 @@ class MMDiTLayer(TransformerLayer):
 
 
 class FluxSingleTransformerBlock(TransformerLayer):
+    """
+    Flux Single Transformer Block.
+    """
     def __init__(
         self,
         config: TransformerConfig,

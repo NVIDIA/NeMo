@@ -13,6 +13,9 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 
 @dataclass
 class JointSelfAttentionSubmodules:
+    """
+    Submodules for Joint Self-attention layer.
+    """
     linear_qkv: Union[ModuleSpec, type] = None
     added_linear_qkv: Union[ModuleSpec, type] = None
     core_attention: Union[ModuleSpec, type] = None
@@ -369,6 +372,7 @@ class FluxSingleAttention(SelfAttention):
         rotary_pos_emb=None,
         packed_seq_params=None,
     ):
+        # pylint: disable=C0301
         # hidden_states: [sq, b, h]
 
         # For self attention we just duplicate the rotary_pos_emb if it isn't already
