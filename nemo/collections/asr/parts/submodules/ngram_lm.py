@@ -771,12 +771,12 @@ class FastNGramLM(ModelPT):
             labels_lengths = torch.full([batch_size], fill_value=max_length, dtype=torch.int32, device=device)
         scores = torch.zeros(labels.shape, device=device)
         states = self.get_init_states(batch_size=batch_size, bos=bos)
-        # TODO(vbataev): faster algorithm
+        # NB: It is possible to speedup this algorithm with a custom kernel (no need to retrieve all weights/labels)
         for i in range(max_length):
             # TODO(vbataev): support differentiable implementation with Triton
             step_scores, states = self._advance_pytorch(states)
-            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(0)).squeeze(0) * (i < labels_lengths)
-            states = states.gather(dim=1, index=labels[:, i].unsqueeze(0)).squeeze(0)
+            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1) * (i < labels_lengths)
+            states = states.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1)
         return scores
 
     def advance(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
