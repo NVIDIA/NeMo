@@ -143,7 +143,9 @@ def main(args):
                 image_processor=image_processor,
                 multimodal_sample_config=config,
                 packed_sequence=args.use_packed_sequence,
-                packed_sequence_size=decoder_seq_length,
+                # leave some space for perf padding, otherwise after packing and padding,
+                # it will go beyond max seq len, then it will need a truncation.
+                packed_sequence_size=int(decoder_seq_length * 0.9),
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
             ),
             packing_buffer_size=200 if args.use_packed_sequence else None,
