@@ -17,11 +17,11 @@ from pathlib import Path
 
 import pytest
 import torch
+from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMBatchedWrapper
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE
-from torch.nn.utils.rnn import pad_sequence
 
 DEVICES = [torch.device("cpu")]
 
