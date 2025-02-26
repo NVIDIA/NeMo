@@ -42,9 +42,8 @@ def megatron_pretrain(
     ## TRAINING ##
     if not config.megatron_lm_config.skip_train:
         print_rank_0("training ...")
-        iteration = state.train_state.step
         if state.train_state.do_train and config.megatron_lm_config.train_iters > 0:
-            iteration, num_floating_point_operations_so_far = train(
+            train(
                 forward_step_func,
                 model,
                 optimizer,
@@ -63,7 +62,7 @@ def megatron_pretrain(
                 model,
                 optimizer,
                 scheduler,
-                num_floating_point_operations_so_far,
+                state.train_state.num_floating_point_operations_so_far,
                 config,
                 ckpt_context,
                 train_data_iterator=train_data_iterator,
@@ -71,8 +70,8 @@ def megatron_pretrain(
 
     else:
         print_rank_0("skipping training ...")
-        iteration = state.train_state.step
 
+    iteration = state.train_state.step
     ## VALIDATION ##
     if state.train_state.do_valid:
         prefix = f"iteration {iteration} on validation set"

@@ -295,7 +295,8 @@ def train(
             assert num_skipped_samples_in_batch == 0
         global_state.train_state.skipped_train_samples += num_skipped_samples_in_batch
         num_floating_point_operations_in_batch = flop_utils.num_floating_point_operations(config, batch_size)
-        num_floating_point_operations_so_far += num_floating_point_operations_in_batch
+        global_state.train_state.num_floating_point_operations_so_far += num_floating_point_operations_in_batch
+        num_floating_point_operations_so_far = global_state.train_state.floating_point_operations_so_far
         num_floating_point_operations_since_last_log_event += num_floating_point_operations_in_batch
 
         # Logging.
@@ -414,8 +415,6 @@ def train(
             wandb_writer.finish()
         fault_tolerance.shutdown(global_state)
         sys.exit(exit_code)
-
-    return global_state.train_state.step, num_floating_point_operations_so_far
 
 
 def train_step(
