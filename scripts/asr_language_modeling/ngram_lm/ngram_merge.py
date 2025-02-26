@@ -262,7 +262,7 @@ def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
         test_far,
     ]
 
-    tokenizer, encoding_level, is_aggregate_tokenizer = kenlm_utils.setup_tokenizer(nemo_model_file)
+    tokenizer, encoding_level, is_aggregate_tokenizer, _ = kenlm_utils.setup_tokenizer(nemo_model_file)
 
     ps = subprocess.Popen(" ".join(sh_args), shell=True, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=sys.stderr,)
 

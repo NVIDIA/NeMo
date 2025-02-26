@@ -83,6 +83,7 @@ def setup_tokenizer(nemo_model_file):
 
     is_aggregate_tokenizer = False
     tokenizer_nemo = None
+    full_vocab_size = None
     encoding_level = SUPPORTED_MODELS.get(type(model).__name__, None)
     if not encoding_level:
         logging.warning(
@@ -91,28 +92,27 @@ def setup_tokenizer(nemo_model_file):
         encoding_level = 'char'
 
     if encoding_level == 'subword':
-        if isinstance(model.tokenizer, AggregateTokenizer):
-            is_aggregate_tokenizer = True
-
+        is_aggregate_tokenizer = isinstance(model.tokenizer, AggregateTokenizer)
         tokenizer_nemo = model.tokenizer
 
-    # TODO: more reliable way to get the vocabulary size
-    if isinstance(model, nemo_asr.models.EncDecCTCModelBPE):
-        full_vocab_size = model.decoding.decoding.blank_id
-    elif isinstance(model, nemo_asr.models.EncDecRNNTBPEModel):
-        full_vocab_size = model.decoding.decoding._blank_index
-    elif isinstance(model, nemo_asr.models.EncDecHybridRNNTCTCBPEModel):
-        try:
-            # rnnt head
-            full_vocab_size = model.decoding.decoding._blank_index
-        except AttributeError:
-            # ctc head
-            full_vocab_size = model.decoding.decoding.blank_id
-    elif isinstance(model, nemo_asr.models.EncDecMultiTaskModel):
-        full_vocab_size = model.decoding.decoding.beam_search.num_tokens
-    else:
-        logging.warning(f"Unknown type of model {type(model).__name__}")
-        full_vocab_size = None
+        full_vocab_size = tokenizer_nemo.vocab_size
+
+        # sanity check for LM (blank_id == vocab_size)
+        if isinstance(model, nemo_asr.models.EncDecCTCModelBPE):
+            assert full_vocab_size == model.decoding.decoding.blank_id
+        elif isinstance(model, nemo_asr.models.EncDecRNNTBPEModel):
+            assert full_vocab_size == model.decoding.decoding._blank_index
+        elif isinstance(model, nemo_asr.models.EncDecHybridRNNTCTCBPEModel):
+            try:
+                # rnnt head
+                assert full_vocab_size == model.decoding.decoding._blank_index
+            except AttributeError:
+                # ctc head
+                assert full_vocab_size == model.decoding.decoding.blank_id
+        elif isinstance(model, nemo_asr.models.EncDecMultiTaskModel):
+            assert full_vocab_size == model.decoding.decoding.beam_search.num_tokens
+        else:
+            logging.warning(f"Unknown type of model {type(model).__name__}")
 
     del model
 
