@@ -53,7 +53,7 @@ the processes from being killed and aborting the runs.
 
 .. note::
 
-Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument
+  Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument
 options as these are just sample commands and don't share all arguments and their default settings.
 
 Run evaluations with NeMo-Run
@@ -83,7 +83,7 @@ To run evaluations on your local workstation, use the following command:
 
 .. note::
 
-When running locally with NeMo-Run, you will need to manually terminate the deploy process once evaluations are complete.
+  When running locally with NeMo-Run, you will need to manually terminate the deploy process once evaluations are complete.
 
 Run on Slurm-based Clusters
 ##########################
