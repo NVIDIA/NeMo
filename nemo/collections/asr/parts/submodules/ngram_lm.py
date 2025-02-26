@@ -775,7 +775,9 @@ class FastNGramLM(ModelPT):
         for i in range(max_length):
             # TODO(vbataev): support differentiable implementation with Triton
             step_scores, states = self._advance_pytorch(states)
-            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1) * (i < labels_lengths)
+            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1) * (
+                i < labels_lengths
+            )
             states = states.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1)
         return scores
 
