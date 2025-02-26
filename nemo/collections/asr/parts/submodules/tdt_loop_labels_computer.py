@@ -591,12 +591,6 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
                 # same as: active_mask = time_indices < encoder_output_length
                 torch.less(time_indices, encoder_output_length, out=active_mask)
             if self.ngram_lm_batch is not None:
-                # for i, label in enumerate(labels.tolist()):
-                #     if label != self._blank_index:
-                #         batch_lm_states[i] = batch_lm_states_candidates[i][label]
-                # batch_lm_states[active_mask] = batch_lm_states_candidates[
-                #     torch.arange(batch_size, device=device), labels * active_mask
-                # ]
                 torch.where(
                     active_mask,
                     batch_lm_states_candidates[batch_indices, labels * active_mask],
