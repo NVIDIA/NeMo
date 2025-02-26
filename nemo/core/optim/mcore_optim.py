@@ -16,7 +16,6 @@ import torch
 
 from nemo.utils.nvtx import nvtx_range_pop, nvtx_range_push
 
-
 def _filter_empty_common_step(state_dict):
     """
     Filters out the 'common_step' key from the optimizer state dictionary if its value is None.

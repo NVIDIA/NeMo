@@ -94,8 +94,7 @@ class NsysCallback(Callback):
             return True
         if not torch.distributed.is_initialized():
             return True
-        # Profile all ranks if ranks=[-1], otherwise check if current rank is in the list
-        return self._nsys_profile_ranks == [-1] or get_rank() in self._nsys_profile_ranks
+        return get_rank() in self._nsys_profile_ranks
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx: int) -> Optional[int]:
         """PyTorch Lightning hook:
