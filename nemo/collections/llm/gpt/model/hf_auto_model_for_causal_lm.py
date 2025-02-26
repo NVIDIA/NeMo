@@ -276,9 +276,23 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         mean_loss = sum(self.loss_buffer) / len(self.loss_buffer)
         self.loss_buffer = []
-        self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
-        self.log('tps', self.n_tok / time_delta, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        tps = self.n_tok / time_delta
         self.n_tok = 0
+
+        # reduce across ranks
+        is_ddp = isinstance(self.trainer.strategy, pl.strategies.DDPStrategy)
+        if hasattr(self, '_device_mesh') or is_ddp:
+            if is_ddp:
+                group = dist.group.WORLD  # Default DDP process group
+            else:
+                group = self._device_mesh.get_process_group()
+            mean_loss = torch.tensor([mean_loss])
+            mean_loss = dist.all_reduce(mean_loss, group=group)
+            tps = torch.LongTensor([tps])
+            tps = dist.all_reduce(tps, group=group, op=dist.ReduceOp.SUM)
+
+        self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
         # log LR
         # TODO(akoumparouli): move this elsewhere.
