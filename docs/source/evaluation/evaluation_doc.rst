@@ -52,6 +52,7 @@ the processes from being killed and aborting the runs.
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 
 .. note::
+
 Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument
 options as these are just sample commands and don't share all arguments and their default settings.
 
