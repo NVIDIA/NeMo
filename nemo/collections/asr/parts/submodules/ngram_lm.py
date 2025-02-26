@@ -27,7 +27,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from tqdm.auto import tqdm
 
 from nemo.collections.common.parts import NEG_INF
-from nemo.core import ModelPT
+from nemo.core import ModelPT, PretrainedModelInfo
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
 from nemo.utils import logging
 
@@ -487,13 +487,16 @@ class FastNGramLM(ModelPT):
         self._final_resolved = False
 
     @classmethod
-    def list_available_models(cls):
+    def list_available_models(cls) -> list[PretrainedModelInfo]:
+        """Stub necessary to create the ModelPT. Not used for LM"""
         return []
 
     def setup_training_data(self, train_data_config: DictConfig | dict):
+        """Stub necessary to create the ModelPT. Not used for LM"""
         pass
 
     def setup_validation_data(self, val_data_config: DictConfig | dict):
+        """Stub necessary to create the ModelPT. Not used for LM"""
         pass
 
     @classmethod
@@ -507,7 +510,7 @@ class FastNGramLM(ModelPT):
         Constructor from Nemo checkpoint (state dict).
 
         Args:
-            path: path to .nemo checkpoint
+            lm_path: path to .nemo checkpoint
         """
         model = FastNGramLM.restore_from(restore_path=str(lm_path), map_location="cpu")
         model.resolve_final()
@@ -684,104 +687,6 @@ class FastNGramLM(ModelPT):
             for symbol in symbols_re
         )
         return NGram(symbols=symbols, weight=weight, backoff=backoff)
-
-    @classmethod
-    def _build_suffix_tree_iterative(
-        cls, adjacency: list[dict[int, Arc]], ngram: NGram, max_order: int, states_cache: dict[tuple[int, ...], int]
-    ):
-        # adjacency: list[dict[int, Arc]] = [dict(), dict()]
-        # num_states = 2  # start, bos
-        order = len(ngram.symbols)
-        symbol = ngram.symbols[-1]
-        if order == 1:
-            if symbol == cls.BOS_ID:
-                # bos
-                adjacency[cls.START_STATE][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=cls.BOS_STATE)
-                adjacency[cls.BOS_STATE][cls.BACKOFF_ID] = Arc(
-                    weight=ngram.backoff, ilabel=cls.BACKOFF_ID, to=cls.START_STATE
-                )
-                states_cache[ngram.symbols] = cls.BOS_STATE
-            else:
-                assert symbol >= 0 or symbol in {cls.EOS_ID, cls.UNK_ID}
-                to_state = len(adjacency)
-                # num_states += 1
-                adjacency[cls.START_STATE][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
-                adjacency.append(
-                    {cls.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=cls.BACKOFF_ID, to=cls.START_STATE)}
-                )
-                states_cache[ngram.symbols] = to_state
-        else:
-            state = states_cache[ngram.symbols[:-1]]
-            backoff_state = states_cache[ngram.symbols[1:]]
-            if order < max_order:
-                to_state = len(adjacency)
-                # num_states += 1
-                adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=to_state)
-                adjacency.append({cls.BACKOFF_ID: Arc(weight=ngram.backoff, ilabel=cls.BACKOFF_ID, to=backoff_state)})
-                states_cache[ngram.symbols] = to_state
-            else:
-                adjacency[state][symbol] = Arc(weight=ngram.weight, ilabel=symbol, to=backoff_state)
-
-    def _init_from_suffix_tree(self, adjacency: list[dict[int, Arc]]):
-        logging.info("Converting suffix tree to PyTorch")
-        num_arcs = sum(
-            len(state_arcs) if state != self.START_STATE else self.vocab_size
-            for state, state_arcs in enumerate(adjacency)
-        )
-
-        num_arcs_extended = num_arcs + self.vocab_size  # + extra padding
-        assert self.num_states == len(adjacency)
-        assert self.num_arcs == num_arcs
-        suffix_tree_np = SuffixTreeStorage(
-            num_states_max=self.num_states,
-            num_states=self.num_states,
-            num_arcs=num_arcs_extended,
-            num_arcs_max=num_arcs_extended,
-            vocab_size=self.vocab_size,
-            max_order=self.max_order,
-        )
-        suffix_tree_np.unk_prob = adjacency[0][self.UNK_ID].weight
-
-        i = 0
-        # TODO: arc to start? +1
-        suffix_tree_np.state_order[self.START_STATE] = 1
-        suffix_tree_np.state_order[self.BOS_STATE] = 2
-        for ilabel in range(self.vocab_size):
-            if ilabel in adjacency[self.START_STATE]:
-                arc = adjacency[self.START_STATE][ilabel]
-                suffix_tree_np.arcs_weights[i] = arc.weight
-                suffix_tree_np.from_states[i] = self.START_STATE
-                suffix_tree_np.to_states[i] = arc.to
-                suffix_tree_np.ilabels[i] = arc.ilabel
-            else:
-                suffix_tree_np.arcs_weights[i] = suffix_tree_np.unk_prob
-                suffix_tree_np.from_states[i] = self.START_STATE
-                suffix_tree_np.to_states[i] = self.START_STATE
-                suffix_tree_np.ilabels[i] = ilabel
-            i += 1
-        suffix_tree_np.state_end_arcs[self.START_STATE] = i
-
-        for state in tqdm(range(0, self.num_states)):
-            if state == self.START_STATE:
-                continue
-            suffix_tree_np.state_start_arcs[state] = i
-            for arc in sorted(adjacency[state].values(), key=lambda arc: arc.ilabel):
-                if arc.ilabel >= 0:
-                    suffix_tree_np.arcs_weights[i] = arc.weight
-                    suffix_tree_np.from_states[i] = state
-                    suffix_tree_np.to_states[i] = arc.to
-                    suffix_tree_np.ilabels[i] = arc.ilabel
-                    i += 1
-                elif arc.ilabel == self.BACKOFF_ID:
-                    # backoff
-                    suffix_tree_np.backoff_weights[state] = arc.weight
-                    suffix_tree_np.backoff_to_states[state] = arc.to
-                    suffix_tree_np.state_order[state] = suffix_tree_np.state_order[arc.to] + 1
-                else:
-                    continue
-            suffix_tree_np.state_end_arcs[state] = i
-
-        self._init_from_suffix_tree_np(suffix_tree_np=suffix_tree_np)
 
     def _init_from_suffix_tree_np(self, suffix_tree_np: SuffixTreeStorage):
         # parameters: weights
