@@ -53,8 +53,7 @@ def nvtx_range_pop(msg: Optional[str] = None) -> None:
     last_msg = _nvtx_range_messages.pop()
     if msg is not None and msg != last_msg:
         raise ValueError(
-            f"Attempted to pop NVTX range from stack with msg={msg}, "
-            f"but last range has msg={last_msg}"
+            f"Attempted to pop NVTX range from stack with msg={msg}, " f"but last range has msg={last_msg}"
         )
 
     # Pop NVTX range
