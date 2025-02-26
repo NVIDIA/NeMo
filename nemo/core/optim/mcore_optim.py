@@ -126,12 +126,12 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         if closure is not None:
             nvtx_range_push(f"{McoreDistributedOptimizer.nvtx_label}.step.closure")
             loss = closure()
-            nvtx_range_pop()
+            nvtx_range_pop(f"{McoreDistributedOptimizer.nvtx_label}.step.closure")
 
         # return unused update_successful, grad_norm, num_zeros_in_grad
         nvtx_range_push(f"{McoreDistributedOptimizer.nvtx_label}.step.step")
         _, grad_norm, num_zeros_in_grad = self.mcore_optimizer.step()
-        nvtx_range_pop()
+        nvtx_range_pop(f"{McoreDistributedOptimizer.nvtx_label}.step.step")
 
         return loss, grad_norm, num_zeros_in_grad
 
