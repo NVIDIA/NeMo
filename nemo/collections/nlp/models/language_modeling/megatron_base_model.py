@@ -582,7 +582,7 @@ class MegatronBaseModel(NLPModel):
         }
 
         transformer_config_cls = TransformerConfig
-        if self.cfg.get('name', None) == 'decoder_block_gpt':
+        if self.cfg.get('multi_latent_attention', False):
             transformer_config_cls = MLATransformerConfig
 
         # populate the transformer config dict
