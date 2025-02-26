@@ -107,3 +107,49 @@ class TestFastNGramLM:
             bos=bos,
         )
         assert torch.allclose(scores_lm, scores_ref), "Batched scores do not match"
+
+    @pytest.mark.unit
+    def test_save_load_nemo(self, tmp_path, test_data_dir):
+        vocab_size = 1024
+        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        n_gpu_lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
+        nemo_path = tmp_path / "ngram_lm.nemo"
+        n_gpu_lm.save_to(f"{nemo_path}")
+        n_gpu_lm_loaded = FastNGramLM.from_nemo(f"{nemo_path}", vocab_size=vocab_size)
+
+        # arcs data
+        assert torch.allclose(n_gpu_lm_loaded.arcs_weights, n_gpu_lm.arcs_weights)
+        assert (n_gpu_lm_loaded.from_states == n_gpu_lm.from_states).all()
+        assert (n_gpu_lm_loaded.to_states == n_gpu_lm.to_states).all()
+        assert (n_gpu_lm_loaded.ilabels == n_gpu_lm.ilabels).all()
+
+        # states data
+        assert (n_gpu_lm_loaded.state_start_arcs == n_gpu_lm.state_start_arcs).all()
+        assert (n_gpu_lm_loaded.state_end_arcs == n_gpu_lm.state_end_arcs).all()
+        assert (n_gpu_lm_loaded.state_order == n_gpu_lm.state_order).all()
+        assert (n_gpu_lm_loaded.backoff_to_states == n_gpu_lm.backoff_to_states).all()
+        assert torch.allclose(n_gpu_lm_loaded.backoff_weights, n_gpu_lm.backoff_weights)
+        assert torch.allclose(n_gpu_lm_loaded.final_weights, n_gpu_lm.final_weights)
+
+    @pytest.mark.unit
+    def test_save_load_from_file(self, tmp_path, test_data_dir):
+        vocab_size = 1024
+        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        n_gpu_lm = FastNGramLM.from_file(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
+        nemo_path = tmp_path / "ngram_lm.nemo"
+        n_gpu_lm.save_to(f"{nemo_path}")
+        n_gpu_lm_loaded = FastNGramLM.from_file(f"{nemo_path}", vocab_size=vocab_size)
+
+        # arcs data
+        assert torch.allclose(n_gpu_lm_loaded.arcs_weights, n_gpu_lm.arcs_weights)
+        assert (n_gpu_lm_loaded.from_states == n_gpu_lm.from_states).all()
+        assert (n_gpu_lm_loaded.to_states == n_gpu_lm.to_states).all()
+        assert (n_gpu_lm_loaded.ilabels == n_gpu_lm.ilabels).all()
+
+        # states data
+        assert (n_gpu_lm_loaded.state_start_arcs == n_gpu_lm.state_start_arcs).all()
+        assert (n_gpu_lm_loaded.state_end_arcs == n_gpu_lm.state_end_arcs).all()
+        assert (n_gpu_lm_loaded.state_order == n_gpu_lm.state_order).all()
+        assert (n_gpu_lm_loaded.backoff_to_states == n_gpu_lm.backoff_to_states).all()
+        assert torch.allclose(n_gpu_lm_loaded.backoff_weights, n_gpu_lm.backoff_weights)
+        assert torch.allclose(n_gpu_lm_loaded.final_weights, n_gpu_lm.final_weights)
