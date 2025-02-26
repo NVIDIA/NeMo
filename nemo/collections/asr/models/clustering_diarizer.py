@@ -24,7 +24,7 @@ import torch
 from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector 
+
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
@@ -46,6 +46,7 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     prepare_manifest,
 )
 from nemo.core.classes import Model
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
 
 __all__ = ['ClusteringDiarizer']
@@ -485,7 +486,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 self._vad_model.save_to(vad_model)
             self._speaker_model.save_to(spkr_model)
             SaveRestoreConnector._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
-            
+
     @classmethod
     def restore_from(
         cls,
