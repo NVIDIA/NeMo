@@ -715,8 +715,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
             truncate_len -= final_padding
             packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
             packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
-            packed_seq_params.cu_seqlens_q[-1] -= truncate_len
-            packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
+            # need to truncate the actual sequence as well
+            if truncate_len > 0:
+                packed_seq_params.cu_seqlens_q[-1] -= truncate_len
+                packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
             assert (
                 packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
             ), "with packed sequence, the truncation can only truncate on the last sequence."
