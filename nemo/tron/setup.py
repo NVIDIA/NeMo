@@ -43,6 +43,7 @@ except ImportError:
 
 
 class SetupOutput(NamedTuple):
+    state: GlobalState
     model: MegatronModule
     optimizer: MegatronOptimizer
     scheduler: OptimizerParamScheduler
@@ -178,6 +179,7 @@ def setup(
     timers.log(["model-and-optimizer-setup", "train/valid/test-data-iterators-setup"], barrier=True)
 
     return SetupOutput(
+        state,
         model,
         optimizer,
         scheduler,
