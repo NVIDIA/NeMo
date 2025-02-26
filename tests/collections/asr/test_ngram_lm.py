@@ -29,6 +29,20 @@ if torch.cuda.is_available():
     DEVICES.append('cuda')
 
 
+@pytest.fixture(scope="module")
+def n_gpu_lm(test_data_dir):
+    kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+    vocab_size = 1024
+    return FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False)
+
+
+@pytest.fixture(scope="module")
+def kenlm_wrapper(test_data_dir):
+    kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+    vocab_size = 1024
+    return KenLMBatchedWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
+
+
 class TestFastNGramLM:
     @pytest.mark.with_downloads
     @pytest.mark.unit
@@ -42,12 +56,8 @@ class TestFastNGramLM:
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("batch_size", [1, 3])
     @pytest.mark.parametrize("bos", [True, False])
-    def test_initial_states(self, test_data_dir, bos: bool, batch_size: int, device: torch.device):
-        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        vocab_size = 1024
-        n_gpu_lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False).to(device)
-        kenlm_wrapper = KenLMBatchedWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
-
+    def test_initial_states(self, n_gpu_lm, kenlm_wrapper, bos: bool, batch_size: int, device: torch.device):
+        n_gpu_lm = n_gpu_lm.to(device)
         init_states = n_gpu_lm.get_init_states(batch_size=batch_size, bos=bos)
         init_states_kenlm = kenlm_wrapper.get_init_states(batch_size=batch_size, bos=bos)
         scores_lm, _ = n_gpu_lm.advance(init_states)
@@ -58,13 +68,11 @@ class TestFastNGramLM:
     @pytest.mark.unit
     @pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton is not available")
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
-    def test_triton_vs_pytorch_random_states(self, test_data_dir, batch_size=2, num_iterations=100):
+    def test_triton_vs_pytorch_random_states(self, n_gpu_lm, batch_size=2, num_iterations=100):
         """Randomly initializes the states and compares the scores from Triton and PyTorch implementations."""
         torch.manual_seed(777)
         device = torch.device("cuda")
-        vocab_size = 1024
-        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        n_gpu_lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False).to(device)
+        n_gpu_lm = n_gpu_lm.to(device)
         for _ in tqdm(range(num_iterations)):
             start_state = random.randint(0, n_gpu_lm.num_states - 1)
             with torch.no_grad():
@@ -81,11 +89,8 @@ class TestFastNGramLM:
     @pytest.mark.skipif(not KENLM_AVAILABLE, reason="KenLM is not available")
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("bos", [True, False])
-    def test_sentences(self, test_data_dir, bos: bool, device: torch.device):
-        kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
-        vocab_size = 1024
-        n_gpu_lm = FastNGramLM.from_arpa(kenlm_model_path, vocab_size=vocab_size, normalize_unk=False).to(device)
-        kenlm_wrapper = KenLMBatchedWrapper(lm_path=kenlm_model_path, vocab_size=vocab_size)
+    def test_sentences(self, n_gpu_lm, kenlm_wrapper, bos: bool, device: torch.device):
+        n_gpu_lm = n_gpu_lm.to(device)
         sentences = [
             [25, 70, 12],
             [58, 41, 186, 293, 306, 999, 163, 264, 689, 683, 999],
