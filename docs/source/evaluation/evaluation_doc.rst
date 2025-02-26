@@ -1,24 +1,25 @@
-NeMo Evaluation User Guide
+Evaluate NeMo 2.0 Checkpoints
 =======================
 
-This guide provides details about how to evaluate NeMo 2.0 checkpoints with `lm-evaluation-harness
-<https://github.com/EleutherAI/lm-evaluation-harness>`__ that is integrated with NeMo Framework.
-Benchmarks supported: ``MMLU``, ``GSM8k``, ``lambada_openai``, ``winogrande``, ``arc_challenge``,
-``arc_easy``, ``copa``
+This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the integrated `lm-evaluation-harness
+ <https://github.com/EleutherAI/lm-evaluation-harness>`__ within the NeMo Framework. Supported benchmarks include
+``MMLU``, ``GSM8k``, ``lambada_openai``, ``winogrande``, ``arc_challenge``, ``arc_easy``, ``copa``.
 
 Introduction
 --------------
-Server client approach is used to run evaluations on NeMo 2.0 models. Running evaluation consists of 2 phases: 
-Phase 1 is where the NeMo 2.0 checkpoint is deployed on PyTriton server by exporting it to TRTLLM. Phase 2 is where
-evaluation is run on the model at the deployed url and port.
+The evaluation process employs a server-client approach, comprising two main phases. In Phase 1, the NeMo 2.0
+checkpoint is deployed on a PyTriton server by exporting it to TRT-LLM. Phase 2 involves running the evaluation
+on the model using the deployed URL and port.
 
-Running evaluations without NeMo-Run
+Run Evaluations without NeMo-Run
 --------------
-This section covers the steps to deploy and evaluate NeMo 2.0 model without NeMo-Run using python commands directly.
-This is a quick and easy approach to evaluate on a local workstation with GPUs as its easier to debug. 
-However, to run on clusters its recommended to use NeMo-Run for the ease of use.
-The entrypoint to deploy is the ``deploy`` method defined in ``nemo/collections/llm/api.py``. 
-An example command to deploy is as below:
+This section outlines the steps to deploy and evaluate a NeMo 2.0 model directly using Python commands, without using
+NeMo-Run. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it
+facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo-Run for its
+ease of use.
+
+The entry point for deployment is the ``deploy`` method defined in ``nemo/collections/llm/api.py``.
+Below is an example command for deployment:
 
 .. code-block:: python
 
@@ -31,10 +32,10 @@ An example command to deploy is as below:
             max_batch_size=4,
             num_gpus=1,)
 
-The entrypoint for evaluation is the ``evaluate`` method defined in ``nemo/collections/llm/api.py``. In order to run
-evaluations on the deployed model above, use the following command. Open a new terminal within the same container to 
-run this. For evaluations taking longer, it's a good idea to run deploy and evaluate in tmux sessions to avoid the 
-process from getting killed and aborting the runs.
+The entrypoint for evaluation is the ``evaluate`` method defined in ``nemo/collections/llm/api.py``. To run evaluations
+on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute
+ it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent
+ the processes from being killed and aborting the runs.
 
 .. code-block:: python
 
@@ -50,34 +51,50 @@ process from getting killed and aborting the runs.
     if __name__ == "__main__":
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 
-Note: Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument 
+.. note::
+Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument
 options as these are just sample commands and don't share all arguments and their default settings.
 
-Running evaluations with NeMo-Run
+Run evaluations with NeMo-Run
 --------------
 
-Note: For detailed information about `NeMo-Run <https://github.com/NVIDIA/NeMo-Run>`__, please refer to its
-documentation. Below is a concise version that focuses on using NeMo-Run to run evaluations in NeMo 2.0.
+This section explains how to run evaluations with NeMo-Run. For detailed information about
+`NeMo-Run <https://github.com/NVIDIA/NeMo-Run>`__, please refer to its documentation. Below is a concise guide focused
+on using NeMo-Run to perform evaluations in NeMo 2.0.
 
-Reference script to launch evaluations with NeMo-Run:
-`evaluation.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/llm/evaluation.py>`__. This script provides example
-for using NeMo-Run with both local executor (your local workstation) and slurm based executors like clusters. ``deploy``
-and ``evaluate`` are launched as two separate jobs with NeMo-Run. The evaluate method waits until the PyTriton server
-is accessible and the model is deployed before starting to run evaluations.
+Launch Evaluations with NeMo-Run
+#############################
 
-Example command to run locally with NeMo-Run:
+The `evaluation.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/llm/evaluation.py>`__. script serves as a
+reference for launching evaluations with NeMo-Run. This script demonstrates how to use NeMo-Run with both local
+executors (your local workstation) and Slurm-based executors like clusters. In this setup, the deploy and evaluate
+processes are launched as two separate jobs with NeMo-Run. The evaluate method waits until the PyTriton server is
+accessible and the model is deployed before starting the evaluations.
+
+Run Locally with NeMo-Run
+#########################
+
+To run evaluations on your local workstation, use the following command:
 
 .. code-block:: bash
 
     python scripts/llm/evaluation.py --nemo_checkpoint='/workspace/hf_llama3_8b_nemo2.nemo'
 
-Note: With the local executor run, it is required to manually kill 
+.. note::
 
-To run on slurm based clusters, please pass the ``--slurm`` flag to the command and add all custom parameters to the 
-script like user, host, remote_job_dir, account, mounts etc., Please refer to the script for details. 
-Example command below:
+When running locally with NeMo-Run, you will need to manually terminate the deploy process once evaluations are complete.
+
+Run on Slurm-based Clusters
+##########################
+
+To run evaluations on Slurm-based clusters, add the ``--slurm`` flag to your command and specify any custom parameters
+such as user, host, remote_job_dir, account, mounts, etc. Refer to the evaluation.py script for further details.
+Below is an example command:
 
 .. code-block:: bash
 
     python scripts/llm/evaluation.py --nemo_checkpoint='/workspace/hf_llama3_8b_nemo2.nemo' --slurm --nodes 1 
     --devices 8 --container_image "nvcr.io/nvidia/nemo:dev" --tensor_parallelism_size 8
+
+By following these commands, you can successfully run evaluations using NeMo-Run on both local and Slurm-based
+environments.
