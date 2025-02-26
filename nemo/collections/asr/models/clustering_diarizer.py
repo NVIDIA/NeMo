@@ -25,7 +25,7 @@ import torch
 from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
-from nemo.core.connectors import SaveRestoreConnector 
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector 
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
@@ -493,7 +493,6 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         restore_path: str,
         override_config_path: Optional[str] = None,
         map_location: Optional[torch.device] = None,
-        strict: bool = False,
     ):
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
@@ -501,7 +500,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                tmpdir = SaveRestoreConnector._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                SaveRestoreConnector._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
                     config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
