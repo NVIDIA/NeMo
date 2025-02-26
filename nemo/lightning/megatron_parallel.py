@@ -54,7 +54,6 @@ from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
 from typing_extensions import override
-from nemo.utils import logging
 
 try:
     from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
@@ -624,7 +623,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                     )
         if self.convert_module_fn:
             self.apply_convert_module_fn()
-
         self.init_ddp()
 
     def apply_convert_module_fn(self):
@@ -688,9 +686,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
             # Ensure that if using custom FSDP, gradient_accumulation_fusion is disabled on the model config.
-            if self.ddp_config.use_custom_fsdp and module.config.gradient_accumulation_fusion == True:
-                logging.warning("Setting gradient_accumulation_fusion to False as it's incompatible with custom FSDP")
-                module.config.gradient_accumulation_fusion = False
+            if self.ddp_config.use_custom_fsdp:
+                assert module.config.gradient_accumulation_fusion == False, "gradient_accumulation_fusion must be False when using custom FSDP"
 
         # param_sync_func is set in nemo.lightning.pytorch.optim.megatron
         no_sync_func, grad_sync_func = extract_ddp_funcs(self.ddp_config, self)
