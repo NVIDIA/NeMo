@@ -476,3 +476,33 @@ class RawImageDiffusionTaskEncoder(DefaultTaskEncoder, IOMixin):
         # Cooker(cook),
         Cooker(cook_raw_iamges),
     ]
+
+
+def cook_image_masks_with_precached_captions(sample: dict) -> dict:
+    return dict(
+        **basic_sample_keys(sample),
+        images=sample['jpg'],
+        masks=sample['mask'],
+        caption=sample['caption'],
+        text_id=sample['text_ids'],
+        prompt=sample['prompt'],
+        pooled_prompt_embeds=sample['pooled_prompt_embeds'],
+        new_caption=sample['new_caption'],
+        aesthetic_score=sample['aesthetic_score'],
+    )
+
+class PrecachedCaptionWithImageMaskTaskEncoder(DefaultTaskEncoder, IOMixin):
+    '''
+    Dummy task encoder takes raw image input on CrudeDataset.
+    '''
+
+    cookers = [
+        # Cooker(cook),
+        Cooker(cook_image_masks_with_precached_captions),
+    ]
+
+    @stateless(restore_seeds=True)
+    def encode_sample(self, sample: dict) -> dict:
+        image = sample['jpg']
+
+
