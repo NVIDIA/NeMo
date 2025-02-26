@@ -62,7 +62,7 @@ def megatron_pretrain(
                 model,
                 optimizer,
                 scheduler,
-                state.train_state.num_floating_point_operations_so_far,
+                state.train_state.floating_point_operations_so_far,
                 config,
                 ckpt_context,
                 train_data_iterator=train_data_iterator,
