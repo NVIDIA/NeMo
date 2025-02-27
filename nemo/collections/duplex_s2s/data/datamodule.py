@@ -15,24 +15,26 @@ import torch
 from lightning import LightningDataModule
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.duplex_s2s.data.dataset import DuplexS2SDataset
 
 
 class S2SDataModule(LightningDataModule):
 
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg, tokenizer: TokenizerSpec) -> None:
         super().__init__()
         self.cfg = cfg
-        self.tokenizer = ...  # TODO(pzelasko): tokenizer
+        self.tokenizer = tokenizer
+        self.dataset = DuplexS2SDataset(self.tokenizer, self.cfg.frame_length, self.cfg.source_sample_rate)
 
     def train_dataloader(self):
         if "train_ds" not in self.cfg:
             return None
         return get_lhotse_dataloader_from_config(
             config=self.cfg.train_ds,
-            global_rank=torch.distributed.get_rank(),
-            world_size=torch.distributed.get_world_size(),
-            dataset=DuplexS2SDataset(),
+            global_rank=self._get_dp_rank(),
+            world_size=self._get_world_size(),
+            dataset=self.dataset,
             tokenizer=self.tokenizer,
         )
 
@@ -42,9 +44,9 @@ class S2SDataModule(LightningDataModule):
             return None
         return get_lhotse_dataloader_from_config(
             config=self.cfg.validation_ds,
-            global_rank=torch.distributed.get_rank(),
-            world_size=torch.distributed.get_world_size(),
-            dataset=DuplexS2SDataset(),
+            global_rank=self._get_dp_rank(),
+            world_size=self._get_world_size(),
+            dataset=self.dataset,
             tokenizer=self.tokenizer,
         )
 
@@ -54,8 +56,30 @@ class S2SDataModule(LightningDataModule):
             return None
         return get_lhotse_dataloader_from_config(
             config=self.cfg.test_ds,
-            global_rank=torch.distributed.get_rank(),
-            world_size=torch.distributed.get_world_size(),
-            dataset=DuplexS2SDataset(),
+            global_rank=self._get_dp_rank(),
+            world_size=self._get_world_size(),
+            dataset=self.dataset,
             tokenizer=self.tokenizer,
         )
+
+    def _get_dp_rank(self):
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if (
+                hasattr(self.trainer.model, "device_mesh") and self.trainer.model.device_mesh is not None
+            ):  # model parallelism
+                return self.trainer.model.device_mesh.get_coordinate()[0]
+            else:
+                return torch.distributed.get_rank()  # plain ol' DDP
+        else:
+            return 0  # 1 GPU
+
+    def _get_world_size(self):
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if (
+                hasattr(self.trainer.model, "device_mesh") and self.trainer.model.device_mesh is not None
+            ):  # model parallelism
+                return self.trainer.model.device_mesh.shape[0]
+            else:  # plain ol' DDP
+                return torch.distributed.get_world_size()
+        else:
+            return 1  # 1 GPU

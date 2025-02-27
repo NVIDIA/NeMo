@@ -11,295 +11,309 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import builtins
+from copy import deepcopy
+from itertools import chain
+
 import torch
-
 from lightning import LightningModule
+from omegaconf import open_dict
 from torch import Tensor
-from transformers import AutoModel, AutoModelForCausalLM
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
+from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
+from torch.distributed.tensor import Replicate, Shard
+from torch.distributed.tensor.parallel import (
+    ColwiseParallel,
+    PrepareModuleInput,
+    RowwiseParallel,
+    SequenceParallel,
+    loss_parallel,
+    parallelize_module,
+)
+from transformers import AutoModel
 
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
 from nemo.collections.tts.models import AudioCodecModel
 
-
-class DuplexS2SModelConfig:
-    pass
+# class DuplexS2SModelConfig:
+#     pass
 
 
 class DuplexS2SModel(LightningModule):
-    def __init__(self, cfg: DuplexS2SModelConfig) -> None:
+    def __init__(self, cfg) -> None:
         super().__init__()
         self.cfg = cfg
-        self.tokenizer = AutoTokenizer("TinyLlama/TinyLlama_v1.1")
-        self.speech_encoder = AudioCodecModel.from_pretrained("nvidia/low-frame-rate-speech-codec-22khz")
+
+        self.audio_codec = AudioCodecModel.from_pretrained(self.cfg.pretrained_audio_codec).to(torch.bfloat16).eval()
+
+        self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
+
+        self.llm = AutoModel.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
+        self.embed_tokens = self.llm.embed_tokens  # resize_token_embeddings(self.llm.vocab_size + 8 * 2048)
+        del self.llm.embed_tokens
+        self.embed_audio_tokens = torch.nn.Embedding(
+            8 * 2048, self.embed_tokens.embedding_dim
+        )  # TODO: fetch dim from audio_codec
+
+        speech_encoder = ASRModel.from_pretrained(self.cfg.pretrained_asr).train()
+
+        with open_dict(self.cfg):
+            self.cfg.perception.preprocessor = speech_encoder.cfg.preprocessor
+            self.cfg.perception.encoder = speech_encoder.cfg.encoder
+            self.cfg.perception.output_dim = self.llm.config.hidden_size
+        self.perception = AudioPerceptionModule(self.cfg.perception).train()
+        # TODO:
+        # self.perception.load_state_dict(speech_encoder.state_dict())
+
+        # breakpoint()
+
+        self.lm_head = torch.nn.Linear(self.llm.config.hidden_size, self.tokenizer.vocab_size)
+        self.audio_head = torch.nn.Linear(
+            self.llm.config.hidden_size, 2048 * 8
+        )  # TODO: self.audio_codec.codebook_size * num_codebooks ????
         # self.speech_encoder = AudioCodecModel.restore_from("Low_Frame-rate_Speech_Codec++_without_speaker_encoder.nemo")
-        self.llm = AutoModelForCausalLM.from_pretrained("TinyLlama/TinyLlama_v1.1")
 
     def forward(self, input_signal: Tensor, input_signal_lens: Tensor) -> tuple[Tensor, Tensor]:
         # TODO(pzelasko): implement according to
         #   https://github.com/zhehuaichen/NeMo/blob/speechllm-develop-gen_duplex2_clean/nemo/collections/multimodal/speech_llm/models/modular_s2s_models.py
-        llm_input, llm_input_lens = self.speech_encoder(input_signal, input_signal_lens)
+        llm_input, llm_input_lens = self.audio_codec(input_signal, input_signal_lens)
         predicted = self.llm(llm_input, llm_input_lens)
         return predicted, llm_input_lens
 
     def training_step(self, batch: dict, batch_idx: int):
-        inputs = self.prepare_llm_input_duplex_from_multiturn(batch)
-        outputs = self(*inputs)
+        def print(*args, **kwargs):
+            if hasattr(self, "device_mesh") and self.device_mesh is not None:
+                builtins.print(f"[{self.device_mesh.get_coordinate()}]", *args, **kwargs)
+            else:
+                builtins.print(f"[{torch.distributed.get_rank()}]", *args, **kwargs)
+
+        source_audio, source_audio_lens = batch["source_audio"], batch["source_audio_lens"]
+        source_encoded, source_encoded_lens = self.perception(
+            input_signal=source_audio, input_signal_length=source_audio_lens
+        )
+        # print(f"{source_encoded.shape=}")
+        # print(f"{source_encoded_lens=}")
+
+        with torch.no_grad():
+            target_codes, target_codes_lens = self.audio_codec.encode(
+                audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
+            )
+            target_codes = target_codes.transpose(1, 2)
+            # codes_offset = torch.arange(self.tokenizer.vocab_size, self.tokenizer.vocab_size + 8 * 2048, 2048, device=source_encoded.device)[None, None, :]
+            # print(f"{codes_offset=}")
+            # print(f"{target_codes=}")
+            # target_codes = target_codes + codes_offset
+
+        # print(f"{target_codes=}")
+        # print(f"{target_codes.shape=}")
+        # print(f"{target_codes_lens=}")
+
+        # TODO: TEMPORARY HACK: SLICE UNTIL I CAN LOAD THE CORRECT FRAME RATE AUDIO CODEC
+        target_codes = target_codes[:, : source_encoded.shape[1]]
+
+        # print(f"(truncated) {target_codes.shape=}")
+
+        # TODO: resolve the slicing hacks lol
+        if batch["target_tokens"].shape[1] < source_encoded.shape[1]:
+            pad_id = self.tokenizer.pad
+            if pad_id is None:
+                pad_id = self.tokenizer.unk_id
+            if pad_id is None:
+                pad_id = 0  # TODO: cleanup
+            batch["target_tokens"] = torch.cat(
+                [
+                    batch["target_tokens"],
+                    (torch.ones(source_encoded.shape[0], 1, device=source_encoded.device) * pad_id).to(torch.long),
+                ],
+                dim=-1,
+            )
+        # print(f"{batch['target_tokens'].shape=}")
+
+        input_ids = torch.cat([target_codes, batch["target_tokens"][..., None]], dim=-1)
+        # print(f"{input_ids.shape=}")
+        labels = input_ids[:, 1:]
+        input_ids = input_ids[:, :-1]
+
+        input_embeds = self.embed_tokens(input_ids[:, :, -1])
+        input_embeds = (input_embeds + self.embed_audio_tokens(input_ids[:, :, :-1]).sum(dim=2)) / input_ids.shape[2]
+
+        # input_embeds = self.llm.embed_tokens(input_ids)
+        # input_embeds = self.embed_tokens(input_ids)
+        # print(f"{input_embeds.shape=}")
+        # print(f"{input_embeds=}")
+        # print(f"{source_encoded=}")
+
+        # TODO: resolve the slicing hacks lol
+        # encoder_input = input_embeds.sum(dim=2) + source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3)
+        encoder_input = input_embeds + source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3)
+        # print(f"{encoder_input.shape=}")
+
+        out = self.llm(inputs_embeds=encoder_input)
+        # print(f"{out['last_hidden_state'].shape=}")
+
+        text_logits = self.lm_head(out['last_hidden_state'])
+        # print(f"{text_logits.shape=}")
+        B, T = text_logits.shape[:2]
+        audio_logits = self.audio_head(out['last_hidden_state']).view(B, T, 2048, 8)
+        # print(f"{audio_logits.shape=}")
+
+        num_frames = target_codes_lens.sum()
+        with loss_parallel():
+            text_loss = (
+                torch.nn.functional.cross_entropy(text_logits.transpose(1, 2), labels[:, :, -1], reduction="sum")
+                / num_frames
+            )
+            audio_loss = torch.nn.functional.cross_entropy(
+                audio_logits.transpose(1, 2), labels[:, :, :-1], reduction="sum"
+            ) / (
+                num_frames * 8
+            )  # TODO: num_codebooks
+        # print(f"{text_loss=}")
+        # print(f"{audio_loss=}")
+
+        loss = text_loss + audio_loss
+        print(f"{loss=} {B=} {T=}")
+
+        return loss
+
+    def backward(self, *args, **kwargs):
+        with loss_parallel():
+            super().backward(*args, **kwargs)
 
     def configure_optimizers(self):
-        raise NotImplementedError()
+        # TODO: properly configure the optimizers
+        return torch.optim.AdamW(
+            chain(
+                self.perception.parameters(),
+                self.llm.parameters(),
+                self.lm_head.parameters(),
+                self.audio_head.parameters(),
+            ),
+            lr=self.cfg.optim.lr,
+        )
 
     def configure_model(self) -> None:
-        # TODO(pzelasko): configure FSDP2
-        #   Optionally the whole model can be instantiated here instead of __init__
-        #   which is a start-time and peak-memory-usage optimization, helps with very large models.
-        return
+        self._use_fsdp = False
+        device_mesh = self.device_mesh
+        print(f"{device_mesh=}")
+        print(f"{device_mesh.get_coordinate()=}")
+        print(f"{device_mesh['data_parallel'].get_local_rank()=}")
+        print(f"{device_mesh['tensor_parallel'].get_local_rank()=}")
 
-    def prepare_llm_input_duplex_from_multiturn(self, audio_batch):
-        codec_sample_rate = self.codec_sample_rate
-        decoder_reduction_factor = self.cfg.get("decoder_reduction_factor", 1)
-        # make the following to be one decoding step so as to easier replace with speech bos token and eos token
-        duplex_inject_silence_second = (
-            self.codec_model_downsampling_factor / codec_sample_rate * decoder_reduction_factor
-        )
-        silence = int(codec_sample_rate * duplex_inject_silence_second)
-        user_signal = audio_batch['audio_signal']
-        user_signal_length = audio_batch['audio_signal_length']
+        """
+Gemma2Model(
+  (embed_tokens): Embedding(256000, 2304, padding_idx=0)
+  (layers): ModuleList(
+    (0-25): 26 x Gemma2DecoderLayer(
+      (self_attn): Gemma2Attention(
+        (q_proj): Linear(in_features=2304, out_features=2048, bias=False)
+        (k_proj): Linear(in_features=2304, out_features=1024, bias=False)
+        (v_proj): Linear(in_features=2304, out_features=1024, bias=False)
+        (o_proj): Linear(in_features=2048, out_features=2304, bias=False)
+        (rotary_emb): Gemma2RotaryEmbedding()
+      )
+      (mlp): Gemma2MLP(
+        (gate_proj): Linear(in_features=2304, out_features=9216, bias=False)
+        (up_proj): Linear(in_features=2304, out_features=9216, bias=False)
+        (down_proj): Linear(in_features=9216, out_features=2304, bias=False)
+        (act_fn): PytorchGELUTanh()
+      )
+      (input_layernorm): Gemma2RMSNorm((2304,), eps=1e-06)
+      (pre_feedforward_layernorm): Gemma2RMSNorm((2304,), eps=1e-06)
+      (post_feedforward_layernorm): Gemma2RMSNorm((2304,), eps=1e-06)
+      (post_attention_layernorm): Gemma2RMSNorm((2304,), eps=1e-06)
+    )
+  )
+  (norm): Gemma2RMSNorm((2304,), eps=1e-06)
+)
 
-        def resample(audio, audio_lens, orig_sample_rate, target_sample_rate):
-            audio = torchaudio.functional.resample(audio, orig_sample_rate, target_sample_rate)
-            audio_lens = (audio_lens * (target_sample_rate / orig_sample_rate)).int()
-            return audio, audio_lens
+        """
 
-        if 'target_texts_merge' not in audio_batch:  # create duplex data from single turn
-            # this branch is not used anymore; duplex data should go to else:
-            labels, loss_mask = (
-                audio_batch['labels'],
-                audio_batch['loss_mask'],
+        if (tp_mesh := device_mesh["tensor_parallel"]).size() > 1:
+            # 1. Parallelize the first embedding and the last linear proj layer
+            # 2. Parallelize the root norm layer over the sequence dim
+            # 3. Shard the first transformer block's inputs
+
+            parallelize_module(
+                self.lm_head,
+                tp_mesh,
+                ColwiseParallel(
+                    input_layouts=Shard(1),
+                    # Optional: Shard the output along the class dimension to compute the loss in parallel.
+                    # See `loss_parallel` in `train.py`
+                    output_layouts=Shard(-1),
+                    use_local_output=False,
+                ),
             )
-            context_lengths = audio_batch['context_lengths']
 
-            assert self.extract_codec_on_the_fly
-            agent_signal = audio_batch['answer_audio']
-            agent_signal_length = audio_batch['answer_audio_lens']
+            # Parallelize the first embedding and the last linear out projection
+            plan = {
+                "embed_tokens": RowwiseParallel(input_layouts=Replicate()),
+                "norm": SequenceParallel(),
+                "layers.0": PrepareModuleInput(
+                    input_layouts=(Replicate(),),  # , None)
+                    desired_input_layouts=(Shard(1),),  # , None)
+                    use_local_output=True,
+                ),
+            }
+            parallelize_module(self.llm, tp_mesh, plan)
 
-            if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
-                user_signal, user_signal_length = resample(
-                    user_signal,
-                    user_signal_length,
-                    self.perception.cfg.preprocessor.sample_rate,
-                    codec_sample_rate,
-                )
+            # Parallelize each transformer block
+            for transformer_block in self.llm.layers:
+                plan = {
+                    # "self_attn": PrepareModuleInput(
+                    #     input_layouts=(Shard(1),),#, None),
+                    #     desired_input_layouts=(Replicate(),),#, None),
+                    # ),
+                    "self_attn.q_proj": ColwiseParallel(),
+                    "self_attn.k_proj": ColwiseParallel(),
+                    "self_attn.v_proj": ColwiseParallel(),
+                    "self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+                    "mlp": PrepareModuleInput(
+                        input_layouts=(Shard(1),),
+                        desired_input_layouts=(Replicate(),),
+                    ),
+                    "mlp.gate_proj": ColwiseParallel(),
+                    "mlp.up_proj": RowwiseParallel(output_layouts=Shard(1)),
+                    "mlp.down_proj": ColwiseParallel(),
+                    "input_layernorm": SequenceParallel(),
+                    "pre_feedforward_layernorm": SequenceParallel(),
+                    "post_feedforward_layernorm": SequenceParallel(),
+                    "post_attention_layernorm": SequenceParallel(),
+                }
 
-            new_user_signal = []
-            new_agent_signal = []
-            new_user_signal_length = []
-            new_agent_signal_length = []
-            silence_value = 0
-            shift_text_channel_len = []
-            agent_bos_eos_step = []
-            for user, agent, user_len, agent_len in zip(
-                user_signal, agent_signal, user_signal_length, agent_signal_length
-            ):
-                user = user[:user_len]
-                agent = agent[:agent_len]
-                # user, silence, agent, silence -> user, bos, agent, eos
-                # TODO: above design means that in real/synthetic data, we need to mark bos and eos timestamp of agent responses
-                silence_piece = torch.full([silence], silence_value).cuda()
-                new_user_signal.append(
-                    torch.cat([user, silence_piece, torch.ones_like(agent) * silence_value, silence_piece], dim=0)
-                )
-                new_agent_signal.append(
-                    torch.cat([torch.ones_like(user) * silence_value, silence_piece, agent, silence_piece], dim=0)
-                )
-                duplex_len = user_len + silence + agent_len + silence
-                # make bos step -1 to be safe for silence+speech boundary
-                agent_bos_eos_step.append(
-                    [self.get_step_from_audio_len(user_len + silence) - 1, self.get_step_from_audio_len(duplex_len)]
-                )
-                new_user_signal_length.append(duplex_len)
-                new_agent_signal_length.append(duplex_len)
-            new_user_signal = pad_sequence(new_user_signal, batch_first=True)
-            new_agent_signal = pad_sequence(new_agent_signal, batch_first=True)
-            new_user_signal_length = torch.Tensor(new_user_signal_length).long().cuda()
-            new_agent_signal_length = torch.Tensor(new_agent_signal_length).long().cuda()
-            if self.perception.cfg.preprocessor.sample_rate != codec_sample_rate:
-                new_user_signal, new_user_signal_length = resample(
-                    new_user_signal,
-                    new_user_signal_length,
-                    codec_sample_rate,
-                    self.perception.cfg.preprocessor.sample_rate,
-                )
-        else:  # real duplex data read from dataloader
-            new_user_signal = audio_batch['audio_signal']
-            new_user_signal_length = audio_batch['audio_signal_length']
-            new_agent_signal = audio_batch['answer_audio']
-            new_agent_signal_length = audio_batch['answer_audio_lens']
-            loss_mask = None
-            duplex_method = self.cfg.duplex_method
-            assert duplex_method == "from_duplex"
+                # Adjust attention module to use the local number of heads
+                # attn_layer = transformer_block.self_attn
+                # attn_layer.n_heads = attn_layer.n_heads // tp_mesh.size()
+                # attn_layer.n_kv_heads = attn_layer.n_kv_heads // tp_mesh.size()
 
-        # [b, t, c]
-        encoded, encoded_len = self.perception(
-            input_signal=new_user_signal,
-            input_signal_length=new_user_signal_length,
-            processed_signal=None,
-            processed_signal_length=None,
-        )
+                # Apply the plan for the current transformer block
+                parallelize_module(transformer_block, tp_mesh, plan)
 
-        answer_codecs, answer_codecs_lens = self._get_codec_embeddings(
-            new_agent_signal, new_agent_signal_length
-        )  # list, list
+        if (dp_mesh := device_mesh["data_parallel"]).size() > 1:
+            assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
+            self._use_fsdp = True
 
-        answer_codecs_lens = torch.Tensor(answer_codecs_lens).long().cuda()
-        assert all(torch.isclose(answer_codecs_lens, encoded_len, atol=3))
-        encoded_len = answer_codecs_lens
-        if 'answer_features_lens' in audio_batch:
-            assert 'target_texts_merge' not in audio_batch
-            prev_answer_features_lens = (
-                torch.ceil(
-                    agent_signal_length / self.codec_model_downsampling_factor / decoder_reduction_factor
-                ).long()
-                + 1
-            )  # bos
-            assert all(prev_answer_features_lens == audio_batch['answer_features_lens'])
-            shift_text_channel_len = answer_codecs_lens - prev_answer_features_lens - 2  # 2 is for bos and eos
+            fsdp_config = {"mesh": dp_mesh, "mp_policy": MixedPrecisionPolicy(torch.bfloat16)}
 
-        new_loss_mask = []
-        all_channels = []
-        for i, answer_codec in enumerate(answer_codecs):
-            if 'target_texts_merge' in audio_batch:
-                text_channel = audio_batch['target_texts_merge'][i]
-                sliced_text_channel = text_channel[: answer_codec.shape[0]].unsqueeze(-1)
-                answer_codec = torch.where(
-                    sliced_text_channel == self.tokenizer.bos_id, self.cfg.data.train_ds.speech_bos_id, answer_codec
-                )
-                answer_codec = torch.where(
-                    sliced_text_channel == self.tokenizer.eos_id, self.cfg.data.train_ds.speech_eos_id, answer_codec
-                )
-                if getattr(self.cfg, 'predict_source_text', False):
-                    # Also use source_text
-                    source_text_channel = audio_batch['source_texts_merge'][i]
-                    sliced_source_text_channel = source_text_channel[: answer_codec.shape[0]].unsqueeze(-1)
-            else:
-                # this branch is not used anymore
-                # mask bos and eos following timestamp or synthetic data mark
-                answer_codec[agent_bos_eos_step[i][0]] = self.cfg.data.train_ds.speech_bos_id
-                answer_codec[agent_bos_eos_step[i][1]] = self.cfg.data.train_ds.speech_eos_id
-                pad_id = self.tokenizer.pad_id if self.tokenizer.pad_id > 0 else self.tokenizer.unk_id
-                base_length = -1 + context_lengths[i]
-                text_channel = torch.cat(
-                    [
-                        torch.full([shift_text_channel_len[i], 1], pad_id).cuda(),
-                        torch.full([1, 1], self.tokenizer.bos_id).cuda(),
-                        labels[i, base_length:, :1],
-                    ],
-                    dim=0,
-                )
-                sliced_text_channel = text_channel[: answer_codec.shape[0]]
+            for idx, layer in enumerate(self.llm.layers):
+                # layer.self_attn = checkpoint_wrapper(layer.self_attn)
+                layer.mlp = checkpoint_wrapper(layer.mlp)
+                self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
+            self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
+            self.embed_audio_tokens = fully_shard(self.embed_audio_tokens, **fsdp_config)
+            # self.llm.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
+            self.llm = fully_shard(self.llm, **fsdp_config)
+            self.lm_head = checkpoint_wrapper(self.lm_head)
+            self.lm_head = fully_shard(self.lm_head, **fsdp_config)
+            self.audio_head = checkpoint_wrapper(self.audio_head)
+            self.audio_head = fully_shard(self.audio_head, **fsdp_config)
 
-            if getattr(self.cfg, 'predict_source_text', False):
-                # TODO(kevinhu): Add delay to better predict user text.
-                # Predict user text when the agent turn starts.
-                all_channels.append(torch.cat([sliced_text_channel, answer_codec, sliced_source_text_channel], dim=-1))
-            else:
-                if getattr(self.cfg, 'speech_delay', False):
-                    # TODO(kevinhu): Implement cascaded delays across all channels.
-                    text_len, text_vocab = sliced_text_channel.shape
-                    speech_len, speech_vocab = answer_codec.shape
-                    assert text_len == speech_len
-                    speech_pad_id = self.cfg.data.train_ds.speech_unk_id
-                    text_pad_id = self.tokenizer.eos_id
-                    answer_codec_padded = torch.full(
-                        (self.cfg.speech_delay, speech_vocab), speech_pad_id, device=answer_codec.device
-                    )
-                    answer_codec_shifted = torch.cat([answer_codec_padded, answer_codec], dim=0)[:speech_len, :]
-                    sliced_text_channel_padded = torch.full(
-                        (self.cfg.speech_delay, text_vocab), text_pad_id, device=sliced_text_channel.device
-                    )
-                    sliced_text_channel_extended = torch.cat([sliced_text_channel, sliced_text_channel_padded], dim=0)[
-                        :speech_len, :
-                    ]
-                    combined_channels = torch.cat([sliced_text_channel_extended, answer_codec_shifted], dim=-1)
-                    all_channels.append(combined_channels)
-                else:
-                    # checked text_channel, loss_mask;  checked injecting bos and eos properly to control turn taking in inference
-                    all_channels.append(torch.cat([sliced_text_channel, answer_codec], dim=-1))
-
-            if 'target_texts_merge' not in audio_batch and loss_mask is not None:
-                cur_loss_mask = torch.cat(
-                    [torch.zeros([shift_text_channel_len[i], loss_mask.shape[-1]]).cuda(), loss_mask[i, base_length:]],
-                    dim=0,
-                )
-                new_loss_mask.append(cur_loss_mask[: answer_codec.shape[0]])
-        all_channels = pad_sequence(all_channels, batch_first=True)
-        input_ids = all_channels[:, :-1]
-        encoded = encoded[:, : input_ids.shape[1]]
-        encoder_length = encoded_len - 1
-        labels = all_channels[:, 1:]
-        # assert labels.shape[1] == encoded.shape[1]
-        labels = labels[:, : encoded.shape[1]]
-        input_ids = input_ids[:, : encoded.shape[1]]
-        if 'target_texts_merge' in audio_batch:
-            loss_mask = torch.ones_like(labels)
-            assert self.cfg.get(
-                'duplex_loss_on_all_steps', False
-            ), "only support duplex_loss_on_all_steps in real duplex data read from dataloader"
-        elif loss_mask is not None:
-            loss_mask = pad_sequence(new_loss_mask, batch_first=True)
-            assert loss_mask.shape == labels.shape
-            if self.cfg.get('duplex_loss_on_all_steps', False):
-                loss_mask = torch.ones_like(labels)  # include loss on silence too
-        # lookup input_ids
-        if self.cfg.get('megatron_amp_O2', False):
-            base_module = self.model.module
-        else:
-            base_module = self.model
-        lm_embedding = (
-            base_module.language_model.embedding if hasattr(base_module, 'language_model') else base_module.embedding
-        )
-        input_embeds = lm_embedding.word_embeddings(input_ids)
-        # merge with encoded
-        encoder_input = input_embeds + encoded * self.cfg.get("duplex_user_channel_weight", 0.3)
-
-        scale_loss_mask_by = self.cfg.get("scale_loss_mask_by", None)
-        if scale_loss_mask_by == 'bos_eos':
-            for i, answer_codec in enumerate(answer_codecs):
-                if 'target_texts_merge' in audio_batch:
-                    text_channel = audio_batch['target_texts_merge'][i]
-                    sliced_text_channel = text_channel[: loss_mask.shape[1]].unsqueeze(-1)
-                    loss_mask = torch.where(sliced_text_channel == self.tokenizer.bos_id, 2.0, loss_mask)
-                    loss_mask = torch.where(sliced_text_channel == self.tokenizer.eos_id, 2.0, loss_mask)
-                else:
-                    raise ValueError("scale_loss_mask_by=bos_eos is only supported for target_texts_merge")
-        elif scale_loss_mask_by == 'non_sil':
-            for i, answer_codec in enumerate(answer_codecs):
-                if 'target_texts_merge' in audio_batch:
-                    text_channel = audio_batch['target_texts_merge'][i]
-                    sliced_text_channel = text_channel[: loss_mask.shape[1]].unsqueeze(-1)
-                    loss_mask = torch.where(labels[:, :, :] != labels[:, :1, :], 2.0, loss_mask)
-                else:
-                    raise ValueError("scale_loss_mask_by=bos_eos is only supported for target_texts_merge")
-        elif scale_loss_mask_by == None:
-            pass
-        else:
-            raise ValueError(f"Unknown scale_loss_mask_by: {scale_loss_mask_by}")
-        limit_max_seq_length = self.cfg.get("limit_max_seq_length", None)
-        if limit_max_seq_length is not None and limit_max_seq_length < labels.shape[1] and self.training:
-            import random
-
-            start = random.randint(0, labels.shape[1] - limit_max_seq_length - 1)
-            encoder_input = encoder_input[:, start : start + limit_max_seq_length]
-            labels = labels[:, start : start + limit_max_seq_length]
-            loss_mask = loss_mask[:, start : start + limit_max_seq_length]
-            encoder_length = torch.minimum(encoder_length, torch.tensor(limit_max_seq_length).long().cuda())
-            encoded = encoded[:, start : start + limit_max_seq_length]
-
-        encoder_input, labels, loss_mask, encoded, encoder_length = self.inject_speaker_prompt(
-            audio_batch, encoder_input, labels, loss_mask, encoded, encoder_length
-        )
-
-        attention_mask = self._create_attention_mask(encoder_input)
-        if not hasattr(lm_embedding, 'transpose_batch_sequence') or lm_embedding.transpose_batch_sequence:
-            encoder_input = encoder_input.transpose(0, 1).contiguous()
-
-        return encoder_input, attention_mask, labels, loss_mask, (encoded, encoder_length)
+            # self.audio_codec = fully_shard(self.audio_codec, **fsdp_config)  # weight_norm not supported
+            # for idx, layer in enumerate(self.perception.encoder.layers):
+            #     self.perception.encoder.layers[idx] = fully_shard(layer, **fsdp_config)
+            # self.perception = checkpoint_wrapper(self.perception)
+            self.perception = fully_shard(self.perception, **fsdp_config)
+            # fully_shard(self)

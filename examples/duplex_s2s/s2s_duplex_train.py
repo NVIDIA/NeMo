@@ -14,29 +14,58 @@
 
 import hydra
 import torch
-from lightning.pytorch import Trainer
+from lightning.pytorch import Callback, Trainer
 
 from nemo.collections.duplex_s2s.data.datamodule import S2SDataModule
 from nemo.collections.duplex_s2s.models.duplex_s2s_model import DuplexS2SModel
-
+from nemo.utils.trainer_utils import resolve_trainer_cfg
 
 # During the training, the checkpoint format is standard PTL ckpt
 # After the training -> convert to HF instead of .nemo ?
 # Add a callback that does the above conversion at every checkpoint save
 
 
-@hydra.main(config_path="../speechlm/conf", config_name="config")
+class PROFILING(Callback):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def on_train_batch_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", batch, batch_idx: int
+    ) -> None:
+        if batch_idx == 0:
+            print("STARTING PROFILE")
+            torch.cuda.profiler.cudart().cudaProfilerStart()
+
+    def on_train_batch_end(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs, batch, batch_idx: int
+    ) -> None:
+        if batch_idx == 10:
+            print("STOPPING PROFILE")
+            torch.cuda.profiler.cudart().cudaProfilerStop()
+            import sys
+
+            sys.exit(0)
+
+
+@hydra.main(config_path="conf", config_name="s2s_duplex")
 def train(cfg):
+    torch.distributed.init_process_group(backend="nccl")
+    torch.set_float32_matmul_precision("medium")
     # TODO: decide on exp_manager or adopting NeMo 2.0 API with _setup function, or sth else ?
-    # cfg = DuplexS2SModelConfig()
-    model = DuplexS2SModel(cfg.model)
+    trainer = Trainer(
+        **resolve_trainer_cfg(cfg.trainer),
+        # callbacks=[PROFILING()]
+    )
+
+    with trainer.init_module():
+        model = DuplexS2SModel(cfg.model)
     # exp_manager / NeMo2 _setup provide:
     # * PEFT (possibly from HF)
     # * save/load checkpoint (exp_manager -> .nemo only)
     # * resume
     # * W&B loggers etc
-    trainer = Trainer(**cfg.trainer)
-    datamodule = S2SDataModule(cfg.data)
+    datamodule = S2SDataModule(cfg.data, tokenizer=model.tokenizer)
+
     trainer.fit(model, datamodule)
 
 
