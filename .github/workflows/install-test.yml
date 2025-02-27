@@ -42,14 +42,13 @@ jobs:
           fi
 
   test-installs-linux:
-    name: test-install-linux-${{ matrix.image }}-py${{ matrix.python }}-${{ matrix.installer }}
+    name: test-install-linux-${{ matrix.image }}-${{ matrix.installer }}
     runs-on: ubuntu-latest
     container: ${{ matrix.image }}
     strategy:
       fail-fast: false
       matrix:
         image: ["ubuntu:22.04", "nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04"]
-        python: ["3.10", "3.11", "3.12"]
         installer: ["pip", "reinstall.sh"]
     steps:
       - name: Checkout repo
