@@ -33,6 +33,11 @@ from ..utils import (
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
 
+# Set this to True if checkpoint is available at 'NEMO_HOME'. If set to False, 
+# extra Slurm job will be scheduled. In this case, if checkpoint is available
+# at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
+# downloaded from HuggingFace
+SKIP_IMPORT = False
 
 def override_recipe_configs(
     args: str,
@@ -121,7 +126,8 @@ if __name__ == "__main__":
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
     with run.Experiment(exp_name) as exp:
-        exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+        if not SKIP_IMPORT:
+            exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
         exp.add(
             recipe,
             executor=executor,
