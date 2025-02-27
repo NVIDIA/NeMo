@@ -248,6 +248,7 @@ def get_full_path(
                 manifest_file=manifest_file,
                 data_dir=data_dir,
                 audio_file_len_limit=audio_file_len_limit,
+                force_cache=force_cache,
             )
             for a_file in audio_file
         ]
