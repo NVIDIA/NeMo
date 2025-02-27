@@ -41,6 +41,12 @@ if TRITON_AVAILABLE:
 
     from nemo.collections.asr.parts.submodules.ngram_lm.ngram_lm_triton import ngram_advance_triton_kernel
 
+# Define constants for parsing ARPA
+_BOS_ID = -1  # Begin-of-Sentence
+_EOS_ID = -2  # End-of-Sentence
+_UNK_ID = -3  # Unk
+_SPECIAL_SYMBOLS_MAP = {"<s>": _BOS_ID, "</s>": _EOS_ID, "<unk>": _UNK_ID}
+
 
 def _log_10_to_e(score):
     """Convert logarithm with base 10 to natural"""
@@ -184,9 +190,6 @@ class Arc(NamedTuple):
     weight: float
     ilabel: int
     to: int
-
-
-_EOS_ID = -2
 
 
 @dataclass
@@ -447,12 +450,6 @@ class FastNGramLM(ModelPT):
     Supports autograd (differentiable weights).
     """
 
-    BOS_ID = -1  # Begin-of-Sentence
-    EOS_ID = _EOS_ID  # End-of-Sentence
-    UNK_ID = -3
-    BACKOFF_ID = -10
-    SPECIAL_SYMBOLS_MAP = {"<s>": BOS_ID, "</s>": EOS_ID, "<unk>": UNK_ID}
-
     START_STATE = 0
 
     def __init__(
@@ -595,8 +592,6 @@ class FastNGramLM(ModelPT):
             FastNGramLM module
         """
         logging.info(f"{cls.__name__}: reading LM from {lm_path}")
-        # adjacency: list[dict[int, Arc]] = [dict(), dict()]
-        # states_cache = dict()
         with open(lm_path, "r", encoding="utf-8") as f:
             order2cnt = cls._read_header(f=f)
             max_order = max(order2cnt.keys())
@@ -617,10 +612,10 @@ class FastNGramLM(ModelPT):
                 if ngram_cur_order_i == 0:
                     suffix_tree_np._start_adding_ngrams_for_order(order=cur_order, max_ngrams=order2cnt[cur_order])
                 ngram_cur_order_i += 1
-                suffix_tree_np._add_ngram(ngram=ngram, bos_id=cls.BOS_ID)
+                suffix_tree_np._add_ngram(ngram=ngram, bos_id=_BOS_ID)
 
                 if ngram_cur_order_i == order2cnt[cur_order]:
-                    suffix_tree_np._end_adding_ngrams_for_order(order=cur_order, bos_id=cls.BOS_ID, unk_id=cls.UNK_ID)
+                    suffix_tree_np._end_adding_ngrams_for_order(order=cur_order, bos_id=_BOS_ID, unk_id=_UNK_ID)
                     logging.info(f"Processed {order2cnt[cur_order]} n-grams of order {cur_order}")
                     cur_order += 1
                     ngram_cur_order_i = 0
@@ -670,7 +665,7 @@ class FastNGramLM(ModelPT):
 
     @classmethod
     def _read_ngrams(cls, f, token_offset: int) -> Iterator[NGram]:
-        special_words_pattern = '|'.join(re.escape(symbol) for symbol in cls.SPECIAL_SYMBOLS_MAP.keys())
+        special_words_pattern = '|'.join(re.escape(symbol) for symbol in _SPECIAL_SYMBOLS_MAP)
         pattern = re.compile(rf'({special_words_pattern}|.)\s?')
         for line in f:
             if line.endswith("\n"):
@@ -683,19 +678,13 @@ class FastNGramLM(ModelPT):
                 break
 
             if line.startswith("\\"):
-                # cur_order = int(line.split("-")[0][1:])
-                # ngrams.append([])
                 continue
 
-            ngram = cls._line_to_ngram(
-                special_symbols_map=cls.SPECIAL_SYMBOLS_MAP, line=line, pattern=pattern, token_offset=token_offset
-            )
+            ngram = cls._line_to_ngram(line=line, pattern=pattern, token_offset=token_offset)
             yield ngram
 
     @staticmethod
-    def _line_to_ngram(
-        special_symbols_map: dict[str, int], line: str, pattern: re.Pattern, token_offset: int
-    ) -> NGram:
+    def _line_to_ngram(line: str, pattern: re.Pattern, token_offset: int) -> NGram:
         weight, symbols_str, *backoff_opt = line.split("\t")
         if backoff_opt:
             assert len(backoff_opt) == 1
@@ -706,7 +695,7 @@ class FastNGramLM(ModelPT):
         symbols_re = pattern.findall(symbols_str)
 
         symbols = tuple(
-            (ord(symbol) - token_offset if symbol not in special_symbols_map else special_symbols_map[symbol])
+            (ord(symbol) - token_offset if symbol not in _SPECIAL_SYMBOLS_MAP else _SPECIAL_SYMBOLS_MAP[symbol])
             for symbol in symbols_re
         )
         return NGram(symbols=symbols, weight=weight, backoff=backoff)
