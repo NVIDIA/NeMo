@@ -237,8 +237,11 @@ nemo() {
   VCS_DEPS=(
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
     "onnxscript@git+https://github.com/microsoft/onnxscript"
-    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'"
   )
+
+  if [[ "$HAS_CUDA" == "TRUE" ]]; then
+    VCS_DEPS+=("git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'")
+  fi
 
   # VCS dependency may or may not already be installed
   # First force-reinstall without dependencies, then at the first version
