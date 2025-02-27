@@ -2227,6 +2227,17 @@ jobs:
         --experiment-dir=/tmp/nemo2_neva_results/${{ github.run_id }} \
         --use_packed_sequence
 
+  L2_NEMO_2_MLLAMA_Inference:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_MLLAMA_Inference')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        python scripts/vlm/mllama_generate.py \
+        --local_model_path /home/TestData/nemo2_ckpt/Llama-3.2-11B-Vision-Instruct \
+        --num_tokens_to_generate 3
+
   L2_NeMo_2_MLLAMA_MOCK_TRAINING:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
