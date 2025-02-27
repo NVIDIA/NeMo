@@ -12,9 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo.collections.asr.parts.submodules.ngram_lm.ngram_lm import FastNGramLM, KenLMBatchedWrapper
-from nemo.collections.asr.parts.submodules.ngram_lm.constants import DEFAULT_TOKEN_OFFSET
-
-
-__all__ = ["DEFAULT_TOKEN_OFFSET", "FastNGramLM", "KenLMBatchedWrapper"]
+DEFAULT_TOKEN_OFFSET = 100  # Default token offset for building ARPA LM
