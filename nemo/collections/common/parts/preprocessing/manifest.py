@@ -20,7 +20,7 @@ from os.path import expanduser
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from nemo.utils import logging
-from nemo.utils.data_utils import DataStoreObject, is_datastore_path, get_datastore_object
+from nemo.utils.data_utils import DataStoreObject, get_datastore_object, is_datastore_path
 from nemo.utils.nemo_logging import LogMode
 
 
@@ -282,7 +282,7 @@ def get_full_path(
             audio_file_path = os.path.join(data_dir, audio_file)
 
             if is_datastore_path(audio_file_path):
-                # If audio was originally on an object store, use locally-cached path. 
+                # If audio was originally on an object store, use locally-cached path.
                 # If the file could not be found in the local cache, it will be downloaded.
                 audio_file_path = get_datastore_object(audio_file_path) if force_cache else audio_file_path
                 return audio_file_path

@@ -31,8 +31,8 @@ from lhotse.serialization import open_best
 from lhotse.utils import compute_num_samples, ifnone
 
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.utils.data_utils import is_datastore_path
 from nemo.utils import logging
+from nemo.utils.data_utils import is_datastore_path
 
 
 class LazyNeMoIterator:
