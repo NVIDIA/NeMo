@@ -236,7 +236,6 @@ class TestPreprocessingUtils:
                 )
                 assert get_full_path(audio_files_relative_path, data_dir=ais_data_dir) == audio_files_cache_path
 
-
     @pytest.mark.unit
     def test_get_full_path_ais_no_cache(self):
         """Test with paths on AIStore."""
@@ -259,14 +258,19 @@ class TestPreprocessingUtils:
                 == audio_files_absolute_path[n]
             )
             assert (
-                get_full_path(audio_files_relative_path[n], data_dir=ais_data_dir, force_cache=False) == audio_files_absolute_path[n]
+                get_full_path(audio_files_relative_path[n], data_dir=ais_data_dir, force_cache=False)
+                == audio_files_absolute_path[n]
             )
 
         # - all files in a list
         assert (
-            get_full_path(audio_files_relative_path, manifest_file=ais_manifest_file, force_cache=False) == audio_files_absolute_path
+            get_full_path(audio_files_relative_path, manifest_file=ais_manifest_file, force_cache=False)
+            == audio_files_absolute_path
         )
-        assert get_full_path(audio_files_relative_path, data_dir=ais_data_dir, force_cache=False) == audio_files_absolute_path
+        assert (
+            get_full_path(audio_files_relative_path, data_dir=ais_data_dir, force_cache=False)
+            == audio_files_absolute_path
+        )
 
     @pytest.mark.unit
     def test_get_full_path_audio_file_len_limit(self):
