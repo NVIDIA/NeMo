@@ -21,7 +21,7 @@ from nemo.collections.vlm.recipes.neva_llama3_8b import finetune_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import get_user_configs, set_primary_perf_configs, slurm_executor
+from ..utils import hf_tokenizer, get_user_configs, set_primary_perf_configs, slurm_executor
 
 
 def override_recipe_configs(
@@ -55,6 +55,8 @@ def override_recipe_configs(
         vp_size,
         ep_size,
     )
+
+    recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-8B")
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
