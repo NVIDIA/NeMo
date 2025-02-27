@@ -47,12 +47,11 @@ import subprocess
 import sys
 from typing import Tuple
 
-import kenlm_utils
 import torch
 
+from nemo.collections.asr.parts.submodules.ngram_lm import kenlm_utils, DEFAULT_TOKEN_OFFSET
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.modules.rnnt import RNNTDecoder
-from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
 from nemo.utils import logging
 
 

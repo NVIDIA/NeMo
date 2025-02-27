@@ -31,8 +31,7 @@ from nemo.collections.common.parts import NEG_INF
 from nemo.core import ModelPT, PretrainedModelInfo
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
 from nemo.utils import logging
-
-DEFAULT_TOKEN_OFFSET = 100  # Default token offset for building ARPA LM
+from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
 
 if KENLM_AVAILABLE:
     import kenlm
@@ -40,7 +39,7 @@ if KENLM_AVAILABLE:
 if TRITON_AVAILABLE:
     import triton
 
-    from nemo.collections.asr.parts.submodules.ngram_lm_triton import ngram_advance_triton_kernel
+    from nemo.collections.asr.parts.submodules.ngram_lm.ngram_lm_triton import ngram_advance_triton_kernel
 
 
 def _log_10_to_e(score):
