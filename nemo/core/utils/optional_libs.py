@@ -57,6 +57,8 @@ def _lib_required(is_available: bool, name: str, message: str | None = None):
     """
     Decorator factory. Returns identity decorator if lib `is_available`,
     otherwise returns a decorator which returns a function that raises an error when called.
+    Such decorator can be used for conditional checks for optional libraries in functions and methods
+    with zero computational overhead.
     """
     if is_available:
         return identity_decorator
