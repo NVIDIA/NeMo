@@ -27,11 +27,11 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
+from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
 from nemo.collections.common.parts import NEG_INF
 from nemo.core import ModelPT, PretrainedModelInfo
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
 from nemo.utils import logging
-from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
 
 if KENLM_AVAILABLE:
     import kenlm
