@@ -14,7 +14,7 @@
 
 import math
 import os
-from dataclasses import dataclass,field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -136,7 +136,9 @@ class FluxModelParams:
     """
 
     flux_config: FluxConfig = field(default_factory=FluxConfig)
-    vae_config: AutoEncoderConfig = field(default_factory=lambda: AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[]))
+    vae_config: AutoEncoderConfig = field(
+        default_factory=lambda: AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
+    )
     clip_params: ClipConfig = field(default_factory=ClipConfig)
     t5_params: T5Config = field(default_factory=T5Config)
     scheduler_steps: int = 1000
