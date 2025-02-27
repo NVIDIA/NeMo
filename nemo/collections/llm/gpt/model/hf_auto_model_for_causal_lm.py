@@ -287,12 +287,16 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 group = dist.group.WORLD  # Default DDP process group
             else:
                 group = self._device_mesh.get_group()
+
             def reduce_item(val, op, device, group, dtype):
-                """ util function """
+                """util function"""
                 val = torch.tensor([val], device=device, dtype=dtype).detach()
                 dist.all_reduce(val, group=group, op=op)
                 return val.item()
-            mean_loss = reduce_item(mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32)
+
+            mean_loss = reduce_item(
+                mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
+            )
             tps = reduce_item(tps, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
 
         self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
