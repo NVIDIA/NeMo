@@ -637,9 +637,9 @@ def save_checkpoint(
                     )
 
         else:
+            train_state_dict = train_state.state_dict()
 
             def train_state_finalize_fn():
-                train_state_dict = train_state.state_dict()
                 train_state_dict["floating_point_operations_so_far"] = torch.tensor(
                     num_floating_point_operations_so_far, dtype=torch.float32
                 )

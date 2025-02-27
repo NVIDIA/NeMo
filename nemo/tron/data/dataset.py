@@ -27,6 +27,7 @@ from nemo.tron.config import ConfigContainer
 from nemo.tron.data.samplers import build_pretraining_data_loader
 from nemo.tron.state import TrainState
 from nemo.tron.utils.common_utils import print_rank_0
+from nemo.tron.utils.sig_utils import DistributedSignalHandler
 
 
 def get_blend_and_blend_per_split(
@@ -156,25 +157,17 @@ def build_train_valid_test_data_loaders(
 
     print_rank_0("> building train, validation, and test datasets ...")
 
-    # Backward compatibility, assume fixed batch size.
-    if train_state.step > 0 and train_state.consumed_train_samples == 0:
-        assert (
-            cfg.megatron_lm_config.train_samples is None
-        ), "Only backward compatiblity support for iteration-based training"
-        train_state.consumed_train_samples = train_state.step * cfg.megatron_lm_config.global_batch_size
-    if train_state.step > 0 and train_state.consumed_valid_samples == 0:
-        if cfg.megatron_lm_config.train_samples is None:
-            train_state.consumed_valid_samples = (
-                (train_state.step // cfg.megatron_lm_config.eval_interval)
-                * cfg.megatron_lm_config.eval_iters
-                * cfg.megatron_lm_config.global_batch_size
-            )
-
     # Construct the data pipeline
     # Build datasets.
     train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
         cfg=cfg, build_train_valid_test_datasets_provider=build_train_valid_test_datasets_provider
     )
+
+    def worker_init_fn(_):
+        DistributedSignalHandler().__enter__()
+
+    maybe_worker_init_fn = worker_init_fn if cfg.megatron_lm_config.exit_signal_handler_for_dataloader else None
+
     # Build dataloders.
     train_dataloader = build_pretraining_data_loader(
         train_ds,
@@ -183,6 +176,7 @@ def build_train_valid_test_data_loaders(
         cfg.megatron_lm_config.micro_batch_size,
         cfg.megatron_lm_config.num_workers,
         cfg.megatron_lm_config.data_sharding,
+        worker_init_fn=maybe_worker_init_fn,
     )
     if cfg.megatron_lm_config.skip_train:
         valid_dataloader = build_pretraining_data_loader(
@@ -192,15 +186,17 @@ def build_train_valid_test_data_loaders(
             cfg.megatron_lm_config.micro_batch_size,
             cfg.megatron_lm_config.num_workers,
             cfg.megatron_lm_config.data_sharding,
+            worker_init_fn=maybe_worker_init_fn,
         )
     else:
         valid_dataloader = build_pretraining_data_loader(
             valid_ds,
             train_state.consumed_valid_samples,
-            cfg.megatron_lm_config.dataloader_type,
+            "cyclic",
             cfg.megatron_lm_config.micro_batch_size,
             cfg.megatron_lm_config.num_workers,
             cfg.megatron_lm_config.data_sharding,
+            worker_init_fn=maybe_worker_init_fn,
         )
     test_dataloader = build_pretraining_data_loader(
         test_ds,
@@ -263,7 +259,7 @@ def build_train_valid_test_data_iterators(
         train_data_iterator = None
 
     if valid_dataloader is not None:
-        valid_data_iterator = _get_iterator(dl_type, valid_dataloader)
+        valid_data_iterator = _get_iterator("cyclic", valid_dataloader)
     else:
         valid_data_iterator = None
 
