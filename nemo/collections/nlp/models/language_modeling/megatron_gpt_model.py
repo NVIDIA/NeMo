@@ -2212,14 +2212,22 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             and self.cfg.get('account_for_loss_in_pipeline_split', False)
         ):
             # Check that number of layers is compatible with pipeline parallelism
-            num_layers_first = self.cfg.get('num_layers_in_first_pipeline_stage', 0)
-            num_layers_last = self.cfg.get('num_layers_in_last_pipeline_stage', 0)
-            remaining_layers = self.cfg.num_layers - num_layers_first - num_layers_last
-            if remaining_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
+            num_layers_first = self.cfg.get('num_layers_in_first_pipeline_stage')
+            num_layers_last = self.cfg.get('num_layers_in_last_pipeline_stage')
+            remaining_layers = self.cfg.num_layers
+            pipeline_size = self.cfg.get('pipeline_model_parallel_size', 1)
+            if num_layers_first is not None:
+                remaining_layers -= num_layers_first
+                pipeline_size -= 1
+            if num_layers_last is not None:
+                remaining_layers -= num_layers_last
+                pipeline_size -= 1
+
+            if remaining_layers % pipeline_size != 0:
                 raise ValueError(
                     f"num_layers ({self.cfg.num_layers}) minus num_layers_in_first_pipeline_stage ({num_layers_first}) "
                     f"and num_layers_in_last_pipeline_stage ({num_layers_last}) should be divisible by "
-                    f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})."
+                    f"remaining pipeline stages ({pipeline_size})."
                 )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()
