@@ -42,7 +42,7 @@ def make_squad_hf_dataset(tokenizer):
             loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train[:10]", pad_token_id=tokenizer.eos_id)
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train", pad_token_id=tokenizer.eos_id)
     datamodule.map(
         formatting_prompts_func,
         batched=False,
@@ -72,10 +72,10 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
         raise NotImplementedError("Encountered unknown strategy")
 
 
-def logger(ckpt_folder) -> nl.NeMoLogger:
+def logger(ckpt_folder, max_steps) -> nl.NeMoLogger:
     ckpt = nl.ModelCheckpoint(
         save_last=True,
-        every_n_train_steps=1,
+        every_n_train_steps=max_steps//2,
         monitor="reduced_train_loss",
         save_top_k=1,
         save_on_train_epoch_end=True,
@@ -154,7 +154,7 @@ def main():
             precision="bf16",
         ),
         optim=fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5)),
-        log=logger(args.ckpt_folder),
+        log=logger(args.ckpt_folder, args.max_steps),
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],
             dim=8,
