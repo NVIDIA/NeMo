@@ -14,8 +14,8 @@ ALL_LIBRARIES=(
 INSTALL_OPTION=${1:-dev}
 HEAVY_DEPS=${HEAVY_DEPS:-false}
 CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-WHEELS_DIR=${WHEELS_DIR:-'/tmp/wheels'}
-INSTALL_DIR=${INSTALL_DIR:-'/opt'}
+INSTALL_DIR=${INSTALL_DIR:-"/opt"}
+WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
 HAS_CUDA=$([[ -n "$(/usr/local/cuda/bin/nvcc --version 2>/dev/null)" ]] && echo "TRUE" || echo "FALSE")
 
 PIP=pip
