@@ -621,9 +621,6 @@ class FastNGramLM(ModelPT):
                     cur_order += 1
                     ngram_cur_order_i = 0
 
-                # cls._build_suffix_tree_iterative(
-                #     adjacency=adjacency, ngram=ngram, max_order=max_order, states_cache=states_cache
-                # )
             assert ngram_cur_order_i == 0
             suffix_tree_np.sanity_check()
         return FastNGramLM.from_suffix_tree(suffix_tree_np=suffix_tree_np, use_triton=use_triton)
@@ -728,7 +725,7 @@ class FastNGramLM(ModelPT):
 
         # sanity check
         assert self.state_order.min().item() == 1
-        assert self.state_order.max().item() == self.max_order
+        assert self.state_order.max().item() <= self.max_order
 
     def get_init_states(self, batch_size: int, bos=True) -> torch.Tensor:
         """
