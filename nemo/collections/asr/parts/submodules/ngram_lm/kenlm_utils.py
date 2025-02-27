@@ -20,7 +20,6 @@ The BPE sub-words are encoded using the Unicode table.
 This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space. 
 The value DEFAULT_TOKEN_OFFSET from nemo.collections.asr.parts.submodules.ctc_beam_decoding is utilized as the offset value.
 """
-from nemo.collections.common.tokenizers import AggregateTokenizer
 
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
@@ -36,6 +35,7 @@ from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
+from nemo.collections.common.tokenizers import AggregateTokenizer
 from nemo.utils import logging
 
 # List of the supported models to be used with N-gram LM and beam search decoding
