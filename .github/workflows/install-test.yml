@@ -38,7 +38,7 @@ jobs:
             export NEMO_REPO
             export INSTALL_DIR=$(pwd)
             
-            bash reinstall.sh --library nemo --mode install
+            bash reinstall.sh --library all --mode install
           fi
 
   test-installs-linux:
@@ -66,5 +66,5 @@ jobs:
             pip install .
           else
             export INSTALL_DIR=$(pwd)
-            bash reinstall.sh --library nemo --mode install
+            bash reinstall.sh --library all --mode install
           fi
