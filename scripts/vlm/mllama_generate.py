@@ -45,7 +45,7 @@ def load_image(image_url: str) -> Image.Image:
         return None
 
 
-def generate(model, processor, images, text):
+def generate(model, processor, images, text, params):
     # pylint: disable=C0115,C0116
     messages = [
         {
@@ -59,7 +59,6 @@ def generate(model, processor, images, text):
 
     prompts = [input_text]
     images = [images]
-    params = CommonInferenceParams(top_k=1, top_p=0, num_tokens_to_generate=50)
     result = vlm_generate(
         model,
         processor.tokenizer,
@@ -115,7 +114,13 @@ def main(args) -> None:
     if not raw_images:
         return  # Exit if the image can't be loaded
 
-    generate(model, processor, images=raw_images, text=args.prompt)
+    params = CommonInferenceParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        top_k=args.top_k,
+        num_tokens_to_generate=args.num_tokens_to_generate,
+    )
+    generate(model, processor, images=raw_images, text=args.prompt, params=params)
 
 
 if __name__ == "__main__":
@@ -146,6 +151,30 @@ if __name__ == "__main__":
             "https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"
         ],
         help="List of the image urls to use for inference.",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="""Temperature to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
+    )
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        default=0,
+        help="""top_p to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
+    )
+    parser.add_argument(
+        "--top_k",
+        type=int,
+        default=1,
+        help="""top_k to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
+    )
+    parser.add_argument(
+        "--num_tokens_to_generate",
+        type=int,
+        default=50,
+        help="""Number of tokens to generate per prompt""",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
