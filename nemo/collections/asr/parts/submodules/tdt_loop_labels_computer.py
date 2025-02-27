@@ -225,7 +225,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         allow_cuda_graphs: bool = True,
-        ngram_lm_model: Optional[Union[str, Path]] = None,
+        ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
     ):
         """
@@ -241,6 +241,8 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             include_duration: if predicted token durations are needed to be added to the Hypothesis object
             include_duration_confidence: if duration confidence is needed to be added to the frame confidence
             confidence_method_cfg: config for the confidence
+            ngram_lm_model: optional n-gram language model (LM) file to use for decoding
+            ngram_lm_alpha: LM weight
         """
         super().__init__()
         self.decoder = decoder

@@ -216,7 +216,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         preserve_frame_confidence=False,
         confidence_method_cfg: Optional[DictConfig] = None,
         allow_cuda_graphs: bool = True,
-        ngram_lm_model: Optional[Union[str, Path]] = None,
+        ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
     ):
         """
@@ -229,6 +229,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             preserve_alignments: if alignments are needed
             preserve_frame_confidence: if frame confidence is needed
             confidence_method_cfg: config for the confidence
+            ngram_lm_model: optional n-gram language model (LM) file to use for decoding
+            ngram_lm_alpha: LM weight
         """
         super().__init__()
         self.decoder = decoder

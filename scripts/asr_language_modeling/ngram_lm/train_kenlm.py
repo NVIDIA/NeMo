@@ -43,7 +43,7 @@ from typing import List
 
 from omegaconf import MISSING
 
-from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET, FastNGramLM, kenlm_utils
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, kenlm_utils
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

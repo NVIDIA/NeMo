@@ -594,6 +594,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             which makes it especially useful for scaling the prediction network.
         use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding
                                 (currently recommended only for inference)
+        ngram_lm_model: optional n-gram language model (LM) file to use for decoding
+        ngram_lm_alpha: LM weight
     """
 
     def __init__(
@@ -607,7 +609,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = True,
         use_cuda_graph_decoder: bool = True,
-        ngram_lm_model: Optional[Union[str, Path]] = None,
+        ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
     ):
         super().__init__(
@@ -2759,6 +2761,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
 
         use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding
                                 (currently recommended only for inference)
+        ngram_lm_model: optional n-gram language model (LM) file to use for decoding
+        ngram_lm_alpha: LM weight
     """
 
     def __init__(
@@ -2774,7 +2778,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         use_cuda_graph_decoder: bool = True,
-        ngram_lm_model: Optional[Union[str, Path]] = None,
+        ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
     ):
         super().__init__(
