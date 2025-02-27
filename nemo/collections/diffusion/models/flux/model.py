@@ -70,7 +70,10 @@ def flux_data_step(dataloader_iter):
 
 @dataclass
 class FluxConfig(TransformerConfig, io.IOMixin):
-    # transformer related
+    """
+    transformer related Flux Config
+    """
+
     num_layers: int = 1  # dummy setting
     num_joint_layers: int = 19
     num_single_layers: int = 38
@@ -89,6 +92,7 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     hidden_dropout: float = 0
     attention_dropout: float = 0
     use_cpu_initialization: bool = True
+    gradient_accumulation_fusion: bool = True
 
     guidance_scale: float = 3.5
     data_step_fn: Callable = flux_data_step
@@ -104,12 +108,20 @@ class FluxConfig(TransformerConfig, io.IOMixin):
 
 @dataclass
 class T5Config:
+    """
+    T5 Config
+    """
+
     version: Optional[str] = "google/t5-v1_1-xxl"
     max_length: Optional[int] = 512
 
 
 @dataclass
 class ClipConfig:
+    """
+    Clip Config
+    """
+
     version: Optional[str] = "openai/clip-vit-large-patch14"
     max_length: Optional[int] = 77
     always_return_pooled: Optional[bool] = True
@@ -117,6 +129,9 @@ class ClipConfig:
 
 @dataclass
 class FluxModelParams:
+    """
+    Flux Model Params
+    """
     flux_config: FluxConfig = field(default_factory=lambda: FluxConfig())
     vae_config: Optional[AutoEncoderConfig] = field(
         default_factory=lambda: AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
@@ -128,8 +143,6 @@ class FluxModelParams:
 
 
 # pylint: disable=C0116
-
-
 class Flux(VisionModule):
     """
     NeMo implementation of Flux model, with flux transformer and single flux transformer blocks implemented with
@@ -600,7 +613,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         timesteps = timesteps.to(dtype=latents.dtype)
         sigma = sigmas[step_indices].flatten()
 
-        if len(sigma.shape) < latents.ndim:
+        while len(sigma.shape) < latents.ndim:
             sigma = sigma.unsqueeze(-1)
 
         noisy_model_input = (1.0 - sigma) * latents + sigma * noise
@@ -757,6 +770,7 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
         return output
 
     def convert_state(self, source, target):
+        # pylint: disable=C0301
         mapping = {
             'transformer_blocks.*.norm1.linear.weight': 'double_blocks.*.adaln.adaLN_modulation.1.weight',
             'transformer_blocks.*.norm1.linear.bias': 'double_blocks.*.adaln.adaLN_modulation.1.bias',
