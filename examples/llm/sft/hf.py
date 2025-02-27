@@ -132,7 +132,7 @@ def main():
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
-    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
+    model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator, trust_remote_code=True)
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
     resume = (
@@ -146,7 +146,7 @@ def main():
 
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)),
+        data=make_squad_hf_dataset(model.tokenizer),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
