@@ -15,6 +15,7 @@ HEAVY_DEPS=${HEAVY_DEPS:-false}
 CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 WHEELS_DIR=${WHEELS_DIR:-'/tmp/wheels'}
 INSTALL_DIR=${INSTALL_DIR:-'/opt'}
+HAS_CUDA=$([[ -n "$(/usr/local/cuda/bin/nvcc --version 2>/dev/null)" ]] && echo "TRUE" || echo "FALSE")
 
 PIP=pip
 ${PIP} install -U ${PIP} setuptools
@@ -26,9 +27,14 @@ mcore() {
   export CAUSAL_CONV1D_FORCE_BUILD=TRUE
   export CAUSAL_CONV_TAG=v1.2.2.post1
 
+  WHEELS_DIR=$WHEELS_DIR/mcore/
+  rm -rf $WHEELS_DIR
+  mkdir -p $WHEELS_DIR
+
   CAUSAL_CONV1D_DIR="$INSTALL_DIR/causal-conv1d" &&
     if [ ! -d "$CAUSAL_CONV1D_DIR/.git" ]; then
       rm -rf "$CAUSAL_CONV1D_DIR" &&
+        mkdir -p $(dirname "$CAUSAL_CONV1D_DIR") &&
         cd $(dirname "$CAUSAL_CONV1D_DIR") &&
         git clone https://github.com/Dao-AILab/$(basename $CAUSAL_CONV1D_DIR).git
     fi &&
@@ -44,36 +50,54 @@ mcore() {
     fi &&
     pushd $MAMBA_DIR &&
     git checkout -f $MAMBA_TAG &&
-    sed -i "/triton/d" setup.py &&
+    perl -ni -e 'print unless /triton/' setup.py &&
     popd
 
   MLM_DIR="$INSTALL_DIR/Megatron-LM" &&
     if [ ! -d "$MLM_DIR/.git" ]; then
       rm -rf "$MLM_DIR" &&
+        mkdir -p $(dirname "$MLM_DIR") &&
         cd $(dirname "$MLM_DIR") &&
         git clone ${MLM_REPO}
     fi &&
     pushd $MLM_DIR &&
     git checkout -f $MLM_TAG &&
-    sed -i "/triton==3.1.0/d" requirements/pytorch_24.10/requirements.txt &&
+    perl -ni -e 'print unless /triton==3.1.0/' requirements/pytorch_24.10/requirements.txt &&
     popd
 
+  build() {
+    if [[ "${HAS_CUDA}" == "TRUE" ]]; then
+      pip wheel --no-deps --wheel-dir $WHEELS_DIR $MAMBA_DIR
+      pip wheel --no-deps --wheel-dir $WHEELS_DIR $CAUSAL_CONV1D_DIR
+    fi
+
+    pip wheel --no-deps --wheel-dir $WHEELS_DIR $MLM_DIR
+  }
+
   if [[ "$mode" == "build" ]]; then
-    pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $MAMBA_DIR
-    pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $CAUSAL_CONV1D_DIR
-    pip wheel --no-deps --wheel-dir $WHEELS_DIR/mcore/ $MLM_DIR
+    build
   else
-    pip install --no-cache-dir $WHEELS_DIR/mcore/*.whl "nvidia-pytriton ; platform_machine == 'x86_64'"
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    pip install --no-cache-dir $WHEELS_DIR/*.whl "nvidia-pytriton ; platform_machine == 'x86_64'"
     pip install --no-cache-dir -e $MLM_DIR
   fi
 }
 
 te() {
   local mode="$1"
+
+  WHEELS_DIR=$WHEELS_DIR/te/
+  rm -rf $WHEELS_DIR
+  mkdir -p $WHEELS_DIR
+
   TE_DIR="$INSTALL_DIR/TransformerEngine"
 
   if [ ! -d "$TE_DIR/.git" ]; then
     rm -rf "$TE_DIR" &&
+      mkdir -p $(dirname "$TE_DIR") &&
       cd $(dirname "$TE_DIR") &&
       git clone ${TE_REPO}
   fi &&
@@ -81,20 +105,35 @@ te() {
     git checkout -f $TE_TAG &&
     popd
 
+  build() {
+    if [[ "${HAS_CUDA}" == "TRUE" ]]; then
+      cd $TE_DIR && git submodule init && git submodule update &&
+        pip wheel --wheel-dir $WHEELS_DIR $TE_DIR
+    fi
+  }
+
   if [[ "$mode" == "build" ]]; then
-    cd $TE_DIR && git submodule init && git submodule update &&
-      pip wheel --wheel-dir $WHEELS_DIR/te/ $TE_DIR
+    build
   else
-    pip install --no-cache-dir $WHEELS_DIR/te/*.whl
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    pip install --no-cache-dir $WHEELS_DIR/*.whl || true
   fi
 }
 
 apex() {
   local mode="$1"
-  APEX_DIR="$INSTALL_DIR/Apex"
 
+  WHEELS_DIR=$WHEELS_DIR/apex/
+  rm -rf $WHEELS_DIR
+  mkdir -p $WHEELS_DIR
+
+  APEX_DIR="$INSTALL_DIR/Apex"
   if [ ! -d "$APEX_DIR/.git" ]; then
     rm -rf "$APEX_DIR" &&
+      mkdir -p $(dirname "$NEMO_DIR") &&
       cd $(dirname "$APEX_DIR") &&
       git clone ${APEX_REPO}
   fi &&
@@ -102,10 +141,20 @@ apex() {
     git checkout -f $APEX_TAG &&
     popd
 
+  build() {
+    if [[ "${HAS_CUDA}" == "TRUE" ]]; then
+      cd $APEX_DIR && pip wheel --no-deps --no-build-isolation --wheel-dir $WHEELS_DIR/ $APEX_DIR
+    fi
+  }
+
   if [[ "$mode" == "build" ]]; then
-    cd $APEX_DIR && pip wheel --no-deps --no-build-isolation --wheel-dir $WHEELS_DIR/apex/ $APEX_DIR
+    build
   else
-    pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/apex/*.whl
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/*.whl || true
   fi
 
 }
@@ -117,6 +166,7 @@ nemo() {
   if [[ -n "$NEMO_TAG" ]]; then
     if [ ! -d "$NEMO_DIR/.git" ]; then
       rm -rf "$NEMO_DIR" &&
+        mkdir -p $(dirname "$NEMO_DIR") &&
         cd $(dirname "$NEMO_DIR") &&
         git clone ${NEMO_REPO}
     fi &&
