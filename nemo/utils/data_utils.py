@@ -47,8 +47,7 @@ def resolve_cache_dir() -> pathlib.Path:
 
 
 def is_datastore_path(path) -> bool:
-    """Check if a path is from a data object store.
-    """
+    """Check if a path is from a data object store."""
     try:
         result = urlparse(path)
         return bool(result.scheme) and bool(result.netloc)
@@ -125,6 +124,7 @@ def ais_endpoint_to_dir(endpoint: str) -> str:
     if not result.hostname or not result.port:
         raise ValueError(f"Unexpected format for ais endpoint: {endpoint}")
     return os.path.join(result.hostname, str(result.port))
+
 
 def ais_binary() -> str:
     """Return location of `ais` binary."""
