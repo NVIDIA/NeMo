@@ -132,6 +132,7 @@ class FluxModelParams:
     """
     Flux Model Params
     """
+
     flux_config: FluxConfig = field(default_factory=lambda: FluxConfig())
     vae_config: Optional[AutoEncoderConfig] = field(
         default_factory=lambda: AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
