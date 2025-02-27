@@ -21,26 +21,28 @@ from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.avlm.data.energon.media_to_text_config import (
     MediaToTextSample, 
+    MediaToTextRawBatch,
     MediaToTextSampleConfig,
-    MediaToTextRawBatch
 )
-from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
+
+from nemo.collections.vlm.llava_next.data.energon import LlavaNextSampleEncoder
+from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.utils import logging
 
 
-class MediaToTextSampleEncoder(VQASampleEncoder):
+class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
     """LlavaNextSampleEncoder"""
 
     def __init__(self, tokenizer, feature_extractor, image_processor, multimodal_sample_config=MediaToTextSampleConfig()):
         """
-        Initialize the LlavaNextSampleEncoder, inherited from VQASampleEncoder for multimodal samples
-        focused on VQA-style data to support LLaVANeXT
+        Initialize the LlavaNextSampleEncoder, inherited from LlavaNextSampleEncoder for multimodal samples
+        focused on LLaVANeXT data to support 
 
         Parameters:
         tokenizer (Tokenizer): The HF tokenizer used for processing text.
         image_processor (ImageProcessor): The HF image processor used for preprocessing images.
-        multimodal_sample_config (MediaToTextSampleConfig, optional): Configuration object for multimodal samples.
+        media_to_text_sample_config (MediaToTextSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to MediaToTextSampleConfig().
         """
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
@@ -59,7 +61,36 @@ class MediaToTextSampleEncoder(VQASampleEncoder):
         #TODO
         return None
 
-    def encode(self, input_sample: VQASample, output_sample: MediaToTextSample):
+    def process_video(self, video):
+        #TODO
+        return None
+
+    @stateless
+    def encode_sample(self, sample: MediaToTextSample) -> ImageTextSample:
+        """
+        Encode an individual sample based on its type.
+
+        This method selects the appropriate encoder based on the sample type and encodes the sample
+        into a format suitable for further processing.
+
+        Parameters:
+        sample (Union[VQASample, InterleavedSample, SimilarityInterleavedSample, CaptioningSample]):
+            The sample to be encoded. The sample type is used to determine the appropriate encoder.
+
+        Returns:
+        ImageTextSample: The encoded sample.
+
+        Raises:
+        NotImplementedError: If no encoder is registered for the sample type.
+        """
+        sample_type = type(sample).__name__
+        encoder = self.encoders.get(sample_type)
+        if not encoder:
+            raise NotImplementedError(f"No encoder implemented for sample type {sample_type}")
+        encoded_sample = encoder.encode(input_sample=sample, output_sample=MediaToTextSample())
+        return encoded_sample
+
+    def encode(self, input_sample: MediaToTextSample, output_sample: MediaToTextSample):
         """
         Encode a single sample into a format suitable for model input.
 
@@ -68,14 +99,51 @@ class MediaToTextSampleEncoder(VQASampleEncoder):
         Returns:
         MediaToTextSample: 
         """
-        #TODO
+        conversation_prompt = self.apply_prompt_template(input_sample)
+        logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
+        # tokenize prompt
+        tokens = self.tokenize(conversation_prompt)
+        labels = self.compute_labels(tokens, input_sample)
+        tokens = tokens[:-1].contiguous()
+        labels = labels[1:].contiguous()
+        logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
+        logging.debug(f"[Energon] task encoder encode_sample lables {labels}")
+        loss_mask = self.compute_loss_mask(labels)
+
+        # TODO: check if energon will return None if the keys are not 
+        # present in the dataset or it would throw an error
+        if input_sample.audio is not None:
+            output_sample.audio = self.process_audio(input_sample.audio)
+
+        if input_sample.images is not None:
+            output_sample.images = self.process_image(input_sample.images)
+            
+        if input_sample.video is not None:
+            processed_video = self.processed_video(input_sample.video)
+            if self.multimodal_sample_config.concat_video_following_images and \
+                output_sample.images is not None:
+                # concatenate video frames after the images
+                output_sample.images = torch.cat([output_sample.images, processed_video])
+            else:
+                output_sample.video = processed_video
+        
+        output_sample.__key__ = input_sample.__key__
+        output_sample.tokens = tokens
+        output_sample.labels = labels
+        output_sample.loss_mask = loss_mask
+        if output_sample.images is not None:
+            output_sample.num_media_tiles = output_sample.images.shape[0]
+            output_sample.attention_mask = torch.ones(len(tokens), dtype=torch.long)
+            height = input_sample.images.shape[1]
+            width = input_sample.images.shape[2]
+            output_sample.image_sizes = torch.tensor([[height, width]], dtype=torch.long)
         return output_sample
 
 
 class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
     """MeidaToTextTaskEncoder"""
 
-    def __init__(self, tokenizer, feature_extractor, image_processor, multimodal_sample_config):
+    def __init__(self, tokenizer, feature_extractor, image_processor, media_to_text_sample_config):
         """
         Initialize the MeidaToTextTaskEncoder.
 
@@ -85,15 +153,15 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
         Parameters:
         tokenizer (Tokenizer): The tokenizer for processing text data across sample types.
         image_processor (ImageProcessor): The image processor for preprocessing images.
-        multimodal_sample_config (MediaToTextSampleConfig): Configuration settings for multimodal samples.
+        media_to_text_sample_config (MediaToTextSampleConfig): Configuration settings for multimodal samples.
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config)
+        super().__init__(tokenizer, image_processor, media_to_text_sample_config)
         self.encoders: Dict[str, SampleEncoder] = {
-            VQASample.__name__: MediaToTextSampleEncoder(
+            MediaToTextSample.__name__: MediaToTextSampleEncoder(
                 tokenizer, 
                 feature_extractor, 
                 image_processor, 
-                multimodal_sample_config
+                media_to_text_sample_config
             )
         }
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
+from nemo.collections.avlm.data.energon.media_to_text_config import MediaToTextSampleConfig
 from nemo.utils import logging
 
 
@@ -35,7 +36,7 @@ class MediaToTextEnergonModule(EnergonMultiModalDataModule):
         pin_memory: bool = True,
         shuffle_buffer_size: int = 100,
         max_samples_per_sequence: int | None = None,
-        multimodal_sample_config: Optional[MultiModalSampleConfig] = MultiModalSampleConfig(),
+        media_to_text_sample_config: Optional[MediaToTextSampleConfig] = MediaToTextSampleConfig(),
         task_encoder: Optional[MultiModalTaskEncoder] = None,
         decoder_seq_length: Optional[int] = None,
         packing_buffer_size: Optional[int] = None,
@@ -54,7 +55,7 @@ class MediaToTextEnergonModule(EnergonMultiModalDataModule):
             pin_memory,
             shuffle_buffer_size,
             max_samples_per_sequence,
-            multimodal_sample_config,
+            media_to_text_sample_config,
             task_encoder,
             decoder_seq_length,
             packing_buffer_size,

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Optional
 
 import torch
 
@@ -32,10 +32,11 @@ class MediaToTextSample(LlavaNextTextSample):
 
     Attributes:
     '''
-
-    audio = field(default_factory=lambda: torch.tensor([]))
-    # video is optional since it can be sequence of images
-    video: Optional[field(default_factory=lambda: torch.tensor([]))] = None
+    audio: Optional[torch.tensor] = None
+    video: Optional[torch.tensor] = None
+    images: Optional[torch.tensor] = None
+    num_media_tiles: Optional[int] = None
+    image_sizes: Optional[torch.tensor] = None
 
 
 @dataclass
@@ -48,12 +49,16 @@ class MediaToTextRawBatch(LlavaNextTextRawBatch):
 
     Attributes:
     """
-    audio = field(default_factory=lambda: torch.tensor([]))
-    video: Optional[field(default_factory=lambda: torch.tensor([]))] = None
+    audio: Optional[torch.tensor] = None
+    video: Optional[torch.tensor] = None
+    images: Optional[torch.tensor] = None
+    num_media_tiles: Optional[int] = None
+    image_sizes: Optional[torch.tensor] = None
 
 @dataclass
 class MediaToTextSampleConfig(MultiModalSampleConfig):
-    offset: float = 0
-    duration: Optional[float] = 0
+    offset: Optional[float] = None
+    duration: Optional[float] = None
     audio_original_sampling_rate: Optional[int] = None
+    concat_video_following_images: Optional[bool] = None
     
