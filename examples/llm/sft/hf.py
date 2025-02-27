@@ -161,7 +161,7 @@ def main():
             use_distributed_sampler=False,
             logger=wandb,
             callbacks=callbacks,
-            precision="bf16",
+            precision="bf16-mixed",
         ),
         optim=fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5)),
         log=logger(args.ckpt_folder, args.max_steps // 2),
