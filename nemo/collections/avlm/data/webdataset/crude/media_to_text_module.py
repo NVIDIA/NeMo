@@ -22,13 +22,13 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.speechlm.data.audio_to_text_module import AudioToTextDataModule
 from nemo.collections.avlm.data.dataset.media_text_dataset import (
-    get_media_webdataset_from_config,
+    get_media_crude_webdataset_from_config,
 )
 
 from nemo.utils import logging
 
 
-class MediaToTextDataModule(AudioToTextDataModule):
+class MediaToTextCrudeWebdatasetModule(AudioToTextDataModule):
     """
     Data module for speech-image/video-to-text LLM.
     """
@@ -70,7 +70,7 @@ class MediaToTextDataModule(AudioToTextDataModule):
         # Notably, the data weights are controlled by either bucketing_weights
         # or concat_sampling_probabilities depending on the dataset type.
         if data_cfg.get('is_wds', False):
-            dataset = get_media_webdataset_from_config(
+            dataset = get_media_crude_webdataset_from_config(
                 config=data_cfg,
                 text_processor=self.text_processor,
                 image_processor=self.image_processor,

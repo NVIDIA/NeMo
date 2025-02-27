@@ -453,7 +453,7 @@ class WdsLoopOffsets:
         return self.current_others + (self.current_key, self.offset_id)
 
 
-class MediaWebDataset(IterableDataset):
+class MediaCrudeWebDataset(IterableDataset):
     """
     A Dataset which loads webDataset compliant dataset which may have one, two or all of the followings: audio, image and video files.
 
@@ -803,7 +803,7 @@ class MediaWebDataset(IterableDataset):
         return self.len
 
 
-def get_media_webdataset(
+def get_media_crude_webdataset(
     config,
     text_processor,
     image_processor,
@@ -848,7 +848,7 @@ def get_media_webdataset(
         if len(manifest_filepath) == 1:
             manifest_filepath = manifest_filepath[0]
 
-        dataset = TarredAudioTextDataset(
+        dataset = MediaCrudeWebDataset(
             media_tar_filepath=media_tar_filepath,
             manifest_filepath=manifest_filepath,
             text_processor=text_processor,
@@ -884,7 +884,7 @@ def get_media_webdataset(
     return get_chain_dataset(datasets=datasets, ds_config=config, rank=global_rank)
 
 
-def get_concat_media_webdataset(
+def get_concat_media_crude_webdataset(
     config,
     text_processor,
     image_processor,
@@ -911,7 +911,7 @@ def get_concat_media_webdataset(
             conf['context_file'] = context_files[dataset_idx]
         else:
             conf['context_file'] = context_files
-        dataset = get_media_webdataset(
+        dataset = get_media_crude_webdataset(
             config=conf,
             text_processor=text_processor,
             image_processor=image_processor,
@@ -947,7 +947,7 @@ def get_concat_media_webdataset(
     return dataset
 
 
-def get_media_webdataset_from_config(
+def get_media_crude_webdataset_from_config(
     config: DictConfig,
     text_processor: TextProcessing,
     image_processor,
@@ -974,7 +974,7 @@ def get_media_webdataset_from_config(
     shuffle = config['shuffle']
     shuffle_n = config.get('shuffle_n', 4 * global_batch_size_on_this_data_parallel_rank) if shuffle else 0
     if is_concat:
-        dataset = get_concat_media_webdataset(
+        dataset = get_concat_media_crude_webdataset(
             config=config,
             text_processor=text_processor,
             image_processor=image_processor,
@@ -985,7 +985,7 @@ def get_media_webdataset_from_config(
             world_size=world_size,
         )
     else:
-        dataset = get_media_webdataset(
+        dataset = get_media_crude_webdataset(
             config=config,
             text_processor=text_processor,
             image_processor=image_processor,

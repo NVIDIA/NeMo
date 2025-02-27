@@ -12,3 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.avlm.data.webdataset.crude.media_to_text_module import MediaToTextCrudeWebdatasetModule
