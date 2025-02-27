@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Module with guards for optional libraries, that cannot be listed in `requirements.txt`.
+Provides helper constants and decorators to check if the library is available in the system.
+"""
+
 __all__ = ["KENLM_AVAILABLE", "K2_AVAILABLE", "TRITON_AVAILABLE", "kenlm_required", "k2_required", "triton_required"]
 
 import importlib.util
