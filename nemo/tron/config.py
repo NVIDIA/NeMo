@@ -16,7 +16,7 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
 
-from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
+from megatron.core.datasets.gpt_dataset import GPTDatasetConfig as MCoreGPTDatasetConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import ModelType
@@ -81,6 +81,16 @@ class TokenizerConfig:
     special_tokens: Optional[List[str]] = None
     image_tag_type: Optional[str] = None
     padded_vocab_size: Optional[int] = None
+
+
+@dataclass
+class GPTDatasetConfig(MCoreGPTDatasetConfig):
+    def __post_init__(self) -> None:
+        super(MCoreGPTDatasetConfig, self).__post_init__()
+
+        assert self.reset_position_ids is not None
+        assert self.reset_attention_mask is not None
+        assert self.eod_mask_loss is not None
 
 
 # TODO (maanug): split this up into modular components
