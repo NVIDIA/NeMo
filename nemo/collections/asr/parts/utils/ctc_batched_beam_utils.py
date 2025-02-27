@@ -114,6 +114,7 @@ class CTCBatchedBeamHyps:
             torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
         )
 
+        self.transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
         mask_to_update_mask = torch.logical_and(next_labels != self.blank_index, next_labels != self.last_label)
         # update hashes and prefix hashes
         torch.where(

@@ -29,6 +29,7 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import CTCBatchedBeamHyps
 from nemo.utils import logging
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
 
 from nemo.utils.timers import SimpleTimer
 
@@ -288,6 +289,11 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self.pyctcdecode_beam_scorer = None
         self.flashlight_beam_scorer = None
         self.token_offset = 0
+        
+        self.ngram_lm_batch = None
+        if kenlm_path is not None:
+            self.ngram_lm_batch = FastNGramLM.from_file(lm_path=kenlm_path, vocab_size=self.blank_id)
+        
 
     @typecheck()
     def forward(
@@ -466,17 +472,55 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             float_dtype=x.dtype,
         )
         
+        if self.ngram_lm_batch is not None:
+            self.ngram_lm_batch.to(x.device)
+            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
+        
         for t in range(max_time):
             active_mask = out_len.unsqueeze(1) > t
+            
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
+            lm_scores = lm_scores.to(dtype=x.dtype).view(batch_size, self.beam_size, -1) * self.beam_alpha
             
             labels = predictions_labels[:, t, :]
             probs = predictions_logprobs[:, t, :]
             
+            last_label_mask = batched_beam_hyps.last_label[:, :, None] == labels[:, None, :]
             total_scores = batched_beam_hyps.scores[:, :, None] + probs[:, None, :]
+            total_scores = torch.where(last_label_mask, total_scores, total_scores + self.beam_beta)
             
             hyps_scores, hyps_candidates_indices = torch.topk(total_scores.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True)
             hyps_indices = hyps_candidates_indices // self.beam_size # torch.gather(expansion_indices.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
             next_labels = torch.gather(labels.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices % self.beam_size)
+            
+            repeating_mask = active_mask & next_labels == batched_beam_hyps.last_label
+            blank_mask = next_labels == self.blank_id
+            
+            if self.ngram_lm_batch is not None:
+                lm_rescoring_mask = ~ (repeating_mask | blank_mask)
+                next_labels_masked = torch.where(blank_mask, 0, next_labels)
+                
+                lm_indices = hyps_candidates_indices // self.beam_size * lm_scores.shape[-1] + next_labels_masked
+                hyp_lm_scores = torch.gather(lm_scores.reshape(batch_size, -1), dim=-1, index = lm_indices)
+                hyps_scores = torch.where(lm_rescoring_mask, hyps_scores + hyp_lm_scores, hyps_scores)
+                
+                # batch_lm_states: [(BxBeam)]
+                # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
+                batch_lm_states_candidates = torch.gather(
+                    batch_lm_states_candidates.view(batch_size, self.beam_size, -1),
+                    dim=1,
+                    index=hyps_indices[:, :, None].expand(
+                        batch_size, self.beam_size, batch_lm_states_candidates.shape[-1]
+                    ),
+                )
+                batch_lm_states_prev = torch.gather(
+                    batch_lm_states.view(batch_size, self.beam_size), dim=1, index=hyps_indices
+                )
+
+                batch_lm_states = torch.gather(
+                    batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
+                ).squeeze(-1)
+                batch_lm_states = torch.where(~lm_rescoring_mask, batch_lm_states_prev, batch_lm_states).view(-1)
             
             next_labels = torch.where(active_mask, next_labels, -1)
             batched_beam_hyps.add_results_(hyps_indices, next_labels, hyps_scores)
