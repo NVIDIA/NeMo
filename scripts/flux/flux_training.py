@@ -113,7 +113,7 @@ def flux_training() -> run.Partial:
                     every_n_train_steps=1000,
                     save_top_k=3,
                     mode='max',
-                    save_last=False
+                    save_last=False,
                 ),
                 run.Config(TimingCallback),
             ],
