@@ -14,7 +14,7 @@
 
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -114,8 +114,8 @@ class T5Config:
     T5 Config
     """
 
-    version: Optional[str] = "google/t5-v1_1-xxl"
-    max_length: Optional[int] = 512
+    version: Optional[str] = field(default_factory=lambda: "google/t5-v1_1-xxl")
+    max_length: Optional[int] = field(default_factory=lambda: 512)
 
 
 @dataclass
@@ -124,9 +124,9 @@ class ClipConfig:
     Clip Config
     """
 
-    version: Optional[str] = "openai/clip-vit-large-patch14"
-    max_length: Optional[int] = 77
-    always_return_pooled: Optional[bool] = True
+    version: Optional[str] = field(default_factory=lambda: "openai/clip-vit-large-patch14")
+    max_length: Optional[int] = field(default_factory=lambda: 77)
+    always_return_pooled: Optional[bool] = field(default_factory=lambda: True)
 
 
 @dataclass
@@ -135,10 +135,10 @@ class FluxModelParams:
     Flux Model Params
     """
 
-    flux_config: FluxConfig = FluxConfig()
-    vae_config: AutoEncoderConfig = AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
-    clip_params: ClipConfig = ClipConfig()
-    t5_params: T5Config = T5Config()
+    flux_config: FluxConfig = field(default_factory=FluxConfig)
+    vae_config: AutoEncoderConfig = field(default_factory=lambda: AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[]))
+    clip_params: ClipConfig = field(default_factory=ClipConfig)
+    t5_params: T5Config = field(default_factory=T5Config)
     scheduler_steps: int = 1000
     device: str = 'cuda'
 
@@ -709,7 +709,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
 
 
 @io.model_importer(MegatronFluxModel, "hf")
-class HFFluxImporter(io.ModelConnector["black-forest-labs/FLUX.1-dev", MegatronFluxModel]):
+class HFFluxImporter(io.ModelConnector[str, MegatronFluxModel]):
     '''
     Convert a HF ckpt into NeMo dist-ckpt compatible format.
     '''
