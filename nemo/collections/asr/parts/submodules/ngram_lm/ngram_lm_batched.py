@@ -244,6 +244,7 @@ class SuffixTreeStorage:
         self.bos_state = 1 if separate_bos_state else self.start_state
 
     def _add_unigrams(self, ngrams: np.ndarray, bos_id: int, unk_id: int):
+        """Add all unigrams"""
         assert bos_id < 0 and unk_id < 0
         bos_unigram = None
 
@@ -259,7 +260,6 @@ class SuffixTreeStorage:
 
         self.num_states = 2  # SOS + BOS
         self.num_arcs = 0
-        # TODO: order 1 or 0?
         # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
         self.states[self.start_state] = (0, self.vocab_size, 1, self.start_state, 0.0, NEG_INF)
         added_symbols = set()
@@ -310,7 +310,7 @@ class SuffixTreeStorage:
             NEG_INF,
         )
 
-    def find_state(self, symbols: tuple[int, ...], bos_id: int) -> int:
+    def _find_state(self, symbols: tuple[int, ...], bos_id: int) -> int:
         """
         Find the state given sequence of symbols
         Args:
@@ -331,18 +331,19 @@ class SuffixTreeStorage:
         raise ValueError(f"Invalid symbol {label}")
 
     def _add_ngrams_next_order(self, ngrams: np.ndarray, bos_id: int):
+        """Add ngrams for the order > 1; should be called after adding unigrams, using increasing order"""
         ngrams.sort(order="symbols")
         new_arc_cache = dict()
         for ngram in tqdm(ngrams):
             symbols = ngram["symbols"].item()
             ilabel = symbols[-1]
-            from_state = self.find_state(symbols[:-1], bos_id=bos_id)
+            from_state = self._find_state(symbols[:-1], bos_id=bos_id)
             if ilabel < 0:
                 assert ilabel == _EOS_ID
                 self.states[from_state]["final"] = ngram["weight"]
                 continue
             assert ilabel < self.vocab_size
-            backoff_state = self.find_state(symbols[1:], bos_id=bos_id)
+            backoff_state = self._find_state(symbols[1:], bos_id=bos_id)
 
             arc_id = self.num_arcs
             next_state = self.num_states
@@ -367,9 +368,10 @@ class SuffixTreeStorage:
                 self.states[from_state]["arcs_end"] = arc_id + 1
             # cache state
             new_arc_cache[symbols] = next_state
-        self._arc_cache = new_arc_cache
+        self._arc_cache = new_arc_cache  # replace arc cache, previous is not needed
 
     def _start_adding_ngrams_for_order(self, order: int, max_ngrams: int):
+        """Prepare for adding ngrams for the given order: initialize temporary storage"""
         self._start_arcs = self.num_arcs
         self._cur_order = order
         if order < self.max_order:
@@ -383,6 +385,7 @@ class SuffixTreeStorage:
         # for max order - no need in accumulator
 
     def _add_ngram(self, ngram: NGram, bos_id: int):
+        """Helper to add ngram"""
         assert len(ngram.symbols) == self._cur_order
         if self._cur_order == self.max_order:
             self._add_ngram_max_order(ngram=ngram, bos_id=bos_id)
@@ -391,6 +394,7 @@ class SuffixTreeStorage:
         self._ngrams_cnt += 1
 
     def _end_adding_ngrams_for_order(self, order: int, bos_id: int, unk_id: int):
+        """Finish adding ngrams for the given order"""
         if order == 1:
             assert self._ngrams.shape[0] == self._ngrams_cnt
             self._add_unigrams(ngrams=self._ngrams, bos_id=bos_id, unk_id=unk_id)
@@ -405,19 +409,21 @@ class SuffixTreeStorage:
             self._end_adding_ngrams_max_order()
 
     def _add_ngram_max_order(self, ngram: NGram, bos_id: int):
+        """Add ngram for the maximum order"""
         ilabel = ngram.symbols[-1]
-        from_state = self.find_state(ngram.symbols[:-1], bos_id=bos_id)
+        from_state = self._find_state(ngram.symbols[:-1], bos_id=bos_id)
         if ilabel < 0:
             assert ilabel == _EOS_ID
             self.states[from_state]["final"] = ngram.weight
             return
-        backoff_state = self.find_state(ngram.symbols[1:], bos_id=bos_id)
+        backoff_state = self._find_state(ngram.symbols[1:], bos_id=bos_id)
 
         arc_id = self.num_arcs
         self.num_arcs += 1
         self.arcs[arc_id] = (from_state, backoff_state, ilabel, ngram.weight)
 
     def _end_adding_ngrams_max_order(self):
+        """Finish adding ngrams for the maximum order"""
         self.arcs[self._start_arcs : self.num_arcs].sort(order=["from", "ilabel"])
         for arc_i in range(self._start_arcs, self.num_arcs):
             from_state = self.arcs[arc_i]["from"]
@@ -426,6 +432,7 @@ class SuffixTreeStorage:
             self.states[from_state]["arcs_end"] = arc_i + 1
 
     def sanity_check(self):
+        """Sanity check for the model"""
         assert (self.arcs["ilabel"][: self.num_arcs] < self.vocab_size).all()
         assert (self.arcs["ilabel"][: self.num_arcs] >= 0).all()
 
@@ -464,13 +471,16 @@ class FastNGramLM(ModelPT):
         (of several GBs).
 
         Args:
-            num_states: number of states in graph
-            num_arcs: number of arcs (transitions) in graph
-            max_order: maximum order of n-gram LM (maximum possible nubmer of transitions without backoffs)
-            vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
-            use_triton: allow using Triton implementation;
-                None (default) means "auto" (used if available), True means forced mode
-                (will crash if Triton is unavailable)
+            cfg:
+                num_states: number of states in graph
+                num_arcs: number of arcs (transitions) in graph
+                max_order: maximum order of n-gram LM (maximum possible nubmer of transitions without backoffs)
+                vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
+                separate_bos_state: separate Begin-of-Sentence state (default: True - for n-gram LM)
+                use_triton: allow using Triton implementation;
+                    None (default) means "auto" (used if available), True means forced mode
+                    (will crash if Triton is unavailable)
+            trainer: Lightning trainer (optional)
         """
         super().__init__(cfg=cfg, trainer=trainer)
         cfg = cast(NGramLMConfig, cfg)
@@ -487,7 +497,7 @@ class FastNGramLM(ModelPT):
         self.max_order = cfg.max_order
         self.num_arcs_extended = cfg.num_arcs + self.vocab_size  # + extra padding
 
-        # parameters: weights (forward/backoff)
+        # parameters: weights (forward/backoff/final)
         self.arcs_weights = nn.Parameter(torch.zeros([self.num_arcs_extended]))
         self.backoff_weights = nn.Parameter(torch.zeros([self.num_states]))
         self.final_weights = nn.Parameter(torch.zeros([self.num_states]))
@@ -534,6 +544,8 @@ class FastNGramLM(ModelPT):
 
         Args:
             lm_path: path to .nemo checkpoint
+            vocab_size: model vocabulary size
+            use_triton: allow using Triton implementation; None (default) means "auto" (used if available)
         """
         model = FastNGramLM.restore_from(restore_path=str(lm_path), map_location="cpu")
         model.resolve_final()
@@ -551,9 +563,23 @@ class FastNGramLM(ModelPT):
         lm_path: Path | str,
         vocab_size: int,
         normalize_unk: bool = True,
-        token_offset: int = DEFAULT_TOKEN_OFFSET,
         use_triton: bool | None = None,
+        token_offset: int = DEFAULT_TOKEN_OFFSET,
     ) -> "FastNGramLM":
+        """
+        Constructor from ARPA or Nemo (`.nemo`) checkpoint.
+
+        Args:
+            lm_path: path to .nemo checkpoint or ARPA (text) file
+            vocab_size: model vocabulary size:
+            normalize_unk: normalize unk probabilities (for tokens missing in LM) to make
+                all unigram probabilities sum to 1.0 (default: True)
+            use_triton: allow using Triton implementation; None (default) means "auto" (used if available)
+            token_offset: offset for the tokens used for building ARPA LM
+
+        Returns:
+            FastNGramLM instance
+        """
         if not isinstance(lm_path, Path):
             lm_path = Path(lm_path)
         if lm_path.suffix == ".nemo":
@@ -572,8 +598,8 @@ class FastNGramLM(ModelPT):
         lm_path: Path | str,
         vocab_size: int,
         normalize_unk: bool = True,
-        token_offset: int = DEFAULT_TOKEN_OFFSET,
         use_triton: bool | None = None,
+        token_offset: int = DEFAULT_TOKEN_OFFSET,
     ) -> "FastNGramLM":
         """
         Constructor from ARPA LM (text format).
@@ -583,17 +609,18 @@ class FastNGramLM(ModelPT):
             vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
             normalize_unk: unk normalization to make all output probabilities sum to 1.0 (default: True).
                 Setting to False can be useful for one-to-one comparison with KenLM (tests, etc.).
-            token_offset: offset for the tokens used for building ARPA LM
             use_triton: allow using Triton implementation;
                 None (default) means "auto" (used if available), True means forced mode
                 (will crash if Triton is unavailable)
+            token_offset: offset for the tokens used for building ARPA LM
 
         Returns:
-            FastNGramLM module
+            FastNGramLM instance
         """
         logging.info(f"{cls.__name__}: reading LM from {lm_path}")
         with open(lm_path, "r", encoding="utf-8") as f:
             order2cnt = cls._read_header(f=f)
+            # init suffix tree storage
             max_order = max(order2cnt.keys())
             total_ngrams = sum(order2cnt.values())
             max_states = 2 + vocab_size + sum(order2cnt[o] for o in range(2, max_order))  # without last!
@@ -606,6 +633,7 @@ class FastNGramLM(ModelPT):
                 vocab_size=vocab_size,
                 max_order=max_order,
             )
+            # add ngrams to suffix tree
             ngram_cur_order_i = 0
             cur_order = 1
             for ngram in tqdm(cls._read_ngrams(f=f, token_offset=token_offset), total=total_ngrams):
@@ -626,6 +654,18 @@ class FastNGramLM(ModelPT):
 
     @classmethod
     def from_suffix_tree(cls, suffix_tree_np: SuffixTreeStorage, use_triton: bool | None = None) -> "FastNGramLM":
+        """
+        Constructor from suffix tree storage.
+
+        Args:
+            suffix_tree_np: suffix tree
+            use_triton: allow using Triton implementation;
+                None (default) means "auto" (used if available), True means forced mode
+                (will crash if Triton is unavailable)
+
+        Returns:
+            FastNGramLM instance
+        """
         model = FastNGramLM(
             OmegaConf.structured(
                 NGramLMConfig(
@@ -643,6 +683,15 @@ class FastNGramLM(ModelPT):
 
     @classmethod
     def _read_header(cls, f) -> dict[int, int]:
+        """
+        Parse ARPA header
+
+        Args:
+            f: file object
+
+        Returns:
+            dictionary with order -> number of ngrams
+        """
         is_start = True
         order2cnt: dict[int, int] = defaultdict(int)
         for line in f:
@@ -685,6 +734,7 @@ class FastNGramLM(ModelPT):
 
     @staticmethod
     def _line_to_ngram(line: str, pattern: re.Pattern, token_offset: int) -> NGram:
+        """Parse ARPA line to N-Gram structure"""
         weight, symbols_str, *backoff_opt = line.split("\t")
         if backoff_opt:
             assert len(backoff_opt) == 1
@@ -701,6 +751,7 @@ class FastNGramLM(ModelPT):
         return NGram(symbols=symbols, weight=weight, backoff=backoff)
 
     def _init_from_suffix_tree_np(self, suffix_tree_np: SuffixTreeStorage):
+        """Helper function to init params from suffix tree params"""
         # parameters: weights
         self.arcs_weights.data.copy_(torch.from_numpy(suffix_tree_np.arcs["weight"][: self.num_arcs_extended]))
         self.backoff_weights.data.copy_(torch.from_numpy(suffix_tree_np.states["backoff_w"][: self.num_states]))
