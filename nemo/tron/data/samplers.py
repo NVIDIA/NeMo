@@ -3,6 +3,7 @@
 """Dataloaders."""
 
 import random
+from typing import Callable, Optional
 
 import numpy as np
 import torch
@@ -12,7 +13,13 @@ from torch.utils.data import Dataset
 
 
 def build_pretraining_data_loader(
-    dataset, consumed_samples: int, dataloader_type: str, micro_batch_size: int, num_workers: int, data_sharding: bool
+    dataset,
+    consumed_samples: int,
+    dataloader_type: str,
+    micro_batch_size: int,
+    num_workers: int,
+    data_sharding: bool,
+    worker_init_fn: Optional[Callable] = None,
 ):
     """Build dataloader given an input dataset."""
 
@@ -52,6 +59,7 @@ def build_pretraining_data_loader(
         num_workers=num_workers,
         pin_memory=True,
         persistent_workers=True if num_workers > 0 else False,
+        worker_init_fn=worker_init_fn,
     )
 
 
