@@ -60,18 +60,21 @@ except ImportError:
 # pylint: disable=C0116
 @dataclass
 class DiTWithAdaLNSubmodules(TransformerLayerSubmodules):
+    # pylint: disable=C0115
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
 
 @dataclass
 class STDiTWithAdaLNSubmodules(TransformerLayerSubmodules):
+    # pylint: disable=C0115
     spatial_self_attention: Union[ModuleSpec, type] = IdentityOp
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
 
 class RMSNorm(nn.Module):
+    # pylint: disable=C0115
     def __init__(self, hidden_size: int, config, eps: float = 1e-6):
         super().__init__()
         self.eps = eps
@@ -531,7 +534,7 @@ class DiTLayer(TransformerLayer):
 
 
 class MMDiTLayer(TransformerLayer):
-    """A single transformer layer.
+    """A multi-modal transformer layer.
 
     Transformer layer takes input with size [s, b, h] and returns an
     output of the same size.
@@ -638,6 +641,11 @@ class MMDiTLayer(TransformerLayer):
 
 
 class FluxSingleTransformerBlock(TransformerLayer):
+    """
+        Single transformer layer mathematically equivalent to original Flux single transformer.
+
+        This layer is re-implemented with megatron-core and also altered in structure for better performance.
+    """
     def __init__(
         self,
         config: TransformerConfig,
