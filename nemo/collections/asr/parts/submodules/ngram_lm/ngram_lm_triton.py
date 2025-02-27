@@ -64,9 +64,6 @@ def ngram_advance_triton_kernel(
     while start_state_not_processed:
         tl.debug_barrier()  # force threads synchronization
         start_idx, end_idx = tl.load(start_end_arcs_ptr + cur_state * 2 + tl.arange(0, 2)).split()
-        # TODO: check if this is more effective
-        # start_idx = tl.load(start_end_arcs_ptr + cur_state * 2)
-        # end_idx = tl.load(start_end_arcs_ptr + cur_state * 2 + 1)
         indices = start_idx + vocab_offsets
         mask = indices < end_idx
 
