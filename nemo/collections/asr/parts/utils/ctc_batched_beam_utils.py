@@ -100,6 +100,8 @@ class CTCBatchedBeamHyps:
     ):
         # TODO: timesteps
         # TODO: sdelat' chtom esli next_labels = -1, tut ne obnovlyalos nichego!
+        # self.scores= torch.gather(self.scores, dim=-1, index=hyps_indices)
+        # self.scores[next_labels > 0] = next_hyps_prob[next_labels > 0]
         self.scores.copy_(next_hyps_prob)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(

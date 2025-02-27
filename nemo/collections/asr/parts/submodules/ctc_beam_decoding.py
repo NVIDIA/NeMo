@@ -493,7 +493,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             hyps_indices = hyps_candidates_indices // self.beam_size # torch.gather(expansion_indices.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
             next_labels = torch.gather(labels.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices % self.beam_size)
             
-            repeating_mask = active_mask & next_labels == batched_beam_hyps.last_label
+            repeating_mask = next_labels == batched_beam_hyps.last_label
             blank_mask = next_labels == self.blank_id
             
             if self.ngram_lm_batch is not None:
@@ -520,7 +520,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 batch_lm_states = torch.gather(
                     batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
                 ).squeeze(-1)
-                batch_lm_states = torch.where(~lm_rescoring_mask, batch_lm_states_prev, batch_lm_states).view(-1)
+                batch_lm_states = torch.where(lm_rescoring_mask, batch_lm_states, batch_lm_states_prev).view(-1)
             
             next_labels = torch.where(active_mask, next_labels, -1)
             batched_beam_hyps.add_results_(hyps_indices, next_labels, hyps_scores)
