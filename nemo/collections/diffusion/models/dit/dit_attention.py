@@ -23,6 +23,7 @@ except ImportError:
 
 @dataclass
 class JointSelfAttentionSubmodules:
+    # pylint: disable=C0115
     linear_qkv: Union[ModuleSpec, type] = None
     added_linear_qkv: Union[ModuleSpec, type] = None
     core_attention: Union[ModuleSpec, type] = None
@@ -387,9 +388,7 @@ class FluxSingleAttention(SelfAttention):
         # Get the query, key and value tensors based on the type of attention -
         # self or cross attn.
         query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
-        # print(f'megatron q before ln: {query.transpose(0, 1).contiguous()}, {query.transpose(0, 1).contiguous().shape}')
-        # print(f'megatron k before ln: {key.transpose(0, 1).contiguous()}, {key.transpose(0, 1).contiguous().shape}')
-        # print(f'megatron v before ln: {value.transpose(0, 1).contiguous()}, {value.transpose(0, 1).contiguous().shape}')
+
 
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference

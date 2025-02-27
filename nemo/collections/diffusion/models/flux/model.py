@@ -19,6 +19,8 @@ from typing import Callable, Optional
 import lightning.pytorch as L
 import numpy as np
 import torch
+import os
+import math
 
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
@@ -44,6 +46,7 @@ from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, 
 from nemo.collections.diffusion.sampler.flow_matching.flow_match_euler_discrete import FlowMatchEulerDiscreteScheduler
 from nemo.collections.diffusion.utils.flux_ckpt_converter import _import_qkv, _import_qkv_bias
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoder, AutoEncoderConfig
+from nemo.collections.diffusion.utils.flux_ckpt_converter import flux_transformer_converter
 from nemo.collections.llm import fn
 from nemo.lightning import io, teardown
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
@@ -65,7 +68,7 @@ def flux_data_step(dataloader_iter):
 
 @dataclass
 class FluxConfig(TransformerConfig, io.IOMixin):
-    ## transformer related
+    # transformer related
     num_layers: int = 1  # dummy setting
     num_joint_layers: int = 19
     num_single_layers: int = 38
@@ -755,7 +758,8 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
         mapping = {
             'transformer_blocks.*.norm1.linear.weight': 'double_blocks.*.adaln.adaLN_modulation.1.weight',
             'transformer_blocks.*.norm1.linear.bias': 'double_blocks.*.adaln.adaLN_modulation.1.bias',
-            'transformer_blocks.*.norm1_context.linear.weight': 'double_blocks.*.adaln_context.adaLN_modulation.1.weight',
+            'transformer_blocks.*.norm1_context.linear.weight':
+                'double_blocks.*.adaln_context.adaLN_modulation.1.weight',
             'transformer_blocks.*.norm1_context.linear.bias': 'double_blocks.*.adaln_context.adaLN_modulation.1.bias',
             'transformer_blocks.*.attn.norm_q.weight': 'double_blocks.*.self_attention.q_layernorm.weight',
             'transformer_blocks.*.attn.norm_k.weight': 'double_blocks.*.self_attention.k_layernorm.weight',
