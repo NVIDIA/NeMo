@@ -27,10 +27,8 @@ import tensorrt as trt
 import tensorrt_llm
 import torch
 from mpi4py.futures import MPIPoolExecutor
-from tensorrt_llm._utils import mpi_comm
 from tensorrt_llm.builder import Engine
 from tensorrt_llm.lora_manager import LoraManager
-from tensorrt_llm.mapping import Mapping
 from tensorrt_llm.quantization import QuantMode
 from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
 from transformers import PreTrainedTokenizer
@@ -40,7 +38,7 @@ LOGGER = logging.getLogger("NeMo")
 use_trtllm_bindings = True
 try:
     from tensorrt_llm.bindings import GptJsonConfig
-except Exception as e:
+except Exception:
     use_trtllm_bindings = False
 
 TRTLLM_SUPPORTS_DEVICE_DISABLE = True
@@ -251,6 +249,10 @@ def _forward(
         end_id = sampling_config.end_id
         num_beams = sampling_config.num_beams
 
+        for k in sampling_kwargs.keys():
+            if not hasattr(sampling_config, k):
+                raise TypeError(f"Unknown sampling args '{k}'")
+
         with torch.no_grad():
             prompt_tasks = None if task_ids is None else ",".join(str(task) for task in task_ids)
 
@@ -279,6 +281,7 @@ def _forward(
                 streaming=streaming,
                 output_sequence_lengths=True,
                 return_dict=True,
+                **sampling_kwargs,
             )
 
             torch.cuda.synchronize()
@@ -465,13 +468,10 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     json_config = GptJsonConfig.parse_file(config_path)
     model_config = json_config.model_config
 
-    max_beam_width = model_config.max_beam_width
     max_batch_size = model_config.max_batch_size
     max_input_len = model_config.max_input_len
-    max_seq_len = model_config.max_seq_len
 
     tp_size = json_config.tensor_parallelism
-    pp_size = json_config.pipeline_parallelism
     assert tp_size <= gpus_per_node, "Multinode TP is not unsupported"
 
     # TRTLLM asserts that rank equals the device num however this
@@ -483,9 +483,9 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     for _ in range(offset):
         device_ids.append(device_ids.pop(0))
     engine_index = model_parallel_rank
-    mpi_rank = mpi_comm().Get_rank()
+    # mpi_rank = mpi_comm().Get_rank()
     # Copied from worldConfig.h (getDevice())
-    mpi_device = mpi_rank % gpus_per_node
+    # mpi_device = mpi_rank % gpus_per_node
     # TODO: Consider re-enabling
     # assert torch.cuda.current_device() == mpi_device
 
@@ -503,17 +503,34 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
 
     if not TRTLLM_SUPPORTS_DEVICE_DISABLE:
         raise RuntimeError(
-            f"TensorRT-LLM does not support torch device disabling. Please upgrade TensorRT-LLM to make use of this feature."
+            "TensorRT-LLM does not support torch device disabling. "
+            "Please upgrade TensorRT-LLM to make use of this feature."
         )
     elif not DISABLE_TORCH_DEVICE_SET:
         raise RuntimeError(
-            f"To use TensorRT-LLM's python ModelRunner API in load_distributed(...) you must set the env var DISABLE_TORCH_DEVICE_SET=1"
+            "To use TensorRT-LLM's python ModelRunner API in load_distributed(...) "
+            "you must set the env var DISABLE_TORCH_DEVICE_SET=1"
         )
+
+    default_kwargs = {
+        "max_output_len": None,
+        "lora_dir": None,
+        "debug_mode": False,
+        "lora_ckpt_source": "hf",
+        "medusa_choices": None,
+        "stream": None,
+        "gpu_weights_percent": 1.0,
+        "enable_context_fmha_fp32_acc": False,
+        "multi_block_mode": True,
+    }
+
     decoder = ModelRunner.from_engine(
         engine=engine,
-        # We want the engine to have the mp_rank, but the python runtime to not resassign the device of the current process
+        # We want the engine to have the mp_rank,
+        # but the python runtime to not resassign the device of the current process
         # So we will set it to the current device
         rank=torch.cuda.current_device(),
+        **default_kwargs,
     )
 
     tensorrt_llm_worker_context.decoder = decoder
@@ -522,6 +539,15 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
 
 
 def maybe_cast_to_trt_dtype(dtype):
+    """
+    Cast input dtype to TensorRT dtype if applicable.
+
+    Args:
+        dtype: Input dtype (torch.dtype or trt.DataType)
+
+    Returns:
+        trt.DataType: Corresponding TensorRT dtype
+    """
     if isinstance(dtype, trt.DataType):
         return dtype
     elif isinstance(dtype, torch.dtype):
@@ -531,6 +557,12 @@ def maybe_cast_to_trt_dtype(dtype):
 
 
 def refit(weights_dict: dict):
+    """
+    Refit TensorRT-LLM by hot-swapping its engine weights.
+
+    Args:
+        weights_dict: Dictionary containing new weights
+    """
     global tensorrt_llm_worker_context
     decoder = tensorrt_llm_worker_context.decoder
     if not isinstance(decoder, ModelRunner):
@@ -554,7 +586,12 @@ def refit(weights_dict: dict):
         trt_wt_location = trt.TensorLocation.DEVICE if weight.is_cuda else trt.TensorLocation.HOST
         assert (
             model_dtype == refitter.get_weights_prototype(trt_name).dtype == maybe_cast_to_trt_dtype(weight.dtype)
-        ), f"Expected all three of these dtypes to be the same {model_dtype=} {refitter.get_weights_prototype(trt_name).dtype=} weight.dtype={maybe_cast_to_trt_dtype(weight.dtype)}"
+        ), (
+            f"Expected all three of these dtypes to be the same:\n"
+            f"  {model_dtype=}\n"
+            f"  {refitter.get_weights_prototype(trt_name).dtype=}\n"
+            f"  weight.dtype={maybe_cast_to_trt_dtype(weight.dtype)}"
+        )
 
         refitter.set_named_weights(
             trt_name, trt_weight, trt_wt_location
@@ -568,7 +605,7 @@ def refit(weights_dict: dict):
         logging.warning(f"Weights dict did not contain weights for these named TRT weights: {remaining_refit_weights}")
 
     if not refitter.refit_cuda_engine():
-        raise ValueError(f"Refit failed!")
+        raise ValueError("Refit failed!")
 
 
 def unload_engine():
@@ -595,6 +632,20 @@ def prepare_input_tensors(
     task_vtoken_counts: List[int] = None,
     task_ids: List[int] = None,
 ):
+    """
+    Prepare input tensors from text input.
+
+    Args:
+        input_texts: List of input text strings
+        host_context: Context containing tokenizer and configuration
+        prompt_table: a lookup table containing trained embeddings for vtoken used in p-tuning
+        task_vtoken_counts: Optional list of vtoken counts per task
+        task_ids: Optional list of task IDs
+
+    Returns:
+        dict: Prepared input tensors for model
+    """
+
     tokenizer = host_context.tokenizer
 
     if host_context.add_bos:
@@ -647,6 +698,8 @@ def generate(
     streaming: bool = False,
     output_log_probs=False,
     multiprocessed_env=False,
+    output_context_logits=False,
+    output_generation_logits=False,
     **sampling_kwargs,
 ) -> Optional[List[List[str]]]:
     """Generate the output sequence from the input sequence.
@@ -692,6 +745,7 @@ def generate(
         multiprocessed_env=multiprocessed_env,
         **sampling_kwargs,
     )
+
     assert outputs is not None
     if tensorrt_llm.mpi_rank() != 0:
         return None
@@ -705,8 +759,10 @@ def generate(
         for b in range(output_ids.shape[0])
     ]
 
-    if output_log_probs:
-        return output_lines_list, log_probs
+    if output_generation_logits:
+        return output_lines_list, outputs['generation_logits']
+    elif output_context_logits:
+        return output_lines_list, outputs['context_logits']
     return output_lines_list
 
 
@@ -836,7 +892,7 @@ def to_word_list_format(
     flat_ids = []
     offsets = []
     # The encoding of a single word can't always be trusted. See
-    #   https://github.com/NVIDIA/NeMo/blob/bb575b72fd0be51ae10cc77d9f89ddb9e9d3b96d/nemo/collections/nlp/modules/common/text_generation_strategy.py#L229
+    #   https://github.com/NVIDIA/NeMo/blob/bb575b72fd0be51ae10cc77d9f89ddb9e9d3b96d/nemo/collections/nlp/modules/common/text_generation_strategy.py#L229  # pylint: disable=C0301
     ids_ref = tokenizer.encode(ref_str)
     for word_dict_item in word_dict:
         item_flat_ids = []

@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional
 
-import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -38,6 +37,10 @@ if TYPE_CHECKING:
 
 @dataclass
 class MistralConfig7B(GPTConfig):
+    """
+    Mistral 7B config.
+    """
+
     normalization: str = "RMSNorm"
     activation_func: Callable = F.silu
     position_embedding_type: str = "rope"
@@ -57,6 +60,8 @@ class MistralConfig7B(GPTConfig):
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
+    cp_comm_type: str = "a2a"
+    params_dtype: torch.dtype = torch.bfloat16
 
 
 @dataclass
@@ -71,8 +76,10 @@ class MistralNeMoConfig12B(MistralConfig7B):
     seq_length: int = 4096  # but   "max_position_embeddings": 1024000,
 
     window_size: List[int] = None
+    cp_comm_type: str = None
     rotary_percent: float = 1.0
     rotary_base: float = 1000000.0
+    params_dtype: torch.dtype = torch.bfloat16
 
 
 @dataclass
@@ -89,11 +96,15 @@ class MistralNeMoConfig123B(MistralConfig7B):
     seq_length: int = 4096  # but   "max_position_embeddings": 131072,
 
     window_size: List[int] = None
+    cp_comm_type: str = None
     rotary_percent: float = 1.0
     rotary_base: float = 1000000.0
+    params_dtype: torch.dtype = torch.bfloat16
 
 
 class MistralModel(GPTModel):
+    """ """
+
     def __init__(
         self,
         config: Annotated[Optional[MistralConfig7B], Config[MistralConfig7B]] = None,
@@ -108,6 +119,8 @@ class MistralModel(GPTModel):
 
 @io.model_importer(MistralModel, "hf")
 class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
+    """ """
+
     def init(self) -> MistralModel:
         return MistralModel(self.config, tokenizer=self.tokenizer)
 
@@ -128,6 +141,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
         return output_path
 
     def convert_state(self, source, target):
+        """ """
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
@@ -142,12 +156,14 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """ """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> MistralConfig7B:
+        """ """
         from transformers import MistralConfig
 
         source = MistralConfig.from_pretrained(str(self))
@@ -158,9 +174,10 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
                 base //= 2
             return base
 
-        window_size = None
+        window_size, cp_comm_type = (None, None)
         if getattr(source, 'sliding_window', None) is not None:
             window_size = [source.sliding_window, 0]
+            cp_comm_type = 'a2a'
         output = MistralConfig7B(
             seq_length=source.sliding_window,
             num_layers=source.num_hidden_layers,
@@ -176,6 +193,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             gated_linear_unit=True,
             make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
             window_size=window_size,
+            cp_comm_type=cp_comm_type,
             share_embeddings_and_output_weights=False,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
@@ -187,6 +205,8 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
 
 @io.model_exporter(MistralModel, "hf")
 class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
+    """ """
+
     def init(self, dtype=torch.bfloat16) -> "MistralForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
@@ -210,6 +230,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
         return output_path
 
     def convert_state(self, source, target):
+        """ """
         mapping = {
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
@@ -227,10 +248,12 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
 
     @property
     def tokenizer(self):
+        """ """
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
     def config(self) -> "MistralConfig":
+        """ """
         source: MistralConfig7B = io.load_context(str(self)).model.config
 
         from transformers import MistralConfig as HfMistralConfig
@@ -260,6 +283,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
     target_key="decoder.layers.*.self_attention.linear_qkv.weight",
 )
 def _import_qkv(ctx: io.TransformCTX, q, k, v):
+    """ """
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
@@ -302,6 +326,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     ),
 )
 def _export_qkv(ctx: io.TransformCTX, linear_qkv):
+    """ """
     megatron_config = ctx.source.config
 
     head_num = megatron_config.num_attention_heads
@@ -334,6 +359,7 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     target_key="decoder.layers.*.mlp.linear_fc1.weight",
 )
 def _import_linear_fc1(down, gate):
+    """ """
     return torch.cat((down, gate), axis=0)
 
 
@@ -342,6 +368,7 @@ def _import_linear_fc1(down, gate):
     target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
 )
 def _export_linear_fc1(linear_fc1):
+    """ """
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
 
     return gate_proj, up_proj

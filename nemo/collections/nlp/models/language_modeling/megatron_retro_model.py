@@ -23,10 +23,10 @@ from functools import partial
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
+from lightning.pytorch.accelerators import CPUAccelerator
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -76,6 +76,7 @@ try:
     from megatron.core.models.retro.utils import get_config_path as get_retro_config_path
     from megatron.core.models.retro.utils import get_gpt_data_dir as get_retro_data_dir
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.transformer.enums import AttnBackend
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
@@ -431,6 +432,8 @@ class MegatronRetroModel(MegatronGPTModel):
 
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version >= packaging.version.Version("1.3"):
+            if HAVE_MEGATRON_CORE:
+                retro_config.attention_backend = AttnBackend.unfused
             try:
                 os.environ["NVTE_FLASH_ATTN"] = "0"
                 os.environ["NVTE_FUSED_ATTN"] = "0"

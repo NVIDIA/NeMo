@@ -15,16 +15,16 @@
 
 from typing import Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_trainer, nemo_resume
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
@@ -175,7 +175,8 @@ def pretrain_recipe(
         guide in the `examples/llm/pretrain/` directory.
     """
 
-    opt_config = OptimizerConfig(
+    opt_config = run.Config(
+        OptimizerConfig,
         optimizer='adam',
         lr=0.0001,
         use_distributed_optimizer=True,
@@ -183,7 +184,8 @@ def pretrain_recipe(
         weight_decay=0.01,
     )
 
-    lr_scheduler = WarmupAnnealingScheduler(
+    lr_scheduler = run.Config(
+        WarmupAnnealingScheduler,
         warmup_steps=None,
         warmup_ratio=0.01,
         max_steps=1000000,
@@ -202,7 +204,7 @@ def pretrain_recipe(
             MockDataModule, seq_length=512, seq_length_dec=128, global_batch_size=1920, micro_batch_size=24
         ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=MegatronOptimizerModule(config=opt_config, lr_scheduler=lr_scheduler),
+        optim=run.Config(MegatronOptimizerModule, config=opt_config, lr_scheduler=lr_scheduler),
         resume=default_resume(),
     )
 
@@ -229,7 +231,8 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora'/'dora'/'none'/None.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
@@ -247,15 +250,17 @@ def finetune_recipe(
         on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
         `examples/llm/finetune/` directory.
     """
-    opt_config = OptimizerConfig(
+    opt_config = run.Config(
+        OptimizerConfig,
         optimizer='adam',
-        lr=1e-4,
+        lr=0.0001,
         use_distributed_optimizer=True,
         bf16=True,
         weight_decay=0.01,
     )
 
-    lr_scheduler = WarmupAnnealingScheduler(
+    lr_scheduler = run.Config(
+        WarmupAnnealingScheduler,
         warmup_steps=50,
         max_steps=2000,
         min_lr=0.00001,
@@ -272,15 +277,15 @@ def finetune_recipe(
             SquadDataModule, seq_length=512, seq_length_dec=128, global_batch_size=128, micro_batch_size=1
         ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=MegatronOptimizerModule(config=opt_config, lr_scheduler=lr_scheduler),
+        optim=run.Config(MegatronOptimizerModule, config=opt_config, lr_scheduler=lr_scheduler),
         resume=nemo_resume(checkpoint_path),
     )
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(LoRA)
+    elif peft_scheme.lower() in ['lora', 'dora']:
+        recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")

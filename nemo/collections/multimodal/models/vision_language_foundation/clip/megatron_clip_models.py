@@ -23,10 +23,10 @@ from typing import Any, Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
+from lightning.pytorch.accelerators import CPUAccelerator
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.trainer.trainer import Trainer
 from tqdm import tqdm
 
 from nemo.collections.multimodal.data.clip.clip_dataset import (
@@ -52,6 +52,7 @@ from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import, safe_import_from
+from nemo.utils.te_utils import te_version
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -704,7 +705,14 @@ class MegatronCLIPModel(MegatronBaseModel):
         else:
             build_model_context = nullcontext
             if HAVE_TE and self.cfg.get('fp8', False) and self.cfg.get('fp8_params', False):
-                build_model_context = transformer_engine.pytorch.fp8_model_init
+                if te_version() >= (2, 0):
+                    recipe = transformer_engine.common.recipe.DelayedScaling()
+                    build_model_context = partial(
+                        transformer_engine.pytorch.fp8_model_init,
+                        recipe=recipe,
+                    )
+                else:
+                    build_model_context = transformer_engine.pytorch.fp8_model_init
             with build_model_context():
                 self.model = build_model(
                     model_provider_func=self.model_provider_func,
@@ -812,7 +820,7 @@ class MegatronCLIPModel(MegatronBaseModel):
                     ddp_config,
                     model_chunk,
                     data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-                    expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
+                    expert_data_parallel_group=parallel_state.get_expert_data_parallel_group(),
                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
                     # model chunks is overlapped with compute anyway.
                     disable_bucketing=(model_chunk_idx > 0),

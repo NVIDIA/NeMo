@@ -13,21 +13,45 @@
 # limitations under the License.
 
 import argparse
+
+from megatron.core.dist_checkpointing.validation import StrictHandling
+
 from nemo.collections.llm import quantization
 
 
 def get_args():
+    """Parses PTQ arguments."""
+
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="NeMo PTQ argument parser",
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source NeMo 2.0 checkpoint")
     parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
-    parser.add_argument("-ctp", "--calib_tp", type=int, default=1)
-    parser.add_argument("-cpp", "--calib_pp", type=int, default=1)
-    parser.add_argument("-tps", "--tensor_parallelism_size", type=int, default=1)
-    parser.add_argument("-pps", "--pipeline_parallelism_size", type=int, default=1)
-    parser.add_argument('-out', '--output_path', type=str, help='Path for the exported engine')
+    parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
+    parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
+    parser.add_argument(
+        "-itp",
+        "--inference_tp",
+        "--tensor_parallelism_size",
+        type=int,
+        default=1,
+        help="TRT-LLM engine TP size. (Only used when `--export_format` is 'trtllm')",
+    )
+    parser.add_argument(
+        "-ipp",
+        "--inference_pp",
+        "--pipeline_parallelism_size",
+        type=int,
+        default=1,
+        help="TRT-LLM engine PP size. (Only used when `--export_format` is 'trtllm')",
+    )
+    parser.add_argument("--devices", type=int, default=None, help="Number of GPUs to use per node")
+    parser.add_argument("-nodes", "--num_nodes", type=int, default=1)
+    parser.add_argument('-out', '--export_path', '--output_path', type=str, help='Path for the exported engine')
+    parser.add_argument(
+        "--export_format", default="trtllm", choices=["trtllm", "nemo"], help="Model format to export as"
+    )
     parser.add_argument(
         '-algo',
         '--algorithm',
@@ -58,16 +82,34 @@ def get_args():
         type=str,
         help='Calibration dataset to be used. Should be \"wikitext\", \"cnn_dailymail\" or path to a local .json file',
     )
+    parser.add_argument(
+        '--generate_sample', help='Generate sample model output after performing PTQ', action='store_true'
+    )
+    parser.add_argument(
+        '--ckpt_load_strictness',
+        type=str,
+        default=StrictHandling.LOG_ALL,
+        help='Defines handling of checkpoint load mismatch',
+    )
+    parser.set_defaults(generate_sample=False)
 
     args = parser.parse_args()
-    if args.output_path is None:
-        args.output_path = (
-            f"./qnemo_{args.algorithm}_tp{args.tensor_parallelism_size}_pp{args.pipeline_parallelism_size}"
-        )
+
+    if args.export_path is None:
+        if args.export_format == "trtllm":
+            args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+        else:
+            args.export_path = f"./nemo_{args.algorithm}"
+
+    if args.devices is None:
+        args.devices = "auto"  # Trainer can auto-detect number of devices
+
     return args
 
 
 def main():
+    """Example NeMo 2.0 Post Training Quantization workflow"""
+
     args = get_args()
 
     quantization_config = quantization.QuantizationConfig(
@@ -80,19 +122,28 @@ def main():
         calibration_batch_size=args.batch_size,
         calibration_seq_len=args.seq_len,
     )
-
     export_config = quantization.ExportConfig(
-        path=args.output_path,
+        export_format=args.export_format,
+        path=args.export_path,
         decoder_type=args.decoder_type,
-        inference_tensor_parallel=args.tensor_parallelism_size,
-        inference_pipeline_parallel=args.pipeline_parallelism_size,
+        inference_tp=args.inference_tp,
+        inference_pp=args.inference_pp,
         dtype=args.dtype,
+        generate_sample=args.generate_sample,
     )
-
     quantizer = quantization.Quantizer(quantization_config, export_config)
-    model = quantization.load_with_modelopt_layer_spec(args.nemo_checkpoint, args.calib_tp, args.calib_pp)
+
+    model, trainer = quantization.load_with_modelopt_layer_spec(
+        nemo_checkpoint_path=args.nemo_checkpoint,
+        tensor_model_parallel_size=args.calibration_tp,
+        pipeline_model_parallel_size=args.calibration_pp,
+        devices=args.devices,
+        num_nodes=args.num_nodes,
+        ckpt_load_strictness=args.ckpt_load_strictness,
+    )
     model = quantizer.quantize(model)
-    quantizer.export(model, args.nemo_checkpoint)
+
+    quantizer.export(model, args.nemo_checkpoint, trainer)
 
 
 if __name__ == '__main__':

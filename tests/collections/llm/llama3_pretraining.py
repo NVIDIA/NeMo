@@ -25,6 +25,7 @@ import torch
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
 from tests.collections.llm.common import (
+    AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays,
     MCoreModelAttributeValidator,
     MiscAttributeValidator,
     StopBeforeEnd,
@@ -80,7 +81,7 @@ def main():
         dir=args.experiment_dir, name=exp_name, num_gpus_per_node=args.devices
     )
 
-    pretrain_recipe.model = llm.LlamaModel(small_llama_cfg(args.seq_length))
+    pretrain_recipe.model = run.Config(llm.LlamaModel, small_llama_cfg(args.seq_length))
 
     if args.data_path and args.tokenizer_path:
         pretrain_recipe.data = train_data(
@@ -100,6 +101,7 @@ def main():
 
     if args.early_stop:
         pretrain_recipe.trainer.callbacks.append(StopBeforeEnd(stop_on_step=args.early_stop))
+    pretrain_recipe.trainer.callbacks.append(AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays())
 
     if not args.precision == 'bf16' or args.fp8:  # default case is bf16 without fp8
         import llm.recipes.precision.mixed_precision as mp_recipes

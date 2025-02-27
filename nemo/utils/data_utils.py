@@ -19,7 +19,10 @@ import subprocess
 from typing import Tuple
 from urllib.parse import urlparse
 
-from nemo import __version__ as NEMO_VERSION
+try:
+    from nemo import __version__ as NEMO_VERSION
+except ImportError:
+    NEMO_VERSION = 'git'
 from nemo import constants
 from nemo.utils import logging
 
@@ -45,11 +48,10 @@ def resolve_cache_dir() -> pathlib.Path:
 
 def is_datastore_path(path) -> bool:
     """Check if a path is from a data object store.
-    Currently, only AIStore is supported.
     """
     try:
         result = urlparse(path)
-        return result.scheme in ["ais", "s3"]
+        return bool(result.scheme) and bool(result.netloc)
     except AttributeError:
         return False
 
@@ -119,13 +121,10 @@ def ais_endpoint_to_dir(endpoint: str) -> str:
     Returns:
         Directory formed as `host/port`.
     """
-    if not endpoint.startswith('http://'):
-        raise ValueError(f'Unexpected format for ais endpoint: {endpoint}')
-
-    endpoint = endpoint.replace('http://', '')
-    host, port = endpoint.split(':')
-    return os.path.join(host, port)
-
+    result = urlparse(endpoint)
+    if not result.hostname or not result.port:
+        raise ValueError(f"Unexpected format for ais endpoint: {endpoint}")
+    return os.path.join(result.hostname, str(result.port))
 
 def ais_binary() -> str:
     """Return location of `ais` binary."""

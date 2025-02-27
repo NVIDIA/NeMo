@@ -35,29 +35,34 @@ from typing import (
     cast,
 )
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import torch.distributed
-from lightning_fabric.plugins import CheckpointIO, ClusterEnvironment
-from lightning_fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
+from lightning.fabric.plugins import CheckpointIO, ClusterEnvironment
+from lightning.fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
+from lightning.pytorch.accelerators import CPUAccelerator
+from lightning.pytorch.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
+from lightning.pytorch.loops.fetchers import _DataLoaderIterDataFetcher
+from lightning.pytorch.overrides.distributed import _sync_module_states
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
+from lightning.pytorch.strategies.ddp import DDPStrategy
+from lightning.pytorch.trainer.states import RunningStage, TrainerFn
+from lightning.pytorch.utilities.types import STEP_OUTPUT
+from megatron.core import Timers
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.accelerators import CPUAccelerator
-from pytorch_lightning.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
-from pytorch_lightning.loops.fetchers import _DataLoaderIterDataFetcher
-from pytorch_lightning.overrides.distributed import _sync_module_states
-from pytorch_lightning.strategies.ddp import DDPStrategy
-from pytorch_lightning.trainer.states import RunningStage, TrainerFn
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.distributed.checkpoint.utils import CheckpointException
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
 from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 from nemo.lightning import _strategy_lib, io
-from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel, aggregate_moe_loss_stats
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
+from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
     RestoreConfig,
@@ -70,6 +75,15 @@ from nemo.lightning.pytorch.strategies.utils import (
 )
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizerCallback
+from nemo.utils.model_utils import unwrap_model
+
+try:
+    from modelopt.torch.opt import ModeloptStateManager
+    from modelopt.torch.opt.plugins import restore_sharded_modelopt_state, save_sharded_modelopt_state
+
+    HAVE_MODELOPT = True
+except Exception:
+    HAVE_MODELOPT = False
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -78,6 +92,13 @@ ConfigT = TypeVar("ConfigT")
 
 
 DDPLiteral = Literal["megatron", "pytorch"]
+
+
+URL = "https://docs.nvidia.com/nemo-framework/user-guide/latest/knownissues.html"
+LOAD_ERROR = f"""
+    (1) To resolve this issue, try to set `trainer.strategy.ckpt_load_strictness` to False. This setting enables loading older checkpoints.
+    (2) For more details and troubleshooting guidance, please refer to the framework documentation: {URL}.
+"""
 
 
 @dataclass
@@ -99,6 +120,11 @@ class ParallelismConfig:
     pipeline_dtype: torch.dtype
     encoder_tensor_model_parallel_size: int = 0
     encoder_pipeline_model_parallel_size: int = 0
+    account_for_embedding_in_pipeline_split: bool = False
+    account_for_loss_in_pipeline_split: bool = False
+    use_te_rng_tracker: bool = False
+    expert_tensor_parallel_size: int = None
+    use_tp_pp_dp_mapping: bool = False
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -115,7 +141,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             across GPU ranks. Defaults to 1.
         virtual_pipeline_model_parallel_size (Optional[int]): Interleaved pipeline parallelism used to
             improve performance by reducing the pipeline bubble. Defaults to None.
-        microbatch_group_size_per_vp_stage（Optional[int]）: the number of micro-batches that are executed
+        microbatch_group_size_per_vp_stage (Optional[int]): the number of micro-batches that are executed
             at a time for a given virtual stage (both forward and backward). Defaults to None and convert
             to pipeline_parallel_size. which specifies a depth-first schedule.
         context_parallel_size (int): Splits network input along sequence dimension across GPU ranks.
@@ -124,7 +150,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             parallelizing layer norms and dropout sequentially. Defaults to False.
         expert_model_parallel_size (int): Distributes MoE Experts across sub data parallel dimension.
             Defaults to 1.
+        expert_tensor_parallel_size (Optional[int]): Sets MoE Experts tensor parallelism size. Defaults to None.
         moe_extended_tp (bool): Alternative parallelization strategy for expert parallelism. Defaults to False.
+        account_for_embedding_in_pipeline_split (bool): If set, *input* embedding layer will be treated as a standard
+            transformer layer in the context of partition and placement for pipeline parallelism.
+        account_for_loss_in_pipeline_split (bool): If set, loss layer will be treated as a standard transformer
+            layer in the context of partition and placement for pipeline parallelism.
         data_sampler (Optional['DataSampler']): Custom data sampler for distributed training. Defaults to None.
         parallel_devices (Optional[List[torch.device]]): List of devices to use for parallelism. Defaults to None.
         cluster_environment: Cluster environment for distributed training. Defaults to None.
@@ -156,6 +187,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_load_directly_on_device (bool): if True, loads the weights directly on GPU.
             Has effect only for `zarr` based checkpoints (PyT Distributed always loads on device).
             Defaults to True.
+        ckpt_load_strictness (StrictHandling, optional): defines loading strictness.
+            If not None, overwrites the `strict` flag passed to `load_checkpoint`.
+            Defaults to None. For a list of supported values, refer to the Megatron Core documentation:
+            https://github.com/NVIDIA/Megatron-LM/blob/d4e72c0d33edc0c53aeb624f617eb77cebce6ae9/megatron/core/dist_checkpointing/validation.py#L46
         setup_optimizers (bool): Whether to call the trainer's setup_optimizers function to perform any
             necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
             Defaults to True.
@@ -164,6 +199,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             that prints the metrics to stdout. Suitable for non-interactive settings.
         progress_interval (int): How frequently to print progress to stdout. Only used when
             replace_progress_bar is True.
+        megatron_log_level (int): Granularity level to measure and report timing.
+            0: report only iteration time and make sure timing does not introduce extra overhead.
+            1: report timing for operations that are executed very limited times (basically once) during
+               each iteration (such as gradient all-reduce)
+            2: report timing for operations that migh be executed numerous times during each iteration.
+            Note that setting the level to 1 or 2 might cause increase in iteration time.
+        use_tp_pp_dp_mapping (bool): Whether to use TP-PP-DP mapping instead of TP-DP-PP mapping.
+            Defaults to False.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -183,8 +226,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
         moe_extended_tp: bool = False,
+        expert_tensor_parallel_size: int = None,
         encoder_tensor_model_parallel_size: Optional[int] = 0,
         encoder_pipeline_model_parallel_size: Optional[int] = 0,
+        account_for_embedding_in_pipeline_split: bool = False,
+        account_for_loss_in_pipeline_split: bool = False,
         data_sampler: Optional["DataSampler"] = None,
         parallel_devices: Optional[List[torch.device]] = None,
         cluster_environment=None,  # TODO: Add type-hint
@@ -195,6 +241,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
+        use_te_rng_tracker: bool = False,
         save_ckpt_format: str = "torch_dist",
         ckpt_async_save: bool = True,
         ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
@@ -204,11 +251,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_load: bool = True,
         ckpt_parallel_save_optim: bool = True,
         ckpt_load_directly_on_device: bool = True,
+        ckpt_load_strictness: Optional['StrictHandling'] = None,
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
         replace_progress_bar: bool = True,
         progress_interval: int = 1,
         restore_config: Optional[RestoreConfig] = None,
+        megatron_log_level: int = 0,
+        use_tp_pp_dp_mapping: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -230,20 +280,25 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         )
         self.context_parallel_size = context_parallel_size
         self.expert_model_parallel_size = expert_model_parallel_size
+        self.expert_tensor_parallel_size = expert_tensor_parallel_size
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
         self.encoder_tensor_model_parallel_size = encoder_tensor_model_parallel_size
         self.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
+        self.account_for_embedding_in_pipeline_split = account_for_embedding_in_pipeline_split
+        self.account_for_loss_in_pipeline_split = account_for_loss_in_pipeline_split
         self.lazy_init = lazy_init
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
-        self.pipeline_dtype = pipeline_dtype
+        self.ckpt_load_strictness = ckpt_load_strictness
+        self.use_te_rng_tracker = use_te_rng_tracker
+        self._pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
         self._init_model_parallel = init_model_parallel
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.log_memory_usage = bool(int(os.getenv("NEMO_LOG_MEMORY_USAGE", 0)))
-
+        self.use_tp_pp_dp_mapping = use_tp_pp_dp_mapping
         self.save_ckpt_format = save_ckpt_format
         self.async_save = ckpt_async_save
         self.torch_dist_multiproc = ckpt_torch_dist_multiproc
@@ -258,6 +313,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.progress_interval = progress_interval
 
         self.restore_config = restore_config
+        self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -273,12 +329,25 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
 
+    @property
+    def pipeline_dtype(self):
+        """ """
+        if self._pipeline_dtype is None:
+            dtype_config = getattr(self._precision_plugin, "dtype_config", None)
+            if dtype_config is not None:
+                self._pipeline_dtype = dtype_config.pipeline_dtype
+        return self._pipeline_dtype
+
+    @pipeline_dtype.setter
+    def pipeline_dtype(self, value):
+        self._pipeline_dtype = value
+
     @override
     def connect(self, model: pl.LightningModule) -> None:
         """Attaches a model to strategy."""
         super().connect(model)
 
-        assert not 'is_hf_model' in model.__dict__, "Cannot use HfAutoModelForCausalLM with MegatronParallel"
+        assert not 'is_hf_model' in model.__dict__, "Cannot use HFAutoModelForCausalLM with MegatronParallel"
 
         dtype_config = getattr(self._precision_plugin, "dtype_config", None)
         if self.pipeline_dtype is None and dtype_config:
@@ -292,6 +361,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             from nemo.lightning.pytorch.plugins.mixed_precision import update_config_with_dtype_overrides
 
             model.config = update_config_with_dtype_overrides(dtype_config, model.config)
+
+        # add megatron timer to config
+        if hasattr(model, "config"):
+            model.config.timers = self.timers
 
         has_optim = getattr(model, "optim", None)
         if has_optim and self._setup_optimizers:
@@ -379,7 +452,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             assert self.model is not None
             _sync_module_states(self.model)
 
-        ## add AsyncFinalizerCallback if using async
+        # add AsyncFinalizerCallback if using async
         if self.async_save:
             have_async_callback = False
             for callback in self.trainer.callbacks:
@@ -389,7 +462,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if not have_async_callback:
                 self.trainer.callbacks.append(AsyncFinalizerCallback())
 
-        ## Restore model weights and optimizer states if needed
+        # Restore model weights and optimizer states if needed
         if self.restore_config and not self.trainer.ckpt_path:
             self.selective_restore()
 
@@ -566,9 +639,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     "reduced_train_loss", reduced_train_loss, prog_bar=True, batch_size=1, sync_dist=False
                 )
                 # Log any MoE losses.
+                # @akoumparouli: disabling this as it hangs with deepseek.
                 # TODO(@akoumparouli): loss_scale depends on the GBS.
-                for loss_name, loss_value in aggregate_moe_loss_stats(loss_scale=1.0).items():
-                    self.lightning_module.log(loss_name, loss_value, prog_bar=True, rank_zero_only=True, batch_size=1)
+            # for loss_name, loss_value in aggregate_moe_loss_stats(loss_scale=1.0).items():
+            #    self.lightning_module.log(
+            #    loss_name, loss_value, prog_bar=True, rank_zero_only=True, batch_size=1)
 
             return out
 
@@ -688,23 +763,47 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         """Saves checkpoint"""
+        if (
+            isinstance(self.ddp_config, DistributedDataParallelConfig)
+            and self.ddp_config.use_distributed_optimizer
+            and self.ddp_config.overlap_param_gather
+        ):
+            self.megatron_parallel.force_param_sync()
+
         checkpoint["state_dict"] = OrderedDict([])  # remove device state_dict
         # retrieve `sharded_state_dict` if it has not already been configured in `on_save_checkpoint`
         if "sharded_state_dict" not in checkpoint:
             checkpoint["sharded_state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        ## replace unsharded optimizer_states with sharded dict.
-        ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
-        ## the checkpoint will contain only model weights. Optimizer states will be omitted.
-        if (
-            "optimizer_states" in checkpoint
-            and self.trainer.state.fn == TrainerFn.FITTING
-            and self.ckpt_save_optimizer
-        ):
+        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
+            # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
+            # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}
-            checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
+
+            # replace unsharded optimizer_states with sharded dict.
+            # note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
+            # the checkpoint will contain only model weights. Optimizer states will be omitted.
+            if self.ckpt_save_optimizer:
+                checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+
+        if HAVE_MODELOPT:
+            # Save ModelOpt state too, if it exists.
+            core_model = unwrap_model(self.megatron_parallel)
+            if ModeloptStateManager.is_converted(core_model):
+                if self.async_save:
+                    logging.warning("Model-Optimizer library in use. Async checkpoint saving is blocked.")
+                    self.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
+                ckpt_io = self.checkpoint_io
+                if isinstance(ckpt_io, _WrappingCheckpointIO):
+                    ckpt_io = ckpt_io.checkpoint_io
+                save_sharded_modelopt_state(
+                    [core_model],
+                    ckpt_to_weights_subdir(filepath, is_saving=True),
+                    sharded_strategy=ckpt_io.save_sharded_strategy,
+                )
+                logging.info("Saved Model-Optimizer state into checkpoint.")
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
         """Determines whether to restore optimizer states or not"""
@@ -722,6 +821,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """
         torch.cuda.empty_cache()
 
+        if HAVE_MODELOPT:
+            # If present, first restore and modify the model according to the ModelOpt state.
+            core_model = unwrap_model(self.megatron_parallel)
+            restore_sharded_modelopt_state(
+                [core_model],
+                ckpt_to_weights_subdir(checkpoint_path, is_saving=False),
+            )
+            if ModeloptStateManager.is_converted(core_model):
+                logging.info("Restored Model-Optimizer state from checkpoint.")
+
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
         sharded_state_dict = {}
         sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
@@ -733,7 +842,24 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
-        checkpoint = self.checkpoint_io.load_checkpoint(checkpoint_path, sharded_state_dict=sharded_state_dict)
+        strict = (
+            self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
+        )
+
+        try:
+            checkpoint = self.checkpoint_io.load_checkpoint(
+                checkpoint_path, sharded_state_dict=sharded_state_dict, strict=strict
+            )
+        except CheckpointException as e:
+            error_message = f"{e}\n{LOAD_ERROR}"
+            raise RuntimeError(error_message)
+
+        if selective_restore:
+            final_checkpoint = {}
+            for key in sharded_state_dict.keys():
+                final_checkpoint[key] = checkpoint[key]
+
+            return final_checkpoint
 
         return checkpoint
 
@@ -748,7 +874,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if self.restore_config.load_model_state:
             logging.info(f"Restoring model weights from {self.restore_config}")
-            self.load_model_state_dict(checkpoint=checkpoint)
+            strict = True if self.ckpt_load_strictness is None else self.ckpt_load_strictness
+            self.load_model_state_dict(checkpoint=checkpoint, strict=strict)
 
         if self.restore_config.load_optim_state:
             logging.info(f"Restoring optimizer states from {self.restore_config}")
@@ -783,6 +910,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """loads model state dict"""
         assert self.megatron_parallel is not None
 
+        strict = strict if self.ckpt_load_strictness is None else self.ckpt_load_strictness
         _strategy_lib.load_model_state_dict(self.megatron_parallel, checkpoint, strict=strict)
 
         if not 'optimizer' in checkpoint:
@@ -859,10 +987,15 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             context_parallel_size=self.context_parallel_size,
             sequence_parallel=self.sequence_parallel,
             expert_model_parallel_size=self.expert_model_parallel_size,
+            expert_tensor_parallel_size=self.expert_tensor_parallel_size,
             moe_extended_tp=self.moe_extended_tp,
             encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
             encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
+            account_for_embedding_in_pipeline_split=self.account_for_embedding_in_pipeline_split,
+            account_for_loss_in_pipeline_split=self.account_for_loss_in_pipeline_split,
             pipeline_dtype=self.pipeline_dtype,
+            use_te_rng_tracker=self.use_te_rng_tracker,
+            use_tp_pp_dp_mapping=self.use_tp_pp_dp_mapping,
         )
 
     @contextmanager

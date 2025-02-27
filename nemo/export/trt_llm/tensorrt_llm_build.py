@@ -16,11 +16,11 @@
 import logging
 import tensorrt_llm
 from tensorrt_llm._common import check_max_num_tokens
-from tensorrt_llm.builder import BuildConfig, Builder
+from tensorrt_llm.builder import BuildConfig
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraConfig
-from tensorrt_llm.models.modeling_utils import add_lora, optimize_model, preprocess_weights
+from tensorrt_llm.models.modeling_utils import optimize_model, preprocess_weights
 from tensorrt_llm.plugin import PluginConfig
 
 MODEL_NAME = "NeMo"
@@ -54,11 +54,13 @@ def build_and_save_engine(
     gpt_attention_plugin: str = "auto",
     gemm_plugin: str = "auto",
     reduce_fusion: bool = False,
+    gather_context_logits: bool = False,
+    gather_generation_logits: bool = False,
 ):
     architecture = "LLaMAForCausalLM" if model_config.architecture == "LlamaForCausalLM" else model_config.architecture
     try:
         model_cls = getattr(tensorrt_llm.models, architecture)
-    except:
+    except Exception:
         raise AttributeError(f"Could not find TRTLLM model type: {model_type}!")
 
     logger.set_level("info")
@@ -96,8 +98,8 @@ def build_and_save_engine(
         'max_num_tokens': max_num_tokens,
         'opt_num_tokens': opt_num_tokens,
         'max_prompt_embedding_table_size': max_prompt_embedding_table_size,
-        'gather_context_logits': False,
-        'gather_generation_logits': False,
+        'gather_context_logits': gather_context_logits,
+        'gather_generation_logits': gather_generation_logits,
         'strongly_typed': False,
         'builder_opt': None,
         'use_refit': use_refit,
@@ -118,14 +120,6 @@ def build_and_save_engine(
         build_config.lora_config = lora_config
 
     model = model_cls.from_config(model_config)
-    if not model_config.bias and model_config.architecture == 'GPTForCausalLM':
-        # NOTE: GPT models in megatron-core that set bias=False sets the bias false globally
-        #  whereas bias=False in TRTLLM GPT models sets it false everywhere except
-        #  LayerNorm. This change makes TRTLLM's implementation match megatron-core.
-        for name, module in model.named_modules():
-            if isinstance(module, tensorrt_llm.layers.normalization.LayerNorm):
-                module.bias = None
-                module.register_parameter('bias', None)
     model = optimize_model(
         model,
         use_parallel_embedding=model_config.use_parallel_embedding,

@@ -17,8 +17,8 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+import lightning.pytorch as pl
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
@@ -125,6 +125,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.build_kwargs = build_kwargs
         self.seq_length = seq_length
         self.seq_length_dec = seq_length_dec
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
         self.tokenizer = tokenizer
         self.num_workers = num_workers
         self.pin_memory = pin_memory

@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
+from lightning.pytorch import Trainer
 from omegaconf import OmegaConf
-from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -28,7 +28,6 @@ from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
 from nemo.utils.config_utils import update_model_config
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
-
 
 """
 Usage:
@@ -95,9 +94,11 @@ class MTEncDecConfig(NemoConfig):
     name: Optional[str] = 'MTEncDec'
     do_training: bool = True
     do_testing: bool = False
-    model: MTEncDecModelConfig = MTEncDecModelConfig()
-    trainer: Optional[TrainerConfig] = TrainerConfig()
-    exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+    model: MTEncDecModelConfig = field(default_factory=MTEncDecModelConfig)
+    trainer: Optional[TrainerConfig] = field(default_factory=TrainerConfig)
+    exp_manager: Optional[ExpManagerConfig] = field(
+        default_factory=lambda: ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+    )
 
 
 @hydra_runner(config_path="conf", config_name="aayn_base")

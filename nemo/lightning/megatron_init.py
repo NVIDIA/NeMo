@@ -91,6 +91,7 @@ def initialize_model_parallel_for_nemo(
     local_rank,
     tensor_model_parallel_size=1,
     expert_model_parallel_size=1,
+    expert_tensor_parallel_size=None,
     pipeline_model_parallel_size=1,
     virtual_pipeline_model_parallel_size=None,
     pipeline_model_parallel_split_rank=None,
@@ -107,7 +108,7 @@ def initialize_model_parallel_for_nemo(
     use_tp_pp_dp_mapping=False,
     use_te_rng_tracker=False,
 ):
-
+    """Initialize model parallel groups in NeMo."""
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
         raise ValueError("set_virtual_pipeline_model_parallel_world_size is needed in megatron-core for interleaved.")
 
@@ -126,10 +127,12 @@ def initialize_model_parallel_for_nemo(
     app_state.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
     app_state.use_fp8 = use_fp8
     app_state.init_mpi_proc_group = init_mpi_proc_group
+    app_state.expert_tensor_parallel_size = expert_tensor_parallel_size
     (
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,
         app_state.expert_model_parallel_rank,
+        app_state.expert_tensor_parallel_rank,
         app_state.model_parallel_size,
         app_state.data_parallel_size,
         app_state.pipeline_model_parallel_split_rank,
@@ -143,6 +146,7 @@ def initialize_model_parallel_for_nemo(
         pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
         context_parallel_size_=context_parallel_size,
         expert_model_parallel_size_=expert_model_parallel_size,
+        expert_tensor_parallel_size_=expert_tensor_parallel_size,
         encoder_tensor_model_parallel_size_=encoder_tensor_model_parallel_size,
         encoder_pipeline_model_parallel_size_=encoder_pipeline_model_parallel_size,
         use_tp_pp_dp_mapping=use_tp_pp_dp_mapping,
@@ -181,6 +185,7 @@ def initialize_model_parallel_for_nemo(
                     micro_batch_size=micro_batch_size,
                     data_parallel_size=app_state.data_parallel_size,
                     rampup_batch_size=rampup_batch_size,
+                    decrease_batch_size_if_needed=False,
                 )
             else:
                 if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
@@ -201,6 +206,7 @@ def initialize_model_parallel_for_nemo(
                     micro_batch_size=micro_batch_size,
                     data_parallel_size=app_state.data_parallel_size,
                     rampup_batch_size=rampup_batch_size,
+                    decrease_batch_size_if_needed=False,
                 )
             else:
                 if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatchesCalculator):
@@ -254,15 +260,18 @@ def fake_initialize_model_parallel(
     pipeline_model_parallel_split_rank_=None,
     virtual_pipeline_model_parallel_size_=None,
     expert_model_parallel_size_=1,
+    expert_tensor_parallel_size_=None,
     context_parallel_size_=1,
     encoder_tensor_model_parallel_size_=0,
     encoder_pipeline_model_parallel_size_=0,
     use_tp_pp_dp_mapping=False,
 ):
     """
-    Fake initialize model data parallel groups so that we can instantiate model parallel models before DDP is initialized.
-    This is needed because PTL execution flow is init model, init trainer -> call trainer.fit(model). DDP is initialized during .fit.
-    This function is taken from megatron.core.parallel_state and modified so that the distributed groups are not created.
+    Fake initialize model data parallel groups so that we can instantiate model parallel
+    models before DDP is initialized. This is needed because PTL execution flow is init
+    model, init trainer -> call trainer.fit(model). DDP is initialized during .fit.
+    This function is taken from megatron.core.parallel_state and modified so that the
+    distributed groups are not created.
     We only need the tensor parallel and pipeline parallel ranks to instantiate the model.
 
     Arguments:
@@ -341,7 +350,7 @@ def fake_initialize_model_parallel(
             dp=data_parallel_size,
             pp=encoder_pipeline_model_parallel_size,
             cp=context_parallel_size,
-            order='tp-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+            order='tp-cp-ep-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
             rank_offset=0,
         )
     else:
@@ -349,15 +358,48 @@ def fake_initialize_model_parallel(
 
     decoder_rank_generator = RankGenerator(
         tp=tensor_model_parallel_size,
-        ep=expert_model_parallel_size_,
+        ep=1,
         dp=data_parallel_size,
         pp=pipeline_model_parallel_size,
         cp=context_parallel_size,
-        order='tp-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+        order='tp-cp-ep-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+        rank_offset=encoder_world_size,
+    )
+    # Build expert rank generator
+    if expert_tensor_parallel_size_ is None:
+        expert_tensor_parallel_size_ = tensor_model_parallel_size
+    expert_tensor_model_pipeline_parallel_size = (
+        expert_tensor_parallel_size_ * expert_model_parallel_size_ * pipeline_model_parallel_size
+    )
+    expert_data_parallel_size = decoder_world_size // expert_tensor_model_pipeline_parallel_size
+    if decoder_world_size % expert_tensor_model_pipeline_parallel_size != 0:
+        raise RuntimeError(
+            f"decoder world_size ({decoder_world_size}) is not divisible by "
+            f"expert_tensor_model_pipeline_parallel size ({expert_tensor_model_pipeline_parallel_size})"
+        )
+
+    expert_decoder_rank_generator = RankGenerator(
+        tp=expert_tensor_parallel_size_,
+        ep=expert_model_parallel_size_,
+        dp=expert_data_parallel_size,
+        pp=pipeline_model_parallel_size,
+        cp=1,
+        order='tp-cp-ep-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
         rank_offset=encoder_world_size,
     )
 
-    def generator_wrapper(group_type, **kwargs):
+    assert (
+        not use_tp_pp_dp_mapping
+        or pipeline_model_parallel_size == 1
+        or expert_data_parallel_size == data_parallel_size
+    ), "When not using pp-last rank ordering, the data parallel size of the attention and moe layers must be the same"
+
+    assert decoder_rank_generator.get_ranks("pp") == expert_decoder_rank_generator.get_ranks(
+        "pp"
+    ), f"Pipeline parallel groups are expected to be the same for Non-Expert and Expert part, \
+    but got {decoder_rank_generator.get_ranks('pp')} and {expert_decoder_rank_generator.get_ranks('pp')}"
+
+    def generator_wrapper(group_type, is_expert=False, **kwargs):
         from itertools import cycle
 
         """The `RankGenerator` class produces a hyper-rectangle for a given set of
@@ -365,7 +407,10 @@ def fake_initialize_model_parallel(
         in addition to the default decoder, we essentially instantiate two `RankGenerator`
         classes to construct the parallelism for each module separately, and we then have
         to stitch them together for the right groups. For now, this means pp and tp-pp."""
-        d_ranks = decoder_rank_generator.get_ranks(group_type, **kwargs)
+        if is_expert:
+            d_ranks = expert_decoder_rank_generator.get_ranks(group_type, **kwargs)
+        else:
+            d_ranks = decoder_rank_generator.get_ranks(group_type, **kwargs)
         if encoder_rank_generator is None:
             for x in d_ranks:
                 yield x
@@ -446,9 +491,16 @@ def fake_initialize_model_parallel(
     # EP rank
     expert_model_parallel_rank = 0
     if expert_model_parallel_size_ is not None and expert_model_parallel_size_ > 1:
-        for ranks in generator_wrapper('ep', independent_ep=True):
+        for ranks in generator_wrapper('ep', is_expert=True):
             if rank in ranks:
                 expert_model_parallel_rank = list(ranks).index(rank)
+
+    # ETP
+    expert_tensor_parallel_rank = 0
+    if expert_tensor_parallel_size_ is not None and expert_tensor_parallel_size_ > 1:
+        for ranks in generator_wrapper('tp', is_expert=True):
+            if rank in ranks:
+                expert_tensor_parallel_rank = list(ranks).index(rank)
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).
@@ -488,6 +540,7 @@ def fake_initialize_model_parallel(
         tensor_model_parallel_rank,
         pipeline_model_parallel_rank,
         expert_model_parallel_rank,
+        expert_tensor_parallel_rank,
         model_parallel_size,
         data_parallel_size,
         pipeline_model_parallel_split_rank_,

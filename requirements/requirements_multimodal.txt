@@ -1,11 +1,12 @@
 addict
+bitsandbytes==0.45.0 ; platform_machine == 'x86_64'
 clip
 decord; sys_platform == 'linux'
 diffusers>=0.19.3
 einops_exts
 imageio
 kornia
-megatron-energon
+megatron-energon==5.2.0
 nerfacc>=0.5.3
 open_clip_torch==2.24.0
 PyMCubes

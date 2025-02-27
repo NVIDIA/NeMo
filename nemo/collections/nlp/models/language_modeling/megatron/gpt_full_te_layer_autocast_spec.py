@@ -252,8 +252,10 @@ class TETransformerLayerAutocast(AutocastTransformerLayer, BaseTransformerLayer)
         rotary_pos_emb=None,
         rotary_pos_cos=None,
         rotary_pos_sin=None,
+        attention_bias=None,
         inference_params=None,
         packed_seq_params=None,  # TODO: handle this
+        sequence_len_offset=None,  # TODO: handle this
     ):
         # Use is_first_microbatch argument during CUDA graph capture. Use self.is_first_microbatch otherwise.
         hidden_states = super().forward(

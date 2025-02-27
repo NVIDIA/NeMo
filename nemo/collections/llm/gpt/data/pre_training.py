@@ -18,8 +18,8 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+import lightning.pytorch as pl
+from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
@@ -189,6 +189,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         self.build_kwargs = build_kwargs
         self.seq_length = seq_length
+        self.micro_batch_size = micro_batch_size
+        self.global_batch_size = global_batch_size
         self.tokenizer = tokenizer
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -211,8 +213,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
-            micro_batch_size=micro_batch_size,
-            global_batch_size=global_batch_size,
+            micro_batch_size=self.micro_batch_size,
+            global_batch_size=self.global_batch_size,
             rampup_batch_size=rampup_batch_size,
         )
 

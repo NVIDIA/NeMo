@@ -15,12 +15,12 @@
 import copy
 import os
 from math import ceil
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -40,6 +40,7 @@ from nemo.collections.asr.parts.mixins import (
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import process_timestamp_outputs
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
@@ -47,7 +48,6 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-from nemo.utils.decorators import deprecated
 
 
 class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTranscriptionMixin):
@@ -285,7 +285,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             * A list of greedy transcript texts / Hypothesis
             * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
         """
-
+        timestamps = timestamps or (override_config.timestamps if override_config is not None else None)
         if timestamps is not None:
             if timestamps or (override_config is not None and override_config.timestamps):
                 logging.info(
@@ -469,8 +469,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
                 config,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
+                # During transcription, the model is initially loaded on the CPU.
+                # To ensure the correct global_rank and world_size are set,
+                # these values must be passed from the configuration.
+                global_rank=self.global_rank if not config.get("do_transcribe", False) else config.get("global_rank"),
+                world_size=self.world_size if not config.get("do_transcribe", False) else config.get("world_size"),
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=make_parser(
                         labels=config.get('labels', None),
@@ -479,6 +482,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                         blank_id=config.get('blank_index', -1),
                         do_normalize=config.get('normalize_transcripts', False),
                     ),
+                    return_cuts=config.get("do_transcribe", False),
                 ),
             )
 
@@ -810,11 +814,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
         del signal
 
-        best_hyp_text, all_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
+        best_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
             encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
         )
 
-        sample_id = sample_id.cpu().detach().numpy()
+        if isinstance(sample_id, torch.Tensor):
+            sample_id = sample_id.cpu().detach().numpy()
         return list(zip(sample_id, best_hyp_text))
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0):
@@ -931,17 +936,13 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         output = dict(encoded=encoded, encoded_len=encoded_len)
         return output
 
-    @deprecated(
-        explanation='The return type of args will be updated in the upcoming release to ensure a consistent \
-            output format across all decoder types, such that a "Hypothesis" object is always returned.'
-    )
     def _transcribe_output_processing(
         self, outputs, trcfg: TranscribeConfig
-    ) -> Tuple[List['Hypothesis'], List['Hypothesis']]:
+    ) -> Union[List['Hypothesis'], List[List['Hypothesis']]]:
         encoded = outputs.pop('encoded')
         encoded_len = outputs.pop('encoded_len')
 
-        best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
+        hyp = self.decoding.rnnt_decoder_predictions_tensor(
             encoded,
             encoded_len,
             return_hypotheses=trcfg.return_hypotheses,
@@ -951,23 +952,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         del encoded, encoded_len
 
         if trcfg.timestamps:
-            best_hyp = process_timestamp_outputs(
-                best_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
-            )
-            all_hyp = process_timestamp_outputs(
-                all_hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            hyp = process_timestamp_outputs(
+                hyp, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
 
-        hypotheses = []
-        all_hypotheses = []
-
-        hypotheses += best_hyp
-        if all_hyp is not None:
-            all_hypotheses += all_hyp
-        else:
-            all_hypotheses += best_hyp
-
-        return (hypotheses, all_hypotheses)
+        return hyp
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """

@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Optional
+from typing import Optional
 
+import lightning.pytorch as pl
 import nemo_run as run
-import pytorch_lightning as pl
 import torch
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.peft.lora import LoRA
+from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.nemotron import nemotron_model, nemotron_trainer
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
@@ -199,22 +200,31 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         It may not be suitable for all hardware configurations or use cases.
     """
 
-    # 'overlap_param_gather_with_optimizer_step' and 'align_param_gather' params are set automatically
-    # by MegatronCommOverlapCallback. They are added here for user's knowledge.
-    # overlap_param_gather_with_optimizer_step- Overlap param all-gather of first bucket with optimizer step.
-    # align_param_gather- If true, all PP stages launch param all-gathers simultaneously, else
-    # each PP stage launches independently as needed.
+    if not recipe.trainer.callbacks:
+        recipe.trainer.callbacks = []
 
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=True,
-            defer_embedding_wgrad_compute=True,
-            wgrad_deferral_limit=22,
-            overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing
-            align_param_gather=True,
-        )
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=100,
+        gc_interval_val=100,
     )
+    mcomm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=True,
+        defer_embedding_wgrad_compute=True,
+        wgrad_deferral_limit=22,
+        # 'overlap_param_gather_with_optimizer_step' is set automatically. Added here for user's knowledge
+        overlap_param_gather_with_optimizer_step=False,  # Currently disabled due to an issue with checkpointing
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            garbage_collection_callback,
+            mcomm_overlap_callback,
+        ]
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
     return recipe
 
 
@@ -239,8 +249,10 @@ def finetune_recipe(
         name (str): Name of the fine-tuning run.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning. Allowed values: 'lora', 'none'/None.
-        packed_sequence (Optional[bool]): Packing multiple training sequences into one long sequence for training efficiency. Default sequence length is 2048.
+        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
+            Allowed values: 'lora'/'dora'/'none'/None.
+        packed_sequence (Optional[bool]): Packing multiple training sequences into one long sequence for training
+            efficiency. Default sequence length is 2048.
 
     Returns:
         run.Partial: Partial configuration for fine-tuning.
@@ -265,8 +277,8 @@ def finetune_recipe(
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(LoRA)
+    elif peft_scheme.lower() in ['lora', 'dora']:
+        recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.optim.config.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")

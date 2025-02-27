@@ -17,8 +17,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset, ssl_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
@@ -609,6 +609,10 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
 
 class EncDecMaskedTokenPredModel(SpeechEncDecSelfSupervisedModel):
+    """
+    Speech self-supervised model that performs masked token prediction on the encoder output.
+    """
+
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
         """
         PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
@@ -806,6 +810,11 @@ class EncDecMaskedTokenPredModel(SpeechEncDecSelfSupervisedModel):
 
 
 class EncDecDenoiseMaskedTokenPredModel(EncDecMaskedTokenPredModel):
+    """
+    Model class that performs denoising and masked token prediction for speech self-supervised learning.
+    Please refer to the NEST paper for more details: https://arxiv.org/abs/2408.13106
+    """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
 

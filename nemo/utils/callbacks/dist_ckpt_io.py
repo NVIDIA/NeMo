@@ -12,19 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import shutil
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from time import time
 from typing import Any, Dict, Optional, Union
 
-import pytorch_lightning as pl
-from lightning_fabric.plugins import CheckpointIO
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from lightning_fabric.utilities.types import _PATH
-from pytorch_lightning import Callback
-from pytorch_lightning.plugins.io.wrapper import _WrappingCheckpointIO
+import lightning.pytorch as pl
+from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.fabric.utilities.types import _PATH
+from lightning.pytorch import Callback
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 
 from nemo.utils import logging
 
@@ -177,7 +176,9 @@ class AsyncFinalizerCallback(Callback):
     def _get_checkpoint_io(self, trainer) -> AsyncFinalizableCheckpointIO:
         checkpoint_io = trainer.strategy.checkpoint_io
         if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
-            raise ValueError(f'Async finalizer requires an async compatible CheckpointIO, got: {checkpoint_io}')
+            raise ValueError(
+                f'Async finalizer requires an async compatible CheckpointIO, got: {checkpoint_io.__class__}'
+            )
         return checkpoint_io
 
 

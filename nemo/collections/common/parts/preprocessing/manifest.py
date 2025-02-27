@@ -20,7 +20,7 @@ from os.path import expanduser
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from nemo.utils import logging
-from nemo.utils.data_utils import DataStoreObject, datastore_path_to_local_path, is_datastore_path
+from nemo.utils.data_utils import DataStoreObject, is_datastore_path, get_datastore_object
 from nemo.utils.nemo_logging import LogMode
 
 
@@ -219,7 +219,7 @@ def get_full_path(
     manifest_file: Optional[str] = None,
     data_dir: Optional[str] = None,
     audio_file_len_limit: int = 255,
-    cached: bool = True,
+    force_cache: bool = True,
 ) -> Union[str, List[str]]:
     """Get full path to audio_file.
 
@@ -235,6 +235,7 @@ def get_full_path(
         manifest_file: path to a manifest file
         data_dir: path to a directory containing data, use only if a manifest file is not provided
         audio_file_len_limit: limit for length of audio_file when using relative paths
+        force_cache: cache and provide local cached path of the audio if audio_file is from a data object store
 
     Returns:
         Full path to audio_file or a list of paths.
@@ -279,14 +280,14 @@ def get_full_path(
             # assume audio_file path is relative to data_dir
             audio_file_path = os.path.join(data_dir, audio_file)
 
-            if is_datastore_path(audio_file_path) and cached:
-                # If audio was originally on an object store, use locally-cached path
-                audio_file_path = datastore_path_to_local_path(audio_file_path)
+            if is_datastore_path(audio_file_path):
+                # If audio was originally on an object store, use locally-cached path. 
+                # If the file could not be found in the local cache, it will be downloaded.
+                audio_file_path = get_datastore_object(audio_file_path) if force_cache else audio_file_path
+                return audio_file_path
 
-            if os.path.isfile(audio_file_path) and cached:
+            if os.path.isfile(audio_file_path):
                 audio_file = os.path.abspath(audio_file_path)
-            elif not cached:
-                audio_file = audio_file_path
             else:
                 audio_file = expanduser(audio_file)
         else:

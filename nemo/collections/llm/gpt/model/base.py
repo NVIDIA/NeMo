@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Union
 
-import pytorch_lightning as L
+import lightning.pytorch as L
 import torch
 import torch.distributed
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
@@ -40,7 +40,7 @@ _, HAVE_TE = safe_import("transformer_engine")
 # TODO: Clean this up with a getter and install instructions
 _grad_accum_fusion_available = True
 try:
-    import fused_weight_gradient_mlp_cuda
+    import fused_weight_gradient_mlp_cuda  # noqa: F401  # pylint: disable=unused-import
 except ImportError:
     _grad_accum_fusion_available = False
 
@@ -116,7 +116,10 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     from megatron.core.models.gpt import gpt_layer_specs
 
     return gpt_layer_specs.get_gpt_layer_with_transformer_engine_spec(
-        num_experts=config.num_moe_experts, moe_grouped_gemm=config.moe_grouped_gemm, qk_layernorm=config.qk_layernorm
+        num_experts=config.num_moe_experts,
+        moe_grouped_gemm=config.moe_grouped_gemm,
+        qk_layernorm=config.qk_layernorm,
+        fp8=bool(config.num_moe_experts and (config.fp8 is not None)),
     )
 
 
@@ -146,10 +149,19 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
         return local_layer_spec(config)
 
 
-def torch_dtype_from_mcore_config(config: TransformerConfig):
+def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
     if config.fp16:
         return torch.float16
     elif config.bf16:
+        return torch.bfloat16
+    else:
+        return torch.float
+
+
+def torch_dtype_from_dict_config(config: Dict[str, Any]) -> torch.dtype:
+    if config['fp16']:
+        return torch.float16
+    elif config['bf16']:
         return torch.bfloat16
     else:
         return torch.float
@@ -171,7 +183,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     masked_softmax_fusion: bool = True
     cross_entropy_loss_fusion: bool = True
     gradient_accumulation_fusion: bool = _grad_accum_fusion_available
-    deallocate_pipeline_outputs = True
+    deallocate_pipeline_outputs: bool = True
+    scatter_embedding_sequence_parallel: bool = True
+    tp_only_amax_red: bool = False
 
     use_transformer_engine_full_layer_spec: bool = False
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
@@ -179,9 +193,19 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
 
-    def configure_model(self, tokenizer) -> "MCoreGPTModel":
+    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+        if self.enable_cuda_graph:
+            assert HAVE_TE, "Transformer Engine is required for cudagraphs."
+            assert getattr(self, 'use_te_rng_tracker', False), (
+                "Transformer engine's RNG tracker is required for cudagraphs, it can be "
+                "enabled with use_te_rng_tracker=True'."
+            )
+
         vp_size = self.virtual_pipeline_model_parallel_size
-        if vp_size:
+        is_pipeline_asymmetric = getattr(self, 'account_for_embedding_in_pipeline_split', False) or getattr(
+            self, 'account_for_loss_in_pipeline_split', False
+        )
+        if vp_size and not is_pipeline_asymmetric:
             p_size = self.pipeline_model_parallel_size
             assert (
                 self.num_layers // p_size
@@ -195,10 +219,11 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
         if hasattr(self, 'vocab_size'):
             vocab_size = self.vocab_size
-            logging.info(
-                f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
-                f" {vocab_size - tokenizer.vocab_size}."
-            )
+            if tokenizer is not None:
+                logging.info(
+                    f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
+                    f" {vocab_size - tokenizer.vocab_size}."
+                )
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
@@ -214,8 +239,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             rotary_percent=self.rotary_percent,
             rotary_base=self.rotary_base,
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=parallel_state.is_pipeline_first_stage(),
-            post_process=parallel_state.is_pipeline_last_stage(),
+            pre_process=pre_process or parallel_state.is_pipeline_first_stage(),
+            post_process=post_process or parallel_state.is_pipeline_last_stage(),
+            scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
         )
 
         # If using full TE layer, need to set TP, CP group since the module call
@@ -223,7 +249,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         # TP, CP group to the TE modules.
         # Deep iterate but skip self to avoid infinite recursion.
         if HAVE_TE and self.use_transformer_engine_full_layer_spec:
-            # Copied from: https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
+            # Copied from:
+            # https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/transformer.py
             if parallel_state.get_tensor_model_parallel_world_size() > 1:
                 for index, child in enumerate(model.modules()):
                     if index == 0:
@@ -393,11 +420,22 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         if mcore_model is None or type(mcore_model) is not MCoreGPTModel:
             raise ValueError("Exact McoreGPTModel instance not found in the model structure.")
 
+        vocab_size = None
+        if self.tokenizer is not None:
+            vocab_size = self.tokenizer.vocab_size
+        elif hasattr(self.config, 'vocab_size'):
+            vocab_size = self.config.vocab_size
+        else:
+            raise ValueError(
+                'Unable to find vocab size.'
+                ' Either pass in a tokenizer with vocab size, or set vocab size in the model config'
+            )
+
         inference_wrapper_config = InferenceWrapperConfig(
             hidden_size=mcore_model.config.hidden_size,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            padded_vocab_size=self.tokenizer.vocab_size,
+            padded_vocab_size=vocab_size,
         )
 
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
@@ -436,8 +474,8 @@ def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
                     val.shape[seq_dim] // (2 * cp_size),
                     *val.shape[(seq_dim + 1) :],
                 )
-                index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).cuda(
-                    non_blocking=True
+                index = torch.tensor([cp_rank, (2 * cp_size - cp_rank - 1)], device="cpu", pin_memory=True).to(
+                    _val.device, non_blocking=True
                 )
                 _val = _val.index_select(seq_dim, index)
                 _val = _val.view(*val.shape[0:seq_dim], -1, *_val.shape[(seq_dim + 2) :])

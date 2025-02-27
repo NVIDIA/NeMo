@@ -19,8 +19,8 @@ from typing import Any, Dict
 import modelopt.torch.distill as mtd
 import modelopt.torch.opt as mto
 import torch.multiprocessing as mp
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning.trainer.trainer import Trainer
 
 try:
     from megatron.core import parallel_state, tensor_parallel
@@ -468,7 +468,11 @@ def adjust_distillation_model_for_mcore(model: mtd.DistillationModel, distill_cf
     """Extra modifcations to ``mtd.DistillationModel`` requried for Megatron-Core."""
 
     # HACK: Get rid of ModelOpt Distillation state
-    mto.ModeloptStateManager(model)._state.pop()
+    modelopt_states = mto.ModeloptStateManager(model).state_dict()
+    if len(modelopt_states) > 1:
+        modelopt_states.pop()
+    else:
+        delattr(model, mto.ModeloptStateManager._state_key)
 
     # HACK: Hide teacher during `sharded_state_dict` method.
     def _sharded_state_dict(self, *args, **kwargs) -> ShardedStateDict:

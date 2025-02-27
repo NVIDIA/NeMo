@@ -97,9 +97,15 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
                 config,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
-                dataset=LhotseSpeechToTextBpeDataset(tokenizer=self.tokenizer),
+                # During transcription, the model is initially loaded on the CPU.
+                # To ensure the correct global_rank and world_size are set,
+                # these values must be passed from the configuration.
+                global_rank=self.global_rank if not config.get("do_transcribe", False) else config.get("global_rank"),
+                world_size=self.world_size if not config.get("do_transcribe", False) else config.get("world_size"),
+                dataset=LhotseSpeechToTextBpeDataset(
+                    tokenizer=self.tokenizer,
+                    return_cuts=config.get("do_transcribe", False),
+                ),
                 tokenizer=self.tokenizer,
             )
 
@@ -241,7 +247,6 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             if not os.path.isdir(new_tokenizer_dir):
                 raise NotADirectoryError(
                     f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
-                    f"New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}"
                 )
 
             if new_tokenizer_type.lower() not in ('bpe', 'wpe'):

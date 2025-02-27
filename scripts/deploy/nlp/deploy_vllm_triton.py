@@ -41,7 +41,7 @@ def get_args(argv):
         "-mt",
         "--model_type",
         type=str,
-        required=False,
+        required=True,
         choices=["llama", "mistral", "mixtral", "starcoder2", "gemma"],
         help="Type of the model",
     )
@@ -156,7 +156,7 @@ def nemo_deploy(argv):
             triton_model_name=args.triton_model_name,
             triton_model_version=args.triton_model_version,
             max_batch_size=args.max_batch_size,
-            port=args.triton_port,
+            http_port=args.triton_port,
             address=args.triton_http_address,
             streaming=args.enable_streaming,
         )

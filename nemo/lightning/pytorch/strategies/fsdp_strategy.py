@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import shutil
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
-from lightning_fabric.plugins import CheckpointIO
-from lightning_fabric.strategies.fsdp import _get_sharded_state_dict_context
+from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
+from lightning.pytorch.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
+from lightning.pytorch.trainer.states import TrainerFn
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core.transformer.transformer_layer import TransformerLayer
-from pytorch_lightning.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
-from pytorch_lightning.trainer.states import TrainerFn
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
     StateDictOptions,
     get_optimizer_state_dict,
@@ -212,17 +213,17 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         checkpoint["sharded_state_dict"] = pyt_to_mcore_state_dict(checkpoint.pop("state_dict"))
         checkpoint["state_dict"] = OrderedDict([])
 
-        ## replace unsharded optimizer_states with sharded dict.
-        ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
-        ## the checkpoint will contain only model weights. Optimizer states will be omitted.
-        if (
-            "optimizer_states" in checkpoint
-            and self.trainer.state.fn == TrainerFn.FITTING
-            and self.ckpt_save_optimizer
-        ):
+        if "optimizer_states" in checkpoint and self.trainer.state.fn == TrainerFn.FITTING:
+            # Clear the optimizer states. This handles the case where ckpt_save_optimizer=False
+            # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}
-            checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
-            pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
+
+            ## replace unsharded optimizer_states with sharded dict.
+            ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
+            ## the checkpoint will contain only model weights. Optimizer states will be omitted.
+            if self.ckpt_save_optimizer:
+                checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
+                pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 

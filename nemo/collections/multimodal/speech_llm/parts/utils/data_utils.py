@@ -12,14 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
+from lhotse.cut import Cut
+
+from nemo.collections.common.data.prompt_fn import get_prompt_format_fn
+from nemo.collections.common.prompts import PromptFormatter
 from nemo.utils import logging, logging_mode
 
 
-def maybe_cast_to_list(x):
+def maybe_cast_to_list(x: Union[torch.Tensor, np.ndarray, List]):
+    if isinstance(x, list):
+        return [maybe_cast_to_list(item) for item in x]
+    if isinstance(x, torch.Tensor):
+        x = x.cpu().numpy()
     if isinstance(x, np.ndarray):
         return [item.tolist() for item in x]
     return x
@@ -196,8 +204,9 @@ class TextProcessing:
         context_key (str): Key to use for the context in your JSONL file
         answer_key (str): Key to use for the label in your JSONL file
         end_string (Optional[str]): If not None, add this string to the end of the answer.
-        sample_alpha (Optional[float]): For SPE subword sampling
-        input_text_mask_ratio (Optional[float]): If not None, will mask the input text at this ratio.
+        add_boa_eos (Optional[bool]): If true, add special strings before and after audio
+        boa_string (Optional[str]): The string to add before audio
+        eoa_string (Optional[str]): The string to add after audio
     """
 
     def __init__(
@@ -213,15 +222,17 @@ class TextProcessing:
         separate_prompt_and_response_with_newline: bool = False,
         answer_only_loss: bool = True,
         truncation_field: str = "answer",
-        pad_to_max_length: bool = False,  # (@adithyare) allows for much faster training especially in PEFT settings.
+        pad_to_max_length: bool = False,
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
         context_key: str = 'context',
         answer_key: str = 'answer',
         end_string: Optional[str] = None,
-        sample_alpha: Optional[float] = None,
         audio_locator: Optional[str] = None,
+        add_boa_eoa: Optional[bool] = False,
+        boa_string: Optional[str] = "<BOA>",
+        eoa_string: Optional[str] = "<EOA>",
     ):
         self.context_key = context_key
         self.answer_key = answer_key
@@ -240,8 +251,10 @@ class TextProcessing:
         self.add_eos = add_eos
         self.add_sep = add_sep
         self.end_string = end_string
-        self.sample_alpha = sample_alpha
         self.audio_locator = audio_locator
+        self.add_boa_eoa = add_boa_eoa
+        self.boa_string = boa_string
+        self.eoa_string = eoa_string
 
         if add_bos and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
             self.bos_id = tokenizer.bos_id
@@ -253,7 +266,7 @@ class TextProcessing:
         else:
             self.eos_id = None
 
-        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id > 0:
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id != None and tokenizer.pad_id > 0:
             self.pad_id = tokenizer.pad_id
         else:
             self.pad_id = self.eos_id if self.eos_id is not None else 0
@@ -264,6 +277,9 @@ class TextProcessing:
             # When providing things like newlines in the prompt template via the CLI, they are escaped. This line unescapes them.
             self.prompt_template = self.prompt_template.encode('utf-8').decode('unicode_escape')
         assert self.truncation_field in ["answer", "context"]
+
+    def __call__(self, *args, **kwds):
+        return self._process_example(*args, **kwds)
 
     def _process_example(self, context: str, output: str):
         """
@@ -312,7 +328,7 @@ class TextProcessing:
         else:
             pre_pad = []
         answer_text = text[len(context) :]
-        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text, self.sample_alpha)
+        answer_ids = pre_pad + self.tokenizer.text_to_ids(answer_text)
         if self.end_string:
             answer_ids += self.tokenizer.text_to_ids(self.end_string)
 
@@ -324,8 +340,16 @@ class TextProcessing:
             # multiple audio case
             context_ids = []
             context_start_idx = []
-            for context_seg in context.split(self.audio_locator):
+            segments = context.split(self.audio_locator)
+            for i, context_seg in enumerate(segments):
                 context_start_idx.append(len(context_ids))
+                if self.add_boa_eoa:
+                    if i == 0:
+                        context_seg = context_seg + ' ' + self.boa_string
+                    elif i == len(segments) - 1:
+                        context_seg = self.eoa_string + ' ' + context_seg
+                    else:
+                        context_seg = self.eoa_string + ' ' + context_seg + ' ' + self.boa_string
                 context_ids.extend(self.tokenizer.text_to_ids(context_seg))
         context_ids = pre_pad + context_ids
         context_start_idx = [x + len(pre_pad) for x in context_start_idx]
@@ -380,3 +404,76 @@ class TextProcessing:
         }
 
         return processed_example
+
+
+class PromptFormatterTextProcessing:
+    """
+    Text processing pipeline for speech_llm data loader.
+    This class was initially adapted from the one used in nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_dataset.py
+    and later refactored to use the new PromptFormatter API.
+
+    Args:
+        tokenizer: text tokenizer object
+        prompt_format (Optional[str]): name of the prompt formatter to be applied.
+    """
+
+    def __init__(
+        self,
+        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        prompt_format: Optional[str] = None,
+        audio_locator: Optional[str] = None,
+        max_seq_length: Optional[int] = 8192,
+    ):
+        self.prompt = PromptFormatter.resolve(prompt_format)(tokenizer)
+        self.prompt_format_fn = get_prompt_format_fn(Cut, self.prompt)
+        self.tokenizer = tokenizer
+        self.audio_locator = audio_locator
+        self.max_seq_length = max_seq_length
+        self.audio_locator_id = (
+            torch.as_tensor(self.tokenizer.text_to_ids(audio_locator)) if audio_locator is not None else None
+        )
+        if hasattr(tokenizer, "pad_id") and tokenizer.pad_id != None and tokenizer.pad_id > 0:
+            self.pad_id = tokenizer.pad_id
+        else:
+            self.pad_id = (
+                self.tokenizer.eos_id if self.tokenizer.eos_id is not None and self.tokenizer.eos_id > 0 else 0
+            )
+
+    def _process_example(self, cut: Cut):
+        ans = self.prompt_format_fn(cut, self.prompt)
+        context_start_idx = [0]
+        if self.audio_locator_id is not None:
+            if len(self.audio_locator_id) == 1:  # fast case, special "insert audio" token
+                context_start_idx = (ans["context_ids"] == self.audio_locator_id).nonzero().flatten()
+            else:  # slow case, no dedicated token, got tokenized into multiple tokens; substring search
+                context_start_idx = _find_substring_indices(ans["context_ids"], self.audio_locator_id)
+        if len(ans["input_ids"]) > self.max_seq_length:
+            truncation_length = len(ans["input_ids"]) - self.max_seq_length
+            logging.warning(
+                f'Input ids length {len(ans["input_ids"])} exceed max sequence length {self.max_seq_length}'
+            )
+            ans["input_ids"] = ans["input_ids"][: self.max_seq_length]
+            if truncation_length < len(ans["answer_ids"]):
+                ans["answer_ids"] = ans["answer_ids"][:-truncation_length]
+            else:
+                ans["answer_ids"] = ans["answer_ids"][: -min(truncation_length, len(ans["answer_ids"]))]
+                ans["context_ids"] = ans["context_ids"][: -min(truncation_length, len(ans["context_ids"]))]
+        return {
+            'input_ids': ans["input_ids"],
+            'answer_start_idx': len(ans["context_ids"]),
+            'context_ids': ans["context_ids"],
+            'context_length': len(ans["context_ids"]),
+            'answer_ids': ans["answer_ids"],
+            'context_start_idx': context_start_idx,
+        }
+
+
+def _find_substring_indices(string: torch.Tensor, substring: torch.Tensor) -> torch.Tensor:
+    string_len = string.size(0)
+    substring_len = substring.size(0)
+    if substring_len > string_len:
+        return torch.tensor([], dtype=torch.long)
+    windows = string.unfold(0, substring_len, 1)
+    matches = (windows == substring).all(dim=1)
+    indexes = matches.nonzero().flatten()
+    return indexes

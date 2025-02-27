@@ -18,8 +18,8 @@
 import argparse
 
 import torch
+from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -87,6 +87,7 @@ if __name__ == '__main__':
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.float32,
         ckpt_load_optimizer=False,
+        ckpt_load_strictness="log_all",  # Only for CI tests to use older versions of checkpoint
     )
     checkpoint_callback = ModelCheckpoint(
         every_n_train_steps=5000,
@@ -103,7 +104,7 @@ if __name__ == '__main__':
         optimizer='adam',
         lr=2.0e-5,
         use_distributed_optimizer=False,
-        bf16=False,
+        bf16=True,
         weight_decay=0.1,
     )
     opt = MegatronOptimizerModule(
@@ -124,7 +125,7 @@ if __name__ == '__main__':
         log_every_n_steps=1,
         limit_val_batches=2,
         val_check_interval=50,
-        plugins=nl.MegatronMixedPrecision(precision="32"),
+        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
     )
 
     if args.wandb_project is not None:
