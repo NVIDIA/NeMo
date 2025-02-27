@@ -624,7 +624,8 @@ class ModelPT(LightningModule, Model):
             overlap_param_gather_with_optimizer_step=self.cfg.optim.get(
                 'overlap_param_gather_with_optimizer_step', False
             ),
-            capturable=self.cfg.optim.get('capturable', False)
+            capturable=self.cfg.optim.get('capturable', False),
+            master_weights=self.cfg.optim.get('master_weights', False)
         )
         return megatron_optim_config
 
