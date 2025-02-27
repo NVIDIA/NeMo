@@ -54,9 +54,11 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "${{ matrix.python }}"
+
+      - name: Install Python
+        run: |
+          apt-get update && apt-get install -y python3-pip
+
       - name: Install NeMo
         env:
           INSTALLER: ${{ matrix.installer }}
