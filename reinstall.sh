@@ -27,7 +27,7 @@ mcore() {
   export CAUSAL_CONV1D_FORCE_BUILD=TRUE
   export CAUSAL_CONV_TAG=v1.2.2.post1
 
-  WHEELS_DIR=$WHEELS_DIR/mcore/
+  local WHEELS_DIR=$WHEELS_DIR/mcore/
   rm -rf $WHEELS_DIR
   mkdir -p $WHEELS_DIR
 
@@ -81,7 +81,7 @@ mcore() {
       build
     fi
 
-    pip install --no-cache-dir $WHEELS_DIR/*.whl "nvidia-pytriton ; platform_machine == 'x86_64'"
+    pip install --no-cache-dir $WHEELS_DIR/*.whl "nvidia-pytriton ; platform_machine == 'x86_64'" || true
     pip install --no-cache-dir -e $MLM_DIR
   fi
 }
@@ -89,7 +89,7 @@ mcore() {
 te() {
   local mode="$1"
 
-  WHEELS_DIR=$WHEELS_DIR/te/
+  local WHEELS_DIR=$WHEELS_DIR/te/
   rm -rf $WHEELS_DIR
   mkdir -p $WHEELS_DIR
 
@@ -126,7 +126,7 @@ te() {
 apex() {
   local mode="$1"
 
-  WHEELS_DIR=$WHEELS_DIR/apex/
+  local WHEELS_DIR=$WHEELS_DIR/apex/
   rm -rf $WHEELS_DIR
   mkdir -p $WHEELS_DIR
 
@@ -159,8 +159,49 @@ apex() {
 
 }
 
+vllm() {
+  local mode="$1"
+
+  local WHEELS_DIR=$WHEELS_DIR/vllm/
+  rm -rf $WHEELS_DIR
+  mkdir -p $WHEELS_DIR
+
+  VLLM_DIR="$INSTALL_DIR/vllm"
+
+  build() {
+    if [[ "$HAS_CUDA" == "TRUE" ]]; then
+      ${PIP} install --no-cache-dir virtualenv &&
+        virtualenv $INSTALL_DIR/venv &&
+        $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools coverage &&
+        $INSTALL_DIR/venv/bin/pip wheel --no-cache-dir --no-build-isolation \
+          --wheel-dir $WHEELS_DIR/ \
+          -r $NEMO_DIR/requirements/requirements_vllm.txt \
+          -r $NEMO_DIR/requirements/requirements_deploy.txt
+    fi
+  }
+
+  if [[ "$mode" == "build" ]]; then
+    build
+  else
+    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
+      build
+    fi
+
+    ${PIP} install --no-cache-dir virtualenv &&
+      virtualenv $INSTALL_DIR/venv &&
+      pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/*.whl || true
+  fi
+
+}
+
 nemo() {
   local mode="$1"
+
+  if [[ "$mode" == "build" ]]; then
+    echo "No build supported for Nemo, directly install."
+    return
+  fi
+
   NEMO_DIR=${NEMO_DIR:-"$INSTALL_DIR/NeMo"}
 
   if [[ -n "$NEMO_TAG" ]]; then
@@ -176,34 +217,27 @@ nemo() {
       git checkout -f $NEMO_TAG
   fi
 
-  PLATFORM_MACHINE=$(python -c "import platform; print(platform.machine())")
-  if [[ "$PLATFORM_MACHINE" == "x86_64" ]]; then
-    ${PIP} install --no-cache-dir virtualenv &&
-      virtualenv $INSTALL_DIR/venv &&
-      $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools coverage &&
-      $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation \
-        -r $NEMO_DIR/requirements/requirements_vllm.txt \
-        -r $NEMO_DIR/requirements/requirements_deploy.txt
-  else
-    echo "Skipping VLLM install for non x86_64 machine."
-  fi
-
-  DEPS=(
-    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
-    "onnxscript @ git+https://github.com/microsoft/onnxscript"
+  PYPI_DEPS=(
     "llama-index==0.10.43"
     "unstructured==0.14.9"
+    "-r"
+    "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
   )
 
-  if [ -n "${NVIDIA_PYTORCH_VERSION}" ]; then
-    echo "Installing NVIDIA Resiliency in NVIDIA PyTorch container: ${NVIDIA_PYTORCH_VERSION}"
-    pip install --force-reinstall --no-deps --no-cache-dir \
-      "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'" \
-      -r "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
-  fi
-
   echo 'Installing dependencies of nemo'
-  ${PIP} install --upgrade --no-cache-dir --extra-index-url https://pypi.nvidia.com "${DEPS[@]}"
+  ${PIP} install --upgrade --no-cache-dir --extra-index-url https://pypi.nvidia.com "${PYPI_DEPS[@]}"
+
+  VCS_DEPS=(
+    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
+    "onnxscript@git+https://github.com/microsoft/onnxscript"
+    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'"
+  )
+
+  # VCS dependency may or may not already be installed
+  # First force-reinstall without dependencies, then at the first version
+  # install dependencies
+  pip install --force-reinstall --no-deps --no-cache-dir "${VCS_DEPS[@]}"
+  pip install --no-cache-dir "${VCS_DEPS[@]}"
 
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
