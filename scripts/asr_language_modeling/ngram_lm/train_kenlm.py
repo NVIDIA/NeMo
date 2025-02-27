@@ -69,14 +69,13 @@ class TrainKenlmConfig:
     kenlm_bin_path: str = MISSING  # The path to the bin folder of KenLM.
 
     preserve_arpa: bool = False  # Whether to preserve the intermediate ARPA file.
-    save_nemo: bool = False
     ngram_prune: List[int] = field(
         default_factory=lambda: [0]
     )  # List of digits to prune Ngram. Example: [0,0,1]. See Pruning section on the https://kheafield.com/code/kenlm/estimation
     cache_path: str = ""  # Cache path to save tokenized files.
     verbose: int = 1  # Verbose level, default is 1.
-    normalize_unk_nemo: bool = True
-    add_all_unigrams: bool = False  # Add all unigrams to the lm.
+    save_nemo: bool = False  # Save .nemo checkpoint to use with FastNGramLM
+    normalize_unk_nemo: bool = True  # Normalize the UNK token in the FastNGramLM model
 
 
 @hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=TrainKenlmConfig)
@@ -108,8 +107,6 @@ def main(args: TrainKenlmConfig):
     ] + [str(n) for n in args.ngram_prune]
 
     if args.cache_path:
-        if args.add_all_unigrams:
-            raise NotImplementedError("Adding all unigrams is not supported with cache_path")
         if not os.path.exists(args.cache_path):
             os.makedirs(args.cache_path, exist_ok=True)
 
@@ -154,9 +151,6 @@ def main(args: TrainKenlmConfig):
     else:
         logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
         kenlm_p = subprocess.Popen(kenlm_args, stdout=sys.stdout, stdin=subprocess.PIPE, stderr=sys.stderr)
-        if args.add_all_unigrams:
-            for token in range(tokenizer.vocab_size):
-                kenlm_p.stdin.write(f"{chr(token+DEFAULT_TOKEN_OFFSET)}\n".encode())
         kenlm_utils.iter_files(
             source_path=train_paths,
             dest_path=kenlm_p.stdin,
