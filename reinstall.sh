@@ -8,6 +8,7 @@ ALL_LIBRARIES=(
   "apex"
   "mcore"
   "nemo"
+  "vllm"
 )
 
 INSTALL_OPTION=${1:-dev}
@@ -22,15 +23,13 @@ ${PIP} install -U ${PIP} setuptools
 
 mcore() {
   local mode="$1"
-  export MAMBA_FORCE_BUILD=TRUE
-  export MAMBA_TAG=v2.2.0
-  export CAUSAL_CONV1D_FORCE_BUILD=TRUE
-  export CAUSAL_CONV_TAG=v1.2.2.post1
 
   local WHEELS_DIR=$WHEELS_DIR/mcore/
   rm -rf $WHEELS_DIR
   mkdir -p $WHEELS_DIR
 
+  export CAUSAL_CONV1D_FORCE_BUILD=TRUE
+  export CAUSAL_CONV_TAG=v1.2.2.post1
   CAUSAL_CONV1D_DIR="$INSTALL_DIR/causal-conv1d" &&
     if [ ! -d "$CAUSAL_CONV1D_DIR/.git" ]; then
       rm -rf "$CAUSAL_CONV1D_DIR" &&
@@ -42,6 +41,8 @@ mcore() {
     git checkout -f $CAUSAL_CONV_TAG &&
     popd
 
+  export MAMBA_FORCE_BUILD=TRUE
+  export MAMBA_TAG=v2.2.0
   MAMBA_DIR="$INSTALL_DIR/mamba" &&
     if [ ! -d "$MAMBA_DIR/.git" ]; then
       rm -rf "$MAMBA_DIR" &&
@@ -53,6 +54,8 @@ mcore() {
     perl -ni -e 'print unless /triton/' setup.py &&
     popd
 
+  MLM_REPO=${MLM_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."megatron-lm".repo')}
+  MLM_TAG=${MLM_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."megatron-lm".ref')}
   MLM_DIR="$INSTALL_DIR/Megatron-LM" &&
     if [ ! -d "$MLM_DIR/.git" ]; then
       rm -rf "$MLM_DIR" &&
@@ -94,7 +97,8 @@ te() {
   mkdir -p $WHEELS_DIR
 
   TE_DIR="$INSTALL_DIR/TransformerEngine"
-
+  TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
+  TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
   if [ ! -d "$TE_DIR/.git" ]; then
     rm -rf "$TE_DIR" &&
       mkdir -p $(dirname "$TE_DIR") &&
@@ -131,6 +135,8 @@ apex() {
   mkdir -p $WHEELS_DIR
 
   APEX_DIR="$INSTALL_DIR/Apex"
+  APEX_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."apex".repo')}
+  APEX_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."apex".ref')}
   if [ ! -d "$APEX_DIR/.git" ]; then
     rm -rf "$APEX_DIR" &&
       mkdir -p $(dirname "$NEMO_DIR") &&
@@ -203,7 +209,6 @@ nemo() {
   fi
 
   NEMO_DIR=${NEMO_DIR:-"$INSTALL_DIR/NeMo"}
-
   if [[ -n "$NEMO_TAG" ]]; then
     if [ ! -d "$NEMO_DIR/.git" ]; then
       rm -rf "$NEMO_DIR" &&
