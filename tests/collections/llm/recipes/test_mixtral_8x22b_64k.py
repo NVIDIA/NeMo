@@ -23,7 +23,7 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x22B, MixtralModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import mixtral_8x22b_64k
-from nemo.lightning import AutoResume, Trainer
+from nemo.lightning import Trainer
 
 
 class TestMixtral8x22B_64k:
