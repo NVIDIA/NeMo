@@ -56,9 +56,17 @@ class RerunStateMachineConfig:
 @dataclass
 class TokenizerConfig:
     vocab_size: Optional[int] = None
+    """Size of vocab before EOD or padding."""
+
     vocab_file: Optional[str] = None
+    """Path to the vocab file."""
+
     merge_file: Optional[str] = None
+    """Path to the BPE merge file."""
+
     vocab_extra_ids: int = 0
+    """Number of additional vocabulary tokens. They are used for span masking in the T5 model"""
+
     tokenizer_type: Optional[
         Literal[
             "BertWordPieceLowerCase",
@@ -73,10 +81,20 @@ class TokenizerConfig:
             "NullTokenizer",
         ]
     ] = None
+    """What type of tokenizer to use."""
+
     tokenizer_model: Optional[str] = None
+    """Sentencepiece tokenizer model."""
+
     tiktoken_pattern: Optional[str] = None
+    """Which tiktoken pattern to use. Options: [v1, v2]"""
+
     tiktoken_num_special_tokens: int = 1000
+    """Number of special tokens in tiktoken tokenizer"""
+
     tiktoken_special_tokens: Optional[List[str]] = None
+    """List of tiktoken special tokens, needs to have ["<unk>", "<s>", "</s>"]"""
+
     tokenizer_prompt_format: Optional[str] = None
     special_tokens: Optional[List[str]] = None
     image_tag_type: Optional[str] = None
@@ -117,17 +135,8 @@ class MegatronLMConfig:
     max_position_embeddings: Optional[int] = None
     """Maximum number of position embeddings to use. This is the size of position embedding."""
 
-    position_embedding_type: Literal["learned_absolute", "rope", "none"] = "learned_absolute"
-    """Position embedding type."""
-
     use_rotary_position_embeddings: bool = False
     """Use rotary positional embeddings or not. Deprecated: use --position-embedding-type"""
-
-    rotary_base: int = 10000
-    """Base to use for rotary positional embeddings, default 10000"""
-
-    rotary_percent: float = 1.0
-    """Percent of rotary dimension to use, default 100%%"""
 
     rotary_seq_len_interpolation_factor: Optional[int] = None
     """Sequence length interpolation factor for rotary embeddings."""
@@ -137,9 +146,6 @@ class MegatronLMConfig:
 
     add_position_embedding: bool = True
     """Disable position embedding. Deprecated: use --position-embedding-type"""
-
-    make_vocab_size_divisible_by: int = 128
-    """Pad the vocab size to be divisible by this value. This is added for computational efficieny reasons."""
 
     openai_gelu: bool = False
     """Use OpenAI's GeLU implementation. This option should not be used unless for backward compatibility reasons."""
@@ -197,35 +203,11 @@ class MegatronLMConfig:
     memory_snapshot_path: str = "snapshot.pickle"
     """Specifies where to dump the memory history pickle."""
 
-    tp_comm_overlap: bool = False
-    """Enables the  overlap of Tensor parallel communication and GEMM kernels."""
-
     tp_comm_overlap_cfg: Optional[str] = None
     """Config file when tp_comm_overlap is enabled."""
 
-    tp_comm_overlap_ag: bool = True
-    """Disables the All-Gather overlap with GEMM by pipelining the GEMM and All-Gather."""
-
-    tp_comm_overlap_rs: bool = True
-    """Disables the Reduce-Scatter overlap with GEMM by pipelining the GEMM and Reduce-Scatter."""
-
-    tp_comm_overlap_rs_dgrad: bool = False
-    """Enables the Reduce-Scatter overlap with dgrad GEMM."""
-
-    tp_comm_bulk_dgrad: bool = True
-    """Disables the All-Gather overlap with bprop activation gradient GEMM."""
-
-    tp_comm_bulk_wgrad: bool = True
-    """Disables the Reduce-Scatter overlap with bprop weight gradient GEMM."""
-
-    use_cpu_initialization: bool = False
-    """If set, initialize weights on the CPU. This eliminates init differences based on tensor parallelism."""
-
     empty_unused_memory_level: Literal[0, 1, 2] = 0
     """Call torch.cuda.empty_cache() each iteration (training and eval), to reduce fragmentation. 0=off, 1=moderate, 2=aggressive."""
-
-    deterministic_mode: bool = False
-    """Choose code that has deterministic execution. This usually means slower execution, but is good for debugging and testing."""
 
     check_weight_hash_across_dp_replicas_interval: Optional[int] = None
     """Interval to check weight hashes are same across DP replicas. If not specified, weight hashes not checked."""
@@ -260,26 +242,11 @@ class MegatronLMConfig:
     bias_swiglu_fusion: bool = True
     """Disable bias and swiglu fusion, the fusion is available only when using megatron-core."""
 
-    cross_entropy_loss_fusion: bool = False
-    """Enabled fusion of cross entropy loss calculation."""
-
     use_flash_attn: bool = False
     """use FlashAttention implementation of attention. https://arxiv.org/abs/2205.14135"""
 
     dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
     """Single pass vs multiple pass data loader"""
-
-    async_tensor_model_parallel_allreduce: bool = True
-    """DEPRECATED. This flag is ignored."""
-
-    persist_layer_norm: bool = True
-    """Disable using persistent fused layer norm kernel. This kernel supports only a set of hidden sizes. Please check persist_ln_hidden_sizes if your hidden size is supported."""
-
-    sequence_parallel: bool = False
-    """Enable sequence parallel optimization."""
-
-    gradient_accumulation_fusion: bool = True
-    """Disable fusing gradient accumulation to weight gradient computation of linear layers"""
 
     deprecated_use_mcore_models: bool = False
     """DEPRECATED. Use the implementation from megatron core. Now ignored and mcore models are the default, use --use-legacy-models to not use core models."""
@@ -296,12 +263,6 @@ class MegatronLMConfig:
     manual_gc_eval: bool = True
     """When using manual garbage collection, disable garbage collection at the start and the end of each evaluation run."""
 
-    tp_comm_split_ag: bool = True
-    """Disables the All-Gather overlap with fprop GEMM."""
-
-    tp_comm_split_rs: bool = True
-    """Disables the Reduce-Scatter overlap with fprop GEMM."""
-
     # ---------------- Initialization config. ----------------
 
     data_parallel_random_init: bool = False
@@ -310,27 +271,13 @@ class MegatronLMConfig:
     init_method_xavier_uniform: bool = False
     """Enable Xavier uniform parameter initialization"""
 
-    # ---------------- Mixed precision config. ----------------
-
-    fp16_lm_cross_entropy: bool = False
-    """Move the cross entropy unreduced loss calculation for lm head to fp16."""
-
     # ---------------- Distributed config. ----------------
-
-    tensor_model_parallel_size: int = 1
-    """Degree of tensor model parallelism."""
 
     encoder_tensor_model_parallel_size: int = 0
     """Degree of tensor model parallelism for the encoder."""
 
-    pipeline_model_parallel_size: int = 1
-    """Degree of pipeline model parallelism."""
-
     encoder_pipeline_model_parallel_size: int = 0
     """Degree of pipeline model parallelism in the encoder. This is independent of the amount of pipeline in the decoder."""
-
-    pipeline_model_parallel_split_rank: Optional[int] = None
-    """Rank where encoder and decoder should be split. Deprecated; use --encoder-pipeline-model-parallel-size instead."""
 
     model_parallel_size: Optional[int] = None
     """Old model parallel argument, do not use. Use --tensor-model-parallel-size instead."""
@@ -338,26 +285,11 @@ class MegatronLMConfig:
     num_layers_per_virtual_pipeline_stage: Optional[int] = None
     """Number of layers per virtual pipeline stage"""
 
-    microbatch_group_size_per_vp_stage: Optional[int] = None
-    """Number of contiguous microbatches per virtual pipeline stage"""
-
-    overlap_p2p_comm: bool = True
-    """overlap pipeline parallel communication with forward and backward chunks in 1F1B"""
-
-    overlap_p2p_comm_warmup_flush: bool = False
-    """if set, overlap pipeline parallel communication in warmup and flush"""
-
     distributed_backend: Literal["nccl", "gloo"] = "nccl"
     """Which backend to use for distributed training."""
 
     distributed_timeout_minutes: int = 10
     """Timeout minutes for torch.distributed."""
-
-    defer_embedding_wgrad_compute: bool = False
-    """If set, defers the vocabulary projection linear layer weight gradient compute to pipeline flush."""
-
-    wgrad_deferral_limit: int = 0
-    """Number of micro-batches for which weight gradient computation of vocabulary projection is deferred, defaults to 0 which means all the micro-batches are deferred. Invalid if `defer-embedding-wgrad-compute` is not set"""
 
     align_grad_reduce: bool = True
     """If not set, all PP stages will launch gradient reduces simultaneously. Otherwise, each PP stage will independently launch as needed."""
@@ -368,17 +300,8 @@ class MegatronLMConfig:
     ddp_average_in_collective: bool = False
     """If set, average directly in data-parallel communication collective."""
 
-    overlap_param_gather: bool = False
-    """If set, overlap param all-gather in distributed optimizer."""
-
-    align_param_gather: bool = True
-    """If not set, all PP stages will launch param all-gathers simultaneously. Otherwise, each PP stage will independently launch as needed."""
-
     scatter_gather_tensors_in_pipeline: bool = True
     """If not set, use scatter/gather to optimize communication of tensors in pipeline."""
-
-    use_ring_exchange_p2p: bool = False
-    """If set, use custom-built ring exchange for p2p communications. Note that this option will require a custom built image that support ring-exchange p2p."""
 
     local_rank: int = field(default_factory=lambda: int(os.getenv("LOCAL_RANK", "0")))
     """local rank passed from distributed launcher."""
@@ -394,12 +317,6 @@ class MegatronLMConfig:
 
     use_torch_fsdp2: bool = False
     """Use the torch FSDP2 implementation. FSDP2 is not currently working with Pipeline Parallel.It is still not in a stable release stage, and may therefore contain bugs or other potential issues."""
-
-    context_parallel_size: int = 1
-    """Degree of context parallelism."""
-
-    hierarchical_context_parallel_sizes: Optional[List[int]] = None
-    """Degrees of the hierarchical context parallelism. Users should provide a list to specify the sizes for different levels. --hierarchical-context-parallel-sizes 2 4 indicates every two adjacent gpus forms the first level of cp groups and the cp ranks with the same odevity forms the second level of cp groups."""
 
     nccl_communicator_config_path: Optional[str] = None
     """Path to the yaml file with NCCL communicator configurations. The number of min/max thread groups and thread group cluster size of each communicator can be configured by setting `min_ctas`, `max_ctas`, and `cga_cluster_size`."""
@@ -455,48 +372,6 @@ class MegatronLMConfig:
 
     create_attention_mask_in_dataloader: bool = True
     """If set, do not create attention_masks in dataloader."""
-
-    # ---------------- Tokenizer config. ----------------
-
-    vocab_size: Optional[int] = None
-    """Size of vocab before EOD or padding."""
-
-    vocab_file: Optional[str] = None
-    """Path to the vocab file."""
-
-    merge_file: Optional[str] = None
-    """Path to the BPE merge file."""
-
-    vocab_extra_ids: int = 0
-    """Number of additional vocabulary tokens. They are used for span masking in the T5 model"""
-
-    tokenizer_type: Optional[
-        Literal[
-            "BertWordPieceLowerCase",
-            "BertWordPieceCase",
-            "GPT2BPETokenizer",
-            "SentencePieceTokenizer",
-            "GPTSentencePieceTokenizer",
-            "HuggingFaceTokenizer",
-            "Llama2Tokenizer",
-            "TikTokenizer",
-            "MultimodalTokenizer",
-            "NullTokenizer",
-        ]
-    ] = None
-    """What type of tokenizer to use."""
-
-    tokenizer_model: Optional[str] = None
-    """Sentencepiece tokenizer model."""
-
-    tiktoken_pattern: Optional[str] = None
-    """Which tiktoken pattern to use. Options: [v1, v2]"""
-
-    tiktoken_num_special_tokens: int = 1000
-    """Number of special tokens in tiktoken tokenizer"""
-
-    tiktoken_special_tokens: Optional[List[str]] = None
-    """List of tiktoken special tokens, needs to have ["<unk>", "<s>", "</s>"]"""
 
     # ---------------- Autoresume config. ----------------
 
@@ -626,12 +501,6 @@ class MegatronLMConfig:
 
     # ---------------- Moe config. ----------------
 
-    expert_model_parallel_size: int = 1
-    """Degree of expert model parallelism."""
-
-    moe_extended_tp: bool = False
-    """Alternative to expert parallelism, all experts are sharded across TPXEP domain."""
-
     moe_use_upcycling: bool = False
     """Load a checkpoint of a dense model, convert it into an MoE model, and save the converted model to the path specified by --save. Upcycling is implemented on the top of distributed checkpointing, so it supports parallel modes different from the dense model."""
 
@@ -670,9 +539,6 @@ class MegatronLMConfig:
 
     transformer_impl: Literal["local", "transformer_engine"] = "transformer_engine"
     """Which Transformer implementation to use."""
-
-    fp8_param_gather: bool = False
-    """Keep the compute param in fp8 (do not use any other intermediate dtype) and perform the param all-gather in fp8."""
 
     # ---------------- Retro config. ----------------
 
@@ -901,9 +767,6 @@ class CheckpointConfig:
     ckpt_step: Optional[int] = None
     """Checkpoint step to load model from."""
 
-    perform_initialization: bool = True
-    """Do not perform initialization when building model, can reduce startup time when definitely loading from a checkpoint"""
-
     use_checkpoint_args: bool = False
     """Override any command line arguments with arguments from the checkpoint"""
 
@@ -1024,10 +887,12 @@ class ConfigContainer:
         encoder_model_size = (
             mlc.encoder_tensor_model_parallel_size
             * mlc.encoder_pipeline_model_parallel_size
-            * mlc.context_parallel_size
+            * self.model_config.context_parallel_size
         )
         decoder_model_size = (
-            mlc.tensor_model_parallel_size * mlc.pipeline_model_parallel_size * mlc.context_parallel_size
+            self.model_config.tensor_model_parallel_size
+            * self.model_config.pipeline_model_parallel_size
+            * self.model_config.context_parallel_size
         )
         total_model_size = encoder_model_size + decoder_model_size
         assert (
@@ -1035,8 +900,8 @@ class ConfigContainer:
         ), f"world size ({world_size}) is not divisible by total_model_size ({encoder_model_size=} + {decoder_model_size=})"
         self.data_parallel_size = world_size // total_model_size
 
-        self.megatron_lm_config.use_cpu_initialization = (
-            self.megatron_lm_config.use_cpu_initialization or self.megatron_lm_config.lazy_mpu_init
+        self.model_config.use_cpu_initialization = (
+            self.model_config.use_cpu_initialization or self.megatron_lm_config.lazy_mpu_init
         )
 
         # Scheduler
