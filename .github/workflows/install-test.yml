@@ -56,7 +56,7 @@ jobs:
 
       - name: Install Python
         run: |
-          apt-get update && apt-get install -y python3-pip
+          apt-get update && apt-get install -y python3-pip jq
 
       - name: Install NeMo
         env:
@@ -67,9 +67,6 @@ jobs:
           if [[ "$INSTALLER" == "pip" ]]; then
             pip install .
           else
-            export NEMO_TAG
-            export NEMO_REPO
             export INSTALL_DIR=$(pwd)
-            
             bash reinstall.sh --library nemo --mode install
           fi
