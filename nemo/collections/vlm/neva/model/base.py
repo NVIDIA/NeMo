@@ -25,7 +25,6 @@ from megatron.core.enums import ModelType
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
@@ -234,62 +233,6 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         )
 
         return model
-
-
-class _get_data_on_this_cp_rank(torch.autograd.Function):
-    """Performs sharding for Context Parallelism in THD format
-
-    In the forward pass, indices are selected for each CP rank and remaining tokens are dropped.
-    In the backward pass, this class takes care of managing gradients for dropped tokens on each
-    CP rank.
-    """
-
-    @staticmethod
-    # def forward(ctx, decoder_embeddings, labels, loss_mask, packed_seq_params):
-    def forward(ctx, batch, packed_seq_params):
-        # pylint: disable=C0115,C0116
-        cp_size = ps.get_context_parallel_world_size()
-        if cp_size > 1:
-            try:
-                import transformer_engine_torch as tex
-            except ModuleNotFoundError as e:
-                logging.error(
-                    "Please update Transformer Engine to >= 1.10 to use \
-                        Context Parallel with THD format data"
-                )
-                raise e
-            cp_rank = ps.get_context_parallel_rank()
-            for key, data in batch.items():
-                index = tex.thd_get_partitioned_indices(
-                    packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
-                )
-                if key == "combined_embeddings":
-                    ctx.decoder_emb_index = index
-                    ctx.decoder_emb_seqlen = data.size(1)
-                batch[key] = data.index_select(1, index)
-                batch[key].requires_grad = data.requires_grad
-
-        return batch
-
-    @staticmethod
-    def backward(ctx, grad_out, grad_label, grad_loss):
-        # pylint: disable=C0115,C0116
-        seqlen = ctx.decoder_emb_seqlen
-        index = ctx.decoder_emb_index
-        assert grad_out.size(1) == index.size(
-            0
-        ), f"Shape mismatch in incoming gradient {grad_out.shape} and \
-                index from THD CP sharding {index.shape}"
-        grad_in = torch.zeros(
-            grad_out.size(0),
-            seqlen,
-            *grad_out.size()[2:],
-            dtype=grad_out.dtype,
-            device=grad_out.device,
-        )
-        grad_in[:, ctx.decoder_emb_index, :] = grad_out
-
-        return (grad_in, None, None, None)
 
 
 class MCoreNevaModel(MCoreLLaVAModel):
@@ -752,27 +695,33 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_labels = final_labels[:, : self._language_max_sequence_length]
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
 
+        # truncate final embedding
         if final_embedding is not None:
             # transpose final_embeddings to sbhd
+            # note this will also transpose thd, which is fine
             final_embedding = final_embedding.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
             if final_embedding.shape[0] > self._language_max_sequence_length:
                 final_embedding = final_embedding[: self._language_max_sequence_length]
-                if packed_sequence:
-                    truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
-                    final_seq_len_padded = (
-                        packed_seq_params.cu_seqlens_q_padded[-1] - packed_seq_params.cu_seqlens_q_padded[-2]
-                    )
-                    final_seq_len_unpadded = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
-                    final_padding = final_seq_len_padded - final_seq_len_unpadded
-                    truncate_len -= final_padding
-                    packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
-                    packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
-                    packed_seq_params.cu_seqlens_q[-1] -= truncate_len
-                    packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
-                    assert (
-                        packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
-                    ), "with packed sequence, the truncation can only truncate on the last sequence."
+
+        # packed seq param truncation
+        if packed_sequence and packed_seq_params.cu_seqlens_q_padded[-1] > self._language_max_sequence_length:
+            truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
+            final_seq_len_padded = (
+                packed_seq_params.cu_seqlens_q_padded[-1] - packed_seq_params.cu_seqlens_q_padded[-2]
+            )
+            final_seq_len_unpadded = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
+            final_padding = final_seq_len_padded - final_seq_len_unpadded
+            truncate_len -= final_padding
+            packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
+            packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
+            # need to truncate the actual sequence as well
+            if truncate_len > 0:
+                packed_seq_params.cu_seqlens_q[-1] -= truncate_len
+                packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
+            assert (
+                packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
+            ), "with packed sequence, the truncation can only truncate on the last sequence."
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
@@ -825,7 +774,21 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
                 batch = get_batch_on_this_cp_rank(batch)
             else:
-                batch = _get_data_on_this_cp_rank.apply(batch, packed_seq_params)
+                try:
+                    import transformer_engine_torch as tex
+                except ModuleNotFoundError as e:
+                    logging.error(
+                        "Please update Transformer Engine to >= 1.10 to use \
+                            Context Parallel with THD format data"
+                    )
+                    raise e
+                cp_size = ps.get_context_parallel_world_size()
+                cp_rank = ps.get_context_parallel_rank()
+                for key, data in batch.items():
+                    index = tex.thd_get_partitioned_indices(
+                        packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
+                    )
+                    batch[key] = data.index_select(1, index)
 
             if self.pre_process:
                 combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
