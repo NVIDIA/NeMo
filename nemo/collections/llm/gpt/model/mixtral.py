@@ -191,9 +191,10 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
     @property
     def config(self) -> MixtralConfig8x7B | MixtralConfig8x22B:
         """Returns Mcore config from HF"""
-        from transformers import MixtralConfig as HfMixtralConfig
+        from transformers import MixtralConfig as HfMixtralConfig, GenerationConfig
 
         config = HfMixtralConfig.from_pretrained(str(self))
+        generation_config = GenerationConfig.from_pretrained(str(self))
         config_cls = MixtralConfig8x7B
         if '8x22b' in str(self).lower():
             config_cls = MixtralConfig8x22B
@@ -228,6 +229,7 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
             use_cpu_initialization=True,
             perform_initialization=False,
             params_dtype=getattr(config, "torch_dtype", torch.bfloat16),
+            generation_config=generation_config
         )
 
 
