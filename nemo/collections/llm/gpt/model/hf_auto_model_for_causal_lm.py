@@ -290,7 +290,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             mean_loss = torch.tensor([mean_loss], device=self.device).detach()
             dist.all_reduce(mean_loss, group=group, op=dist.ReduceOp.AVG)
             mean_loss = mean_loss.item()
-            tps = torch.tensor([tps], device=self.device, dtype=torch.int64)
+            tps = torch.tensor([tps], device=self.device, dtype=torch.int64).detach()
             dist.all_reduce(tps, group=group, op=dist.ReduceOp.SUM)
             tps = tps.item()
 
