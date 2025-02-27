@@ -61,9 +61,11 @@ def main(args) -> None:
 
     # Tokenize the input texts
     # The default range for the number of visual tokens per image in the model is 4-16384. You can set min_pixels and max_pixels according to your needs, such as a token count range of 256-1280, to balance speed and memory usage.
-    min_pixels = 16*28*28
-    max_pixels = 64*28*28
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
+    min_pixels = 16 * 28 * 28
+    max_pixels = 64 * 28 * 28
+    processor = AutoProcessor.from_pretrained(
+        "Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels
+    )
     hf_tokenizer = processor.tokenizer
 
     fabric = trainer.to_fabric()
@@ -75,7 +77,6 @@ def main(args) -> None:
         model = fabric.load_model(args.local_model_path, model)
     model = model.module.cuda()
     model.eval()
-
 
     messages = [
         {
@@ -91,9 +92,7 @@ def main(args) -> None:
     ]
 
     # Preparation for inference
-    text = processor.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=True
-    )
+    text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     image_inputs, video_inputs = process_vision_info(messages)
 
     inputs = processor(
@@ -108,11 +107,11 @@ def main(args) -> None:
         input_ids = inputs['input_ids'].clone().to("cuda")
         # convert special tokens to nemo image ID
         input_ids[input_ids == 151655] = -200
-        image_grid_thw=inputs['image_grid_thw'].clone().to("cuda")
-        pixel_values=inputs['pixel_values'].clone().to("cuda")
+        image_grid_thw = inputs['image_grid_thw'].clone().to("cuda")
+        pixel_values = inputs['pixel_values'].clone().to("cuda")
 
         # Greedy generation loop
-        generated_ids = input_ids            
+        generated_ids = input_ids
         for _ in range(args.osl):
             output = model(
                 pixel_values=pixel_values,
@@ -131,9 +130,7 @@ def main(args) -> None:
                 break
 
         generated_ids[generated_ids < 0] = 0
-        generated_ids_trimmed = [
-            out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-        ]
+        generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
         generated_texts = processor.batch_decode(
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
@@ -141,6 +138,7 @@ def main(args) -> None:
         logging.info("======== GENERATED TEXT OUTPUT ========")
         logging.info(f"{args.image_url}, \t\t{generated_texts}")
         logging.info("=======================================")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Qwen2VL Multimodal Inference")
