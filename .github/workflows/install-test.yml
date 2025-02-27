@@ -42,8 +42,9 @@ jobs:
           fi
 
   test-installs-ubuntu:
-    name: test-install-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.installer }}
+    name: test-install-${{ matrix.os }}-${{ matrix.image }}-${{ matrix.installer }}
     runs-on: ${{ matrix.os }}
+    container: ${{matrix.image }}
     strategy:
       fail-fast: false
       matrix:
@@ -53,9 +54,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "${{ matrix.python }}"
       - name: Install NeMo
         env:
           INSTALLER: ${{ matrix.installer }}
