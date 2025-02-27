@@ -16,12 +16,9 @@
 # limitations under the License.
 
 
-import lightning.pytorch as pl
-import pytest
 import torch
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
-from nemo.collections.llm.gpt.model.hyena import HyenaConfig
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 
 

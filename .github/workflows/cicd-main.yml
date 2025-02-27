@@ -3127,6 +3127,7 @@ jobs:
       - L2_HF_Transformer_SpeechLM_SFT_2gpu
       - L2_NeMo_2_SSM_Pretraining
       - L2_NeMo_2_SSM_Finetuning
+      - L2_NeMo_2_Hyena_DDP_Pretraining_Test
       - L2_NeMo_2_T5_Pretraining
       - L2_NeMo_2_T5_Finetuning
       - L2_NeMo_2_T5_LoRA
