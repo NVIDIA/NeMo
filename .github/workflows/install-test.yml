@@ -42,18 +42,21 @@ jobs:
           fi
 
   test-installs-ubuntu:
-    name: test-install-${{ matrix.os }}-${{ matrix.image }}-${{ matrix.installer }}
-    runs-on: ${{ matrix.os }}
+    name: test-install-${{ matrix.os }}-${{ matrix.image }}-py${{ matrix.python }}-${{ matrix.installer }}
+    runs-on: ubuntu-latest
     container: ${{matrix.image }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        image: ["python:3.10", "python:3.11", "python:3.12", "nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04"]
+        os: [ubuntu:22.04, nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04]
+        python: ["python:3.10", "python:3.11", "python:3.12"]
         installer: ["pip", "reinstall.sh"]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "${{ matrix.python }}"
       - name: Install NeMo
         env:
           INSTALLER: ${{ matrix.installer }}
