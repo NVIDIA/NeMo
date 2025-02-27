@@ -167,21 +167,21 @@ class ByteLevelTokenizer(TokenizerSpec):
         """
         Get the padding ID.
         """
-        return 256
+        return self._pad_id
 
     @property
     def bos_id(self):
         """
         Get the beginning-of-sequence ID.
         """
-        return 257
+        return self._bos_id
 
     @property
     def eos_id(self):
         """
         Get the end-of-sequence ID.
         """
-        return 258
+        return self._eos_id
 
     @property
     def unk_id(self):
