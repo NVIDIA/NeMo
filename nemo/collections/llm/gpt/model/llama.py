@@ -328,12 +328,13 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
 
     @property
     def config(self) -> LlamaConfig:
-        from transformers import LlamaConfig as HFLlamaConfig, GenerationConfig
+        from transformers import GenerationConfig
+        from transformers import LlamaConfig as HFLlamaConfig
 
         source = HFLlamaConfig.from_pretrained(str(self))
         generation_config = GenerationConfig.from_pretrained(str(self))
         print(generation_config)
-        
+
         def make_vocab_size_divisible_by(vocab_size):
             base = 128
             while vocab_size % base != 0:
@@ -360,7 +361,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
-            generation_config=generation_config
+            generation_config=generation_config,
         )
 
         return output

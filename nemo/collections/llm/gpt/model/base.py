@@ -45,8 +45,9 @@ except ImportError:
     _grad_accum_fusion_available = False
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
     from transformers import GenerationConfig
+
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:

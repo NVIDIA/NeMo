@@ -408,7 +408,6 @@ def ptq(
     console = Console()
     console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
 
-
     return export_config.path
 
 
@@ -645,7 +644,7 @@ def import_ckpt(
         console.print(f"[green]✓ Checkpoint imported to {output}[/green]")
     else:
         console.print(f"[green] $NEMO_MODELS_CACHE={NEMO_MODELS_CACHE} [/green]")
-        
+
     # Display directory structure as a tree
     dir_tree = _build_directory_tree(output, root_name="Imported Checkpoint")
     console.print(dir_tree)
@@ -1054,17 +1053,18 @@ def _validate_config(
                     model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
                 ), "Number of experts should be a multiple of expert model parallel_size."
 
+
 def _build_directory_tree(path, tree=None, root_name=None):
     """Build a Rich Tree representation of a directory structure."""
     from rich.tree import Tree
-    
+
     path = Path(path)
     if tree is None:
         tree = Tree(f"[bold blue]{root_name or path.name}[/bold blue]")
-    
+
     # Sort to have directories first, then files
     items = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name))
-    
+
     for item in items:
         if item.is_dir():
             branch = tree.add(f"[bold cyan]{item.name}/[/bold cyan]")
@@ -1079,5 +1079,5 @@ def _build_directory_tree(path, tree=None, root_name=None):
                 tree.add(f"[green]{item.name}[/green]")
             else:
                 tree.add(f"[white]{item.name}[/white]")
-    
+
     return tree
