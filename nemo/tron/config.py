@@ -713,6 +713,12 @@ class MegatronLMConfig:
     yaml_cfg: Optional[str] = None
     """Config file to add additional arguments"""
 
+    check_for_nan_in_loss_and_grad: bool = True
+    """Detect NaNs in loss and grad, and check reproducibility."""
+
+    check_for_spiky_loss: bool = True
+    """Check for spiky loss."""
+
     # ---------------- Config logger config. ----------------
 
 
