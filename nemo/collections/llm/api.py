@@ -356,8 +356,8 @@ def ptq(
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
-    This function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy modules
-    or direcly using TensorRT-LLM library.
+    By default, this function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy
+    modules or direcly using TensorRT-LLM library.
 
     The function can be used through the NeMo CLI in the following way:
     ```bash
@@ -371,6 +371,12 @@ def ptq(
     nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq
+
+    # Export as NeMo checkpoint instead
+    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
+        export_config.path=/models/Llama-3-8B-INT8_SQ \
+        quantization_config.algorithm=int8_sq \
+        export_config.export_format=nemo
     ```
 
     Args:
@@ -378,7 +384,7 @@ def ptq(
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
-        export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
+        export_config (ExportConfig): Export configuration for output checkpoint.
         ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
 
     Returns:
@@ -394,7 +400,7 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(
+    model, trainer = quantization.load_with_modelopt_layer_spec(
         nemo_checkpoint,
         calibration_tp,
         calibration_pp,
@@ -403,7 +409,7 @@ def ptq(
 
     model = quantizer.quantize(model)
 
-    quantizer.export(model, nemo_checkpoint)
+    quantizer.export(model, nemo_checkpoint, trainer)
 
     console = Console()
     console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
@@ -663,6 +669,7 @@ def export_ckpt(
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
+    **kwargs,
 ) -> Path:
     """
     Exports a checkpoint from a model using the model's associated exporter, typically for
@@ -716,7 +723,7 @@ def export_ckpt(
     if output_path and not isinstance(output_path, Path):
         output_path = Path(output_path)
 
-    output = io.export_ckpt(path, target, output_path, overwrite, load_connector)
+    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
 
     console = Console()
     console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
