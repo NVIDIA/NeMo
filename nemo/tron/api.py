@@ -14,7 +14,7 @@
 
 import inspect
 from functools import partial
-from typing import Callable, Optional
+from typing import Callable
 
 from nemo.tron.checkpointing import save_checkpoint
 from nemo.tron.config import ConfigContainer
