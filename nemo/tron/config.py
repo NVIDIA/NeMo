@@ -241,6 +241,9 @@ class MegatronLMConfig:
     exit_signal_handler: bool = False
     """Dynamically save the checkpoint and shutdown the training if SIGTERM is received"""
 
+    exit_signal_handler_for_dataloader: bool = False
+    """Use signal handler for dataloader workers"""
+
     bias_gelu_fusion: bool = True
     """Disable bias and GeLU fusion."""
 

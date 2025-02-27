@@ -62,8 +62,7 @@ def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose=False):
             f"{num_parameters_in_transformer_layers / 10**9: .2f}"
         )
         print(
-            f"Number of parameters in embedding layers in billions: "
-            f"{num_parameters_in_embedding_layers / 10**9:.2f}"
+            f"Number of parameters in embedding layers in billions: {num_parameters_in_embedding_layers / 10**9:.2f}"
         )
         print(f"Total number of parameters in billions: {num_total_parameters / 10**9:.2f}")
 
@@ -86,8 +85,7 @@ def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose=False):
         )
         if verbose:
             print(
-                f"Number of parameters in other shards in billions: "
-                f"{num_parameters_on_other_model_shards / 10**9:.4f}"
+                f"Number of parameters in other shards in billions: {num_parameters_on_other_model_shards / 10**9:.4f}"
             )
 
     num_bytes_per_parameter = (
@@ -177,7 +175,7 @@ def report_theoretical_memory(config: ConfigContainer, num_microbatches=None, ve
     weight_and_optimizer_memory = compute_weight_and_optimizer_memory(config, verbose=verbose) / NUM_BYTES_IN_MEGABYTE
 
     # Formulae here assume sequence parallelism and selective activation recomputation.
-    if not config.megatron_lm_config.sequence_parallel or config.model_config.recompute_granularity != 'selective':
+    if not config.model_config.sequence_parallel or config.model_config.recompute_granularity != "selective":
         print(f"Theoretical memory footprints: weight and optimizer={weight_and_optimizer_memory:.2f} MB")
         return
 

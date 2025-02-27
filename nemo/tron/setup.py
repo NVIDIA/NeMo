@@ -30,6 +30,7 @@ from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
 from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
+from nemo.tron.utils.log_utils import setup_logging
 from nemo.utils.import_utils import safe_import
 
 _, HAVE_RESIL = safe_import("nvidia_resiliency_ext.checkpointing")
@@ -62,6 +63,8 @@ def setup(
     state = GlobalState()
     state.cfg = cfg
     # TODO: Freeze state.cfg
+
+    setup_logging(cfg)
 
     # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(

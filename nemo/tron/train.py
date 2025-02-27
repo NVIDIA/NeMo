@@ -410,6 +410,7 @@ def train(
 
     # If any exit conditions (signal handler, duration, iterations) have been reached, exit.
     if should_exit:
+        maybe_finalize_async_save(ckpt_cfg=config.checkpoint_config, blocking=True, terminate=True)
         wandb_writer = global_state.wandb_logger
         if wandb_writer:
             wandb_writer.finish()
