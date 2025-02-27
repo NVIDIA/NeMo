@@ -432,8 +432,11 @@ def deploy(
     fastapi_http_address: str = "0.0.0.0",
     fastapi_port: int = 8080,
     num_gpus: int = 1,
+    num_nodes: int = 1,
     tensor_parallelism_size: int = 1,
     pipeline_parallelism_size: int = 1,
+    context_parallel_size: int = 1,
+    expert_model_parallel_size: int = 1,
     dtype: str = "bfloat16",
     max_input_len: int = 256,
     max_output_len: int = 256,
@@ -484,7 +487,7 @@ def deploy(
     from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
-    unset_environment_variables()
+    #unset_environment_variables() ## TODO Commenting for in-fw
     if backend == 'in-framework':
         assert (
             start_fastapi_server is True
@@ -499,21 +502,23 @@ def deploy(
         os.environ["TRITON_PORT"] = str(triton_http_port)
 
         try:
-            from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeploy
+            from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployableNemo2
         except Exception as e:
             raise ValueError(
                 f"Unable to import MegatronLLMDeployable, due to: {type(e).__name__}: {e} cannot run "
                 f"evaluation with in-framework deployment"
             )
 
-        triton_deployable = MegatronLLMDeploy.get_deployable(
+        triton_deployable = MegatronLLMDeployableNemo2(
             nemo_checkpoint_filepath=nemo_checkpoint,
-            num_devices=num_gpus,  # TODO is this per node or not ? In case of TRTLLM its per node
+            num_devices=num_gpus,  # TODO is this per node or not ? In case of TRTLLM its per node. TRTLLM uses TP and PP size to compute num_gpus. If TP, PP=1 it just uses
+            # 1 GPU, since DP is not supported.
+            num_nodes=num_nodes, # TODO this is also just for in-fw I believe, double check and add that info in docstrings
             tensor_model_parallel_size=tensor_parallelism_size,
             pipeline_model_parallel_size=pipeline_parallelism_size,
+            context_parallel_size=context_parallel_size,
+            expert_model_parallel_size=expert_model_parallel_size,
         )
-        # TODO Allow context_parallel_size  for in-framework
-        # context_parallel_size=args.context_parallel_size,
 
     elif backend == 'trtllm':
         triton_deployable = get_trtllm_deployable(
@@ -530,46 +535,49 @@ def deploy(
             output_context_logits,
             output_generation_logits,
         )
-    if torch.distributed.is_initialized() and torch.distributed.get_rank() == 0:  ##has been added for in-fw
-        try:
-            nm = DeployPyTriton(
-                model=triton_deployable,
-                triton_model_name=triton_model_name,
-                triton_model_version=triton_model_version,
-                max_batch_size=max_batch_size,
-                http_port=triton_http_port,
-                grpc_port=triton_grpc_port,
-                address=triton_http_address,
-            )
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == 0:  ##has been added for in-fw
+            try:
+                nm = DeployPyTriton(
+                    model=triton_deployable,
+                    triton_model_name=triton_model_name,
+                    triton_model_version=triton_model_version,
+                    max_batch_size=max_batch_size,
+                    http_port=triton_http_port,
+                    grpc_port=triton_grpc_port,
+                    address=triton_http_address,
+                )
 
-            logging.info("Triton deploy function will be called.")
-            nm.deploy()
-            nm.run()
-        except Exception as error:
-            logging.error("Error message has occurred during deploy function. Error message: " + str(error))
-            return
+                logging.info("Triton deploy function will be called.")
+                nm.deploy()
+                nm.run()
+            except Exception as error:
+                logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+                return
 
-        try:
-            if start_fastapi_server:
-                try:
-                    logging.info("REST service will be started.")
-                    uvicorn.run(
-                        'nemo.collections.llm.deploy.fastapi_interface_to_pytriton:app',
-                        host=fastapi_http_address,
-                        port=fastapi_port,
-                        reload=True,
-                    )
-                except Exception as error:
-                    logging.error("Error message has occurred during REST service start. Error message: " + str(error))
-            logging.info("Model serving on Triton will be started.")
-            nm.serve()
-        except Exception as error:
-            logging.error("Error message has occurred during deploy function. Error message: " + str(error))
-            return
+            try:
+                if start_fastapi_server:
+                    try:
+                        logging.info("REST service will be started.")
+                        uvicorn.run(
+                            'nemo.collections.llm.deploy.fastapi_interface_to_pytriton:app',
+                            host=fastapi_http_address,
+                            port=fastapi_port,
+                            reload=True,
+                        )
+                    except Exception as error:
+                        logging.error("Error message has occurred during REST service start. Error message: " + str(error))
+                logging.info("Model serving on Triton will be started.")
+                nm.serve()
+            except Exception as error:
+                logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+                return
 
-        logging.info("Model serving will be stopped.")
-        nm.stop()
-    # torch.distributed.barrier() ##has been added for in-fw
+            logging.info("Model serving will be stopped.")
+            nm.stop()
+        elif torch.distributed.get_rank() > 0: ## TODO added for in-fw
+            triton_deployable.generate_other_ranks()
+
 
 
 def evaluate(
