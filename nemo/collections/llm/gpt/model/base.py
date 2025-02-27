@@ -46,6 +46,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+    from transformers import GenerationConfig
 
 
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -192,6 +193,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
     forward_step_fn: Callable = gpt_forward_step
     data_step_fn: Callable = gpt_data_step
+    generation_config: Optional["GenerationConfig"] = None
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         if self.enable_cuda_graph:
