@@ -20,9 +20,7 @@ from megatron.core import tensor_parallel
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
     AbstractModelInferenceWrapper,
 )
-from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import (
-    InferenceWrapperConfig,
-)
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.inference_params import InferenceParams
 from torch.utils.data import default_collate
 
@@ -82,7 +80,7 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
             "position_ids": position_ids,
             "pixel_values": batch['pixel_values'].cuda(non_blocking=True),
             "num_tiles": batch['num_tiles'],
-            "aspect_ratio_ids": batch['aspect_ratio_ids'].cuda(non_blocking=True)
+            "aspect_ratio_ids": batch['aspect_ratio_ids'].cuda(non_blocking=True),
         }
 
     def get_batch_for_context_window(
@@ -100,12 +98,10 @@ class VLMInferenceWrapper(AbstractModelInferenceWrapper):
             "position_ids": positions2use,
             "pixel_values": inference_input['pixel_values'],
             "num_tiles": inference_input['num_tiles'],
-            "aspect_ratio_ids": inference_input['aspect_ratio_ids']
+            "aspect_ratio_ids": inference_input['aspect_ratio_ids'],
         }
 
-    def forward_pass_without_pipeline_parallel(
-        self, inference_input: Dict[str, Any]
-    ) -> torch.Tensor:
+    def forward_pass_without_pipeline_parallel(self, inference_input: Dict[str, Any]) -> torch.Tensor:
         """Utility to carry out simple forward pass for TP or no model parallel models
 
         Runs a very simple forward pass for model. Used  in the case of models without
