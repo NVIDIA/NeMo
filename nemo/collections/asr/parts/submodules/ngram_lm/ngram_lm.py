@@ -201,6 +201,8 @@ class SuffixTreeStorage:
     vocab_size: int
     max_order: int
 
+    separate_bos_state: InitVar[bool] = True
+
     arcs: np.ndarray = field(init=False)
     states: np.ndarray = field(init=False)
 
@@ -212,7 +214,10 @@ class SuffixTreeStorage:
     num_states: int = 0
     num_arcs: int = 0
 
-    def __post_init__(self, num_states_max: int, num_arcs_max: int):
+    start_state: int = 0
+    bos_state: int = 1
+
+    def __post_init__(self, num_states_max: int, num_arcs_max: int, separate_bos_state: bool = True):
         if max(num_states_max, num_arcs_max) < np.iinfo(np.int32).max:
             int_np_dtype = np.int32
         else:
@@ -233,10 +238,9 @@ class SuffixTreeStorage:
             ],
         )
         self.states["final"] = NEG_INF
+        self.bos_state = 1 if separate_bos_state else self.start_state
 
     def _add_unigrams(self, ngrams: np.ndarray, bos_id: int, unk_id: int):
-        start_state = 0
-        bos_state = 1
         assert bos_id < 0 and unk_id < 0
         bos_unigram = None
 
@@ -254,7 +258,7 @@ class SuffixTreeStorage:
         self.num_arcs = 0
         # TODO: order 1 or 0?
         # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
-        self.states[start_state] = (0, self.vocab_size, 1, start_state, 0.0, NEG_INF)
+        self.states[self.start_state] = (0, self.vocab_size, 1, self.start_state, 0.0, NEG_INF)
         added_symbols = set()
         num_vocab_labels = 0
         for ngram in ngrams:
@@ -262,21 +266,21 @@ class SuffixTreeStorage:
             if ilabel < 0:
                 # special symbol
                 if ilabel == _EOS_ID:
-                    self.states[start_state]["final"] = ngram["weight"]
+                    self.states[self.start_state]["final"] = ngram["weight"]
                 continue
             assert ilabel < self.vocab_size
             arc_id = ilabel
             added_symbols.add(ilabel)
             next_state = self.num_states
             self.num_states += 1
-            self.arcs[arc_id] = (start_state, next_state, ilabel, ngram["weight"])
+            self.arcs[arc_id] = (self.start_state, next_state, ilabel, ngram["weight"])
             self.num_arcs += 1
             # state order
             self.states[next_state] = (
                 0,
                 0,
-                self.states[start_state]["order"] + 1,
-                start_state,
+                self.states[self.start_state]["order"] + 1,
+                self.start_state,
                 ngram["backoff"],
                 NEG_INF,
             )
@@ -288,16 +292,17 @@ class SuffixTreeStorage:
                 self.unk_prob -= np.log(num_unk_labels)
         for ilabel in range(self.vocab_size):
             if ilabel not in added_symbols:
-                self.arcs[ilabel] = (start_state, start_state, ilabel, self.unk_prob)
+                self.arcs[ilabel] = (self.start_state, self.start_state, ilabel, self.unk_prob)
                 self.num_arcs += 1
 
         # add BOS unigram
+        assert self.bos_state == 1
         # NB: we do not add BOS unigram to the arcs, but only to the states
-        self.states[bos_state] = (
+        self.states[self.bos_state] = (
             0,
             0,
-            self.states[start_state]["order"] + 1,
-            start_state,
+            self.states[self.start_state]["order"] + 1,
+            self.start_state,
             bos_unigram["backoff"],
             NEG_INF,
         )
@@ -330,7 +335,7 @@ class SuffixTreeStorage:
             ilabel = symbols[-1]
             from_state = self.find_state(symbols[:-1], bos_id=bos_id)
             if ilabel < 0:
-                assert ilabel == -2
+                assert ilabel == _EOS_ID
                 self.states[from_state]["final"] = ngram["weight"]
                 continue
             assert ilabel < self.vocab_size
@@ -400,7 +405,7 @@ class SuffixTreeStorage:
         ilabel = ngram.symbols[-1]
         from_state = self.find_state(ngram.symbols[:-1], bos_id=bos_id)
         if ilabel < 0:
-            assert ilabel == -2
+            assert ilabel == _EOS_ID
             self.states[from_state]["final"] = ngram.weight
             return
         backoff_state = self.find_state(ngram.symbols[1:], bos_id=bos_id)
@@ -432,6 +437,7 @@ class NGramLMConfig:
     num_arcs: int = MISSING
     max_order: int = MISSING
     vocab_size: int = MISSING
+    separate_bos_state: bool = True
     use_triton: bool | None = None
 
 
@@ -441,19 +447,18 @@ class FastNGramLM(ModelPT):
     Supports autograd (differentiable weights).
     """
 
-    UNK_ID = -3
-    BACKOFF_ID = -10
     BOS_ID = -1  # Begin-of-Sentence
     EOS_ID = _EOS_ID  # End-of-Sentence
+    UNK_ID = -3
+    BACKOFF_ID = -10
     SPECIAL_SYMBOLS_MAP = {"<s>": BOS_ID, "</s>": EOS_ID, "<unk>": UNK_ID}
+
     START_STATE = 0
-    BOS_STATE = 1
 
     def __init__(
         self,
         cfg: DictConfig,
         trainer: Trainer = None,
-        # num_states: int, num_arcs: int, max_order: int, vocab_size: int, use_triton: bool | None = None
     ):
         """
         Stubs for constructor that does not initialize the structure.
@@ -470,7 +475,6 @@ class FastNGramLM(ModelPT):
                 None (default) means "auto" (used if available), True means forced mode
                 (will crash if Triton is unavailable)
         """
-        # cfg = OmegaConf.merge(OmegaConf.structured(NGramLMConfig), cfg)
         super().__init__(cfg=cfg, trainer=trainer)
         cfg = cast(NGramLMConfig, cfg)
         self.use_triton = cfg.use_triton if cfg.use_triton is not None else TRITON_AVAILABLE
@@ -479,6 +483,7 @@ class FastNGramLM(ModelPT):
                 "Triton is disabled. Version without Triton is not compatible with Cuda graphs; decoding can be slow"
             )
 
+        self.bos_state = 1 if cfg.separate_bos_state else self.START_STATE
         self.vocab_size = cfg.vocab_size
         self.num_states = cfg.num_states
         self.num_arcs = cfg.num_arcs
@@ -739,7 +744,7 @@ class FastNGramLM(ModelPT):
         """
         device = self.arcs_weights.device
         return torch.full(
-            [batch_size], fill_value=self.BOS_STATE if bos else self.START_STATE, device=device, dtype=torch.long
+            [batch_size], fill_value=self.bos_state if bos else self.START_STATE, device=device, dtype=torch.long
         )
 
     def forward(
