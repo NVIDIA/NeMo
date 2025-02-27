@@ -33,8 +33,9 @@ NAME = "flux-535m"
 @dataclass
 class DummyModelParams(FluxModelParams):
     """
-        Initialize a toy model that only has one layer of each type.
+    Initialize a toy model that only has one layer of each type.
     """
+
     def __post_init__(self):
         self.t5_params = None
         self.clip_params = None
@@ -76,7 +77,7 @@ def unit_test_recipe(
     num_gpus_per_node: int = 8,
 ):
     """
-        Flux ci test recipe with default trainer, no parallelism.
+    Flux ci test recipe with default trainer, no parallelism.
     """
     return run.Partial(
         llm.train,

@@ -389,7 +389,6 @@ class FluxSingleAttention(SelfAttention):
         # self or cross attn.
         query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
 
-
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
