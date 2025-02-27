@@ -220,6 +220,8 @@ nemo() {
       git fetch origin '+refs/pull/*/merge:refs/remotes/pull/*/merge' &&
       git fetch origin $NEMO_TAG &&
       git checkout -f $NEMO_TAG
+  else
+    NEMO_DIR=$CURR
   fi
 
   PYPI_DEPS=(
