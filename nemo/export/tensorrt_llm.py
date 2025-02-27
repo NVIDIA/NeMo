@@ -27,6 +27,7 @@ import numpy as np
 import safetensors
 import tensorrt_llm
 import torch
+import torch.nn.functional as F
 import wrapt
 from tensorrt_llm._utils import numpy_to_torch
 
@@ -61,7 +62,7 @@ from nemo.export.utils import torch_dtype_from_precision
 use_deploy = True
 try:
     from nemo.deploy.utils import cast_output, str_ndarray2list
-except Exception as e:
+except Exception:
     use_deploy = False
 
 LOGGER = logging.getLogger("NeMo")
@@ -361,15 +362,6 @@ class TensorRTLLM(ITritonDeployable):
 
                     # MCore export supports some default conversion dictionaries
                     mcore_model_conversion_dict = DEFAULT_CONVERSION_DICT
-
-                    # TODO: remove after adding this mapping to mcore
-                    from megatron.core.export.trtllm.trtllm_layers import TRTLLMLayers
-
-                    mcore_model_conversion_dict |= {
-                        'decoder.layers.mlp.experts.experts.linear_fc1.weight': TRTLLMLayers.mlp_fc_weight_mixture_of_experts,
-                        'decoder.layers.mlp.experts.experts.linear_fc2.weight': TRTLLMLayers.mlp_projection_weight_mixture_of_experts,
-                        'decoder.layers.mlp.router.weight': TRTLLMLayers.mlp_router_weight,
-                    }
 
                     # All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models start with "model.decoder.layers.4.blahblah". so we append model. to the keys
                     nemo_model_conversion_dict = {
@@ -674,7 +666,7 @@ class TensorRTLLM(ITritonDeployable):
                 reshard_model = True
             else:
                 raise NotImplementedError(
-                    f"NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
+                    "NeMo currently only supports PP>1 -> PP=1 resharding, other types of resharding will come in future releases."
                 )
 
         num_layers = model_config["num_layers"]
@@ -686,7 +678,8 @@ class TensorRTLLM(ITritonDeployable):
         if vp_size > 1:  # consolidate params across model chunks
             for idx, model_chunk in enumerate(model):
                 for key, val in model_chunk.state_dict().items():
-                    if torch.is_tensor(val):
+                    # TODO: currently fp8 is not supported
+                    if torch.is_tensor(val) and '_extra_state' not in key:
                         if 'layers' in key:
                             key2 = rename_layer_num(key, get_layer_num(key) + idx * pp_size * layers_per_chunk)
                             tl_params[key2] = val
@@ -694,7 +687,8 @@ class TensorRTLLM(ITritonDeployable):
                             model_level_params[key] = val
         else:
             for key, val in model.state_dict().items():
-                if torch.is_tensor(val):
+                # TODO: currently fp8 is not supported
+                if torch.is_tensor(val) and '_extra_state' not in key:
                     if 'decoder.layers' in key:
                         tl_params[key] = val
                     else:
@@ -775,7 +769,8 @@ class TensorRTLLM(ITritonDeployable):
         elif storage_dtype == torch.float16:
             return DataType.float16
 
-    def get_nemo_to_trtllm_conversion_dict(self, model_state_dict):
+    @staticmethod
+    def get_nemo_to_trtllm_conversion_dict(model_state_dict):
         """MCore export supports some default conversion dictionaries
         All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models sometimes start with "model.decoder.layers.4.blahblah". so we append model prefix. to the keys
         """
@@ -785,8 +780,8 @@ class TensorRTLLM(ITritonDeployable):
 
         nemo_model_conversion_dict = {}
         for key, value in DEFAULT_CONVERSION_DICT.items():
-            if 'layers' in key and model_prefix:
-                nemo_model_conversion_dict[f'{model_prefix}.{key}'] = value
+            if model_prefix:
+                nemo_model_conversion_dict[f'{model_prefix}{key}'] = value
             else:
                 nemo_model_conversion_dict[key] = value
         return nemo_model_conversion_dict
@@ -1117,6 +1112,19 @@ class TensorRTLLM(ITritonDeployable):
                     return
             self._prep_ptuning_table()
 
+    def _pad_logits(self, logits_tensor):
+        """
+        Pads the logits tensor with 0's on the right
+        """
+        padding_len = max([logit_tensor.shape[0] for logit_tensor in logits_tensor])
+        for i, tensor in enumerate(logits_tensor):
+            tensor_len = tensor.shape[0]
+            if tensor_len < padding_len:
+                padding_diff = padding_len - tensor_len
+                # padding_diff num of rows of zeros are added at the bottom
+                logits_tensor[i] = F.pad(tensor, (0, 0, 0, padding_diff), mode='constant', value=0)
+        return logits_tensor
+
     @property
     def get_supported_models_list(self):
         """Supported model list"""
@@ -1200,16 +1208,24 @@ class TensorRTLLM(ITritonDeployable):
                 infer_input["output_context_logits"] = inputs.pop("output_context_logits")[0][0]
 
             if generation_logits_available:
+                # generation_logits is a 4d torch tensor of dim [BS,1,#generated_tokens,vocab_size]
                 output_texts, generation_logits = self.forward(**infer_input)
-                # generation_logits is a 4d tensor of dim [1,1,#generated_tokens, vocab_size], return just the 3d tensor
-                # in output dict.
-                output_dict["generation_logits"] = np.array(generation_logits[0].cpu().numpy())
+                # convert generation_logits to numpy array. Note: from my understanding since generation_logits is
+                # returned as a torch tensor it won't have varying number of tokens across multiple sequences,
+                # likely due to TRTLLM taking care of padding hence no addtnl padding is needed.
+                output_dict["generation_logits"] = np.array(
+                    [generation_logit.cpu().numpy() for generation_logit in generation_logits]
+                )
+
             elif context_logits_available:
                 output_texts, context_logits = self.forward(**infer_input)
-                # convert context logits to 3d tensor from list since its avaiable as a list of tensor shaped
-                # [#tokens, vocab_size]
-                context_logits = context_logits[0].unsqueeze(0)
-                output_dict["context_logits"] = np.array(context_logits.cpu().numpy())
+                # context_logits is a list of tensors shaped [#tokens, vocab_size] and the len of the list  is BS
+                # In case of batched inputs (i.e multiple prompts sent as a list) context_logits returned can have
+                # different seq_len. Following code pads them as it can otherwise error while converting to numpy array
+                context_logits = self._pad_logits(context_logits)
+                # Convert context_Logits to numpy array of shape [bS, 1, padding_len, vocab_size],.
+                context_logits = np.array([logit_tensor.unsqueeze(0).cpu().numpy() for logit_tensor in context_logits])
+                output_dict["context_logits"] = context_logits
             else:
                 output_texts = self.forward(**infer_input)
             output_dict["outputs"] = cast_output(output_texts, np.bytes_)

@@ -17,8 +17,10 @@ from nemo.collections.llm.gpt.data.chat import ChatDataModule
 from nemo.collections.llm.gpt.data.dolly import DollyDataModule
 from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from nemo.collections.llm.gpt.data.hf_dataset import HFDatasetDataModule
+from nemo.collections.llm.gpt.data.mlperf_govreport import MLPerfGovReportDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.pre_training import PreTrainingDataModule, build_pretraining_datamodule
+from nemo.collections.llm.gpt.data.retrieval import CustomRetrievalDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 
 __all__ = [
@@ -27,8 +29,10 @@ __all__ = [
     "DollyDataModule",
     "FineTuningDataModule",
     "HFDatasetDataModule",
+    "MLPerfGovReportDataModule",
     "MockDataModule",
     "PreTrainingDataModule",
     "build_pretraining_datamodule",
     "SquadDataModule",
+    "CustomRetrievalDataModule",
 ]
