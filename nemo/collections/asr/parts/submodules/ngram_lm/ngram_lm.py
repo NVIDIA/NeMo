@@ -822,25 +822,32 @@ class FastNGramLM(ModelPT):
         current_states = states.clone()
         states_dtype = current_states.dtype
 
+        # init output tensors
         out_scores = torch.zeros(batch_size, self.vocab_size, device=device)
         out_states = torch.full([batch_size, self.vocab_size], fill_value=-1, dtype=states_dtype, device=device)
-        state_found = torch.full([batch_size, self.vocab_size], fill_value=False, dtype=torch.bool, device=device)
-        accumulated_backoff = torch.zeros(batch_size, device=device)
 
-        all_labels = torch.arange(self.vocab_size, device=device)
+        # helper ranges
+        vocab_range = torch.arange(self.vocab_size, device=device)
         batch_indices = torch.arange(batch_size, device=device)
 
-        lm_not_done = torch.full([batch_size], fill_value=True, dtype=torch.bool, device=device)
+        # backoff weight accumulator
+        accumulated_backoff = torch.zeros(batch_size, device=device)
+        # loop condition
+        start_state_not_processed = torch.full([batch_size], fill_value=True, dtype=torch.bool, device=device)
+
         num_iterations = 0
-        while lm_not_done.any():
+        while start_state_not_processed.any():
             assert num_iterations <= self.max_order, "Infinite loop in LM advance"
             num_iterations += 1
+            # get arc boundaries
             start, end = self.start_end_arcs[current_states].unbind(dim=1)
-            indices = start[:, None] + all_labels[None, :]
+            # number of arcs for each state cannot be larger than vocab size
+            indices = start[:, None] + vocab_range[None, :]
             mask = indices < end[:, None]
-            mask &= lm_not_done[:, None]
+            mask &= start_state_not_processed[:, None]
             mask_flat = mask.view(-1)
             indices_flat = indices.view(-1)
+            # map indices outside the mask to vocab_size + 1
             scores_add = torch.zeros([batch_size, self.vocab_size + 1], device=device, dtype=out_scores.dtype)
             out_states_add = torch.full(
                 [batch_size, self.vocab_size + 1], fill_value=-1, device=device, dtype=states_dtype
@@ -850,14 +857,18 @@ class FastNGramLM(ModelPT):
             out_states_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.to_states[
                 indices_flat
             ].to(states_dtype)
+            # fill out_scores and out_states with new values where state is not found yet
+            state_found = out_states != -1
             out_scores = torch.where(
                 state_found, out_scores, accumulated_backoff.unsqueeze(-1) + scores_add[:, : self.vocab_size]
             )
             out_states = torch.where(state_found, out_states, out_states_add[:, : self.vocab_size])
-            state_found = out_states != -1
-            lm_not_done &= current_states != self.START_STATE
-            accumulated_backoff += self.backoff_weights[current_states] * lm_not_done
-            torch.where(lm_not_done, self.backoff_to_states[current_states], current_states, out=current_states)
+            # update loop condition; process backoffs
+            start_state_not_processed &= current_states != self.START_STATE
+            accumulated_backoff += self.backoff_weights[current_states] * start_state_not_processed
+            torch.where(
+                start_state_not_processed, self.backoff_to_states[current_states], current_states, out=current_states
+            )
         return out_scores, out_states
 
     @triton_required
