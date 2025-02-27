@@ -403,6 +403,12 @@ def finetune_performance_optimizations(
         recipe.trainer.strategy.pipeline_model_parallel_size = 6
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 7
         recipe.peft.target_modules = ['linear_qkv']
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=False,
+            )
+        )
 
     recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
