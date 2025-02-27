@@ -268,7 +268,7 @@ def get_full_path(
             # If audio_file is not available and the path is not absolute, the full path is assumed
             # to be relative to the manifest file parent directory or data directory.
             if manifest_file is None and data_dir is None:
-                raise ValueError(f'Use either manifest_file or data_dir to specify the data directory.')
+                raise ValueError('Use either manifest_file or data_dir to specify the data directory.')
             elif manifest_file is not None and data_dir is not None:
                 raise ValueError(
                     f'Parameters manifest_file and data_dir cannot be used simultaneously. Currently manifest_file is {manifest_file} and data_dir is {data_dir}.'

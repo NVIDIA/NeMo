@@ -142,7 +142,7 @@ def ais_binary() -> str:
         logging.info('ais available at the default path: %s', default_path)
         return default_path
     else:
-        raise RuntimeError(f'AIS binary not found.')
+        raise RuntimeError('AIS binary not found.')
 
 
 def datastore_path_to_local_path(store_path: str) -> str:
