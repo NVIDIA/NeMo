@@ -24,7 +24,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 __all__ = ['CharTokenizer']
 
 
-NUMBER_OF_CHARACTERS_READ_BUFFER_SIZE = 10 ** 7
+NUMBER_OF_CHARACTERS_READ_BUFFER_SIZE = 10**7
 
 
 class SpecialTokenString(Enum):
