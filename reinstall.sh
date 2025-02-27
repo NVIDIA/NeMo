@@ -66,6 +66,7 @@ mcore() {
     pushd $MLM_DIR &&
     git checkout -f $MLM_TAG &&
     perl -ni -e 'print unless /triton==3.1.0/' requirements/pytorch_24.10/requirements.txt &&
+    perl -ni -e 'print unless /nvidia-resiliency-ext/' requirements/pytorch_24.10/requirements.txt &&
     popd
 
   build() {
