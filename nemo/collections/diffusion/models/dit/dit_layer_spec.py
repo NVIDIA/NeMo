@@ -642,10 +642,11 @@ class MMDiTLayer(TransformerLayer):
 
 class FluxSingleTransformerBlock(TransformerLayer):
     """
-        Single transformer layer mathematically equivalent to original Flux single transformer.
+    Single transformer layer mathematically equivalent to original Flux single transformer.
 
-        This layer is re-implemented with megatron-core and also altered in structure for better performance.
+    This layer is re-implemented with megatron-core and also altered in structure for better performance.
     """
+
     def __init__(
         self,
         config: TransformerConfig,
