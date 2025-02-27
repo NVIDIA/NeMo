@@ -130,7 +130,7 @@ class CharTokenizer(TokenizerSpec):
             self.vocab[v] = count
             count += 1
         for i, token in enumerate(vocab_list):
-            token = eval(token.strip())
+            token = token.strip()
             self.check_token_from_file(token, vocab_file, i)
             if token not in self.vocab:
                 self.vocab[token] = count
