@@ -52,13 +52,13 @@ if TYPE_CHECKING:
 
 def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     """Process a single batch of data from the dataloader iterator.
-    
+
     This function handles the data loading step for GPT models, managing
     pipeline parallelism by distributing data appropriately across pipeline stages.
-    
+
     Args:
         dataloader_iter: Iterator over the dataloader
-        
+
     Returns:
         Dict[str, torch.Tensor]: Processed batch with required tensors moved to appropriate devices
     """
@@ -106,14 +106,14 @@ def gpt_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 def gpt_forward_step(model, batch) -> torch.Tensor:
     """Execute a forward step for the GPT model.
-    
+
     This function prepares the arguments needed for the model's forward pass
     and handles both normal and packed sequence processing.
-    
+
     Args:
         model: The GPT model
         batch: The input batch containing tokens, positions, and other required inputs
-        
+
     Returns:
         torch.Tensor: Output tensor from the model forward pass
     """
@@ -139,10 +139,10 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
 
 def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     """Create a Transformer Engine layer specification based on the provided config.
-    
+
     Args:
         config: GPT configuration object
-        
+
     Returns:
         ModuleSpec: Module specification for Transformer Engine based layers
     """
@@ -158,10 +158,10 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
 def transformer_engine_full_layer_spec(config: "GPTConfig") -> ModuleSpec:
     """Create a full Transformer Engine layer specification with autocast support.
-    
+
     Args:
         config: GPT configuration object
-        
+
     Returns:
         ModuleSpec: Module specification for full TE layers
     """
@@ -174,10 +174,10 @@ def transformer_engine_full_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
 def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     """Create a local layer specification without Transformer Engine.
-    
+
     Args:
         config: GPT configuration object
-        
+
     Returns:
         ModuleSpec: Module specification for local implementation layers
     """
@@ -190,12 +190,12 @@ def local_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
 def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
     """Determine the most appropriate layer specification based on availability.
-    
+
     Uses Transformer Engine specs if available, otherwise falls back to local implementation.
-    
+
     Args:
         config: GPT configuration object
-        
+
     Returns:
         ModuleSpec: The selected module specification
     """
@@ -210,10 +210,10 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
 
 def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
     """Extract the appropriate torch dtype from a Megatron Core configuration.
-    
+
     Args:
         config: Megatron Core Transformer configuration
-        
+
     Returns:
         torch.dtype: The appropriate torch dtype (float16, bfloat16, or float32)
     """
@@ -227,10 +227,10 @@ def torch_dtype_from_mcore_config(config: TransformerConfig) -> torch.dtype:
 
 def torch_dtype_from_dict_config(config: Dict[str, Any]) -> torch.dtype:
     """Extract the appropriate torch dtype from a dictionary configuration.
-    
+
     Args:
         config: Dictionary containing configuration parameters
-        
+
     Returns:
         torch.dtype: The appropriate torch dtype (float16, bfloat16, or float32)
     """
@@ -245,10 +245,11 @@ def torch_dtype_from_dict_config(config: Dict[str, Any]) -> torch.dtype:
 @dataclass
 class GPTConfig(TransformerConfig, io.IOMixin):
     """Configuration class for GPT models.
-    
+
     Extends TransformerConfig with additional parameters specific to GPT models
     and provides utility methods for model configuration.
     """
+
     # From megatron.core.models.gpt.gpt_model.GPTModel
     fp16_lm_cross_entropy: bool = False
     parallel_output: bool = True
@@ -276,12 +277,12 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         """Configure and instantiate a Megatron Core GPT model based on this configuration.
-        
+
         Args:
             tokenizer: Tokenizer used with the model
             pre_process: Whether to include pre-processing in the model, defaults to first pipeline stage
             post_process: Whether to include post-processing in the model, defaults to last pipeline stage
-            
+
         Returns:
             MCoreGPTModel: Configured Megatron Core GPT model instance
         """
@@ -369,10 +370,11 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 @dataclass
 class GPTConfig126M(GPTConfig):
     """Configuration for a 126M parameter GPT model.
-    
+
     Predefined configuration for a small GPT model with 12 layers,
     768 hidden size, and 12 attention heads.
     """
+
     seq_length: int = 2048
     num_layers: int = 12
     hidden_size: int = 768
@@ -386,10 +388,11 @@ class GPTConfig126M(GPTConfig):
 @dataclass
 class GPTConfig5B(GPTConfig):
     """Configuration for a 5B parameter GPT model.
-    
+
     Predefined configuration for a medium-sized GPT model with 24 layers,
     4096 hidden size, and 32 attention heads.
     """
+
     seq_length: int = 2048
     num_layers: int = 24
     hidden_size: int = 4096
@@ -403,10 +406,11 @@ class GPTConfig5B(GPTConfig):
 @dataclass
 class GPTConfig7B(GPTConfig):
     """Configuration for a 7B parameter GPT model.
-    
+
     Predefined configuration for a medium-sized GPT model with 32 layers,
     4096 hidden size, and 32 attention heads.
     """
+
     seq_length: int = 2048
     num_layers: int = 32
     hidden_size: int = 4096
@@ -420,10 +424,11 @@ class GPTConfig7B(GPTConfig):
 @dataclass
 class GPTConfig20B(GPTConfig):
     """Configuration for a 20B parameter GPT model.
-    
+
     Predefined configuration for a large GPT model with 44 layers,
     6144 hidden size, and 48 attention heads.
     """
+
     seq_length: int = 2048
     num_layers: int = 44
     hidden_size: int = 6144
@@ -437,10 +442,11 @@ class GPTConfig20B(GPTConfig):
 @dataclass
 class GPTConfig40B(GPTConfig):
     """Configuration for a 40B parameter GPT model.
-    
+
     Predefined configuration for a large GPT model with 48 layers,
     8192 hidden size, and 64 attention heads.
     """
+
     seq_length: int = 2048
     num_layers: int = 48
     hidden_size: int = 8192
@@ -454,10 +460,11 @@ class GPTConfig40B(GPTConfig):
 @dataclass
 class GPTConfig175B(GPTConfig):
     """Configuration for a 175B parameter GPT model.
-    
+
     Predefined configuration for a massive GPT model with 96 layers,
     12288 hidden size, and 96 attention heads.
     """
+
     seq_length: int = 2048
     num_layers: int = 96
     hidden_size: int = 12288
@@ -473,10 +480,11 @@ class GPTConfig175B(GPTConfig):
 
 class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     """GPT model implementation using Megatron Core and PyTorch Lightning.
-    
+
     This class provides a high-level interface for training and using GPT models
     with proper integration with NeMo's infrastructure.
     """
+
     def __init__(
         self,
         config: GPTConfig,
@@ -486,7 +494,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         """Initialize the GPT model.
-        
+
         Args:
             config: Configuration for the GPT model
             optim: Optional optimizer module
@@ -504,7 +512,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def configure_model(self) -> None:
         """Configure the underlying model if not already configured.
-        
+
         This method ensures the model is instantiated from the configuration.
         """
         if not hasattr(self, "module"):
@@ -521,7 +529,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         packed_seq_params=None,
     ) -> torch.Tensor:
         """Forward pass through the GPT model.
-        
+
         Args:
             input_ids: Input token IDs
             position_ids: Position IDs for the input
@@ -530,7 +538,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             decoder_input: Optional decoder input
             inference_params: Optional parameters for inference
             packed_seq_params: Optional parameters for packed sequence processing
-            
+
         Returns:
             torch.Tensor: Output tensor from the model
         """
@@ -549,10 +557,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
         """Process a batch of data from the dataloader.
-        
+
         Args:
             dataloader_iter: Iterator over the dataloader
-            
+
         Returns:
             Dict[str, torch.Tensor]: Processed batch
         """
@@ -560,10 +568,10 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def forward_step(self, batch) -> torch.Tensor:
         """Execute a forward step using the provided batch.
-        
+
         Args:
             batch: Input batch
-            
+
         Returns:
             torch.Tensor: Output from the forward pass
         """
@@ -571,11 +579,11 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
         """Execute a training step.
-        
+
         Args:
             batch: Input batch
             batch_idx: Optional batch index
-            
+
         Returns:
             torch.Tensor: Loss value
         """
@@ -584,11 +592,11 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
         """Execute a validation step.
-        
+
         Args:
             batch: Input batch
             batch_idx: Optional batch index
-            
+
         Returns:
             torch.Tensor: Loss value
         """
@@ -598,13 +606,13 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
     def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
         """Get an inference wrapper for the model.
-        
+
         Creates and configures a GPTInferenceWrapper around the model for efficient inference.
-        
+
         Args:
             params_dtype: Data type for parameters
             inference_batch_times_seqlen_threshold: Threshold for optimizing inference
-            
+
         Returns:
             torch.Tensor: Wrapped model for inference
         """
@@ -641,7 +649,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     @property
     def training_loss_reduction(self) -> MaskedTokenLossReduction:
         """Get the loss reduction module for training.
-        
+
         Returns:
             MaskedTokenLossReduction: Loss reduction module for training
         """
@@ -653,7 +661,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     @property
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
         """Get the loss reduction module for validation.
-        
+
         Returns:
             MaskedTokenLossReduction: Loss reduction module for validation
         """
@@ -665,12 +673,12 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
 def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
     """Process batch data for the current context parallel rank.
-    
+
     Handles the slicing of batch data across context parallel dimensions.
-    
+
     Args:
         batch: Input batch
-        
+
     Returns:
         Dict[str, torch.Tensor]: Processed batch for the current context parallel rank
     """
@@ -703,13 +711,13 @@ def get_batch_on_this_context_parallel_rank(batch) -> Dict[str, torch.Tensor]:
 
 def get_packed_seq_params(batch):
     """Extract packed sequence parameters from the batch.
-    
+
     Creates and returns a PackedSeqParams object with appropriate parameters
     for packed sequence processing.
-    
+
     Args:
         batch: Input batch containing packed sequence information
-        
+
     Returns:
         PackedSeqParams: Parameters for packed sequence processing
     """
