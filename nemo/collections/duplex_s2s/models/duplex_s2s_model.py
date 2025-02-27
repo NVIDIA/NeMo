@@ -132,6 +132,9 @@ class DuplexS2SModel(LightningModule):
         # print(f"{batch['target_tokens'].shape=}")
 
         input_ids = torch.cat([target_codes, batch["target_tokens"][..., None]], dim=-1)
+        if self._use_tp and input_ids.shape[1] % 2 == 0:
+            input_ids = input_ids[:, :-1]  # make it odd so after the next step it's even for sequence parallelism
+            source_encoded = source_encoded[:, :-1]
         # print(f"{input_ids.shape=}")
         labels = input_ids[:, 1:]
         input_ids = input_ids[:, :-1]
@@ -148,14 +151,14 @@ class DuplexS2SModel(LightningModule):
         # TODO: resolve the slicing hacks lol
         # encoder_input = input_embeds.sum(dim=2) + source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3)
         encoder_input = input_embeds + source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3)
-        # print(f"{encoder_input.shape=}")
 
         out = self.llm(inputs_embeds=encoder_input)
         # print(f"{out['last_hidden_state'].shape=}")
 
+        B, T = encoder_input.shape[:2]
+
         text_logits = self.lm_head(out['last_hidden_state'])
         # print(f"{text_logits.shape=}")
-        B, T = text_logits.shape[:2]
         audio_logits = self.audio_head(out['last_hidden_state']).view(B, T, 2048, 8)
         # print(f"{audio_logits.shape=}")
 
@@ -192,105 +195,89 @@ class DuplexS2SModel(LightningModule):
                 self.audio_head.parameters(),
             ),
             lr=self.cfg.optim.lr,
+            foreach=False,  # required for tensor parallelism
         )
 
     def configure_model(self) -> None:
         self._use_fsdp = False
+        self._use_tp = False
         device_mesh = self.device_mesh
         print(f"{device_mesh=}")
         print(f"{device_mesh.get_coordinate()=}")
         print(f"{device_mesh['data_parallel'].get_local_rank()=}")
         print(f"{device_mesh['tensor_parallel'].get_local_rank()=}")
 
-        """
-Gemma2Model(
-  (embed_tokens): Embedding(256000, 2304, padding_idx=0)
-  (layers): ModuleList(
-    (0-25): 26 x Gemma2DecoderLayer(
-      (self_attn): Gemma2Attention(
-        (q_proj): Linear(in_features=2304, out_features=2048, bias=False)
-        (k_proj): Linear(in_features=2304, out_features=1024, bias=False)
-        (v_proj): Linear(in_features=2304, out_features=1024, bias=False)
-        (o_proj): Linear(in_features=2048, out_features=2304, bias=False)
-        (rotary_emb): Gemma2RotaryEmbedding()
-      )
-      (mlp): Gemma2MLP(
-        (gate_proj): Linear(in_features=2304, out_features=9216, bias=False)
-        (up_proj): Linear(in_features=2304, out_features=9216, bias=False)
-        (down_proj): Linear(in_features=9216, out_features=2304, bias=False)
-        (act_fn): PytorchGELUTanh()
-      )
-      (input_layernorm): Gemma2RMSNorm((2304,), eps=1e-06)
-      (pre_feedforward_layernorm): Gemma2RMSNorm((2304,), eps=1e-06)
-      (post_feedforward_layernorm): Gemma2RMSNorm((2304,), eps=1e-06)
-      (post_attention_layernorm): Gemma2RMSNorm((2304,), eps=1e-06)
-    )
-  )
-  (norm): Gemma2RMSNorm((2304,), eps=1e-06)
-)
-
-        """
-
         if (tp_mesh := device_mesh["tensor_parallel"]).size() > 1:
-            # 1. Parallelize the first embedding and the last linear proj layer
-            # 2. Parallelize the root norm layer over the sequence dim
-            # 3. Shard the first transformer block's inputs
+            self._use_tp = True
 
-            parallelize_module(
-                self.lm_head,
-                tp_mesh,
-                ColwiseParallel(
-                    input_layouts=Shard(1),
-                    # Optional: Shard the output along the class dimension to compute the loss in parallel.
-                    # See `loss_parallel` in `train.py`
-                    output_layouts=Shard(-1),
-                    use_local_output=False,
-                ),
-            )
+            # TODO: Distributing embeddings with TP in this setup is tricky
+            #       because we're adding with the output of a non-parallelized
+            #       speech encoder.
+            # for m in (self.embed_tokens, self.embed_audio_tokens):
+            #     parallelize_module(
+            #         m,
+            #         tp_mesh,
+            #         ColwiseParallel(
+            #             # input_layouts=Shard(1),
+            #             # # Optional: Shard the output along the class dimension to compute the loss in parallel.
+            #             # # See `loss_parallel` in `train.py`
+            #             # output_layouts=Shard(1),
+            #             # use_local_output=False,
+            #         ),
+            #     )
 
-            # Parallelize the first embedding and the last linear out projection
+            # # Parallelize the first embedding and the last linear out projection
             plan = {
-                "embed_tokens": RowwiseParallel(input_layouts=Replicate()),
-                "norm": SequenceParallel(),
                 "layers.0": PrepareModuleInput(
                     input_layouts=(Replicate(),),  # , None)
                     desired_input_layouts=(Shard(1),),  # , None)
                     use_local_output=True,
                 ),
+                "norm": SequenceParallel(),
             }
             parallelize_module(self.llm, tp_mesh, plan)
 
             # Parallelize each transformer block
             for transformer_block in self.llm.layers:
                 plan = {
-                    # "self_attn": PrepareModuleInput(
-                    #     input_layouts=(Shard(1),),#, None),
-                    #     desired_input_layouts=(Replicate(),),#, None),
-                    # ),
+                    "input_layernorm": SequenceParallel(),
                     "self_attn.q_proj": ColwiseParallel(),
                     "self_attn.k_proj": ColwiseParallel(),
                     "self_attn.v_proj": ColwiseParallel(),
                     "self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+                    "post_attention_layernorm": SequenceParallel(),
                     "mlp": PrepareModuleInput(
                         input_layouts=(Shard(1),),
                         desired_input_layouts=(Replicate(),),
                     ),
                     "mlp.gate_proj": ColwiseParallel(),
-                    "mlp.up_proj": RowwiseParallel(output_layouts=Shard(1)),
-                    "mlp.down_proj": ColwiseParallel(),
-                    "input_layernorm": SequenceParallel(),
-                    "pre_feedforward_layernorm": SequenceParallel(),
-                    "post_feedforward_layernorm": SequenceParallel(),
-                    "post_attention_layernorm": SequenceParallel(),
+                    "mlp.up_proj": ColwiseParallel(),
+                    "mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+                    # "pre_feedforward_layernorm": SequenceParallel(),
+                    # "post_feedforward_layernorm": SequenceParallel(),
                 }
 
                 # Adjust attention module to use the local number of heads
-                # attn_layer = transformer_block.self_attn
-                # attn_layer.n_heads = attn_layer.n_heads // tp_mesh.size()
-                # attn_layer.n_kv_heads = attn_layer.n_kv_heads // tp_mesh.size()
+                attn_layer = transformer_block.self_attn
+                attn_layer.num_heads = attn_layer.num_heads // tp_mesh.size()
+                attn_layer.num_key_value_heads = attn_layer.num_key_value_heads // tp_mesh.size()
+                attn_layer.hidden_size = attn_layer.hidden_size // tp_mesh.size()
 
                 # Apply the plan for the current transformer block
                 parallelize_module(transformer_block, tp_mesh, plan)
+
+            for m in (self.lm_head, self.audio_head):
+                parallelize_module(
+                    m,
+                    tp_mesh,
+                    ColwiseParallel(
+                        input_layouts=Shard(1),
+                        # Optional: Shard the output along the class dimension to compute the loss in parallel.
+                        # See `loss_parallel` in `train.py`
+                        output_layouts=Shard(-1),
+                        use_local_output=False,
+                    ),
+                )
 
         if (dp_mesh := device_mesh["data_parallel"]).size() > 1:
             assert dp_mesh.ndim == 1  # Hybrid-sharding not supported
@@ -304,16 +291,13 @@ Gemma2Model(
                 self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
             self.embed_audio_tokens = fully_shard(self.embed_audio_tokens, **fsdp_config)
-            # self.llm.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
             self.lm_head = checkpoint_wrapper(self.lm_head)
             self.lm_head = fully_shard(self.lm_head, **fsdp_config)
             self.audio_head = checkpoint_wrapper(self.audio_head)
             self.audio_head = fully_shard(self.audio_head, **fsdp_config)
 
-            # self.audio_codec = fully_shard(self.audio_codec, **fsdp_config)  # weight_norm not supported
             # for idx, layer in enumerate(self.perception.encoder.layers):
             #     self.perception.encoder.layers[idx] = fully_shard(layer, **fsdp_config)
             # self.perception = checkpoint_wrapper(self.perception)
             self.perception = fully_shard(self.perception, **fsdp_config)
-            # fully_shard(self)

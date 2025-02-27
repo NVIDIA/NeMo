@@ -85,8 +85,8 @@ trainer:
   accumulate_grad_batches: 4
   strategy:
     _target_: lightning.pytorch.strategies.ModelParallelStrategy
-    tensor_parallel_size: 1
-    data_parallel_size: 2
+    tensor_parallel_size: 2
+    data_parallel_size: 1
 #    _target_: lightning.pytorch.strategies.DDPStrategy
 #    gradient_as_bucket_view: true
 #    find_unused_parameters: true

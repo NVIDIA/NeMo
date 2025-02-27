@@ -54,7 +54,7 @@ def train(cfg):
     # TODO: decide on exp_manager or adopting NeMo 2.0 API with _setup function, or sth else ?
     trainer = Trainer(
         **resolve_trainer_cfg(cfg.trainer),
-        # callbacks=[PROFILING()]
+        # callbacks=[PROFILING()],
     )
 
     with trainer.init_module():
