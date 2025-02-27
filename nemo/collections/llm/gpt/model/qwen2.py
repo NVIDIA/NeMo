@@ -171,7 +171,8 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
 
     @property
     def config(self) -> Qwen2Config:
-        from transformers import AutoConfig as HFAutoConfig, GenerationConfig
+        from transformers import AutoConfig as HFAutoConfig
+        from transformers import GenerationConfig
 
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
         generation_config = GenerationConfig.from_pretrained(str(self))
@@ -193,7 +194,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
-            generation_config=generation_config
+            generation_config=generation_config,
         )
 
         return output

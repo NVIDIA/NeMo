@@ -232,7 +232,8 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
     @property
     def config(self) -> Gemma2Config:
         """ """
-        from transformers import GemmaConfig as HFGemmaConfig, GenerationConfig
+        from transformers import GemmaConfig as HFGemmaConfig
+        from transformers import GenerationConfig
 
         source = HFGemmaConfig.from_pretrained(str(self))
         generation_config = GenerationConfig.from_pretrained(str(self))
@@ -263,7 +264,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
-            generation_config=generation_config
+            generation_config=generation_config,
         )
 
         return output

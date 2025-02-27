@@ -36,6 +36,7 @@ from nemo.utils import logging
 if TYPE_CHECKING:
     from megatron.core.transformer import ModuleSpec
     from transformers import AutoModelForCausalLM
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -329,7 +330,8 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
     @cached_property
     def config(self) -> DeepSeekConfig:
-        from transformers import AutoConfig as HFAutoConfig, GenerationConfig
+        from transformers import AutoConfig as HFAutoConfig
+        from transformers import GenerationConfig
 
         source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
         generation_config = GenerationConfig.from_pretrained(str(self))
@@ -363,8 +365,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
-            generation_config=generation_config
-            **v3_kwargs,
+            generation_config=generation_config**v3_kwargs,
         )
 
 
