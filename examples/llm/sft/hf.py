@@ -74,10 +74,10 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
         raise NotImplementedError("Encountered unknown strategy")
 
 
-def logger(ckpt_folder, max_steps) -> nl.NeMoLogger:
+def logger(ckpt_folder, save_every_n_train_steps) -> nl.NeMoLogger:
     ckpt = nl.ModelCheckpoint(
         save_last=True,
-        every_n_train_steps=max_steps // 2,
+        every_n_train_steps=save_every_n_train_steps,
         monitor="reduced_train_loss",
         save_top_k=1,
         save_on_train_epoch_end=True,
@@ -164,7 +164,7 @@ def main():
             precision="bf16",
         ),
         optim=fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5)),
-        log=logger(args.ckpt_folder, args.max_steps),
+        log=logger(args.ckpt_folder, args.max_steps // 2),
         resume=resume,
     )
 
