@@ -44,17 +44,14 @@ def main(args):
     max_steps = args.max_steps
 
     SIZE_INFO_MAP = {
-        "2B": {
-            "hf_model_name": "Qwen/Qwen2-VL-2B-Instruct",
-            "llmconfig_class": llm.Qwen2Config1P5B
-        },
-        "7B": {
-            "hf_model_name": "Qwen/Qwen2-VL-7B-Instruct",
-            "llmconfig_class": llm.Qwen2Config7B       
-        }
+        "2B": {"hf_model_name": "Qwen/Qwen2-VL-2B-Instruct", "llmconfig_class": llm.Qwen2Config1P5B},
+        "7B": {"hf_model_name": "Qwen/Qwen2-VL-7B-Instruct", "llmconfig_class": llm.Qwen2Config7B},
     }
     model_size = "2B"
-    hf_model_name, llm_config_class = SIZE_INFO_MAP[model_size]["hf_model_name"], SIZE_INFO_MAP[model_size]["llmconfig_class"], 
+    hf_model_name, llm_config_class = (
+        SIZE_INFO_MAP[model_size]["hf_model_name"],
+        SIZE_INFO_MAP[model_size]["llmconfig_class"],
+    )
 
     max_sequence_length = args.max_sequence_length
     tokenizer = Qwen2Tokenizer.from_pretrained(hf_model_name)
@@ -86,7 +83,7 @@ def main(args):
             seq_length=max_sequence_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
-            tokenizer=tokenizer, #for mock data, we generate random token directly, here tokenizer could be none
+            tokenizer=tokenizer,  # for mock data, we generate random token directly, here tokenizer could be none
             image_processor=image_processor,
             num_workers=1,
         )
@@ -223,7 +220,13 @@ if __name__ == "__main__":
     parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | qwen2vl")
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=False, default=None, help="Path to the image folder")
-    parser.add_argument("--video_folder", type=str, required=False, default=None, help="Path to the video folder, if not provided, use image_folder")
+    parser.add_argument(
+        "--video_folder",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the video folder, if not provided, use image_folder",
+    )
     parser.add_argument(
         "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
     )
@@ -247,7 +250,9 @@ if __name__ == "__main__":
     parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
     parser.add_argument('--enable_sp', action='store_true', help="enable sequence parallel")
-    parser.add_argument("--max_sequence_length", type=int, required=False, default=4096, help="Maximum sequence length")
+    parser.add_argument(
+        "--max_sequence_length", type=int, required=False, default=4096, help="Maximum sequence length"
+    )
 
     args = parser.parse_args()
     main(args)
