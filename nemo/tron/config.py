@@ -193,6 +193,36 @@ class MegatronLMConfig:
     data_parallel_random_init: bool = False
     """Enable random initialization of params across data parallel ranks"""
 
+    # ---------------- Validation config. ----------------
+
+    eval_iters: int = 100
+    """Number of iterations to run for evaluation validation/test for."""
+
+    eval_interval: int = 1000
+    """Interval between running evaluation on validation set."""
+
+    skip_train: bool = False
+    """If set, bypass the training loop, optionally do evaluation for validation/test, and exit."""
+
+    # ---------------- Data and dataloader config. ----------------
+
+    decoder_seq_length: Optional[int] = None
+    """Maximum decoder sequence length to process."""
+
+    num_workers: int = 8
+    """Dataloader number of workers."""
+
+    data_sharding: bool = True
+    """Disable data sharding."""
+
+    # ---------------- Moe config. ----------------
+
+    moe_use_upcycling: bool = False
+    """Load a checkpoint of a dense model, convert it into an MoE model, and save the converted model to the path specified by --save. Upcycling is implemented on the top of distributed checkpointing, so it supports parallel modes different from the dense model."""
+
+
+@dataclass
+class DistributedInitConfig:
     # ---------------- Distributed config. ----------------
 
     encoder_tensor_model_parallel_size: int = 0
@@ -224,33 +254,6 @@ class MegatronLMConfig:
 
     use_tp_pp_dp_mapping: bool = False
     """If set, distributed ranks initialize order is changed from tp-dp-pp to tp-pp-dp. Make sure EP and CP aren't used with this option enabled"""
-
-    # ---------------- Validation config. ----------------
-
-    eval_iters: int = 100
-    """Number of iterations to run for evaluation validation/test for."""
-
-    eval_interval: int = 1000
-    """Interval between running evaluation on validation set."""
-
-    skip_train: bool = False
-    """If set, bypass the training loop, optionally do evaluation for validation/test, and exit."""
-
-    # ---------------- Data and dataloader config. ----------------
-
-    decoder_seq_length: Optional[int] = None
-    """Maximum decoder sequence length to process."""
-
-    num_workers: int = 8
-    """Dataloader number of workers."""
-
-    data_sharding: bool = True
-    """Disable data sharding."""
-
-    # ---------------- Moe config. ----------------
-
-    moe_use_upcycling: bool = False
-    """Load a checkpoint of a dense model, convert it into an MoE model, and save the converted model to the path specified by --save. Upcycling is implemented on the top of distributed checkpointing, so it supports parallel modes different from the dense model."""
 
 
 @dataclass
@@ -553,6 +556,7 @@ class ConfigContainer:
     logger_config: LoggerConfig
     tokenizer_config: TokenizerConfig
     checkpoint_config: CheckpointConfig
+    dist_config: DistributedInitConfig
     ft_config: FaultToleranceConfig = field(default_factory=FaultToleranceConfig)
     straggler_config: StragglerDetectionConfig = field(default_factory=StragglerDetectionConfig)
     profiling_config: ProfilingConfig = field(default_factory=ProfilingConfig)
@@ -564,8 +568,8 @@ class ConfigContainer:
         world_size = get_world_size_safe()
         mlc = self.megatron_lm_config
         encoder_model_size = (
-            mlc.encoder_tensor_model_parallel_size
-            * mlc.encoder_pipeline_model_parallel_size
+            self.dist_config.encoder_tensor_model_parallel_size
+            * self.dist_config.encoder_pipeline_model_parallel_size
             * self.model_config.context_parallel_size
         )
         decoder_model_size = (
@@ -580,7 +584,7 @@ class ConfigContainer:
         self.data_parallel_size = world_size // total_model_size
 
         self.model_config.use_cpu_initialization = (
-            self.model_config.use_cpu_initialization or self.megatron_lm_config.lazy_mpu_init
+            self.model_config.use_cpu_initialization or self.dist_config.lazy_mpu_init
         )
 
         # Scheduler

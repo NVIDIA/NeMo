@@ -101,7 +101,7 @@ def _torch_dist_init(
     if skip_mpu_initialization:
         return None
 
-    if cfg.megatron_lm_config.lazy_mpu_init:
+    if cfg.dist_config.lazy_mpu_init:
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals
         parallel_state.set_tensor_model_parallel_world_size(cfg.model_config.tensor_model_parallel_size)
@@ -196,10 +196,10 @@ def _initialize_distributed(
 
         # Call the init process
         init_process_group_kwargs = {
-            "backend": cfg.megatron_lm_config.distributed_backend,
+            "backend": cfg.dist_config.distributed_backend,
             "world_size": get_world_size_safe(),
             "rank": get_rank_safe(),
-            "timeout": datetime.timedelta(minutes=cfg.megatron_lm_config.distributed_timeout_minutes),
+            "timeout": datetime.timedelta(minutes=cfg.dist_config.distributed_timeout_minutes),
         }
 
         torch.distributed.init_process_group(**init_process_group_kwargs)
@@ -221,11 +221,11 @@ def _initialize_distributed(
                 expert_model_parallel_size=cfg.model_config.expert_model_parallel_size,
                 num_distributed_optimizer_instances=cfg.ddp_config.num_distributed_optimizer_instances,
                 expert_tensor_parallel_size=cfg.model_config.expert_tensor_parallel_size,
-                distributed_timeout_minutes=cfg.megatron_lm_config.distributed_timeout_minutes,
-                nccl_communicator_config_path=cfg.megatron_lm_config.nccl_communicator_config_path,
-                order="tp-cp-ep-dp-pp" if not cfg.megatron_lm_config.use_tp_pp_dp_mapping else "tp-pp-dp",
-                encoder_tensor_model_parallel_size=cfg.megatron_lm_config.encoder_tensor_model_parallel_size,
-                encoder_pipeline_model_parallel_size=cfg.megatron_lm_config.encoder_pipeline_model_parallel_size,
+                distributed_timeout_minutes=cfg.dist_config.distributed_timeout_minutes,
+                nccl_communicator_config_path=cfg.dist_config.nccl_communicator_config_path,
+                order="tp-cp-ep-dp-pp" if not cfg.dist_config.use_tp_pp_dp_mapping else "tp-pp-dp",
+                encoder_tensor_model_parallel_size=cfg.dist_config.encoder_tensor_model_parallel_size,
+                encoder_pipeline_model_parallel_size=cfg.dist_config.encoder_pipeline_model_parallel_size,
                 get_embedding_ranks=get_embedding_ranks,
                 get_position_embedding_ranks=get_position_embedding_ranks,
             )

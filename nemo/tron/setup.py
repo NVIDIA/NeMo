@@ -129,7 +129,7 @@ def setup(
     model = get_model_from_config(
         cfg.model_config,
         cfg.ddp_config,
-        use_torch_fsdp2=cfg.megatron_lm_config.use_torch_fsdp2,
+        use_torch_fsdp2=cfg.dist_config.use_torch_fsdp2,
         overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
         data_parallel_random_init=cfg.megatron_lm_config.data_parallel_random_init,
     )
@@ -156,7 +156,7 @@ def setup(
             optimizer,
             scheduler,
             checkpointing_context=checkpointing_context,
-            skip_load_to_model_and_opt=HAVE_FSDP2 and cfg.megatron_lm_config.use_torch_fsdp2,
+            skip_load_to_model_and_opt=HAVE_FSDP2 and cfg.dist_config.use_torch_fsdp2,
         )
         timers("load-checkpoint").stop(barrier=True)
         timers.log(["load-checkpoint"])

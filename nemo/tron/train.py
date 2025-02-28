@@ -115,7 +115,7 @@ def train(
         model_config.no_sync_func = [model_chunk.no_sync for model_chunk in model]
         if len(model) == 1:
             model_config.no_sync_func = model_config.no_sync_func[0]
-        if mlm_config.align_grad_reduce:
+        if config.dist_config.align_grad_reduce:
             model_config.grad_sync_func = [model_chunk.start_grad_sync for model_chunk in model]
             if len(model) == 1:
                 model_config.grad_sync_func = model_config.grad_sync_func[0]
