@@ -14,7 +14,6 @@ HEAVY_DEPS=${HEAVY_DEPS:-false}
 CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
-HAS_CUDA=$([[ -n "$CUDA_VERSION" ]] && echo "TRUE" || echo "FALSE")
 
 PIP=pip
 ${PIP} install -U ${PIP} setuptools
@@ -68,7 +67,7 @@ mcore() {
     popd
 
   build() {
-    if [[ "${HAS_CUDA}" == "TRUE" ]]; then
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
       pip wheel --no-deps --wheel-dir $WHEELS_DIR $MAMBA_DIR
       pip wheel --no-deps --wheel-dir $WHEELS_DIR $CAUSAL_CONV1D_DIR
     fi
@@ -98,7 +97,7 @@ vllm() {
   VLLM_DIR="$INSTALL_DIR/vllm"
 
   build() {
-    if [[ "$HAS_CUDA" == "TRUE" ]]; then
+    if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
       ${PIP} install --no-cache-dir virtualenv &&
         virtualenv $INSTALL_DIR/venv &&
         $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools coverage &&
@@ -156,7 +155,7 @@ nemo() {
     "onnxscript@git+https://github.com/microsoft/onnxscript"
   )
 
-  if [[ "$HAS_CUDA" == "TRUE" ]]; then
+  if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
     DEPS+=("git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'")
   fi
 

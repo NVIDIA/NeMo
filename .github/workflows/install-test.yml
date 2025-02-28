@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: ["ubuntu:22.04", "nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04"]
+        image: ["ubuntu:22.04"]
         installer: ["pip", "reinstall.sh"]
     steps:
       - name: Checkout repo
