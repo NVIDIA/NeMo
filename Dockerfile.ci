@@ -47,11 +47,10 @@ EOF
 
 ARG MLM_REPO
 ARG MLM_TAG
-RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/opt/NeMo/reinstall.sh <<"EOF" bash -ex
-  export NEMO_DIR=/tmp/NeMo
-  export WHEELS_DIR=/tmp/wheels
-  bash /opt/NeMo/reinstall.sh --library mcore --mode build
-  ls -al /opt/Megatron-LM || true
+RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  export INSTALL_DIR=/tmp
+  bash /tmp/NeMo/reinstall.sh --library mcore --mode build
+  ls -al /tmp/Megatron-LM || true
 EOF
 
 WORKDIR /workspace
@@ -63,8 +62,7 @@ RUN \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/README.md,target=/tmp/NeMo/README.md \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/nemo/package_info.py,target=/tmp/NeMo/nemo/package_info.py \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/nemo/__init__.py,target=/tmp/NeMo/nemo/__init__.py <<"EOF" bash -ex
-    export NEMO_DIR=/tmp/NeMo
-    export WHEELS_DIR=/tmp/wheels
+    export INSTALL_DIR=/tmp
     bash /tmp/NeMo/reinstall.sh --library all --mode install
     rm -rf $NEMO_DIR || true
 EOF
