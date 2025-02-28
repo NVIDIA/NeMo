@@ -26,6 +26,9 @@ from nemo.utils import logging
 
 def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
     """Infers the modelopt decoder type from GPTModel subclass."""
+    if isinstance(model, llm.HFAutoModelForCausalLM):
+        raise ValueError("Could not infer the decoder type for AutoModelForCausalLM. Please provide the decoder type explicitly in the ExportConfig.")
+
     mapping = [
         (llm.Baichuan2Model, "baichuan"),
         (llm.ChatGLMModel, "chatglm"),

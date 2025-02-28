@@ -393,12 +393,17 @@ def ptq(
     if not quantization_config:
         quantization_config = QuantizationConfig()
 
-    if export_config.path is None:
-        raise ValueError("The export_config.path needs to be specified, got None.")
-
     from nemo.collections.llm import quantization
-
     quantizer = quantization.Quantizer(quantization_config, export_config)
+
+    is_automodel = (Path(nemo_checkpoint) / 'config.json').exists()
+    if is_automodel:
+        from nemo.collections import llm
+        model = llm.HFAutoModelForCausalLM(model_name=nemo_checkpoint, load_pretrained_weights=True)
+        model.configure_model()
+        model = quantizer.quantize(model)
+        quantizer.export(model, nemo_checkpoint)
+        return export_config.path
 
     model, trainer = quantization.load_with_modelopt_layer_spec(
         nemo_checkpoint,

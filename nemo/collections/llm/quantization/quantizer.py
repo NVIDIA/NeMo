@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 try:
     import modelopt.torch.quantization as mtq
-    from modelopt.torch.export import export_tensorrt_llm_checkpoint
+    from modelopt.torch.export import export_tensorrt_llm_checkpoint, export_hf_checkpoint
 
     QUANT_CFG_CHOICES = {
         "int8": mtq.INT8_DEFAULT_CFG,
@@ -59,8 +59,13 @@ except (ImportError, ModuleNotFoundError) as e:
 
 
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
-SUPPORTED_EXPORT_FMT = ["trtllm", "nemo"]
+SUPPORTED_EXPORT_FMT = ["trtllm", "nemo", "hf"]
 
+def is_zero_rank():
+    """Check if the current process is the zero rank. If the process is not distributed, return True."""
+    if not dist.is_initialized():
+        return True
+    return dist.get_rank() == 0
 
 @dataclass
 class QuantizationConfig:
@@ -138,8 +143,10 @@ class Quantizer:
         self.torch_dtype = torch_dtype_from_precision(dtype)
 
     @staticmethod
-    def _setup(model: "MegatronParallel") -> None:
+    def _setup(model) -> None:
         """Setup model for quantization."""
+        if isinstance(model, llm.HFAutoModelForCausalLM):
+            return
         # TODO: disable activation checkpointing
         model.config.vocab_size = model.tokenizer.vocab_size
         model.freeze()
@@ -154,39 +161,61 @@ class Quantizer:
         return get_modelopt_decoder_type(unwrapped_model)
 
     @staticmethod
-    def _generate_sample(model: "MegatronParallel"):
+    def _generate_sample(model):
         prompts = ["Born in north-east France, Soyer trained as a", "Born in California, Soyer trained as a"]
 
-        mcore_tokenizer = MCoreTokenizerWrappper(model.tokenizer)
-        mcore_inference = model.get_inference_wrapper(
-            params_dtype=torch.bfloat16, inference_batch_times_seqlen_threshold=30
-        )
+        outputs = []
+        if isinstance(model, llm.HFAutoModelForCausalLM):
+            for prompt in prompts:
+                input_ids = model.tokenizer.tokenizer(prompt, return_tensors="pt")
+                input_ids = {k: v.to(model.model.device) for k, v in input_ids.items()}
+                output = model.model.generate(**input_ids)
+                decoded = model.tokenizer.tokenizer.decode(output[0], skip_special_tokens=True)
+                outputs.append(decoded)
+        else:
+            mcore_tokenizer = MCoreTokenizerWrappper(model.tokenizer)
+            mcore_inference = model.get_inference_wrapper(
+                params_dtype=torch.bfloat16, inference_batch_times_seqlen_threshold=30
+            )
 
-        generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]
-        outputs = [prompt + generation for prompt, generation in zip(prompts, generated)]
+            generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]    
+            outputs = [prompt + generation for prompt, generation in zip(prompts, generated)]
 
         logging.info(f'Sample generation after PTQ (with prompts): {outputs}')
 
-    def quantize(self, model: "MegatronParallel", forward_loop=None):
-        """Quantize the model and calibrate using given forward loop."""
-        if forward_loop is None:
-            get_dataloader = create_data_iterator_getter(
-                model,
-                dataset=self.quantization_config.calibration_dataset,
-                seq_len=self.quantization_config.calibration_seq_len,
-                batch_size=self.quantization_config.calibration_batch_size,
-                calibration_size=self.quantization_config.calibration_dataset_size,
-            )
 
-            number_of_batches = (
-                self.quantization_config.calibration_dataset_size // self.quantization_config.calibration_batch_size
-            )
-            forward_loop = self.create_megatron_forward_loop(
+    def _get_forward_loop(self, model):
+        get_dataloader = create_data_iterator_getter(
+            model,
+            dataset=self.quantization_config.calibration_dataset,
+            seq_len=self.quantization_config.calibration_seq_len,
+            batch_size=self.quantization_config.calibration_batch_size,
+            calibration_size=self.quantization_config.calibration_dataset_size,
+        )
+        number_of_batches = (
+            self.quantization_config.calibration_dataset_size // self.quantization_config.calibration_batch_size
+        )
+
+        if isinstance(model, llm.HFAutoModelForCausalLM):
+            def huggingface_forward_loop(model):
+                dataloader = get_dataloader()
+                for batch in dataloader:
+                    _ = model(batch)
+
+            return huggingface_forward_loop
+
+        return self.create_megatron_forward_loop(
                 get_dataloader,
                 num_batches=number_of_batches,
                 seq_length=self.quantization_config.calibration_seq_len,
                 micro_batch_size=self.quantization_config.calibration_batch_size,
             )
+
+
+    def quantize(self, model: "MegatronParallel", forward_loop=None):
+        """Quantize the model and calibrate using given forward loop."""
+        if forward_loop is None:
+            forward_loop = self._get_forward_loop(model)    
 
         algorithm = self.quantization_config.algorithm
         if algorithm is None:
@@ -196,7 +225,6 @@ class Quantizer:
         logging.info(f"Quantizing model to {algorithm}...")
 
         self._setup(model)
-        unwrapped_model = unwrap_model(model)
         decoder_type = self._get_decoder_type(model)
         quant_cfg = QUANT_CFG_CHOICES[algorithm]
         if "awq" in algorithm:
@@ -222,7 +250,7 @@ class Quantizer:
             logging.info(f"Using int8_sq alpha = {sq_alpha}")
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": sq_alpha}
 
-        unwrapped_model = mtq.quantize(unwrapped_model, quant_cfg, forward_loop)
+        unwrapped_model = mtq.quantize(self._unwrap_for_modelopt_operations(model), quant_cfg, forward_loop)
 
         if decoder_type == "gpt":
             # We found squared_relu may have an under-calibration problem.
@@ -239,7 +267,7 @@ class Quantizer:
                 unwrapped_model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
             )
 
-        if dist.get_rank() == 0:
+        if is_zero_rank():
             mtq.print_quant_summary(unwrapped_model)
 
         if self.export_config.generate_sample:
@@ -296,11 +324,24 @@ class Quantizer:
             logging.error("Failed to export the quantized model.")
         return export_successful
 
+    @staticmethod
+    def _unwrap_for_modelopt_operations(model):
+        """Unwraps the model to expose the underlying architecture that Model Optimizer can work with.
+        For HuggingFace models, returns the base model. For MCore models, returns the unwrapped version."""
+
+        if isinstance(model, llm.HFAutoModelForCausalLM):
+            return model.model
+        return unwrap_model(model)
+
     def export(self, model: "MegatronParallel", model_dir: str, trainer: Optional["Trainer"] = None) -> None:
         """Export model to a TensorRT-LLM or NeMo checkpoint."""
         export_dir = self.export_config.path
         export_fmt = self.export_config.export_format
         assert export_fmt in SUPPORTED_EXPORT_FMT, f"Unsupported export format: {export_fmt}"
+
+        is_automodel = isinstance(model, llm.HFAutoModelForCausalLM)
+        if is_automodel:
+            model.tokenizer.save_pretrained(export_dir)
 
         # Standard NeMo 2.0 checkpoint format
         if self.export_config.export_format == "nemo":
@@ -309,26 +350,35 @@ class Quantizer:
             if is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
+        elif self.export_config.export_format == "hf":
+            assert isinstance(model, llm.HFAutoModelForCausalLM), "HF export is only supported for AutoModelForCausalLM"
+            export_hf_checkpoint(
+                self._unwrap_for_modelopt_operations(model),
+                export_dir=export_dir,
+            )
         # TRT-LLM
         else:
             inference_tp = self.export_config.inference_tp
             inference_pp = self.export_config.inference_pp
 
-            use_nfs_workspace = model.config.pipeline_model_parallel_size > 1
-            export_tensorrt_llm_checkpoint(
-                model=unwrap_model(model),
-                decoder_type=self._get_decoder_type(model),
-                dtype=self.torch_dtype,
-                export_dir=export_dir,
-                inference_tensor_parallel=inference_tp,
-                inference_pipeline_parallel=inference_pp,
-                use_nfs_workspace=use_nfs_workspace,
-            )
-            dist.barrier()
+            use_nfs_workspace = False and  model.config.pipeline_model_parallel_size > 1
+
+            with torch.inference_mode():
+                from accelerate.hooks import remove_hook_from_module
+                remove_hook_from_module(model, recurse=True)
+                export_tensorrt_llm_checkpoint(
+                    model=self._unwrap_for_modelopt_operations(model),
+                    decoder_type=self._get_decoder_type(model),
+                    dtype=self.torch_dtype,
+                    export_dir=export_dir,
+                    inference_tensor_parallel=inference_tp,
+                    inference_pipeline_parallel=inference_pp,
+                    use_nfs_workspace=use_nfs_workspace,
+                )
 
             # Save the model context in order to restore its tokenizer later. The destination
             # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
-            if dist.get_rank() == 0:
+            if not is_automodel and is_zero_rank():
                 assert self._validate_quantized_checkpoint(export_dir, inference_tp)
                 shutil.copytree(
                     ckpt_to_context_subdir(model_dir),
