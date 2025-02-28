@@ -147,30 +147,22 @@ nemo() {
     NEMO_DIR=$CURR
   fi
 
-  PYPI_DEPS=(
+  DEPS=(
     "llama-index==0.10.43"
     "unstructured==0.14.9"
-  )
-
-  VCS_DEPS=(
-    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
-    "onnxscript@git+https://github.com/microsoft/onnxscript"
     "-r"
     "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
+    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
+    "onnxscript@git+https://github.com/microsoft/onnxscript"
   )
 
   if [[ "$HAS_CUDA" == "TRUE" ]]; then
-    VCS_DEPS+=("git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'")
+    DEPS+=("git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'")
   fi
 
   echo 'Installing dependencies of nemo'
-  ${PIP} install --upgrade --no-cache-dir --extra-index-url https://pypi.nvidia.com "${PYPI_DEPS[@]}"
-
-  # VCS dependency may or may not already be installed
-  # First force-reinstall without dependencies, then at the first version
-  # install dependencies
-  pip install --force-reinstall --no-deps --no-cache-dir "${VCS_DEPS[@]}"
-  pip install --no-cache-dir "${VCS_DEPS[@]}"
+  pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
+  pip install --no-cache-dir "${DEPS[@]}"
 
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
