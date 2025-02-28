@@ -22,7 +22,6 @@ mcore() {
   local mode="$1"
 
   local WHEELS_DIR=$WHEELS_DIR/mcore/
-  rm -rf $WHEELS_DIR
   mkdir -p $WHEELS_DIR
 
   export CAUSAL_CONV1D_FORCE_BUILD=TRUE
@@ -91,7 +90,6 @@ vllm() {
   local mode="$1"
 
   local WHEELS_DIR=$WHEELS_DIR/vllm/
-  rm -rf $WHEELS_DIR
   mkdir -p $WHEELS_DIR
 
   VLLM_DIR="$INSTALL_DIR/vllm"
