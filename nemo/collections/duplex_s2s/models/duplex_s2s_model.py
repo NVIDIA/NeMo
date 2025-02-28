@@ -132,9 +132,13 @@ class DuplexS2SModel(LightningModule):
         # print(f"{batch['target_tokens'].shape=}")
 
         input_ids = torch.cat([target_codes, batch["target_tokens"][..., None]], dim=-1)
-        if self._use_tp and input_ids.shape[1] % 2 == 0:
-            input_ids = input_ids[:, :-1]  # make it odd so after the next step it's even for sequence parallelism
-            source_encoded = source_encoded[:, :-1]
+        if self._use_tp:
+            tp_world_size = self.device_mesh["tensor_parallel"].size()
+            if (remainder := (input_ids.shape[1] - 1) % tp_world_size) != 0:
+                # Truncate some tokens from the end to make the sequence lenght shape divisible by tensor parallelism
+                # world size. Otherwise, sequence parallelism will change the input shape making leading to mismatches.
+                input_ids = input_ids[:, :-remainder]
+                source_encoded = source_encoded[:, :-remainder]
         # print(f"{input_ids.shape=}")
         labels = input_ids[:, 1:]
         input_ids = input_ids[:, :-1]
@@ -202,10 +206,8 @@ class DuplexS2SModel(LightningModule):
         self._use_fsdp = False
         self._use_tp = False
         device_mesh = self.device_mesh
-        print(f"{device_mesh=}")
-        print(f"{device_mesh.get_coordinate()=}")
-        print(f"{device_mesh['data_parallel'].get_local_rank()=}")
-        print(f"{device_mesh['tensor_parallel'].get_local_rank()=}")
+        if device_mesh is None:
+            return
 
         if (tp_mesh := device_mesh["tensor_parallel"]).size() > 1:
             self._use_tp = True
