@@ -120,44 +120,11 @@ class MegatronLMConfig:
 
     # ---------------- Network size config. ----------------
 
-    encoder_num_layers: Optional[int] = None
-    """Number of encoder transformer layers."""
-
-    decoder_num_layers: Optional[int] = None
-    """Number of decoder transformer layers."""
-
     model_type: ModelType = ModelType.encoder_or_decoder
     """Model architecture type."""
 
-    group_query_attention: bool = False
-    """Use group-query attention."""
-
-    max_position_embeddings: Optional[int] = None
-    """Maximum number of position embeddings to use. This is the size of position embedding."""
-
-    use_rotary_position_embeddings: bool = False
-    """Use rotary positional embeddings or not. Deprecated: use --position-embedding-type"""
-
-    rotary_seq_len_interpolation_factor: Optional[int] = None
-    """Sequence length interpolation factor for rotary embeddings."""
-
-    use_rope_scaling: bool = False
-    """Apply rope scaling as used in llama3.1"""
-
-    add_position_embedding: bool = True
-    """Disable position embedding. Deprecated: use --position-embedding-type"""
-
-    openai_gelu: bool = False
-    """Use OpenAI's GeLU implementation. This option should not be used unless for backward compatibility reasons."""
-
-    squared_relu: bool = False
-    """Use squared relu activation instead of default GeLU"""
-
-    swiglu: bool = False
+    swiglu: bool = False  # NOTE: where does MCore check for/apply 'rounding' of FFN hidden sizes?
     """Use gated linear units and SiLU activation instead of default GeLU."""
-
-    onnx_safe: bool = False
-    """Use workarounds for known problems with Torch ONNX exporter"""
 
     untie_embeddings_and_output_weights: bool = False
     """Untie embeddings and output weights."""
@@ -166,9 +133,6 @@ class MegatronLMConfig:
 
     micro_batch_size: Optional[int] = None
     """Batch size per model instance (local batch size). Global batch size is local batch size times data parallel size times number of micro batches."""
-
-    batch_size: Optional[int] = None
-    """Old batch size parameter, do not use. Use --micro-batch-size instead"""
 
     global_batch_size: Optional[int] = None
     """Training batch size. If set, it should be a multiple of micro-batch-size times data-parallel-size. If this value is None, then use micro-batch-size * data-parallel-size as the global batch size. This choice will result in 1 for number of micro-batches."""
@@ -179,8 +143,7 @@ class MegatronLMConfig:
     decrease_batch_size_if_needed: bool = False
     """If set, decrease batch size if microbatch_size * dp_size does not divide batch_size. Useful for KSO (Keep Soldiering On) to continue making progress if number of healthy GPUs (and corresponding dp_size) does not support current batch_size. Old batch_size will be restored if training is re-started with dp_size that divides batch_size // microbatch_size."""
 
-    recompute_activations: bool = False
-    """recompute activation to allow for training with larger models, sequences, and batch sizes."""
+    # ---------------- Profiling config. ----------------
 
     profile: bool = False
     """Enable nsys profiling. When using this option, nsys options should be specified in commandline. An example nsys commandline is `nsys profile -s none -t nvtx,cuda -o <path/to/output_file> --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop`."""
@@ -203,6 +166,8 @@ class MegatronLMConfig:
     memory_snapshot_path: str = "snapshot.pickle"
     """Specifies where to dump the memory history pickle."""
 
+    # ---------------- Training config cont. ----------------
+
     tp_comm_overlap_cfg: Optional[str] = None
     """Config file when tp_comm_overlap is enabled."""
 
@@ -215,14 +180,8 @@ class MegatronLMConfig:
     train_sync_interval: Optional[int] = None
     """Training CPU-GPU synchronization interval, to ensure that CPU is not running too far ahead of GPU."""
 
-    checkpoint_activations: bool = False
-    """Checkpoint activation to allow for training with larger models, sequences, and batch sizes."""
-
     train_iters: Optional[int] = None
     """Total number of iterations to train over all training runs. Note that either train-iters or train-samples should be provided."""
-
-    train_samples: Optional[int] = None
-    """Total number of samples to train over all training runs. Note that either train-iters or train-samples should be provided."""
 
     exit_interval: Optional[int] = None
     """Exit the program after the iteration is divisible by this value."""
@@ -242,17 +201,8 @@ class MegatronLMConfig:
     bias_swiglu_fusion: bool = True
     """Disable bias and swiglu fusion, the fusion is available only when using megatron-core."""
 
-    use_flash_attn: bool = False
-    """use FlashAttention implementation of attention. https://arxiv.org/abs/2205.14135"""
-
     dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
     """Single pass vs multiple pass data loader"""
-
-    deprecated_use_mcore_models: bool = False
-    """DEPRECATED. Use the implementation from megatron core. Now ignored and mcore models are the default, use --use-legacy-models to not use core models."""
-
-    use_legacy_models: bool = False
-    """Use the legacy Megatron models, not Megatron-Core models."""
 
     manual_gc: bool = False
     """Disable the threshold-based default garbage collector and trigger the garbage collection manually. Manual garbage collection helps to align the timing of the collection across ranks which mitigates the impact of CPU-associated jitters. When the manual gc is enabled, garbage collection is performed only at the start and the end of the validation routine by default."""
@@ -268,9 +218,6 @@ class MegatronLMConfig:
     data_parallel_random_init: bool = False
     """Enable random initialization of params across data parallel ranks"""
 
-    init_method_xavier_uniform: bool = False
-    """Enable Xavier uniform parameter initialization"""
-
     # ---------------- Distributed config. ----------------
 
     encoder_tensor_model_parallel_size: int = 0
@@ -278,12 +225,6 @@ class MegatronLMConfig:
 
     encoder_pipeline_model_parallel_size: int = 0
     """Degree of pipeline model parallelism in the encoder. This is independent of the amount of pipeline in the decoder."""
-
-    model_parallel_size: Optional[int] = None
-    """Old model parallel argument, do not use. Use --tensor-model-parallel-size instead."""
-
-    num_layers_per_virtual_pipeline_stage: Optional[int] = None
-    """Number of layers per virtual pipeline stage"""
 
     distributed_backend: Literal["nccl", "gloo"] = "nccl"
     """Which backend to use for distributed training."""
@@ -294,26 +235,11 @@ class MegatronLMConfig:
     align_grad_reduce: bool = True
     """If not set, all PP stages will launch gradient reduces simultaneously. Otherwise, each PP stage will independently launch as needed."""
 
-    ddp_bucket_size: Optional[int] = None
-    """Bucket size for data-parallel communication"""
-
-    ddp_average_in_collective: bool = False
-    """If set, average directly in data-parallel communication collective."""
-
-    scatter_gather_tensors_in_pipeline: bool = True
-    """If not set, use scatter/gather to optimize communication of tensors in pipeline."""
-
     local_rank: int = field(default_factory=lambda: int(os.getenv("LOCAL_RANK", "0")))
     """local rank passed from distributed launcher."""
 
     lazy_mpu_init: bool = False
-    """If set to True, initialize_megatron() skips DDP initialization and returns function to complete it instead.Also turns on --use-cpu-initialization flag. This is for external DDP manager."""
-
-    standalone_embedding_stage: bool = False
-    """If set, *input* embedding layer is placed on its own pipeline stage, without any transformer layers. (For T5, this flag currently only affects the encoder embedding.)"""
-
-    # num_distributed_optimizer_instances: int = 1
-    # """Number of Distributed Optimizer copies across Data Parallel domain."""
+    """If set to True, initialize_megatron() skips DDP initialization and returns function to complete it instead. Also turns on --use-cpu-initialization flag. This is for external DDP manager."""
 
     use_torch_fsdp2: bool = False
     """Use the torch FSDP2 implementation. FSDP2 is not currently working with Pipeline Parallel.It is still not in a stable release stage, and may therefore contain bugs or other potential issues."""
@@ -337,259 +263,16 @@ class MegatronLMConfig:
 
     # ---------------- Data and dataloader config. ----------------
 
-    data_path: Optional[List[str]] = None
-    """The weight and prefix list for a set of train, validation, and test datasets which split according to --split. The accepted formats are: (1) a single prefix, (2) a list of weight prefix pairs e.g. weight1 prefix1 weight2 prefix2, (3) a list of prefixes e.g. prefix1 prefix2. For (3), weights are inferred from the lengths of the contributing datasets. This argument is exclusive to the other independent --*-data-path arguments."""
-
-    train_data_path: Optional[List[str]] = None
-    """The weight and prefix list for an independent train dataset. Follows the same pattern rules as --data-path."""
-
-    valid_data_path: Optional[List[str]] = None
-    """The weight and prefix list for an independent validation dataset. Follows the same pattern rules as --data-path."""
-
-    test_data_path: Optional[List[str]] = None
-    """The weight and prefix list for an independent test dataset. Follows the same pattern rules as --data-path."""
-
-    data_cache_path: Optional[str] = None
-    """Path to a directory to hold cached index files."""
-
-    mock_data: bool = False
-    """Skip data loading and validation and opt for artificial generation of mock data when an implementation is available."""
-
-    encoder_seq_length: Optional[int] = None
-    """Maximum encoder sequence length to process."""
-
     decoder_seq_length: Optional[int] = None
     """Maximum decoder sequence length to process."""
 
-    retriever_sequence_length: int = 256
-    """Maximum sequence length for the biencoder model for retriever"""
-
-    sample_rate: float = 1.0
-    """sample rate for training data. Supposed to be 0  < sample_rate < 1"""
-
     num_workers: int = 8
     """Dataloader number of workers."""
-
-    create_attention_mask_in_dataloader: bool = True
-    """If set, do not create attention_masks in dataloader."""
-
-    # ---------------- Autoresume config. ----------------
-
-    adlr_autoresume: bool = False
-    """Enable autoresume on adlr cluster."""
-
-    adlr_autoresume_interval: int = 1000
-    """Intervals over which check for autoresume termination signal"""
-
-    # ---------------- Biencoder config. ----------------
-
-    ict_head_size: Optional[int] = None
-    """Size of block embeddings to be used in ICT and REALM (paper default: 128)"""
-
-    biencoder_projection_dim: int = 0
-    """Size of projection head used in biencoder (paper default: 128)"""
-
-    biencoder_shared_query_context_model: bool = False
-    """Whether to share the parameters of the query and context models or not"""
-
-    ict_load: Optional[str] = None
-    """Directory containing an ICTBertModel checkpoint"""
-
-    bert_load: Optional[str] = None
-    """Directory containing an BertModel checkpoint (needed to start ICT and REALM)"""
-
-    titles_data_path: Optional[str] = None
-    """Path to titles dataset used for ICT"""
-
-    query_in_block_prob: float = 0.1
-    """Probability of keeping query in block for ICT dataset"""
-
-    use_one_sent_docs: bool = False
-    """Whether to use one sentence documents in ICT"""
-
-    evidence_data_path: Optional[str] = None
-    """Path to Wikipedia Evidence frm DPR paper"""
-
-    retriever_report_topk_accuracies: List[int] = field(default_factory=lambda: [])
-    """Which top-k accuracies to report (e.g. '1 5 20')"""
-
-    retriever_score_scaling: bool = False
-    """Whether to scale retriever scores by inverse square root of hidden size"""
-
-    block_data_path: Optional[str] = None
-    """Where to save/load BlockData to/from"""
-
-    embedding_path: Optional[str] = None
-    """Where to save/load Open-Retrieval Embedding data to/from"""
-
-    indexer_batch_size: int = 128
-    """How large of batches to use when doing indexing jobs"""
-
-    indexer_log_interval: int = 1000
-    """After how many batches should the indexer report progress"""
-
-    # ---------------- Vision config. ----------------
-
-    num_classes: int = 1000
-    """num of classes in vision classificaiton task"""
-
-    num_channels: int = 3
-    """Number of channels in input image data"""
-
-    patch_dim: int = 16
-    """patch dimension"""
-
-    classes_fraction: float = 1.0
-    """training with fraction of classes."""
-
-    data_per_class_fraction: float = 1.0
-    """training with fraction of data per class."""
-
-    data_sharding: bool = True
-    """Disable data sharding."""
-
-    head_lr_mult: float = 1.0
-    """learning rate multiplier for head during finetuning"""
-
-    vision_pretraining: bool = False
-    """flag to indicate vision pretraining"""
-
-    vision_pretraining_type: Literal["classify", "inpaint", "dino"] = "classify"
-    """pretraining objectives"""
-
-    vision_backbone_type: Literal["vit", "mit", "swin"] = "vit"
-    """backbone types types"""
-
-    swin_backbone_type: Literal["tiny", "base", "h3"] = "tiny"
-    """pretraining objectives"""
-
-    mask_type: Literal["random", "row"] = "random"
-    """mask types"""
-
-    mask_factor: float = 1.0
-    """mask size scaling parameter"""
-
-    iter_per_epoch: int = 1250
-    """iterations per epoch"""
-
-    dino_local_img_size: int = 96
-    """Image size for vision classification task"""
-
-    dino_local_crops_number: int = 10
-    """Number of local crops"""
-
-    dino_head_hidden_size: int = 2048
-    """Hidden dimension size in dino head"""
-
-    dino_bottleneck_size: int = 256
-    """Bottle neck dimension in dino head """
-
-    dino_freeze_last_layer: float = 1
-    """Freezing last layer weights"""
-
-    dino_norm_last_layer: bool = False
-    """Disable Norm in last layer."""
-
-    dino_warmup_teacher_temp: float = 0.04
-    """warump teacher temperature"""
-
-    dino_teacher_temp: float = 0.07
-    """teacher temperature"""
-
-    dino_warmup_teacher_temp_epochs: int = 30
-    """warmup teacher temperaure epochs"""
 
     # ---------------- Moe config. ----------------
 
     moe_use_upcycling: bool = False
     """Load a checkpoint of a dense model, convert it into an MoE model, and save the converted model to the path specified by --save. Upcycling is implemented on the top of distributed checkpointing, so it supports parallel modes different from the dense model."""
-
-    # ---------------- Mla config. ----------------
-
-    q_lora_rank: Optional[int] = None
-    """Rank of Query tensor's low rank representation."""
-
-    kv_lora_rank: int = 32
-    """Rank of Key and Value tensors' low rank representation."""
-
-    qk_head_dim: int = 128
-    """Dimension of the head in the QK projection. q_head_dim = qk_head_dim + qk_pos_emb_head_dim"""
-
-    qk_pos_emb_head_dim: int = 64
-    """Dimension of the position embedding in the QK projection."""
-
-    v_head_dim: int = 128
-    """Dimension of the head in the V projection."""
-
-    rotary_scaling_factor: float = 1.0
-    """Rotary scaling factor for the rotary embeddings."""
-
-    # ---------------- Inference config. ----------------
-
-    max_tokens_to_oom: int = 12000
-    """Maximum number of tokens during inference tokens here is # in prompt + # to generate Allows us to throw an error before OOM crashes server"""
-
-    output_bert_embeddings: bool = False
-    """Output Bert embeddings (via mean pooling) from model, rather than its binary head output or entire hidden batch."""
-
-    bert_embedder_type: Literal["megatron", "huggingface"] = "megatron"
-    """Select either Megatron or Huggingface as the Bert embedder."""
-
-    # ---------------- Transformer-engine config. ----------------
-
-    transformer_impl: Literal["local", "transformer_engine"] = "transformer_engine"
-    """Which Transformer implementation to use."""
-
-    # ---------------- Retro config. ----------------
-
-    retro_project_dir: Optional[str] = None
-    """Retro project directory, which contains the preprocessed data for pretraining. This directory is built during preprocessing (see tools/retro/README.md), and contains subdirectories for the chunk database and pretraining neighbors."""
-
-    retro_add_retriever: bool = False
-    """Add a retriever to the transformer, for use in pretraining a Retro model."""
-
-    retro_cyclic_train_iters: Optional[int] = None
-    """Set number of training iterations for cyclic Retro training."""
-
-    retro_encoder_layers: int = 2
-    """Number of layers to use for the retrieval encoder."""
-
-    retro_encoder_hidden_dropout: float = 0.1
-    """Hidden dropout for retrieval encoder."""
-
-    retro_encoder_attention_dropout: float = 0.1
-    """Attention dropout for retrieval encoder."""
-
-    retro_num_neighbors: int = 2
-    """Number of neighbors to retrieve during pretraining."""
-
-    retro_num_retrieved_chunks: int = 2
-    """Number of chunks to retrieve from the retrieval database."""
-
-    retro_attention_gate: float = 1
-    """Gated cross attention."""
-
-    retro_verify_neighbor_count: bool = True
-    """Skip verifying that len(GPT dataset) == len(saved neighbors)."""
-
-    # ---------------- Experimental config. ----------------
-
-    spec: Optional[List[str]] = None
-    """Specify the <module_location function_name> pair that returns a spec to customize a model, transformer block, or transformer layer, depending on the use case. To use local spec specify local as the argument. For more details, see the model class, `transformer_block.py`, or `transformer_layer.py`"""
-
-    hybrid_attention_ratio: float = 0.0
-    """Ratio of attention layers to total layers, in the range [0.0, 1.0]."""
-
-    hybrid_mlp_ratio: float = 0.0
-    """Ratio of mlp layers to total layers, in the range [0.0, 1.0]."""
-
-    hybrid_override_pattern: Optional[str] = None
-    """Force a specific hybrid layer pattern. The value should be a string of characters chosen from core.ssm.mamba_hybrid_layer_allocation.Symbols. If a value greater than 0.0 is supplied to any of the hybrid ratio arguments, then the number of each type of layer in the override pattern must match number in the overidden pattern"""
-
-    yaml_cfg: Optional[str] = None
-    """Config file to add additional arguments"""
-
-    # ---------------- Config logger config. ----------------
 
 
 @dataclass(kw_only=True)
@@ -666,12 +349,6 @@ class SchedulerConfig:
     lr_decay_iters: Optional[int] = None
     """number of iterations to decay learning rate over, If None defaults to `--train-iters`"""
 
-    lr_decay_samples: Optional[int] = None
-    """number of samples to decay learning rate over, If None defaults to `--train-samples`"""
-
-    lr_wsd_decay_samples: Optional[int] = None
-    """number of samples for the annealing phase in the wsd schedule"""
-
     lr_wsd_decay_iters: Optional[int] = None
     """number of iterations for the annealing phase in the wsd schedule"""
 
@@ -680,9 +357,6 @@ class SchedulerConfig:
 
     lr_warmup_iters: int = 0
     """number of iterations to linearly warmup learning rate over."""
-
-    lr_warmup_samples: int = 0
-    """number of samples to linearly warmup learning rate over."""
 
     lr_warmup_init: float = 0.0
     """Initial value for learning rate warmup. The scheduler starts warmup from this value."""
