@@ -101,9 +101,9 @@ class CTCBatchedBeamHyps:
     ):
         # TODO: timesteps
         # TODO: sdelat' chtom esli next_labels = -1, tut ne obnovlyalos nichego!
-        # self.scores= torch.gather(self.scores, dim=-1, index=hyps_indices)
-        # self.scores[next_labels > 0] = next_hyps_prob[next_labels > 0]
-        self.scores.copy_(next_hyps_prob)
+        self.scores= torch.gather(self.scores, dim=-1, index=hyps_indices)
+        self.scores[next_labels > 0] = next_hyps_prob[next_labels > 0]
+        # self.scores.copy_(next_hyps_prob)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(
             dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=hyps_indices.unsqueeze(-1)
@@ -177,5 +177,5 @@ class CTCBatchedBeamHyps:
         scores_to_keep = (
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
-        new_scores = torch.logsumexp(np.log(10) * scores_matrix, dim=-1, keepdim=False) * np.log10(np.e)
+        new_scores = torch.max(np.log(10) * scores_matrix, dim=-1, keepdim=False).values * np.log10(np.e)
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
