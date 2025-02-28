@@ -30,7 +30,6 @@ from ..argument_parser import parse_cli_args
 from ..utils import (
     get_comm_overlap_callback_idx,
     get_user_configs,
-    hf_tokenizer,
     set_primary_perf_configs,
     slurm_executor,
 )
@@ -71,13 +70,11 @@ def override_recipe_configs(
 
     # data module configs
     recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
-    if args.gpu.lower() == "b200":
-        recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
-        )
-        recipe.model.tokenizer = recipe.data.tokenizer
-    else:
-        recipe.data.tokenizer = hf_tokenizer("nvidia/megatron-gpt2-345m")
+
+    recipe.data.tokenizer = run.Config(
+        get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
+    )
+    recipe.model.tokenizer = recipe.data.tokenizer
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":

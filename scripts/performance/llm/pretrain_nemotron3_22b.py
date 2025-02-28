@@ -22,7 +22,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
+from ..utils import get_user_configs, set_primary_perf_configs, slurm_executor
 
 
 def override_recipe_configs(
@@ -59,13 +59,11 @@ def override_recipe_configs(
 
     # data module configs
     recipe.data.num_train_samples = args.max_steps * gbs * mbs  # ensure only 1 epoch for whole run
-    if args.compute_dtype == "bf16" or args.gpu.lower() == "b200":
-        recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
-        )
-        recipe.model.tokenizer = recipe.data.tokenizer
-    else:
-        recipe.data.tokenizer = hf_tokenizer("nvidia/megatron-gpt2-345m")
+
+    recipe.data.tokenizer = run.Config(
+        get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
+    )
+    recipe.model.tokenizer = recipe.data.tokenizer
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":

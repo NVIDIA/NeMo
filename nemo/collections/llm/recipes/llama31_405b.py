@@ -400,8 +400,8 @@ def finetune_performance_optimizations(
         recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
 
         recipe.trainer.strategy.tensor_model_parallel_size = 4
-        recipe.trainer.strategy.pipeline_model_parallel_size = 6
-        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 7
+        recipe.trainer.strategy.pipeline_model_parallel_size = 4
+        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 4
         recipe.peft.target_modules = ['linear_qkv']
         recipe.trainer.callbacks.append(
             run.Config(
