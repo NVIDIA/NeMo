@@ -54,9 +54,9 @@ class DuplexS2SModel(LightningModule):
         self.llm = AutoModel.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
         self.embed_tokens = self.llm.embed_tokens  # resize_token_embeddings(self.llm.vocab_size + 8 * 2048)
         del self.llm.embed_tokens
-        self.embed_audio_tokens = torch.nn.Embedding(
-            8 * 2048, self.embed_tokens.embedding_dim
-        )  # TODO: fetch dim from audio_codec
+        # self.embed_audio_tokens = torch.nn.Embedding(
+        #     8 * 2048, self.embed_tokens.embedding_dim
+        # )  # TODO: fetch dim from audio_codec
 
         speech_encoder = ASRModel.from_pretrained(self.cfg.pretrained_asr).train()
 
@@ -145,7 +145,7 @@ class DuplexS2SModel(LightningModule):
         input_ids = input_ids[:, :-1]
 
         input_embeds = self.embed_tokens(input_ids[:, :, -1])
-        input_embeds = (input_embeds + self.embed_audio_tokens(input_ids[:, :, :-1]).sum(dim=2)) / input_ids.shape[2]
+        # input_embeds = (input_embeds + self.embed_audio_tokens(input_ids[:, :, :-1]).sum(dim=2)) / input_ids.shape[2]
 
         # input_embeds = self.llm.embed_tokens(input_ids)
         # input_embeds = self.embed_tokens(input_ids)
@@ -297,7 +297,7 @@ class DuplexS2SModel(LightningModule):
                 layer.mlp = checkpoint_wrapper(layer.mlp)
                 self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
-            self.embed_audio_tokens = fully_shard(self.embed_audio_tokens, **fsdp_config)
+            # self.embed_audio_tokens = fully_shard(self.embed_audio_tokens, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
             self.lm_head = checkpoint_wrapper(self.lm_head)
             self.lm_head = fully_shard(self.lm_head, **fsdp_config)
