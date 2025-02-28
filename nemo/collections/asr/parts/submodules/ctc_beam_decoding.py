@@ -500,7 +500,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             next_labels = torch.gather(batch_labels, dim=-1, index=(hyps_candidates_indices % vocab_size).unsqueeze(-1)).squeeze(2)
             hyps_scores.view(batch_size, -1)[hyps_scores.view(batch_size, -1) <= hyps_scores.view(batch_size, -1).max(dim=-1, keepdim=True).values - 20] = float('-inf')
             
-            repeating_mask = next_labels == batched_beam_hyps.last_label
+            repeating_mask = next_labels == torch.gather(batched_beam_hyps.last_label, dim=-1, index=hyps_indices)
             blank_mask = next_labels == self.blank_id
             
             preserve_state_mask = repeating_mask | blank_mask | ~ active_mask

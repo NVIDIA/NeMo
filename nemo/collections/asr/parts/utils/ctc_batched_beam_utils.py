@@ -117,6 +117,7 @@ class CTCBatchedBeamHyps:
             torch.gather(self.current_lengths_nb, dim=-1, index=hyps_indices) + extended_with_label
         )
 
+        self.last_label = torch.gather(self.last_label, dim=-1, index=hyps_indices)
         self.transcript_hash = torch.gather(self.transcript_hash, dim=-1, index=hyps_indices)
         mask_to_update_mask = torch.logical_and(next_labels != self.blank_index, next_labels != self.last_label)
         # update hashes and prefix hashes
@@ -129,7 +130,7 @@ class CTCBatchedBeamHyps:
         
         self.last_label.copy_(next_labels)
     
-    def to_hyps_list(self, score_norm: bool = True) -> list[Hypothesis]:
+    def to_hyps_list(self, score_norm: bool = False) -> list[Hypothesis]:
         normalized_scores = self.scores / (self.current_lengths_nb.to(self.scores.dtype) + 1) if score_norm else self.scores
         _, best_hyp_index = torch.max(normalized_scores, dim=-1)
                 
@@ -164,7 +165,7 @@ class CTCBatchedBeamHyps:
         # TODO: separate lm scores
         hyps_equal = (
             (self.transcript_hash[:, :, None] == self.transcript_hash[:, None, :])
-            & (self.last_label[:, :, None] == self.last_label[:, None, :])
+            # & (self.last_label[:, :, None] == self.last_label[:, None, :]) # TODO check last nb token
         )
 
         scores_matrix = torch.where(
@@ -176,5 +177,5 @@ class CTCBatchedBeamHyps:
         scores_to_keep = (
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
-        new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
+        new_scores = torch.max(np.log(10) * scores_matrix, dim=-1, keepdim=False).values * np.log10(np.e)
         torch.where(scores_to_keep, new_scores.to(self.scores.dtype), self.INACTIVE_SCORE_TENSOR, out=self.scores)
