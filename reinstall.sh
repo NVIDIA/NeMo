@@ -14,7 +14,7 @@ HEAVY_DEPS=${HEAVY_DEPS:-false}
 CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 INSTALL_DIR=${INSTALL_DIR:-"/opt"}
 WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
-HAS_CUDA=$([[ -n "$(/usr/local/cuda/bin/nvcc --version 2>/dev/null)" ]] && echo "TRUE" || echo "FALSE")
+HAS_CUDA=$([[ -n "$CUDA_VERSION" ]] && echo "TRUE" || echo "FALSE")
 
 PIP=pip
 ${PIP} install -U ${PIP} setuptools
