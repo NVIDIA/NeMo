@@ -15,7 +15,7 @@
 
 Example usage to prune width automatically (you can skip parameters that you don't want to prune):
 ```python
-    torchrun --nproc_per_node 8 prune.py \
+    torchrun --nproc_per_node 8 gpt_prune.py \
         --devices 8 \
         --tp_size 1 \
         --pp_size 8 \
@@ -32,7 +32,7 @@ Example usage to prune width automatically (you can skip parameters that you don
 
 Example usage to prune depth automatically using cosine-similarity based importance metric:
 ```python
-    torchrun --nproc_per_node 8 prune.py \
+    torchrun --nproc_per_node 8 gpt_prune.py \
         --devices 8 \
         --tp_size 1 \
         --pp_size 8 \
@@ -50,7 +50,7 @@ pruned model but helps in testing the pruning pipeline.
 
 Example usage to prune depth by dropping specific model layers (1-indexed):
 ```python
-    torchrun --nproc_per_node 8 prune.py \
+    torchrun --nproc_per_node 8 gpt_prune.py \
         --devices 8 \
         --tp_size 8 \
         --pp_size 1 \
@@ -66,8 +66,7 @@ import os
 import modelopt.torch.prune as mtp
 import torch
 from megatron.core import dist_checkpointing
-from megatron.core.pipeline_parallel import get_forward_backward_func
-from tqdm import tqdm
+from megatron.core.dist_checkpointing.validation import StrictHandling
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -75,7 +74,6 @@ from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.data import add_megatron_sampler
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -121,37 +119,6 @@ def get_data_module(args, tokenizer):
     )
 
     return data_module
-
-
-def create_megatron_forward_loop(args, dataloader):
-    """Create a forward loop for over a given data loader."""
-    forward_backward_func = get_forward_backward_func()
-    data_iterator = iter(dataloader)
-
-    def forward_step_func(data_iterator, model: llm.GPTModel):
-        batch = model.data_step(data_iterator)
-        output_tensor = model.validation_step(batch)
-
-        def _mock_loss_function(tensor):
-            return 0, {}
-
-        return output_tensor, _mock_loss_function
-
-    @torch.no_grad()
-    def forward_loop(model):
-        num_iters = args.num_train_samples // args.gbs
-        for _ in tqdm(range(num_iters), desc="Calibrating model"):
-            forward_backward_func(
-                forward_step_func=forward_step_func,
-                data_iterator=data_iterator,
-                model=model,
-                num_microbatches=args.gbs // args.mbs,
-                seq_length=args.seq_length,
-                micro_batch_size=args.mbs,
-                forward_only=True,
-            )
-
-    return forward_loop
 
 
 def load_model_with_modelopt_spec(
@@ -202,10 +169,11 @@ def main(args):
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=False,
         ckpt_load_optimizer=False,
-        ckpt_load_strictness="log_all",  # Fix for checkpoint incompatibile with new TE version
+        ckpt_load_strictness=StrictHandling.LOG_ALL if args.legacy_ckpt else None,
         ckpt_parallel_save_optim=False,
         setup_optimizers=False,
         ddp="pytorch",
+        replace_progress_bar=False,
     )
 
     trainer = nl.Trainer(
@@ -215,7 +183,7 @@ def main(args):
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", params_dtype=torch.bfloat16, autocast_enabled=True),
         max_steps=args.num_train_samples // args.gbs,
-        limit_val_batches=args.num_train_samples // args.gbs,
+        limit_val_batches=args.num_train_samples // (args.gbs if args.data_paths else args.mbs),
         val_check_interval=args.num_train_samples // args.gbs,
     )
 
@@ -234,17 +202,10 @@ def main(args):
 
         data_module = get_data_module(args, model.tokenizer)
 
-        # TODO: Ideally we should directly use llm.validate but hangs for PP>1 for some cases like Llama3.1-8B.
-        # def forward_loop(model):
-        #     # Overwrite val dataloader to use train dataloader with llm.validate
-        #     data_module.val_dataloader = data_module.train_dataloader
-        #     llm.validate(model, data_module, trainer)
-
-        data_module.trainer = trainer
-        data_module.setup()
-        data_loader = data_module.train_dataloader()
-        data_loader = add_megatron_sampler(data_loader, args.mbs, args.gbs)
-        forward_loop = create_megatron_forward_loop(args, data_loader)
+        def forward_loop(model):
+            # Overwrite val dataloader to use train dataloader with llm.validate
+            data_module.val_dataloader = data_module.train_dataloader
+            llm.validate(model, data_module, trainer)
 
         logging.info("Pruning model...")
         mtp.prune(
@@ -277,6 +238,11 @@ if __name__ == "__main__":
         help="Sequence length. Only required if pruning and not dropping layers.",
     )
     parser.add_argument("--restore_path", type=str, required=True, help="Path to restore model checkpoint from")
+    parser.add_argument(
+        "--legacy_ckpt",
+        action="store_true",
+        help="Load ckpt saved with TE < 1.14. Use for missing state dict keys ending with `_extra_state`",
+    )
     parser.add_argument("--save_path", type=str, required=True, help="Path to save pruned model checkpoint to")
     parser.add_argument(
         "--tokenizer", type=str, help="Tokenizer to use for data module. If not provided, model tokenizer will be used"
