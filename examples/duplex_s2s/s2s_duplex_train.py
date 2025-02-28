@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import hydra
 import torch
 from lightning.pytorch import Callback, Trainer
@@ -19,6 +20,8 @@ from lightning.pytorch import Callback, Trainer
 from nemo.collections.duplex_s2s.data.datamodule import S2SDataModule
 from nemo.collections.duplex_s2s.models.duplex_s2s_model import DuplexS2SModel
 from nemo.utils.trainer_utils import resolve_trainer_cfg
+
+torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
 
 # During the training, the checkpoint format is standard PTL ckpt
 # After the training -> convert to HF instead of .nemo ?
