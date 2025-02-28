@@ -26,16 +26,16 @@ from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
-def make_squad_hf_dataset(tokenizer):
+def make_squad_hf_dataset(tokenizer, batch_size):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
             f" {example['answers']['text'][0].strip()}",
         ]
         context_ids, answer_ids = list(map(tokenizer.text_to_ids, formatted_text))
-        if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id:
+        if len(context_ids) > 0 and context_ids[0] != tokenizer.bos_id and tokenizer.bos_id is not None:
             context_ids.insert(0, tokenizer.bos_id)
-        if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id:
+        if len(answer_ids) > 0 and answer_ids[-1] != tokenizer.eos_id and tokenizer.eos_id is not None:
             answer_ids.append(tokenizer.eos_id)
 
         return dict(
@@ -44,7 +44,7 @@ def make_squad_hf_dataset(tokenizer):
             loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train", pad_token_id=tokenizer.eos_id)
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train", micro_batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0)
     datamodule.map(
         formatting_prompts_func,
         batched=False,
@@ -111,6 +111,7 @@ def main():
     parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name)
     parser.add_argument('--use-torch-jit', action='store_true')
     parser.add_argument('--auto-resume', action='store_true')
+    parser.add_argument('--batch-size', type=int, default=1)
     args = parser.parse_args()
 
     wandb = None
@@ -148,7 +149,7 @@ def main():
 
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(model.tokenizer),
+        data=make_squad_hf_dataset(model.tokenizer, args.batch_size),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
