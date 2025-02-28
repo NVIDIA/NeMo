@@ -4,8 +4,6 @@ set -ex
 # List of all supported libraries (update this list when adding new libraries)
 # This also defines the order in which they will be installed by --libraries "all"
 ALL_LIBRARIES=(
-  "te"
-  "apex"
   "mcore"
   "nemo"
   "vllm"
@@ -88,82 +86,6 @@ mcore() {
     pip install --no-cache-dir $WHEELS_DIR/*.whl "nvidia-pytriton ; platform_machine == 'x86_64'" || true
     pip install --no-cache-dir -e $MLM_DIR
   fi
-}
-
-te() {
-  local mode="$1"
-
-  local WHEELS_DIR=$WHEELS_DIR/te/
-  rm -rf $WHEELS_DIR
-  mkdir -p $WHEELS_DIR
-
-  TE_DIR="$INSTALL_DIR/TransformerEngine"
-  TE_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".repo')}
-  TE_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."transformer_engine".ref')}
-  if [ ! -d "$TE_DIR/.git" ]; then
-    rm -rf "$TE_DIR" &&
-      mkdir -p $(dirname "$TE_DIR") &&
-      cd $(dirname "$TE_DIR") &&
-      git clone ${TE_REPO}
-  fi &&
-    pushd $TE_DIR &&
-    git checkout -f $TE_TAG &&
-    popd
-
-  build() {
-    if [[ "${HAS_CUDA}" == "TRUE" ]]; then
-      cd $TE_DIR && git submodule init && git submodule update &&
-        pip wheel --wheel-dir $WHEELS_DIR $TE_DIR
-    fi
-  }
-
-  if [[ "$mode" == "build" ]]; then
-    build
-  else
-    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
-      build
-    fi
-
-    pip install --no-cache-dir $WHEELS_DIR/*.whl || true
-  fi
-}
-
-apex() {
-  local mode="$1"
-
-  local WHEELS_DIR=$WHEELS_DIR/apex/
-  rm -rf $WHEELS_DIR
-  mkdir -p $WHEELS_DIR
-
-  APEX_DIR="$INSTALL_DIR/Apex"
-  APEX_REPO=${TE_REPO:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."apex".repo')}
-  APEX_TAG=${TE_TAG:-$(cat "$CURR/requirements/manifest.json" | jq -r '."vcs-dependencies"."apex".ref')}
-  if [ ! -d "$APEX_DIR/.git" ]; then
-    rm -rf "$APEX_DIR" &&
-      mkdir -p $(dirname "$NEMO_DIR") &&
-      cd $(dirname "$APEX_DIR") &&
-      git clone ${APEX_REPO}
-  fi &&
-    pushd $APEX_DIR &&
-    git checkout -f $APEX_TAG &&
-    popd
-
-  build() {
-    if [[ "${HAS_CUDA}" == "TRUE" ]]; then
-      cd $APEX_DIR && pip wheel --no-deps --no-build-isolation --wheel-dir $WHEELS_DIR/ $APEX_DIR
-    fi
-  }
-
-  if [[ "$mode" == "build" ]]; then
-    build
-  else
-    if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
-      build
-    fi
-
-    pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/*.whl || true
-  fi
-
 }
 
 vllm() {
