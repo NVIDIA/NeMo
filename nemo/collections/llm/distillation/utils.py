@@ -39,6 +39,7 @@ mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 DistillationModel, _ = safe_import_from("modelopt.torch.distill", "DistillationModel", alt=object)
 DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
 
+
 def load_distillation_config(cfg: "TransformerConfig") -> Dict[str, Any]:
     """Create a default distillation config for MCore GPT Models."""
     logit_pair = ("output_layer", "output_layer")  # logit module names for MCoreGPTModel

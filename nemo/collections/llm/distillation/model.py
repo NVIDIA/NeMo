@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 # TODO: Remove modelopt import guarding once it is installable on all platforms
 mtd, HAVE_MODELOPT = safe_import("modelopt.torch.distill")
 
+
 def gpt_distillation_data_step(dataloader_iter, attn_mask_cpu=False) -> Dict[str, Tensor]:
     """Same as base GPT's data step but with ability to move attention mask to CPU."""
     batch = next(dataloader_iter)
