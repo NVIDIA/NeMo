@@ -16,8 +16,6 @@ from contextlib import contextmanager
 from types import MethodType
 from typing import TYPE_CHECKING, Any, Dict
 
-import modelopt.torch.distill as mtd
-import modelopt.torch.opt as mto
 import torch
 from megatron.core import parallel_state
 from torch import Tensor
@@ -25,6 +23,7 @@ from torch import Tensor
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import, safe_import_from
 
 from .loss import LogitsKLLoss
 
@@ -35,6 +34,10 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
+# TODO: Remove modelopt import guarding once it is installable on all platforms
+mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
+DistillationModel, _ = safe_import_from("modelopt.torch.distill", "DistillationModel", alt=object)
+DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
 
 def load_distillation_config(cfg: "TransformerConfig") -> Dict[str, Any]:
     """Create a default distillation config for MCore GPT Models."""
@@ -50,7 +53,7 @@ def load_distillation_config(cfg: "TransformerConfig") -> Dict[str, Any]:
     return distill_cfg
 
 
-class _DummyLossBalancer(mtd.DistillationLossBalancer):
+class _DummyLossBalancer(DistillationLossBalancer):
     def forward(self, loss_dict):
         # pylint: disable=C0116
         return next(iter(loss_dict.values()))
@@ -94,9 +97,9 @@ class LoopingCachedDataIterator:
 
 
 def adjust_distillation_model_for_mcore(
-    model: mtd.DistillationModel, model_cfg: "TransformerConfig", distill_cfg: Dict[str, Any]
+    model: DistillationModel, model_cfg: "TransformerConfig", distill_cfg: Dict[str, Any]
 ):
-    """Extra modifcations to ``mtd.DistillationModel`` requried for Megatron-Core."""
+    """Extra modifications to ``mtd.DistillationModel`` required for Megatron-Core."""
 
     # Get rid of ModelOpt Distillation state
     # NOTE: If re-placed, above losses need modifcation as `TransformerConfig` has non-pickleable elements.
