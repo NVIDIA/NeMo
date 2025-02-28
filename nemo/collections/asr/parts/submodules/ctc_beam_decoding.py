@@ -490,12 +490,12 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             blank_mask = (vocab == self.blank_id)[None, None, :]
             
             total_scores = batched_beam_hyps.scores[:, :, None] + probs
-            total_scores = torch.where(~(blank_mask | repeated_mask), total_scores + self.beam_beta, total_scores)
-            total_scores.view(batch_size, -1)[total_scores.view(batch_size, -1) <= total_scores.view(batch_size, -1).max(dim=-1, keepdim=True).values - 20] = float('-inf')
+            total_scores = torch.where(blank_mask | repeated_mask, total_scores, total_scores + self.beam_beta)
             
             hyps_scores, hyps_candidates_indices = torch.topk(total_scores.view(batch_size, -1), k=self.beam_size, largest=True, sorted=True)
             hyps_indices = hyps_candidates_indices // vocab_size # torch.gather(expansion_indices.reshape(batch_size, -1), dim=-1, index=hyps_candidates_indices)
             next_labels = torch.gather(batch_labels, dim=-1, index=(hyps_candidates_indices % vocab_size).unsqueeze(-1)).squeeze(2)
+            hyps_scores.view(batch_size, -1)[hyps_scores.view(batch_size, -1) <= hyps_scores.view(batch_size, -1).max(dim=-1, keepdim=True).values - 20] = float('-inf')
             
             repeating_mask = next_labels == batched_beam_hyps.last_label
             blank_mask = next_labels == self.blank_id
