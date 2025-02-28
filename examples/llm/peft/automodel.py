@@ -24,7 +24,7 @@ from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
-def make_squad_hf_dataset(tokenizer):
+def make_squad_hf_dataset(tokenizer, batch_size):
     def formatting_prompts_func(example):
         formatted_text = [
             f"Context: {example['context']} Question: {example['question']} Answer:",
@@ -42,7 +42,7 @@ def make_squad_hf_dataset(tokenizer):
             loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train", pad_token_id=tokenizer.eos_id or 0)
+    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train", batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0)
     datamodule.map(
         formatting_prompts_func,
         batched=False,
@@ -107,6 +107,7 @@ def main():
     parser.add_argument('--use-torch-jit', action='store_true')
     parser.add_argument('--auto-resume', action='store_true')
     parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name)
+    parser.add_argument('--batch-size', default=1, type=int)
     args = parser.parse_args()
 
     wandb = None
@@ -136,7 +137,7 @@ def main():
 
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(model.tokenizer),
+        data=make_squad_hf_dataset(model.tokenizer, args.batch_size),
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
