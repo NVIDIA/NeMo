@@ -12,16 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import lightning.pytorch as pl
 import torch
+import torch.distributed as dist
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
 
 def clean_split(name):
+    """removes split from name
+
+    Args:
+        name (str): partition name (e.g. "train[:100]")
+
+    Returns:
+        str: return partition name without any selector (e.g. "train").
+    """
     if '[' in name:
         return name.split('[')[0]
     return name
@@ -78,14 +90,14 @@ def make_dataset_splits(dataset, split, split_aliases):
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = split
     elif isinstance(split, list):
-        logging.info(f"Loaded HF dataset will use " + str(split) + " splits.")
+        logging.info(f"Loaded HF dataset will use {str(split)} splits.")
         assert isinstance(dataset, list)
         for i, alias_split_name in enumerate(map(clean_split, split)):
             split_name = alias_to_split[alias_split_name]
             assert dataset_splits[split_name] is None
             dataset_splits[split_name] = dataset[i]
     elif isinstance(split, str):
-        logging.info(f"Loaded HF dataset has a single split.")
+        logging.info("Loaded HF dataset has a single split.")
         assert not isinstance(dataset, list)
         alias_split_name = split
         if '+' in alias_split_name:
@@ -104,18 +116,63 @@ def make_dataset_splits(dataset, split, split_aliases):
     return dataset_splits
 
 
+def has_dist_env_init_or_rank_env_var():
+    """returns whether it runs on a dist-environment"""
+    env_vars = ['LOCAL_RANK', 'GLOBAL_RANK', 'WORLD_SIZE', 'MASTER_ADDR', 'MASTER_PORT']
+    return dist.is_initialized() or any(map(lambda x: x in os.environ, env_vars))
+
+
 class HFDatasetDataModule(pl.LightningDataModule):
-    """HFDatasetDataModule wraps HF's load_dataset (datasets library)
-    so that it can be used within NeMo.
-    Users can select whether to use an mcore-sampler via use_mcore_sampler arg.
+    """A PyTorch Lightning DataModule for loading and managing datasets from the `datasets` library.
 
-    Usage examples:
+    Args:
+        path_or_dataset (str | Dataset | DatasetDict): The dataset name from HF or a preloaded dataset.
+        split (str | list, optional): The dataset split(s) to load (e.g., "train" or ["train", "validation"]).
+            Defaults to None.
+        collate_fn (callable, optional): Custom function for batching data; defaults to a padding-based collation.
+            Defaults to None.
+        num_workers (int, optional): Number of workers for data loading. Defaults to 2.
+        pin_memory (bool, optional): Whether to use pinned memory for faster GPU transfers. Defaults to True.
+        persistent_workers (bool, optional): Whether to keep worker threads alive between epochs. Defaults to True.
+        seq_length (int, optional): Maximum sequence length for tokenized inputs. Defaults to 1024.
+        micro_batch_size (int, optional): Batch size per device. Defaults to 2.
+        global_batch_size (int, optional): Total batch size across all devices. Defaults to 2.
+        pad_token_id (int, optional): Token ID used for padding sequences. Defaults to 0.
+        use_mcore_sampler (bool, optional): Whether to use NVIDIA MCore sampler for efficient data loading.
+            Defaults to False.
+        use_dist_sampler (bool, optional): Whether to enable distributed sampling. Defaults to False.
+        mcore_dataloader_type (str, optional): Dataloader type when using MCore sampling. Defaults to 'cyclic'.
+        train_aliases (list, optional): Alternative names for the training split. Defaults to ["train", "training"].
+        test_aliases (list, optional): Alternative names for the test split. Defaults to ["test", "testing"].
+        val_aliases (list, optional): Alternative names for the validation split.
+            Defaults to ["val", "validation", "valid", "eval"].
+        **kwargs: Additional arguments passed to `datasets.load_dataset`.
 
-    - loading a single split (train) from a dataset
-    llm.HFDatasetDataModule("rajpurkar/squad", split="train")
+    Raises:
+        ValueError: If `path_or_dataset` is not a valid dataset type (str, Dataset, or DatasetDict).
 
-    - loading multiple splits (train, validation) from a dataset
-    llm.HFDatasetDataModule("rajpurkar/squad", split=["train", "validation"])
+    Examples:
+        Load a single split (train) from a dataset:
+        ```python
+        data_module = HFDatasetDataModule("rajpurkar/squad", split="train")
+        ```
+
+        Load multiple splits (train and validation):
+        ```python
+        data_module = HFDatasetDataModule("rajpurkar/squad", split=["train", "validation"])
+        ```
+
+        Use a preloaded dataset:
+        ```python
+        from datasets import load_dataset
+        dataset = load_dataset("imdb")
+        data_module = HFDatasetDataModule(dataset, split="train")
+        ```
+
+    Notes:
+        - If neither `use_dist_sampler` nor `use_mcore_sampler` are enabled, but a distributed
+        environment is detected, HFDatasetDataModule will use a distributed-sampler automatically.
+        - If no collation function is provided, a default function with padding using `pad_token_id` is applied.
     """
 
     def __init__(
@@ -131,6 +188,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         global_batch_size=2,
         pad_token_id=0,
         use_mcore_sampler=False,
+        use_dist_sampler=False,
         mcore_dataloader_type='cyclic',
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
@@ -146,7 +204,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
-            logging.info(f"Loading HF dataset from {path_or_dataset}")
+            logging.info(f"Loading HF dataset from {path_or_dataset}, this may take a moment.")
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
         elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
             logging.info(f"Using passed HF dataset {str(path_or_dataset)}")
@@ -173,14 +231,18 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         self.use_mcore_sampler = use_mcore_sampler
         self.mcore_dataloader_type = mcore_dataloader_type
+        self.use_dist_sampler = use_dist_sampler
 
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
+        """wraps Dataset's from_dict method"""
         dataset = Dataset.from_dict(dataset_dict)
         return HFDatasetDataModule(path_or_dataset=dataset, split=split, **kwargs)
 
     @staticmethod
     def collate_fn(batch, pad_token_id=0):
+        """Default batch collator"""
+
         def batchify(tensor):
             if tensor.ndim == 1:
                 return tensor.unsqueeze_(0)
@@ -198,7 +260,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 torch.LongTensor(
                     pad_within_micro(
                         extract_key_from_dicts(batch, key),
-                        pad_token_id,
+                        pad_token_id if key != 'loss_mask' else 0,
                     )
                 )
             )
@@ -206,16 +268,30 @@ class HFDatasetDataModule(pl.LightningDataModule):
         }
 
     def setup(self, stage: str):
-        if not self.use_mcore_sampler:
-            return
-        self.data_sampler = MegatronDataSampler(
-            seq_len=self.seq_length,
-            micro_batch_size=self.micro_batch_size,
-            global_batch_size=self.global_batch_size,
-            dataloader_type=self.mcore_dataloader_type,
-        )
+        """setups sampler"""
+        # Turn-on dist-sampler if the user is running inside a dist-env.
+        if not self.use_dist_sampler and not self.use_mcore_sampler and has_dist_env_init_or_rank_env_var():
+            self.use_dist_sampler = True
+            logging.info("Turning on distributed data sampler")
+        elif self.use_mcore_sampler:
+            self.mcore_data_sampler = MegatronDataSampler(
+                seq_len=self.seq_length,
+                micro_batch_size=self.micro_batch_size,
+                global_batch_size=self.global_batch_size,
+                dataloader_type=self.mcore_dataloader_type,
+            )
+
+    def get_data_sampler(self, dataset):
+        """returns the data sampler"""
+        if self.use_dist_sampler:
+            return DistributedSampler(dataset)
+        elif self.use_mcore_sampler:
+            return self.mcore_data_sampler
+        else:
+            return None
 
     def _make_dataloader(self, dataset, collate_fn=None):
+        """Dataloader creator"""
         assert dataset is not None
 
         if collate_fn is None:
@@ -228,30 +304,38 @@ class HFDatasetDataModule(pl.LightningDataModule):
             persistent_workers=self.persistent_workers,
             collate_fn=collate_fn,
             batch_size=self.micro_batch_size,
+            sampler=self.get_data_sampler(dataset),
         )
 
     @property
     def train(self):
+        """Returns the training partition"""
         return self.dataset_splits['train']
 
     @property
     def val(self):
+        """Returns the validation partition"""
         return self.dataset_splits['val']
 
     @property
     def test(self):
+        """Returns the test partition"""
         return self.dataset_splits['test']
 
     def train_dataloader(self):
+        """Returns the train dataloader"""
         return self._make_dataloader(self.train, self._collate_fn)
 
     def val_dataloader(self):
+        """Returns the validation dataloader"""
         return self._make_dataloader(self.val, self._collate_fn)
 
     def test_dataloader(self):
+        """Returns the test dataloader"""
         return self._make_dataloader(self.test, self._collate_fn)
 
     def map(self, function=None, split_names=None, **kwargs):
+        """Maps a function to the dataset"""
         if isinstance(split_names, str):
             dataset_splits = {split_names: self.dataset_splits[split_names]}
         elif isinstance(split_names, list):
@@ -266,35 +350,73 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
 
 class SquadHFDataModule(HFDatasetDataModule):
+    """
+    A data module for handling the SQuAD dataset using HFDatasetDataModule.
+
+    This class is responsible for tokenizing and formatting the SQuAD dataset for training
+    language models. It extends `HFDatasetDataModule` and implements a prompt-based
+    formatting function suitable for causal language modeling.
+
+    Attributes:
+        tokenizer: A tokenizer instance used to convert text into token IDs.
+    """
+
     def __init__(self, tokenizer, **kwargs):
+        """
+        Initializes the SquadHFDataModule.
+
+        Args:
+            tokenizer: A tokenizer instance for processing text data.
+            **kwargs: Additional arguments passed to the parent class (`HFDatasetDataModule`).
+        """
         super().__init__(**kwargs)
-        self.tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
+        self.tokenizer = tokenizer
 
-    def formatting_prompts_func(self, examples):
-        EOS_TOKEN = self.tokenizer.eos_token  # Must add EOS_TOKEN
-        alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+    def formatting_prompts_func(self, example):
+        """
+        Formats a given example into a structured prompt for training.
 
-        ### Instruction:
-        {}
+        This method converts a dataset example (containing context, question, and answer)
+        into a structured format, tokenizes it, and prepares input IDs and labels for
+        training a language model.
 
-        ### Input:
-        {}
+        Args:
+            example (dict): A dictionary containing the following keys:
+                - 'context': The passage from which the question is derived.
+                - 'question': The question about the passage.
+                - 'answers': A dictionary with a 'text' key containing the answer(s).
 
-        ### Response:
-        {}"""
-        instruction = examples["context"]
-        input = examples["question"]
-        output = examples["answers"]['text']
-        if isinstance(output, list):
-            output = output[0]
-        text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
-        ans = self.tokenizer(text)
-        ans['labels'] = ans['input_ids']
-        return ans
+        Returns:
+            dict: A dictionary containing:
+                - 'input_ids': Tokenized input sequence (excluding the last token).
+                - 'labels': Tokenized output sequence (excluding the first token).
+                - 'loss_mask': A mask indicating which tokens contribute to the loss.
+        """
+        formatted_text = [
+            f"Context: {example['context']} Question: {example['question']} Answer:",
+            f" {example['answers']['text'][0].strip()}",
+        ]
+        context_ids, answer_ids = list(map(self.tokenizer.text_to_ids, formatted_text))
+        if len(context_ids) > 0 and context_ids[0] != self.tokenizer.bos_id:
+            context_ids.insert(0, self.tokenizer.bos_id)
+        if len(answer_ids) > 0 and answer_ids[-1] != self.tokenizer.eos_id:
+            answer_ids.append(self.tokenizer.eos_id)
+
+        return dict(
+            labels=(context_ids + answer_ids)[1:],
+            input_ids=(context_ids + answer_ids)[:-1],
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
+        )
 
     def setup(self, stage):
+        """
+        Prepares the dataset for training and applies formatting.
+
+        Args:
+            stage (str): The stage of training.
+        """
         super().setup(stage)
-        self.tokenizer = getattr(self.tokenizer, 'tokenizer', self.tokenizer)
+
         self.map(
             self.formatting_prompts_func,
             batched=False,

@@ -16,31 +16,67 @@ import json
 from pathlib import Path
 from typing import Tuple, Union
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
+from lightning.pytorch.trainer.states import TrainerFn
 from megatron.core import dist_checkpointing
-from pytorch_lightning.trainer.states import TrainerFn
+from rich.console import Console
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.peft.lora import LoRA, LoRAMerge
 from nemo.collections.llm.utils import factory
 from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib, io
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
+from nemo.lightning.io import api
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.lightning.pytorch.callbacks import PEFT
-from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
 
 
 @factory
 def gpt_lora() -> PEFT:
+    """ """
     return LoRA()
+
+
+def export_lora(
+    lora_checkpoint_path: str,
+    output_path: str,
+):
+    """
+    Export the LoRA adapter weights to HF format. Requires an implementation of HF PEFT exporter class.
+    See HFLlamaPEFTExporter for an example.
+
+    Python Usage:
+    ```python
+    if __name__ == '__main__':
+        llm.peft.export_lora(
+            lora_checkpoint_path=your_lora_checkpoint_path,
+            output_path=your_output_path,
+        )
+    ```
+
+    Args:
+        lora_checkpoint_path: The path to the LoRA checkpoint.
+        output_path: The path to save the HF checkpoint.
+
+    """
+    output = api.export_ckpt(
+        path=Path(lora_checkpoint_path),
+        target="hf-peft",
+        output_path=Path(output_path),
+    )
+
+    console = Console()
+    console.print(f"[green]✓ LoRA checkpoint exported to {output}[/green]")
+    return output
 
 
 def merge_lora(
     lora_checkpoint_path: str,
     output_path: str,
+    legacy_ckpt: bool = False,
 ) -> None:
     """
     Merges the LoRA adapter weights into the base model's weights.
@@ -67,6 +103,10 @@ def merge_lora(
         strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()),
     )
 
+    # Load ckpt saved with TE < 1.14
+    if legacy_ckpt:
+        trainer.strategy.ckpt_load_strictness = False
+
     model, lora = _load_base_model_and_lora(lora_checkpoint_path)
     _setup_trainer_and_restore_model_and_adapter(Path(lora_checkpoint_path), trainer, model, lora)
 
@@ -74,6 +114,9 @@ def merge_lora(
     merged_model = lora_merge(trainer.strategy.megatron_parallel)
     merged_weights = {k: v for k, v in merged_model.sharded_state_dict().items() if ".adapter." not in k}
     _save_merged_weight(output_path, merged_weights, model, trainer)
+
+    console = Console()
+    console.print(f"[green]✓ LoRA checkpoint merged and saved to {output_path}[/green]")
 
 
 def _load_base_model_and_lora(lora_checkpoint_path: Path) -> Tuple[pl.LightningModule, LoRA]:

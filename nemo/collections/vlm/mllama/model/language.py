@@ -22,16 +22,9 @@ from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import Attention
-from megatron.core.transformer.custom_layers.transformer_engine import (
-    TEColumnParallelLinear,
-    TEDotProductAttention,
-    TELayerNormColumnParallelLinear,
-    TERowParallelLinear,
-)
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -47,13 +40,25 @@ from torch import Tensor, nn
 from nemo.utils import logging
 
 try:
-    from megatron.core.transformer.custom_layers.transformer_engine import TEDelayedScaling, TENorm
+    from megatron.core.transformer.custom_layers.transformer_engine import (
+        TEColumnParallelLinear,
+        TEDelayedScaling,
+        TEDotProductAttention,
+        TELayerNormColumnParallelLinear,
+        TENorm,
+        TERowParallelLinear,
+    )
 
     HAVE_TE = True
     LayerNormImpl = TENorm
 except ImportError:
     from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
 
+    # These Defaults are needed to make sure the code compiles
+    TEColumnParallelLinear = None
+    TEDotProductAttention = None
+    TELayerNormColumnParallelLinear = None
+    TERowParallelLinear = None
     HAVE_TE = False
     LayerNormImpl = WrappedTorchLayerNorm
 
@@ -390,7 +395,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         layer_prefix = f'{prefix}layers.'
         num_layers = self.config.num_layers
         for layer in self.layers:
-            offset = layer._get_layer_offset()
+            offset = layer._get_layer_offset(layer.config)
             global_layer_offset = layer.layer_number - 1  # self.layer_number starts at 1
             state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
             sharded_prefix = layer_prefix
@@ -403,7 +408,7 @@ class CrossAttentionTransformerBlock(TransformerBlock):
         for xlayer in self.xattn_layers:
             if isinstance(xlayer, DummyCrossAttentionTransformerLayer):
                 continue
-            offset = xlayer._get_layer_offset()
+            offset = xlayer._get_layer_offset(xlayer.config)
             global_layer_offset = xlayer.layer_number - 1
             state_dict_prefix = f'{xlayer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
             sharded_prefix = f'{xlayer_prefix}{global_layer_offset}.'
