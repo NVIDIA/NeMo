@@ -47,7 +47,7 @@ from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from megatron.core import tensor_parallel, Timers
+from megatron.core import Timers, tensor_parallel
 from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
