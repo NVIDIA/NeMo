@@ -42,7 +42,9 @@ def make_squad_hf_dataset(tokenizer, batch_size):
             loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-    datamodule = llm.HFDatasetDataModule("rajpurkar/squad", split="train", batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0)
+    datamodule = llm.HFDatasetDataModule(
+        "rajpurkar/squad", split="train", batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0
+    )
     datamodule.map(
         formatting_prompts_func,
         batched=False,
