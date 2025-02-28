@@ -30,7 +30,7 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.collections.asr.parts.utils.ctc_batched_beam_utils import CTCBatchedBeamHyps
 from nemo.utils import logging
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM, KenLMWrapper
 
 from nemo.utils.timers import SimpleTimer
 
@@ -292,7 +292,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self.token_offset = 0
         
         self.ngram_lm_batch = None
-        if kenlm_path is not None and '.nemo' in kenlm_path:
+        if kenlm_path is not None:
             self.ngram_lm_batch = FastNGramLM.from_file(lm_path=kenlm_path, vocab_size=self.blank_id)
         
 
@@ -456,6 +456,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         # x: [B, T, D]
         # out_len: [B]
 
+        # x = x.cpu()
+        # out_len = out_len.cpu()
+                    
         batch_size = x.shape[0]
         max_time = x.shape[1]
 
@@ -484,7 +487,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
             lm_scores = lm_scores.to(dtype=x.dtype).view(batch_size, self.beam_size, -1) * self.beam_alpha
             
-            probs = probs + torch.cat([lm_scores, zeros_column], dim=-1)
+            probs = np.log10(np.e) * probs + np.log10(np.e) * torch.cat([lm_scores, zeros_column], dim=-1)
             
             repeated_mask = batched_beam_hyps.last_label[:, :, None] == vocab[None, None, :]
             blank_mask = (vocab == self.blank_id)[None, None, :]
@@ -500,7 +503,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             repeating_mask = next_labels == batched_beam_hyps.last_label
             blank_mask = next_labels == self.blank_id
             
-            lm_rescoring_mask = ~ (repeating_mask | blank_mask)
+            preserve_state_mask = repeating_mask | blank_mask | ~ active_mask
             next_labels_masked = torch.where(blank_mask, 0, next_labels)
                 
             # batch_lm_states: [(BxBeam)]
@@ -519,12 +522,14 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             batch_lm_states = torch.gather(
                 batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
             ).squeeze(-1)
-            batch_lm_states = torch.where(lm_rescoring_mask, batch_lm_states, batch_lm_states_prev).view(-1)
+            batch_lm_states = torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states).view(-1)
         
             next_labels = torch.where(active_mask, next_labels, -1)
             batched_beam_hyps.add_results_(hyps_indices, next_labels, hyps_scores)
             
             batched_beam_hyps.self_recombine_hyps_()
+
+        batched_beam_hyps.scores += self.ngram_lm_batch.get_final(batch_lm_states).view(batch_size, self.beam_size) * np.log10(np.e) * self.beam_alpha
 
         nbest_hypotheses = []
         for x in batched_beam_hyps.to_hyps_list():

@@ -2,6 +2,7 @@ import torch
 from typing import Optional
 from nemo.utils.enum import PrettyStrEnum
 from collections import Counter
+import numpy as np
 
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
