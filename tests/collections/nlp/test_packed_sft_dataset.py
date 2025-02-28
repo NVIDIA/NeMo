@@ -37,12 +37,12 @@ def create_data_points(temp_file, answer_only_loss=True):
     output_data = [
         {
             'input_ids': [10, 11, 19, 2, 20, 21, 22, 29, 2, 30, 38, 39, 2],
-            'loss_mask': [0, 0, 1, 0,    0, 0, 0, 1, 0,     0, 1, 1, 0],
+            'loss_mask': [0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0],
             'seq_start_id': [0, 4, 9],
         },
         {
             'input_ids': [10, 11, 19, 2, 20, 21, 22, 29, 2, 30, 35, 36, 37, 38, 39, 2],
-            'loss_mask': [0, 0, 1, 0,    0, 0, 0, 1, 0,     0, 1, 1, 1, 1, 1, 0],
+            'loss_mask': [0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0],
             'seq_start_id': [0, 4, 9],
         },
     ]
@@ -58,9 +58,11 @@ def create_data_points(temp_file, answer_only_loss=True):
         {
             "tokens": [10, 11, 19, 20, 21, 22, 29, 30, 35, 36, 37, 38, 39],
             "labels": [11, 19, 2, 21, 22, 29, 2, 35, 36, 37, 38, 39, 2],
-            "loss_mask": [0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1]
-            if answer_only_loss
-            else [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            "loss_mask": (
+                [0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1]
+                if answer_only_loss
+                else [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+            ),
             "position_ids": [0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5],
             "cu_seqlens": [0, 3, 7, 13],
         },
