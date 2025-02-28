@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 try:
     import modelopt.torch.quantization as mtq
-    from modelopt.torch.export import export_tensorrt_llm_checkpoint, export_hf_checkpoint
+    from modelopt.torch.export import export_hf_checkpoint, export_tensorrt_llm_checkpoint
 
     QUANT_CFG_CHOICES = {
         "int8": mtq.INT8_DEFAULT_CFG,
@@ -61,11 +61,13 @@ except (ImportError, ModuleNotFoundError) as e:
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
 SUPPORTED_EXPORT_FMT = ["trtllm", "nemo", "hf"]
 
+
 def is_zero_rank():
     """Check if the current process is the zero rank. If the process is not distributed, return True."""
     if not dist.is_initialized():
         return True
     return dist.get_rank() == 0
+
 
 @dataclass
 class QuantizationConfig:
@@ -178,11 +180,10 @@ class Quantizer:
                 params_dtype=torch.bfloat16, inference_batch_times_seqlen_threshold=30
             )
 
-            generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]    
+            generated = [r.generated_text for r in generate(mcore_inference, mcore_tokenizer, prompts)]
             outputs = [prompt + generation for prompt, generation in zip(prompts, generated)]
 
         logging.info(f'Sample generation after PTQ (with prompts): {outputs}')
-
 
     def _get_forward_loop(self, model):
         get_dataloader = create_data_iterator_getter(
@@ -197,6 +198,7 @@ class Quantizer:
         )
 
         if isinstance(model, llm.HFAutoModelForCausalLM):
+
             def huggingface_forward_loop(model):
                 dataloader = get_dataloader()
                 for batch in dataloader:
@@ -205,17 +207,16 @@ class Quantizer:
             return huggingface_forward_loop
 
         return self.create_megatron_forward_loop(
-                get_dataloader,
-                num_batches=number_of_batches,
-                seq_length=self.quantization_config.calibration_seq_len,
-                micro_batch_size=self.quantization_config.calibration_batch_size,
-            )
-
+            get_dataloader,
+            num_batches=number_of_batches,
+            seq_length=self.quantization_config.calibration_seq_len,
+            micro_batch_size=self.quantization_config.calibration_batch_size,
+        )
 
     def quantize(self, model: "MegatronParallel", forward_loop=None):
         """Quantize the model and calibrate using given forward loop."""
         if forward_loop is None:
-            forward_loop = self._get_forward_loop(model)    
+            forward_loop = self._get_forward_loop(model)
 
         algorithm = self.quantization_config.algorithm
         if algorithm is None:
@@ -351,7 +352,9 @@ class Quantizer:
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
         elif self.export_config.export_format == "hf":
-            assert isinstance(model, llm.HFAutoModelForCausalLM), "HF export is only supported for AutoModelForCausalLM"
+            assert isinstance(
+                model, llm.HFAutoModelForCausalLM
+            ), "HF export is only supported for AutoModelForCausalLM"
             export_hf_checkpoint(
                 self._unwrap_for_modelopt_operations(model),
                 export_dir=export_dir,
@@ -361,10 +364,11 @@ class Quantizer:
             inference_tp = self.export_config.inference_tp
             inference_pp = self.export_config.inference_pp
 
-            use_nfs_workspace = False and  model.config.pipeline_model_parallel_size > 1
+            use_nfs_workspace = False and model.config.pipeline_model_parallel_size > 1
 
             with torch.inference_mode():
                 from accelerate.hooks import remove_hook_from_module
+
                 remove_hook_from_module(model, recurse=True)
                 export_tensorrt_llm_checkpoint(
                     model=self._unwrap_for_modelopt_operations(model),

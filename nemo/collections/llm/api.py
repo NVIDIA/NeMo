@@ -394,11 +394,13 @@ def ptq(
         quantization_config = QuantizationConfig()
 
     from nemo.collections.llm import quantization
+
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
     is_automodel = (Path(nemo_checkpoint) / 'config.json').exists()
     if is_automodel:
         from nemo.collections import llm
+
         model = llm.HFAutoModelForCausalLM(model_name=nemo_checkpoint, load_pretrained_weights=True)
         model.configure_model()
         model = quantizer.quantize(model)
