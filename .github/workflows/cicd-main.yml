@@ -2783,10 +2783,10 @@ jobs:
       SCRIPT: |
         bash tests/collections/llm/bitexact/mixtral/run.sh
 
-  L2_NeMo_2_PTQ_Llama2_FP8_trtllm:
+  L2_NeMo_2_PTQ_Llama2_FP8:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_trtllm')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -2797,21 +2797,6 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/nemo2_ptq_engine
-
-  L2_NeMo_2_PTQ_Llama2_FP8_nemo:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_nemo')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
-
-        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_ckpt --export_format nemo
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/nemo2_ckpt
-        rm -rf /tmp/nemo2_ptq_ckpt
 
   L2_NeMo_2_Distill_Llama3_TP1PP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -3138,8 +3123,7 @@ jobs:
       - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
       - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
-      - L2_NeMo_2_PTQ_Llama2_FP8_trtllm
-      - L2_NeMo_2_PTQ_Llama2_FP8_nemo
+      - L2_NeMo_2_PTQ_Llama2_FP8
       - L2_NeMo_2_Distill_Llama3_TP1PP2
       - L2_NeMo_2_Export_In_Framework
       - L2_NeMo_2_jit_callback
