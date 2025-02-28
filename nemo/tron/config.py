@@ -269,6 +269,9 @@ class MegatronLMConfig:
     num_workers: int = 8
     """Dataloader number of workers."""
 
+    data_sharding: bool = True
+    """Disable data sharding."""
+
     # ---------------- Moe config. ----------------
 
     moe_use_upcycling: bool = False
