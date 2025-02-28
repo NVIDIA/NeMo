@@ -143,31 +143,6 @@ class MegatronLMConfig:
     decrease_batch_size_if_needed: bool = False
     """If set, decrease batch size if microbatch_size * dp_size does not divide batch_size. Useful for KSO (Keep Soldiering On) to continue making progress if number of healthy GPUs (and corresponding dp_size) does not support current batch_size. Old batch_size will be restored if training is re-started with dp_size that divides batch_size // microbatch_size."""
 
-    # ---------------- Profiling config. ----------------
-
-    profile: bool = False
-    """Enable nsys profiling. When using this option, nsys options should be specified in commandline. An example nsys commandline is `nsys profile -s none -t nvtx,cuda -o <path/to/output_file> --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop`."""
-
-    profile_step_start: int = 10
-    """Global step to start profiling."""
-
-    profile_step_end: int = 12
-    """Global step to stop profiling."""
-
-    use_pytorch_profiler: bool = False
-    """Use the built-in pytorch profiler. Useful if you wish to view profiles in tensorboard."""
-
-    profile_ranks: List[int] = field(default_factory=lambda: [0])
-    """Global ranks to profile."""
-
-    record_memory_history: bool = False
-    """Record memory history in last rank."""
-
-    memory_snapshot_path: str = "snapshot.pickle"
-    """Specifies where to dump the memory history pickle."""
-
-    # ---------------- Training config cont. ----------------
-
     tp_comm_overlap_cfg: Optional[str] = None
     """Config file when tp_comm_overlap is enabled."""
 
@@ -276,6 +251,32 @@ class MegatronLMConfig:
 
     moe_use_upcycling: bool = False
     """Load a checkpoint of a dense model, convert it into an MoE model, and save the converted model to the path specified by --save. Upcycling is implemented on the top of distributed checkpointing, so it supports parallel modes different from the dense model."""
+
+
+@dataclass
+class ProfilingConfig:
+    # ---------------- Profiling config. ----------------
+
+    profile: bool = False
+    """Enable nsys profiling. When using this option, nsys options should be specified in commandline. An example nsys commandline is `nsys profile -s none -t nvtx,cuda -o <path/to/output_file> --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop`."""
+
+    profile_step_start: int = 10
+    """Global step to start profiling."""
+
+    profile_step_end: int = 12
+    """Global step to stop profiling."""
+
+    use_pytorch_profiler: bool = False
+    """Use the built-in pytorch profiler. Useful if you wish to view profiles in tensorboard."""
+
+    profile_ranks: List[int] = field(default_factory=lambda: [0])
+    """Global ranks to profile."""
+
+    record_memory_history: bool = False
+    """Record memory history in last rank."""
+
+    memory_snapshot_path: str = "snapshot.pickle"
+    """Specifies where to dump the memory history pickle."""
 
 
 @dataclass(kw_only=True)
@@ -554,6 +555,7 @@ class ConfigContainer:
     checkpoint_config: CheckpointConfig
     ft_config: FaultToleranceConfig = field(default_factory=FaultToleranceConfig)
     straggler_config: StragglerDetectionConfig = field(default_factory=StragglerDetectionConfig)
+    profiling_config: ProfilingConfig = field(default_factory=ProfilingConfig)
 
     def __post_init__(self):
         # Run validations

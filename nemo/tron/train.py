@@ -157,16 +157,17 @@ def train(
     eval_iterations = 0
 
     prof = None
+    prof_config = config.profiling_config
     if (
-        mlm_config.profile
-        and torch.distributed.get_rank() in mlm_config.profile_ranks
-        and mlm_config.use_pytorch_profiler
+        prof_config.profile
+        and torch.distributed.get_rank() in prof_config.profile_ranks
+        and prof_config.use_pytorch_profiler
     ):
         prof = torch.profiler.profile(
             schedule=torch.profiler.schedule(
-                wait=max(mlm_config.profile_step_start - 1, 0),
-                warmup=1 if mlm_config.profile_step_start > 0 else 0,
-                active=mlm_config.profile_step_end - mlm_config.profile_step_start,
+                wait=max(prof_config.profile_step_start - 1, 0),
+                warmup=1 if prof_config.profile_step_start > 0 else 0,
+                active=prof_config.profile_step_end - prof_config.profile_step_start,
                 repeat=1,
             ),
             on_trace_ready=torch.profiler.tensorboard_trace_handler(config.logger_config.tensorboard_dir),
@@ -199,10 +200,10 @@ def train(
 
     # Run training iterations till done.
     while global_state.train_state.step < mlm_config.train_iters:
-        if mlm_config.profile and torch.distributed.get_rank() in mlm_config.profile_ranks:
-            if mlm_config.use_pytorch_profiler:
+        if prof_config.profile and torch.distributed.get_rank() in prof_config.profile_ranks:
+            if prof_config.use_pytorch_profiler:
                 prof.step()
-            elif global_state.train_state.step == mlm_config.profile_step_start:
+            elif global_state.train_state.step == prof_config.profile_step_start:
                 torch.cuda.cudart().cudaProfilerStart()
                 torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
@@ -550,11 +551,11 @@ def post_training_step_callbacks(
 
     # Profiling.
     if (
-        mlm_config.profile
-        and iteration == mlm_config.profile_step_end
-        and torch.distributed.get_rank() in mlm_config.profile_ranks
+        config.profiling_config.profile
+        and iteration == config.profiling_config.profile_step_end
+        and torch.distributed.get_rank() in config.profiling_config.profile_ranks
     ):
-        if mlm_config.use_pytorch_profiler:
+        if config.profiling_config.use_pytorch_profiler:
             assert prof is not None
             prof.stop()
         else:

@@ -272,11 +272,11 @@ def training_log(
             )
 
     if tb_logger and (train_state.step % logger_config.tensorboard_log_interval == 0):
-        if mlm_config.record_memory_history and is_last_rank():
+        if config.profiling_config.record_memory_history and is_last_rank():
             snapshot = torch.cuda.memory._snapshot()
             from pickle import dump
 
-            with open(mlm_config.memory_snapshot_path, "wb") as f:
+            with open(config.profiling_config.memory_snapshot_path, "wb") as f:
                 dump(snapshot, f)
 
         if wandb_logger:
