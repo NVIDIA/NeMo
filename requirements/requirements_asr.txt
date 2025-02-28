@@ -19,4 +19,4 @@ ruamel.yaml
 scipy>=0.14
 soundfile
 sox
-texterrors
+texterrors<1.0.0
