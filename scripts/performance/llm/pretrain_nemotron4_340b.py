@@ -27,12 +27,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    get_comm_overlap_callback_idx,
-    get_user_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..utils import get_comm_overlap_callback_idx, get_user_configs, set_primary_perf_configs, slurm_executor
 
 
 def override_recipe_configs(
