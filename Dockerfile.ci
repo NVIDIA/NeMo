@@ -60,7 +60,8 @@ RUN \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/README.md,target=/tmp/NeMo/README.md \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/nemo/package_info.py,target=/tmp/NeMo/nemo/package_info.py \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/nemo/__init__.py,target=/tmp/NeMo/nemo/__init__.py <<"EOF" bash -ex
-    export NEMO_DIR=/tmp/NeMo 
+    export NEMO_DIR=/tmp/NeMo
+    export WHEELS_DIR=/tmp/wheels
     bash /tmp/NeMo/reinstall.sh --library all --mode install
     rm -rf $NEMO_DIR || true
 EOF
@@ -70,7 +71,7 @@ ARG NEMO_REPO
 ARG NEMO_TAG
 RUN \
   --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/tmp/reinstall.sh <<"EOF" bash -ex
-  export NEMO_DIR=/tmp/NeMo 
+  export WHEELS_DIR=/tmp/wheels
   bash /tmp/reinstall.sh --library all --mode install
 
   # Copy into workspace
