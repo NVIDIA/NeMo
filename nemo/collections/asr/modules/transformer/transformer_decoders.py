@@ -85,10 +85,10 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         if self.is_adapter_available():
             # Call the MHA adapters
             pack_input = {
-                'x': self_attn_output,
-                'loc': 'mha',
-                'att_mask': decoder_mask,
-                'pos_emb': None,
+            'x': self_attn_output,
+            'loc': 'mha',
+            'att_mask': decoder_mask,
+            'pos_emb': None,
             }
             pack_input = self.forward_enabled_adapters(pack_input)
             self_attn_output = pack_input['x']
@@ -106,8 +106,8 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         if self.is_adapter_available():
             # Call the Linear adapters
             pack_input = {
-                'x': output_states,
-                'loc': 'post',
+            'x': output_states,
+            'loc': 'post',
             }
             pack_input = self.forward_enabled_adapters(pack_input)
             output_states = pack_input['x']

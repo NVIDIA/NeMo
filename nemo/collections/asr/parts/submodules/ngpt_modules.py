@@ -17,28 +17,7 @@ import math
 import torch
 import torch.nn as nn
 
-try:
-    from flash_attn import flash_attn_func
-except ImportError:
-
-    def flash_attn_func(
-        q,
-        k,
-        v,
-        dropout_p=0.0,
-        softmax_scale=1.0,
-        causal=False,
-        window_size=(-1, -1),
-        alibi_slopes=None,
-        deterministic=False,
-    ):
-        """Quick and dirty implementation for prototyping."""
-        q = q.permute(0, 2, 1, 3)
-        k = k.permute(0, 2, 1, 3)
-        v = v.permute(0, 2, 1, 3)
-        out = nn.functional.softmax(q @ (k * softmax_scale).transpose(2, 3), dim=-1) @ v
-        return out.permute(0, 2, 1, 3)
-
+from flash_attn import flash_attn_func
 
 def justnorm(x, fp32: bool = False, idim: int = -1):
     if fp32:
@@ -129,7 +108,6 @@ class AttentionBlock(nn.Module):
         q = self.query(query)
         k = self.key(key)
         v = self.value(value)
-        # import ipdb; ipdb.set_trace()
 
         # Divide the embeddings into n_heads
         q = q.view(B, Tq, self.config.n_heads, self.config.n_embd // self.config.n_heads)
@@ -147,7 +125,7 @@ class AttentionBlock(nn.Module):
         sqk = (self.sqk * (self.sqk_init_value / self.sqk_init_scaling)).view(
             1, 1, self.config.n_heads, self.config.n_embd // self.config.n_heads
         )
-        # import ipdb; ipdb.set_trace()
+
         q = sqk * justnorm(q)
         k = sqk * justnorm(k)
 

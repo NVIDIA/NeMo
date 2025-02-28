@@ -369,7 +369,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             std_init_range = 1 / self.cfg.model_defaults.lm_dec_hidden**0.5 
             self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
         elif isinstance(self.log_softmax, NGPTDecoderHead):
-            self.log_softmax.lm_head.weight = self.transf_decoder.embedding.tok_emb.weight
+            self.log_softmax.lm_head.weight = self.transf_decoder.embedding.token_embedding.weight
         else:
             raise ValueError(f"Unsupported head type: {type(self.log_softmax)}")
         

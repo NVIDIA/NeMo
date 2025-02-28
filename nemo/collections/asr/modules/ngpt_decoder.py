@@ -46,11 +46,12 @@ class DecoderBlock(nn.Module):
         self.cross_attn = AttentionBlock(config)
         self.mlp = MLPBlock(config)
 
-    def forward(self, decoder_query, decoder_mask, decoder_key, encoder_state, encoder_mask):
+    def forward(self, decoder_query, decoder_mask, decoder_key, encoder_state, encoder_mask, cross_attn=True):
         # Decoder block
         # order: SA -> Norm -> CA -> Norm -> MLP -> Norm
         h = self.attn(decoder_query, decoder_key, decoder_key, decoder_mask)
-        h = self.cross_attn(h, encoder_state, encoder_state, encoder_mask)
+        if cross_attn:
+            h = self.cross_attn(h, encoder_state, encoder_state, encoder_mask)
         h = self.mlp(h)
 
         return h
@@ -81,6 +82,8 @@ class Decoder(nn.Module):
                 cached_mems_list = [memory_states]
             else:
                 cached_mems_list = memory_states.unsqueeze(0)
+
+            
 
         for i, decoder_block in enumerate(self.decoder_blocks):
             decoder_state = decoder_block(decoder_state, decoder_mask, memory_states, encoder_embeddings, encoder_mask)
@@ -147,7 +150,7 @@ class Embedding(nn.Module):
     # Embedding layer for the nGPT decoder for both tokens and positional encodings
     def __init__(self, vocab_size=8192, n_embd=1024):
         super().__init__()
-        self.tok_emb = nn.Embedding(vocab_size, n_embd)
+        self.token_embedding = nn.Embedding(vocab_size, n_embd)
         self.base_scale = n_embd ** -0.5
         
         self.drop = nn.Dropout(0.1)
@@ -156,21 +159,27 @@ class Embedding(nn.Module):
 
     def forward(self, x, start_pos=0):
         # Embedding layer
-        x = self.tok_emb(x)
+        x = self.token_embedding(x)
         # x = x + self.pos_emb[:, start_pos : start_pos + x.size(1)]
         x = self.drop(x)
         return x
     
     def _init_weights(self):
-        torch.nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.base_scale
+        torch.nn.init.normal_(self.token_embedding.weight, mean=0.0, std=self.base_scale
         )
 
     def normalize_matrices(self):
-        self.tok_emb.weight.data.copy_(justnorm_fp32(self.tok_emb.weight.data, 1))        
+        self.token_embedding.weight.data.copy_(justnorm_fp32(self.token_embedding.weight.data, 1))        
 
 
 class NGPTDecoder(nn.Module):
-    def __init__(self, vocab_size: int, hidden_size: int, n_layers: int, n_heads: int, max_seq_len: int, learn_positional_encodings: bool, base_scale: float = None):
+    def __init__(self, vocab_size: int, 
+                hidden_size: int, 
+                n_layers: int, 
+                n_heads: int, 
+                max_seq_len: int, 
+                learn_positional_encodings: bool, 
+                base_scale: float = None):
         super().__init__()
         
         self._vocab_size = vocab_size
@@ -180,6 +189,7 @@ class NGPTDecoder(nn.Module):
         self._max_seq_len = max_seq_len
         self._learned_pos_enc = learn_positional_encodings
         self._base_scale = base_scale if base_scale is not None else hidden_size ** -0.5
+        self.return_mems = False
 
         # self._embedding = TransformerEmbedding(
         #     vocab_size=self._vocab_size,
@@ -223,7 +233,9 @@ class NGPTDecoder(nn.Module):
         start_pos = 0
         decoder_state = self._embedding(input_ids, start_pos=start_pos)
 
-        decoder_state = self._decoder(decoder_state, decoder_mask, encoder_embeddings, encoder_mask)
+        decoder_state = self._decoder(decoder_state, decoder_mask, encoder_embeddings, encoder_mask, return_mems=self.return_mems)
+        if self.return_mems:
+            decoder_state = torch.transpose(decoder_state, 0, 1)
         return decoder_state
     
 
