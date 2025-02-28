@@ -12,17 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
+
 import warnings
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
-import modelopt.torch.quantization as mtq
 import numpy as np
 import tensorrt as trt
 import torch
 import wrapt
-from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
 from nemo.deploy import ITritonDeployable
@@ -200,6 +198,8 @@ class OnnxLLMExporter(ITritonDeployable):
             export_dtype = {"fp16": torch.float16, "fp32": torch.float32}[export_dtype]
 
         self.model.to(export_dtype)
+
+        Path(self.onnx_model_dir).mkdir(parents=True, exist_ok=True)
 
         with torch.autocast(device_type=get_model_device_type(self.model), dtype=export_dtype):
             torch.onnx.export(
