@@ -20,8 +20,22 @@ from nemo.utils import logging
 class MediaToTextEnergonModule(EnergonMultiModalDataModule):
     """
     Energon Data module for media(audio and/or image and/or video and text)-to-text LLM.
-    """
+    
+    It looks for a path leads to path/.nv-meta/dataset.yaml 
+    which looks like the follows:
+    sample_type:
+      __module__: nemo.collections.avlm.data.energon.media_to_text_config
+      __class__: MediaToTextSample
+    field_map:
+      image: image_file_extension
+      video: video_file_extension
+      audio: audio_file_extension
+      offset: ...
 
+    More data preparation details can be found at:
+    https://github.com/NVIDIA/Megatron-Energon/blob/24123d4b63a451980eec6ee0ddaa4f007ef562e7/docs/source/basic/data_prep.md?plain=1#L85
+    """
+        
     def __init__(
         self,
         path: str,

@@ -16,11 +16,12 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 import torch
-from megatron.energon import VQASample, batch_list, batch_pad_stack
+from megatron.energon import batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.avlm.data.energon.media_to_text_config import (
     MediaToTextSample, 
+    MediaToTextEnergonSample
     MediaToTextRawBatch,
     MediaToTextSampleConfig,
 )
@@ -66,7 +67,7 @@ class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
         return None
 
     @stateless
-    def encode_sample(self, sample: MediaToTextSample) -> ImageTextSample:
+    def encode_sample(self, sample: MediaToTextEnergonSample) -> ImageTextSample:
         """
         Encode an individual sample based on its type.
 
@@ -90,7 +91,7 @@ class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
         encoded_sample = encoder.encode(input_sample=sample, output_sample=MediaToTextSample())
         return encoded_sample
 
-    def encode(self, input_sample: MediaToTextSample, output_sample: MediaToTextSample):
+    def encode(self, input_sample: MediaToTextEnergonSample, output_sample: MediaToTextSample):
         """
         Encode a single sample into a format suitable for model input.
 

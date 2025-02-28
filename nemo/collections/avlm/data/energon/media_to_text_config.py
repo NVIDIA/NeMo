@@ -17,9 +17,23 @@ from typing import Optional
 
 import torch
 
+from megatron.energon import Sample
+from megatron.energon.flavors.webdataset import VideoData
+
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.vlm.llava_next.data.energon import LlavaNextTextRawBatch, LlavaNextTextSample
 from nemo.utils import logging
+
+@dataclass_slot
+class MediaToTextEnergonSample(Sample):
+    context: str
+    answers: Optional[List[str]] = None
+    answer_weights: Optional[torch.Tensor] = None
+    audio: Optional[torch.tensor] = None
+    video: Optional[VideoData] = None    
+    offset: Optional[float] = None
+    duration: Optional[float] = None
+    image: Optional[torch.tensor] = None
 
 
 @dataclass
@@ -57,8 +71,6 @@ class MediaToTextRawBatch(LlavaNextTextRawBatch):
 
 @dataclass
 class MediaToTextSampleConfig(MultiModalSampleConfig):
-    offset: Optional[float] = None
-    duration: Optional[float] = None
     audio_original_sampling_rate: Optional[int] = None
     concat_video_following_images: Optional[bool] = None
     
