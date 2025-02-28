@@ -114,8 +114,7 @@ vllm() {
     fi
 
     ${PIP} install --no-cache-dir virtualenv &&
-      virtualenv $INSTALL_DIR/venv &&
-      virtualenv $INSTALL_DIR/venv install --no-cache-dir --no-build-isolation $WHEELS_DIR/*.whl || true
+      $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/*.whl || true
   fi
 
 }
