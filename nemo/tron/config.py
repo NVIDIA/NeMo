@@ -111,24 +111,8 @@ class GPTDatasetConfig(MCoreGPTDatasetConfig):
         assert self.eod_mask_loss is not None
 
 
-# TODO (maanug): split this up into modular components
-
-
 @dataclass
-class MegatronLMConfig:
-    """MegatronLM config."""
-
-    # ---------------- Network size config. ----------------
-
-    model_type: ModelType = ModelType.encoder_or_decoder
-    """Model architecture type."""
-
-    swiglu: bool = False  # NOTE: where does MCore check for/apply 'rounding' of FFN hidden sizes?
-    """Use gated linear units and SiLU activation instead of default GeLU."""
-
-    untie_embeddings_and_output_weights: bool = False
-    """Untie embeddings and output weights."""
-
+class TrainingConfig:
     # ---------------- Training config. ----------------
 
     micro_batch_size: Optional[int] = None
@@ -142,9 +126,6 @@ class MegatronLMConfig:
 
     decrease_batch_size_if_needed: bool = False
     """If set, decrease batch size if microbatch_size * dp_size does not divide batch_size. Useful for KSO (Keep Soldiering On) to continue making progress if number of healthy GPUs (and corresponding dp_size) does not support current batch_size. Old batch_size will be restored if training is re-started with dp_size that divides batch_size // microbatch_size."""
-
-    tp_comm_overlap_cfg: Optional[str] = None
-    """Config file when tp_comm_overlap is enabled."""
 
     empty_unused_memory_level: Literal[0, 1, 2] = 0
     """Call torch.cuda.empty_cache() each iteration (training and eval), to reduce fragmentation. 0=off, 1=moderate, 2=aggressive."""
@@ -167,9 +148,6 @@ class MegatronLMConfig:
     exit_signal_handler: bool = False
     """Dynamically save the checkpoint and shutdown the training if SIGTERM is received"""
 
-    exit_signal_handler_for_dataloader: bool = False
-    """Use signal handler for dataloader workers"""
-
     bias_gelu_fusion: bool = True
     """Disable bias and GeLU fusion."""
 
@@ -187,6 +165,33 @@ class MegatronLMConfig:
 
     manual_gc_eval: bool = True
     """When using manual garbage collection, disable garbage collection at the start and the end of each evaluation run."""
+
+
+# TODO (maanug): split this up into modular components
+
+
+@dataclass
+class MegatronLMConfig:
+    """MegatronLM config."""
+
+    # ---------------- Network size config. ----------------
+
+    model_type: ModelType = ModelType.encoder_or_decoder
+    """Model architecture type."""
+
+    swiglu: bool = False  # NOTE: where does MCore check for/apply 'rounding' of FFN hidden sizes?
+    """Use gated linear units and SiLU activation instead of default GeLU."""
+
+    untie_embeddings_and_output_weights: bool = False
+    """Untie embeddings and output weights."""
+
+    # ---------------- Training config. ----------------
+
+    tp_comm_overlap_cfg: Optional[str] = None
+    """Config file when tp_comm_overlap is enabled."""
+
+    exit_signal_handler_for_dataloader: bool = False
+    """Use signal handler for dataloader workers"""
 
     # ---------------- Initialization config. ----------------
 
@@ -548,6 +553,7 @@ class ConfigContainer:
     rng_config: RNGConfig = field(default_factory=RNGConfig)
     rerun_state_machine_config: RerunStateMachineConfig = field(default_factory=RerunStateMachineConfig)
     megatron_lm_config: MegatronLMConfig
+    train_config: TrainingConfig
     model_config: GPTConfig | T5Config
     optimizer_config: OptimizerConfig
     ddp_config: DistributedDataParallelConfig
@@ -589,17 +595,15 @@ class ConfigContainer:
 
         # Scheduler
         if self.scheduler_config.lr_decay_iters is None:
-            self.scheduler_config.lr_decay_iters = self.megatron_lm_config.train_iters
+            self.scheduler_config.lr_decay_iters = self.train_config.train_iters
         self.scheduler_config.lr_decay_steps = (
-            self.scheduler_config.lr_decay_iters * self.megatron_lm_config.global_batch_size
+            self.scheduler_config.lr_decay_iters * self.train_config.global_batch_size
         )
-        self.scheduler_config.wd_incr_steps = (
-            self.megatron_lm_config.train_iters * self.megatron_lm_config.global_batch_size
-        )
+        self.scheduler_config.wd_incr_steps = self.train_config.train_iters * self.train_config.global_batch_size
         self.scheduler_config.wsd_decay_steps = None
         if self.scheduler_config.lr_wsd_decay_iters is not None:
             self.scheduler_config.wsd_decay_steps = (
-                self.scheduler_config.lr_wsd_decay_iters * self.megatron_lm_config.global_batch_size
+                self.scheduler_config.lr_wsd_decay_iters * self.train_config.global_batch_size
             )
         if self.scheduler_config.lr_warmup_fraction is not None:
             self.scheduler_config.lr_warmup_steps = (
@@ -607,5 +611,5 @@ class ConfigContainer:
             )
         else:
             self.scheduler_config.lr_warmup_steps = (
-                self.scheduler_config.lr_warmup_iters * self.megatron_lm_config.global_batch_size
+                self.scheduler_config.lr_warmup_iters * self.train_config.global_batch_size
             )

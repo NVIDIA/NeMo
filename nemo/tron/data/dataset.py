@@ -123,16 +123,16 @@ def get_train_valid_test_num_samples(cfg: ConfigContainer):
     """Train/valid/test num samples."""
 
     # Number of train/valid/test samples.
-    train_samples = cfg.megatron_lm_config.train_iters * cfg.megatron_lm_config.global_batch_size
+    train_samples = cfg.train_config.train_iters * cfg.train_config.global_batch_size
     eval_iters = (
-        cfg.megatron_lm_config.train_iters // cfg.megatron_lm_config.eval_interval + 1
+        cfg.train_config.train_iters // cfg.megatron_lm_config.eval_interval + 1
     ) * cfg.megatron_lm_config.eval_iters
     test_iters = cfg.megatron_lm_config.eval_iters
 
     return (
         train_samples,
-        eval_iters * cfg.megatron_lm_config.global_batch_size,
-        test_iters * cfg.megatron_lm_config.global_batch_size,
+        eval_iters * cfg.train_config.global_batch_size,
+        test_iters * cfg.train_config.global_batch_size,
     )
 
 
@@ -169,8 +169,8 @@ def build_train_valid_test_data_loaders(
     train_dataloader = build_pretraining_data_loader(
         train_ds,
         train_state.consumed_train_samples,
-        cfg.megatron_lm_config.dataloader_type,
-        cfg.megatron_lm_config.micro_batch_size,
+        cfg.train_config.dataloader_type,
+        cfg.train_config.micro_batch_size,
         cfg.megatron_lm_config.num_workers,
         cfg.megatron_lm_config.data_sharding,
         worker_init_fn=maybe_worker_init_fn,
@@ -179,8 +179,8 @@ def build_train_valid_test_data_loaders(
         valid_dataloader = build_pretraining_data_loader(
             valid_ds,
             0,
-            cfg.megatron_lm_config.dataloader_type,
-            cfg.megatron_lm_config.micro_batch_size,
+            cfg.train_config.dataloader_type,
+            cfg.train_config.micro_batch_size,
             cfg.megatron_lm_config.num_workers,
             cfg.megatron_lm_config.data_sharding,
             worker_init_fn=maybe_worker_init_fn,
@@ -190,7 +190,7 @@ def build_train_valid_test_data_loaders(
             valid_ds,
             train_state.consumed_valid_samples,
             "cyclic",
-            cfg.megatron_lm_config.micro_batch_size,
+            cfg.train_config.micro_batch_size,
             cfg.megatron_lm_config.num_workers,
             cfg.megatron_lm_config.data_sharding,
             worker_init_fn=maybe_worker_init_fn,
@@ -198,14 +198,14 @@ def build_train_valid_test_data_loaders(
     test_dataloader = build_pretraining_data_loader(
         test_ds,
         0,
-        cfg.megatron_lm_config.dataloader_type,
-        cfg.megatron_lm_config.micro_batch_size,
+        cfg.train_config.dataloader_type,
+        cfg.train_config.micro_batch_size,
         cfg.megatron_lm_config.num_workers,
         cfg.megatron_lm_config.data_sharding,
     )
 
     # Flags to know if we need to do training/validation/testing.
-    do_train = train_dataloader is not None and cfg.megatron_lm_config.train_iters > 0
+    do_train = train_dataloader is not None and cfg.train_config.train_iters > 0
     do_valid = valid_dataloader is not None and cfg.megatron_lm_config.eval_iters > 0
     do_test = test_dataloader is not None and cfg.megatron_lm_config.eval_iters > 0
     flags = torch.tensor([int(do_train), int(do_valid), int(do_test)], dtype=torch.long, device="cuda")
@@ -232,7 +232,7 @@ def build_train_valid_test_data_iterators(
     )
 
     # Build iterators.
-    dl_type = cfg.megatron_lm_config.dataloader_type
+    dl_type = cfg.train_config.dataloader_type
     assert dl_type in ["single", "cyclic", "external"]
 
     def _get_iterator(dataloader_type, dataloader):

@@ -42,7 +42,7 @@ def megatron_pretrain(
     ## TRAINING ##
     if not config.megatron_lm_config.skip_train:
         print_rank_0("training ...")
-        if state.train_state.do_train and config.megatron_lm_config.train_iters > 0:
+        if state.train_state.do_train and config.train_config.train_iters > 0:
             train(
                 forward_step_func,
                 model,

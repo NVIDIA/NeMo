@@ -64,11 +64,11 @@ def initialize_megatron(
 
     init_num_microbatches_calculator(
         get_rank_safe(),
-        cfg.megatron_lm_config.rampup_batch_size,
-        cfg.megatron_lm_config.global_batch_size,
-        cfg.megatron_lm_config.micro_batch_size,
+        cfg.train_config.rampup_batch_size,
+        cfg.train_config.global_batch_size,
+        cfg.train_config.micro_batch_size,
         cfg.data_parallel_size,
-        cfg.megatron_lm_config.decrease_batch_size_if_needed,
+        cfg.train_config.decrease_batch_size_if_needed,
     )
 
     # init rerun global state
@@ -143,8 +143,7 @@ def _initialize_tp_communicators(cfg: ConfigContainer):
         ub_cfgs = {}
 
     input_shape = [
-        (cfg.model_config.seq_length * cfg.megatron_lm_config.micro_batch_size)
-        // cfg.model_config.context_parallel_size,
+        (cfg.model_config.seq_length * cfg.train_config.micro_batch_size) // cfg.model_config.context_parallel_size,
         cfg.model_config.hidden_size,
     ]
 
@@ -350,7 +349,7 @@ def _warmup_jit_function(state: GlobalState):
     input = torch.rand(
         (
             state.cfg.model_config.seq_length // state.cfg.model_config.context_parallel_size,
-            state.cfg.megatron_lm_config.micro_batch_size,
+            state.cfg.train_config.micro_batch_size,
             state.cfg.model_config.ffn_hidden_size // state.cfg.model_config.tensor_model_parallel_size,
         ),
         dtype=dtype,
@@ -375,7 +374,7 @@ def _warmup_jit_function(state: GlobalState):
     input = torch.rand(
         (
             seq_length // state.cfg.model_config.context_parallel_size,
-            state.cfg.megatron_lm_config.micro_batch_size,
+            state.cfg.train_config.micro_batch_size,
             state.cfg.model_config.hidden_size,
         ),
         dtype=dtype,
@@ -384,7 +383,7 @@ def _warmup_jit_function(state: GlobalState):
     residual = torch.rand(
         (
             seq_length // state.cfg.model_config.context_parallel_size,
-            state.cfg.megatron_lm_config.micro_batch_size,
+            state.cfg.train_config.micro_batch_size,
             state.cfg.model_config.hidden_size,
         ),
         dtype=dtype,

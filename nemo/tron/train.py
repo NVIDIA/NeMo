@@ -85,6 +85,7 @@ def train(
     config: ConfigContainer = global_state.cfg
     model_config = get_model_config(model[0])
     mlm_config = config.megatron_lm_config
+    train_config = config.train_config
     timers = global_state.timers
     straggler_timer = global_state.straggler_timer
 
@@ -131,11 +132,11 @@ def train(
     should_exit = False
     exit_code = 0
 
-    if mlm_config.manual_gc:
+    if train_config.manual_gc:
         # Disable the default garbage collector and perform the collection manually.
         # This is to align the timing of garbage collection across ranks.
         assert (
-            mlm_config.manual_gc_interval >= 0
+            train_config.manual_gc_interval >= 0
         ), "Manual garbage collection interval should be larger than or equal to 0"
         gc.disable()
         gc.collect()
@@ -191,7 +192,7 @@ def train(
         model_config.param_sync_func = None
         pre_hook_enabled = False
     # Also, check weight hash across DP replicas to be very pedantic.
-    if mlm_config.check_weight_hash_across_dp_replicas_interval is not None:
+    if train_config.check_weight_hash_across_dp_replicas_interval is not None:
         assert check_param_hashes_across_dp_replicas(
             model, cross_check=True
         ), "Parameter hashes not matching across DP replicas"
@@ -199,7 +200,7 @@ def train(
         print_rank_0(f">>> Weight hashes match after {global_state.train_state.step} iterations...")
 
     # Run training iterations till done.
-    while global_state.train_state.step < mlm_config.train_iters:
+    while global_state.train_state.step < train_config.train_iters:
         if prof_config.profile and torch.distributed.get_rank() in prof_config.profile_ranks:
             if prof_config.use_pytorch_profiler:
                 prof.step()
@@ -286,11 +287,11 @@ def train(
 
         global_state.train_state.step += 1
         batch_size = (
-            parallel_state.get_data_parallel_world_size() * mlm_config.micro_batch_size * get_num_microbatches()
+            parallel_state.get_data_parallel_world_size() * train_config.micro_batch_size * get_num_microbatches()
         )
         global_state.train_state.consumed_train_samples += batch_size
         num_skipped_samples_in_batch = get_current_global_batch_size() - get_current_running_global_batch_size()
-        if mlm_config.decrease_batch_size_if_needed:
+        if train_config.decrease_batch_size_if_needed:
             assert num_skipped_samples_in_batch >= 0
         else:
             assert num_skipped_samples_in_batch == 0
@@ -340,7 +341,7 @@ def train(
             if should_toggle_forward_pre_hook:
                 disable_forward_pre_hook(model)
                 pre_hook_enabled = False
-            if mlm_config.manual_gc and mlm_config.manual_gc_eval:
+            if train_config.manual_gc and train_config.manual_gc_eval:
                 # Collect all objects.
                 gc.collect()
             prefix = f"iteration {global_state.train_state.step}"
@@ -361,7 +362,7 @@ def train(
             eval_iterations += mlm_config.eval_iters
             timers("eval-time").stop()
 
-            if mlm_config.manual_gc and mlm_config.manual_gc_eval:
+            if train_config.manual_gc and train_config.manual_gc_eval:
                 # Collect only the objects created and used in evaluation.
                 gc.collect(generation=0)
             if should_toggle_forward_pre_hook:
@@ -432,6 +433,7 @@ def train_step(
     timers = global_state.timers
     model_config = get_model_config(model[0])
     mlm_config = cfg.megatron_lm_config
+    train_config = cfg.train_config
     optim_config = cfg.optimizer_config
 
     rerun_state_machine = get_rerun_state_machine()
@@ -449,7 +451,7 @@ def train_step(
             model=model,
             num_microbatches=get_num_microbatches(),
             seq_length=model_config.seq_length,
-            micro_batch_size=mlm_config.micro_batch_size,
+            micro_batch_size=train_config.micro_batch_size,
             decoder_seq_length=mlm_config.decoder_seq_length,
             forward_only=False,
         )
@@ -458,7 +460,7 @@ def train_step(
         return {}, True, should_checkpoint, should_exit, exit_code, None, None
 
     # Empty unused memory.
-    if mlm_config.empty_unused_memory_level >= 1:
+    if train_config.empty_unused_memory_level >= 1:
         torch.cuda.empty_cache()
 
     # Update parameters.
@@ -477,14 +479,14 @@ def train_step(
 
     # Update learning rate.
     if update_successful:
-        increment = get_num_microbatches() * mlm_config.micro_batch_size * cfg.data_parallel_size
+        increment = get_num_microbatches() * train_config.micro_batch_size * cfg.data_parallel_size
         scheduler.step(increment=increment)
         skipped_iter = 0
     else:
         skipped_iter = 1
 
     # Empty unused memory.
-    if mlm_config.empty_unused_memory_level >= 2:
+    if train_config.empty_unused_memory_level >= 2:
         torch.cuda.empty_cache()
 
     if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
@@ -521,9 +523,10 @@ def post_training_step_callbacks(
 ):
     """Run all post-training-step functions (e.g., FT heartbeats, GC)."""
     mlm_config = config.megatron_lm_config
+    train_config = config.train_config
 
     # Bring CPU and GPU back in sync if on right iteration.
-    if mlm_config.train_sync_interval and iteration % mlm_config.train_sync_interval == 0:
+    if train_config.train_sync_interval and iteration % train_config.train_sync_interval == 0:
         torch.cuda.synchronize()
 
     # Straggler detector.
@@ -536,8 +539,8 @@ def post_training_step_callbacks(
 
     # Check weight hash across DP replicas.
     if (
-        mlm_config.check_weight_hash_across_dp_replicas_interval is not None
-        and iteration % mlm_config.check_weight_hash_across_dp_replicas_interval == 0
+        train_config.check_weight_hash_across_dp_replicas_interval is not None
+        and iteration % train_config.check_weight_hash_across_dp_replicas_interval == 0
     ):
         if should_toggle_forward_pre_hook:
             disable_forward_pre_hook(model)
@@ -562,8 +565,8 @@ def post_training_step_callbacks(
             torch.cuda.cudart().cudaProfilerStop()
 
     # Manual garbage collection.
-    if mlm_config.manual_gc:
-        if mlm_config.manual_gc_interval != 0 and iteration % mlm_config.manual_gc_interval == 0:
+    if train_config.manual_gc:
+        if train_config.manual_gc_interval != 0 and iteration % train_config.manual_gc_interval == 0:
             gc.collect()
 
 
@@ -711,7 +714,7 @@ def checkpoint_and_decide_exit(
     # Exit based on signal handler.
     saved_checkpoint = False
 
-    if state.cfg.megatron_lm_config.exit_signal_handler:
+    if state.cfg.train_config.exit_signal_handler:
         signal_handler = state.signal_handler
         if any(signal_handler.signals_received()):
             if state.cfg.checkpoint_config.save:
@@ -763,7 +766,7 @@ def checkpoint_and_decide_exit(
         saved_checkpoint = True
 
     # Exit based on duration.
-    if state.cfg.megatron_lm_config.exit_duration_in_mins:
+    if state.cfg.train_config.exit_duration_in_mins:
         train_time = (time.time() - state.train_state.start_time) / 60.0
         done_cuda = torch.tensor(
             [train_time > state.cfg.checkpoint_config.exit_duration_in_mins], dtype=torch.int, device="cuda"
@@ -786,10 +789,7 @@ def checkpoint_and_decide_exit(
             return True
 
     # Exit based on iterations.
-    if (
-        state.cfg.megatron_lm_config.exit_interval
-        and state.train_state.step % state.cfg.megatron_lm_config.exit_interval == 0
-    ):
+    if state.cfg.train_config.exit_interval and state.train_state.step % state.cfg.train_config.exit_interval == 0:
         if state.cfg.checkpoint_config.save and not saved_checkpoint:
             save_checkpoint_and_time(
                 state,

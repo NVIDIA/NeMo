@@ -201,6 +201,7 @@ def training_log(
     wandb_logger = global_state.wandb_logger
     logger_config = config.logger_config
     mlm_config = config.megatron_lm_config
+    train_config = config.train_config
 
     # Advanced, skipped, and Nan iterations.
     advanced_iters_key = "advanced iterations"
@@ -255,7 +256,7 @@ def training_log(
     ]
 
     # Calculate batch size.
-    batch_size = mlm_config.micro_batch_size * config.data_parallel_size * get_num_microbatches()
+    batch_size = train_config.micro_batch_size * config.data_parallel_size * get_num_microbatches()
 
     total_iterations = total_loss_dict[advanced_iters_key] + total_loss_dict[skipped_iters_key]
 
@@ -383,7 +384,7 @@ def training_log(
             if wandb_logger:
                 wandb_logger.log({"iteration-time": elapsed_time_per_iteration}, train_state.step)
         log_string = f" [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
-        log_string += " iteration {:8d}/{:8d} |".format(train_state.step, mlm_config.train_iters)
+        log_string += " iteration {:8d}/{:8d} |".format(train_state.step, train_config.train_iters)
         log_string += " consumed samples: {:12d} |".format(global_state.train_state.consumed_train_samples)
         if global_state.train_state.skipped_train_samples > 0:
             log_string += " skipped samples: {:12d} |".format(global_state.train_state.skipped_train_samples)

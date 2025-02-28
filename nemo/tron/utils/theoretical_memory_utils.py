@@ -106,9 +106,10 @@ def compute_activation_memory(config: ConfigContainer, num_microbatches, verbose
 
     model_config = config.model_config
     mlm_config = config.megatron_lm_config
+    train_config = config.train_config
 
     # Memory footprint from transformer layer (self-attention and MLP).
-    activation_memory = (model_config.seq_length * mlm_config.micro_batch_size * model_config.hidden_size) * (
+    activation_memory = (model_config.seq_length * train_config.micro_batch_size * model_config.hidden_size) * (
         18 + (4 * (model_config.ffn_hidden_size / model_config.hidden_size))
     )
     if verbose:
@@ -122,12 +123,12 @@ def compute_activation_memory(config: ConfigContainer, num_microbatches, verbose
 
     # Input to embedding (pp_size microbatches in flight).
     activation_memory += (
-        8 * model_config.seq_length * mlm_config.micro_batch_size * model_config.pipeline_model_parallel_size
+        8 * model_config.seq_length * train_config.micro_batch_size * model_config.pipeline_model_parallel_size
     )
     # Dropout in embedding layer (pp_size microbatches in flight).
     activation_memory += (
         model_config.seq_length
-        * mlm_config.micro_batch_size
+        * train_config.micro_batch_size
         * model_config.hidden_size
         * model_config.pipeline_model_parallel_size
     )
@@ -161,7 +162,7 @@ def compute_activation_memory(config: ConfigContainer, num_microbatches, verbose
         # Inputs to output layer and CE loss.
         activation_memory += (
             model_config.seq_length
-            * mlm_config.micro_batch_size
+            * train_config.micro_batch_size
             * model_config.hidden_size
             * 4
             * (1 + (config.tokenizer_config.padded_vocab_size / model_config.hidden_size))
