@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import builtins
-from copy import deepcopy
 from itertools import chain
 
 import torch
@@ -36,6 +35,8 @@ from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
 from nemo.collections.tts.models import AudioCodecModel
+from nemo.utils import logging
+
 
 # class DuplexS2SModelConfig:
 #     pass
@@ -69,7 +70,7 @@ class DuplexS2SModel(LightningModule):
 
         # breakpoint()
 
-        self.lm_head = torch.nn.Linear(self.llm.config.hidden_size, self.tokenizer.vocab_size)
+        self.lm_head = torch.nn.Linear(self.llm.config.hidden_size, self.llm.config.vocab_size)
         self.audio_head = torch.nn.Linear(
             self.llm.config.hidden_size, 2048 * 8
         )  # TODO: self.audio_codec.codebook_size * num_codebooks ????
@@ -261,9 +262,13 @@ class DuplexS2SModel(LightningModule):
 
                 # Adjust attention module to use the local number of heads
                 attn_layer = transformer_block.self_attn
-                attn_layer.num_heads = attn_layer.num_heads // tp_mesh.size()
-                attn_layer.num_key_value_heads = attn_layer.num_key_value_heads // tp_mesh.size()
-                attn_layer.hidden_size = attn_layer.hidden_size // tp_mesh.size()
+                for attr in ("num_heads", "num_key_value_heads", "hidden_size"):
+                    val = getattr(attn_layer, attr)
+                    if val % tp_mesh.size() != 0:
+                        logging.warning(
+                            f"attn_layer.{attr}={val} is not divisible by {tp_mesh.size()=}: set a different tensor parallelism size to avoid errors."
+                        )
+                    setattr(attn_layer, attr, val // tp_mesh.size())
 
                 # Apply the plan for the current transformer block
                 parallelize_module(transformer_block, tp_mesh, plan)
