@@ -123,10 +123,7 @@ def get_train_valid_test_num_samples(cfg: ConfigContainer):
     """Train/valid/test num samples."""
 
     # Number of train/valid/test samples.
-    if cfg.megatron_lm_config.train_samples:
-        train_samples = cfg.megatron_lm_config.train_samples
-    else:
-        train_samples = cfg.megatron_lm_config.train_iters * cfg.megatron_lm_config.global_batch_size
+    train_samples = cfg.megatron_lm_config.train_iters * cfg.megatron_lm_config.global_batch_size
     eval_iters = (
         cfg.megatron_lm_config.train_iters // cfg.megatron_lm_config.eval_interval + 1
     ) * cfg.megatron_lm_config.eval_iters
