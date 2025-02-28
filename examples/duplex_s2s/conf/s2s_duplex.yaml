@@ -45,17 +45,21 @@ model:
        # null means [(kernel_size-1)//2, (kernel_size-1)//2], and 'causal' means [(kernel_size-1), 0]
        conv_context_size: causal
        ### regularization
-       dropout: 0.1 # The dropout used in most of the Conformer Modules
-       dropout_pre_encoder: 0.1 # The dropout used before the encoder
+       dropout: 0 # The dropout used in most of the Conformer Modules
+       dropout_pre_encoder: 0 # The dropout used before the encoder
        dropout_emb: 0.0 # The dropout used for embeddings
-       dropout_att: 0.1 # The dropout for multi-headed attention modules
+       dropout_att: 0 # The dropout for multi-headed attention modules
+#       dropout: 0.1 # The dropout used in most of the Conformer Modules
+#       dropout_pre_encoder: 0.1 # The dropout used before the encoder
+#       dropout_emb: 0.0 # The dropout used for embeddings
+#       dropout_att: 0.1 # The dropout for multi-headed attention modules
 
-     spec_augment:
-       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-       freq_masks: 2 # set to zero to disable it
-       time_masks: 10 # set to zero to disable it
-       freq_width: 27
-       time_width: 0.05
+#     spec_augment:
+#       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+#       freq_masks: 2 # set to zero to disable it
+#       time_masks: 10 # set to zero to disable it
+#       freq_width: 27
+#       time_width: 0.05
 
   optim:
     name: adamw
@@ -104,7 +108,9 @@ data:
 
 #    batch_size: 1
 #    batch_duration: 600
-    batch_duration: 150
+    batch_duration: 140
+    bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
+#    bucket_batch_size: [32, 24, 16, 8, 4]
     use_bucketing: true
     num_buckets: 5
     bucket_buffer_size: 5000
