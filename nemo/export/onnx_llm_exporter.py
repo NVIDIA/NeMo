@@ -220,22 +220,24 @@ class OnnxLLMExporter(ITritonDeployable):
 
     def export_onnx_to_trt(
         self,
-        trt_model_path: str,
+        trt_model_dir: str,
         profiles=None,
         override_layernorm_precision_to_fp32: bool = False,
         override_layers_to_fp32: List = None,
         trt_dtype: str = "fp16",
         profiling_verbosity: str = "layer_names_only",
+        trt_builder_flags: List[trt.BuilderFlag] = None,
     ) -> None:
         """Performs TensorRT conversion from an ONNX model.
 
         Args:
-            trt_model_path: path to store the TensorRT model.
+            trt_model_dir: path to store the TensorRT model.
             profiles: TensorRT profiles.
             override_layernorm_precision_to_fp32 (bool): whether to convert layers to fp32 or not.
             override_layers_to_fp32 (List): Layer names to be converted to fp32.
             trt_dtype (str): "fp16" or "fp32".
             profiling_verbosity (str): Profiling verbosity. Default is "layer_names_only".
+            trt_builder_flags (List[trt.BuilderFlag]): TRT specific flags.
         """
         logging.info(f"Building TRT engine from ONNX model ({self.onnx_model_path})")
         trt_logger = trt.Logger(trt.Logger.WARNING)
@@ -297,10 +299,17 @@ class OnnxLLMExporter(ITritonDeployable):
             raise ValueError(error_msg)
         logging.info(f"Setting Profiling Verbosity to {config.profiling_verbosity}")
 
+        if trt_builder_flags is not None:
+            for flag in trt_builder_flags:
+                config.set_flag(flag)
+
         engine_string = builder.build_serialized_network(network, config)
         if engine_string is None:
             raise Exception("Failed to serialize the TensorRT Engine. Please check the " "TensorRT logs for details")
 
+        trt_model_path = Path(trt_model_dir)
+        trt_model_path.mkdir(parents=True, exist_ok=True)
+        trt_model_path = trt_model_path / "model.plan"
         trt_model_path.write_bytes(engine_string)
         logging.info(f"Successfully exported ONNX model ({self.onnx_model_path}) " f"to TRT engine ({trt_model_path})")
 
