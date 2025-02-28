@@ -47,9 +47,12 @@ EOF
 
 ARG MLM_REPO
 ARG MLM_TAG
-RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/opt/NeMo/reinstall.sh \
-  bash /opt/NeMo/reinstall.sh --library mcore --mode build && \
+RUN --mount=type=bind,from=nemo-bump,source=/opt/NeMo/reinstall.sh,target=/opt/NeMo/reinstall.sh <<"EOF" bash -ex
+  export NEMO_DIR=/tmp/NeMo
+  export WHEELS_DIR=/tmp/wheels
+  bash /opt/NeMo/reinstall.sh --library mcore --mode build
   ls -al /opt/Megatron-LM || true
+EOF
 
 WORKDIR /workspace
 RUN \
