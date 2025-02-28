@@ -23,13 +23,13 @@ from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
+    args_sanity_check,
     get_user_configs,
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
     set_primary_perf_configs,
     slurm_executor,
-    args_sanity_check,
 )
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
@@ -115,7 +115,8 @@ if __name__ == "__main__":
         args.gpus_per_node,
         args.time_limit,
         args.container_image,
-        ccustom_mounts=args.custom_mounts,ustom_mounts=[],
+        ccustom_mounts=args.custom_mounts,
+        ustom_mounts=[],
         custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,

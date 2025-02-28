@@ -27,7 +27,7 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import import_ckpt_experiment, slurm_executor, args_sanity_check
+from ..utils import args_sanity_check, import_ckpt_experiment, slurm_executor
 
 NUM_NODES = 1
 NUM_GPUS_PER_NODE = 8
@@ -338,7 +338,8 @@ if __name__ == "__main__":
         assert args.wandb_prj_name is not None
         assert args.wandb_job_name is not None
         from nemo.collections.llm.recipes.log.default import wandb_logger
-        recipe.log.wandb=wandb_logger(project=args.wandb_prj_name, name=args.wandb_job_name)
+
+        recipe.log.wandb = wandb_logger(project=args.wandb_prj_name, name=args.wandb_job_name)
 
     plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if PP_SIZE > 1 else None)]
     if args.enable_nsys:

@@ -23,13 +23,13 @@ from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
+    args_sanity_check,
     get_user_configs,
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
     set_primary_perf_configs,
     slurm_executor,
-    args_sanity_check,
 )
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-70B"

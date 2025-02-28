@@ -21,13 +21,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    get_user_configs,
-    hf_tokenizer,
-    set_primary_perf_configs,
-    slurm_executor,
-    args_sanity_check,
-)
+from ..utils import args_sanity_check, get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
 
 
 def override_recipe_configs(

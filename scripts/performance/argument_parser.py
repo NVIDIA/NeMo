@@ -249,8 +249,10 @@ def parse_cli_args():
         required=False,
         default=100,
     )
+
     def list_of_strings(arg):
         return arg.split(',')
+
     parser.add_argument(
         "-cm",
         "--custom_mounts",

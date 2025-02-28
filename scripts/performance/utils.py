@@ -236,7 +236,8 @@ def set_primary_perf_configs(
         recipe.log.log_dir = "/nemo_run/lightning_logs"  # saves file at- `<log_dir>/lightning_logs/tb_logs
     if enable_wd:
         from nemo.collections.llm.recipes.log.default import wandb_logger
-        recipe.log.wandb=wandb_logger(project=wandb_prj_name, name=wandb_job_name)
+
+        recipe.log.wandb = wandb_logger(project=wandb_prj_name, name=wandb_job_name)
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
