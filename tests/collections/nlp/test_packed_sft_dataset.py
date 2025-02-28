@@ -31,33 +31,34 @@ def create_data_points(temp_file, answer_only_loss=True):
     '''
     # explanation of data:
     # input_ids: concatenated (packed) sequences that each end in EOS (index = 2)
-    # loss_mask: 0 denotes context, 1 denotes answer
+    #            context has low unit digit and answer has high unit digit
+    # loss_mask: 0 denotes context, 1 denotes answer, 0 for eos tokens
     # seq_start_id: start index of each sequence in the pack
     output_data = [
         {
-            'input_ids': [10, 11, 12, 2, 20, 21, 22, 23, 2, 30, 31, 32, 2],
-            'loss_mask': [0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1],
+            'input_ids': [10, 11, 19, 2, 20, 21, 22, 29, 2, 30, 38, 39, 2],
+            'loss_mask': [0, 0, 1, 0,    0, 0, 0, 1, 0,     0, 1, 1, 0],
             'seq_start_id': [0, 4, 9],
         },
         {
-            'input_ids': [10, 11, 12, 2, 20, 21, 22, 23, 2, 30, 31, 32, 33, 34, 35, 2],
-            'loss_mask': [0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+            'input_ids': [10, 11, 19, 2, 20, 21, 22, 29, 2, 30, 35, 36, 37, 38, 39, 2],
+            'loss_mask': [0, 0, 1, 0,    0, 0, 0, 1, 0,     0, 1, 1, 1, 1, 1, 0],
             'seq_start_id': [0, 4, 9],
         },
     ]
 
     expected_output = [
         {
-            "tokens": [10, 11, 12, 20, 21, 22, 23, 30, 31, 32],
-            "labels": [11, 12, 2, 21, 22, 23, 2, 31, 32, 2],
-            "loss_mask": [0, 1, 1, 0, 0, 1, 1, 1, 1, 1] if answer_only_loss else [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            "tokens": [10, 11, 19, 20, 21, 22, 29, 30, 38, 39],
+            "labels": [11, 19, 2, 21, 22, 29, 2, 38, 39, 2],
+            "loss_mask": [0, 0, 1, 0, 0, 0, 1, 0, 1, 1] if answer_only_loss else [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             "position_ids": [0, 1, 2, 0, 1, 2, 3, 0, 1, 2],
             "cu_seqlens": [0, 3, 7, 10],
         },
         {
-            "tokens": [10, 11, 12, 20, 21, 22, 23, 30, 31, 32, 33, 34, 35],
-            "labels": [11, 12, 2, 21, 22, 23, 2, 31, 32, 33, 34, 35, 2],
-            "loss_mask": [0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1]
+            "tokens": [10, 11, 19, 20, 21, 22, 29, 30, 35, 36, 37, 38, 39],
+            "labels": [11, 19, 2, 21, 22, 29, 2, 35, 36, 37, 38, 39, 2],
+            "loss_mask": [0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1]
             if answer_only_loss
             else [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             "position_ids": [0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5],
