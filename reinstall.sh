@@ -184,6 +184,8 @@ else
     NUMBA_VERSION=0.57.1
     echo 'Installing numba=='${NUMBA_VERSION}
     conda install -y -c conda-forge numba==${NUMBA_VERSION}
+  else
+    pip install --no-cache-dir torch
   fi
 fi
 
