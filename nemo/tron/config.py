@@ -524,8 +524,8 @@ class ConfigContainer:
         # Distributed
         world_size = get_world_size_safe()
         encoder_model_size = (
-            self.dist_config.encoder_tensor_model_parallel_size
-            * self.dist_config.encoder_pipeline_model_parallel_size
+            getattr(self.model_config, "encoder_tensor_model_parallel_size", 0)
+            * getattr(self.model_config, "encoder_pipeline_model_parallel_size", 0)
             * self.model_config.context_parallel_size
         )
         decoder_model_size = (
