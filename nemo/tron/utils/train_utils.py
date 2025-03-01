@@ -200,7 +200,6 @@ def training_log(
     tb_logger = global_state.tensorboard_logger
     wandb_logger = global_state.wandb_logger
     logger_config = config.logger_config
-    mlm_config = config.megatron_lm_config
     train_config = config.train_config
 
     # Advanced, skipped, and Nan iterations.

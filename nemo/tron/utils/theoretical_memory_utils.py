@@ -25,7 +25,6 @@ NUM_BYTES_IN_MEGABYTE = 1024 * 1024
 
 def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose=False):
     model_config = config.model_config
-    mlm_config = config.megatron_lm_config
     # Attention projection size.
     query_projection_size = model_config.kv_channels * model_config.num_attention_heads
     query_projection_to_hidden_size_ratio = query_projection_size / model_config.hidden_size
@@ -107,7 +106,6 @@ def compute_activation_memory(config: ConfigContainer, num_microbatches, verbose
     # different from hidden_size.
 
     model_config = config.model_config
-    mlm_config = config.megatron_lm_config
     train_config = config.train_config
 
     # Memory footprint from transformer layer (self-attention and MLP).

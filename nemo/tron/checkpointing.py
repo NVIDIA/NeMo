@@ -1126,8 +1126,8 @@ def load_checkpoint(
             ckpt_tp_pp = (
                 run_config["model_config"]["tensor_model_parallel_size"],
                 run_config["model_config"]["pipeline_model_parallel_size"],
-                run_config["megatron_lm_config"]["encoder_tensor_model_parallel_size"],
-                run_config["megatron_lm_config"]["encoder_pipeline_model_parallel_size"],
+                run_config["model_config"].get("encoder_tensor_model_parallel_size", 0),
+                run_config["model_config"].get("encoder_pipeline_model_parallel_size", 0),
             )
             run_tp_pp = (
                 cfg.model_config.tensor_model_parallel_size,

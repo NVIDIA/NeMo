@@ -36,7 +36,7 @@ from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model
 
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import save_checkpoint
-from nemo.tron.config import CheckpointConfig, ConfigContainer, MegatronLMConfig
+from nemo.tron.config import CheckpointConfig, ConfigContainer
 from nemo.tron.eval import evaluate_and_print_results
 from nemo.tron.init import destroy_global_state
 from nemo.tron.state import GlobalState
@@ -84,7 +84,6 @@ def train(
 ):
     config: ConfigContainer = global_state.cfg
     model_config = get_model_config(model[0])
-    mlm_config = config.megatron_lm_config
     train_config = config.train_config
     timers = global_state.timers
     straggler_timer = global_state.straggler_timer
@@ -432,7 +431,6 @@ def train_step(
     cfg: ConfigContainer = global_state.cfg
     timers = global_state.timers
     model_config = get_model_config(model[0])
-    mlm_config = cfg.megatron_lm_config
     train_config = cfg.train_config
     optim_config = cfg.optimizer_config
 
@@ -522,7 +520,6 @@ def post_training_step_callbacks(
     should_toggle_forward_pre_hook: bool,
 ):
     """Run all post-training-step functions (e.g., FT heartbeats, GC)."""
-    mlm_config = config.megatron_lm_config
     train_config = config.train_config
 
     # Bring CPU and GPU back in sync if on right iteration.

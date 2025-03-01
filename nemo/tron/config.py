@@ -184,24 +184,6 @@ class TrainingConfig:
     """If set, bypass the training loop, optionally do evaluation for validation/test, and exit."""
 
 
-# TODO (maanug): split this up into modular components
-
-
-@dataclass
-class MegatronLMConfig:
-    """MegatronLM config."""
-
-    # ---------------- Network size config. ----------------
-
-    # ---------------- Training config. ----------------
-
-    # ---------------- Initialization config. ----------------
-
-    # ---------------- Data and dataloader config. ----------------
-
-    # ---------------- Moe config. ----------------
-
-
 @dataclass
 class DistributedInitConfig:
     # ---------------- Distributed config. ----------------
@@ -522,7 +504,6 @@ class StragglerDetectionConfig:
 class ConfigContainer:
     rng_config: RNGConfig = field(default_factory=RNGConfig)
     rerun_state_machine_config: RerunStateMachineConfig = field(default_factory=RerunStateMachineConfig)
-    megatron_lm_config: MegatronLMConfig
     train_config: TrainingConfig
     model_config: GPTConfig | T5Config
     optimizer_config: OptimizerConfig
@@ -542,7 +523,6 @@ class ConfigContainer:
 
         # Distributed
         world_size = get_world_size_safe()
-        mlc = self.megatron_lm_config
         encoder_model_size = (
             self.dist_config.encoder_tensor_model_parallel_size
             * self.dist_config.encoder_pipeline_model_parallel_size
