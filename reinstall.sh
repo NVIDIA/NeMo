@@ -9,11 +9,11 @@ ALL_LIBRARIES=(
   "vllm"
 )
 
-INSTALL_OPTION=${1:-dev}
-HEAVY_DEPS=${HEAVY_DEPS:-false}
-CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-INSTALL_DIR=${INSTALL_DIR:-"/opt"}
-WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
+export INSTALL_OPTION=${1:-dev}
+export HEAVY_DEPS=${HEAVY_DEPS:-false}
+export CURR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+export INSTALL_DIR=${INSTALL_DIR:-"/opt"}
+export WHEELS_DIR=${WHEELS_DIR:-"$INSTALL_DIR/wheels"}
 
 PIP=pip
 ${PIP} install -U ${PIP} setuptools
