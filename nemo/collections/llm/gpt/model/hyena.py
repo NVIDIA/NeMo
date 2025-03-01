@@ -215,6 +215,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     add_bias_output: bool = False
     use_te: bool = True
     to_upper: str = "normalized_weighted"  # choose between "weighted" and "normalized_weighted"
+    use_short_conv_bias: bool = False
 
     def __post_init__(self):
         """
@@ -290,6 +291,7 @@ class HyenaTestConfig(HyenaConfig):
     hyena_init_method: str = 'small_init'
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True
+    use_short_conv_bias: bool = False
 
 
 @dataclass
@@ -302,6 +304,7 @@ class HyenaNVTestConfig(HyenaTestConfig):
 
     remove_activation_post_first_layer: bool = False
     add_attn_proj_bias: bool = False
+    use_short_conv_bias: bool = True
 
 
 @dataclass
@@ -347,6 +350,7 @@ class HyenaNV1bConfig(Hyena1bConfig):
 
     remove_activation_post_first_layer: bool = False
     add_attn_proj_bias: bool = False
+    use_short_conv_bias: bool = True
 
 
 @dataclass
@@ -392,6 +396,7 @@ class HyenaNV7bConfig(Hyena7bConfig):
 
     remove_activation_post_first_layer: bool = False
     add_attn_proj_bias: bool = False
+    use_short_conv_bias: bool = True
 
 
 @dataclass
@@ -437,6 +442,7 @@ class HyenaNV40bConfig(Hyena40bConfig):
 
     remove_activation_post_first_layer: bool = False
     add_attn_proj_bias: bool = False
+    use_short_conv_bias: bool = True
 
 
 @dataclass
@@ -510,7 +516,7 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
         class ModelState:
             """Wrapper around the source model state dictionary that also handles some weight transformations."""
 
-            def __init__(self, state_dict, num_layers):
+            def __init__(self, state_dict, num_layers, fp32_suffixes):
                 """Wrapper around the source model state dictionary that also handles some weight transformations.
 
                 Args:
@@ -520,6 +526,7 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
                 self.num_layers = num_layers
                 state_dict = self.transform_source_dict(state_dict)
                 self._state_dict = state_dict
+                self.fp32_suffixes = fp32_suffixes
 
             def state_dict(self):
                 """Return the state dictionary."""
@@ -531,7 +538,12 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
                     if "_extra" not in k:
                         if v.dtype != dtype:
                             logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
-                        self._state_dict[k] = v.to(dtype)
+                        k_suffix = k.split('.')[-1]
+                        if k_suffix in self.fp32_suffixes:
+                            _dtype = torch.float32
+                        else:
+                            _dtype = dtype
+                        self._state_dict[k] = v.to(_dtype)
 
             def adjust_medium_filter(self, updated_data):
                 """Adjust the medium filter."""
@@ -572,11 +584,14 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
                 updated_data = self.adjust_medium_filter(updated_data)
                 return updated_data
 
-        source = ModelState(source, self.config.num_layers)
         target = self.init()
         trainer = self.nemo_setup(target, ckpt_async_save=False, save_ckpt_format=checkpoint_format)
-        source.to(self.config.params_dtype)
         target.to(self.config.params_dtype)
+        fp32_suffixes = {n.split('.')[-1] for n, p in target.named_parameters() if p.dtype == torch.float32}
+        assert len(fp32_suffixes) > 0, "No float32 parameters found"
+        source = ModelState(source, self.config.num_layers, fp32_suffixes)
+        source.to(self.config.params_dtype)
+
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 

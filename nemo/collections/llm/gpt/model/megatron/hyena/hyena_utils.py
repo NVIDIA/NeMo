@@ -104,6 +104,18 @@ import torch.distributed as dist
 from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint, sharded_state_dict_default
 
 
+def stick_to_float32(module: nn.Module):
+    """
+    This is a hack to prevent Megatron float16 module wrapper from casting key float32 parameters to
+        config.params_dtype. The way torch currently implements module.bfloat16() will skip casting any parameter that
+        returns False for is_floating_point().
+    """
+    for param in module.parameters():
+        param.is_floating_point = lambda: False
+    for buffer in module.buffers():
+        buffer.is_floating_point = lambda: False
+
+
 def _get_zigzag_indices(N, device=None):
     """
     Generates the zigzag indices for rearrangement.
@@ -489,54 +501,65 @@ def _mul_sum(y, q):
     return (y * q).sum(dim=1)
 
 
-def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=False):
-    """
-    Perform a fast Fourier transform convolution.
-    """
-    seqlen = u.shape[-1]
-    fft_size = 2 * seqlen
+def fftconv1d(
+    x: torch.Tensor, kernel: torch.Tensor, shortcut: torch.Tensor | None = None, bidirectional: bool = False
+) -> torch.Tensor:
+    """1D FFT convolution with optional shortcut. When shortcut provided, then the output is given by shortcut(x) + conv(x, kernel).
 
-    # bidirectional
+    Args:
+        x (torch.Tensor): Input tensor of shape (batch_size, hidden_dim, seq_len).
+        kernel (torch.Tensor): Kernel tensor of shape (hidden_dim, kernel_len) or (hidden_dim, 1, kernel_len).
+        shortcut (torch.Tensor | None, optional): Optional shortcut tensor of shape (hidden_dim). Defaults to None.
+        bidirectional (bool, optional): If `True`, performs bidirectional convolution. Otherwise, performs causal conv.
+            Defaults to `False` for backward compatibility.
+
+    Returns:
+        torch.Tensor: Output tensor of shape (batch_size, hidden_dim, seq_len).
+    """
+    assert x.dtype == torch.float32, f"x must be float32. Current dtype: {x.dtype}"
+    assert kernel.dtype == torch.float32, f"kernel must be float32. Current dtype: {kernel.dtype}"
+    if shortcut is not None:
+        assert shortcut.dtype == torch.float32, f"shortcut must be float32. Current dtype: {shortcut.dtype}"
+
+    batch_size, hidden_dim, seq_len = x.shape
+
+    if len(kernel.shape) == 2:
+        kernel = rearrange(kernel, "h l -> 1 h l")
+    elif len(kernel.shape) == 3:
+        assert kernel.shape == (hidden_dim, 1, seq_len)
+        kernel = rearrange(kernel, "h 1 l -> 1 h l")
+    else:
+        raise ValueError(f"Unexpected kernel shape: {kernel.shape}.")
+
+    _, _, kernel_len = kernel.shape
+    assert kernel_len <= 2 * seq_len, f"Kernel length must be less than or equal to 2 * seq_len. Got {kernel_len}."
+
+    # If the kernel is bigger than the input sequence, use fft_len = 2 * seq_len
+    fft_len = seq_len + min(kernel_len, seq_len)
+
     if bidirectional:
-        u_f = torch.fft.rfft(u.to(dtype=k.dtype), n=fft_size)
+        assert kernel.shape[1] == x.shape[1] * 2
+        # To avoid the first value to be used two times, we set it to zero.
+        kernel[:, hidden_dim:, 0] = 0.0
 
-        # split k along the channel dimension
-        k, k2 = k.split(k.shape[1] // 2, dim=1)
+    fft_x, fft_kernel = torch.fft.rfft(x, n=fft_len, dim=-1), torch.fft.rfft(kernel, n=fft_len, dim=-1)
 
-        # get fft of both k's
-        k_f = torch.fft.rfft(k, n=fft_size) / fft_size
-        k2_f = torch.fft.rfft(k2, n=fft_size) / fft_size
-
-        if len(u.shape) > 3:
-            k_f = k_f.unsqueeze(1)
-            k2_f = k2_f.unsqueeze(1)
-
-        y1 = u_f * k_f
-        y2 = u_f.conj() * k2_f.conj()
-
-        y = torch.fft.irfft(y1 + y2, n=fft_size, norm="forward")[..., :seqlen]
-
-    # causal
+    if bidirectional:
+        fft_kernel_1, fft_kernel_2 = fft_kernel.chunk(2, dim=1)  # [1, h, l], [1, h, l]
+        # Flipping on the spatial dimension is equivalent to taking the conjugate in the Fourier domain.
+        # Hence, we take the conjugate of the second part of the kernel.
+        # This means that: fft_y = (fft_x * fft_kernel_1) + (fft_x * fft_kernel_2.conj())
+        #                        = (fft_x * (fft_kernel_1 + fft_kernel_2.conj()))
+        fft_y = fft_x * (fft_kernel_1 + fft_kernel_2.conj())
     else:
-        k_f = torch.fft.rfft(k, n=fft_size) / fft_size
-        if k_rev is not None:
-            k_rev_f = torch.fft.rfft(k_rev, n=fft_size) / fft_size
-            k_f = k_f + k_rev_f.conj()
+        fft_y = fft_x * fft_kernel
 
-        u_f = torch.fft.rfft(u.to(dtype=k.dtype), n=fft_size)
+    y = torch.fft.irfft(fft_y, n=fft_len)[..., :seq_len]
 
-        if len(u.shape) > 3:
-            k_f = k_f.unsqueeze(1)
-
-        y = torch.fft.irfft(u_f * k_f, n=fft_size, norm="forward")[..., :seqlen]
-
-    out = y + u * D.unsqueeze(-1)
-    if gelu:
-        out = F.gelu(out)
-    if dropout_mask is not None:
-        return (out * rearrange(dropout_mask, "b H -> b H 1")).to(dtype=u.dtype)
-    else:
-        return out.to(dtype=u.dtype)
+    if shortcut is not None:
+        assert shortcut.shape == (hidden_dim,)
+        y = y + rearrange(shortcut, "h -> 1 h 1") * x
+    return y
 
 
 class ImplicitModalFilter(nn.Module):
@@ -572,6 +595,8 @@ class ImplicitModalFilter(nn.Module):
             setattr(self.gamma, 'tensor_model_parallel', True)
             setattr(self.R, 'tensor_model_parallel', True)
             setattr(self.p, 'tensor_model_parallel', True)
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def get_t(self, L):
         """
@@ -591,7 +616,19 @@ class ImplicitModalFilter(nn.Module):
         """
         Compute the filter for convolution.
         """
-        assert t.dtype == torch.float32, f't must be float32. Current dtype: {t.dtype}'
+        assert (
+            t.dtype == torch.float32
+        ), f"t must be float32. At lower precision, indexes will be merged together. Current dtype: {t.dtype}"
+        # TODO: See if we can get this kernel to stay FP32
+        assert (
+            self.p.dtype == torch.float32
+        ), f"p must be float32. At lower precision, indexes will be merged together. Current dtype: {self.p.dtype}"
+        assert (
+            self.gamma.dtype == torch.float32
+        ), f"gamma must be float32. At lower precision, indexes will be merged together. Current dtype: {self.gamma.dtype}"
+        assert (
+            self.R.dtype == torch.float32
+        ), f"R must be float32. At lower precision, indexes will be merged together. Current dtype: {self.R.dtype}"
 
         logp = -torch.exp(self.p.to(torch.float32))
         glogp = logp * torch.exp(self.gamma.to(torch.float32))
@@ -654,6 +691,7 @@ class ExplicitSingleDecayFilter(nn.Module):
             h = h * 1e-5
         if unit_passthrough:
             h[:, :1] = 1.0
+
         self.h = nn.Parameter(h)
         t = torch.linspace(0, 1, L_cache)[None]
         self.log_r_min = log_r_min
@@ -662,6 +700,8 @@ class ExplicitSingleDecayFilter(nn.Module):
         decay = torch.exp((-decay * t).cuda())
         self.register_buffer("decay", decay)
         setattr(self.h, 'tensor_model_parallel', True)
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def forward(self, L, *args, **kwargs):
         """
@@ -748,7 +788,7 @@ def initialize_affine_weight_gpu(weight, init_method, partition_dim, stride=1):
     weight.partition_stride = stride
 
     with get_cuda_rng_tracker().fork():
-        init_method(weight)
+        init_method(weight.data)  # modify the data in place
 
 
 def get_groups_and_group_sizes(hidden_size, num_groups, world_size, expand_factor):
@@ -876,6 +916,7 @@ class ParallelHyenaOperator(nn.Module):
                 L_cache=self.hyena_medium_conv_len,
                 decay_preset=hyena_config.explicit_filter_decay_preset,
             )
+            self.kernel_size = self.hyena_medium_conv_len
         elif self.hyena_filter_cls == "implicit_modal":
             self.filter = ImplicitModalFilter(
                 d_model=self.num_groups,
@@ -884,31 +925,45 @@ class ParallelHyenaOperator(nn.Module):
                 gamma_min=hyena_config.modal_gamma_min,
                 gamma_max=hyena_config.modal_gamma_max,
             )
+            self.kernel_size = self.L
         else:
             raise ValueError(f"Unknown hyena filter class: {self.hyena_filter_cls}")
 
         with get_cuda_rng_tracker().fork():
             if self.use_slow_heads:
-                self.conv_bias = nn.Parameter(
-                    torch.empty(
-                        self.num_groups,
-                        device=torch.cuda.current_device(),
-                        dtype=torch.float32,
-                    )
+                self.register_parameter(
+                    'conv_bias',
+                    nn.Parameter(
+                        torch.empty(
+                            self.num_groups,
+                            device=torch.cuda.current_device(),
+                            dtype=torch.float32,
+                        )
+                    ),
                 )
             else:
-                self.conv_bias = nn.Parameter(
-                    torch.empty(
-                        self.width_per_tp_group,
-                        device=torch.cuda.current_device(),
-                        dtype=torch.float32,
-                    )
+                # Register parameter with explicit fp32 dtype and register_buffer=False to keep it in fp32
+                # even when the model is cast to a different dtype
+                self.register_parameter(
+                    'conv_bias',
+                    nn.Parameter(
+                        torch.empty(
+                            self.width_per_tp_group,
+                            device=torch.cuda.current_device(),
+                            dtype=torch.float32,
+                        )
+                    ),
                 )
+                # Add attribute to prevent automatic casting during model conversion
             setattr(self.conv_bias, 'tensor_model_parallel', True)
-
-        self.conv_bias.model_parallel = True
-        self.conv_bias.partition_dim = 0
-        self.conv_bias.stride = 1
+            bounds = math.sqrt(1 / self.kernel_size)
+            conv_init_method = partial(torch.nn.init.uniform_, a=-bounds, b=bounds)
+            self.conv_bias.data = conv_init_method(self.conv_bias.data)
+            self.conv_bias.model_parallel = True
+            self.conv_bias.partition_dim = 0
+            self.conv_bias.stride = 1
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def multihead_forward(self, q, k, v, h):
         """
@@ -949,6 +1004,7 @@ class ParallelHyenaOperator(nn.Module):
             Input shapes: bs, seq_length, (num_groups, group_size)
             Output shapes: bs, seq_length, num_groups, group_size
         """
+
         B, L, G, DG = x1.shape
 
         # CP control
@@ -1084,16 +1140,14 @@ class ParallelHyenaOperator(nn.Module):
                 z = self.fftconv_fn(v, h, x2, x1)
             else:
                 z = x2 * v
-                with torch.autocast("cuda"):
-                    z = fftconv_func(
-                        z.to(torch.float32),
-                        h.to(torch.float32),
-                        conv_bias,
-                        None,
-                        gelu=False,
-                        bidirectional=self.bidirectional,
-                    )
-                    z = z.to(v.dtype)
+                # with torch.autocast("cuda"):
+                z = fftconv1d(
+                    x=z.to(torch.float32),
+                    kernel=h.squeeze(0).to(torch.float32),
+                    shortcut=conv_bias.to(torch.float32),
+                    bidirectional=self.bidirectional,
+                )
+                z = z.to(v.dtype)
                 z = x1 * z
 
         # if downsampled:
@@ -1147,6 +1201,7 @@ class ParallelShortHyenaOperator(nn.Module):
         use_fast_causal_conv=False,
         is_mlp=False,  # TODO: Check if needed, only used when using Hyena for the MLP block
         local_init=False,
+        use_conv_bias=True,
     ):
         super().__init__()
         self.transformer_config = transformer_config
@@ -1227,6 +1282,25 @@ class ParallelShortHyenaOperator(nn.Module):
             local_init=local_init,
         )
         self.kernel_fn, self.fwd_kernel_cfg, self.bwd_kernel_cfg = self.prepare_kernel_configs()
+        self.use_conv_bias = use_conv_bias
+        if self.use_conv_bias:
+            with get_cuda_rng_tracker().fork():
+                self.conv_bias = nn.Parameter(
+                    torch.empty(
+                        self.num_groups,
+                        device=torch.cuda.current_device(),
+                        dtype=torch.float32,
+                    )
+                )
+                setattr(self.conv_bias, 'tensor_model_parallel', True)
+                bounds = math.sqrt(1 / kernel_size)
+                conv_init_method = partial(torch.nn.init.uniform_, a=-bounds, b=bounds)
+                self.conv_bias.data = conv_init_method(self.conv_bias.data)
+                self.conv_bias.model_parallel = True
+                self.conv_bias.partition_dim = 0
+                self.conv_bias.stride = 1
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def prepare_kernel_configs(self):
         """
@@ -1428,7 +1502,13 @@ class ParallelShortHyenaOperator(nn.Module):
             x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
 
             z = x2 * v if self.pregate else v
-            z = self.short_conv(z, _use_cp=_hyena_use_cp)
+            if not self.use_conv_bias:
+                z = self.short_conv(z, _use_cp=_hyena_use_cp)
+            else:
+                # maybe handle num_groups
+                bias = self.conv_bias.repeat_interleave(self.group_dim, dim=0)
+                z = self.short_conv(z, _use_cp=_hyena_use_cp) + rearrange(bias, "h -> 1 h 1") * z  # conv(z) + bias * z
+
             z = x1 * z if self.postgate else z
 
             return rearrange(z, "b d l -> b l d")
@@ -1509,7 +1589,10 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         if local_init:
             self.short_conv_weight.data = conv_init_method(self.short_conv_weight.data)
         else:
+            # Call this on the module because it also modifies module attributes in addition to the data.
             initialize_affine_weight_gpu(self.short_conv_weight, conv_init_method, partition_dim=0)
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def forward(self, x, _use_cp=True):
         """

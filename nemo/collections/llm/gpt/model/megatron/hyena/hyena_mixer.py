@@ -168,6 +168,7 @@ class HyenaMixer(MegatronModule):
                 short_conv_class=ParallelCausalDepthwiseConv1d,
                 use_fast_causal_conv=self.fast_conv_mixer,
                 is_mlp=self.is_mlp,
+                use_conv_bias=self.transformer_config.use_short_conv_bias,
             )
 
         if self.operator_type in [

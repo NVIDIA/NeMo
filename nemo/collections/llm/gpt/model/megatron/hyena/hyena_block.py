@@ -314,7 +314,6 @@ class HyenaStack(MegatronModule):
         # Final layer norm.
         if self.post_process and self.post_layer_norm:
             hidden_states = self.final_norm(hidden_states)
-
         return hidden_states
 
     def sharded_state_dict(
