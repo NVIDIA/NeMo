@@ -109,11 +109,13 @@ def stick_to_float32(module: nn.Module):
     This is a hack to prevent Megatron float16 module wrapper from casting key float32 parameters to
         config.params_dtype. The way torch currently implements module.bfloat16() will skip casting any parameter that
         returns False for is_floating_point().
+
+    Note this does not work with parameter buffers in distributed training.
     """
-    for param in module.parameters():
-        param.is_floating_point = lambda: False
-    for buffer in module.buffers():
-        buffer.is_floating_point = lambda: False
+    # for param in module.parameters():
+    #    param.is_floating_point = lambda: False
+    # for buffer in module.buffers():
+    #    buffer.is_floating_point = lambda: False
 
 
 def _get_zigzag_indices(N, device=None):
@@ -501,65 +503,56 @@ def _mul_sum(y, q):
     return (y * q).sum(dim=1)
 
 
-def fftconv1d(
-    x: torch.Tensor, kernel: torch.Tensor, shortcut: torch.Tensor | None = None, bidirectional: bool = False
-) -> torch.Tensor:
-    """1D FFT convolution with optional shortcut. When shortcut provided, then the output is given by shortcut(x) + conv(x, kernel).
+def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=False):
+    seqlen = u.shape[-1]
+    fft_size = 2 * seqlen
 
-    Args:
-        x (torch.Tensor): Input tensor of shape (batch_size, hidden_dim, seq_len).
-        kernel (torch.Tensor): Kernel tensor of shape (hidden_dim, kernel_len) or (hidden_dim, 1, kernel_len).
-        shortcut (torch.Tensor | None, optional): Optional shortcut tensor of shape (hidden_dim). Defaults to None.
-        bidirectional (bool, optional): If `True`, performs bidirectional convolution. Otherwise, performs causal conv.
-            Defaults to `False` for backward compatibility.
+    # check if k is less than seqlen
+    if k.shape[-1] < seqlen:
+        # Pad the filter k to the length of the input sequence u
+        k_padded = torch.nn.functional.pad(k, (0, seqlen - k.shape[-1]))
 
-    Returns:
-        torch.Tensor: Output tensor of shape (batch_size, hidden_dim, seq_len).
-    """
-    assert x.dtype == torch.float32, f"x must be float32. Current dtype: {x.dtype}"
-    assert kernel.dtype == torch.float32, f"kernel must be float32. Current dtype: {kernel.dtype}"
-    if shortcut is not None:
-        assert shortcut.dtype == torch.float32, f"shortcut must be float32. Current dtype: {shortcut.dtype}"
-
-    batch_size, hidden_dim, seq_len = x.shape
-
-    if len(kernel.shape) == 2:
-        kernel = rearrange(kernel, "h l -> 1 h l")
-    elif len(kernel.shape) == 3:
-        assert kernel.shape == (hidden_dim, 1, seq_len)
-        kernel = rearrange(kernel, "h 1 l -> 1 h l")
-    else:
-        raise ValueError(f"Unexpected kernel shape: {kernel.shape}.")
-
-    _, _, kernel_len = kernel.shape
-    assert kernel_len <= 2 * seq_len, f"Kernel length must be less than or equal to 2 * seq_len. Got {kernel_len}."
-
-    # If the kernel is bigger than the input sequence, use fft_len = 2 * seq_len
-    fft_len = seq_len + min(kernel_len, seq_len)
-
+    # bidirectional
     if bidirectional:
-        assert kernel.shape[1] == x.shape[1] * 2
-        # To avoid the first value to be used two times, we set it to zero.
-        kernel[:, hidden_dim:, 0] = 0.0
+        u_f = torch.fft.rfft(u.to(dtype=k.dtype), n=fft_size)
 
-    fft_x, fft_kernel = torch.fft.rfft(x, n=fft_len, dim=-1), torch.fft.rfft(kernel, n=fft_len, dim=-1)
+        # split k along the channel dimension
+        k, k2 = k.split(k.shape[1] // 2, dim=1)
 
-    if bidirectional:
-        fft_kernel_1, fft_kernel_2 = fft_kernel.chunk(2, dim=1)  # [1, h, l], [1, h, l]
-        # Flipping on the spatial dimension is equivalent to taking the conjugate in the Fourier domain.
-        # Hence, we take the conjugate of the second part of the kernel.
-        # This means that: fft_y = (fft_x * fft_kernel_1) + (fft_x * fft_kernel_2.conj())
-        #                        = (fft_x * (fft_kernel_1 + fft_kernel_2.conj()))
-        fft_y = fft_x * (fft_kernel_1 + fft_kernel_2.conj())
+        # get fft of both k's
+        k_f = torch.fft.rfft(k, n=fft_size) / fft_size
+        k2_f = torch.fft.rfft(k2, n=fft_size) / fft_size
+
+        if len(u.shape) > 3:
+            k_f = k_f.unsqueeze(1)
+            k2_f = k2_f.unsqueeze(1)
+
+        y1 = u_f * k_f
+        y2 = u_f.conj() * k2_f.conj()
+
+        y = torch.fft.irfft(y1 + y2, n=fft_size, norm="forward")[..., :seqlen]
+
+    # causal
     else:
-        fft_y = fft_x * fft_kernel
+        k_f = torch.fft.rfft(k, n=fft_size) / fft_size
+        if k_rev is not None:
+            k_rev_f = torch.fft.rfft(k_rev, n=fft_size) / fft_size
+            k_f = k_f + k_rev_f.conj()
 
-    y = torch.fft.irfft(fft_y, n=fft_len)[..., :seq_len]
+        u_f = torch.fft.rfft(u.to(dtype=k.dtype), n=fft_size)
 
-    if shortcut is not None:
-        assert shortcut.shape == (hidden_dim,)
-        y = y + rearrange(shortcut, "h -> 1 h 1") * x
-    return y
+        if len(u.shape) > 3:
+            k_f = k_f.unsqueeze(1)
+
+        y = torch.fft.irfft(u_f * k_f, n=fft_size, norm="forward")[..., :seqlen]
+
+    out = y + u * D.unsqueeze(-1)
+    if gelu:
+        out = F.gelu(out)
+    if dropout_mask is not None:
+        return (out * rearrange(dropout_mask, "b H -> b H 1")).to(dtype=u.dtype)
+    else:
+        return out.to(dtype=u.dtype)
 
 
 class ImplicitModalFilter(nn.Module):
@@ -619,16 +612,16 @@ class ImplicitModalFilter(nn.Module):
         assert (
             t.dtype == torch.float32
         ), f"t must be float32. At lower precision, indexes will be merged together. Current dtype: {t.dtype}"
-        # TODO: See if we can get this kernel to stay FP32
-        assert (
-            self.p.dtype == torch.float32
-        ), f"p must be float32. At lower precision, indexes will be merged together. Current dtype: {self.p.dtype}"
-        assert (
-            self.gamma.dtype == torch.float32
-        ), f"gamma must be float32. At lower precision, indexes will be merged together. Current dtype: {self.gamma.dtype}"
-        assert (
-            self.R.dtype == torch.float32
-        ), f"R must be float32. At lower precision, indexes will be merged together. Current dtype: {self.R.dtype}"
+        # TODO: See if we can get this kernel to stay FP32. We can but it does not work with the distributed optimizer.
+        # assert (
+        #     self.p.dtype == torch.float32
+        # ), f"p must be float32. At lower precision, indexes will be merged together. Current dtype: {self.p.dtype}"
+        # assert (
+        #     self.gamma.dtype == torch.float32
+        # ), f"gamma must be float32. At lower precision, indexes will be merged together. Current dtype: {self.gamma.dtype}"
+        # assert (
+        #     self.R.dtype == torch.float32
+        # ), f"R must be float32. At lower precision, indexes will be merged together. Current dtype: {self.R.dtype}"
 
         logp = -torch.exp(self.p.to(torch.float32))
         glogp = logp * torch.exp(self.gamma.to(torch.float32))
@@ -672,6 +665,7 @@ class ExplicitSingleDecayFilter(nn.Module):
         unit_passthrough=False,
         decay_preset="strong",
         small_init=True,
+        num_decay_repeats=1,
     ):
         super().__init__()
         with get_cuda_rng_tracker().fork():
@@ -691,15 +685,20 @@ class ExplicitSingleDecayFilter(nn.Module):
             h = h * 1e-5
         if unit_passthrough:
             h[:, :1] = 1.0
-
+        self.num_decay_repeats = num_decay_repeats
         self.h = nn.Parameter(h)
         t = torch.linspace(0, 1, L_cache)[None]
         self.log_r_min = log_r_min
         self.log_r_max = log_r_max
-        decay = torch.logspace(log_r_min, log_r_max, d_model)[:, None]
-        decay = torch.exp((-decay * t).cuda())
+        self.model_parallel_rank = get_tensor_model_parallel_rank()
+        self.model_parallel_size = get_tensor_model_parallel_world_size()
+        global_d_model = d_model * self.model_parallel_size // self.num_decay_repeats
+        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model)[:, None].repeat(self.num_decay_repeats, 1)
+        decay_domain = decay_domain[self.model_parallel_rank * d_model : (self.model_parallel_rank + 1) * d_model, :]
+        decay = torch.exp((-decay_domain * t).cuda())
         self.register_buffer("decay", decay)
         setattr(self.h, 'tensor_model_parallel', True)
+        setattr(self.decay, 'tensor_model_parallel', True)
         # Mark parameters in self as float32 only
         stick_to_float32(self)
 
@@ -1141,10 +1140,12 @@ class ParallelHyenaOperator(nn.Module):
             else:
                 z = x2 * v
                 # with torch.autocast("cuda"):
-                z = fftconv1d(
-                    x=z.to(torch.float32),
-                    kernel=h.squeeze(0).to(torch.float32),
-                    shortcut=conv_bias.to(torch.float32),
+                z = fftconv_func(
+                    u=z.to(torch.float32),
+                    k=h.to(torch.float32),
+                    D=conv_bias.to(torch.float32),
+                    dropout_mask=None,
+                    gelu=False,
                     bidirectional=self.bidirectional,
                 )
                 z = z.to(v.dtype)

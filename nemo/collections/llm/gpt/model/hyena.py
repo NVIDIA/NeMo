@@ -588,10 +588,8 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
         trainer = self.nemo_setup(target, ckpt_async_save=False, save_ckpt_format=checkpoint_format)
         target.to(self.config.params_dtype)
         fp32_suffixes = {n.split('.')[-1] for n, p in target.named_parameters() if p.dtype == torch.float32}
-        assert len(fp32_suffixes) > 0, "No float32 parameters found"
         source = ModelState(source, self.config.num_layers, fp32_suffixes)
         source.to(self.config.params_dtype)
-
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
