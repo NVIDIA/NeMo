@@ -491,6 +491,7 @@ jobs:
         +model.train_ds.hf_data_cfg.split="test.clean" \
         +model.train_ds.hf_data_cfg.streaming=true \
         +model.train_ds.hf_data_cfg.trust_remote_code=True \
+        ++model.train_ds.hf_data_cfg.cache_dir=/home/TestData/HF_HOME \
         ~model.validation_ds.hf_data_cfg \
         model.validation_ds.streaming=true \
         +model.validation_ds.hf_data_cfg.path="librispeech_asr" \
@@ -498,6 +499,7 @@ jobs:
         +model.validation_ds.hf_data_cfg.split="test.clean" \
         +model.validation_ds.hf_data_cfg.streaming=true \
         +model.validation_ds.hf_data_cfg.trust_remote_code=True \
+        ++model.validation_ds.hf_data_cfg.cache_dir=/home/TestData/HF_HOME \
         ~model.test_ds \
         init_from_nemo_model=/home/TestData/asr/stt_en_fastconformer_transducer_large.nemo \
         model.tokenizer.update_tokenizer=False \
@@ -1469,14 +1471,14 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_notebook')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: self-hosted-azure
       SCRIPT: |
-        jupyter nbconvert --to script tutorials/llm/hf/peft.ipynb --output _peft
-        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_peft.py
-        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_peft.py
-        cp tutorials/llm/hf/_peft.py /tmp/_peft.py
-        grep -iv push_to_hub /tmp/_peft.py > tutorials/llm/hf/_peft.py
-        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_peft.py
+        jupyter nbconvert --to script tutorials/llm/automodel/peft.ipynb --output _peft
+        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/automodel/_peft.py
+        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/automodel/_peft.py
+        cp tutorials/llm/automodel/_peft.py /tmp/_peft.py
+        grep -iv push_to_hub /tmp/_peft.py > tutorials/llm/automodel/_peft.py
+        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/automodel/_peft.py
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1615,7 +1617,13 @@ jobs:
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
+        TRANSFORMERS_OFFLINE=1 \
+        NCCL_CHECK_POINTERS=1 \
+        NCCL_DEBUG=TRACE \
+        NCCL_DEBUG_SUBSYS=INIT,ENV,GRAPH,NET,COLL \
+        NCCL_DEBUG_FILE=nccl_log.%h.%p.txt \
+        python tests/collections/llm/hf/sft_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
+        cat nccl_log*
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -1668,14 +1676,14 @@ jobs:
     uses: ./.github/workflows/_test_template.yml
     if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_notebook')
     with:
-      RUNNER: self-hosted-azure-gpus-1
+      RUNNER: self-hosted-azure
       SCRIPT: |
-        jupyter nbconvert --to script tutorials/llm/hf/sft.ipynb --output _sft
-        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/hf/_sft.py
-        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/hf/_sft.py
-        cp tutorials/llm/hf/_sft.py /tmp/_sft.py
-        grep -iv push_to_hub /tmp/_sft.py > tutorials/llm/hf/_sft.py
-        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/hf/_sft.py
+        jupyter nbconvert --to script tutorials/llm/automodel/sft.ipynb --output _sft
+        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/automodel/_sft.py
+        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/automodel/_sft.py
+        cp tutorials/llm/automodel/_sft.py /tmp/_sft.py
+        grep -iv push_to_hub /tmp/_sft.py > tutorials/llm/automodel/_sft.py
+        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/automodel/_sft.py
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
@@ -2775,10 +2783,10 @@ jobs:
       SCRIPT: |
         bash tests/collections/llm/bitexact/mixtral/run.sh
 
-  L2_NeMo_2_PTQ_Llama2_FP8:
+  L2_NeMo_2_PTQ_Llama2_FP8_trtllm:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_trtllm')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |
@@ -2789,6 +2797,21 @@ jobs:
       AFTER_SCRIPT: |
         rm -rf /tmp/nemo2_ckpt
         rm -rf /tmp/nemo2_ptq_engine
+
+  L2_NeMo_2_PTQ_Llama2_FP8_nemo:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_nemo')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |
+        python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
+
+        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_ckpt --export_format nemo
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/nemo2_ckpt
+        rm -rf /tmp/nemo2_ptq_ckpt
 
   L2_NeMo_2_Distill_Llama3_TP1PP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -3115,7 +3138,8 @@ jobs:
       - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
       - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
-      - L2_NeMo_2_PTQ_Llama2_FP8
+      - L2_NeMo_2_PTQ_Llama2_FP8_trtllm
+      - L2_NeMo_2_PTQ_Llama2_FP8_nemo
       - L2_NeMo_2_Distill_Llama3_TP1PP2
       - L2_NeMo_2_Export_In_Framework
       - L2_NeMo_2_jit_callback
