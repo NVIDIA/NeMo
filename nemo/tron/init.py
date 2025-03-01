@@ -93,7 +93,7 @@ def _torch_dist_init(
             print("> setting random seeds to {} ...".format(cfg.rng_config.seed))
         _set_random_seed(
             cfg.rng_config.seed,
-            cfg.megatron_lm_config.data_parallel_random_init,
+            cfg.rng_config.data_parallel_random_init,
             cfg.rng_config.te_rng_tracker,
             cfg.rng_config.inference_rng_tracker,
         )
@@ -136,8 +136,8 @@ def _initialize_tp_communicators(cfg: ConfigContainer):
             "Tensor Parallel Communication/GEMM Overlap optimization needs 'yaml' and 'transformer_engine' packages"
         )
 
-    if cfg.megatron_lm_config.tp_comm_overlap_cfg is not None:
-        with open(cfg.megatron_lm_config.tp_comm_overlap_cfg, "r") as stream:
+    if cfg.model_config.tp_comm_overlap_cfg is not None:
+        with open(cfg.model_config.tp_comm_overlap_cfg, "r") as stream:
             ub_cfgs = yaml.safe_load(stream)
     else:
         ub_cfgs = {}

@@ -60,11 +60,11 @@ def evaluate(
     with torch.no_grad():
         iteration = 0
         if verbose:
-            print_rank_0(f"Evaluating on {state.cfg.megatron_lm_config.eval_iters * eval_batch_size} samples")
-        while iteration < state.cfg.megatron_lm_config.eval_iters:
+            print_rank_0(f"Evaluating on {state.cfg.train_config.eval_iters * eval_batch_size} samples")
+        while iteration < state.cfg.train_config.eval_iters:
             iteration += 1
             if verbose:
-                print_rank_0(f"Evaluating iter {iteration}/{state.cfg.megatron_lm_config.eval_iters}")
+                print_rank_0(f"Evaluating iter {iteration}/{state.cfg.train_config.eval_iters}")
 
             forward_backward_func = get_forward_backward_func()
             # Don't care about timing during evaluation

@@ -38,6 +38,9 @@ class RNGConfig:
     inference_rng_tracker: bool = False
     """Use a random number generator configured for inference."""
 
+    data_parallel_random_init: bool = False
+    """Enable random initialization of params across data parallel ranks"""
+
 
 @dataclass
 class RerunStateMachineConfig:
@@ -103,6 +106,15 @@ class TokenizerConfig:
 
 @dataclass
 class GPTDatasetConfig(MCoreGPTDatasetConfig):
+    dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
+    """Single pass vs multiple pass data loader"""
+
+    num_workers: int = 8
+    """Dataloader number of workers."""
+
+    data_sharding: bool = True
+    """Disable data sharding."""
+
     def __post_init__(self) -> None:
         super(MCoreGPTDatasetConfig, self).__post_init__()
 
@@ -148,8 +160,8 @@ class TrainingConfig:
     exit_signal_handler: bool = False
     """Dynamically save the checkpoint and shutdown the training if SIGTERM is received"""
 
-    dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
-    """Single pass vs multiple pass data loader"""
+    exit_signal_handler_for_dataloader: bool = False
+    """Use signal handler for dataloader workers"""
 
     manual_gc: bool = False
     """Disable the threshold-based default garbage collector and trigger the garbage collection manually. Manual garbage collection helps to align the timing of the collection across ranks which mitigates the impact of CPU-associated jitters. When the manual gc is enabled, garbage collection is performed only at the start and the end of the validation routine by default."""
@@ -159,6 +171,17 @@ class TrainingConfig:
 
     manual_gc_eval: bool = True
     """When using manual garbage collection, disable garbage collection at the start and the end of each evaluation run."""
+
+    # ---------------- Validation config. ----------------
+
+    eval_iters: int = 100
+    """Number of iterations to run for evaluation validation/test for."""
+
+    eval_interval: int = 1000
+    """Interval between running evaluation on validation set."""
+
+    skip_train: bool = False
+    """If set, bypass the training loop, optionally do evaluation for validation/test, and exit."""
 
 
 # TODO (maanug): split this up into modular components
@@ -172,35 +195,9 @@ class MegatronLMConfig:
 
     # ---------------- Training config. ----------------
 
-    tp_comm_overlap_cfg: Optional[str] = None
-    """Config file when tp_comm_overlap is enabled."""
-
-    exit_signal_handler_for_dataloader: bool = False
-    """Use signal handler for dataloader workers"""
-
     # ---------------- Initialization config. ----------------
 
-    data_parallel_random_init: bool = False
-    """Enable random initialization of params across data parallel ranks"""
-
-    # ---------------- Validation config. ----------------
-
-    eval_iters: int = 100
-    """Number of iterations to run for evaluation validation/test for."""
-
-    eval_interval: int = 1000
-    """Interval between running evaluation on validation set."""
-
-    skip_train: bool = False
-    """If set, bypass the training loop, optionally do evaluation for validation/test, and exit."""
-
     # ---------------- Data and dataloader config. ----------------
-
-    num_workers: int = 8
-    """Dataloader number of workers."""
-
-    data_sharding: bool = True
-    """Disable data sharding."""
 
     # ---------------- Moe config. ----------------
 

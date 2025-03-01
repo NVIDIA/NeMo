@@ -131,7 +131,7 @@ def setup(
         cfg.ddp_config,
         use_torch_fsdp2=cfg.dist_config.use_torch_fsdp2,
         overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
-        data_parallel_random_init=cfg.megatron_lm_config.data_parallel_random_init,
+        data_parallel_random_init=cfg.rng_config.data_parallel_random_init,
     )
     cfg.optimizer_config.timers = timers
     optimizer, scheduler = setup_optimizer(cfg, model)

@@ -455,7 +455,7 @@ def save_checkpoint(
 
     # Collect rng state across data parallel ranks.
     rng_state = get_rng_state(
-        data_parallel_random_init=cfg.megatron_lm_config.data_parallel_random_init,
+        data_parallel_random_init=cfg.rng_config.data_parallel_random_init,
         use_dist_ckpt=ckpt_type != CheckpointType.LEGACY,
     )
 
@@ -1148,7 +1148,7 @@ def load_checkpoint(
                 and run_config["checkpoint_config"]["save_rng"]
             ):
                 gen_sd_rng_state = get_rng_state(
-                    data_parallel_random_init=cfg.megatron_lm_config.data_parallel_random_init, use_dist_ckpt=True
+                    data_parallel_random_init=cfg.rng_config.data_parallel_random_init, use_dist_ckpt=True
                 )  # we can load the rng state
             else:
                 gen_sd_rng_state = None
@@ -1334,7 +1334,7 @@ def load_checkpoint(
         try:
             if "rng_state" in state_dict:
                 # access rng_state for data parallel rank
-                if cfg.megatron_lm_config.data_parallel_random_init:
+                if cfg.rng_config.data_parallel_random_init:
                     rng_state = state_dict["rng_state"][mpu.get_data_parallel_rank()]
                 else:
                     rng_state = state_dict["rng_state"][0]

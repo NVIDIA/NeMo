@@ -334,8 +334,8 @@ def train(
 
         if (
             global_state.train_state.do_valid
-            and mlm_config.eval_interval
-            and global_state.train_state.step % mlm_config.eval_interval == 0
+            and train_config.eval_interval
+            and global_state.train_state.step % train_config.eval_interval == 0
         ):
             timers("interval-time").stop()
             if should_toggle_forward_pre_hook:
@@ -359,7 +359,7 @@ def train(
                 non_loss_data_func=non_loss_data_func,
             )
             eval_duration += timers("eval-time").elapsed()
-            eval_iterations += mlm_config.eval_iters
+            eval_iterations += train_config.eval_iters
             timers("eval-time").stop()
 
             if train_config.manual_gc and train_config.manual_gc_eval:
