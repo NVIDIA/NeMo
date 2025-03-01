@@ -120,6 +120,8 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         context_parallel_size (int): context parallelism.
         params_dtype (torch.dtype): max input length.
         inference_batch_times_seqlen_threshold (int): squence threshold.
+        inference_max_seq_length (int): max_seq_length for inference. Required by MCoreEngine (>=0.12). Defaults to
+        4096.
     """
 
     def __init__(
@@ -133,6 +135,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         expert_model_parallel_size: int = 1,
         params_dtype: torch.dtype = torch.bfloat16,
         inference_batch_times_seqlen_threshold: int = 1000,
+        inference_max_seq_length: int = 4096
     ):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
 
@@ -165,6 +168,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             trainer=trainer,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+            inference_max_seq_length=inference_max_seq_length
         )
 
     def generate(
