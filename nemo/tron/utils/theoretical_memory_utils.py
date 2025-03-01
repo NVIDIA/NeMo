@@ -16,6 +16,8 @@
 
 import math
 
+import torch.nn.functional as F
+
 from nemo.tron.config import ConfigContainer
 
 NUM_BYTES_IN_MEGABYTE = 1024 * 1024
@@ -33,7 +35,7 @@ def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose=False):
     )
     # MoE.
     num_experts = 1 if model_config.num_moe_experts is None else model_config.num_moe_experts
-    gated_linear_multiplier = 3 / 2 if mlm_config.swiglu else 1
+    gated_linear_multiplier = 3 / 2 if model_config.gated_linear_unit and model_config.activation_func == F.silu else 1
     num_parameters_in_transformer_layers = (
         2
         * model_config.num_layers
@@ -51,7 +53,7 @@ def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose=False):
         )
     )
     embedding_size = model_config.hidden_size * config.tokenizer_config.padded_vocab_size
-    if mlm_config.untie_embeddings_and_output_weights:
+    if not model_config.share_embeddings_and_output_weights:
         num_parameters_in_embedding_layers = 2 * embedding_size
     else:
         num_parameters_in_embedding_layers = embedding_size
@@ -70,7 +72,7 @@ def compute_weight_and_optimizer_memory(config: ConfigContainer, verbose=False):
     num_parameters_on_most_loaded_model_shard = (
         (num_parameters_in_transformer_layers / model_config.pipeline_model_parallel_size) + embedding_size
     ) / model_config.tensor_model_parallel_size
-    if mlm_config.untie_embeddings_and_output_weights and model_config.pipeline_model_parallel_size == 1:
+    if not model_config.share_embeddings_and_output_weights and model_config.pipeline_model_parallel_size == 1:
         num_parameters_on_most_loaded_model_shard += embedding_size / model_config.tensor_model_parallel_size
     if verbose:
         print(

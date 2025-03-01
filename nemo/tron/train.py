@@ -452,7 +452,7 @@ def train_step(
             num_microbatches=get_num_microbatches(),
             seq_length=model_config.seq_length,
             micro_batch_size=train_config.micro_batch_size,
-            decoder_seq_length=mlm_config.decoder_seq_length,
+            decoder_seq_length=model_config.seq_length,
             forward_only=False,
         )
     should_checkpoint, should_exit, exit_code = rerun_state_machine.should_checkpoint_and_exit()

@@ -223,8 +223,10 @@ def _initialize_distributed(
                 distributed_timeout_minutes=cfg.dist_config.distributed_timeout_minutes,
                 nccl_communicator_config_path=cfg.dist_config.nccl_communicator_config_path,
                 order="tp-cp-ep-dp-pp" if not cfg.dist_config.use_tp_pp_dp_mapping else "tp-pp-dp",
-                encoder_tensor_model_parallel_size=cfg.dist_config.encoder_tensor_model_parallel_size,
-                encoder_pipeline_model_parallel_size=cfg.dist_config.encoder_pipeline_model_parallel_size,
+                encoder_tensor_model_parallel_size=getattr(cfg.model_config, "encoder_tensor_model_parallel_size", 0),
+                encoder_pipeline_model_parallel_size=getattr(
+                    cfg.model_config, "encoder_pipeline_model_parallel_size", 0
+                ),
                 get_embedding_ranks=get_embedding_ranks,
                 get_position_embedding_ranks=get_position_embedding_ranks,
             )

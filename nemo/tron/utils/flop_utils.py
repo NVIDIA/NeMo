@@ -29,7 +29,9 @@ def num_floating_point_operations(cfg: ConfigContainer, batch_size: int):
 
     # MoE.
     num_experts_routed_to = 1 if cfg.model_config.num_moe_experts is None else cfg.model_config.moe_router_topk
-    gated_linear_multiplier = 3 / 2 if cfg.model_config.activation_func == F.silu else 1
+    gated_linear_multiplier = (
+        3 / 2 if cfg.model_config.gated_linear_unit and cfg.model_config.activation_func == F.silu else 1
+    )
     shared_expert_ffn_hidden_size = (
         0
         if cfg.model_config.moe_shared_expert_intermediate_size is None

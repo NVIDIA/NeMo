@@ -140,13 +140,8 @@ def setup(
     barrier_and_log("after model, optimizer, and learning rate scheduler are built")
 
     # Load checkpoint if applicable
-    if (
-        (cfg.checkpoint_config.load is not None or cfg.checkpoint_config.pretrained_checkpoint is not None)
-        and not cfg.megatron_lm_config.moe_use_upcycling
-        and (
-            checkpoint_exists(cfg.checkpoint_config.load)
-            or checkpoint_exists(cfg.checkpoint_config.pretrained_checkpoint)
-        )
+    if (cfg.checkpoint_config.load is not None or cfg.checkpoint_config.pretrained_checkpoint is not None) and (
+        checkpoint_exists(cfg.checkpoint_config.load) or checkpoint_exists(cfg.checkpoint_config.pretrained_checkpoint)
     ):
         timers("load-checkpoint", log_level=0).start(barrier=True)
 

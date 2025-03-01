@@ -148,12 +148,6 @@ class TrainingConfig:
     exit_signal_handler: bool = False
     """Dynamically save the checkpoint and shutdown the training if SIGTERM is received"""
 
-    bias_gelu_fusion: bool = True
-    """Disable bias and GeLU fusion."""
-
-    bias_swiglu_fusion: bool = True
-    """Disable bias and swiglu fusion, the fusion is available only when using megatron-core."""
-
     dataloader_type: Optional[Literal["single", "cyclic", "external"]] = None
     """Single pass vs multiple pass data loader"""
 
@@ -175,15 +169,6 @@ class MegatronLMConfig:
     """MegatronLM config."""
 
     # ---------------- Network size config. ----------------
-
-    model_type: ModelType = ModelType.encoder_or_decoder
-    """Model architecture type."""
-
-    swiglu: bool = False  # NOTE: where does MCore check for/apply 'rounding' of FFN hidden sizes?
-    """Use gated linear units and SiLU activation instead of default GeLU."""
-
-    untie_embeddings_and_output_weights: bool = False
-    """Untie embeddings and output weights."""
 
     # ---------------- Training config. ----------------
 
@@ -211,9 +196,6 @@ class MegatronLMConfig:
 
     # ---------------- Data and dataloader config. ----------------
 
-    decoder_seq_length: Optional[int] = None
-    """Maximum decoder sequence length to process."""
-
     num_workers: int = 8
     """Dataloader number of workers."""
 
@@ -222,19 +204,10 @@ class MegatronLMConfig:
 
     # ---------------- Moe config. ----------------
 
-    moe_use_upcycling: bool = False
-    """Load a checkpoint of a dense model, convert it into an MoE model, and save the converted model to the path specified by --save. Upcycling is implemented on the top of distributed checkpointing, so it supports parallel modes different from the dense model."""
-
 
 @dataclass
 class DistributedInitConfig:
     # ---------------- Distributed config. ----------------
-
-    encoder_tensor_model_parallel_size: int = 0
-    """Degree of tensor model parallelism for the encoder."""
-
-    encoder_pipeline_model_parallel_size: int = 0
-    """Degree of pipeline model parallelism in the encoder. This is independent of the amount of pipeline in the decoder."""
 
     distributed_backend: Literal["nccl", "gloo"] = "nccl"
     """Which backend to use for distributed training."""
