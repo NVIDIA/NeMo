@@ -135,7 +135,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         expert_model_parallel_size: int = 1,
         params_dtype: torch.dtype = torch.bfloat16,
         inference_batch_times_seqlen_threshold: int = 1000,
-        inference_max_seq_length: int = 4096
+        inference_max_seq_length: int = 4096,
     ):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
 
@@ -168,7 +168,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             trainer=trainer,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            inference_max_seq_length=inference_max_seq_length
+            inference_max_seq_length=inference_max_seq_length,
         )
 
     def generate(
@@ -199,7 +199,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         results = inference.generate(
             model=self.inference_wrapped_model,
             tokenizer=self.mcore_tokenizer,
-            prompts=prompts, #new_prompst
+            prompts=prompts,  # new_prompst
             max_batch_size=max_batch_size,
             random_seed=random_seed,
             inference_params=inference_params,
