@@ -114,6 +114,7 @@ vllm() {
     fi
 
     ${PIP} install --no-cache-dir virtualenv &&
+      $INSTALL_Dir/venv/bin/pip install --no-cache-dir coverage &&
       $INSTALL_DIR/venv/bin/pip install --no-cache-dir --no-build-isolation $WHEELS_DIR/*.whl || true
   fi
 
