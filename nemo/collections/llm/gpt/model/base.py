@@ -410,7 +410,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return self.forward_step(batch)
 
-    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length) -> torch.Tensor:
         # This is to get the MCore model required in GPTInferenceWrapper.
         mcore_model = self.module
         while mcore_model:
@@ -436,6 +436,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=vocab_size,
+            inference_max_seq_length=inference_max_seq_length
         )
 
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)

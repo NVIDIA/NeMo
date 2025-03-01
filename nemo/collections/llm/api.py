@@ -806,6 +806,7 @@ def generate(
     max_batch_size: int = 4,
     random_seed: Optional[int] = None,
     inference_batch_times_seqlen_threshold: int = 1000,
+    inference_max_seq_length: int = 4096,
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
     output_path: Optional[AnyPath] = None,
@@ -870,6 +871,8 @@ def generate(
         random_seed (Optional[int], optional): The random seed. Defaults to None.
         inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller than
             this threshold then we will not use pipelining, otherwise we will. Defaults to 1000.
+        inference_max_seq_length (int, optional): max_seq_length for inference. Required by MCoreEngine(>=0.12).
+        Deafults to 4096.
         inference_params (Optional["CommonInferenceParams"], optional): The inference parameters defined in
             Mcore's CommonInferenceParams. Defaults to None.
         text_only (bool, optional): Whether to return only the generated text as a string. Defaults to False.
