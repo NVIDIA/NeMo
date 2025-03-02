@@ -97,6 +97,8 @@ if HAVE_TE:
             ),
         ),
     )
+else:
+    hyena_stack_spec = ModuleSpec()
 
 # Layer spec without TE modules, for debugging
 
