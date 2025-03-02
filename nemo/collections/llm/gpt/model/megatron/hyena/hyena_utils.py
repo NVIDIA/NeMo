@@ -1588,14 +1588,14 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
             )
             setattr(self.short_conv_weight, 'tensor_model_parallel', True)
 
-        # Use the standard PyTorch Conv1d class init: https://pytorch.org/docs/master/generated/torch.nn.Conv1d.html
-        bounds = math.sqrt(1 / hyena_config.short_conv_L)
-        conv_init_method = partial(torch.nn.init.uniform_, a=-bounds, b=bounds)
-        if local_init:
-            self.short_conv_weight.data = conv_init_method(self.short_conv_weight.data)
-        else:
-            # Call this on the module because it also modifies module attributes in addition to the data.
-            initialize_affine_weight_gpu(self.short_conv_weight, conv_init_method, partition_dim=0)
+            # Use the standard PyTorch Conv1d class init: https://pytorch.org/docs/master/generated/torch.nn.Conv1d.html
+            bounds = math.sqrt(1 / hyena_config.short_conv_L)
+            conv_init_method = partial(torch.nn.init.uniform_, a=-bounds, b=bounds)
+            if local_init:
+                self.short_conv_weight.data = conv_init_method(self.short_conv_weight.data)
+            else:
+                # Call this on the module because it also modifies module attributes in addition to the data.
+                initialize_affine_weight_gpu(self.short_conv_weight, conv_init_method, partition_dim=0)
         # Mark parameters in self as float32 only
         stick_to_float32(self)
 
