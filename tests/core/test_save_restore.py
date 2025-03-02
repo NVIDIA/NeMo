@@ -34,6 +34,7 @@ from nemo.utils.exceptions import NeMoBaseException
 def set_env():
     os.environ["HF_HOME"] = "/home/TestData/hf_home_test_save_restore"
 
+
 def classpath(cls):
     return f'{cls.__module__}.{cls.__name__}'
 
