@@ -50,6 +50,7 @@ jobs:
       matrix:
         image: ["ubuntu:22.04"]
         installer: ["pip", "reinstall.sh"]
+        
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
