@@ -35,56 +35,59 @@ try:
         TENorm,
         TERowParallelLinear,
     )
+    HAVE_TE = True
 except ImportError:
+    HAVE_TE = False
     pass
 
 # Layer spec with TE modules
-hyena_stack_spec = ModuleSpec(
-    module=HyenaStack,
-    submodules=HyenaStackSubmodules(
-        hyena_layer=ModuleSpec(
-            module=HyenaLayer,
-            submodules=HyenaLayerSubmodules(
-                mixer=ModuleSpec(
-                    module=HyenaMixer,
-                    submodules=HyenaMixerSubmodules(
-                        dense_projection=TELayerNormColumnParallelLinear, dense=TERowParallelLinear
+if HAVE_TE:
+    hyena_stack_spec = ModuleSpec(
+        module=HyenaStack,
+        submodules=HyenaStackSubmodules(
+            hyena_layer=ModuleSpec(
+                module=HyenaLayer,
+                submodules=HyenaLayerSubmodules(
+                    mixer=ModuleSpec(
+                        module=HyenaMixer,
+                        submodules=HyenaMixerSubmodules(
+                            dense_projection=TELayerNormColumnParallelLinear, dense=TERowParallelLinear
+                        ),
                     ),
-                ),
-                hyena_bda=get_bias_dropout_add,
-                mlp=ModuleSpec(
-                    module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear
+                    hyena_bda=get_bias_dropout_add,
+                    mlp=ModuleSpec(
+                        module=MLP,
+                        submodules=MLPSubmodules(
+                            linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear
+                        ),
                     ),
+                    mlp_bda=get_bias_dropout_add,
                 ),
-                mlp_bda=get_bias_dropout_add,
+            ),
+            attention_layer=ModuleSpec(
+                module=TransformerLayer,
+                submodules=TransformerLayerSubmodules(
+                    self_attention=ModuleSpec(
+                        module=SelfAttention,
+                        params={"attn_mask_type": AttnMaskType.causal},
+                        submodules=SelfAttentionSubmodules(
+                            linear_qkv=TELayerNormColumnParallelLinear,
+                            core_attention=TEDotProductAttention,
+                            linear_proj=TERowParallelLinear,
+                        ),
+                    ),
+                    self_attn_bda=get_bias_dropout_add,
+                    mlp=ModuleSpec(
+                        module=MLP,
+                        submodules=MLPSubmodules(
+                            linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear
+                        ),
+                    ),
+                    mlp_bda=get_bias_dropout_add,
+                ),
             ),
         ),
-        attention_layer=ModuleSpec(
-            module=TransformerLayer,
-            submodules=TransformerLayerSubmodules(
-                self_attention=ModuleSpec(
-                    module=SelfAttention,
-                    params={"attn_mask_type": AttnMaskType.causal},
-                    submodules=SelfAttentionSubmodules(
-                        linear_qkv=TELayerNormColumnParallelLinear,
-                        core_attention=TEDotProductAttention,
-                        linear_proj=TERowParallelLinear,
-                    ),
-                ),
-                self_attn_bda=get_bias_dropout_add,
-                mlp=ModuleSpec(
-                    module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear
-                    ),
-                ),
-                mlp_bda=get_bias_dropout_add,
-            ),
-        ),
-    ),
-)
+    )
 
 # Layer spec without TE modules, for debugging
 
