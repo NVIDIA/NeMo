@@ -39,7 +39,15 @@ try:
     HAVE_TE = True
 except ImportError:
     HAVE_TE = False
-    pass
+
+    def _raise_te_import_error(*args, **kwargs):
+        raise ImportError("Transformer Engine is not installed")
+
+    # NeMo has a number of tests that make sure that you can initialize some modules without TE installed.
+    TENorm = _raise_te_import_error
+    TELayerNormColumnParallelLinear = _raise_te_import_error
+    TERowParallelLinear = _raise_te_import_error
+    TEDotProductAttention = _raise_te_import_error
 
 # Layer spec with TE modules
 if HAVE_TE:
