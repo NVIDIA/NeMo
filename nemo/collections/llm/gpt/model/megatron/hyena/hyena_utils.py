@@ -104,20 +104,6 @@ import torch.distributed as dist
 from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint, sharded_state_dict_default
 
 
-def stick_to_float32(module: nn.Module):
-    """
-    This is a hack to prevent Megatron float16 module wrapper from casting key float32 parameters to
-        config.params_dtype. The way torch currently implements module.bfloat16() will skip casting any parameter that
-        returns False for is_floating_point().
-
-    Note this does not work with parameter buffers in distributed training.
-    """
-    # for param in module.parameters():
-    #    param.is_floating_point = lambda: False
-    # for buffer in module.buffers():
-    #    buffer.is_floating_point = lambda: False
-
-
 def _get_zigzag_indices(N, device=None):
     """
     Generates the zigzag indices for rearrangement.
@@ -589,8 +575,6 @@ class ImplicitModalFilter(nn.Module):
             setattr(self.gamma, 'tensor_model_parallel', True)
             setattr(self.R, 'tensor_model_parallel', True)
             setattr(self.p, 'tensor_model_parallel', True)
-        # Mark parameters in self as float32 only
-        stick_to_float32(self)
 
     def get_t(self, L):
         """
@@ -701,8 +685,6 @@ class ExplicitSingleDecayFilter(nn.Module):
         self.register_buffer("decay", decay)
         setattr(self.h, 'tensor_model_parallel', True)
         setattr(self.decay, 'tensor_model_parallel', True)
-        # Mark parameters in self as float32 only
-        stick_to_float32(self)
 
     def forward(self, L, *args, **kwargs):
         """
@@ -955,8 +937,6 @@ class ParallelHyenaOperator(nn.Module):
             self.conv_bias.model_parallel = True
             self.conv_bias.partition_dim = 0
             self.conv_bias.stride = 1
-        # Mark parameters in self as float32 only
-        stick_to_float32(self)
 
     def multihead_forward(self, q, k, v, h):
         """
@@ -1294,8 +1274,6 @@ class ParallelShortHyenaOperator(nn.Module):
                 self.conv_bias.model_parallel = True
                 self.conv_bias.partition_dim = 0
                 self.conv_bias.stride = 1
-        # Mark parameters in self as float32 only
-        stick_to_float32(self)
 
     def prepare_kernel_configs(self):
         """
@@ -1588,7 +1566,8 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
             )
             setattr(self.short_conv_weight, 'tensor_model_parallel', True)
 
-            # Use the standard PyTorch Conv1d class init: https://pytorch.org/docs/master/generated/torch.nn.Conv1d.html
+            # Use the standard PyTorch Conv1d class init:
+            #   https://pytorch.org/docs/master/generated/torch.nn.Conv1d.html
             bounds = math.sqrt(1 / hyena_config.short_conv_L)
             conv_init_method = partial(torch.nn.init.uniform_, a=-bounds, b=bounds)
             if local_init:
@@ -1596,8 +1575,6 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
             else:
                 # Call this on the module because it also modifies module attributes in addition to the data.
                 initialize_affine_weight_gpu(self.short_conv_weight, conv_init_method, partition_dim=0)
-        # Mark parameters in self as float32 only
-        stick_to_float32(self)
 
     def forward(self, x, _use_cp=True):
         """
