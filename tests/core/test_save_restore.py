@@ -30,9 +30,11 @@ from nemo.utils.app_state import AppState
 from nemo.utils.exceptions import NeMoBaseException
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def set_env():
     os.environ["HF_HOME"] = "/home/TestData/hf_home_test_save_restore"
+    yield
+    del os.environ["HF_HOME"]
 
 
 def classpath(cls):
