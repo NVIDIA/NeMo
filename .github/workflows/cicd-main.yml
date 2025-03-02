@@ -2120,6 +2120,8 @@ jobs:
         --add-bias-output \
         --max-steps=5 \
         --warmup-steps=1 \
+        --micro-batch-size=2 \
+        --global-batch-size=4 \
         --no-wandb \
         --seq-length=128 \
         --hidden-dropout=0.01 \
