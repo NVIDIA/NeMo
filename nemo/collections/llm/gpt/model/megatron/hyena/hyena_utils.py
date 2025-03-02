@@ -504,13 +504,14 @@ def _mul_sum(y, q):
 
 
 def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=False):
+    """Apply a 1D convolution to the input sequence u using the filter k and the shortcut D."""
     seqlen = u.shape[-1]
     fft_size = 2 * seqlen
 
     # check if k is less than seqlen
     if k.shape[-1] < seqlen:
         # Pad the filter k to the length of the input sequence u
-        k_padded = torch.nn.functional.pad(k, (0, seqlen - k.shape[-1]))
+        k = torch.nn.functional.pad(k, (0, seqlen - k.shape[-1]))
 
     # bidirectional
     if bidirectional:
@@ -618,7 +619,8 @@ class ImplicitModalFilter(nn.Module):
         # ), f"p must be float32. At lower precision, indexes will be merged together. Current dtype: {self.p.dtype}"
         # assert (
         #     self.gamma.dtype == torch.float32
-        # ), f"gamma must be float32. At lower precision, indexes will be merged together. Current dtype: {self.gamma.dtype}"
+        # ), ("gamma must be float32. At lower precision, indexes will be merged together. "
+        #    f"Current dtype: {self.gamma.dtype}")
         # assert (
         #     self.R.dtype == torch.float32
         # ), f"R must be float32. At lower precision, indexes will be merged together. Current dtype: {self.R.dtype}"
