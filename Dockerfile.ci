@@ -85,3 +85,4 @@ EOF
 
 ENV PYTHONPATH="${PYTHONPATH}:/workspace/Megatron-LM"
 ENV NEMO_HOME="/home/TestData/nemo_home"
+
