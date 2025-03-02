@@ -35,6 +35,7 @@ try:
         TENorm,
         TERowParallelLinear,
     )
+
     HAVE_TE = True
 except ImportError:
     HAVE_TE = False
