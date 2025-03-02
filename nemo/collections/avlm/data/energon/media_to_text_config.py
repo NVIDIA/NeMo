@@ -28,10 +28,11 @@ from nemo.utils import logging
 @dataclass_slot
 class MediaToTextEnergonSample(Sample):
     # text related attributes
-    contexts: Optional[[str]] = None
-    questions: Optional[[str]] = None
+    ## contexts/questions/answers can be list of interleaved sequences
+    contexts: Optional[List[List[Union[bytes, str, Image.Image, dict]]]] = None
+    questions: Optional[List[List[Union[bytes, str, Image.Image, dict]]]] = None
     texts: Optional[[str]] = None
-    answers: Optional[List[str]] = None
+    answers: Optional[List[List[Union[bytes, str, Image.Image, dict]]]] = None
     answer_weights: Optional[torch.Tensor] = None
 
     # audio related attributes
@@ -51,9 +52,6 @@ class MediaToTextEnergonSample(Sample):
     # image related attributes
     ## sample loader loads and decodes the images as PIL.Image
     images: Optional[[Image.Image]] = None
-
-    # Interleaved text and media files
-    sequence: List[Union[bytes, str, Image.Image]] = None
 
 
 @dataclass
