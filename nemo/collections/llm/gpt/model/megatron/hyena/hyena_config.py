@@ -181,7 +181,7 @@ class HyenaConfig:
 
     normalize_hyena_filters: bool = False
 
-    conv_proj_bias: bool = True
+    conv_proj_bias: bool = True  # Maybe this should be false
     """
     Use bias in the short conv1D, needed for model parallel for the short conv.
     """

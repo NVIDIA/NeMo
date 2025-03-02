@@ -104,6 +104,20 @@ import torch.distributed as dist
 from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint, sharded_state_dict_default
 
 
+def stick_to_float32(module: nn.Module):
+    """
+    This is a hack to prevent Megatron float16 module wrapper from casting key float32 parameters to
+        config.params_dtype. The way torch currently implements module.bfloat16() will skip casting any parameter that
+        returns False for is_floating_point().
+
+    Note this does not work with parameter buffers in distributed training.
+    """
+    # for param in module.parameters():
+    #    param.is_floating_point = lambda: False
+    # for buffer in module.buffers():
+    #    buffer.is_floating_point = lambda: False
+
+
 def _get_zigzag_indices(N, device=None):
     """
     Generates the zigzag indices for rearrangement.
@@ -490,11 +504,13 @@ def _mul_sum(y, q):
 
 
 def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=False):
-    """
-    Perform a fast Fourier transform convolution.
-    """
     seqlen = u.shape[-1]
     fft_size = 2 * seqlen
+
+    # check if k is less than seqlen
+    if k.shape[-1] < seqlen:
+        # Pad the filter k to the length of the input sequence u
+        k_padded = torch.nn.functional.pad(k, (0, seqlen - k.shape[-1]))
 
     # bidirectional
     if bidirectional:
@@ -572,6 +588,8 @@ class ImplicitModalFilter(nn.Module):
             setattr(self.gamma, 'tensor_model_parallel', True)
             setattr(self.R, 'tensor_model_parallel', True)
             setattr(self.p, 'tensor_model_parallel', True)
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def get_t(self, L):
         """
@@ -591,7 +609,19 @@ class ImplicitModalFilter(nn.Module):
         """
         Compute the filter for convolution.
         """
-        assert t.dtype == torch.float32, f't must be float32. Current dtype: {t.dtype}'
+        assert (
+            t.dtype == torch.float32
+        ), f"t must be float32. At lower precision, indexes will be merged together. Current dtype: {t.dtype}"
+        # TODO: See if we can get this kernel to stay FP32. We can but it does not work with the distributed optimizer.
+        # assert (
+        #     self.p.dtype == torch.float32
+        # ), f"p must be float32. At lower precision, indexes will be merged together. Current dtype: {self.p.dtype}"
+        # assert (
+        #     self.gamma.dtype == torch.float32
+        # ), f"gamma must be float32. At lower precision, indexes will be merged together. Current dtype: {self.gamma.dtype}"
+        # assert (
+        #     self.R.dtype == torch.float32
+        # ), f"R must be float32. At lower precision, indexes will be merged together. Current dtype: {self.R.dtype}"
 
         logp = -torch.exp(self.p.to(torch.float32))
         glogp = logp * torch.exp(self.gamma.to(torch.float32))
@@ -635,6 +665,7 @@ class ExplicitSingleDecayFilter(nn.Module):
         unit_passthrough=False,
         decay_preset="strong",
         small_init=True,
+        num_decay_repeats=1,
     ):
         super().__init__()
         with get_cuda_rng_tracker().fork():
@@ -654,14 +685,22 @@ class ExplicitSingleDecayFilter(nn.Module):
             h = h * 1e-5
         if unit_passthrough:
             h[:, :1] = 1.0
+        self.num_decay_repeats = num_decay_repeats
         self.h = nn.Parameter(h)
         t = torch.linspace(0, 1, L_cache)[None]
         self.log_r_min = log_r_min
         self.log_r_max = log_r_max
-        decay = torch.logspace(log_r_min, log_r_max, d_model)[:, None]
-        decay = torch.exp((-decay * t).cuda())
+        self.model_parallel_rank = get_tensor_model_parallel_rank()
+        self.model_parallel_size = get_tensor_model_parallel_world_size()
+        global_d_model = d_model * self.model_parallel_size // self.num_decay_repeats
+        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model)[:, None].repeat(self.num_decay_repeats, 1)
+        decay_domain = decay_domain[self.model_parallel_rank * d_model : (self.model_parallel_rank + 1) * d_model, :]
+        decay = torch.exp((-decay_domain * t).cuda())
         self.register_buffer("decay", decay)
         setattr(self.h, 'tensor_model_parallel', True)
+        setattr(self.decay, 'tensor_model_parallel', True)
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def forward(self, L, *args, **kwargs):
         """
@@ -748,7 +787,7 @@ def initialize_affine_weight_gpu(weight, init_method, partition_dim, stride=1):
     weight.partition_stride = stride
 
     with get_cuda_rng_tracker().fork():
-        init_method(weight)
+        init_method(weight.data)  # modify the data in place
 
 
 def get_groups_and_group_sizes(hidden_size, num_groups, world_size, expand_factor):
@@ -876,6 +915,7 @@ class ParallelHyenaOperator(nn.Module):
                 L_cache=self.hyena_medium_conv_len,
                 decay_preset=hyena_config.explicit_filter_decay_preset,
             )
+            self.kernel_size = self.hyena_medium_conv_len
         elif self.hyena_filter_cls == "implicit_modal":
             self.filter = ImplicitModalFilter(
                 d_model=self.num_groups,
@@ -884,6 +924,7 @@ class ParallelHyenaOperator(nn.Module):
                 gamma_min=hyena_config.modal_gamma_min,
                 gamma_max=hyena_config.modal_gamma_max,
             )
+            self.kernel_size = self.L
         else:
             raise ValueError(f"Unknown hyena filter class: {self.hyena_filter_cls}")
 
@@ -904,11 +945,16 @@ class ParallelHyenaOperator(nn.Module):
                         dtype=torch.float32,
                     )
                 )
+                # Add attribute to prevent automatic casting during model conversion
             setattr(self.conv_bias, 'tensor_model_parallel', True)
-
-        self.conv_bias.model_parallel = True
-        self.conv_bias.partition_dim = 0
-        self.conv_bias.stride = 1
+            bounds = math.sqrt(1 / self.kernel_size)
+            conv_init_method = partial(torch.nn.init.uniform_, a=-bounds, b=bounds)
+            self.conv_bias.data = conv_init_method(self.conv_bias.data)
+            self.conv_bias.model_parallel = True
+            self.conv_bias.partition_dim = 0
+            self.conv_bias.stride = 1
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def multihead_forward(self, q, k, v, h):
         """
@@ -949,6 +995,7 @@ class ParallelHyenaOperator(nn.Module):
             Input shapes: bs, seq_length, (num_groups, group_size)
             Output shapes: bs, seq_length, num_groups, group_size
         """
+
         B, L, G, DG = x1.shape
 
         # CP control
@@ -1084,16 +1131,16 @@ class ParallelHyenaOperator(nn.Module):
                 z = self.fftconv_fn(v, h, x2, x1)
             else:
                 z = x2 * v
-                with torch.autocast("cuda"):
-                    z = fftconv_func(
-                        z.to(torch.float32),
-                        h.to(torch.float32),
-                        conv_bias,
-                        None,
-                        gelu=False,
-                        bidirectional=self.bidirectional,
-                    )
-                    z = z.to(v.dtype)
+                # with torch.autocast("cuda"):
+                z = fftconv_func(
+                    u=z.to(torch.float32),
+                    k=h.to(torch.float32),
+                    D=conv_bias.to(torch.float32),
+                    dropout_mask=None,
+                    gelu=False,
+                    bidirectional=self.bidirectional,
+                )
+                z = z.to(v.dtype)
                 z = x1 * z
 
         # if downsampled:
@@ -1147,6 +1194,7 @@ class ParallelShortHyenaOperator(nn.Module):
         use_fast_causal_conv=False,
         is_mlp=False,  # TODO: Check if needed, only used when using Hyena for the MLP block
         local_init=False,
+        use_conv_bias=True,
     ):
         super().__init__()
         self.transformer_config = transformer_config
@@ -1227,6 +1275,25 @@ class ParallelShortHyenaOperator(nn.Module):
             local_init=local_init,
         )
         self.kernel_fn, self.fwd_kernel_cfg, self.bwd_kernel_cfg = self.prepare_kernel_configs()
+        self.use_conv_bias = use_conv_bias
+        if self.use_conv_bias:
+            with get_cuda_rng_tracker().fork():
+                self.conv_bias = nn.Parameter(
+                    torch.empty(
+                        self.num_groups,
+                        device=torch.cuda.current_device(),
+                        dtype=torch.float32,
+                    )
+                )
+                setattr(self.conv_bias, 'tensor_model_parallel', True)
+                bounds = math.sqrt(1 / kernel_size)
+                conv_init_method = partial(torch.nn.init.uniform_, a=-bounds, b=bounds)
+                self.conv_bias.data = conv_init_method(self.conv_bias.data)
+                self.conv_bias.model_parallel = True
+                self.conv_bias.partition_dim = 0
+                self.conv_bias.stride = 1
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def prepare_kernel_configs(self):
         """
@@ -1428,7 +1495,13 @@ class ParallelShortHyenaOperator(nn.Module):
             x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
 
             z = x2 * v if self.pregate else v
-            z = self.short_conv(z, _use_cp=_hyena_use_cp)
+            if not self.use_conv_bias:
+                z = self.short_conv(z, _use_cp=_hyena_use_cp)
+            else:
+                # maybe handle num_groups
+                bias = self.conv_bias.repeat_interleave(self.group_dim, dim=0)
+                z = self.short_conv(z, _use_cp=_hyena_use_cp) + rearrange(bias, "h -> 1 h 1") * z  # conv(z) + bias * z
+
             z = x1 * z if self.postgate else z
 
             return rearrange(z, "b d l -> b l d")
@@ -1438,6 +1511,16 @@ class ParallelShortHyenaOperator(nn.Module):
         Sharded state dictionary for the ParallelShortHyenaOperator.
         """
         sharded_state_dict = {}
+        # Parameters
+        self._save_to_state_dict(sharded_state_dict, '', keep_vars=True)
+        sharded_state_dict = make_sharded_tensors_for_checkpoint(
+            sharded_state_dict,
+            prefix,
+            tensor_parallel_layers_axis_map={
+                'conv_bias': 0,
+            },  # parameters sharded across TP
+            sharded_offsets=sharded_offsets,
+        )
         # Submodules
         for name, module in self.named_children():
             module_sharded_sd = sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
@@ -1509,7 +1592,10 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         if local_init:
             self.short_conv_weight.data = conv_init_method(self.short_conv_weight.data)
         else:
+            # Call this on the module because it also modifies module attributes in addition to the data.
             initialize_affine_weight_gpu(self.short_conv_weight, conv_init_method, partition_dim=0)
+        # Mark parameters in self as float32 only
+        stick_to_float32(self)
 
     def forward(self, x, _use_cp=True):
         """
