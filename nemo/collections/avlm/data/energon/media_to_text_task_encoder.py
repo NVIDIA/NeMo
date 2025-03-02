@@ -35,7 +35,7 @@ from nemo.utils import logging
 class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
     """LlavaNextSampleEncoder"""
 
-    def __init__(self, tokenizer, feature_extractor, image_processor, multimodal_sample_config=MediaToTextSampleConfig()):
+    def __init__(self, tokenizer, audio_processor, image_processor, multimodal_sample_config=MediaToTextSampleConfig()):
         """
         Initialize the LlavaNextSampleEncoder, inherited from LlavaNextSampleEncoder for multimodal samples
         focused on LLaVANeXT data to support 
@@ -47,7 +47,7 @@ class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
             Defaults to MediaToTextSampleConfig().
         """
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
-        self.feature_extractor = feature_extractor
+        self.audio_processor = audio_processor
 
     def process_audio(self, audio):
         """
@@ -113,20 +113,14 @@ class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
 
         # TODO: check if energon will return None if the keys are not 
         # present in the dataset or it would throw an error
-        if input_sample.audio is not None:
-            output_sample.audio = self.process_audio(input_sample.audio)
+        if input_sample.audios is not None:
+            output_sample.audios = self.process_audio(input_sample.audios)
+
+        if input_sample.videos is not None:
+            output_sample.videos = self.processed_video(input_sample.videos)
 
         if input_sample.images is not None:
             output_sample.images = self.process_image(input_sample.images)
-            
-        if input_sample.video is not None:
-            processed_video = self.processed_video(input_sample.video)
-            if self.multimodal_sample_config.concat_video_following_images and \
-                output_sample.images is not None:
-                # concatenate video frames after the images
-                output_sample.images = torch.cat([output_sample.images, processed_video])
-            else:
-                output_sample.video = processed_video
         
         output_sample.__key__ = input_sample.__key__
         output_sample.tokens = tokens
@@ -144,7 +138,7 @@ class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
 class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
     """MeidaToTextTaskEncoder"""
 
-    def __init__(self, tokenizer, feature_extractor, image_processor, media_to_text_sample_config):
+    def __init__(self, tokenizer, audio_processor, image_processor, media_to_text_sample_config):
         """
         Initialize the MeidaToTextTaskEncoder.
 
@@ -160,7 +154,7 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
         self.encoders: Dict[str, SampleEncoder] = {
             MediaToTextSample.__name__: MediaToTextSampleEncoder(
                 tokenizer, 
-                feature_extractor, 
+                audio_processor, 
                 image_processor, 
                 media_to_text_sample_config
             )
@@ -193,40 +187,33 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
         )
         for sample in samples:
             keys.append(sample.__key__)
-            if sample.audio is not None:
-                audios.append(sample.audio)
-            if sample.video is not None:
-                videos.append(sample.video)
-            if sample.images is not None:
-                images.append(sample.images)
             tokens.append(sample.tokens)
             labels.append(sample.labels)
             loss_mask.append(sample.loss_mask)
-            num_media_tiles.append(sample.num_media_tiles)
-            image_sizes.append(sample.image_sizes)
-            attention_mask.append(sample.attention_mask)
+            if sample.audios is not None:
+                audios.append(sample.audios)
+            if sample.videos is not None:
+                videos.append(sample.videos)
+            if sample.images is not None:
+                images.append(sample.images)
+                num_media_tiles.append(sample.num_media_tiles)
+                image_sizes.append(sample.image_sizes)
+                attention_mask.append(sample.attention_mask)
 
-        batch_keys = batch_list(keys)
+        rawBatch = MediaToTextRawBatch()
+        rawBatch.__keys__ = batch_list(keys)
+        rawBatch.tokens = pad_sequence(tokens, batch_first=True)
+        rawBatch.labels = pad_sequence(labels, batch_first=True)        
+        rawBatch.loss_mask = batch_pad_stack(loss_mask)
 
-        batch_audio = torch.cat(audios, dim=0) if audios is not [] else None
-        batch_video = torch.cat(audios, dim=0) if videos is not [] else None
-        batch_images = torch.cat(images, dim=0) if images is not [] else None
-
-        batch_tokens = pad_sequence(tokens, batch_first=True)
-        batch_labels = pad_sequence(labels, batch_first=True)
-        image_sizes = torch.cat(image_sizes, dim=0)
-        batch_loss_mask = batch_pad_stack(loss_mask)
-        batch_attention_mask = batch_pad_stack(attention_mask)
-        batch_num_media_tiles = torch.tensor(batch_list(num_media_tiles), dtype=torch.int)
-        return MediaToTextRawBatch(
-            __keys__=batch_keys,
-            audio=batch_audios,
-            video=batch_video,
-            images=batch_images,
-            tokens=batch_tokens,
-            labels=batch_labels,
-            loss_mask=batch_loss_mask,
-            num_media_tiles=batch_num_media_tiles,
-            image_sizes=image_sizes,
-            attention_mask=batch_attention_mask,
-        )
+        if audios:
+            rawBatch.audios = torch.cat(audios, dim=0)
+        if videos:
+            rawBatch.videos = torch.cat(videos, dim=0)
+        if images:
+            rawBatch.images = torch.cat(images, dim=0)
+            rawBatch.image_sizes = torch.cat(image_sizes, dim=0)
+            rawBatch.attention_mask = batch_pad_stack(attention_mask)
+            rawBatch.num_media_tiles = torch.tensor(batch_list(num_media_tiles), dtype=torch.int)
+        
+        return rawBatch

@@ -40,7 +40,7 @@ class MediaToTextEnergonModule(EnergonMultiModalDataModule):
         self,
         path: str,
         tokenizer,
-        feature_extractor,
+        audio_processor,
         image_processor,
         seq_length: int = 2048,
         micro_batch_size: int = 1,
@@ -76,7 +76,7 @@ class MediaToTextEnergonModule(EnergonMultiModalDataModule):
             validation_task_encoder,
             **kwargs,
         )
-        self.feature_extractor = feature_extractor
+        self.audio_processor = audio_processor
 
     def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
         """

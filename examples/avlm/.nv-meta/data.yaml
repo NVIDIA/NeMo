@@ -1,0 +1,5 @@
+sample_type:
+  __module__: nemo.collections.avlm.data.energon.media_to_text_config
+  __class__: MediaToTextEnergonSample
+sample_loader: sample_loaders.py:sample_loader_interleaved
+part_filter: sample_loaders.py:part_filter_interleaved

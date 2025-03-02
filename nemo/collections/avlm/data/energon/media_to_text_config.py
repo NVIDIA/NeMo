@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from PIL import Image
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List, Union
 
 import torch
 
@@ -26,18 +27,37 @@ from nemo.utils import logging
 
 @dataclass_slot
 class MediaToTextEnergonSample(Sample):
-    context: str
+    # text related attributes
+    contexts: Optional[[str]] = None
+    questions: Optional[[str]] = None
+    texts: Optional[[str]] = None
     answers: Optional[List[str]] = None
     answer_weights: Optional[torch.Tensor] = None
-    audio: Optional[torch.tensor] = None
-    video: Optional[VideoData] = None    
-    offset: Optional[float] = None
-    duration: Optional[float] = None
-    image: Optional[torch.tensor] = None
+
+    # audio related attributes
+    ## sample loader loads the audio raw bytes which will be decoded 
+    ## and further processed in the task encoder
+    audios: Optional[[bytes]] = None
+    audio_offsets: Optional[[float]] = None
+    audio_durations: Optional[[float]] = None
+
+    # video related attributes
+    ## sample loader loads the video raw bytes which will be decoded 
+    ## and further processed in the task encoder
+    videos: Optional[[bytes]] = None
+    video_offsets: Optional[[float]] = None
+    video_durations: Optional[[float]] = None
+
+    # image related attributes
+    ## sample loader loads and decodes the images as PIL.Image
+    images: Optional[[Image.Image]] = None
+
+    # Interleaved text and media files
+    sequence: List[Union[bytes, str, Image.Image]] = None
 
 
 @dataclass
-class MediaToTextSample(LlavaNextTextSample):
+class MediaToTextSample:
     '''
     Sample type for media to text task, extending LlavaNextTextSample to support audio and video data.
 
@@ -46,15 +66,21 @@ class MediaToTextSample(LlavaNextTextSample):
 
     Attributes:
     '''
-    audio: Optional[torch.tensor] = None
-    video: Optional[torch.tensor] = None
+
+    __key__: str = ''
+    tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
+    labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
+    loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    audios: Optional[torch.tensor] = None
+    videos: Optional[torch.tensor] = None
     images: Optional[torch.tensor] = None
     num_media_tiles: Optional[int] = None
     image_sizes: Optional[torch.tensor] = None
+    attention_mask: Optional[torch.tensor] = None
 
 
 @dataclass
-class MediaToTextRawBatch(LlavaNextTextRawBatch):
+class MediaToTextRawBatch:
     """
     Batch type for raw media to text samples, supporting audio, image(s).
 
@@ -63,14 +89,14 @@ class MediaToTextRawBatch(LlavaNextTextRawBatch):
 
     Attributes:
     """
-    audio: Optional[torch.tensor] = None
-    video: Optional[torch.tensor] = None
+    __keys__: List[str] = field(default_factory=list)
+    tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
+    labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
+    loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    audios: Optional[torch.tensor] = None
+    videos: Optional[torch.tensor] = None
     images: Optional[torch.tensor] = None
     num_media_tiles: Optional[int] = None
     image_sizes: Optional[torch.tensor] = None
-
-@dataclass
-class MediaToTextSampleConfig(MultiModalSampleConfig):
-    audio_original_sampling_rate: Optional[int] = None
-    concat_video_following_images: Optional[bool] = None
+    attention_mask: Optional[torch.tensor] = None
     
