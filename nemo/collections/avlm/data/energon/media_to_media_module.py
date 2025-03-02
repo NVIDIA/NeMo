@@ -13,11 +13,11 @@
 # limitations under the License.
 
 from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-from nemo.collections.avlm.data.energon.media_to_text_config import MediaToTextSampleConfig
+from nemo.collections.avlm.data.energon.media_to_text_config import MediaToMediaSampleConfig
 from nemo.utils import logging
 
 
-class MediaToTextEnergonModule(EnergonMultiModalDataModule):
+class MediaToMediaEnergonModule(EnergonMultiModalDataModule):
     """
     Energon Data module for media(audio and/or image and/or video and text)-to-text LLM.
     
@@ -25,7 +25,7 @@ class MediaToTextEnergonModule(EnergonMultiModalDataModule):
     which looks like the follows:
     sample_type:
       __module__: nemo.collections.avlm.data.energon.media_to_text_config
-      __class__: MediaToTextSample
+      __class__: MediaToMediaSample
     field_map:
       image: image_file_extension
       video: video_file_extension
@@ -50,7 +50,7 @@ class MediaToTextEnergonModule(EnergonMultiModalDataModule):
         pin_memory: bool = True,
         shuffle_buffer_size: int = 100,
         max_samples_per_sequence: int | None = None,
-        media_to_text_sample_config: Optional[MediaToTextSampleConfig] = MediaToTextSampleConfig(),
+        media_to_text_sample_config: Optional[MediaToMediaSampleConfig] = MediaToMediaSampleConfig(),
         task_encoder: Optional[MultiModalTaskEncoder] = None,
         decoder_seq_length: Optional[int] = None,
         packing_buffer_size: Optional[int] = None,

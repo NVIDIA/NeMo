@@ -26,7 +26,7 @@ from nemo.collections.vlm.llava_next.data.energon import LlavaNextTextRawBatch, 
 from nemo.utils import logging
 
 @dataclass_slot
-class MediaToTextEnergonSample(Sample):
+class MediaToMediaEnergonSample(Sample):
     # text related attributes
     ## contexts/questions/answers can be list of interleaved sequences
     contexts: Optional[List[List[Union[bytes, str, Image.Image, dict]]]] = None
@@ -55,7 +55,7 @@ class MediaToTextEnergonSample(Sample):
 
 
 @dataclass
-class MediaToTextSample:
+class MediaToMediaSample:
     '''
     Sample type for media to text task, extending LlavaNextTextSample to support audio and video data.
 
@@ -78,11 +78,11 @@ class MediaToTextSample:
 
 
 @dataclass
-class MediaToTextRawBatch:
+class MediaToMediaRawBatch:
     """
     Batch type for raw media to text samples, supporting audio, image(s).
 
-    This class aggregates multiple `MediaToTextSample` instances into a batch for processing.
+    This class aggregates multiple `MediaToMediaSample` instances into a batch for processing.
     It includes attributes for managing audio, image and associated metadata for each sample in the batch.
 
     Attributes:

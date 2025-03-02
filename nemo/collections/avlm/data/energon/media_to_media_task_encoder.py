@@ -20,10 +20,10 @@ from megatron.energon import batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.avlm.data.energon.media_to_text_config import (
-    MediaToTextSample, 
-    MediaToTextEnergonSample
-    MediaToTextRawBatch,
-    MediaToTextSampleConfig,
+    MediaToMediaSample, 
+    MediaToMediaEnergonSample
+    MediaToMediaRawBatch,
+    MediaToMediaSampleConfig,
 )
 
 from nemo.collections.vlm.llava_next.data.energon import LlavaNextSampleEncoder
@@ -32,10 +32,10 @@ from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTask
 from nemo.utils import logging
 
 
-class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
+class MediaToMediaSampleEncoder(LlavaNextSampleEncoder):
     """LlavaNextSampleEncoder"""
 
-    def __init__(self, tokenizer, audio_processor, image_processor, multimodal_sample_config=MediaToTextSampleConfig()):
+    def __init__(self, tokenizer, audio_processor, image_processor, multimodal_sample_config=MediaToMediaSampleConfig()):
         """
         Initialize the LlavaNextSampleEncoder, inherited from LlavaNextSampleEncoder for multimodal samples
         focused on LLaVANeXT data to support 
@@ -43,8 +43,8 @@ class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
         Parameters:
         tokenizer (Tokenizer): The HF tokenizer used for processing text.
         image_processor (ImageProcessor): The HF image processor used for preprocessing images.
-        media_to_text_sample_config (MediaToTextSampleConfig, optional): Configuration object for multimodal samples.
-            Defaults to MediaToTextSampleConfig().
+        media_to_text_sample_config (MediaToMediaSampleConfig, optional): Configuration object for multimodal samples.
+            Defaults to MediaToMediaSampleConfig().
         """
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
         self.audio_processor = audio_processor
@@ -67,7 +67,7 @@ class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
         return None
 
     @stateless
-    def encode_sample(self, sample: MediaToTextEnergonSample) -> ImageTextSample:
+    def encode_sample(self, sample: MediaToMediaEnergonSample) -> ImageTextSample:
         """
         Encode an individual sample based on its type.
 
@@ -88,17 +88,17 @@ class MediaToTextSampleEncoder(LlavaNextSampleEncoder):
         encoder = self.encoders.get(sample_type)
         if not encoder:
             raise NotImplementedError(f"No encoder implemented for sample type {sample_type}")
-        encoded_sample = encoder.encode(input_sample=sample, output_sample=MediaToTextSample())
+        encoded_sample = encoder.encode(input_sample=sample, output_sample=MediaToMediaSample())
         return encoded_sample
 
-    def encode(self, input_sample: MediaToTextEnergonSample, output_sample: MediaToTextSample):
+    def encode(self, input_sample: MediaToMediaEnergonSample, output_sample: MediaToMediaSample):
         """
         Encode a single sample into a format suitable for model input.
 
         Parameters:
 
         Returns:
-        MediaToTextSample: 
+        MediaToMediaSample: 
         """
         conversation_prompt = self.apply_prompt_template(input_sample)
         logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
@@ -148,11 +148,11 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
         Parameters:
         tokenizer (Tokenizer): The tokenizer for processing text data across sample types.
         image_processor (ImageProcessor): The image processor for preprocessing images.
-        media_to_text_sample_config (MediaToTextSampleConfig): Configuration settings for multimodal samples.
+        media_to_text_sample_config (MediaToMediaSampleConfig): Configuration settings for multimodal samples.
         """
         super().__init__(tokenizer, image_processor, media_to_text_sample_config)
         self.encoders: Dict[str, SampleEncoder] = {
-            MediaToTextSample.__name__: MediaToTextSampleEncoder(
+            MediaToMediaSample.__name__: MediaToMediaSampleEncoder(
                 tokenizer, 
                 audio_processor, 
                 image_processor, 
@@ -160,7 +160,7 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
             )
         }
 
-    def batch(self, samples: List[MediaToTextSample]) -> MediaToTextRawBatch:
+    def batch(self, samples: List[MediaToMediaSample]) -> MediaToMediaRawBatch:
         """
         Batch multiple encoded samples into a single batch structure for model input.
 
@@ -168,10 +168,10 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
         pads or stacks them as needed to create a unified batch.
 
         Parameters:
-        samples (List[MediaToTextSample]): A list of MediaToTextSample instances to be batched.
+        samples (List[MediaToMediaSample]): A list of MediaToMediaSample instances to be batched.
 
         Returns:
-        MediaToTextRawBatch: A batch containing all input samples' images, tokens, labels,
+        MediaToMediaRawBatch: A batch containing all input samples' images, tokens, labels,
             loss masks, and other metadata prepared for model processing.
         """
         keys, audios, videos, images, tokens, labels, loss_mask, num_media_tiles, image_sizes, attention_mask = (
@@ -200,7 +200,7 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
                 image_sizes.append(sample.image_sizes)
                 attention_mask.append(sample.attention_mask)
 
-        rawBatch = MediaToTextRawBatch()
+        rawBatch = MediaToMediaRawBatch()
         rawBatch.__keys__ = batch_list(keys)
         rawBatch.tokens = pad_sequence(tokens, batch_first=True)
         rawBatch.labels = pad_sequence(labels, batch_first=True)        
