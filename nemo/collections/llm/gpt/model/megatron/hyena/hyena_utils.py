@@ -930,28 +930,20 @@ class ParallelHyenaOperator(nn.Module):
 
         with get_cuda_rng_tracker().fork():
             if self.use_slow_heads:
-                self.register_parameter(
-                    'conv_bias',
-                    nn.Parameter(
-                        torch.empty(
-                            self.num_groups,
-                            device=torch.cuda.current_device(),
-                            dtype=torch.float32,
-                        )
-                    ),
+                self.conv_bias = nn.Parameter(
+                    torch.empty(
+                        self.num_groups,
+                        device=torch.cuda.current_device(),
+                        dtype=torch.float32,
+                    )
                 )
             else:
-                # Register parameter with explicit fp32 dtype and register_buffer=False to keep it in fp32
-                # even when the model is cast to a different dtype
-                self.register_parameter(
-                    'conv_bias',
-                    nn.Parameter(
-                        torch.empty(
-                            self.width_per_tp_group,
-                            device=torch.cuda.current_device(),
-                            dtype=torch.float32,
-                        )
-                    ),
+                self.conv_bias = nn.Parameter(
+                    torch.empty(
+                        self.width_per_tp_group,
+                        device=torch.cuda.current_device(),
+                        dtype=torch.float32,
+                    )
                 )
                 # Add attribute to prevent automatic casting during model conversion
             setattr(self.conv_bias, 'tensor_model_parallel', True)
@@ -1519,6 +1511,16 @@ class ParallelShortHyenaOperator(nn.Module):
         Sharded state dictionary for the ParallelShortHyenaOperator.
         """
         sharded_state_dict = {}
+        # Parameters
+        self._save_to_state_dict(sharded_state_dict, '', keep_vars=True)
+        sharded_state_dict = make_sharded_tensors_for_checkpoint(
+            sharded_state_dict,
+            prefix,
+            tensor_parallel_layers_axis_map={
+                'conv_bias': 0,
+            },  # parameters sharded across TP
+            sharded_offsets=sharded_offsets,
+        )
         # Submodules
         for name, module in self.named_children():
             module_sharded_sd = sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
