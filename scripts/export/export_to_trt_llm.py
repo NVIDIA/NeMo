@@ -120,10 +120,11 @@ def get_args():
         help="Enables exporting with FP8-quantizatized KV-cache",
     )
     parser.add_argument(
-        "-f",
-        "--format",
-        choices=["nim"],
-        help="Optional specific output format of the exported model",
+        "-unf",
+        "--use_nim_format",
+        default=False,
+        action="store_true",
+        help="Output model files to conform format used in NIM containers",
     )
     args = parser.parse_args()
 
@@ -178,7 +179,7 @@ def nemo_export_trt_llm():
         fp8_quantized=args.export_fp8_quantized,
         fp8_kvcache=args.use_fp8_kv_cache,
         load_model=False,
-        format=args.format,
+        use_nim_format=args.use_nim_format,
     )
 
     LOGGER.info("Export is successful.")

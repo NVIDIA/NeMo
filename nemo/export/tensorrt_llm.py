@@ -187,7 +187,7 @@ class TensorRTLLM(ITritonDeployable):
         gather_context_logits: Optional[bool] = False,
         gather_generation_logits: Optional[bool] = False,
         build_rank: Optional[int] = 0,
-        format: Optional[str] = None,
+        use_nim_format: bool = False,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -232,7 +232,7 @@ class TensorRTLLM(ITritonDeployable):
         """
 
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
-        if format == "nim":
+        if use_nim_format:
             self.model_dir = os.path.join(self.model_dir, "trtllm_engine")
         prepare_directory_for_export(self.model_dir, delete_existing_files=delete_existing_files)
 
@@ -508,7 +508,7 @@ class TensorRTLLM(ITritonDeployable):
 
             tmp_dir.cleanup()
 
-        if is_export_rank and format == "nim":
+        if is_export_rank and use_nim_format:
             self._export_to_nim_format(model_config, model_type)
 
         if tensorrt_llm.mpi_world_size() > 1:
