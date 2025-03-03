@@ -39,7 +39,6 @@ if TYPE_CHECKING:
     from nemo.lightning import Trainer
     from nemo.lightning.megatron_parallel import MegatronParallel
 
-# TODO: Remove modelopt import guarding once it is installable on all platforms
 _, HAVE_MODELOPT = safe_import("modelopt")
 if HAVE_MODELOPT:
     import modelopt.torch.quantization as mtq

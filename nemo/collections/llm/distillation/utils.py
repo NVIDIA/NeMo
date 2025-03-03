@@ -34,8 +34,7 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-# TODO: Remove modelopt import guarding once it is installable on all platforms
-mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
+mto, _ = safe_import("modelopt.torch.opt")
 DistillationModel, _ = safe_import_from("modelopt.torch.distill", "DistillationModel", alt=object)
 DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
 

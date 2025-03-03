@@ -38,7 +38,6 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
     from nemo.lightning.pytorch.optim import OptimizerModule
 
-# TODO: Remove modelopt import guarding once it is installable on all platforms
 mtd, HAVE_MODELOPT = safe_import("modelopt.torch.distill")
 
 
