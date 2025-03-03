@@ -11,13 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Model optimization utilities for using TensorRT Model Optimizer."""
 
-from .quantizer import ExportConfig, QuantizationConfig, Quantizer, create_data_iterator_getter, get_calib_data_iter
+from .model_utils import set_gpt_modelopt_spec, setup_trainer_and_restore_model_with_modelopt_spec
 
-__all__ = [
-    "Quantizer",
-    "QuantizationConfig",
-    "ExportConfig",
-    "get_calib_data_iter",
-    "create_data_iterator_getter",
-]
+__all__ = ["set_gpt_modelopt_spec", "setup_trainer_and_restore_model_with_modelopt_spec"]

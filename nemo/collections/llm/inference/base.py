@@ -35,6 +35,7 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
+from nemo.utils import logging
 
 
 class MCoreTokenizerWrappper:
@@ -130,6 +131,17 @@ def _setup_trainer_and_restore_model(
     """
     assert isinstance(trainer.strategy, MegatronStrategy), "Only MegatronStrategy is supported for trainer.strategy."
     assert trainer.strategy.context_parallel_size <= 1, "Context parallelism is not supported for inference."
+
+    # [ModelOpt]: If modelopt_state exists, overwrite transformer_layer_spec to modelopt spec
+    modelopt_state_path = Path(f"{path}/weights/modelopt_state")
+    if modelopt_state_path.exists():
+        from nemo.collections import llm
+
+        if isinstance(model, llm.GPTModel):
+            llm.set_gpt_modelopt_spec(model.config)
+        else:
+            logging.warning(f"{type(model)} is not a GPTModel. Modelopt state will not be loaded.")
+
     if (adapter_meta_path := ckpt_to_weights_subdir(path, is_saving=False) / ADAPTER_META_FILENAME).exists():
         with open(adapter_meta_path, "r") as f:
             metadata = json.load(f)
@@ -146,6 +158,7 @@ def _setup_trainer_and_restore_model(
         )
 
     if tokenizer is not None:
+        logging.info(f"Overriding model.tokenizer to: {tokenizer}")
         model.tokenizer = tokenizer
 
     trainer.strategy.restore_config = restore_config

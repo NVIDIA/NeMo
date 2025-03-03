@@ -14,19 +14,19 @@
 
 import argparse
 
-from megatron.core.dist_checkpointing.validation import StrictHandling
-
+from nemo.collections import llm
 from nemo.collections.llm import quantization
 
 
 def get_args():
     """Parses PTQ arguments."""
-
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="NeMo PTQ argument parser",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="NeMo PTQ argument parser"
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source NeMo 2.0 checkpoint")
+    parser.add_argument(
+        "--tokenizer", type=str, help="Tokenizer to use. If not provided, model tokenizer will be used"
+    )
     parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
     parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
@@ -48,49 +48,44 @@ def get_args():
     )
     parser.add_argument("--devices", type=int, help="Number of GPUs to use per node")
     parser.add_argument("-nodes", "--num_nodes", type=int, help="Number of nodes used")
-    parser.add_argument('-out', '--export_path', '--output_path', type=str, help='Path for the exported engine')
+    parser.add_argument("-out", "--export_path", "--output_path", type=str, help="Path for the exported engine")
     parser.add_argument(
         "--export_format", default="trtllm", choices=["trtllm", "nemo"], help="Model format to export as"
     )
     parser.add_argument(
-        '-algo',
-        '--algorithm',
+        "-algo",
+        "--algorithm",
         type=str,
         default="fp8",
-        choices=["no_quant", "int8", "int8_sq", "fp8", "int4_awq", "w4a8_awq", "int4"],
-        help='TensorRT-Model-Optimizer quantization algorithm',
+        choices=["no_quant", "int8", "int8_sq", "fp8", "int4_awq", "w4a8_awq", "int4", "nvfp4"],
+        help="TensorRT-Model-Optimizer quantization algorithm",
     )
     parser.add_argument(
-        '-awq_bs', '--awq_block_size', type=int, default=128, help='Block size for AWQ quantization algorithms'
+        "-awq_bs", "--awq_block_size", type=int, default=128, help="Block size for AWQ quantization algorithms"
     )
-    parser.add_argument('--sq_alpha', type=float, default=0.5, help='Smooth-Quant alpha parameter')
-    parser.add_argument('--enable_kv_cache', help='Enables KV-cache quantization', action='store_true')
-    parser.add_argument('--disable_kv_cache', dest='enable_kv_cache', action='store_false')
+    parser.add_argument("--sq_alpha", type=float, default=0.5, help="Smooth-Quant alpha parameter")
+    parser.add_argument("--enable_kv_cache", help="Enables KV-cache quantization", action="store_true")
+    parser.add_argument("--disable_kv_cache", dest="enable_kv_cache", action="store_false")
     parser.set_defaults(enable_kv_cache=None)
     parser.add_argument(
-        '-dt', '--dtype', default="bf16", choices=["16", "bf16"], help='Default precision for non-quantized layers'
+        "-dt", "--dtype", default="bf16", choices=["16", "bf16"], help="Default precision for non-quantized layers"
     )
-    parser.add_argument('-bs', '--batch_size', default=64, type=int, help='Calibration batch size')
-    parser.add_argument('-sl', '--seq_len', default=128, type=int, help='Length of the tokenized text')
+    parser.add_argument("-bs", "--batch_size", default=64, type=int, help="Calibration batch size")
+    parser.add_argument("-sl", "--seq_len", default=128, type=int, help="Length of the tokenized text")
     parser.add_argument(
-        '-calib_size', '--calibration_dataset_size', default=512, type=int, help='Size of calibration dataset'
+        "-calib_size", "--calibration_dataset_size", default=512, type=int, help="Size of calibration dataset"
     )
     parser.add_argument(
-        '-calib_ds',
-        '--calibration_dataset',
+        "-calib_ds",
+        "--calibration_dataset",
         default="cnn_dailymail",
         type=str,
-        help='Calibration dataset to be used. Should be \"wikitext\", \"cnn_dailymail\" or path to a local .json file',
+        help='Calibration dataset to be used. Should be "wikitext", "cnn_dailymail" or path to a local .json file',
     )
     parser.add_argument(
-        '--generate_sample', help='Generate sample model output after performing PTQ', action='store_true'
+        "--generate_sample", help="Generate sample model output after performing PTQ", action="store_true"
     )
-    parser.add_argument(
-        '--ckpt_load_strictness',
-        type=str,
-        default=StrictHandling.LOG_ALL,
-        help='Defines handling of checkpoint load mismatch',
-    )
+    parser.add_argument("--legacy_ckpt", action="store_true", help="""Load ckpt saved with TE < 1.14""")
     parser.set_defaults(generate_sample=False)
 
     args = parser.parse_args()
@@ -111,7 +106,6 @@ def get_args():
 
 def main():
     """Example NeMo 2.0 Post Training Quantization workflow"""
-
     args = get_args()
 
     quantization_config = quantization.QuantizationConfig(
@@ -135,18 +129,24 @@ def main():
     )
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model, trainer = quantization.load_with_modelopt_layer_spec(
-        nemo_checkpoint_path=args.nemo_checkpoint,
-        tensor_model_parallel_size=args.calibration_tp,
-        pipeline_model_parallel_size=args.calibration_pp,
-        devices=args.devices,
-        num_nodes=args.num_nodes,
-        ckpt_load_strictness=args.ckpt_load_strictness,
+    model, trainer = llm.setup_trainer_and_restore_model_with_modelopt_spec(
+        args.nemo_checkpoint,
+        args.calibration_tp,
+        args.calibration_pp,
+        args.devices,
+        args.num_nodes,
+        inference_only=True,
+        tokenizer_path=args.tokenizer,
+        legacy_ckpt=args.legacy_ckpt,
+        strategy_kwargs={"sequence_parallel": False, "lazy_init": True},
+        trainer_kwargs={},
+        model_config_overrides={"sequence_parallel": False},
     )
+
     model = quantizer.quantize(model)
 
     quantizer.export(model, args.nemo_checkpoint, trainer)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

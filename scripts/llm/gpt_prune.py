@@ -62,17 +62,13 @@ Example usage to prune depth by dropping specific model layers (1-indexed):
 
 import argparse
 import os
+from functools import partial
 
 import modelopt.torch.prune as mtp
-import torch
 from megatron.core import dist_checkpointing
-from megatron.core.dist_checkpointing.validation import StrictHandling
-from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
@@ -121,29 +117,6 @@ def get_data_module(args, tokenizer):
     return data_module
 
 
-def load_model_with_modelopt_spec(
-    restore_path: str, trainer: nl.Trainer, tokenizer_path: str | None = None
-) -> llm.GPTModel:
-    """Load model from nemo checkpoint with modelopt spec."""
-    logging.info(f"Loading model from {restore_path}...")
-    model = nl.io.load_context(path=ckpt_to_context_subdir(restore_path), subpath="model")
-
-    tokenizer = None
-    if tokenizer_path:
-        logging.info(f"Overriding tokenizer to: {tokenizer_path}")
-        tokenizer = get_tokenizer(tokenizer_path)
-
-    model.config.transformer_layer_spec = get_gpt_layer_modelopt_spec(
-        num_experts=model.config.num_moe_experts, remap_te_layernorm=True
-    )
-    del model.optim
-    _setup_trainer_and_restore_model(restore_path, trainer, model, tokenizer)
-    trainer.strategy.setup_environment = lambda *args, **kwargs: None  # Dont setup env again
-    trainer.strategy.restore_config = None  # Dont restore model weights again
-    logging.info(f"Loaded model: {model}\n")
-    return model
-
-
 def save_pruned_model(model: llm.GPTModel, trainer: nl.Trainer, save_path: str):
     """Save pruned model nemo checkpoint."""
     logging.info(f"Saving pruned model to {save_path}...")
@@ -165,31 +138,23 @@ def save_pruned_model(model: llm.GPTModel, trainer: nl.Trainer, save_path: str):
 
 def main(args):
     """Main function for pruning Llama model."""
-    strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=args.tp_size,
-        pipeline_model_parallel_size=args.pp_size,
-        pipeline_dtype=torch.bfloat16,
-        sequence_parallel=False,
-        ckpt_load_optimizer=False,
-        ckpt_load_strictness=StrictHandling.LOG_ALL if args.legacy_ckpt else None,
-        ckpt_parallel_save_optim=False,
-        setup_optimizers=False,
-        ddp="pytorch",
-        replace_progress_bar=False,
+    model, trainer = llm.setup_trainer_and_restore_model_with_modelopt_spec(
+        args.restore_path,
+        args.tp_size,
+        args.pp_size,
+        args.devices,
+        args.num_nodes,
+        inference_only=True,
+        tokenizer_path=args.tokenizer,
+        legacy_ckpt=args.legacy_ckpt,
+        strategy_kwargs={"sequence_parallel": False, "replace_progress_bar": False},
+        trainer_kwargs={
+            "max_steps": args.num_train_samples // args.gbs,
+            "limit_val_batches": args.num_train_samples // (args.gbs if args.data_paths else args.mbs),
+            "val_check_interval": args.num_train_samples // args.gbs,
+        },
+        model_config_overrides={"sequence_parallel": False},
     )
-
-    trainer = nl.Trainer(
-        num_nodes=args.num_nodes,
-        devices=args.devices,
-        accelerator="gpu",
-        strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed", params_dtype=torch.bfloat16, autocast_enabled=True),
-        max_steps=args.num_train_samples // args.gbs,
-        limit_val_batches=args.num_train_samples // (args.gbs if args.data_paths else args.mbs),
-        val_check_interval=args.num_train_samples // args.gbs,
-    )
-
-    model = load_model_with_modelopt_spec(args.restore_path, trainer, args.tokenizer)
 
     export_config = {
         k: getattr(args, f"prune_{k}") for k in SUPPORTED_PRUNING_HPARAMS if getattr(args, f"prune_{k}") is not None
@@ -202,12 +167,9 @@ def main(args):
         assert args.tp_size == 1, "Pruning currently only supports --tp_size=1"
         assert export_config, "No pruning constraints provided"
 
+        # Overwrite val dataloader to use train dataloader with llm.validate
         data_module = get_data_module(args, model.tokenizer)
-
-        def forward_loop(model):
-            # Overwrite val dataloader to use train dataloader with llm.validate
-            data_module.val_dataloader = data_module.train_dataloader
-            llm.validate(model, data_module, trainer)
+        data_module.val_dataloader = data_module.train_dataloader
 
         logging.info("Pruning model...")
         mtp.prune(
@@ -215,7 +177,7 @@ def main(args):
             mode="mcore_gpt_minitron",
             constraints={"export_config": export_config},
             dummy_input=None,  # Not used
-            config={"forward_loop": forward_loop},
+            config={"forward_loop": partial(llm.validate, data=data_module, trainer=trainer)},
         )
 
     save_pruned_model(model, trainer, args.save_path)

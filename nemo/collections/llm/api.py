@@ -21,15 +21,17 @@ import lightning.pytorch as pl
 import nemo_run as run
 import torch
 from megatron.core import parallel_state
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from rich.console import Console
 from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
+from nemo.collections import llm
 from nemo.collections.llm.distillation import DistillationGPTModel
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
 from nemo.collections.llm.gpt.model import GPTModel
-from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
+from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig, Quantizer
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
@@ -351,7 +353,7 @@ def ptq(
     calibration_tp: int = 1,
     calibration_pp: int = 1,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
-    ckpt_load_strictness: Optional[str] = None,
+    legacy_ckpt: bool = False,
 ) -> Path:
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
@@ -385,7 +387,7 @@ def ptq(
         calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for output checkpoint.
-        ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
+        legacy_ckpt (bool): If True, allow loading ckpt saved with older version of TE.
 
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
@@ -396,15 +398,19 @@ def ptq(
     if export_config.path is None:
         raise ValueError("The export_config.path needs to be specified, got None.")
 
-    from nemo.collections.llm import quantization
+    quantizer = Quantizer(quantization_config, export_config)
 
-    quantizer = quantization.Quantizer(quantization_config, export_config)
-
-    model, trainer = quantization.load_with_modelopt_layer_spec(
+    model, trainer = llm.setup_trainer_and_restore_model_with_modelopt_spec(
         nemo_checkpoint,
         calibration_tp,
         calibration_pp,
-        ckpt_load_strictness=ckpt_load_strictness,
+        devices=calibration_tp,
+        num_nodes=calibration_pp,
+        inference_only=True,
+        legacy_ckpt=legacy_ckpt,
+        strategy_kwargs={"sequence_parallel": False, "lazy_init": True},
+        trainer_kwargs={},
+        model_config_overrides={"sequence_parallel": False},
     )
 
     model = quantizer.quantize(model)
