@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import gc
+import glob
 import json
 import logging
 import os
@@ -21,7 +22,7 @@ import shutil
 import tempfile
 import warnings
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import safetensors
@@ -186,6 +187,7 @@ class TensorRTLLM(ITritonDeployable):
         gather_context_logits: Optional[bool] = False,
         gather_generation_logits: Optional[bool] = False,
         build_rank: Optional[int] = 0,
+        format: Optional[str] = None,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -225,9 +227,13 @@ class TensorRTLLM(ITritonDeployable):
             gather_context_logits (Optional[bool]): if True, enables gather_context_logits while building trtllm engine. Default: False
             gather_generation_logits (Optional[bool]): if True, enables gather_generation_logits while building trtllm engine. Default: False
             build_rank (Optional[int]): rank to export the model on. If None, builds on all ranks.
+            format (Optional[str]): output format of the exported model. Using format="nim" creates directory structure
+                suitable for deployment in a NIM container. Default: None
         """
 
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
+        if format == "nim":
+            self.model_dir = os.path.join(self.model_dir, "trtllm_engine")
         prepare_directory_for_export(self.model_dir, delete_existing_files=delete_existing_files)
 
         if max_prompt_embedding_table_size is None:
@@ -440,7 +446,7 @@ class TensorRTLLM(ITritonDeployable):
                     if model_type == "mixtral":
                         model_type = "llama"
 
-                    weights_dicts, model_configs = model_to_trtllm_ckpt(
+                    trtllm_model_weights_list, trtllm_model_config_list = model_to_trtllm_ckpt(
                         model=model,
                         nemo_model_config=model_config,
                         nemo_export_dir=nemo_export_dir,
@@ -455,13 +461,13 @@ class TensorRTLLM(ITritonDeployable):
                         fp8_kvcache=fp8_kvcache,
                     )
 
-                    for weight_dict, model_config in zip(weights_dicts, model_configs):
+                    for trtllm_model_weights, trtllm_model_config in zip(trtllm_model_weights_list, trtllm_model_config_list):
                         build_and_save_engine(
                             max_input_len=max_input_len,
                             max_output_len=max_output_len,
                             max_batch_size=max_batch_size,
-                            model_config=model_config,
-                            model_weights=weight_dict,
+                            model_config=trtllm_model_config,
+                            model_weights=trtllm_model_weights,
                             model_dir=self.model_dir,
                             model_type=model_type,
                             lora_ckpt_list=self.lora_ckpt_list,
@@ -500,11 +506,50 @@ class TensorRTLLM(ITritonDeployable):
 
             tmp_dir.cleanup()
 
+        if is_export_rank and format == "nim":
+            self._export_to_nim_format(model_config, model_type)
+
         if tensorrt_llm.mpi_world_size() > 1:
             tensorrt_llm.mpi_barrier()
 
         if is_export_rank and load_model:
             self._load()
+
+    def _export_to_nim_format(self, model_config: Dict[str, Any], model_type: str):
+        """
+        Exports the model configuration to a specific format required by NIM.
+        This method performs the following steps:
+        1. Moves tokenizer files from the nemo_context/nemo_tokenizer directory to the root model directory.
+        2. Creates a dummy Hugging Face (HF) configuration file based on the provided model configuration and type.
+
+        Args:
+            model_config (dict): A dictionary containing the model configuration parameters.
+            model_type (str): The type of the model (e.g., "llama").
+        """
+
+        # Move tokenizer files to root model directory
+        root_model_dir = Path(self.model_dir).parent.absolute()
+        for path in glob.glob(f"{self.model_dir}/nemo_context/nemo_tokenizer/*.json"):
+            shutil.move(path, root_model_dir)
+
+        # Create dummy HF config
+        seq_len_interpolation_factor = model_config.get("seq_len_interpolation_factor")
+        hf_config = {
+            "max_position_embeddings": model_config.get("encoder_seq_length"),
+            "architectures": ["LLaMAForCausalLM"],
+            "rope_scaling": (
+                None
+                if seq_len_interpolation_factor is None
+                else {
+                    "factor": seq_len_interpolation_factor,
+                    "rope_type": "default",
+                }
+            ),
+            "model_type": model_type,
+        }
+        with open(root_model_dir / "config.json", "w") as f:
+            json.dump(hf_config, f, indent=2)
+            f.write("\n")
 
     def get_transformer_config(self, nemo_model_config):
         """Given nemo model config get transformer config"""
