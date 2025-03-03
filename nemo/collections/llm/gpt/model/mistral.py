@@ -61,6 +61,7 @@ class MistralConfig7B(GPTConfig):
     layernorm_epsilon: float = 1e-5
     window_size: List[int] = field(default_factory=lambda: [4096, 0])
     cp_comm_type: str = "a2a"
+    params_dtype: torch.dtype = torch.bfloat16
 
 
 @dataclass
@@ -78,6 +79,7 @@ class MistralNeMoConfig12B(MistralConfig7B):
     cp_comm_type: str = None
     rotary_percent: float = 1.0
     rotary_base: float = 1000000.0
+    params_dtype: torch.dtype = torch.bfloat16
 
 
 @dataclass
@@ -97,6 +99,7 @@ class MistralNeMoConfig123B(MistralConfig7B):
     cp_comm_type: str = None
     rotary_percent: float = 1.0
     rotary_base: float = 1000000.0
+    params_dtype: torch.dtype = torch.bfloat16
 
 
 class MistralModel(GPTModel):
@@ -161,9 +164,10 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
     @property
     def config(self) -> MistralConfig7B:
         """ """
-        from transformers import MistralConfig
+        from transformers import GenerationConfig, MistralConfig
 
         source = MistralConfig.from_pretrained(str(self))
+        generation_config = GenerationConfig.from_pretrained(str(self))
 
         def make_vocab_size_divisible_by(mistral_vocab_size):
             base = 128
@@ -195,6 +199,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
+            generation_config=generation_config,
         )
 
         return output

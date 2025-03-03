@@ -356,8 +356,8 @@ def ptq(
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
-    This function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy modules
-    or direcly using TensorRT-LLM library.
+    By default, this function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy
+    modules or direcly using TensorRT-LLM library.
 
     The function can be used through the NeMo CLI in the following way:
     ```bash
@@ -371,6 +371,12 @@ def ptq(
     nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq
+
+    # Export as NeMo checkpoint instead
+    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
+        export_config.path=/models/Llama-3-8B-INT8_SQ \
+        quantization_config.algorithm=int8_sq \
+        export_config.export_format=nemo
     ```
 
     Args:
@@ -378,7 +384,7 @@ def ptq(
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
-        export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
+        export_config (ExportConfig): Export configuration for output checkpoint.
         ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
 
     Returns:
@@ -394,7 +400,7 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(
+    model, trainer = quantization.load_with_modelopt_layer_spec(
         nemo_checkpoint,
         calibration_tp,
         calibration_pp,
@@ -403,7 +409,7 @@ def ptq(
 
     model = quantizer.quantize(model)
 
-    quantizer.export(model, nemo_checkpoint)
+    quantizer.export(model, nemo_checkpoint, trainer)
 
     console = Console()
     console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
@@ -644,7 +650,10 @@ def import_ckpt(
         console.print(f"[green]✓ Checkpoint imported to {output}[/green]")
     else:
         console.print(f"[green] $NEMO_MODELS_CACHE={NEMO_MODELS_CACHE} [/green]")
-        console.print(f"[green]✓ Checkpoint imported to {output}[/green]")
+
+    # Display directory structure as a tree
+    dir_tree = _build_directory_tree(output, root_name="Imported Checkpoint")
+    console.print(dir_tree)
 
     return output
 
@@ -663,6 +672,7 @@ def export_ckpt(
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
+    **kwargs,
 ) -> Path:
     """
     Exports a checkpoint from a model using the model's associated exporter, typically for
@@ -716,7 +726,7 @@ def export_ckpt(
     if output_path and not isinstance(output_path, Path):
         output_path = Path(output_path)
 
-    output = io.export_ckpt(path, target, output_path, overwrite, load_connector)
+    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
 
     console = Console()
     console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
@@ -964,10 +974,6 @@ def _validate_config(
         assert model.config.hidden_size > 0
         assert model.config.num_attention_heads > 0
         assert model.config.ffn_hidden_size > 0
-
-        if hasattr(model.config, "seq_length"):
-            if getattr(model.config, "max_position_embeddings", None) is not None:
-                assert model.config.seq_length <= model.config.max_position_embeddings
     else:
         assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
 
@@ -1058,3 +1064,32 @@ def _validate_config(
                 assert (
                     model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
                 ), "Number of experts should be a multiple of expert model parallel_size."
+
+
+def _build_directory_tree(path, tree=None, root_name=None):
+    """Build a Rich Tree representation of a directory structure."""
+    from rich.tree import Tree
+
+    path = Path(path)
+    if tree is None:
+        tree = Tree(f"[bold blue]{root_name or path.name}[/bold blue]")
+
+    # Sort to have directories first, then files
+    items = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name))
+
+    for item in items:
+        if item.is_dir():
+            branch = tree.add(f"[bold cyan]{item.name}/[/bold cyan]")
+            _build_directory_tree(item, branch)
+        else:
+            # Color differently based on file extension
+            if item.suffix in ('.json', '.jsonl'):
+                tree.add(f"[yellow]{item.name}[/yellow]")
+            elif item.suffix in ('.pt', '.bin', '.ckpt', '.nemo'):
+                tree.add(f"[magenta]{item.name}[/magenta]")
+            elif item.suffix in ('.py', '.sh'):
+                tree.add(f"[green]{item.name}[/green]")
+            else:
+                tree.add(f"[white]{item.name}[/white]")
+
+    return tree
