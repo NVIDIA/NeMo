@@ -48,15 +48,21 @@ try:
 except ImportError:
 
     def DelayedScaling(*args, **kwargs):
+        """Not imported: DelayedScaling. An error will be raised if this is called."""
         raise ImportError("transformer_engine not installed. Using default recipe.")
 
     def Format(*args, **kwargs):
+        """Not imported: Format. An error will be raised if this is called."""
         raise ImportError("transformer_engine not installed. Using default recipe.")
 
-    class te:
+    class _te:
+        """If this dummy module is accessed, a not imported error will be raised."""
+
         def __getattribute__(self, name: str) -> None:
+            """Not imported: te. An error will be raised if this is called like a module."""
             raise ImportError("transformer_engine not installed. Using default recipe.")
 
+    te = _te()  # if a user accesses anything in this module, an error will be raised
     logger.warning("WARNING: transformer_engine not installed. Using default recipe.")
 
 
