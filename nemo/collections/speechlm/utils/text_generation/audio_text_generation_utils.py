@@ -365,17 +365,17 @@ def generate(
     else:
         inference_strategy = model_inference_strategy_dispatcher(model)
     tokenizer = model.tokenizer
-    has_multi_audios = False
+    # has_multi_audios = False  # commented out to make sure inference using TP > 1 works with lhotse dataloader
     num_audios = None
     context_start_idx = None
     audio_signal, audio_signal_length = None, None
 
-    if isinstance(inputs, tuple) and len(inputs) == 2:
+    if isinstance(inputs, tuple) and len(inputs) == 2:  # only LLM
         context_tokens_tensor, context_length_tensor = inputs
-    elif isinstance(inputs, tuple) and len(inputs) == 4:
+    elif isinstance(inputs, tuple) and len(inputs) == 4:  # single audio in each sample
         context_tokens_tensor, context_length_tensor, audio_signal, audio_signal_length = inputs
-    elif isinstance(inputs, tuple) and len(inputs) == 6:  # multi-audio
-        has_multi_audios = True
+    elif isinstance(inputs, tuple) and len(inputs) == 6:  # possible multi-audio in each sample
+        # has_multi_audios = True # commented out to make sure inference using TP > 1 works with lhotse dataloader
         (
             context_tokens_tensor,
             context_length_tensor,

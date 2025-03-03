@@ -245,7 +245,6 @@ def collate_text_data(
     context_ids = [sample.context_ids for sample in samples]
     context_lengths = [sample.context_length for sample in samples]
     answer_ids = [sample.answer_ids for sample in samples]
-    answer_ids = [sample.answer_ids for sample in samples]
     context_start_idx = [sample.context_start_idx.numpy().tolist() for sample in samples]
     num_audios = [sample.num_audios for sample in samples]
     answer_start_idx = [sample.answer_start_idx for sample in samples]

@@ -172,6 +172,7 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
                 }
             )
             asr_model.maybe_init_from_pretrained_checkpoint(init_cfg)
+
         model = asr_model
         if self.target_module is not None:
             model = get_nested_attr(asr_model, self.target_module)
@@ -211,6 +212,7 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             config = AutoConfig.from_pretrained(self.pretrained_model, trust_remote_code=self.hf_trust_remote_code)
             asr_model = AutoModelForSpeechSeq2Seq.from_config(config, trust_remote_code=self.hf_trust_remote_code)
 
+        model = asr_model
         if self.target_module is not None:
             model = get_nested_attr(asr_model, self.target_module)
 
