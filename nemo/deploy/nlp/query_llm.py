@@ -121,7 +121,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
         if max_length is not None:
             inputs["max_length"] = np.full(prompts.shape, max_length, dtype=np.int_)
 
-        with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout) as client:
+        with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout, inference_timeout_s=600) as client:
             result_dict = client.infer_batch(**inputs)
             output_type = client.model_config.outputs[0].dtype
 
@@ -144,7 +144,9 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
                     "choices": [{"text": sentences}],
                 }
                 if log_probs_output is not None:
-                    openai_response["log_probs"] = log_probs_output
+                    openai_response["choices"][0]["logprobs"] = {}
+                    openai_response["choices"][0]["logprobs"]["token_logprobs"] = log_probs_output
+                    openai_response["choices"][0]["logprobs"]["top_logprobs"] = log_probs_output
                 return openai_response
             else:
                 return result_dict["sentences"]
