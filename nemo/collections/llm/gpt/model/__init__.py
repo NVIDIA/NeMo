@@ -223,9 +223,7 @@ __all__ = [
     "transformer_engine_full_layer_spec",
     "local_layer_spec",
     "HFAutoModelForCausalLM",
-<<<<<<< HEAD
     "get_llama_bidirectional_hf_model",
-=======
     "HyenaTestConfig",
     "Hyena1bConfig",
     "HyenaNV1bConfig",
@@ -238,5 +236,4 @@ __all__ = [
     "HyenaNV7bConfig",
     "HyenaConfig",
     "HyenaModel",
->>>>>>> f6a30f3b2a7396c8c486f1a26ad10178bb8cf70f
 ]
