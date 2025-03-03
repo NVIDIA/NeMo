@@ -3,7 +3,7 @@ Evaluate NeMo 2.0 Checkpoints
 
 This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the integrated `lm-evaluation-harness
 <https://github.com/EleutherAI/lm-evaluation-harness>`__ within the NeMo Framework. Supported benchmarks include
-``MMLU``, ``GSM8k``, ``lambada_openai``, ``winogrande``, ``arc_challenge``, ``arc_easy``, ``copa``.
+``MMLU``, ``GSM8k``, ``lambada_openai``, ``winogrande``, ``arc_challenge``, ``arc_easy``, and ``copa``.
 
 Introduction
 --------------
@@ -55,7 +55,7 @@ the processes from being killed and aborting the runs.
 
   Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument
   options as these are just sample commands and don't share all arguments and their default settings. For more details
-  on arguments in ApiEndpoint and ConfigParams classes for evaluation refer to `nemo/collections/llm/evaluation/api.py
+  on arguments in the ApiEndpoint and ConfigParams classes for evaluation, refer to `nemo/collections/llm/evaluation/api.py
   <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/evaluation/api.py>`__.
 
 Run Evaluations with NeMo-Run
