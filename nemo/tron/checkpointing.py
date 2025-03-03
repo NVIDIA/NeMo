@@ -481,7 +481,7 @@ def save_checkpoint(
 
     # Save dataloader state if the dataloader supports it (currently only Megatron Energon).
     maybe_save_dataloader_state(
-        train_data_iterator, train_state.step, getattr(cfg.megatron_lm_config, "dataloader_save", None)
+        train_data_iterator, train_state.step, getattr(cfg.dataset_config, "dataloader_save", None)
     )
 
     # Save distributed optimizer's custom parameter state.
