@@ -456,7 +456,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, use_iterable_dataset = read_cutset_from_config(config)
     use_iterable_dataset = determine_use_iterable_dataset(use_iterable_dataset, config)
-
+    
     # Apply channel selector
     if config.channel_selector is not None:
         logging.info('Using channel selector %s.', config.channel_selector)
@@ -492,8 +492,6 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             if not isinstance(tokenizer, TokenizerWrapper):
                 tokenizer = TokenizerWrapper(tokenizer)
             cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=None)
-        cuts = cuts.filter(TokenPerSecondFilter(config.min_tps, config.max_tps))
-        cuts = cuts.filter(TokenPerTokenFilter(config.min_tpt, config.max_tpt))
 
     # 2. Optional augmentations.
     # 2.a. Noise mixing.
@@ -535,12 +533,17 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     if config.pad_min_duration is not None:
         cuts = cuts.pad(duration=config.pad_min_duration, direction=config.pad_direction, preserve_id=True)
 
+    
     # Duration filtering, same as native NeMo dataloaders.
     # We can filter after the augmentations because they are applied only when calling load_audio().
     cuts = cuts.filter(DurationFilter(config.min_duration, config.max_duration))
     cuts = cuts.filter(
         TokenCountFilter(config.min_tokens, config.max_tokens, measure_total_length=config.measure_total_length)
     )
+
+    if tokenizer is not None and config.pretokenize:
+            cuts = cuts.filter(TokenPerSecondFilter(config.min_tps, config.max_tps))
+            cuts = cuts.filter(TokenPerTokenFilter(config.min_tpt, config.max_tpt))
 
     # Select the strategy customizing Lhotse sampler behaviour.
     # Provides support for dynamic batch sizes, multimodal dataloading, 2D bucketing, etc.
