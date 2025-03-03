@@ -17,7 +17,6 @@ from collections import Counter
 from pathlib import Path
 from typing import Dict, Union
 
-import tensorrt as trt
 import torch
 
 
@@ -129,12 +128,15 @@ def get_example_inputs(tokenizer) -> Dict[str, torch.Tensor]:
     return example_inputs
 
 
-def validate_fp8_network(network: trt.INetworkDefinition) -> None:
+def validate_fp8_network(network) -> None:
     """Checks the network to ensure it's compatible with fp8 precison.
 
     Raises:
         ValueError if netowrk doesn't container Q/DQ FP8 layers
     """
+
+    import tensorrt as trt
+
     quantize_dequantize_layers = []
     for layer in network:
         if layer.type in {trt.LayerType.QUANTIZE, trt.LayerType.DEQUANTIZE}:
