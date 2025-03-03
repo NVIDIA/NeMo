@@ -12,7 +12,8 @@ from nemo import lightning as nl
 from nemo.collections.llm import SquadDataModule, MockDataModule
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.utils.exp_manager import DeltaTimingCallback
-from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
+from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule, HellaswagHFDataModule
+
 
 
 DATE_STR = datetime.today().strftime("%m%d")
@@ -40,7 +41,7 @@ def get_secrets():
 
 def local_executor_torchrun(devices: int = 2) -> run.LocalExecutor:
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "0",
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
         "NCCL_NVLS_ENABLE": "0",
         "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
@@ -248,6 +249,7 @@ def configure_recipe_llama32_1b_pretrain(
     #     global_batch_size=512,
     #     micro_batch_size=1,
     # )
+
     recipe.data = run.Config(
         MockDataModule,
         seq_length=seq_length,
@@ -318,6 +320,20 @@ def configure_recipe_llama31_405b(num_nodes, num_gpus_per_node, peft_scheme):
     return recipe
 
 
+
+
+    # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
+    _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
+    dataset = dataset.map(
+        _preprocessing_function,
+        batched=True,
+    ).select_columns(['input_ids', 'attention_mask', 'labels'])
+
+    # Shuffle dataset.
+    dataset = dataset.shuffle(seed=seed)
+
+    return dataset
+
 def custom_hf_auto_model_for_causal_lm_finetune(
     num_nodes,
     num_gpus_per_node,
@@ -345,8 +361,27 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     # finetune.data.seq_length = seq_length
     # finetune.data.global_batch_size = global_batch_size
     # finetune.data.micro_batch_size = 1
+    
+    #datamodule = run.Config(HFMockDataModule, seq_length=seq_length, global_batch_size=global_batch_size)
 
-    datamodule = run.Config(HFMockDataModule, seq_length=seq_length, global_batch_size=global_batch_size)
+    # datamodule.map(
+    #     formatting_prompts_func,
+    #     batched=False,
+    #     batch_size=2,
+    #     remove_columns=["id", "title", "context", "question", 'answers'],
+    # )
+    
+    
+    datamodule = run.Config(HellaswagHFDataModule,
+                            tokenizer=run.Config(
+                                AutoTokenizer, pretrained_model_name="meta-llama/Llama-3.2-1B"
+                            ),
+                            path_or_dataset="Rowan/hellaswag",
+                            seq_length=seq_length,
+                            global_batch_size=global_batch_size,
+                            micro_batch_size=1,
+                             
+    )
     finetune.data = datamodule
     finetune.trainer.val_check_interval = 100
 
@@ -439,172 +474,75 @@ def custom_hf_auto_model_for_causal_lm(
     return pretrain
 
 
+#from 70b_lora_config import recipes
+#from llama_8b_sft_config import recipes
+
 recipes = [
-    # custom_hf_auto_model_for_causal_lm(1, 2, "nemo2"),
-    # custom_hf_auto_model_for_causal_lm(2, 8, "nemo2"),
-    # configure_recipe_llama32_1b_pretrain(1, 2),
-    # configure_recipe_llama32_1b_pretrain(1, 8),
-    # custom_hf_auto_model_for_causal_lm(1, 8, "nemo2"),
-    # custom_hf_auto_model_for_causal_lm(2, 8, "nemo2"),
-    # custom_hf_auto_model_for_causal_lm(4, 8, "nemo2"),
-    # custom_hf_auto_model_for_causal_lm(1, 8, "nemo2", 4096, 32),
-    # custom_hf_auto_model_for_causal_lm(1, 8, "nemo2", 4096, 64),
-    # custom_hf_auto_model_for_causal_lm(1, 8, "nemo2", 4096, 128),
-    # custom_hf_auto_model_for_causal_lm(1, 8, "nemo2", 4096, 256),
-    # (
-    #     configure_recipe_llama32_1b_pretrain(1, 2, "nemo2"),
-    #     "llama32_1b_pretrain_1_node_2_gpu",
-    # ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm_finetune(1, 1, "nemo2", 2048, 128),
-    #     "hf_llama32_1b_pretrain_1_node_2_gpu",
-    # ),
     # (
     #     custom_hf_auto_model_for_causal_lm_finetune(
-    #         num_nodes=1,
+    #         num_nodes=8,
     #         num_gpus_per_node=8,
     #         wandb_project_name="perf",
-    #         seq_length=4096,
+    #         seq_length=512,
     #         global_batch_size=32,
-    #         model_name="meta-llama/Meta-Llama-3-8B",
+    #         model_name="meta-llama/Meta-Llama-3-405B",
+    #         peft_scheme="lora",
     #     ),
-    #     "perf-llama3_8b_finetune-1_node-8_gpu_4096_32",
+    #     "perf-llama3_405b-lora-4_node-512_32",
     # ),
     # (
     #     custom_hf_auto_model_for_causal_lm_finetune(
     #         num_nodes=4,
     #         num_gpus_per_node=8,
     #         wandb_project_name="perf",
-    #         seq_length=4096,
+    #         seq_length=512,
+    #         global_batch_size=32,
+    #         model_name="meta-llama/Meta-Llama-3-405B",
+    #         peft_scheme="lora",
+    #     ),
+    #     "perf-llama3_405b-lora-4_node-512_32",
+    # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=4,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=256,
+    #         global_batch_size=32,
+    #         model_name="meta-llama/Meta-Llama-3-405B",
+    #         peft_scheme="lora",
+    #     ),
+    #     "perf-llama3_405b-lora-4_node-512_32",
+    # ),
+
+
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=1,
+            num_gpus_per_node=2,
+            wandb_project_name="perf",
+            seq_length=256,
+            global_batch_size=32,
+            model_name="meta-llama/Llama-3.2-1B",
+            #peft_scheme="lora",
+        ),
+        "eval-local",
+    ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=4,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=256,
     #         global_batch_size=32,
     #         model_name="meta-llama/Meta-Llama-3-70B",
+    #         #peft_scheme="lora",
     #     ),
-    #     "perf-llama3_70b_finetune-4_node-32_gpu_4096_32",
+    #     "eval-llama3_70b-hellaswag-4_node-256_32",
     # ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm_finetune(
-    #         num_nodes=1,
-    #         num_gpus_per_node=8,
-    #         wandb_project_name="perf",
-    #         seq_length=128,
-    #         global_batch_size=128,
-    #         model_name="meta-llama/Llama-3.1-8B",
-    #     ),
-    #     "perf-llama3_1_8b_finetune-2_node-8_gpu_128_128",
-    # ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm_finetune(
-    #         num_nodes=4,
-    #         num_gpus_per_node=8,
-    #         wandb_project_name="perf",
-    #         seq_length=4096,
-    #         global_batch_size=256,
-    #         model_name="meta-llama/Llama-3.1-8B",
-    #     ),
-    #     "perf-llama3_1_8b_finetune-4_node-8_gpu_4096_256",
-    # ),
-    # (
-    #     configure_recipe_llama32_1b_finetune(1, 8, "nemo2", 2048, 128),
-    #     f"{DATE_STR}-mcore_llama32_1b_finetune_1_node_8_gpu",
-    # ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm_finetune(1, 8, "nemo2", 2048, 128),
-    #     f"{DATE_STR}-hf_llama32_1b_finetune_1_node_8_gpu",
-    # ),
-    # (
-    #     configure_recipe_llama32_1b_finetune(1, 8, "nemo2", 2048, 128),
-    #     "mcore_llama32_1b_finetune_1_node_8_gpu",
-    # ),
-    # (
-    #     configure_recipe_llama32_1b_pretrain(1, 8, "nemo2", 2048, 128),
-    #     "mcore_llama32_1b_pretrain_1_node_8_gpu",
-    # ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm(1, 8, "nemo2", 2048, 128),
-    #     "hf_llama32_1b_pretrain_1_node_8_gpu",
-    # ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm(2, 8, "nemo2", 2048, 128),
-    #     "hf_llama32_1b_pretrain_2_node_8_gpu",
-    # ),
-    # (
-    #     custom_hf_auto_model_for_causal_lm(4, 8, "nemo2", 2048, 128),
-    #     "hf_llama32_1b_pretrain_4_node_8_gpu",
-    # ),
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=1,
-            num_gpus_per_node=8,
-            wandb_project_name="perf",
-            seq_length=4096,
-            global_batch_size=8,
-            model_name="meta-llama/Meta-Llama-3-8B",
-            peft_scheme="lora",
-        ),
-        "perf-llama3_8b_lora-1_node-8_gpu_4096_16",
-    ),
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=1,
-            num_gpus_per_node=8,
-            wandb_project_name="perf",
-            seq_length=4096,
-            global_batch_size=8,
-            model_name="meta-llama/Meta-Llama-3-70B",
-            peft_scheme="lora",
-        ),
-        "perf-llama3_70b_lora-1_node-8_gpu_4096_16",
-    ),
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=1,
-            num_gpus_per_node=8,
-            wandb_project_name="perf",
-            seq_length=2048,
-            global_batch_size=32,
-            model_name="meta-llama/Meta-Llama-3-8B",
-            peft_scheme="lora",
-        ),
-        "perf-llama3_8b_lora-1_node-8_gpu_2048_32",
-    ),
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=1,
-            num_gpus_per_node=8,
-            wandb_project_name="perf",
-            seq_length=2048,
-            global_batch_size=32,
-            model_name="meta-llama/Meta-Llama-3-70B",
-            peft_scheme="lora",
-        ),
-        "perf-llama3_70b_lora-1_node-8_gpu_2048_32",
-    ),
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=1,
-            num_gpus_per_node=8,
-            wandb_project_name="perf",
-            seq_length=1024,
-            global_batch_size=32,
-            model_name="meta-llama/Meta-Llama-3-8B",
-            peft_scheme="lora",
-        ),
-        "perf-llama3_8b_lora-1_node-8_gpu_1024_32",
-    ),
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=1,
-            num_gpus_per_node=8,
-            wandb_project_name="perf",
-            seq_length=1024,
-            global_batch_size=32,
-            model_name="meta-llama/Meta-Llama-3-70B",
-            peft_scheme="lora",
-        ),
-        "perf-llama3_70b_lora-1_node-8_gpu_1024_32",
-    ),
-]
 
+
+]
 
 def run_local():
     executor = partial(local_executor_torchrun, devices=2)
@@ -631,7 +569,7 @@ def run_finetuning_on_slurm(**slurm_kwargs):
         **slurm_kwargs,
     )
 
-    with run.Experiment(f"{DATE_STR}-squad_llama3_2_1b_pretrain") as exp:
+    with run.Experiment(f"{DATE_STR}-auto-model-benchmark") as exp:
         for recipe, exp_name in recipes:
             exp.add(
                 recipe, executor=executor(nodes=recipe.trainer.num_nodes), name=exp_name
@@ -649,5 +587,10 @@ if __name__ == "__main__":
     # )
     print("did you Update CW codebase")
     #breakpoint()
-    run_finetuning_on_slurm()
-    #run_local()
+    #run_finetuning_on_slurm()
+    from datasets import load_dataset
+
+
+    dataset = load_dataset("Rowan/hellaswag", split="train")
+    print("Dataset downloaded successfully")
+    run_local()

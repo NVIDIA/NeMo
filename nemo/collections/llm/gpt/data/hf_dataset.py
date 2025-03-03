@@ -286,7 +286,127 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 continue
             dataset_splits[split_name] = subset.map(function, **kwargs)
 
+class HellaswagHFDataModule(HFDatasetDataModule):
+    """
+    A data module for handling the Hellaswag dataset using HFDatasetDataModule.
 
+    This class is responsible for tokenizing and formatting the Hellaswag dataset for training
+    language models. It extends `HFDatasetDataModule` and implements preprocessing functions
+    to prepare the data for causal language modeling.
+
+    Attributes:
+        tokenizer: A tokenizer instance used to convert text into token IDs.
+        seq_length: Maximum sequence length for tokenization.
+    """
+
+    def __init__(self, tokenizer, **kwargs):
+        """
+        Initializes the HellaswagHFDataModule.
+
+        Args:
+            tokenizer: A tokenizer instance for processing text data.
+            seq_length: Maximum sequence length for tokenization.
+            **kwargs: Additional arguments passed to the parent class (`HFDatasetDataModule`).
+        """
+        super().__init__(**kwargs)
+        self.tokenizer = tokenizer
+
+    def preprocess(self, text):
+        """
+        Cleans and preprocesses text from Hellaswag examples.
+        
+        Args:
+            text (str): Raw text to preprocess.
+            
+        Returns:
+            str: Cleaned text with artifacts removed.
+        """
+        import re
+        text = text.strip()
+        # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
+        text = text.replace(" [title]", ". ")
+        text = re.sub("\\[.*?\\]", "", text)
+        text = text.replace("  ", " ")
+        return text
+    
+    def process_doc(self, doc):
+        """
+        Processes a raw document into a structured format for training.
+        
+        Args:
+            doc (dict): Raw document from the Hellaswag dataset.
+            
+        Returns:
+            dict: Processed document with query, choices, gold answer, and combined text.
+        """
+        ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
+        query = self.preprocess(doc["activity_label"] + ": " + ctx)
+        choices = [self.preprocess(ending) for ending in doc["endings"]]
+        gold = int(doc["label"])
+        out_doc = {
+            "query": query,
+            "choices": choices,
+            "gold": gold,
+            "text": query + " " + choices[gold]
+        }
+        return out_doc
+
+    def preprocess_batch(self, batch, max_length=None):
+        """
+        Tokenizes a batch of examples and prepares them for training.
+        
+        Args:
+            batch (dict): Batch of examples with text field.
+            max_length (int, optional): Maximum sequence length. Defaults to self.seq_length.
+            
+        Returns:
+            dict: Tokenized batch with input_ids, attention_mask, and shifted labels.
+        """
+        if max_length is None:
+            max_length = self.seq_length
+            
+        ans = self.tokenizer(
+            batch["text"],
+            max_length=max_length,
+            truncation=True,
+        )
+        ans['labels'] = [
+            x[1:] + [-100] for x in ans['input_ids']
+        ]
+        return ans
+
+    def setup(self, stage=None):
+        """
+        Prepares the dataset for training by applying preprocessing and tokenization.
+
+        Args:
+            stage (str, optional): The stage of training. Defaults to None.
+        """
+        super().setup(stage)
+        
+        # Process documents to create structured format
+        self.dataset_splits["train"] = self.dataset_splits["train"].map(self.process_doc)
+        
+        # Apply tokenization and prepare for training
+        self.dataset_splits["train"] = self.dataset_splits["train"].map(
+            lambda batch: self.preprocess_batch(batch, max_length=self.seq_length),
+            batched=True,
+        ).select_columns(['input_ids', 'attention_mask', 'labels'])
+        
+        # Shuffle dataset
+        self.dataset_splits["train"] = self.dataset_splits["train"].shuffle(seed=42)
+        
+        # Apply the same preprocessing to validation/test splits if they exist
+        for split in ["validation", "test"]:
+            if split in self.dataset_splits:
+                self.dataset_splits[split] = self.dataset_splits[split].map(self.process_doc)
+                self.dataset_splits[split] = self.dataset_splits[split].map(
+                    lambda batch: self.preprocess_batch(batch, max_length=self.seq_length),
+                    batched=True,
+                ).select_columns(['input_ids', 'attention_mask', 'labels'])
+
+
+    
 class SquadHFDataModule(HFDatasetDataModule):
     """
     A data module for handling the SQuAD dataset using HFDatasetDataModule.
