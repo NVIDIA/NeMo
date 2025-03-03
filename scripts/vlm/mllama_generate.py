@@ -14,7 +14,7 @@
 
 """
 Example:
-  python scripts/vlm/neva_generate.py --load_from_hf
+  python scripts/vlm/mllama_generate.py --load_from_hf
 """
 
 import argparse
@@ -94,7 +94,7 @@ def main(args) -> None:
         limit_val_batches=50,
     )
 
-    processor = AutoProcessor.from_pretrained(model_id)
+    processor = AutoProcessor.from_pretrained(args.processor_name)
     tokenizer = processor.tokenizer
 
     fabric = trainer.to_fabric()
@@ -135,6 +135,12 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Local path to the model if not loading from Hugging Face.",
+    )
+    parser.add_argument(
+        "--processor_name",
+        type=str,
+        default="meta-llama/Llama-3.2-11B-Vision-Instruct",
+        help="Name or path of processor",
     )
     parser.add_argument(
         "--prompt",
