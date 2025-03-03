@@ -76,7 +76,7 @@ def setup(
     if cfg.logger_config.log_progress:
         append_to_progress_log(cfg.checkpoint_config.save, "Starting job")
 
-    if cfg.ft_config.enable_ft_package:
+    if cfg.ft_config and cfg.ft_config.enable_ft_package:
         fault_tolerance.setup(cfg, state)
         fault_tolerance.maybe_setup_simulated_fault(cfg.ft_config)
 

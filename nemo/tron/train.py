@@ -140,7 +140,7 @@ def train(
         gc.disable()
         gc.collect()
 
-    if config.straggler_config.log_straggler:
+    if config.straggler_config and config.straggler_config.log_straggler:
         world = torch.distributed.get_world_size()
         rank = torch.distributed.get_rank()
         mmcnt = config.straggler_config.straggler_minmax_count
@@ -159,7 +159,8 @@ def train(
     prof = None
     prof_config = config.profiling_config
     if (
-        prof_config.profile
+        prof_config
+        and prof_config.profile
         and torch.distributed.get_rank() in prof_config.profile_ranks
         and prof_config.use_pytorch_profiler
     ):
@@ -527,12 +528,13 @@ def post_training_step_callbacks(
         torch.cuda.synchronize()
 
     # Straggler detector.
-    if iteration % config.logger_config.log_interval == 0 and config.straggler_config.log_straggler:
-        straggler_timer.report(
-            num_floating_point_operations_since_last_log_event,
-            config.logger_config.log_interval,
-        )
-        num_floating_point_operations_since_last_log_event = 0.0
+    if config.straggler_config:
+        if iteration % config.logger_config.log_interval == 0 and config.straggler_config.log_straggler:
+            straggler_timer.report(
+                num_floating_point_operations_since_last_log_event,
+                config.logger_config.log_interval,
+            )
+            num_floating_point_operations_since_last_log_event = 0.0
 
     # Check weight hash across DP replicas.
     if (
@@ -551,7 +553,8 @@ def post_training_step_callbacks(
 
     # Profiling.
     if (
-        config.profiling_config.profile
+        config.profiling_config
+        and config.profiling_config.profile
         and iteration == config.profiling_config.profile_step_end
         and torch.distributed.get_rank() in config.profiling_config.profile_ranks
     ):
