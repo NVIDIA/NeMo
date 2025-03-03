@@ -455,7 +455,7 @@ def save_checkpoint(
 
     # Collect rng state across data parallel ranks.
     rng_state = get_rng_state(
-        data_parallel_random_init=cfg.megatron_lm_config.data_parallel_random_init,
+        data_parallel_random_init=cfg.rng_config.data_parallel_random_init,
         use_dist_ckpt=ckpt_type != CheckpointType.LEGACY,
     )
 
@@ -481,7 +481,7 @@ def save_checkpoint(
 
     # Save dataloader state if the dataloader supports it (currently only Megatron Energon).
     maybe_save_dataloader_state(
-        train_data_iterator, train_state.step, getattr(cfg.megatron_lm_config, "dataloader_save", None)
+        train_data_iterator, train_state.step, getattr(cfg.dataset_config, "dataloader_save", None)
     )
 
     # Save distributed optimizer's custom parameter state.
@@ -1126,14 +1126,14 @@ def load_checkpoint(
             ckpt_tp_pp = (
                 run_config["model_config"]["tensor_model_parallel_size"],
                 run_config["model_config"]["pipeline_model_parallel_size"],
-                run_config["megatron_lm_config"]["encoder_tensor_model_parallel_size"],
-                run_config["megatron_lm_config"]["encoder_pipeline_model_parallel_size"],
+                run_config["model_config"].get("encoder_tensor_model_parallel_size", 0),
+                run_config["model_config"].get("encoder_pipeline_model_parallel_size", 0),
             )
             run_tp_pp = (
                 cfg.model_config.tensor_model_parallel_size,
                 cfg.model_config.pipeline_model_parallel_size,
-                cfg.megatron_lm_config.encoder_tensor_model_parallel_size,
-                cfg.megatron_lm_config.encoder_pipeline_model_parallel_size,
+                cfg.dist_config.encoder_tensor_model_parallel_size,
+                cfg.dist_config.encoder_pipeline_model_parallel_size,
             )
             mismatch_msg = "(TP, PP, encoder TP, encoder PP) mismatch after resume ({} vs {} from checkpoint)".format(
                 run_tp_pp, ckpt_tp_pp
@@ -1148,7 +1148,7 @@ def load_checkpoint(
                 and run_config["checkpoint_config"]["save_rng"]
             ):
                 gen_sd_rng_state = get_rng_state(
-                    data_parallel_random_init=cfg.megatron_lm_config.data_parallel_random_init, use_dist_ckpt=True
+                    data_parallel_random_init=cfg.rng_config.data_parallel_random_init, use_dist_ckpt=True
                 )  # we can load the rng state
             else:
                 gen_sd_rng_state = None
@@ -1334,7 +1334,7 @@ def load_checkpoint(
         try:
             if "rng_state" in state_dict:
                 # access rng_state for data parallel rank
-                if cfg.megatron_lm_config.data_parallel_random_init:
+                if cfg.rng_config.data_parallel_random_init:
                     rng_state = state_dict["rng_state"][mpu.get_data_parallel_rank()]
                 else:
                     rng_state = state_dict["rng_state"][0]

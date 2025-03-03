@@ -54,19 +54,17 @@ def evaluate(
     total_loss_dict = {}
 
     # make validation batch size independent from training batch size
-    eval_batch_size = state.cfg.megatron_lm_config.global_batch_size
-    eval_num_microbatches = eval_batch_size // (
-        state.cfg.megatron_lm_config.micro_batch_size * state.cfg.data_parallel_size
-    )
+    eval_batch_size = state.cfg.train_config.global_batch_size
+    eval_num_microbatches = eval_batch_size // (state.cfg.train_config.micro_batch_size * state.cfg.data_parallel_size)
 
     with torch.no_grad():
         iteration = 0
         if verbose:
-            print_rank_0(f"Evaluating on {state.cfg.megatron_lm_config.eval_iters * eval_batch_size} samples")
-        while iteration < state.cfg.megatron_lm_config.eval_iters:
+            print_rank_0(f"Evaluating on {state.cfg.train_config.eval_iters * eval_batch_size} samples")
+        while iteration < state.cfg.train_config.eval_iters:
             iteration += 1
             if verbose:
-                print_rank_0(f"Evaluating iter {iteration}/{state.cfg.megatron_lm_config.eval_iters}")
+                print_rank_0(f"Evaluating iter {iteration}/{state.cfg.train_config.eval_iters}")
 
             forward_backward_func = get_forward_backward_func()
             # Don't care about timing during evaluation
@@ -78,14 +76,14 @@ def evaluate(
                 model=model,
                 num_microbatches=eval_num_microbatches,
                 seq_length=state.cfg.model_config.seq_length,
-                micro_batch_size=state.cfg.megatron_lm_config.micro_batch_size,
+                micro_batch_size=state.cfg.train_config.micro_batch_size,
                 forward_only=True,
             )
             fault_tolerance.on_eval_step_end(state)
             config.timers = state.timers
 
             # Empty unused memory
-            if state.cfg.megatron_lm_config.empty_unused_memory_level >= 1:
+            if state.cfg.train_config.empty_unused_memory_level >= 1:
                 torch.cuda.empty_cache()
 
             if mpu.is_pipeline_last_stage(ignore_virtual=True):
@@ -104,10 +102,10 @@ def evaluate(
 
             state.train_state.consumed_valid_samples += eval_batch_size
 
-            if state.cfg.megatron_lm_config.exit_duration_in_mins:
+            if state.cfg.train_config.exit_duration_in_mins:
                 train_time = (time.time() - state.start_time) / 60.0
                 done_cuda = torch.tensor(
-                    [train_time > state.cfg.megatron_lm_config.exit_duration_in_mins], dtype=torch.int, device="cuda"
+                    [train_time > state.cfg.train_config.exit_duration_in_mins], dtype=torch.int, device="cuda"
                 )
                 torch.distributed.all_reduce(done_cuda, op=torch.distributed.ReduceOp.MAX)
                 done = done_cuda.item()
@@ -126,7 +124,7 @@ def evaluate(
                 model=model,
                 num_microbatches=get_num_microbatches(),
                 seq_length=state.cfg.model_config.seq_length,
-                micro_batch_size=state.cfg.megatron_lm_config.micro_batch_size,
+                micro_batch_size=state.cfg.train_config.micro_batch_size,
                 forward_only=True,
                 collect_non_loss_data=True,
             )

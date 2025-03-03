@@ -129,9 +129,9 @@ def setup(
     model = get_model_from_config(
         cfg.model_config,
         cfg.ddp_config,
-        use_torch_fsdp2=cfg.megatron_lm_config.use_torch_fsdp2,
+        use_torch_fsdp2=cfg.dist_config.use_torch_fsdp2,
         overlap_param_gather_with_optimizer_step=cfg.optimizer_config.overlap_param_gather_with_optimizer_step,
-        data_parallel_random_init=cfg.megatron_lm_config.data_parallel_random_init,
+        data_parallel_random_init=cfg.rng_config.data_parallel_random_init,
     )
     cfg.optimizer_config.timers = timers
     optimizer, scheduler = setup_optimizer(cfg, model)
@@ -140,13 +140,8 @@ def setup(
     barrier_and_log("after model, optimizer, and learning rate scheduler are built")
 
     # Load checkpoint if applicable
-    if (
-        (cfg.checkpoint_config.load is not None or cfg.checkpoint_config.pretrained_checkpoint is not None)
-        and not cfg.megatron_lm_config.moe_use_upcycling
-        and (
-            checkpoint_exists(cfg.checkpoint_config.load)
-            or checkpoint_exists(cfg.checkpoint_config.pretrained_checkpoint)
-        )
+    if (cfg.checkpoint_config.load is not None or cfg.checkpoint_config.pretrained_checkpoint is not None) and (
+        checkpoint_exists(cfg.checkpoint_config.load) or checkpoint_exists(cfg.checkpoint_config.pretrained_checkpoint)
     ):
         timers("load-checkpoint", log_level=0).start(barrier=True)
 
@@ -156,7 +151,7 @@ def setup(
             optimizer,
             scheduler,
             checkpointing_context=checkpointing_context,
-            skip_load_to_model_and_opt=HAVE_FSDP2 and cfg.megatron_lm_config.use_torch_fsdp2,
+            skip_load_to_model_and_opt=HAVE_FSDP2 and cfg.dist_config.use_torch_fsdp2,
         )
         timers("load-checkpoint").stop(barrier=True)
         timers.log(["load-checkpoint"])
