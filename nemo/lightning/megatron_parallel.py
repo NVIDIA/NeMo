@@ -1819,7 +1819,7 @@ def masked_token_loss(tensor: Tensor, mask: Tensor):
         num_valid_tokens += 1.0
     loss = torch.sum(losses.view(-1) * loss_mask)  # sequence level nll
 
-    return loss, num_valid_tokens.clone().detach()
+    return loss, num_valid_tokens.clone().detach().to(torch.int)
 
 
 def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_tokens_in_ub: Tensor):
@@ -1837,7 +1837,7 @@ def masked_token_loss_context_parallel(tensor: Tensor, mask: Tensor, num_valid_t
     loss = torch.sum(losses.view(-1) * loss_mask)  # sequence level nll
     torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
 
-    return loss, num_valid_tokens_in_ub.clone().detach()
+    return loss, num_valid_tokens_in_ub.clone().detach().to(torch.int)
 
 
 @contextmanager
