@@ -125,6 +125,18 @@ def setup(
     else:
         checkpointing_context = {}
 
+    # Tokenizer
+    timers("tokenizer-setup", log_level=0).start(barrier=True)
+    tokenizer = build_tokenizer(
+        cfg.tokenizer_config,
+        make_vocab_size_divisible_by=cfg.model_config.make_vocab_size_divisible_by,
+        tensor_model_parallel_size=cfg.model_config.tensor_model_parallel_size,
+    )
+    cfg.model_config.vocab_size = tokenizer.vocab_size
+    cfg.dataset_config.tokenizer = tokenizer
+    timers("tokenizer-setup").stop()
+    barrier_and_log("after tokenizer is built")
+
     # Model, optimizer, and learning rate.
     timers("model-and-optimizer-setup", log_level=0).start(barrier=True)
     model = get_model_from_config(
@@ -159,13 +171,6 @@ def setup(
 
     # Data stuff.
     timers("train/valid/test-data-iterators-setup", log_level=0).start(barrier=True)
-    tokenizer = build_tokenizer(
-        cfg.tokenizer_config,
-        make_vocab_size_divisible_by=cfg.model_config.make_vocab_size_divisible_by,
-        tensor_model_parallel_size=cfg.model_config.tensor_model_parallel_size,
-    )
-    cfg.model_config.vocab_size = tokenizer.vocab_size
-    cfg.dataset_config.tokenizer = tokenizer
     train_data_iterator, valid_data_iterator, test_data_iterator = setup_data_iterators(
         cfg=cfg,
         train_state=state.train_state,
