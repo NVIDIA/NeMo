@@ -55,6 +55,13 @@ def get_parser():
         help="Run on slurm using run.SlurmExecutor",
         default=False,
     )
+    parser.add_argument(
+        "--hf-token",
+        type=str,
+        help="Huggingface token for downloading models",
+        required=False,
+        default=None,
+    )
     return parser
 
 
@@ -169,10 +176,19 @@ def main():
     )
     recipe.trainer.plugins = None
 
+    if args.hf_token is not None:
+        os.environ["HF_TOKEN"] = args.hf_token
+
     executor: run.Executor
 
     if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
+
+        if args.hf_token:
+            custom_env_vars = {
+                "HF_TOKEN": args.hf_token,
+            }
+
         executor = slurm_executor(
             user="",
             host="",
@@ -182,6 +198,7 @@ def main():
             nodes=recipe.trainer.num_nodes,
             devices=recipe.trainer.devices,
             custom_mounts=[],
+            custom_env_vars=custom_env_vars,
         )
     else:
         executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
