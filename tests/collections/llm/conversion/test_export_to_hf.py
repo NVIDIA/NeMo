@@ -1,9 +1,10 @@
 import argparse
+from pathlib import Path
+
+import torch
+from transformers import AutoModelForCausalLM
 
 from nemo.collections import llm
-from pathlib import Path
-from transformers import AutoModelForCausalLM
-import torch
 
 
 def get_parser():
@@ -12,6 +13,7 @@ def get_parser():
     parser.add_argument("--original-hf-path", type=str, default="models/llama_31_toy")
     parser.add_argument("--output-path", type=str, default="/tmp/output_hf")
     return parser
+
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
@@ -25,7 +27,9 @@ if __name__ == '__main__':
     original_hf = AutoModelForCausalLM.from_pretrained(args.original_hf_path)
     converted_hf = AutoModelForCausalLM.from_pretrained(args.output_path)
 
-    for (name1, parameter1), (name2, parameter2) in zip(converted_hf.named_parameters(), original_hf.named_parameters()):
+    for (name1, parameter1), (name2, parameter2) in zip(
+        converted_hf.named_parameters(), original_hf.named_parameters()
+    ):
         try:
             assert name1 == name2, f'Parameter names do not match: {name1} != {name2}'
             assert torch.equal(parameter1, parameter2), f'Parameter weight do not match for {name1}'
@@ -34,4 +38,3 @@ if __name__ == '__main__':
             print('ri')
 
     print('All weights matched.')
-

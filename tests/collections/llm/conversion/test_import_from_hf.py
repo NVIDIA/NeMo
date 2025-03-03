@@ -1,14 +1,16 @@
 import argparse
-
-from nemo.collections import llm
-import nemo.lightning as nl
 import json
-import torch
 from pathlib import Path
+
+import torch
+from prettytable import PrettyTable
+
+import nemo.lightning as nl
+from nemo.collections import llm
+from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
-from prettytable import PrettyTable
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -17,6 +19,7 @@ def get_parser():
     parser.add_argument("--model-config", type=str, help="Model config", default="Llama31Config8B")
     parser.add_argument("--output-path", type=str, help="Output NeMo2 model")
     return parser
+
 
 def count_parameters(model):
     table = PrettyTable(["NeMo Modules", "Parameters"])
@@ -30,6 +33,7 @@ def count_parameters(model):
     print(table)
     print(f"NeMo Total Trainable Params: {total_params}")
     return total_params
+
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
@@ -65,8 +69,7 @@ if __name__ == '__main__':
     nemo_param_cnt = count_parameters(model_nemo)
     hf_param_cnt = hf_stats['total_params']
 
-    assert hf_param_cnt == nemo_param_cnt, f'Total converted params count does not match: NeMo model has {nemo_param_cnt} and HF model has {hf_param_cnt}.'
+    assert (
+        hf_param_cnt == nemo_param_cnt
+    ), f'Total converted params count does not match: NeMo model has {nemo_param_cnt} and HF model has {hf_param_cnt}.'
     print('HuggingFace -> NeMo conversion completed successfully.')
-
-
-

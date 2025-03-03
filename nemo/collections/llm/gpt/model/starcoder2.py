@@ -216,7 +216,12 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
             "decoder.final_layernorm.bias": "model.norm.bias",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv_weight, _export_qkv_bias, _export_embedding, _export_head])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_export_qkv_weight, _export_qkv_bias, _export_embedding, _export_head],
+        )
 
     @property
     def tokenizer(self):
@@ -394,6 +399,7 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     v_bias = qkv_bias[v_slice].reshape(-1).cpu()
 
     return q_bias, k_bias, v_bias
+
 
 @io.state_transform(
     source_key="embedding.word_embeddings.weight",
