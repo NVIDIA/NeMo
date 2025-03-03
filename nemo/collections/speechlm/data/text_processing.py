@@ -41,10 +41,9 @@ class TextProcessorOutput:
     num_audios: torch.Tensor
 
 
-class MultimodalConversationTextProcessor(object):
+class MultimodalConversationTextProcessor:
     """
-    Wrapper class that processes text and uses the prompt formatter,
-    such that the same text processor can be used by both lhotse and non-lhotse datasets.
+    Text processor for multi-modal conversation with lhotse dataloader.
     """
 
     def __init__(
@@ -71,6 +70,9 @@ class MultimodalConversationTextProcessor(object):
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
 
+        if max_seq_length is None or max_seq_length <= 0:
+            raise ValueError(f"max_seq_length must be a positive integer, got {max_seq_length}")
+
         if hasattr(tokenizer, "pad_id") and tokenizer.pad_id != None and tokenizer.pad_id > 0:
             self.pad_id = tokenizer.pad_id
         else:
@@ -83,17 +85,17 @@ class MultimodalConversationTextProcessor(object):
 
     def __call__(self, lhotse_input: NeMoMultimodalConversation) -> TextProcessorOutput:
         """
-        process a single input sample, supports both lhotse and non-lhotse datasets.
+        process a single input sample.
         Args:
-            lhotse_input: The input data from lhotse dataset.
+            lhotse_input: a NeMoMultimodalConversation sample from lhotse dataset.
         """
         return self.process_sample(lhotse_input)
 
     def process_sample(self, lhotse_input: NeMoMultimodalConversation) -> TextProcessorOutput:
         """
-        process a single input sample, supports both lhotse and non-lhotse datasets.
+        process a single input sample.
         Args:
-            lhotse_input: The input data from lhotse dataset.
+            lhotse_input: a NeMoMultimodalConversation sample from lhotse dataset.
         """
         if not isinstance(lhotse_input, NeMoMultimodalConversation):
             raise ValueError(f"Input must be of type NeMoMultimodalConversation, got {type(lhotse_input)}")
