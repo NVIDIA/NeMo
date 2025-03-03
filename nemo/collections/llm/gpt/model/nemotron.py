@@ -208,6 +208,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
+            kv_channels=getattr(source, "head_dim", None),
         )
 
         return output
@@ -216,10 +217,11 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 @io.model_exporter(NemotronModel, "hf")
 class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]):
     def init(self, dtype=torch.bfloat16) -> "NemotronForCausalLM":
+        from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return NemotronForCausalLM.from_config(self.config, torch_dtype=dtype)
+            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
         source, _ = self.nemo_load(str(self))

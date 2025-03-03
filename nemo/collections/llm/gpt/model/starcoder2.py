@@ -216,7 +216,7 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
             "decoder.final_layernorm.bias": "model.norm.bias",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv_weight, _export_qkv_bias])
+        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv_weight, _export_qkv_bias, _export_embedding, _export_head])
 
     @property
     def tokenizer(self):
@@ -394,3 +394,22 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     v_bias = qkv_bias[v_slice].reshape(-1).cpu()
 
     return q_bias, k_bias, v_bias
+
+@io.state_transform(
+    source_key="embedding.word_embeddings.weight",
+    target_key="model.embed_tokens.weight",
+)
+def _export_embedding(ctx: io.TransformCTX, embedding):
+    megatron_config = ctx.target.config
+    # prune padding.
+    return embedding[: megatron_config.vocab_size, :]
+
+
+@io.state_transform(
+    source_key="output_layer.weight",
+    target_key="lm_head.weight",
+)
+def _export_head(ctx: io.TransformCTX, embedding):
+    megatron_config = ctx.target.config
+    # prune padding.
+    return embedding[: megatron_config.vocab_size, :]

@@ -176,11 +176,6 @@ class HFPhi3Exporter(io.ModelConnector[Phi3Model, "Phi3ForCausalLM"]):
             "output_layer.weight": "lm_head.weight",
         }
 
-        # Convert source weights to target dtype if needed
-        for name, param in source.state_dict().items():
-            if param.dtype != target.state_dict()[name].dtype:
-                param.data = param.data.to(target.state_dict()[name].dtype)
-
         return io.apply_transforms(source, target, mapping=mapping)
 
     @property
@@ -206,6 +201,7 @@ class HFPhi3Exporter(io.ModelConnector[Phi3Model, "Phi3ForCausalLM"]):
             num_key_value_heads=source.num_query_groups,
             rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
+            pad_token_id=self.tokenizer.pad_token_id,
         )
 
 
