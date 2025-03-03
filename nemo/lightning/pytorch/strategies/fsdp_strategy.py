@@ -23,10 +23,10 @@ import lightning.pytorch as pl
 import torch
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
-from lightning.pytorch.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
-from lightning.pytorch.trainer.states import TrainerFn
 from lightning.fabric.utilities.rank_zero import rank_zero_info
 from lightning.fabric.utilities.seed import reset_seed
+from lightning.pytorch.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
+from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
@@ -48,7 +48,6 @@ from nemo.lightning.pytorch.strategies.utils import (
     setup_data_sampler,
     setup_parallel_ranks,
 )
-
 
 _logger = logging.getLogger(__name__)
 

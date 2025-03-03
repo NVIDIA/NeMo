@@ -22,10 +22,10 @@ from typing import Any, Dict, Literal, Optional, Union
 import lightning.pytorch as pl
 import torch
 from lightning.fabric.plugins import CheckpointIO
-from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
-from lightning.pytorch.trainer.states import TrainerFn
 from lightning.fabric.utilities.rank_zero import rank_zero_info
 from lightning.fabric.utilities.seed import reset_seed
+from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
+from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from torch.utils.data import DataLoader
