@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from lightning.pytorch.callbacks import Callback
 import torch
+from lightning.pytorch.callbacks import Callback
+
 
 class CrashSimulationCallback(Callback):
     def __init__(self, crash_step=17):
@@ -24,7 +25,7 @@ class CrashSimulationCallback(Callback):
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if self.crash_step and trainer.global_step == self.crash_step and not self.has_simulated_crash_happened:
             raise Exception(f"Simulating a crash at step {self.crash_step}!")
-        
+
     def on_load_checkpoint(self, trainer, pl_module, checkpoint):
         if not self.has_simulated_crash_happened:
             self.has_simulated_crash_happened = True
