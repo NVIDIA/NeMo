@@ -29,6 +29,7 @@ from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
+from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
 from nemo.tron.utils.log_utils import setup_logging
 from nemo.utils.import_utils import safe_import
@@ -158,6 +159,13 @@ def setup(
 
     # Data stuff.
     timers("train/valid/test-data-iterators-setup", log_level=0).start(barrier=True)
+    tokenizer = build_tokenizer(
+        cfg.tokenizer_config,
+        make_vocab_size_divisible_by=cfg.model_config.make_vocab_size_divisible_by,
+        tensor_model_parallel_size=cfg.model_config.tensor_model_parallel_size,
+    )
+    cfg.model_config.vocab_size = tokenizer.vocab_size
+    cfg.dataset_config.tokenizer = tokenizer
     train_data_iterator, valid_data_iterator, test_data_iterator = setup_data_iterators(
         cfg=cfg,
         train_state=state.train_state,
