@@ -15,13 +15,13 @@
 
 Example usage to prune width automatically (you can skip parameters that you don't want to prune):
 ```python
-    torchrun --nproc_per_node 8 gpt_prune.py \
+    torchrun --nproc_per_node 8 scripts/llm/gpt_prune.py \
         --devices 8 \
         --tp_size 1 \
         --pp_size 8 \
         --restore_path <path/to/llama3.1-8b-nemo2> \
         --seq_length 8192 \
-        --data_paths 30 path/to/dataset_1_prefix 70 path/to/dataset_2_prefix \
+        --data_paths 1.0 path/to/tokenized/data \
         --index_mapping_dir path/to/index_mapping_dir \
         --prune_ffn_hidden_size 9216 \
         --prune_hidden_size 3072 \
@@ -32,25 +32,25 @@ Example usage to prune width automatically (you can skip parameters that you don
 
 Example usage to prune depth automatically using cosine-similarity based importance metric:
 ```python
-    torchrun --nproc_per_node 8 gpt_prune.py \
+    torchrun --nproc_per_node 8 scripts/llm/gpt_prune.py \
         --devices 8 \
         --tp_size 1 \
         --pp_size 8 \
         --restore_path <path/to/llama3.1-8b-nemo2> \
         --seq_length 8192 \
-        --data_paths 30 path/to/dataset_1_prefix 70 path/to/dataset_2_prefix \
+        --data_paths 1.0 path/to/tokenized/data \
         --index_mapping_dir path/to/index_mapping_dir \
         --prune_num_layers 16 \
         --save_path llama3.1-8b-depth-pruned
 ```
 
 NOTE: for above usages, `--tp_size` must be 1 because of the current prune API limitation. If you
-do not pass `--data_paths`, the script will use mock data for calibration which will lead to randomly
-pruned model but helps in testing the pruning pipeline.
+do not pass `--data_paths` and `--index_mapping_dir`, the script will use mock data for calibration which will
+lead to randomly pruned model but helps in testing the pruning pipeline.
 
 Example usage to prune depth by dropping specific model layers (1-indexed):
 ```python
-    torchrun --nproc_per_node 8 gpt_prune.py \
+    torchrun --nproc_per_node 8 scripts/llm/gpt_prune.py \
         --devices 8 \
         --tp_size 8 \
         --pp_size 1 \
@@ -67,11 +67,11 @@ import modelopt.torch.prune as mtp
 import torch
 from megatron.core import dist_checkpointing
 from megatron.core.dist_checkpointing.validation import StrictHandling
+from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
@@ -133,7 +133,9 @@ def load_model_with_modelopt_spec(
         logging.info(f"Overriding tokenizer to: {tokenizer_path}")
         tokenizer = get_tokenizer(tokenizer_path)
 
-    model.config.transformer_layer_spec = get_gpt_layer_modelopt_spec()
+    model.config.transformer_layer_spec = get_gpt_layer_modelopt_spec(
+        num_experts=model.config.num_moe_experts, remap_te_layernorm=True
+    )
     del model.optim
     _setup_trainer_and_restore_model(restore_path, trainer, model, tokenizer)
     trainer.strategy.setup_environment = lambda *args, **kwargs: None  # Dont setup env again
