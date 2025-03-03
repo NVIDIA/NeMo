@@ -28,12 +28,7 @@ def get_args():
         description="Exports NeMo checkpoint to TensorRT-LLM engine",
     )
     parser.add_argument("-nc", "--nemo_checkpoint", required=True, type=str, help="Source model path")
-    parser.add_argument(
-        "-mt",
-        "--model_type",
-        type=str,
-        help="Type of the TensorRT-LLM model."
-    )
+    parser.add_argument("-mt", "--model_type", type=str, help="Type of the TensorRT-LLM model.")
     parser.add_argument(
         "-mr", "--model_repository", required=True, default=None, type=str, help="Folder for the trt-llm model files"
     )

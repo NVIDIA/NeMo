@@ -461,7 +461,9 @@ class TensorRTLLM(ITritonDeployable):
                         fp8_kvcache=fp8_kvcache,
                     )
 
-                    for trtllm_model_weights, trtllm_model_config in zip(trtllm_model_weights_list, trtllm_model_config_list):
+                    for trtllm_model_weights, trtllm_model_config in zip(
+                        trtllm_model_weights_list, trtllm_model_config_list
+                    ):
                         build_and_save_engine(
                             max_input_len=max_input_len,
                             max_output_len=max_output_len,
