@@ -3,7 +3,6 @@ This example can be used to train a small LLaMA model using NeMo2.0 and understa
 - in-job restart
 - straggler detection
 - asynchronous checkpointing
-- preemption
 
 Official documentation for these features can be found in the [NeMo user guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html).
 
