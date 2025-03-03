@@ -212,7 +212,7 @@ def update_exp_manager_runtime(script_config, cluster_cfg):
             logging.info(f"Setting exp_manager.max_time_per_run to {cluster_cfg['max_runtime']}")
 
 
-def get_pl_inference_command(inference_configs):
+def get_pl_inference_command(inference_configs, shuffle=None):
     """
     Generate a command to run PL inference with multiple configuration files.
     Args:
@@ -223,6 +223,8 @@ def get_pl_inference_command(inference_configs):
     """
     # Base command template
     base_cmd = "python /nemo_run/code/examples/asr/transcribe_speech_parallel.py --config-path \"/results/configs\" --config-name {config_name}"
+    if shuffle is not None:
+        base_cmd += f" predict_ds.shuffle={shuffle}"
 
     # Generate the command list
     cmd_list = [base_cmd.format(config_name=os.path.basename(config)) for config in inference_configs]
@@ -232,10 +234,9 @@ def get_pl_inference_command(inference_configs):
 
 
 def get_pseudo_labeling_command(
-    merged_config: Dict, config_name: str, cluster_script_path: str, config_dir: str, ipl_training: Dict[str, any]
-) -> str:
+        merged_config: Dict, config_name: str, cluster_script_path: str, config_dir: str, ipl_training: Dict[str, any]) -> str:
     """
-    Generate the pseudo-labeling command for the given configuration and training parameters.
+     Generate the pseudo-labeling command for the given configuration and training parameters.
 
     Args:
         merged_config (Dict): Merged configuration containing model and dataset settings.
@@ -254,20 +255,21 @@ def get_pseudo_labeling_command(
     Returns:
         str: The constructed pseudo-labeling command.
     """
+     
     prediction_directories_str = " ".join([os.path.dirname(path) for path in ipl_training['manifests']])
     inference_config_paths_str = " ".join(ipl_training['inference_config_paths'])
 
     updated_manifest_filepaths, updated_tarred_audio_filepaths = run_ipl_utils.update_training_sets(
-        merged_config, ipl_training["manifests"], ipl_training.get("tarr_paths", None)
+        merged_config, ipl_training["manifests"], ipl_training.get("tarr_paths", None), ipl_training["prefix"]
     )
 
     exec_cmd = get_execution_script(cluster_script_path, config_name, config_dir)
-
+    exec_cmd += " && sleep 10"
     if ipl_training.get("first_run", False):
-        exec_cmd += f" && {get_pl_inference_command(ipl_training['inference_config_paths'])}"
+        exec_cmd += f" && {get_pl_inference_command(ipl_training['inference_config_paths'], shuffle=False)}"
         exec_cmd += (
             f" && python /nemo_run/code/examples/asr/run_write_transcribed_files.py "
-            f"--prediction_filepaths {prediction_directories_str} --full_pass"
+            f"--prediction_filepaths {prediction_directories_str} --full_pass --prefix {ipl_training['prefix']}"
         )
         if merged_config.model.train_ds.is_tarred:
             exec_cmd += " --is_tarred"
@@ -280,15 +282,17 @@ def get_pseudo_labeling_command(
         run_script = get_execution_script(
             cluster_script_path, config_name, config_dir, updated_manifest_filepaths, updated_tarred_audio_filepaths
         )
+        exec_cmd += " && sleep 10"
         exec_cmd += f" && {run_script}"
-        exec_cmd += f" && {get_pl_inference_command(ipl_training['inference_config_paths'])}"
+        exec_cmd += f" && {get_pl_inference_command(ipl_training['inference_config_paths'],shuffle=True)}"
         exec_cmd += (
             f" && python /nemo_run/code/examples/asr/run_write_transcribed_files.py "
-            f"--prediction_filepaths {prediction_directories_str}"
+            f"--prediction_filepaths {prediction_directories_str} "
+            f"--prefix {ipl_training['prefix']}"
         )
         if merged_config.model.train_ds.is_tarred:
             exec_cmd += " --is_tarred"
-
+    #exec_cmd = "python /nemo_run/code/examples/asr/run_update_inf_config.py "
     return exec_cmd
 
 
@@ -433,7 +437,6 @@ def main(cluster_cfg):
             )
             check_config_mount_paths(inference_config, cluster_cfg)
             # Add needed parameters for pseudo-labeling
-            print(type(ipl_training))
             OmegaConf.set_struct(ipl_training, False)
 
             ipl_training['first_run'] = True

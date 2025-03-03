@@ -15,6 +15,7 @@ import argparse
 import glob
 import json
 import os
+from filelock import FileLock
 from typing import List
 
 import torch.distributed as dist
@@ -22,7 +23,7 @@ import torch.distributed as dist
 from nemo.utils import logging
 
 
-def create_transcribed_shard_manifests(prediction_filepaths: List[str]) -> List[str]:
+def create_transcribed_shard_manifests(prediction_filepaths: List[str], prefix) -> List[str]:
     """
     Creates transcribed shard manifest files by processing predictions and organizing them by shard ID.
 
@@ -54,7 +55,7 @@ def create_transcribed_shard_manifests(prediction_filepaths: List[str]) -> List[
                     shard_data[shard_id] = []
                 shard_data[shard_id].append(data_entry)
         for shard_id, entries in shard_data.items():
-            output_filename = os.path.join(prediction_filepath, f"transcribed_manifest_{shard_id}.json")
+            output_filename = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest_{shard_id}.json")
             with open(output_filename, 'w') as f:
                 for data_entry in entries:
                     if data_entry['audio_filepath'].endswith(".wav"):
@@ -64,13 +65,13 @@ def create_transcribed_shard_manifests(prediction_filepaths: List[str]) -> List[
                         json.dump(data_entry, f, ensure_ascii=False)
                         f.write("\n")
         shard_manifest_filepath = os.path.join(
-            prediction_filepath, f"transcribed_manifest__OP_0..{max_shard_id}_CL_.json"
+            prediction_filepath, f"{prefix}_transcribed_manifest__OP_0..{max_shard_id}_CL_.json"
         )
         all_manifest_filepaths.append(shard_manifest_filepath)
     return all_manifest_filepaths
 
 
-def create_transcribed_manifests(prediction_filepaths: List[str]) -> List[str]:
+def create_transcribed_manifests(prediction_filepaths: List[str], prefix) -> List[str]:
     """
     Creates updated transcribed manifest files by processing predictions.
 
@@ -90,7 +91,7 @@ def create_transcribed_manifests(prediction_filepaths: List[str]) -> List[str]:
     all_manifest_filepaths = []
     for prediction_filepath in prediction_filepaths:
         prediction_name = os.path.join(prediction_filepath, "predictions_all.json")
-        transcripted_name = os.path.join(prediction_filepath, "transcribed_manifest.json")
+        transcripted_name = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest.json")
 
         # Open and read the original predictions_all.json file
         with open(transcripted_name, 'w', encoding='utf-8') as f:
@@ -109,7 +110,7 @@ def create_transcribed_manifests(prediction_filepaths: List[str]) -> List[str]:
     return all_manifest_filepaths
 
 
-def write_sampled_shard_transcriptions(manifest_filepaths: List[str]) -> List[List[str]]:
+def write_sampled_shard_transcriptions(manifest_filepaths: List[str],prefix) -> List[List[str]]:
     """
     Updates transcriptions by merging predicted shard data and transcribed manifest data.
     This function processes prediction and transcribed manifest files, merges them
@@ -136,7 +137,7 @@ def write_sampled_shard_transcriptions(manifest_filepaths: List[str]) -> List[Li
                 audio_filepath = data_entry['audio_filepath']
                 predicted_shard_data.setdefault(shard_id, {})[audio_filepath] = data_entry
     max_shard_id = 0
-    for full_path in glob.glob(os.path.join(prediction_filepath, "transcribed_manifest_[0-9]*.json")):
+    for full_path in glob.glob(os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest_[0-9]*.json")):
         all_data_entries = []
         with open(full_path, 'r') as f:
             for line in f:
@@ -145,7 +146,7 @@ def write_sampled_shard_transcriptions(manifest_filepaths: List[str]) -> List[Li
                 max_shard_id = max(max_shard_id, shard_id)
                 all_data_entries.append(data_entry)
         # Write the merged data to a new manifest file keeping new transcriptions
-        output_filename = os.path.join(prediction_filepath, f"transcribed_manifest_{shard_id}.json")
+        output_filename = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest_{shard_id}.json")
         with open(output_filename, 'w') as f:
             for data_entry in all_data_entries:
                 audio_filepath = data_entry['audio_filepath']
@@ -162,13 +163,13 @@ def write_sampled_shard_transcriptions(manifest_filepaths: List[str]) -> List[Li
                         json.dump(data_entry, f, ensure_ascii=False)
                     f.write("\n")
 
-    shard_manifest_filepath = os.path.join(prediction_filepath, f"transcribed_manifest__OP_0..{max_shard_id}_CL_.json")
+    shard_manifest_filepath = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest__OP_0..{max_shard_id}_CL_.json")
     all_manifest_filepaths.append([shard_manifest_filepath])
 
     return all_manifest_filepaths
 
 
-def write_sampled_transcriptions(manifest_filepaths: List[str]) -> List[str]:
+def write_sampled_transcriptions(manifest_filepaths: List[str], prefix) -> List[str]:
     """
     Updates transcriptions by merging predicted data with transcribed manifest data.
 
@@ -194,14 +195,14 @@ def write_sampled_transcriptions(manifest_filepaths: List[str]) -> List[str]:
                 path = data_entry['audio_filepath']
                 predicted_data[path] = data_entry
 
-        full_path = os.path.join(prediction_filepath, "transcribed_manifest.json")
+        full_path = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest.json")
         all_data_entries = []
         with open(full_path, 'r') as f:
             for line in f:
                 data_entry = json.loads(line)
                 all_data_entries.append(data_entry)
 
-        output_filename = os.path.join(prediction_filepath, "transcribed_manifest.json")
+	output_filename = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest.json")
         with open(output_filename, 'w') as f:
             for data_entry in all_data_entries:
                 audio_filepath = data_entry['audio_filepath']
@@ -220,16 +221,16 @@ def write_sampled_transcriptions(manifest_filepaths: List[str]) -> List[str]:
     return all_manifest_filepaths
 
 
-def setup():
-    dist.init_process_group("gloo")
-    rank = dist.get_rank()
-    return rank
 
-
-def main():
-    rank = setup()
+if __name__ == "__main__":
+    rank = int(os.environ.get("RANK", 0))  # Default to 0 if not set
 
     parser = argparse.ArgumentParser(description="Script to create or write transcriptions")
+    parser.add_argument("--prefix", type=str,
+        nargs='+',  # Accepts one or more values as a list
+        required=True,
+        help="Paths to one or more inference config YAML files."
+    )
     parser.add_argument("--is_tarred", action="store_true", help="If true, processes tarred manifests")
     parser.add_argument("--full_pass", action="store_true", help="If true, processes full pass manifests")
     parser.add_argument(
@@ -237,29 +238,26 @@ def main():
         type=str,
         nargs='+',  # Accepts one or more values as a list
         required=True,
-        help="Paths to one or more inference config YAML files.",
+        help="Paths to one or more inference config YAML files."
     )
+    
     args = parser.parse_args()
 
-    if rank == 0:
-        logging.info("Writing generated transcriptions in manifest.")
-        # Perform your single-process work here
-        if args.is_tarred:
-            result = (
-                write_sampled_shard_transcriptions(args.prediction_filepaths)
-                if not args.full_pass
-                else create_transcribed_shard_manifests(args.prediction_filepaths)
-            )
-        else:
-            result = (
-                write_sampled_transcriptions(args.prediction_filepaths)
-                if not args.full_pass
-                else create_transcribed_manifests(args.prediction_filepaths)
-            )
-        logging.info(f"Resulting files are {result}")
-    # Synchronize all processes
-    dist.barrier()
+    lock_dir = os.path.dirname(args.prediction_filepaths[0])
+    lock_file = lock_dir + "/my_script.lock" 
 
-
-if __name__ == "__main__":
-    main()
+    with FileLock(lock_file):
+        if rank == 0:
+            if args.is_tarred:
+                result = ( 
+                    write_sampled_shard_transcriptions(args.prediction_filepaths, args.prefix[0])
+                    if not args.full_pass
+                    else create_transcribed_shard_manifests(args.prediction_filepaths, args.prefix[0])
+                )
+            else:
+                result = (
+                    write_sampled_transcriptions(args.prediction_filepaths, args.prefix[0])
+                    if not args.full_pass
+                    else create_transcribed_manifests(args.prediction_filepaths, args.prefix[0])
+                )
+    

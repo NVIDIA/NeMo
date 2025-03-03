@@ -138,8 +138,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
     def on_train_epoch_end(self):
         super().on_train_epoch_end()
-        if self.epoch_count == 1:  # Replace with your condition
-            raise KeyboardInterrupt("Simulated KeyboardInterrupt at epoch 2")
+        if self.epoch_count == 1:  
+            torch.distributed.barrier()
+            self.trainer.should_stop = True
         else:
             self.epoch_count += 1
 
