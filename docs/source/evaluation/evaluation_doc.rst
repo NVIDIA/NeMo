@@ -1,5 +1,5 @@
 Evaluate NeMo 2.0 Checkpoints
-=======================
+==============================
 
 This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the integrated `lm-evaluation-harness
 <https://github.com/EleutherAI/lm-evaluation-harness>`__ within the NeMo Framework. Supported benchmarks include
@@ -12,7 +12,7 @@ checkpoint is deployed on a PyTriton server by exporting it to TRT-LLM. Phase 2 
 on the model using the deployed URL and port.
 
 Run Evaluations without NeMo-Run
---------------
+---------------------------------
 This section outlines the steps to deploy and evaluate a NeMo 2.0 model directly using Python commands, without using
 NeMo-Run. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it
 facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo-Run for its
@@ -53,10 +53,13 @@ the processes from being killed and aborting the runs.
 
 .. note::
 
-  Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument options as these are just sample commands and don't share all arguments and their default settings.
+  Please refer to ``deploy`` and ``evaluate`` method in ``nemo/collections/llm/api.py`` to check all the argument
+  options as these are just sample commands and don't share all arguments and their default settings. For more details
+  on arguments in ApiEndpoint and ConfigParams classes for evaluation refer to `nemo/collections/llm/evaluation/api.py
+  <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/evaluation/api.py>`__.
 
-Run evaluations with NeMo-Run
---------------
+Run Evaluations with NeMo-Run
+------------------------------
 
 This section explains how to run evaluations with NeMo-Run. For detailed information about
 `NeMo-Run <https://github.com/NVIDIA/NeMo-Run>`__, please refer to its documentation. Below is a concise guide focused
@@ -94,7 +97,7 @@ Below is an example command:
 .. code-block:: bash
 
     python scripts/llm/evaluation.py --nemo_checkpoint='/workspace/hf_llama3_8b_nemo2.nemo' --slurm --nodes 1 
-    --devices 8 --container_image "nvcr.io/nvidia/nemo:dev" --tensor_parallelism_size 8
+    --devices 8 --container_image "nvcr.io/nvidia/nemo:25.02" --tensor_parallelism_size 8
 
 By following these commands, you can successfully run evaluations using NeMo-Run on both local and Slurm-based
 environments.
