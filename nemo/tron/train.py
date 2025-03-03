@@ -201,12 +201,13 @@ def train(
 
     # Run training iterations till done.
     while global_state.train_state.step < train_config.train_iters:
-        if prof_config.profile and torch.distributed.get_rank() in prof_config.profile_ranks:
-            if prof_config.use_pytorch_profiler:
-                prof.step()
-            elif global_state.train_state.step == prof_config.profile_step_start:
-                torch.cuda.cudart().cudaProfilerStart()
-                torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+        if prof_config:
+            if prof_config.profile and torch.distributed.get_rank() in prof_config.profile_ranks:
+                if prof_config.use_pytorch_profiler:
+                    prof.step()
+                elif global_state.train_state.step == prof_config.profile_step_start:
+                    torch.cuda.cudart().cudaProfilerStart()
+                    torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
         fault_tolerance.on_checkpointing_start(global_state)
         maybe_finalize_async_save(ckpt_cfg=config.checkpoint_config, blocking=False)
