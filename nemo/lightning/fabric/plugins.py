@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
+
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Generator, Literal, TypeVar
 
@@ -156,9 +159,11 @@ class FabricMegatronMixedPrecision(MixedPrecision):
             config = get_model_config(module.module)
             config.fp16 = self.dtype_config.fp16
             config.bf16 = self.dtype_config.bf16
-            if hasattr(module, 'module'):
-                module.module = Float16Module(config, module.module)
-            else:
+            # Avoid rewrapping the module if it's already of type Float16Module
+            if hasattr(module, "module"):
+                if not isinstance(module.module, Float16Module):
+                    module.module = Float16Module(config, module.module)
+            elif not isinstance(module, Float16Module):
                 module = Float16Module(config, module)
 
         return module
