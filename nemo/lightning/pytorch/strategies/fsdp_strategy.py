@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import shutil
 from collections import OrderedDict
@@ -24,6 +25,8 @@ from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.strategies.fsdp import _get_sharded_state_dict_context
 from lightning.pytorch.strategies.fsdp import FSDPStrategy as PLFSDPStrategy
 from lightning.pytorch.trainer.states import TrainerFn
+from lightning.fabric.utilities.rank_zero import rank_zero_info
+from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
@@ -45,6 +48,9 @@ from nemo.lightning.pytorch.strategies.utils import (
     setup_data_sampler,
     setup_parallel_ranks,
 )
+
+
+_logger = logging.getLogger(__name__)
 
 
 class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
@@ -81,11 +87,42 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         self.data_sampler = data_sampler
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
+        self.store: Optional[torch.distributed.Store] = None
 
     @override
     def setup_environment(self) -> None:
+        """Initializes rank and process group for communications."""
         setup_parallel_ranks(self)
-        super().setup_environment()
+
+        # Implementation from superclass copied below in order to pass the store to the process group init
+        reset_seed()
+        self.set_world_ranks()
+        self._process_group_backend = self._get_process_group_backend()
+        assert self.cluster_environment is not None
+
+        if not torch.distributed.is_available():
+            raise RuntimeError("torch.distributed is not available. Cannot initialize distributed process group")
+        if torch.distributed.is_initialized():
+            _logger.debug("torch.distributed is already initialized. Exiting early")
+            return
+
+        global_rank = self.cluster_environment.global_rank()
+        world_size = self.cluster_environment.world_size()
+        os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
+        os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
+        _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
+        torch.distributed.init_process_group(
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+        )
+
+        # On rank=0 let everyone know training is starting
+        rank_zero_info(
+            f"{'-' * 100}\n"
+            f"distributed_backend={self._process_group_backend}\n"
+            f"All distributed processes registered. Starting with {world_size} processes\n"
+            f"{'-' * 100}\n"
+        )
+
         init_model_parallel(self.model)
 
     @override

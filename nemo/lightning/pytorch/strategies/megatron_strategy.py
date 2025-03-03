@@ -503,6 +503,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Setups dist env"""
         setup_parallel_ranks(self)
 
+        # Implementation from superclass copied below in order to pass the store to the process group init
         reset_seed()
         self.set_world_ranks()
         self._process_group_backend = self._get_process_group_backend()
@@ -519,7 +520,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
         os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
         _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
-        torch.distributed.init_process_group(self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store)
+        torch.distributed.init_process_group(
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+        )
 
         # On rank=0 let everyone know training is starting
         rank_zero_info(
