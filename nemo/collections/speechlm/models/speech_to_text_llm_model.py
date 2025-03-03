@@ -193,7 +193,9 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
     resume_speech_model_from_path: Optional[str] = None
     resume_modality_adapter_from_path: Optional[str] = None
 
-    def _freeze_module(self, module: nn.Module) -> None:
+    def _freeze_module(self, module: Optional[nn.Module] = None) -> None:
+        if module is None:
+            return
         for param in module.parameters():
             param.requires_grad = False
 
