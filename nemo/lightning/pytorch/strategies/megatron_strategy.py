@@ -742,6 +742,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @override
     def teardown(self) -> None:
         """Tearsdown the strategy"""
+        if hasattr(self, "megatron_parallel"):
+            self.megatron_parallel.teardown_ddp()
         super().teardown()
 
     @override
