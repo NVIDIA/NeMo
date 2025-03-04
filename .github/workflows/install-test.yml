@@ -107,6 +107,6 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in $collections; do
+          for collection in ${collections[@]}; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
