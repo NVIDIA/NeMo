@@ -145,17 +145,19 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
 
         with no_init_weights(True):
             # Since ChatGLM is not importable from transformers, we can only initialize the HF model
-            # from a known checkpoint. If more than 1 ChatGLM model is supported in NeMo in the future,
-            # the model_name will need to be passed in.
-            return AutoModelForCausalLM.from_pretrained(
+            # from a known checkpoint. The model_name will need to be passed in.
+            hf_model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 trust_remote_code=True,
                 torch_dtype=dtype,
             )
+            # Register the AutoModel Hook so that the custom modeling files are saved during save_pretrained()
+            type(hf_model).register_for_auto_class("AutoModelForCausalLM")
+            return hf_model
 
-    def apply(self, output_path: Path) -> Path:
+    def apply(self, output_path: Path, target_model_name=None) -> Path:
         source, _ = self.nemo_load(str(self))
-        target = self.init(torch_dtype_from_mcore_config(source.config))
+        target = self.init(torch_dtype_from_mcore_config(source.config), model_name=target_model_name)
         target = self.convert_state(source, target)
 
         target = target.cpu()
