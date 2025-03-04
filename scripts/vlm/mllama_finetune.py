@@ -61,6 +61,7 @@ def main(args):
         model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
     processor = AutoProcessor.from_pretrained(model_id)
     image_processor = processor.image_processor
     tokenizer = AutoTokenizer(model_id)

@@ -168,7 +168,7 @@ class OptimizerModule(L.Callback, CallbackMethods, IOMixin, ABC):
             if len(self._optimizers[0].param_groups) > 0:
                 lr = self._optimizers[0].param_groups[0]['lr']
             else:
-                lr = 0.
+                lr = 0.0
             pl_module.log('lr', lr, batch_size=1, prog_bar=True)
 
     def __call__(self, model: L.LightningModule, megatron_parallel=None) -> OptimizerLRScheduler:
