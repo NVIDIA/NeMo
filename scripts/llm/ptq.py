@@ -14,12 +14,8 @@
 
 import argparse
 
-from nemo.collections.llm.modelopt import (
-    ExportConfig,
-    QuantizationConfig,
-    Quantizer,
-    setup_trainer_and_restore_model_with_modelopt_spec,
-)
+from nemo.collections.llm import ptq
+from nemo.collections.llm.modelopt import ExportConfig, QuantizationConfig
 
 
 def get_args():
@@ -131,25 +127,18 @@ def main():
         dtype=args.dtype,
         generate_sample=args.generate_sample,
     )
-    quantizer = Quantizer(quantization_config, export_config)
 
-    model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
-        args.nemo_checkpoint,
-        args.calibration_tp,
-        args.calibration_pp,
-        args.devices,
-        args.num_nodes,
-        inference_only=True,
+    ptq(
+        nemo_checkpoint=args.nemo_checkpoint,
+        export_config=export_config,
+        calibration_tp=args.calibration_tp,
+        calibration_pp=args.calibration_pp,
+        devices=args.devices,
+        num_nodes=args.num_nodes,
+        quantization_config=quantization_config,
         tokenizer_path=args.tokenizer,
         legacy_ckpt=args.legacy_ckpt,
-        strategy_kwargs={"sequence_parallel": False, "lazy_init": True},
-        trainer_kwargs={},
-        model_config_overrides={"sequence_parallel": False},
     )
-
-    model = quantizer.quantize(model)
-
-    quantizer.export(model, args.nemo_checkpoint, trainer)
 
 
 if __name__ == "__main__":
