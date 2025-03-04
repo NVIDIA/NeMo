@@ -531,14 +531,14 @@ recipes = [
 
     (
         custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=4,
-            num_gpus_per_node=8,
+            num_nodes=1,
+            num_gpus_per_node=2,
             wandb_project_name="perf",
             seq_length=256,
             global_batch_size=32,
             #peft_scheme="lora",
         ),
-        "eval-llama32_1b-hellaswag-4_node-256_32",
+        "eval-llama32_1b-hellaswag-1_node-256_32",
     ),
     # (
     #     custom_hf_auto_model_for_causal_lm_finetune(
@@ -599,10 +599,10 @@ if __name__ == "__main__":
     # )
     print("did you Update CW codebase")
     #breakpoint()
-    run_finetuning_on_slurm()
+    #run_finetuning_on_slurm()
     #from datasets import load_dataset
 
 
     #dataset = load_dataset("Rowan/hellaswag", split="train")
     #print("Dataset downloaded successfully")
-    #run_local()
+    run_local()

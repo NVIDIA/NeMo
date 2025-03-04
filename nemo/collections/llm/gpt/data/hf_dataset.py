@@ -408,7 +408,7 @@ class HellaswagHFDataModule(HFDatasetDataModule):
         super().setup(stage)
         
         # Apply the same preprocessing to all splits (train, validation, test)
-        for split in ["train", "validation", "test"]:
+        for split in ["train"]:
             if split in self.dataset_splits:
                 # Process documents to create structured format
                 self.dataset_splits[split] = self.dataset_splits[split].map(self.process_doc)
