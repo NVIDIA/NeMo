@@ -17,21 +17,22 @@ from typing import Callable, Optional
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
+from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from lightning.pytorch.callbacks.callback import Callback
-from nemo.collections.llm.api import pretrain
-from nemo.collections.llm.recipes.log.default import default_log, tensorboard_logger
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
 from nemo.collections.diffusion.models.flux.model import FluxModelParams, MegatronFluxModel
 from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
-from nemo.utils.exp_manager import TimingCallback
+from nemo.collections.llm.api import pretrain
+from nemo.collections.llm.recipes.log.default import default_log, tensorboard_logger
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+from nemo.utils.exp_manager import TimingCallback
 
 NAME = "flux_12b"
+
 
 @run.cli.factory
 @run.autoconvert
@@ -47,6 +48,7 @@ def flux_mock_datamodule() -> pl.LightningDataModule:
     )
     return data_module
 
+
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
@@ -57,6 +59,7 @@ def model() -> run.Config[pl.LightningModule]:
 
     """
     return run.Config(MegatronFluxModel, flux_params=run.Config(FluxModelParams))
+
 
 def trainer(
     tensor_parallelism: int = 1,
@@ -102,7 +105,7 @@ def trainer(
         For more information on distributed training strategies, refer to the
         NeMo documentation on multi-GPU and multi-node training.
     """
-    strategy=run.Config(
+    strategy = run.Config(
         nl.MegatronStrategy,
         tensor_model_parallel_size=tensor_parallelism,
         pipeline_model_parallel_size=pipeline_parallelism,
@@ -139,6 +142,7 @@ def trainer(
     )
 
     return trainer
+
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
