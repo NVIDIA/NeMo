@@ -22,7 +22,7 @@ from nemo.utils import logging
 from typing import Dict
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 import numpy as np
-
+import re
 
 def clean_split(name):
     """removes split from name
@@ -288,7 +288,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
 
 
-class HellaSwagHFDataModule(HFDatasetDataModule):
+class HellaSwagHFDataModule(llm.HFDatasetDataModule):
     """
     A data module for handling the HellaSwag dataset using HFDatasetDataModule.
     
@@ -336,7 +336,6 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         text = text.strip()
         # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
         text = text.replace(" [title]", ". ")
-        import re
         text = re.sub("\\[.*?\\]", "", text)
         text = text.replace("  ", " ")
         return text
@@ -346,12 +345,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
         query = HellaSwagHFDataModule.preprocess(doc["activity_label"] + ": " + ctx)
         choices = [HellaSwagHFDataModule.preprocess(ending) for ending in doc["endings"]]
-        
-        try:
-            gold = int(doc["label"])
-        except ValueError:
-            gold = 0
-                                    
+        gold = int(doc["label"])
         out_doc = {
             "query": query,
             "choices": choices,
@@ -363,12 +357,14 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
     def preprocess_batch(self, batch):
         # print(type(batch))
         # print(type(next(batch)))
-        ans = self.tokenizer(
-            batch["text"],
-            max_length=self.seq_length,
-            truncation=True,
-        )
-        
+        # ans = self.tokenizer(
+        #     batch["text"],
+        #     max_length=self.seq_length,
+        #     truncation=True,
+        # )
+        ans = {}
+        ans['input_ids'] = self.tokenizer.text_to_ids(batch["text"])
+        ans['attention_mask'] = [1] * len(ans['input_ids'])
         ans['labels'] = ans['input_ids'][1:] + [-100]   
         #ans['labels'] = [
         #    x[1:] + [-100] for x in ans['input_ids']
