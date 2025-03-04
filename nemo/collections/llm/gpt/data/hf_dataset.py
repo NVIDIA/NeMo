@@ -288,7 +288,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
 
 
-class HellaSwagHFDataModule(llm.HFDatasetDataModule):
+class HellaSwagHFDataModule(HFDatasetDataModule):
     """
     A data module for handling the HellaSwag dataset using HFDatasetDataModule.
     
