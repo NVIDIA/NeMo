@@ -180,13 +180,10 @@ nemo() {
     "unstructured==0.14.9"
     "-r"
     "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
-    "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
     "onnxscript@git+https://github.com/microsoft/onnxscript"
+    "git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
+    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64"
   )
-
-  if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
-    DEPS+=("git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'")
-  fi
 
   echo 'Installing dependencies of nemo'
   pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
