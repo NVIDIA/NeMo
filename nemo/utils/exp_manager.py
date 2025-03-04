@@ -728,7 +728,8 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         for idx, callback in enumerate(trainer.callbacks):
             if isinstance(callback, Timer):
                 # NOTE: PTL does not expose a `trainer.max_time`. By the time we are in this function,
-                # PTL has already setup a timer if the user specifies `trainer.max_time` so best we can do is replace that.
+                # PTL has already setup a timer if the user specifies `trainer.max_time` so best we
+                # can do is replace that.
                 # Working: If only `trainer.max_time` is set - it behaves as a normal PTL timer.
                 # If only `exp_manager.max_time_per_run` is set - it behaves as a StateLessTimer.
                 # If both are set, it also behaves as a StateLessTimer.
@@ -858,6 +859,7 @@ def error_checks(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictC
 
 
 def _filter_out_unfinished_checkpoints(checkpoint_paths: Collection[Union[Path, str]]) -> Collection[Union[Path, str]]:
+    """ _filter_out_unfinished_checkpoints """
     res = []
     for chkpt_path in checkpoint_paths:
         if NeMoModelCheckpoint.is_checkpoint_unfinished(chkpt_path):
@@ -1311,6 +1313,7 @@ class NeMoCheckpointConnector(_CheckpointConnector):
     """
 
     def resume_start(self, checkpoint_path=None) -> None:
+        """ resume_start """
         checkpoint_path = self.trainer.ckpt_path
         if checkpoint_path is not None:
             logging.info(
@@ -1426,6 +1429,7 @@ def configure_checkpointing(
 
 
 def check_slurm(trainer):
+    """ check_slurm """
     try:
         return trainer.accelerator_connector.is_slurm_managing_tasks
     except AttributeError:
@@ -1477,7 +1481,7 @@ class StatelessTimer(Timer):
 
 
 def configure_no_restart_validation_training_loop(trainer: lightning.pytorch.Trainer) -> None:
-    """ nfigure_no_restart_validation_training_loop """
+    """ configure_no_restart_validation_training_loop """
     if type(trainer.fit_loop.epoch_loop) != _TrainingEpochLoop:
         warnings.warn(
             "Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
