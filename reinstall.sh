@@ -182,7 +182,7 @@ nemo() {
     "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
     "onnxscript@git+https://github.com/microsoft/onnxscript"
     "git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
-    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64"
+    "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'"
   )
 
   echo 'Installing dependencies of nemo'
