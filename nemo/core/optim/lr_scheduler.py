@@ -288,7 +288,7 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         step = self.last_epoch
 
         # Reset learning rate
-        if 'reset_lr' in self.optimizer.param_groups[0].keys():
+        if len(self.optimizer.param_groups) > 0 and 'reset_lr' in self.optimizer.param_groups[0].keys():
             reset_lr = self.optimizer.param_groups[0]['reset_lr']
             num_steps = reset_lr['num_steps']
             step -= num_steps
