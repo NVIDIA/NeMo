@@ -32,7 +32,7 @@ Initialization
 
 - **split** (`str` or `list`, optional):
   - Specifies which split(s) of the dataset to load. Can be a single split name (e.g., `"train"`) or a list of split names (e.g., `["train", "validation"]`).
-  
+
 - **collate_fn** (`callable`, optional):
   - A function to collate samples into batches. If `None`, a default collate function is used.
 
