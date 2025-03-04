@@ -72,7 +72,7 @@ jobs:
         env:
           INSTALLER: ${{ matrix.installer }}
         run: |
-          if [[ "$INSTALLER" == "pip" ]]; then
+          if [ "$INSTALLER" == "pip" ]; then
             pip install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
