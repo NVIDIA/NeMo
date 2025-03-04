@@ -19,6 +19,7 @@ from megatron.core.dist_checkpointing.validation import StrictHandling
 from nemo.collections.llm import quantization
 from nemo.collections.llm.api import ptq
 
+
 def get_args():
     """Parses PTQ arguments."""
 
@@ -132,7 +133,14 @@ def main():
         generate_sample=args.generate_sample,
     )
 
-    ptq(args.nemo_checkpoint, export_config, calibration_tp=args.calibration_tp, calibration_pp=args.calibration_pp, quantization_config=quantization_config)
+    ptq(
+        args.nemo_checkpoint,
+        export_config,
+        calibration_tp=args.calibration_tp,
+        calibration_pp=args.calibration_pp,
+        quantization_config=quantization_config,
+    )
+
 
 if __name__ == '__main__':
     main()

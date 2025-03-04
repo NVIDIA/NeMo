@@ -20,9 +20,9 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 import torch.distributed as dist
+from accelerate.hooks import remove_hook_from_module
 from datasets import load_dataset
 from tqdm import tqdm
-from accelerate.hooks import remove_hook_from_module
 
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate

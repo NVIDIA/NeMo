@@ -26,10 +26,15 @@ from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
-from nemo.collections.llm import HFAutoModelForCausalLM, GPTModel
+from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
 from nemo.collections.llm.distillation import DistillationGPTModel
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
-from nemo.collections.llm.quantization import Quantizer, ExportConfig, QuantizationConfig, load_with_modelopt_layer_spec
+from nemo.collections.llm.quantization import (
+    ExportConfig,
+    QuantizationConfig,
+    Quantizer,
+    load_with_modelopt_layer_spec,
+)
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
