@@ -29,6 +29,7 @@ from nemo.tron.init import initialize_megatron, set_jit_fusion_options
 from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
+from nemo.tron.tokenizers.tokenizer import build_tokenizer
 from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
 from nemo.tron.utils.log_utils import setup_logging
 from nemo.utils.import_utils import safe_import
@@ -76,7 +77,7 @@ def setup(
     if cfg.logger_config.log_progress:
         append_to_progress_log(cfg.checkpoint_config.save, "Starting job")
 
-    if cfg.ft_config.enable_ft_package:
+    if cfg.ft_config and cfg.ft_config.enable_ft_package:
         fault_tolerance.setup(cfg, state)
         fault_tolerance.maybe_setup_simulated_fault(cfg.ft_config)
 
@@ -123,6 +124,18 @@ def setup(
         }
     else:
         checkpointing_context = {}
+
+    # Tokenizer
+    timers("tokenizer-setup", log_level=0).start(barrier=True)
+    tokenizer = build_tokenizer(
+        cfg.tokenizer_config,
+        make_vocab_size_divisible_by=cfg.model_config.make_vocab_size_divisible_by,
+        tensor_model_parallel_size=cfg.model_config.tensor_model_parallel_size,
+    )
+    cfg.model_config.vocab_size = tokenizer.vocab_size
+    cfg.dataset_config.tokenizer = tokenizer
+    timers("tokenizer-setup").stop()
+    barrier_and_log("after tokenizer is built")
 
     # Model, optimizer, and learning rate.
     timers("model-and-optimizer-setup", log_level=0).start(barrier=True)
