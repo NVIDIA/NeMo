@@ -1,10 +1,17 @@
+import os
+import re
 import json
 import torch
 
-rom nemo.collections.avlm.data.energon.avlm_sample_config import MediaDict
+from nemo.collections.multimodal.data.energon.config import (
+    ImageToken,
+    AudioToken,
+    VideoToken,
+)
+from nemo.collections.avlm.data.energon.avlm_sample_config import MediaDict
 
 
-def get_media(media_type, value, offset=None, duration=None):
+def get_media(raw, media_type, value, offset=None, duration=None):
     """
     Return:
         if media_type == 'text', return the text string
@@ -16,14 +23,14 @@ def get_media(media_type, value, offset=None, duration=None):
     if media_type == "text":
         return value
     elif media_type == "audio" or media_type == "video":
-        media_dict = {media_type: json[value]}
+        media_dict = {media_type: raw[value]}
         if offset is not None:
             media_dict["offset"] = offset
         if duration is not None:
             media_dict["duration"] = duration
         return MediaDict(**media_dict)
     else:
-        return json[value]
+        return raw[value]
 
 
 """
@@ -81,7 +88,7 @@ def sample_loader_interleaved(raw: dict) -> dict:
         jsn.get("duration") or [None]*len(jsn["texts"]), 
     ):
         media = [("text", text), ("audio", audio), ("video", video), ("image", image)]
-        sequence.append(get_media(t,v,offset,duration) for t, v in media if v is not None)
+        sequence.append(get_media(raw,t,v,offset,duration) for t, v in media if v is not None)
 
     return dict(__key__=raw["__key__"], 
         sequence=sequence,
@@ -114,7 +121,37 @@ sample_000002.json
 sample_000003.json
 ```
 
-```json
+```json structure 1
+{
+  "audios": "sample_000001.2345ew.flac,sample_000001.gd1dtg.wav",
+  "audio_durations": [5.3058125, 3.06238],
+  "videos": "sample_000001.35tags.mp4",
+  "video_durations": [5.607625],
+  "images": "sample_000001.as23ds.jpg,sample_000001.gds233.jpg",
+  "conversations": [
+    {
+      "from": "User",
+      "value": "<audio>"
+    },
+    {
+      "type": "text",
+      "from": "Assistant",
+      "value": "Automatic speech recognition is a technology that allows computers to recognize and transcribe spoken language. In the NeMo Framework, ASR is used for tasks such as speech-to-text and voice recognition."
+    },
+    {
+      "from": "User",
+      "value": "Describe what is NeMo based on the tutorial video: <video> and the information in the two images: <image> <image>. Combine that information with sound <audio>. Answer: "
+    },
+    {
+      "type": "text",
+      "from": "Assistant",
+      "value": "The NeMo Framework provides a range of tools and features for training and deploying ASR models, including model parallelism, data parallelism, and distributed checkpointing. This allows for faster training and inference times, as well as improved model accuracy and reliability."
+    }
+  ]
+}
+```
+
+```json structure 2
 {
   "conversations": [
     {
@@ -131,7 +168,7 @@ sample_000003.json
     {
       "type": "text, video, text, image, text, image, text, audio, text",
       "from": "User",
-      "duration": [null, 5.607625, null, null, null, null, null, , null ],
+      "duration": [null, 5.607625, null, null, null, null, null, 3.06238, null ],
       "value": ["Describe what is NeMo based on the tutorial video: ", 
         "35tags.mp4", 
         " and the information in the two images: ", 
@@ -151,40 +188,99 @@ sample_000003.json
   ]
 }
 ```
+
 """
 
 
-def sample_loader_multiturn(raw: dict) -> dict:
+QAMediaTokenTypeMapping = {
+    "audio": AudioToken().token_str,
+    "video": VideoToken().token_str,
+    "image": ImageToken().token_str,
+}
+
+def sample_loader_QA(raw: dict) -> dict:
     # Note that only the images are decoded, all other files are read as raw bytes
     jsn = json.loads(raw["json"])
-    contexts = []
-    answers = []
+    output_dict = {
+        "contexts": [],
+        "answers": [],
+        "audios": [],
+        "videos": [],
+        "images": [],
+    }
+
+
+    # process structure 1
+    if "audio" in jsn or "audios" in jsn:
+        audio_files = jsn["audio"].split(",") if "audio" in jsn else jsn["audios"].split(",")
+        offsets = jsn.get("audio_offsets") or [None] * len(audio_files)
+        durations = jsn.get("audio_durations") or [None] * len(audio_files)
+        if not isinstance(offsets, list):
+            offsets = [offsets]
+        if not isinstance(durations):
+            durations = [durations]
+        output_dict["audios"] = [get_media(raw, "audio", f.split(',',1)[1], offsets[i], durations[i]) for i,f in enumerate(audio_files)]
+
+    if "video" in jsn or "videos" in jsn:
+        video_files = jsn["video"].split(",") if "video" in jsn else jsn["videos"].split(",")
+        offsets = jsn.get("video_offsets") or [None] * len(video_files)
+        durations = jsn.get("video_durations") or [None] * len(video_files)
+        if not isinstance(offsets, list):
+            offsets = [offsets]
+        if not isinstance(durations):
+            durations = [durations]
+        output_dict["videos"] = [get_media(raw, "video", f.split(',',1)[1], offsets[i], durations[i]) for i,f in enumerate(video_files)]
+
+    if "image" in jsn or "images" in jsn:
+        image_files = jsn["image"].split(",") if "image" in jsn else jsn["images"].split(",")
+        offsets = jsn.get("image_offsets") or [None] * len(image_files)
+        durations = jsn.get("image_durations") or [None] * len(image_files)
+        if not isinstance(offsets, list):
+            offsets = [offsets]
+        if not isinstance(durations):
+            durations = [durations]
+        output_dict["images"] = [get_media(raw, "image", f.split(',',1)[1], offsets[i], durations[i]) for i,f in enumerate(image_files)]
 
     for turn in jsn["conversations"]:
-        sequence = []
-        
-        if isinstance(turn["value"], str):
-            sequence.append(get_media(turn["type"], turn["value"], turn.get("offset"), turn.get("duration")))
+        if "type" not in turn:
+            # process structure 1
+            string = turn["value"]
         else:
+            # process structure 2
+            string = ""
+            types = turn["type"]
+            values = turn["value"]
+
+            if not isinstance(values, list):
+                values = [values]            
+
             for t, v, offset, duration in zip(
-                turn["type"].split(","), 
-                turn["value"],
+                types.split(","), 
+                values,
                 turn.get("offset") or [None]*len(turn["value"]),
                 turn.get("duration") or [None]*len(turn["value"])
             ):
-                sequence.append(get_media(t,v, offset, duration))
+                raw_media = get_media(t, v, offset, duration)
+                if t == "text":
+                    string += raw_media
+                else:
+                    string += QAMediaTokenTypeMapping[t]
+                    output_dict[t].append(raw_media)
 
-        if turn["from"] == "Assistant":
-            answers.append(sequence)
-        elif turn["from"] == "User":
-            contexts.append(sequence)
+        if turn["from"] == "Assistant" or turn["from"] == "gpt":
+            output_dict["answers"].append(string)
+        elif turn["from"] == "User" or turn["from"] == "human":
+            output_dict["contexts"].append(string)
 
-    return dict(__key__=raw["__key__"], 
-        contexts=contexts,
-        answers=answers,
+    return dict(
+        contexts=output_dict["contexts"],
+        answers=answers if output_dict["answers"] else None,
+        audios=audios if output_dict["audios"] else None,
+        videos=videos if output_dict["videos"] else None,
+        images=images if output_dict["images"] else None,
     )
 
 
-def part_filter_multiturn(part: str) -> bool:
+def part_filter_QA(part: str) -> bool:
     # Need to load all parts
     return True

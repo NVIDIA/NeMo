@@ -26,8 +26,8 @@ from nemo.collections.avlm.data.energon.avlm_sample_config import (
     AudioSize,
     VideoSize,
     MediaDict,
-    AVLMEnergonSampleInterleaved,
-    AVLMEnergonSampleMultiturn,
+    AVLMEnergonInterleavedSample,
+    AVLMEnergonQASample,
     AVLMSample,
     AVLMRawBatch,
     AVLMSampleConfigInterleaved,
@@ -38,7 +38,7 @@ from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTask
 from nemo.utils import logging
 
 
-class AVLMSampleEncoderInterleaved(BaseSampleEncoder):
+class AVLMSampleEncoder(BaseSampleEncoder):
     """AVLMSampleEncoderInterleaved"""
 
     def __init__(
@@ -49,8 +49,7 @@ class AVLMSampleEncoderInterleaved(BaseSampleEncoder):
         multimodal_sample_config=AVLMSampleConfigInterleaved()
     ):
         """
-        Initialize the AVLMSampleEncoderInterleaved, inherited from LlavaNextSampleEncoder for multimodal samples
-        focused on LLaVANeXT data to support 
+        Initialize the AVLMSampleEncoder
 
         Parameters:
         tokenizer (Tokenizer): The HF tokenizer used for processing text.
@@ -188,7 +187,29 @@ class AVLMSampleEncoderInterleaved(BaseSampleEncoder):
         return self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0] \
             if self.image_processor is not None else None
 
-    def tokenize(self, sequence: AVLMEnergonSampleInterleaved):
+
+class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
+    """AVLMSampleEncoderInterleaved"""
+
+    def __init__(
+        self, 
+        tokenizer=None, 
+        audio_processor=None, 
+        image_processor=None, 
+        multimodal_sample_config=AVLMSampleConfigInterleaved()
+    ):
+        """
+        Initialize the AVLMSampleEncoderInterleaved
+
+        Parameters:
+        tokenizer (Tokenizer): The HF tokenizer used for processing text.
+        image_processor (ImageProcessor): The HF image processor used for preprocessing images.
+        avlm_sample_config (AVLMSampleConfigInterleaved, optional): Configuration object for multimodal samples.
+            Defaults to AVLMSampleConfigInterleaved().
+        """
+        super().__init__(tokenizer, audio_processor, image_processor, multimodal_sample_config)
+
+    def tokenize(self, sequence: AVLMEnergonInterleavedSample):
         """
         Tokenize the input sequence and process images in an interleaved sample.
 
@@ -287,32 +308,7 @@ class AVLMSampleEncoderInterleaved(BaseSampleEncoder):
             "image_sizes": image_sizes_tensor,
         }
 
-    @stateless
-    def encode_sample(self, sample: Sample) -> AVLMSample:
-        """
-        Encode an individual sample based on its type.
-
-        This method selects the appropriate encoder based on the sample type and encodes the sample
-        into a format suitable for further processing.
-
-        Parameters:
-        sample (Union[VQASample, InterleavedSample, SimilarityInterleavedSample, CaptioningSample]):
-            The sample to be encoded. The sample type is used to determine the appropriate encoder.
-
-        Returns:
-        AVLMSample: The encoded sample.
-
-        Raises:
-        NotImplementedError: If no encoder is registered for the sample type.
-        """
-        sample_type = type(sample).__name__
-        encoder = self.encoders.get(sample_type)
-        if not encoder:
-            raise NotImplementedError(f"No encoder implemented for sample type {sample_type}")
-        encoded_sample = encoder.encode(input_sample=sample, output_sample=AVLMSample())
-        return encoded_sample
-
-    def encode(self, input_sample: Sample, output_sample: AVLMSample):
+    def encode(self, input_sample: AVLMEnergonInterleavedSample, output_sample: AVLMSample):
         """
         Encode a single sample into a format suitable for model input.
 
@@ -348,6 +344,76 @@ class AVLMSampleEncoderInterleaved(BaseSampleEncoder):
         return output_sample
 
 
+class AVLMSampleEncoderQA(AVLMSampleEncoder):
+    def __init__(
+        self, 
+        tokenizer=None, 
+        audio_processor=None, 
+        image_processor=None, 
+        multimodal_sample_config=AVLMSampleConfigInterleaved()
+    ):
+        """
+        Initialize the AVLMSampleEncoderQA
+
+        Parameters:
+        tokenizer (Tokenizer): The HF tokenizer used for processing text.
+        image_processor (ImageProcessor): The HF image processor used for preprocessing images.
+        avlm_sample_config (AVLMSampleConfigInterleaved, optional): Configuration object for multimodal samples.
+            Defaults to AVLMSampleConfigInterleaved().
+        """
+        super().__init__(tokenizer, audio_processor, image_processor, multimodal_sample_config)
+        self.conversation_template_config = multimodal_sample_config.conversation_template_config
+
+    def apply_prompt_template(self, input_text: AVLMEnergonQASample, use_plain=False):
+        """
+        Apply a conversation template to the input text for VQA.
+
+        This method generates a templated prompt by combining system, user, and assistant messages.
+
+        Parameters:
+        input_text (AVLMEnergonQASample): The sample containing the context and answer.
+        use_plain (bool, optional): Whether to use a plain format for the prompt. Defaults to False.
+
+        Returns:
+        str: The generated templated prompt as a string.
+        """
+        logging.debug(f"apply_conversation_template context {input_text.context} answer {input_text.answers}")
+
+        messages = []
+
+        # Add system message if it exists
+        if self.conversation_template_config.system:
+            messages.append({'role': 'system', 'content': self.conversation_template_config.system})
+
+        # Handle cases where context and answers are lists
+        if isinstance(input_text.context, list) and isinstance(input_text.answers, list):
+            # Ensure both lists are the same length or adjust based on your specific needs
+            min_length = min(len(input_text.context), len(input_text.answers))
+            for i in range(min_length):
+                messages.append({'role': self.conversation_template_config.roles[0], 'content': input_text.context[i]})
+                messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers[i]})
+        elif isinstance(input_text.context, str) and isinstance(input_text.answers, str):
+            # Handle single context and answer as strings
+            messages.append({'role': self.conversation_template_config.roles[0], 'content': input_text.context})
+            messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers})
+        else:
+            raise ValueError(
+                f"VQA Sample context/answers should either be a List[str] or str. Other types not supported"
+            )
+        # Set the chat template if defined
+        if self.conversation_template_config.chat_template:
+            self.tokenizer.chat_template = self.conversation_template_config.chat_template
+        elif self.tokenizer.chat_template is None:
+            raise ValueError(
+                "Both tokenizer and conversation template does not have chat template defined. Refer to https://huggingface.co/docs/transformers/main/en/chat_templating"
+            )
+
+        # Apply the conversation template to generate the prompt
+        templated_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        logging.debug(f"apply prompt template templated_prompt {templated_prompt}")
+        return templated_prompt
+
+
 class AVLMTaskEncoder(MultiModalTaskEncoder):
     """MeidaToTextTaskEncoder"""
 
@@ -365,7 +431,13 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         """
         super().__init__(tokenizer, image_processor, avlm_sample_config)
         self.encoders: Dict[str, SampleEncoder] = {
-            AVLMEnergonSampleInterleaved.__name__: AVLMSampleEncoderInterleaved(
+            AVLMEnergonInterleavedSample.__name__: AVLMSampleEncoderInterleaved(
+                tokenizer=tokenizer, 
+                audio_processor=audio_processor, 
+                image_processor=image_processor, 
+                avlm_sample_config=avlm_sample_config,
+            ),
+            AVLMEnergonQASample.__name__: AVLMSampleEncoderQA(
                 tokenizer=tokenizer, 
                 audio_processor=audio_processor, 
                 image_processor=image_processor, 

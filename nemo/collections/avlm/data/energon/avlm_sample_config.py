@@ -21,7 +21,7 @@ import torch
 from megatron.energon import Sample
 from megatron.energon.flavors.webdataset import VideoData
 
-from nemo.collections.multimodal.data.energon.config import MultiModalToken, MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.config import AudioToken, MultiModalSampleConfig
 from nemo.collections.vlm.llava_next.data.energon import LlavaNextTextRawBatch, LlavaNextTextSample
 from nemo.utils import logging
 
@@ -47,17 +47,20 @@ class MediaDict(TypedDict):
 
 
 @dataclass_slot
-class AVLMEnergonSampleInterleaved(Sample):
+class AVLMEnergonInterleavedSample(Sample):
     # sequence of interleaved media, (either PIL.Image for an image, str for text, bytes or mediaDict for an audio or video)
     sequence: List[Union[bytes, str, Image.Image, MediaDict]]
 
 
 @dataclass_slot
-class AVLMEnergonSampleMultiturn(Sample):
-    ## contexts/answers can be list of interleaved sequences
-    contexts: List[AVLMEnergonSampleInterleaved]
-    answers: List[AVLMEnergonSampleInterleaved]
-    answer_weights: Optional[torch.Tensor] = None
+class AVLMEnergonQASample(Sample):
+    contexts: List[str]
+    answers: Optional[List[List[str]]] = None
+    answer_weights: Optional[List[torch.Tensor]] = None
+
+    audios: Optional[List[Union[bytes, MediaDict]]] = None
+    videos: Optional[List[Union[bytes, MediaDict]]] = None
+    images: Optional[List[Image.Image]] = None
 
 
 @dataclass
@@ -114,7 +117,7 @@ class AVLMRawBatch:
 @dataclass
 class AVLMSampleConfigInterleaved(MultiModalSampleConfig):
     model_id: str = field(default="llava-hf/llava-v1.6-vicuna-7b-hf")
-    audio_token: MultiModalToken = field(default=MultiModalToken("<audio>", -300, "audio"))
+    audio_token: AudioToken = field(default_factory=AudioToken)
     """
     For a single video with multiple video and audio streams
     video_audio: video streams tokens are before the audio streams tokens 
