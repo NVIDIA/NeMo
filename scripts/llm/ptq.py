@@ -14,7 +14,7 @@
 
 import argparse
 
-from nemo.collections.llm import ptq
+from nemo.collections import llm
 from nemo.collections.llm.modelopt import ExportConfig, QuantizationConfig
 
 
@@ -128,7 +128,7 @@ def main():
         generate_sample=args.generate_sample,
     )
 
-    ptq(
+    llm.ptq(
         nemo_checkpoint=args.nemo_checkpoint,
         export_config=export_config,
         calibration_tp=args.calibration_tp,

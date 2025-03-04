@@ -31,8 +31,11 @@ from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
+    PruningConfig,
     QuantizationConfig,
     Quantizer,
+    prune_gpt_model,
+    save_pruned_model,
     setup_trainer_and_restore_model_with_modelopt_spec,
 )
 from nemo.lightning import (
@@ -271,6 +274,85 @@ def validate(
     trainer.validate(model, data)
 
     return app_state.exp_dir
+
+
+@run.cli.entrypoint(name="prune", namespace="llm")
+def prune(
+    nemo_checkpoint: str,
+    save_path: str,
+    pruning_config: PruningConfig,
+    devices: int = 1,
+    num_nodes: int = 1,
+    tp_size: int = 1,
+    pp_size: int = 1,
+    num_train_samples: int = 1024,
+    data: pl.LightningDataModule | None = None,
+    tokenizer_path: str | None = None,
+    legacy_ckpt: bool = False,
+) -> str:
+    """
+    Prunes a model using the specified data and trainer. Currently only supports GPT models.
+
+    Args:
+        nemo_checkpoint (str): The path to the NeMo checkpoint to be pruned.
+        save_path (str): The path to save the pruned NeMo checkpoint.
+        pruning_config (PruningConfig): The pruning configuration.
+        devices (int): The number of devices to use for pruning.
+        num_nodes (int): The number of nodes to use for pruning.
+        tp_size (int): The tensor parallel size.
+        pp_size (int): The pipeline parallel size.
+        num_train_samples (int): Number of training samples for importance estimation using forward pass.
+        data (pl.LightningDataModule): The data module for forward pass.
+            Required if not dropping layers.
+        tokenizer_path (str): Path to the tokenizer if not using model's tokenizer.
+        legacy_ckpt (bool): If True, allow loading ckpt saved with older version of TE.
+            Use for cases like missing state dict keys ending with `_extra_state`.
+
+    Returns:
+        str: The path to the pruned NeMo checkpoint.
+
+    Examples:
+        >>> from nemo.collections import llm
+        >>> from nemo.collections.llm.modelopt.prune import PruningConfig
+        >>> data = llm.PretrainingDataModule(
+                paths=["1.0", "path/to/tokenized/data"],
+                seq_length=256,
+                global_batch_size=1,
+                micro_batch_size=1,
+            )
+        >>> llm.prune(
+                nemo_checkpoint="path/to/llama3.1-8b",
+                save_path="path/to/pruned_llama_model",
+                pruning_config=PruningConfig(ffn_hidden_size=9216, hidden_size=3072),
+                data=data
+            )
+    """
+    if data is not None:
+        assert data.global_batch_size == data.micro_batch_size, "Global batch size must be equal to micro batch size"
+        steps = num_train_samples // data.global_batch_size
+    else:
+        steps = num_train_samples
+
+    model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
+        nemo_checkpoint,
+        tp_size,
+        pp_size,
+        devices,
+        num_nodes,
+        inference_only=True,
+        tokenizer_path=tokenizer_path,
+        legacy_ckpt=legacy_ckpt,
+        strategy_kwargs={"sequence_parallel": False, "replace_progress_bar": False},
+        trainer_kwargs={"max_steps": steps, "limit_val_batches": steps, "val_check_interval": steps},
+        model_config_overrides={"sequence_parallel": False},
+    )
+    prune_gpt_model(model, pruning_config, data, trainer)
+    save_pruned_model(model, trainer, save_path)
+
+    console = Console()
+    console.print(f"[green]✓ Pruning succeded, pruned checkpoint saved to {save_path}[/green]")
+
+    return save_path
 
 
 @run.cli.entrypoint(name="distill", namespace="llm")

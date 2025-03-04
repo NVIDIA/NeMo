@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Model optimization utilities for using TensorRT Model Optimizer."""
 
-from .distill import *  # noqa: F401
-from .model_utils import *  # noqa: F401
-from .prune import *  # noqa: F401
-from .quantization import *  # noqa: F401
+"""Prune utilities for using TensorRT Model Optimizer."""
+
+from .pruner import PruningConfig, prune_gpt_model, save_pruned_model
+
+__all__ = ["PruningConfig", "prune_gpt_model", "save_pruned_model"]

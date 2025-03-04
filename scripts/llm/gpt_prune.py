@@ -62,39 +62,21 @@ Example usage to prune depth by dropping specific model layers (1-indexed):
 
 import argparse
 import os
-from functools import partial
 
-import modelopt.torch.prune as mtp
-from megatron.core import dist_checkpointing
+# Import modelopt first to avoid circular import causing pruning to fail
+# TODO: This can be removed in modelopt 0.27 once modelopt pruning imports nemo inside a function
+import modelopt.torch.prune  # noqa: F401
 
-from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.modelopt import setup_trainer_and_restore_model_with_modelopt_spec
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
+from nemo.collections.llm.modelopt.prune import PruningConfig
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
-SUPPORTED_PRUNING_HPARAMS = {
-    # Width pruning
-    "ffn_hidden_size",
-    "hidden_size",
-    "num_attention_heads",
-    "num_query_groups",
-    # Depth pruning
-    "num_layers",
-}
 
-
-def get_data_module(args, tokenizer):
-    """Get data module for running validation loop on.
-
-    Also overwrites val dataloader to return train dataloader for importance estimation.
-    """
-    assert args.num_train_samples % args.gbs == 0, "num_train_samples must be divisible by gbs"
-    assert args.gbs % args.mbs == 0, "gbs must be divisible by mbs"
+def get_data_module(args):
+    """Get data module for running validation loop on."""
+    assert args.num_train_samples % args.mbs == 0, "num_train_samples must be divisible by mbs"
     assert args.seq_length, "Sequence length must be provided for pruning"
 
     data_module_kwargs = {}
@@ -109,81 +91,40 @@ def get_data_module(args, tokenizer):
         data_module_cls = llm.MockDataModule
     data_module = data_module_cls(
         seq_length=args.seq_length,
-        tokenizer=tokenizer,
         micro_batch_size=args.mbs,
-        global_batch_size=args.gbs,
+        global_batch_size=args.mbs,
         **data_module_kwargs,
     )
 
     return data_module
 
 
-def save_pruned_model(model: llm.GPTModel, trainer: nl.Trainer, save_path: str):
-    """Save pruned model nemo checkpoint."""
-    logging.info(f"Saving pruned model to {save_path}...")
-    if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, "__io__"):
-        trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
-        # Make sure pruned hparams are saved
-        for k in SUPPORTED_PRUNING_HPARAMS | {"kv_channels"}:
-            setattr(trainer.model.__io__.config, k, getattr(model.config, k))
-
-    weight_path = ckpt_to_weights_subdir(save_path, is_saving=True)
-    weight_path.mkdir(parents=True, exist_ok=True)
-    dist_checkpointing.save(trainer.strategy.megatron_parallel.sharded_state_dict(), weight_path)
-
-    if is_global_rank_zero():
-        TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(save_path), yaml_attrs=["model"])
-
-    logging.info(f"Pruned model saved to {save_path}\n")
-
-
 def main(args):
     """Main function for pruning Llama model."""
-    model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
-        args.restore_path,
-        args.tp_size,
-        args.pp_size,
-        args.devices,
-        args.num_nodes,
-        inference_only=True,
-        tokenizer_path=args.tokenizer,
-        legacy_ckpt=args.legacy_ckpt,
-        strategy_kwargs={"sequence_parallel": False, "replace_progress_bar": False},
-        trainer_kwargs={
-            "max_steps": args.num_train_samples // args.gbs,
-            "limit_val_batches": args.num_train_samples // (args.gbs if args.data_paths else args.mbs),
-            "val_check_interval": args.num_train_samples // args.gbs,
-        },
-        model_config_overrides={"sequence_parallel": False},
+    pruning_config = PruningConfig(
+        ffn_hidden_size=args.prune_ffn_hidden_size,
+        hidden_size=args.prune_hidden_size,
+        num_attention_heads=args.prune_num_attention_heads,
+        num_query_groups=args.prune_num_query_groups,
+        num_layers=args.prune_num_layers,
+        drop_layers=args.drop_layers,
     )
 
-    export_config = {
-        k: getattr(args, f"prune_{k}") for k in SUPPORTED_PRUNING_HPARAMS if getattr(args, f"prune_{k}") is not None
-    }
-    if args.drop_layers:
-        assert not export_config, f"Cannot specify `--drop_layers` with other prune constraints. Recieved: {args}"
+    data_module = get_data_module(args) if not args.drop_layers else None
 
-        mtp.plugins.megatron.drop_mcore_gpt_layers(model, layers_to_drop=args.drop_layers)
-    else:
-        assert args.tp_size == 1, "Pruning currently only supports --tp_size=1"
-        assert export_config, "No pruning constraints provided"
-
-        # Overwrite val dataloader to use train dataloader with llm.validate
-        data_module = get_data_module(args, model.tokenizer)
-        data_module.val_dataloader = data_module.train_dataloader
-
-        logging.info("Pruning model...")
-        mtp.prune(
-            model,
-            mode="mcore_gpt_minitron",
-            constraints={"export_config": export_config},
-            dummy_input=None,  # Not used
-            config={"forward_loop": partial(llm.validate, data=data_module, trainer=trainer)},
-        )
-
-    save_pruned_model(model, trainer, args.save_path)
-
-    logging.info("Done!")
+    llm.prune(
+        nemo_checkpoint=args.restore_path,
+        save_path=args.save_path,
+        pruning_config=pruning_config,
+        devices=args.devices,
+        num_nodes=args.num_nodes,
+        tp_size=args.tp_size,
+        pp_size=args.pp_size,
+        num_train_samples=args.num_train_samples,
+        data=data_module,
+        tokenizer_path=args.tokenizer,
+        legacy_ckpt=args.legacy_ckpt,
+    )
 
 
 if __name__ == "__main__":
@@ -206,7 +147,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--legacy_ckpt",
         action="store_true",
-        help="Load ckpt saved with TE < 1.14. Use for missing state dict keys ending with `_extra_state`",
+        help="Load ckpt saved with older TE versions. Use for missing state dict keys ending with `_extra_state`",
     )
     parser.add_argument("--save_path", type=str, required=True, help="Path to save pruned model checkpoint to")
     parser.add_argument(
@@ -236,7 +177,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--index_mapping_dir", type=str, help="Path to a directory to write index mapping files")
     parser.add_argument("--mbs", type=int, default=1, help="Micro batch size")
-    parser.add_argument("--gbs", type=int, default=32, help="Global batch size")
     parser.add_argument(
         "--num_train_samples",
         type=int,

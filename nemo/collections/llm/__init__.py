@@ -312,6 +312,7 @@ try:
         generate,
         import_ckpt,
         pretrain,
+        prune,
         ptq,
         train,
         validate,
@@ -327,6 +328,7 @@ try:
             "validate",
             "finetune",
             "generate",
+            "prune",
             "ptq",
             "distill",
         ]
