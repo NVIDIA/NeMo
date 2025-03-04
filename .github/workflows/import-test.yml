@@ -44,6 +44,7 @@ jobs:
       - name: Install NeMo
         run: |
           # Install NeMo Domain
+          pip install --no-cache-dir "${{ steps.nemo-wheel.outputs.DIST_FILE }}"
           pip install --no-cache-dir "${{ steps.nemo-wheel.outputs.DIST_FILE }}[${{ matrix.collection }}]"
 
       - name: Run ${{ matrix.collection }} checks
