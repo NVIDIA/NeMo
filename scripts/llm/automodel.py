@@ -29,7 +29,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 from nemo.utils import logging
 
-#TODO: Set your SQuaD dataset path, remember to add the path in custom_mounts if using slurm executor
+# TODO: Set your SQuaD dataset path, remember to add the path in custom_mounts if using slurm executor
 DATA_PATH = ''
 
 
