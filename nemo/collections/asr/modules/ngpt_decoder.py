@@ -34,7 +34,6 @@ class NGPTDecoderConfig(GPTConfig):
     hidden_size: int = 1024
     ff_size: int = 3072
     max_seq_len: int = 1024
-    learn_positional_encodings: bool = False
 
 class DecoderBlock(nn.Module):
     # Decoder block of the nGPT decoder
@@ -191,7 +190,6 @@ class NGPTDecoder(nn.Module):
         self._n_layers = n_layers
         self._n_heads = n_heads
         self._max_seq_len = max_seq_len
-        self._learned_pos_enc = learn_positional_encodings
         self._base_scale = base_scale if base_scale is not None else hidden_size ** -0.5
         self.return_mems = False
 
@@ -203,7 +201,6 @@ class NGPTDecoder(nn.Module):
             n_layers=self._n_layers,
             n_heads=self._n_heads,
             max_seq_len=self._max_seq_len,
-            learn_positional_encodings=self._learned_pos_enc,
             n_embd=self._hidden_size,
             bias=False,
         )
@@ -225,13 +222,20 @@ class NGPTDecoder(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=self._base_scale)
 
-    def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
+    def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems=None):
         # Decoder
 
         start_pos = 0
+
+        if decoder_mems is not None:
+            start_pos = input_ids.shape[1] - 1
+            input_ids = input_ids[:, -1:]
+            decoder_mask = decoder_mask[:, -1:]
+            decoder_mems = torch.transpose(decoder_mems, 0, 1)
+
         decoder_state = self._embedding(input_ids, start_pos=start_pos)
 
-        decoder_state = self._decoder(decoder_state, decoder_mask, encoder_embeddings, encoder_mask, return_mems=self.return_mems)
+        decoder_state = self._decoder(decoder_state, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems_list = decoder_mems, return_mems=self.return_mems)
         if self.return_mems:
             decoder_state = torch.transpose(decoder_state, 0, 1)
         return decoder_state
