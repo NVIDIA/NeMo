@@ -36,6 +36,7 @@ from nemo.collections.llm.modelopt import (
     Quantizer,
     prune_gpt_model,
     save_pruned_model,
+    set_modelopt_spec_if_exists_in_ckpt,
     setup_trainer_and_restore_model_with_modelopt_spec,
 )
 from nemo.lightning import (
@@ -158,6 +159,11 @@ def pretrain(
         PosixPath('/path/to/log_dir')
     """
     _validate_config(model, data, trainer, log=log, resume=resume, optim=optim)
+
+    # [ModelOpt]: If modelopt_state exists, overwrite transformer_layer_spec to modelopt spec
+    if resume and resume.restore_config and resume.restore_config.path:
+        set_modelopt_spec_if_exists_in_ckpt(model, resume.restore_config.path)
+
     return train(
         model=model,
         data=data,
@@ -408,6 +414,13 @@ def distill(
     _teacher_model = io.load_context(ckpt_to_context_subdir(teacher_model_path), subpath="model")
     assert isinstance(_student_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
     assert isinstance(_teacher_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+
+    is_quantized_student = set_modelopt_spec_if_exists_in_ckpt(_student_model, student_model_path)
+    set_modelopt_spec_if_exists_in_ckpt(_teacher_model, teacher_model_path)
+
+    # Need to disable gradient accumulation fusion for QAT with distillation
+    if is_quantized_student:
+        _student_model.config.gradient_accumulation_fusion = False
 
     if tokenizer is None:
         tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)

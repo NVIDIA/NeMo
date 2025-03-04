@@ -13,6 +13,7 @@
 # limitations under the License.
 """Utility functions for loading models with modelopt layer spec."""
 
+import lightning.pytorch as L
 import torch
 from megatron.core.dist_checkpointing.validation import StrictHandling
 
@@ -21,13 +22,14 @@ from nemo.collections import llm
 from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.utils import logging
 
-__all__ = ["set_gpt_modelopt_spec", "setup_trainer_and_restore_model_with_modelopt_spec"]
+__all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
 
 
-def set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
-    """Modify model spec for TensorRT-Model-Optimizer optimizations."""
+def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
+    """Set model.config.transformer_layer_spec to modelopt spec."""
     logging.info("Setting model.config.transformer_layer_spec to gpt_modelopt_spec")
     assert isinstance(model_cfg, llm.GPTConfig), "model_cfg must be a GPTConfig"
     try:
@@ -43,6 +45,19 @@ def set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
         modelopt_spec = get_gpt_layer_modelopt_spec(num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True)
     model_cfg.transformer_layer_spec = modelopt_spec
     return model_cfg
+
+
+def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> bool:
+    """Set model.config.transformer_layer_spec to modelopt spec if modelopt_state exists in the checkpoint."""
+    modelopt_state_path = ckpt_to_weights_subdir(path, is_saving=False) / "modelopt_state"
+    if modelopt_state_path.exists() and not hasattr(model, "module"):
+        if isinstance(model, llm.GPTModel):
+            _set_gpt_modelopt_spec(model.config)
+        else:
+            logging.warning(f"{type(model)} is not a GPTModel. Modelopt state will not be loaded.")
+            return False
+        return True
+    return False
 
 
 def setup_trainer_and_restore_model_with_modelopt_spec(
@@ -111,7 +126,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     )
 
     model = nl.io.load_context(path=ckpt_to_context_subdir(model_path), subpath="model")
-    set_gpt_modelopt_spec(model.config)
+    _set_gpt_modelopt_spec(model.config)
     for k, v in model_config_overrides.items():
         logging.info(f"Overriding model.config.{k} to {v}")
         setattr(model.config, k, v)

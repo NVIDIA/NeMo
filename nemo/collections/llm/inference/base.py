@@ -133,15 +133,9 @@ def _setup_trainer_and_restore_model(
     assert trainer.strategy.context_parallel_size <= 1, "Context parallelism is not supported for inference."
 
     # [ModelOpt]: If modelopt_state exists, overwrite transformer_layer_spec to modelopt spec
-    modelopt_state_path = Path(f"{path}/weights/modelopt_state")
-    if modelopt_state_path.exists():
-        from nemo.collections import llm
-        from nemo.collections.llm.modelopt import set_gpt_modelopt_spec
+    from nemo.collections.llm.modelopt import set_modelopt_spec_if_exists_in_ckpt
 
-        if isinstance(model, llm.GPTModel):
-            set_gpt_modelopt_spec(model.config)
-        else:
-            logging.warning(f"{type(model)} is not a GPTModel. Modelopt state will not be loaded.")
+    set_modelopt_spec_if_exists_in_ckpt(model, path)
 
     if (adapter_meta_path := ckpt_to_weights_subdir(path, is_saving=False) / ADAPTER_META_FILENAME).exists():
         with open(adapter_meta_path, "r") as f:
