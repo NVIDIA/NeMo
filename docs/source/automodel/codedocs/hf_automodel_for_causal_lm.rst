@@ -5,7 +5,8 @@ HFAutoModelForCausalLM Class
 
 Overview
 --------
-`HFAutoModelForCausalLM` is a PyTorch Lightning module designed to facilitate the integration and training of Hugging Face's causal language models within the NeMo framework. It leverages functionalities from `lightning.pytorch`, `transformers`, and NeMo's utilities to provide a flexible and efficient setup for language model training and fine-tuning.
+`HFAutoModelForCausalLM` is a PyTorch Lightning module designed to facilitate the integration and training of Hugging Face's causal language models within the NeMo Framework. It leverages functionalities from `lightning.pytorch`, `transformers`, and NeMo's utilities to provide a flexible and efficient setup for language model training and fine-tuning.
+
 
 Inheritance
 -----------

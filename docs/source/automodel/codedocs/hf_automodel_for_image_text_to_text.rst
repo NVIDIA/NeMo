@@ -3,7 +3,7 @@ HFAutoModelForImageTextToText
 
 .. currentmodule:: nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text
 
-A PyTorch Lightning module that wraps Hugging Face's `AutoModelForImageTextToText` for seamless integration with NVIDIA NeMo. This class facilitates training and evaluation of image-text-to-text models, providing functionalities such as loading pretrained weights, customizing loss functions, and handling processors.
+A PyTorch Lightning module that wraps Hugging Face's AutoModelForImageTextToText for seamless integration with NeMo Framework. This class facilitates training and evaluation of image-text-to-text models, providing functionalities such as loading pretrained weights, customizing loss functions, and handling processors.
 
 Inheritance
 -----------

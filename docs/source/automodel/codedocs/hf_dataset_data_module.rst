@@ -1,7 +1,7 @@
 HFDatasetDataModule
 ===================
 
-`HFDatasetDataModule` is a PyTorch Lightning `LightningDataModule` that wraps Hugging Face (HF) datasets, enabling seamless integration with NVIDIA NeMo. It allows users to load and preprocess datasets from the Hugging Face Hub or custom datasets, supporting multiple data splits and optional usage of Megatron data samplers for distributed training.
+`HFDatasetDataModule` is a PyTorch Lightning `LightningDataModule` that wraps Hugging Face (HF) datasets, enabling seamless integration with NeMo Framework. It allows users to load and preprocess datasets from the Hugging Face hub or custom datasets, supporting multiple data splits and optional usage of Megatron data samplers for distributed training.
 
 .. warning::
     This class requires the following packages:
@@ -9,7 +9,7 @@ HFDatasetDataModule
     - `torch`
     - `datasets`
     - `nemo`
-    
+
     Ensure they are installed in your environment before using this module.
 
 Class Definition

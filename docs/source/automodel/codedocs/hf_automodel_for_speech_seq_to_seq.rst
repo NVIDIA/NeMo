@@ -3,7 +3,8 @@ HFAutoModelForSpeechSeq2Seq
 
 .. currentmodule:: nemo.collections.speechlm.models.hf_auto_model_for_speech_seq2seq
 
-A PyTorch Lightning module for speech sequence-to-sequence tasks using Hugging Face transformers and NVIDIA NeMo.
+A PyTorch Lightning module for speech sequence-to-sequence tasks using Hugging Face transformers and NeMo Framework.
+
 
 Overview
 --------
