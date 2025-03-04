@@ -419,10 +419,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
             if self.config.encoder_pipeline_model_parallel_size > 0:
                 _, num_images, _ = image_embeddings.shape
                 pad_amount = int(input_ids.size(0) * MAX_NUM_IMAGES_PER_SAMPLE) - num_images
-                assert pad_amount >= 0, \
-                    (f"Batch image limit exceeded: {num_images} images present, "
-                     f"but maximum allowed is {int(input_ids.size(0) * MAX_NUM_IMAGES_PER_SAMPLE)}. "
-                     f"Please increase `MAX_NUM_IMAGES_PER_SAMPLE` to process this batch.")
+                assert pad_amount >= 0, (
+                    f"Batch image limit exceeded: {num_images} images present, "
+                    f"but maximum allowed is {int(input_ids.size(0) * MAX_NUM_IMAGES_PER_SAMPLE)}. "
+                    f"Please increase `MAX_NUM_IMAGES_PER_SAMPLE` to process this batch."
+                )
                 if pad_amount > 0:
                     pad_tensor = torch.zeros(
                         self._img_seq_len,
