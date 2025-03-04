@@ -43,14 +43,12 @@ jobs:
             bash reinstall.sh --library all --mode install
           fi
 
-      - name: Install nbconvert
-        run: pip install jupyter nbconvert
-
-      - name: Convert notebook
-        run: jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
-
-      - name: Run example
-        run: python examples/llm/pretrain/pretrain.py
+      - name: Run LLM example
+        if: ${{ matrix.installer != 'pip' }}
+        run: |
+          pip install jupyter nbconvert
+          jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
+          python examples/llm/pretrain/pretrain.py
 
   test-installs-linux:
     name: test-install-linux-${{ matrix.image }}-${{ matrix.installer }}
@@ -81,11 +79,9 @@ jobs:
             bash reinstall.sh --library all --mode install
           fi
 
-      - name: Install nbconvert
-        run: pip install jupyter nbconvert
-
-      - name: Convert notebook
-        run: jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
-
-      - name: Run example
-        run: python examples/llm/pretrain/pretrain.py
+      - name: Run LLM example
+        if: ${{ matrix.installer != 'pip' }}
+        run: |
+          pip install jupyter nbconvert
+          jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
+          python examples/llm/pretrain/pretrain.py
