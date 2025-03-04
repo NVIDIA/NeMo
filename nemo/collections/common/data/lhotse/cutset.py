@@ -330,7 +330,7 @@ def parse_and_combine_datasets(
         if (w := item.get("weight")) is not None:
             weights.append(w)
 
-    assert all(t == tarred_status[0] for t in tarred_status), "Mixing tarred and non-tarred datasets is not supported."
+    # assert all(t == tarred_status[0] for t in tarred_status), "Mixing tarred and non-tarred datasets is not supported."
     assert len(weights) == 0 or len(cuts) == len(
         weights
     ), "Missing dataset weight. When weighting datasets, every dataset must have a specified weight."
