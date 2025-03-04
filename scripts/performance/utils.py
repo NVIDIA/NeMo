@@ -174,13 +174,13 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     vp_size = config.get("vp_size") if vp_size is None else vp_size
     etp_size = args.expert_tensor_parallel_size
     etp_size = config.get("etp_size") if etp_size is None else etp_size
-    
+
     enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
     enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
     kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [enable_cuda_graphs]
-    
+
     return kwargs
 
 
