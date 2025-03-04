@@ -44,6 +44,7 @@ from nemo.lightning import (
     io,
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -321,8 +322,8 @@ def distill(
         >>> llm.distill(student, teacher, data, trainer, tokenizer="model")
         PosixPath('/path/to/log_dir')
     """
-    _student_model = io.load_context(student_model_path, subpath="model")
-    _teacher_model = io.load_context(teacher_model_path, subpath="model")
+    _student_model = io.load_context(ckpt_to_context_subdir(student_model_path), subpath="model")
+    _teacher_model = io.load_context(ckpt_to_context_subdir(teacher_model_path), subpath="model")
     assert isinstance(_student_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
     assert isinstance(_teacher_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
 

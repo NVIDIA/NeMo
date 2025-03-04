@@ -2901,7 +2901,6 @@ jobs:
           --pp_size 2 \
           --devices 2 \
           --seq_length 128 \
-          --gbs 8 \
           --mbs 2 \
           --num_train_samples 32 \
           --data_paths 1.0 /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \

@@ -13,6 +13,6 @@
 # limitations under the License.
 """Model optimization utilities for using TensorRT Model Optimizer."""
 
-from .distillation import *
+from .distill import *
 from .model_utils import *
 from .quantization import *
