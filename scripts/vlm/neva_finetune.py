@@ -43,6 +43,7 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm import ImageDataConfig
+from nemo.collections.vlm.neva.model.base import MAX_NUM_IMAGES_PER_SAMPLE
 from nemo.lightning.pytorch.callbacks import NsysCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
@@ -91,7 +92,7 @@ def main(args):
         neva_config.drop_vision_class_token and vision_transformer_config.add_class_token
     )
 
-    seq_length = num_image_embeddings_per_tile
+    seq_length = num_image_embeddings_per_tile * MAX_NUM_IMAGES_PER_SAMPLE
 
     if args.data_type == "llava":
         # Data configuration

@@ -38,6 +38,10 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMas
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 
+# MAX_NUM_IMAGES_PER_SAMPLE controls images per sample.
+# Total images per batch is capped at: MAX_NUM_IMAGES_PER_SAMPLE * micro_batch_size
+MAX_NUM_IMAGES_PER_SAMPLE = 1
+
 MODEL_CONFIG_ATTR = [
     'num_layers',
     'hidden_size',
@@ -414,7 +418,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
         if not self.add_decoder:
             if self.config.encoder_pipeline_model_parallel_size > 0:
                 _, num_images, _ = image_embeddings.shape
-                pad_amount = max(input_ids.size(0) - num_images, 0)
+                pad_amount = int(input_ids.size(0) * MAX_NUM_IMAGES_PER_SAMPLE) - num_images
+                assert pad_amount >= 0, \
+                    (f"Batch image limit exceeded: {num_images} images present, "
+                     f"but maximum allowed is {int(input_ids.size(0) * MAX_NUM_IMAGES_PER_SAMPLE)}. "
+                     f"Please increase `MAX_NUM_IMAGES_PER_SAMPLE` to process this batch.")
                 if pad_amount > 0:
                     pad_tensor = torch.zeros(
                         self._img_seq_len,
@@ -424,6 +432,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                         device=image_embeddings.device,
                     )
                     image_embeddings = torch.cat([image_embeddings, pad_tensor], dim=1)
+                    image_embeddings.reshape(input_ids.size(0), -1, image_embeddings.size(-1))
             return image_embeddings
 
         language_embeddings = None
@@ -437,6 +446,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
             )  # [text_seq_len, b, h_language]
 
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
+
+        if self.config.encoder_pipeline_model_parallel_size > 0:
+            # Reshape image embedding back after receiving
+            image_embeddings.reshape(input_ids.size(0) * MAX_NUM_IMAGES_PER_SAMPLE, -1, image_embeddings.size(-1))
 
         # Assume 1 tile per image if the number of tiles is not provided.
         if num_image_tiles is None:
