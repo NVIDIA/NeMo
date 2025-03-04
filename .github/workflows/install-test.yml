@@ -19,8 +19,6 @@ jobs:
         os: [macos-latest]
         python: ["3.10", "3.11", "3.12"]
         installer: ["pip-install", "nemo-install"]
-    env:
-      collections: '("asr" "tts")'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -58,7 +56,7 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in $collections; do
+          for collection in ("asr" "tts"); do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
 
@@ -107,6 +105,6 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in ${collections[@]}; do
+          for collection in ("asr" "tts" "nlp"); do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
