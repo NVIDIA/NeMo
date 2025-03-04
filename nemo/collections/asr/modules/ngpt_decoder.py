@@ -181,7 +181,6 @@ class NGPTDecoder(nn.Module):
                 n_layers: int, 
                 n_heads: int, 
                 max_seq_len: int, 
-                learn_positional_encodings: bool, 
                 base_scale: float = None):
         super().__init__()
         
