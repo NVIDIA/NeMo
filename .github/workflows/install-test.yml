@@ -34,7 +34,7 @@ jobs:
           NEMO_REPO: ${{ github.server_url }}/${{ github.repository }}
         run: |
           if [[ "$INSTALLER" == "pip" ]]; then
-            pip install .
+            pip install ".[all]"
           else
             export NEMO_TAG
             export NEMO_REPO
@@ -73,7 +73,7 @@ jobs:
           INSTALLER: ${{ matrix.installer }}
         run: |
           if [[ "$INSTALLER" == "pip" ]]; then
-            pip install .
+            pip install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
             bash reinstall.sh --library all --mode install
