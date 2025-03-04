@@ -14,48 +14,54 @@
 
 from PIL import Image
 from dataclasses import dataclass, field
-from typing import Optional, List, Union
+from typing import Optional, List, Union, TypedDict
 
 import torch
 
 from megatron.energon import Sample
 from megatron.energon.flavors.webdataset import VideoData
 
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.config import MultiModalToken, MultiModalSampleConfig
 from nemo.collections.vlm.llava_next.data.energon import LlavaNextTextRawBatch, LlavaNextTextSample
 from nemo.utils import logging
 
-@dataclass_slot
-class MediaToMediaEnergonSample(Sample):
-    # text related attributes
-    ## contexts/questions/answers can be list of interleaved sequences
-    contexts: Optional[List[List[Union[bytes, str, Image.Image, dict]]]] = None
-    questions: Optional[List[List[Union[bytes, str, Image.Image, dict]]]] = None
-    texts: Optional[[str]] = None
-    answers: Optional[List[List[Union[bytes, str, Image.Image, dict]]]] = None
-    answer_weights: Optional[torch.Tensor] = None
 
-    # audio related attributes
-    ## sample loader loads the audio raw bytes which will be decoded 
-    ## and further processed in the task encoder
-    audios: Optional[[bytes]] = None
-    audio_offsets: Optional[[float]] = None
-    audio_durations: Optional[[float]] = None
-
-    # video related attributes
-    ## sample loader loads the video raw bytes which will be decoded 
-    ## and further processed in the task encoder
-    videos: Optional[[bytes]] = None
-    video_offsets: Optional[[float]] = None
-    video_durations: Optional[[float]] = None
-
-    # image related attributes
-    ## sample loader loads and decodes the images as PIL.Image
-    images: Optional[[Image.Image]] = None
+@dataclass
+class AudioSize:
+    length: int
+    channel: int
 
 
 @dataclass
-class MediaToMediaSample:
+class VideoSize:
+    frames: int
+    height: int
+    width: int
+
+
+class MediaDict(TypedDict):
+    "audio": NotRequired[bytes]
+    "video": NotRequired[bytes]
+    "offset": NotRequired[float]
+    "duration": NotRequired[float]
+
+
+@dataclass_slot
+class AVLMEnergonSampleInterleaved(Sample):
+    # sequence of interleaved media, (either PIL.Image for an image, str for text, bytes or mediaDict for an audio or video)
+    sequence: List[Union[bytes, str, Image.Image, MediaDict]]
+
+
+@dataclass_slot
+class AVLMEnergonSampleMultiturn(Sample):
+    ## contexts/answers can be list of interleaved sequences
+    contexts: List[AVLMEnergonSampleInterleaved]
+    answers: List[AVLMEnergonSampleInterleaved]
+    answer_weights: Optional[torch.Tensor] = None
+
+
+@dataclass
+class AVLMSample:
     '''
     Sample type for media to text task, extending LlavaNextTextSample to support audio and video data.
 
@@ -77,11 +83,11 @@ class MediaToMediaSample:
     images: Optional[torch.tensor] = None
     num_image_tiles: Optional[int] = None
     image_sizes: Optional[torch.tensor] = None
-    attention_mask: Optional[torch.tensor] = None
+    image_attention_mask: Optional[torch.tensor] = None
 
 
 @dataclass
-class MediaToMediaRawBatch:
+class AVLMRawBatch:
     """
     Batch type for raw media to text samples, supporting audio, image(s).
 
@@ -102,5 +108,21 @@ class MediaToMediaRawBatch:
     images: Optional[torch.tensor] = None
     num_image_tiles: Optional[int] = None
     image_sizes: Optional[torch.tensor] = None
-    attention_mask: Optional[torch.tensor] = None
+    image_attention_mask: Optional[torch.tensor] = None
+
+
+@dataclass
+class AVLMSampleConfigInterleaved(MultiModalSampleConfig):
+    model_id: str = field(default="llava-hf/llava-v1.6-vicuna-7b-hf")
+    audio_token: MultiModalToken = field(default=MultiModalToken("<audio>", -300, "audio"))
+    """
+    For a single video with multiple video and audio streams
+    video_audio: video streams tokens are before the audio streams tokens 
+    audio_video: audio streams tokens are before the video streams tokens
+    interleaved_optimal: space the video tokens and the audio tokens as evenly as possible
+    """
+    video_audio_token_concatenate_pattern: Literal[
+        "video_audio", 
+        "audio_video", 
+        "interleaved_optimal",] = field(default="video_audio")
     

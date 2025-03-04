@@ -1,26 +1,30 @@
 import json
 import torch
 
-def get_media(t, v, offset=None, duration=None):
+rom nemo.collections.avlm.data.energon.avlm_sample_config import MediaDict
+
+
+def get_media(media_type, value, offset=None, duration=None):
     """
     Return:
-        if t == 'text', return the text string
-        if t == 'image', return as PIL Image
-        if t == 'audio' or 'video', return as dict with keys: type, value in bytes, offset: optional, duration: optional
+        if media_type == 'text', return the text string
+        if media_type == 'image', return as PIL Image
+        if media_type == 'audio' or 'video', return as MediaDict
     """
-    assert t in ["text", "audio", "video", "image"]
+    assert media_type in ["text", "audio", "video", "image"]
 
-    if t == "text":
-        return v
-    elif t == "audio" or t == "video":
-        media_dict = {t: json[v]}
+    if media_type == "text":
+        return value
+    elif media_type == "audio" or media_type == "video":
+        media_dict = {media_type: json[value]}
         if offset is not None:
             media_dict["offset"] = offset
         if duration is not None:
             media_dict["duration"] = duration
-        return media_dict
+        return MediaDict(**media_dict)
     else:
-        return json[v]
+        return json[value]
+
 
 """
 (interleaved-sample-loader)=
@@ -63,6 +67,7 @@ where the structure of a json file is:
 Note that the image path corresponds to the filename of the image after the first "." in the sample. This is all part of the extension as defined by webdataset. Everything before the first "." is part of the sample key and must be equal to match into the same group.
 """
 
+
 def sample_loader_interleaved(raw: dict) -> dict:
     # Note that only the images are decoded, all other files are read as raw bytes.
     jsn = json.loads(raw["json"])
@@ -79,7 +84,7 @@ def sample_loader_interleaved(raw: dict) -> dict:
         sequence.append(get_media(t,v,offset,duration) for t, v in media if v is not None)
 
     return dict(__key__=raw["__key__"], 
-        contexts=[sequence],
+        sequence=sequence,
     )
 
 
@@ -148,6 +153,7 @@ sample_000003.json
 ```
 """
 
+
 def sample_loader_multiturn(raw: dict) -> dict:
     # Note that only the images are decoded, all other files are read as raw bytes
     jsn = json.loads(raw["json"])
@@ -174,7 +180,7 @@ def sample_loader_multiturn(raw: dict) -> dict:
             contexts.append(sequence)
 
     return dict(__key__=raw["__key__"], 
-        contexts=sequence,
+        contexts=contexts,
         answers=answers,
     )
 

@@ -17,7 +17,7 @@ from nemo.collections.avlm.data.energon.media_to_text_config import MediaToMedia
 from nemo.utils import logging
 
 
-class MediaToMediaEnergonModule(EnergonMultiModalDataModule):
+class AVLMDataModule(EnergonMultiModalDataModule):
     """
     Energon Data module for media(audio and/or image and/or video and text)-to-text LLM.
     
