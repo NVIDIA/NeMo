@@ -255,7 +255,7 @@ def parse_cli_args():
         help="Enable CUDA graphs. Disabled by default",
         action="store_true",
         required=False,
-        default=None, # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
+        default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
     )
 
     def list_of_strings(arg):
