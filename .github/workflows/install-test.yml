@@ -22,9 +22,11 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
+
       - uses: actions/setup-python@v5
         with:
           python-version: "${{ matrix.python }}"
+
       - name: Install NeMo
         env:
           INSTALLER: ${{ matrix.installer }}
@@ -41,6 +43,15 @@ jobs:
             bash reinstall.sh --library all --mode install
           fi
 
+      - name: Install nbconvert
+        run: pip install jupyter nbconvert
+
+      - name: Convert notebook
+        run: jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
+
+      - name: Run example
+        run: python examples/llm/pretrain/pretrain.py
+
   test-installs-linux:
     name: test-install-linux-${{ matrix.image }}-${{ matrix.installer }}
     runs-on: ubuntu-latest
@@ -50,7 +61,7 @@ jobs:
       matrix:
         image: ["ubuntu:22.04"]
         installer: ["pip", "reinstall.sh"]
-        
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -70,3 +81,11 @@ jobs:
             bash reinstall.sh --library all --mode install
           fi
 
+      - name: Install nbconvert
+        run: pip install jupyter nbconvert
+
+      - name: Convert notebook
+        run: jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
+
+      - name: Run example
+        run: python examples/llm/pretrain/pretrain.py
