@@ -12,7 +12,7 @@ from nemo import lightning as nl
 from nemo.collections.llm import SquadDataModule, MockDataModule
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.utils.exp_manager import DeltaTimingCallback
-from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule, HellaswagHFDataModule
+from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule, HellaSwagHFDataModule
 
 
 
@@ -370,18 +370,21 @@ def custom_hf_auto_model_for_causal_lm_finetune(
     #     batch_size=2,
     #     remove_columns=["id", "title", "context", "question", 'answers'],
     # )
-    
-    
-    datamodule = run.Config(HellaswagHFDataModule,
-                            tokenizer=run.Config(
-                                AutoTokenizer, pretrained_model_name="meta-llama/Llama-3.2-1B"
-                            ),
+
+
+    #from transformers import AutoTokenizer
+
+    #tokenizer = run.Config(AutoTokenizer.from_pretrained, model_name)
+    #tokenizer = AutoTokenizer.from_pretrained(model_name)
+    datamodule = run.Config(HellaSwagHFDataModule,
+                            tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
                             path_or_dataset="Rowan/hellaswag",
                             seq_length=seq_length,
                             global_batch_size=global_batch_size,
-                            micro_batch_size=1,
-                             
-    )
+                            micro_batch_size=1)
+
+
+
     finetune.data = datamodule
     finetune.trainer.val_check_interval = 100
 
@@ -532,7 +535,7 @@ recipes = [
     (
         custom_hf_auto_model_for_causal_lm_finetune(
             num_nodes=1,
-            num_gpus_per_node=2,
+            num_gpus_per_node=8,
             wandb_project_name="perf",
             seq_length=256,
             global_batch_size=32,
@@ -599,10 +602,10 @@ if __name__ == "__main__":
     # )
     print("did you Update CW codebase")
     #breakpoint()
-    #run_finetuning_on_slurm()
+    run_finetuning_on_slurm()
     #from datasets import load_dataset
 
 
     #dataset = load_dataset("Rowan/hellaswag", split="train")
     #print("Dataset downloaded successfully")
-    run_local()
+    #run_local()

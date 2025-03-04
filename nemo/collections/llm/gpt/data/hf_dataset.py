@@ -286,42 +286,53 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 continue
             dataset_splits[split_name] = subset.map(function, **kwargs)
 
-class HellaswagHFDataModule(HFDatasetDataModule):
+
+
+class HellaSwagHFDataModule(HFDatasetDataModule):
     """
-    A data module for handling the Hellaswag dataset using HFDatasetDataModule.
-
-    This class is responsible for tokenizing and formatting the Hellaswag dataset for training
-    language models. It extends `HFDatasetDataModule` and implements preprocessing functions
-    to prepare the data for causal language modeling.
-
+    A data module for handling the HellaSwag dataset using HFDatasetDataModule.
+    
+    This class is responsible for tokenizing and formatting the HellaSwag dataset for training
+    language models. It extends `HFDatasetDataModule` and implements preprocessing 
+    functions suitable for causal language modeling.
+    
     Attributes:
         tokenizer: A tokenizer instance used to convert text into token IDs.
-        seq_length: Maximum sequence length for tokenization.
+        max_length: Maximum sequence length for tokenization.
     """
-
+    
     def __init__(self, tokenizer, **kwargs):
         """
-        Initializes the HellaswagHFDataModule.
-
-        Args:
-            tokenizer: A tokenizer instance for processing text data.
-            seq_length: Maximum sequence length for tokenization.
-            **kwargs: Additional arguments passed to the parent class (`HFDatasetDataModule`).
-        """
-        super().__init__(**kwargs)
-        self.tokenizer = tokenizer
-    
-    def preprocess(self, text):
-        """
-        Cleans and preprocesses text from Hellaswag examples.
+        Initializes the HellaSwagHFDataModule.
         
         Args:
-            text (str): Raw text to preprocess.
+            tokenizer: A tokenizer instance for processing text data.
+            max_length: Maximum sequence length for tokenization.
+            **kwargs: Additional arguments passed to the parent class (`HFDatasetDataModule`).
+        """
+        # If dataset is not provided, load it
+        if 'path_or_dataset' not in kwargs:
+            dataset = load_dataset("Rowan/hellaswag")
+            # Default to train split if not specified
+            split = kwargs.pop('split', 'train')
+            kwargs['path_or_dataset'] = dataset[split]
+            kwargs['split'] = 'train'  # Use 'train' as the canonical split name
+            
+        super().__init__(**kwargs)
+        self.tokenizer = tokenizer
+        self.micro_batch_size = 1
+        
+    @staticmethod
+    def preprocess(text):
+        """
+        Preprocesses text by removing WikiHow artifacts and normalizing spacing.
+        
+        Args:
+            text (str): The text to preprocess.
             
         Returns:
-            str: Cleaned text with artifacts removed.
+            str: The preprocessed text.
         """
-        import re
         text = text.strip()
         # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
         text = text.replace(" [title]", ". ")
@@ -329,19 +340,11 @@ class HellaswagHFDataModule(HFDatasetDataModule):
         text = text.replace("  ", " ")
         return text
     
-    def process_doc(self, doc):
-        """
-        Processes a raw document into a structured format for training.
-        
-        Args:
-            doc (dict): Raw document from the Hellaswag dataset.
-            
-        Returns:
-            dict: Processed document with query, choices, gold answer, and combined text.
-        """
+    @staticmethod
+    def process_doc(doc):
         ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
-        query = self.preprocess(doc["activity_label"] + ": " + ctx)
-        choices = [self.preprocess(ending) for ending in doc["endings"]]
+        query = HellaSwagHFDataModule.preprocess(doc["activity_label"] + ": " + ctx)
+        choices = [HellaSwagHFDataModule.preprocess(ending) for ending in doc["endings"]]
         gold = int(doc["label"])
         out_doc = {
             "query": query,
@@ -351,109 +354,48 @@ class HellaswagHFDataModule(HFDatasetDataModule):
         }
         return out_doc
 
-    def preprocess_batch(self, batch, max_length=None):
-        """
-        Tokenizes a batch of examples and prepares them for training.
+    def preprocess_batch(self, batch):
+        # print(type(batch))
+        # print(type(next(batch)))
+        ans = self.tokenizer(
+            batch["text"],
+            max_length=self.seq_length,
+            truncation=True,
+        )
         
-        Args:
-            batch (dict): Batch of examples with text field.
-            max_length (int, optional): Maximum sequence length. Defaults to self.seq_length.
-            
-        Returns:
-            dict: Tokenized batch with input_ids, attention_mask, and shifted labels.
-        """
-        if max_length is None:
-            max_length = self.seq_length
-            
-        # Use text_to_ids from NeMo's AutoTokenizer
-        input_ids = [self.tokenizer.text_to_ids(text) for text in batch["text"]]
-        
-        # Create attention masks (1 for tokens, 0 for padding)
-        attention_mask = [[1] * len(ids) for ids in input_ids]
-        
-        # Create labels by shifting input_ids right by 1 position
-        labels = [
-            x[1:] + [-100] for x in input_ids
-        ]
-        
-        # Truncate or pad sequences to max_length
-        for i in range(len(input_ids)):
-            if len(input_ids[i]) > max_length:
-                input_ids[i] = input_ids[i][:max_length]
-                attention_mask[i] = attention_mask[i][:max_length]
-            else:
-                padding_length = max_length - len(input_ids[i])
-                input_ids[i] = input_ids[i] + [self.tokenizer.pad_id] * padding_length
-                attention_mask[i] = attention_mask[i] + [0] * padding_length
-                
-            if len(labels[i]) > max_length:
-                labels[i] = labels[i][:max_length]
-            else:
-                padding_length = max_length - len(labels[i])
-                labels[i] = labels[i] + [-100] * padding_length
-        
-        return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "labels": labels
-        }
-
+        ans['labels'] = ans['input_ids'][1:] + [-100]   
+        #ans['labels'] = [
+        #    x[1:] + [-100] for x in ans['input_ids']
+        #]
+        # print(ans['input_ids'].shape)
+        # print(ans.keys())
+        # q()
+        return ans
+    
     def setup(self, stage=None):
         """
-        Prepares the dataset for training by applying preprocessing and tokenization.
-
+        Prepares the dataset for training by applying preprocessing transformations.
+        
         Args:
-            stage (str, optional): The stage of training. Defaults to None.
+            stage (str): The stage of training (unused but required by Lightning).
         """
+        # Call parent setup to initialize samplers if needed
         super().setup(stage)
         
-        # Apply the same preprocessing to all splits (train, validation, test)
-        for split in ["train"]:
-            if split in self.dataset_splits:
-                # Process documents to create structured format
-                self.dataset_splits[split] = self.dataset_splits[split].map(self.process_doc)
-                
-                # Define preprocessing function using NeMo's AutoTokenizer
-                def _preprocessing_function(batch):
-                    # Use text_to_ids provided by NeMo's AutoTokenizer
-                    input_ids = [self.tokenizer.text_to_ids(text) for text in batch["text"]]
-                    attention_mask = [[1] * len(ids) for ids in input_ids]
-                    
-                    # Create shifted labels for causal language modeling
-                    labels = [ids[1:] + [-100] for ids in input_ids]
-                    
-                    # Make sure all sequences have the same length
-                    max_length = self.seq_length
-                    for i in range(len(input_ids)):
-                        if len(input_ids[i]) > max_length:
-                            input_ids[i] = input_ids[i][:max_length]
-                            attention_mask[i] = attention_mask[i][:max_length]
-                        else:
-                            padding_length = max_length - len(input_ids[i])
-                            input_ids[i] = input_ids[i] + [self.tokenizer.pad_id] * padding_length
-                            attention_mask[i] = attention_mask[i] + [0] * padding_length
-                            
-                        if len(labels[i]) > max_length:
-                            labels[i] = labels[i][:max_length]
-                        else:
-                            padding_length = max_length - len(labels[i])
-                            labels[i] = labels[i] + [-100] * padding_length
-                    
-                    return {
-                        "input_ids": input_ids,
-                        "attention_mask": attention_mask,
-                        "labels": labels
-                    }
-                
-                # Apply tokenization and prepare for training
-                self.dataset_splits[split] = self.dataset_splits[split].map(
-                    _preprocessing_function,
-                    batched=True,
-                ).select_columns(['input_ids', 'attention_mask', 'labels'])
-                
-                # Shuffle only the training dataset
-                if split == "train":
-                    self.dataset_splits[split] = self.dataset_splits[split].shuffle(seed=42)
+        # Process documents to create prompts with correct answers
+        self.map(
+            self.process_doc,
+            batched=False,
+        )
+        
+        # Tokenize the processed documents
+        self.map(
+            self.preprocess_batch,
+            batched=False,
+            remove_columns=['query', 'choices', 'gold', 'text', 'ctx_a', 'ctx_b', 
+                   'activity_label', 'endings', 'label', 'ind', 'ctx', 
+                   'source_id', 'split', 'split_type'],
+        )
     
 class SquadHFDataModule(HFDatasetDataModule):
     """
