@@ -204,7 +204,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava")
+    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava | energon")
     parser.add_argument("--data_path", type=str, required=False, help="Path to the dataset")
     parser.add_argument("--image_folder", type=str, required=False, help="Path to the image folder")
     parser.add_argument(

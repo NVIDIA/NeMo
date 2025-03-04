@@ -74,6 +74,8 @@ def main(args):
         hidden_size=language_transformer_config.hidden_size,
         ffn_hidden_size=language_transformer_config.hidden_size,
     )
+    if args.use_toy_model:
+        language_transformer_config.num_layers = 2
 
     # NEVA model configuration
     neva_config = vlm.NevaConfig(
@@ -273,7 +275,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NEVA Model Training Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava")
+    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava | energon")
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=False, default=None, help="Path to the image folder")
     parser.add_argument(
@@ -302,6 +304,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use_packed_sequence",
         action="store_true",
+    )
+    parser.add_argument(
+        "--use_toy_model",
+        action="store_true",
+        help="Toy size model used for testing",
     )
     args = parser.parse_args()
     main(args)
