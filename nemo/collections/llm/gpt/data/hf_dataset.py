@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+from typing import Dict
+
 import lightning.pytorch as pl
+import numpy as np
 import torch
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-from typing import Dict
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-import numpy as np
-import re
+
 
 def clean_split(name):
     """removes split from name
@@ -206,6 +208,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
         def pad_within_micro(batch, pad_token_id):
             max_len = max(map(len, batch))
             return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
+
         return {
             key: batchify(
                 torch.LongTensor(
@@ -287,24 +290,23 @@ class HFDatasetDataModule(pl.LightningDataModule):
             dataset_splits[split_name] = subset.map(function, **kwargs)
 
 
-
 class HellaSwagHFDataModule(HFDatasetDataModule):
     """
     A data module for handling the HellaSwag dataset using HFDatasetDataModule.
-    
+
     This class is responsible for tokenizing and formatting the HellaSwag dataset for training
-    language models. It extends `HFDatasetDataModule` and implements preprocessing 
+    language models. It extends `HFDatasetDataModule` and implements preprocessing
     functions suitable for causal language modeling.
-    
+
     Attributes:
         tokenizer: A tokenizer instance used to convert text into token IDs.
         max_length: Maximum sequence length for tokenization.
     """
-    
+
     def __init__(self, tokenizer, **kwargs):
         """
         Initializes the HellaSwagHFDataModule.
-        
+
         Args:
             tokenizer: A tokenizer instance for processing text data.
             max_length: Maximum sequence length for tokenization.
@@ -317,19 +319,19 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
             split = kwargs.pop('split', 'train')
             kwargs['path_or_dataset'] = dataset[split]
             kwargs['split'] = 'train'  # Use 'train' as the canonical split name
-            
+
         super().__init__(**kwargs)
         self.tokenizer = tokenizer
         self.micro_batch_size = 1
-        
+
     @staticmethod
     def preprocess(text):
         """
         Preprocesses text by removing WikiHow artifacts and normalizing spacing.
-        
+
         Args:
             text (str): The text to preprocess.
-            
+
         Returns:
             str: The preprocessed text.
         """
@@ -339,19 +341,14 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         text = re.sub("\\[.*?\\]", "", text)
         text = text.replace("  ", " ")
         return text
-    
+
     @staticmethod
     def process_doc(doc):
         ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
         query = HellaSwagHFDataModule.preprocess(doc["activity_label"] + ": " + ctx)
         choices = [HellaSwagHFDataModule.preprocess(ending) for ending in doc["endings"]]
         gold = int(doc["label"])
-        out_doc = {
-            "query": query,
-            "choices": choices,
-            "gold": gold,
-            "text": query + " " + choices[gold]
-        }
+        out_doc = {"query": query, "choices": choices, "gold": gold, "text": query + " " + choices[gold]}
         return out_doc
 
     def preprocess_batch(self, batch):
@@ -365,40 +362,54 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         ans = {}
         ans['input_ids'] = self.tokenizer.text_to_ids(batch["text"])
         ans['attention_mask'] = [1] * len(ans['input_ids'])
-        ans['labels'] = ans['input_ids'][1:] + [-100]   
-        #ans['labels'] = [
+        ans['labels'] = ans['input_ids'][1:] + [-100]
+        # ans['labels'] = [
         #    x[1:] + [-100] for x in ans['input_ids']
-        #]
+        # ]
         # print(ans['input_ids'].shape)
         # print(ans.keys())
         # q()
         return ans
-    
+
     def setup(self, stage=None):
         """
         Prepares the dataset for training by applying preprocessing transformations.
-        
+
         Args:
             stage (str): The stage of training (unused but required by Lightning).
         """
         # Call parent setup to initialize samplers if needed
         super().setup(stage)
-        
+
         # Process documents to create prompts with correct answers
         self.map(
             self.process_doc,
             batched=False,
         )
-        
+
         # Tokenize the processed documents
         self.map(
             self.preprocess_batch,
             batched=False,
-            remove_columns=['query', 'choices', 'gold', 'text', 'ctx_a', 'ctx_b', 
-                   'activity_label', 'endings', 'label', 'ind', 'ctx', 
-                   'source_id', 'split', 'split_type'],
+            remove_columns=[
+                'query',
+                'choices',
+                'gold',
+                'text',
+                'ctx_a',
+                'ctx_b',
+                'activity_label',
+                'endings',
+                'label',
+                'ind',
+                'ctx',
+                'source_id',
+                'split',
+                'split_type',
+            ],
         )
-    
+
+
 class SquadHFDataModule(HFDatasetDataModule):
     """
     A data module for handling the SQuAD dataset using HFDatasetDataModule.
@@ -586,9 +597,9 @@ class _MockGPTDataset(torch.utils.data.Dataset):
         self.create_attention_mask = create_attention_mask
 
         if create_attention_mask:
-            self.attention_mask = np.tril(
-                np.ones((self.seq_length, self.seq_length), dtype=np.float32)
-            )[np.newaxis, :].tolist()
+            self.attention_mask = np.tril(np.ones((self.seq_length, self.seq_length), dtype=np.float32))[
+                np.newaxis, :
+            ].tolist()
 
         self.loss_mask = np.ones(self.seq_length, dtype=np.float32).tolist()
         self.position_ids = np.arange(self.seq_length, dtype=np.int64).tolist()

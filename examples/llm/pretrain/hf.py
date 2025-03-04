@@ -18,13 +18,14 @@ from functools import partial
 
 import fiddle as fdl
 import lightning.pytorch as pl
+from data_utils import squad
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-from data_utils import squad
+
 
 def main():
     """Example script to run SFT with a HF transformers-instantiated model on squad."""
@@ -75,7 +76,9 @@ def main():
         args.strategy = nl.FSDP2Strategy(data_parallel_size=args.devices * args.num_nodes, tensor_parallel_size=1)
 
     llm.api.finetune(
-        model=llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator, load_pretrained_weights=False),
+        model=llm.HFAutoModelForCausalLM(
+            model_name=args.model, model_accelerator=model_accelerator, load_pretrained_weights=False
+        ),
         data=squad(llm.HFAutoModelForCausalLM.configure_tokenizer(args.model), gbs=args.devices),
         trainer=nl.Trainer(
             devices=args.devices,

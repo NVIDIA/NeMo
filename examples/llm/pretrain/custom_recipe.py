@@ -13,14 +13,13 @@
 # limitations under the License.
 
 import nemo_run as run
+from data_utils import squad
+from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.recipes import llama3_8b, llama3_70b, hf_auto_model_for_causal_lm
-
+from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm, llama3_8b, llama3_70b
 from nemo.collections.llm.recipes.log.default import default_log
-from data_utils import squad
-from lightning.pytorch.loggers import WandbLogger
 
 
 def custom_llama3_8b():
@@ -46,19 +45,19 @@ def custom_llama3_70b():
 
     return pretrain
 
-def custom_hf_auto_model_for_causal_lm(wandb_project_name = None):
+
+def custom_hf_auto_model_for_causal_lm(wandb_project_name=None):
     model_name = "meta-llama/Llama-3.2-1B"
     num_gpus_per_node = 2
-    pretrain = hf_auto_model_for_causal_lm.pretrain_recipe(model_name = model_name,num_nodes=1, num_gpus_per_node=2)
+    pretrain = hf_auto_model_for_causal_lm.pretrain_recipe(model_name=model_name, num_nodes=1, num_gpus_per_node=2)
 
     pretrain.trainer.max_steps = 1000
     pretrain.trainer.val_check_interval = 400
     pretrain.log.ckpt.save_top_k = -1
     pretrain.trainer.strategy = nl.FSDP2Strategy(data_parallel_size=2, tensor_parallel_size=1)
 
-
     # Add a custom dataset
-    data=squad(llm.HFAutoModelForCausalLM.configure_tokenizer(model_name=model_name), gbs=num_gpus_per_node)
+    data = squad(llm.HFAutoModelForCausalLM.configure_tokenizer(model_name=model_name), gbs=num_gpus_per_node)
     pretrain.data = data
     pretrain.optim = llm.adam.pytorch_adam_with_flat_lr(lr=1e-5)
 
@@ -75,6 +74,7 @@ def custom_hf_auto_model_for_causal_lm(wandb_project_name = None):
         except Exception as e:
             print(f"Warning: WandbLogger initialization failed with error: {e}")
     return pretrain
+
 
 if __name__ == "__main__":
     # When running this file, it will run the `custom_llama3_8b` recipe
