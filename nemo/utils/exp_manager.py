@@ -95,6 +95,8 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 @dataclass
 class EarlyStoppingParams:
+    """EarlyStoppingParams POD
+    """
     # The metric that early stopping should consider.
     monitor: str = "val_loss"
     # inform early stopping whether to look for increase or decrease in monitor.
@@ -113,6 +115,8 @@ class EarlyStoppingParams:
 
 @dataclass
 class CallbackParams:
+    """CallbackParams POD
+    """
     filepath: Optional[str] = None  # Deprecated
     # If None, exp_manager will attempt to handle the filepath
     dirpath: Optional[str] = None
@@ -146,6 +150,8 @@ class CallbackParams:
 
 @dataclass
 class StepTimingParams:
+    """StepTimingParams POD
+    """
     reduction: Optional[str] = "mean"
     # if True torch.cuda.synchronize() is called on start/stop
     sync_cuda: Optional[bool] = False
@@ -155,6 +161,8 @@ class StepTimingParams:
 
 @dataclass
 class EMAParams:
+    """EMAParams POD
+    """
     enable: Optional[bool] = False
     decay: Optional[float] = 0.999
     cpu_offload: Optional[bool] = False
@@ -164,6 +172,8 @@ class EMAParams:
 
 @dataclass
 class StragglerDetectionParams:
+    """StragglerDetectionParams POD
+    """
     report_time_interval: float = 300
     calc_relative_gpu_perf: bool = True
     calc_individual_gpu_perf: bool = True
@@ -175,6 +185,8 @@ class StragglerDetectionParams:
 
 @dataclass
 class FaultToleranceParams:
+    """FaultToleranceParams POD
+    """
     # NOTE: This config section is also read by the launcher.
     # NOTE: Default values should match fault_tolerance.FaultToleranceConfig.
 
@@ -266,10 +278,21 @@ class TimingCallback(Callback):
     """
 
     def __init__(self, log_tokens_per_sec: bool = False, timer_kwargs={}):
+        """init for TimitCallback
+
+        Args:
+            log_tokens_per_sec (bool, optional): _description_. Defaults to False.
+            timer_kwargs (dict, optional): _description_. Defaults to {}.
+        """
         self.log_tokens_per_sec = log_tokens_per_sec
         self.timer = timers.NamedTimer(**timer_kwargs)
 
     def _on_batch_start(self, name):
+        """Setup the timer
+
+        Args:
+            name (_type_): name of timer
+        """
         # reset only if we do not return mean of a sliding window
         if self.timer.buffer_size <= 0:
             self.timer.reset(name)
@@ -284,6 +307,12 @@ class TimingCallback(Callback):
         self.timer.start(name)
 
     def _on_batch_end(self, name, pl_module):
+        """end of the callback log
+
+        Args:
+            name (_type_): _description_
+            pl_module (_type_): _description_
+        """
         self.timer.stop(name)
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
         pl_module.log(
@@ -296,9 +325,26 @@ class TimingCallback(Callback):
         )
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+        """wrapper
+
+        Args:
+            trainer (_type_): _description_
+            pl_module (_type_): _description_
+            batch (_type_): _description_
+            batch_idx (_type_): _description_
+        """
         self._on_batch_start("train_step_timing")
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        """wrapper
+
+        Args:
+            trainer (_type_): _description_
+            pl_module (_type_): _description_
+            outputs (_type_): _description_
+            batch (_type_): _description_
+            batch_idx (_type_): _description_
+        """
         self._on_batch_end("train_step_timing", pl_module)
         if self.log_tokens_per_sec:
             tokens_per_gpu = (
@@ -314,21 +360,27 @@ class TimingCallback(Callback):
             )
 
     def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
+        """on_validation_batch_start """
         self._on_batch_start("validation_step_timing")
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+        """on_validation_batch_end """
         self._on_batch_end("validation_step_timing", pl_module)
 
     def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
+        """on_test_batch_start """
         self._on_batch_start("test_step_timing")
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+        """on_test_batch_end """
         self._on_batch_end("test_step_timing", pl_module)
 
     def on_before_backward(self, trainer, pl_module, loss):
+        """on_before_backward """
         self._on_batch_start("train_backward_timing")
 
     def on_after_backward(self, trainer, pl_module):
+        """on_after_backward """
         self._on_batch_end("train_backward_timing", pl_module)
 
 
@@ -344,10 +396,16 @@ class DeltaTimingCallback(Callback):
     """
 
     def __init__(self, timer_kwargs={}):
+        """init
+
+        Args:
+            timer_kwargs (dict, optional): _description_. Defaults to {}.
+        """
         self._sync_cuda = timer_kwargs.get("sync_cuda", False)
         self.timers = defaultdict(defaultdict)
 
     def _on_epoch_start(self, name, trainer, pl_module):
+        """ _on_epoch_start """
         # synchronize pytorch cuda execution if supported
         if self._sync_cuda and torch.cuda.is_initialized():
             torch.cuda.synchronize()
@@ -356,6 +414,7 @@ class DeltaTimingCallback(Callback):
         self.timers[name]["start"] = time.time()
 
     def _on_batch_end(self, name, trainer, pl_module):
+        """ _on_epoch_start """
         # synchronize pytorch cuda execution if supported
         if self._sync_cuda and torch.cuda.is_initialized():
             torch.cuda.synchronize()
@@ -367,58 +426,68 @@ class DeltaTimingCallback(Callback):
         self.timers[name]["start"] = end
 
     def on_train_epoch_start(self, trainer, pl_module):
+        """ on_train_epoch_start """
         self._on_epoch_start("train_step_timing in s", trainer, pl_module)
 
     def on_validation_epoch_start(self, trainer, pl_module):
+        """ on_validation_epoch_start """
         self._on_epoch_start("validation_step_timing in s", trainer, pl_module)
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        """ on_train_batch_end """
         self._on_batch_end("train_step_timing in s", trainer, pl_module)
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        """ on_validation_batch_end """
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
 
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
-    exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
-    of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
-    name, and version from the logger. Otherwise it will use the exp_dir and name arguments to create the logging
+    exp_manager is a helper function used to manage folders for experiments. It follows the pytorch
+    lightning paradigm of exp_dir/model_or_experiment_name/version. If the lightning trainer
+    has a logger, exp_manager will get exp_dir, name, and version from the logger.
+    Otherwise it will use the exp_dir and name arguments to create the logging
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
 
-    The version can be a datetime string or an integer. Datestime version can be disabled if use_datetime_version is set
-    to False. It optionally creates TensorBoardLogger, WandBLogger, DLLogger, MLFlowLogger, ClearMLLogger,
-    ModelCheckpoint objects from pytorch lightning.
-    It copies sys.argv, and git information if available to the logging directory. It creates a log file for each
-    process to log their output into.
+    The version can be a datetime string or an integer. Datestime version can be disabled if
+    use_datetime_version is set to False. It optionally creates TensorBoardLogger, WandBLogger,
+    DLLogger, MLFlowLogger, ClearMLLogger, ModelCheckpoint objects from pytorch lightning.
+    It copies sys.argv, and git information if available to the logging directory. It creates a
+    log file for each process to log their output into.
 
-    exp_manager additionally has a resume feature (resume_if_exists) which can be used to continuing training from
-    the constructed log_dir. When you need to continue the training repeatedly (like on a cluster which you need
-    multiple consecutive jobs), you need to avoid creating the version folders. Therefore from v1.0.0, when
-    resume_if_exists is set to True, creating the version folders is ignored.
+    exp_manager additionally has a resume feature (resume_if_exists) which can be used to
+    continuing training from the constructed log_dir. When you need to continue the training
+    repeatedly (like on a cluster which you need multiple consecutive jobs), you need to avoid
+    creating the version folders. Therefore from v1.0.0, when resume_if_exists is set to True,
+    creating the version folders is ignored.
 
     Args:
         trainer (lightning.pytorch.Trainer): The lightning trainer.
         cfg (DictConfig, dict): Can have the following keys:
 
-            - explicit_log_dir (str, Path): Can be used to override exp_dir/name/version folder creation.
-                Defaults to None, which will use exp_dir, name, and version to construct the logging directory.
+            - explicit_log_dir (str, Path): Can be used to override exp_dir/name/version folder
+                creation.
+                Defaults to None, which will use exp_dir, name, and version to construct the
+                logging directory.
             - exp_dir (str, Path): The base directory to create the logging directory.
                 Defaults to None, which logs to ./nemo_experiments.
             - name (str): The name of the experiment. Defaults to None which turns into "default"
                 via name = name or "default".
             - version (str): The version of the experiment. Defaults to None which uses either a
                 datetime string or lightning's TensorboardLogger system of using version_{int}.
-            - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
-            - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True,
-                it sets trainer._checkpoint_connector._ckpt_path so that the trainer should auto-resume.
-                exp_manager will move files under log_dir to log_dir/run_{int}. Defaults to False.
+            - use_datetime_version (bool): Whether to use a datetime string for version.
+                Defaults to True.
+            - resume_if_exists (bool): Whether this experiment is resuming from a previous run.
+                If True, it sets trainer._checkpoint_connector._ckpt_path so that the trainer
+                should auto-resume. exp_manager will move files under log_dir to log_dir/run_{int}.
+                Defaults to False.
                 From v1.0.0, when resume_if_exists is True, we would not create version folders to
                 make it easier to find the log folder for next runs.
-            - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint
-                matching ``*end.ckpt`` indicating a previous training run fully completed.
-                This behaviour can be disabled, in which case the ``*end.ckpt`` will be loaded by
-                setting resume_past_end to True. Defaults to False.
+            - resume_past_end (bool): exp_manager errors out if resume_if_exists is True
+                and a checkpoint matching ``*end.ckpt`` indicating a previous training run
+                fully completed. This behaviour can be disabled, in which case the ``*end.ckpt``
+                will be loaded by setting resume_past_end to True. Defaults to False.
             - resume_ignore_no_checkpoint (bool): exp_manager errors out if resume_if_exists is True
                 and no checkpoint could be found. This behaviour can be disabled, in which case exp_manager
                 will print a message and continue without restoring, by setting resume_ignore_no_checkpoint
@@ -1372,17 +1441,27 @@ class StatelessTimer(Timer):
         interval: str = Interval.step,
         verbose: bool = True,
     ) -> None:
+        """stateless timer
+
+        Args:
+            duration (timedelta, optional): _description_. Defaults to None.
+            interval (str, optional): _description_. Defaults to Interval.step.
+            verbose (bool, optional): _description_. Defaults to True.
+        """
         super().__init__(duration, interval, verbose)
 
     # Override PTL Timer's state dict to not store elapsed time information so that we can
     # restore and continue training.
     def state_dict(self) -> Dict[str, Any]:
+        """ state_dict """
         return {}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        """ load_state_dict """
         return
 
     def _check_time_remaining(self, trainer: lightning.pytorch.Trainer) -> None:
+        """ _check_time_remaining """
         super()._check_time_remaining(trainer)
         if trainer.should_stop:
             checkpoint_callback: Optional[NeMoModelCheckpoint] = trainer.checkpoint_callback
@@ -1398,6 +1477,7 @@ class StatelessTimer(Timer):
 
 
 def configure_no_restart_validation_training_loop(trainer: lightning.pytorch.Trainer) -> None:
+    """ nfigure_no_restart_validation_training_loop """
     if type(trainer.fit_loop.epoch_loop) != _TrainingEpochLoop:
         warnings.warn(
             "Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
@@ -1416,6 +1496,7 @@ class SkipResumeTrainingValidationLoop(_TrainingEpochLoop):
     """
 
     def _should_check_val_fx(self, data_fetcher) -> bool:
+        """ _should_check_val_fx """
         if self.restarting and self.global_step % self.trainer.val_check_batch == 0:
             return False
         return super()._should_check_val_fx(data_fetcher)
