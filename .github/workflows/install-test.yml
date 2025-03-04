@@ -11,14 +11,14 @@ concurrency:
 
 jobs:
   test-installs-macos:
-    name: test-install-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.installer }}
+    name: ${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.installer }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest]
         python: ["3.10", "3.11", "3.12"]
-        installer: ["pip", "reinstall.sh"]
+        installer: ["pip-install", "nemo-install"]
     env:
       collections: '("asr" "tts")'
     steps:
@@ -35,7 +35,7 @@ jobs:
           NEMO_TAG: ${{ github.sha }}
           NEMO_REPO: ${{ github.server_url }}/${{ github.repository }}
         run: |
-          if [[ "$INSTALLER" == "pip" ]]; then
+          if [[ "$INSTALLER" == "pip-install" ]]; then
             pip install ".[all]"
           else
             export NEMO_TAG
@@ -46,7 +46,7 @@ jobs:
           fi
 
       - name: Run LLM example
-        if: ${{ matrix.installer != 'pip' }}
+        if: ${{ matrix.installer == 'nemo-install' }}
         run: |
           pip install jupyter nbconvert
           jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
@@ -59,13 +59,14 @@ jobs:
             python tests/core_ptl/check_imports.py --domain "$collection"
 
   test-installs-linux:
-    name: test-install-linux-${{ matrix.image }}-${{ matrix.installer }}
+    name: ${{ matrix.os }}-${{ matrix.image }}-${{ matrix.installer }}
     runs-on: ubuntu-latest
-    container: ${{ matrix.image }}
+    container: ubuntu:${{ matrix.image }}
     strategy:
       fail-fast: false
       matrix:
-        image: ["ubuntu:22.04"]
+        os: [ubuntu-latest]
+        image: ["22.04"]
         installer: ["pip", "reinstall.sh"]
     env:
       collections: '("asr" "tts", "nlp")'
