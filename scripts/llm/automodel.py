@@ -18,6 +18,7 @@
 # NeMo-Run (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
+import os
 from typing import Optional
 
 import nemo_run as run
@@ -26,7 +27,9 @@ import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
+from nemo.utils import logging
 
+#TODO: Set your SQuaD dataset path, remember to add the path in custom_mounts if using slurm executor
 DATA_PATH = ''
 
 
@@ -90,7 +93,7 @@ def slurm_executor(
         mounts.extend(custom_mounts)
 
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "0",
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
         "NCCL_NVLS_ENABLE": "0",
         "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
@@ -127,7 +130,7 @@ def slurm_executor(
 
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "0",
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
         "NCCL_NVLS_ENABLE": "0",
         "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
@@ -182,13 +185,19 @@ def main():
     executor: run.Executor
 
     if args.slurm:
-        # TODO: Set your custom parameters for the Slurm Executor.
-
         if args.hf_token:
             custom_env_vars = {
                 "HF_TOKEN": args.hf_token,
             }
+        elif os.environ.get("HF_TOKEN"):
+            custom_env_vars = {
+                "HF_TOKEN": os.environ["HF_TOKEN"],
+            }
+        else:
+            custom_env_vars = {}
+            logging.info("No HF_TOKEN provided, gated repos may be inaccessible.")
 
+        # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
             user="",
             host="",
