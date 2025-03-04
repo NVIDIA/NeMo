@@ -310,7 +310,7 @@ class HellaswagHFDataModule(HFDatasetDataModule):
         """
         super().__init__(**kwargs)
         self.tokenizer = tokenizer
-
+    
     def preprocess(self, text):
         """
         Cleans and preprocesses text from Hellaswag examples.
@@ -365,15 +365,38 @@ class HellaswagHFDataModule(HFDatasetDataModule):
         if max_length is None:
             max_length = self.seq_length
             
-        ans = self.tokenizer(
-            batch["text"],
-            max_length=max_length,
-            truncation=True,
-        )
-        ans['labels'] = [
-            x[1:] + [-100] for x in ans['input_ids']
+        # Use text_to_ids from NeMo's AutoTokenizer
+        input_ids = [self.tokenizer.text_to_ids(text) for text in batch["text"]]
+        
+        # Create attention masks (1 for tokens, 0 for padding)
+        attention_mask = [[1] * len(ids) for ids in input_ids]
+        
+        # Create labels by shifting input_ids right by 1 position
+        labels = [
+            x[1:] + [-100] for x in input_ids
         ]
-        return ans
+        
+        # Truncate or pad sequences to max_length
+        for i in range(len(input_ids)):
+            if len(input_ids[i]) > max_length:
+                input_ids[i] = input_ids[i][:max_length]
+                attention_mask[i] = attention_mask[i][:max_length]
+            else:
+                padding_length = max_length - len(input_ids[i])
+                input_ids[i] = input_ids[i] + [self.tokenizer.pad_id] * padding_length
+                attention_mask[i] = attention_mask[i] + [0] * padding_length
+                
+            if len(labels[i]) > max_length:
+                labels[i] = labels[i][:max_length]
+            else:
+                padding_length = max_length - len(labels[i])
+                labels[i] = labels[i] + [-100] * padding_length
+        
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "labels": labels
+        }
 
     def setup(self, stage=None):
         """
@@ -384,28 +407,53 @@ class HellaswagHFDataModule(HFDatasetDataModule):
         """
         super().setup(stage)
         
-        # Process documents to create structured format
-        self.dataset_splits["train"] = self.dataset_splits["train"].map(self.process_doc)
-        
-        # Apply tokenization and prepare for training
-        self.dataset_splits["train"] = self.dataset_splits["train"].map(
-            lambda batch: self.preprocess_batch(batch, max_length=self.seq_length),
-            batched=True,
-        ).select_columns(['input_ids', 'attention_mask', 'labels'])
-        
-        # Shuffle dataset
-        self.dataset_splits["train"] = self.dataset_splits["train"].shuffle(seed=42)
-        
-        # Apply the same preprocessing to validation/test splits if they exist
-        for split in ["validation", "test"]:
+        # Apply the same preprocessing to all splits (train, validation, test)
+        for split in ["train", "validation", "test"]:
             if split in self.dataset_splits:
+                # Process documents to create structured format
                 self.dataset_splits[split] = self.dataset_splits[split].map(self.process_doc)
+                
+                # Define preprocessing function using NeMo's AutoTokenizer
+                def _preprocessing_function(batch):
+                    # Use text_to_ids provided by NeMo's AutoTokenizer
+                    input_ids = [self.tokenizer.text_to_ids(text) for text in batch["text"]]
+                    attention_mask = [[1] * len(ids) for ids in input_ids]
+                    
+                    # Create shifted labels for causal language modeling
+                    labels = [ids[1:] + [-100] for ids in input_ids]
+                    
+                    # Make sure all sequences have the same length
+                    max_length = self.seq_length
+                    for i in range(len(input_ids)):
+                        if len(input_ids[i]) > max_length:
+                            input_ids[i] = input_ids[i][:max_length]
+                            attention_mask[i] = attention_mask[i][:max_length]
+                        else:
+                            padding_length = max_length - len(input_ids[i])
+                            input_ids[i] = input_ids[i] + [self.tokenizer.pad_id] * padding_length
+                            attention_mask[i] = attention_mask[i] + [0] * padding_length
+                            
+                        if len(labels[i]) > max_length:
+                            labels[i] = labels[i][:max_length]
+                        else:
+                            padding_length = max_length - len(labels[i])
+                            labels[i] = labels[i] + [-100] * padding_length
+                    
+                    return {
+                        "input_ids": input_ids,
+                        "attention_mask": attention_mask,
+                        "labels": labels
+                    }
+                
+                # Apply tokenization and prepare for training
                 self.dataset_splits[split] = self.dataset_splits[split].map(
-                    lambda batch: self.preprocess_batch(batch, max_length=self.seq_length),
+                    _preprocessing_function,
                     batched=True,
                 ).select_columns(['input_ids', 'attention_mask', 'labels'])
-
-
+                
+                # Shuffle only the training dataset
+                if split == "train":
+                    self.dataset_splits[split] = self.dataset_splits[split].shuffle(seed=42)
     
 class SquadHFDataModule(HFDatasetDataModule):
     """
