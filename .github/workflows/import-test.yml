@@ -19,8 +19,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         collection:
+          - all
           - asr
-          # - nlp # Currently broken
+          - nlp
           - tts
         python: ["3.10", "3.11", "3.12"]
     steps:
