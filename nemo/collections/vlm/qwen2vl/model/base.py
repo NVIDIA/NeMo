@@ -665,32 +665,18 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 if padded_seq_len != 0:
                     language_embeddings = language_embeddings[:-padded_seq_len]
 
-            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, decoder_seq_len, h_language]
+            language_embeddings = language_embeddings.transpose(1, 0).contiguous() # [b, decoder_seq_len, h_language]
 
         # Preprocess input, labels and loss mask.
-        combined_embeddings, final_labels, final_loss_mask = self._preprocess_data(
+        combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
             input_ids,
             loss_mask=loss_mask,
             labels=labels,
             language_embeddings=language_embeddings,
             image_embeddings=image_embeddings,
             video_embeddings=video_embeddings,
+            attention_mask=attention_mask,
         )  # [decoder_seq_len, b, h_language], [b, decoder_seq_len], [b, decoder_seq_len]
-
-        if attention_mask is None:
-            final_attention_mask = attention_mask
-        else:
-            # TODO: use no cache opiton for now
-            past_seen_tokens = 0  # past_key_values.get_seq_length() if past_key_values is not None else 0
-            cache_position = torch.arange(
-                past_seen_tokens, past_seen_tokens + combined_embeddings.shape[0], device=combined_embeddings.device
-            )
-
-            final_attention_mask = self._update_causal_mask(
-                attention_mask,
-                combined_embeddings,
-                cache_position,
-            )
 
         output = self.language_model(
             input_ids=None,
@@ -718,6 +704,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         video_embeddings: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.Tensor] = None,
         use_inference_kv_cache: Optional[bool] = False,
+        attention_mask: Optional[torch.Tensor] = None,
     ):
 
         assert self.add_decoder, "input text preprocessing is only needed for the language model"
@@ -725,11 +712,11 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         # No pre- or postprocessing needed.
         # With pipeline parallel > 2, this means a chunk in the middle of the model.
         if not self.pre_process and not self.post_process:
-            return None, None, None
+            return None, None, None, None
 
         # If using the inference KV cache, the image tokens are already computed.
         if use_inference_kv_cache:
-            return language_embeddings, loss_mask, labels
+            return language_embeddings, loss_mask, labels, attention_mask
 
         # img_seq_len = self._img_seq_len
         batch_size, language_seq_len = input_ids.shape
@@ -834,7 +821,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         if truncate_labels:
             final_labels = final_labels[:, : self._language_max_sequence_length]
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
-        return final_embedding, final_labels, final_loss_mask
+        return final_embedding, final_labels, final_loss_mask, attention_mask
 
     def set_input_tensor(self, input_tensor) -> None:
         """Set model chunk input tensor."""
