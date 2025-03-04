@@ -74,7 +74,7 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
-        seq_length = self.seq_length
+        seq_length = self.decoder_seq_len or self.seq_length
         if self.packed_sequence and self.micro_batch_size > 1:
             seq_length = seq_length // self.micro_batch_size
             logging.warning(
