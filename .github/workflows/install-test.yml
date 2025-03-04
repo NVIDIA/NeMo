@@ -48,6 +48,9 @@ jobs:
       - name: Run LLM example
         if: ${{ matrix.installer == 'nemo-install' }}
         run: |
+          # This is guarded since it requires nemo-run. We expect Nemo-run to be
+          # available on PyPi with 25.04.
+
           pip install jupyter nbconvert
           jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
           python examples/llm/pretrain/pretrain.py
@@ -55,7 +58,7 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in $COLLCTIONS; do
+          for collection in $collections; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
 
@@ -94,6 +97,16 @@ jobs:
       - name: Run LLM example
         if: ${{ matrix.installer == 'nemo-install' }}
         run: |
+          # This is guarded since it requires nemo-run. We expect Nemo-run to be
+          # available on PyPi with 25.04.
+
           pip install jupyter nbconvert
           jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
           python examples/llm/pretrain/pretrain.py
+
+      - name: Run import checks
+        run: |
+          # Run import checks
+          for collection in $collections; do
+            python tests/core_ptl/check_imports.py --domain "$collection"
+          done
