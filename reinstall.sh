@@ -176,6 +176,7 @@ nemo() {
   fi
 
   DEPS=(
+    "sox" # requires numpy to be there @URL: https://github.com/marl/pysox/issues/167
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
   )
 
