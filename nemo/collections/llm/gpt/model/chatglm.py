@@ -139,12 +139,19 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
 
 @io.model_exporter(ChatGLMModel, "hf")
 class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"]):
-    def init(self, dtype=torch.bfloat16) -> "AutoModelForCausalLM":
+    def init(self, dtype=torch.bfloat16, model_name="THUDM/chatglm3-6b") -> "AutoModelForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True, torch_dtype=dtype)
+            # Since ChatGLM is not importable from transformers, we can only initialize the HF model
+            # from a known checkpoint. If more than 1 ChatGLM model is supported in NeMo in the future,
+            # the model_name will need to be passed in.
+            return AutoModelForCausalLM.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+                torch_dtype=dtype,
+            )
 
     def apply(self, output_path: Path) -> Path:
         source, _ = self.nemo_load(str(self))
@@ -182,20 +189,6 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
     @property
     def tokenizer(self):
         return io.load_context(str(self)).model.tokenizer.tokenizer
-
-    @property
-    def config(self) -> "AutoConfig":
-        source: ChatGLMConfig = io.load_context(str(self)).model.config
-
-        return AutoConfig(
-            num_layers=source.num_layers,
-            hidden_size=source.hidden_size,
-            ffn_hidden_size=source.ffn_hidden_size,
-            num_attention_heads=source.num_attention_heads,
-            seq_length=source.seq_length,
-            multi_query_group_num=source.num_query_groups,
-            padded_vocab_size=self.tokenizer.vocab_size,
-        )
 
 
 @io.state_transform(
