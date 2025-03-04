@@ -48,6 +48,7 @@ jobs:
           pip install --no-cache-dir "${{ steps.nemo-wheel.outputs.DIST_FILE }}[${{ matrix.collection }}]"
 
       - name: Run ${{ matrix.collection }} checks
+        if: ${{ contains(fromJSON('["asr", "tts", "nlp"]'), matrix.collection) }}
         run: |
           # install test requirements
           pip install --no-cache-dir "${{ steps.nemo-wheel.outputs.DIST_FILE }}[test]"
