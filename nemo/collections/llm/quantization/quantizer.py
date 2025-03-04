@@ -22,6 +22,7 @@ import torch
 import torch.distributed as dist
 from datasets import load_dataset
 from tqdm import tqdm
+from accelerate.hooks import remove_hook_from_module
 
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
@@ -171,7 +172,7 @@ class Quantizer:
             for prompt in prompts:
                 input_ids = model.tokenizer.tokenizer(prompt, return_tensors="pt")
                 input_ids = {k: v.to(model.model.device) for k, v in input_ids.items()}
-                output = model.model.generate(**input_ids)
+                output = model.model.generate(**input_ids, max_new_tokens=30)
                 decoded = model.tokenizer.tokenizer.decode(output[0], skip_special_tokens=True)
                 outputs.append(decoded)
         else:
@@ -363,12 +364,9 @@ class Quantizer:
         else:
             inference_tp = self.export_config.inference_tp
             inference_pp = self.export_config.inference_pp
-
-            use_nfs_workspace = False and model.config.pipeline_model_parallel_size > 1
+            use_nfs_workspace = (not is_automodel) and (model.config.pipeline_model_parallel_size > 1)
 
             with torch.inference_mode():
-                from accelerate.hooks import remove_hook_from_module
-
                 remove_hook_from_module(model, recurse=True)
                 export_tensorrt_llm_checkpoint(
                     model=self._unwrap_for_modelopt_operations(model),

@@ -17,7 +17,7 @@ import argparse
 from megatron.core.dist_checkpointing.validation import StrictHandling
 
 from nemo.collections.llm import quantization
-
+from nemo.collections.llm.api import ptq
 
 def get_args():
     """Parses PTQ arguments."""
@@ -131,20 +131,8 @@ def main():
         dtype=args.dtype,
         generate_sample=args.generate_sample,
     )
-    quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model, trainer = quantization.load_with_modelopt_layer_spec(
-        nemo_checkpoint_path=args.nemo_checkpoint,
-        tensor_model_parallel_size=args.calibration_tp,
-        pipeline_model_parallel_size=args.calibration_pp,
-        devices=args.devices,
-        num_nodes=args.num_nodes,
-        ckpt_load_strictness=args.ckpt_load_strictness,
-    )
-    model = quantizer.quantize(model)
-
-    quantizer.export(model, args.nemo_checkpoint, trainer)
-
+    ptq(args.nemo_checkpoint, export_config, calibration_tp=args.calibration_tp, calibration_pp=args.calibration_pp, quantization_config=quantization_config)
 
 if __name__ == '__main__':
     main()

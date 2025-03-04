@@ -26,10 +26,10 @@ from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
+from nemo.collections.llm import HFAutoModelForCausalLM, GPTModel
 from nemo.collections.llm.distillation import DistillationGPTModel
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
-from nemo.collections.llm.gpt.model import GPTModel
-from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
+from nemo.collections.llm.quantization import Quantizer, ExportConfig, QuantizationConfig, load_with_modelopt_layer_spec
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
@@ -393,35 +393,26 @@ def ptq(
     if not quantization_config:
         quantization_config = QuantizationConfig()
 
-    from nemo.collections.llm import quantization
-
-    quantizer = quantization.Quantizer(quantization_config, export_config)
-
+    quantizer = Quantizer(quantization_config, export_config)
     is_automodel = (Path(nemo_checkpoint) / 'config.json').exists()
+
+    trainer = None
     if is_automodel:
-        from nemo.collections import llm
-
-        model = llm.HFAutoModelForCausalLM(model_name=nemo_checkpoint, load_pretrained_weights=True)
+        model = HFAutoModelForCausalLM(model_name=nemo_checkpoint, load_pretrained_weights=True)
         model.configure_model()
-        model = quantizer.quantize(model)
-        quantizer.export(model, nemo_checkpoint)
-        return export_config.path
-
-    model, trainer = quantization.load_with_modelopt_layer_spec(
-        nemo_checkpoint,
-        calibration_tp,
-        calibration_pp,
-        ckpt_load_strictness=ckpt_load_strictness,
-    )
+    else:
+        model, trainer = load_with_modelopt_layer_spec(
+            nemo_checkpoint,
+            calibration_tp,
+            calibration_pp,
+            ckpt_load_strictness=ckpt_load_strictness,
+        )
 
     model = quantizer.quantize(model)
-
     quantizer.export(model, nemo_checkpoint, trainer)
-
     console = Console()
     console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
-
-    return export_config.path
+    return Path(export_config.path)
 
 
 @run.cli.entrypoint(namespace="llm")
