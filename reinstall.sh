@@ -175,16 +175,13 @@ nemo() {
     NEMO_DIR=$CURR
   fi
 
-  echo 'Installing nemo itself'
-  pip install --no-cache-dir -e $NEMO_DIR/.[all]
-
   DEPS=(
     "llama-index==0.10.43"
     "unstructured==0.14.9"
     "-r"
     "$NEMO_DIR/tools/ctc_segmentation/requirements.txt"
-    "onnxscript@git+https://github.com/microsoft/onnxscript"
     "nemo_run@git+https://github.com/NVIDIA/NeMo-Run.git@f07f44688e42e5500bf28ff83dd3e0f4bead0c8d"
+    "onnxscript@git+https://github.com/microsoft/onnxscript"
   )
 
   if [[ -n "${NVIDIA_PYTORCH_VERSION}" ]]; then
@@ -197,6 +194,8 @@ nemo() {
   pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
   pip install --no-cache-dir "${DEPS[@]}"
 
+  echo 'Installing nemo itself'
+  pip install --no-cache-dir -e $NEMO_DIR/.[all]
 }
 
 echo 'Uninstalling stuff'
