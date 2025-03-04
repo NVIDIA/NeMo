@@ -128,7 +128,6 @@ def pretrain_recipe(
     num_gpus_per_node: int = 8,
     fn=pretrain,
     model_name: str = '',
-    max_steps: int = 100,
 ) -> run.Partial:
     """
     Create a pre-training recipe for a HFAutoModelForCausalLM model.
@@ -161,7 +160,6 @@ def pretrain_recipe(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
-            max_steps=max_steps,
         ),
         data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
