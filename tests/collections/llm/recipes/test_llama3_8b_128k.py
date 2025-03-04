@@ -34,7 +34,7 @@ class TestLlama3_8B_128k:
         assert model_config.__fn_or_cls__ == LlamaModel
         assert isinstance(model_config.config, run.Config)
         assert model_config.config.__fn_or_cls__ == Llama3Config8B
-        assert model_config.config.seq_length == 65536
+        assert model_config.config.seq_length == 131072
 
     def test_trainer(self, recipe_module):
         trainer_config = recipe_module.trainer()
@@ -42,7 +42,7 @@ class TestLlama3_8B_128k:
         assert trainer_config.__fn_or_cls__ == Trainer
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
-        assert trainer_config.num_nodes == 4
+        assert trainer_config.num_nodes == 8
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
@@ -51,7 +51,7 @@ class TestLlama3_8B_128k:
         assert trainer_config.strategy.pipeline_model_parallel_size == 2
         assert trainer_config.strategy.pipeline_dtype == torch.bfloat16
         assert trainer_config.strategy.virtual_pipeline_model_parallel_size is None
-        assert trainer_config.strategy.context_parallel_size == 4
+        assert trainer_config.strategy.context_parallel_size == 8
         assert trainer_config.strategy.sequence_parallel is True
 
     def test_pretrain_recipe(self, recipe_module):

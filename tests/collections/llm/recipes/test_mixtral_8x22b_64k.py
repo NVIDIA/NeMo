@@ -44,7 +44,7 @@ class TestMixtral8x22B_64k:
         assert trainer_config.__fn_or_cls__ == Trainer
         assert trainer_config.accelerator == "gpu"
         assert trainer_config.devices == 8
-        assert trainer_config.num_nodes == 16
+        assert trainer_config.num_nodes == 8
 
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
