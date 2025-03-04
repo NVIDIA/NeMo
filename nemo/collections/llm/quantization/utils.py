@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 
@@ -24,33 +24,73 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
 
 
-def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
-    """Infers the modelopt decoder type from GPTModel subclass."""
+huggingface_model_type_pattern_match = {
+    "GPT2": "gpt",
+    "Mllama": "mllama",
+    "Llama": "llama",
+    "Mistral": "llama",
+    "GPTJ": "gptj",
+    "FalconForCausalLM": "falcon",
+    "RWForCausalLM": "falcon",
+    "baichuan": "baichuan",
+    "MPT": "mpt",
+    "Bloom": "bloom",
+    "ChatGLM": "chatglm",
+    "QWen": "qwen",
+    "RecurrentGemma": "recurrentgemma",
+    "Gemma2": "gemma2",
+    "Gemma": "gemma",
+    "phi3small": "phi3small",
+    "phi3": "phi3",
+    "PhiMoEForCausalLM": "phi3",
+    "phi": "phi",
+    "TLGv4ForCausalLM": "phi",
+    "MixtralForCausalLM": "llama",
+    "ArcticForCausalLM": "llama",
+    "StarCoder": "gpt",
+    "Dbrx": "dbrx",
+    "T5": "t5",
+    "Bart": "bart",
+    "GLM": "glm",
+    "InternLM2ForCausalLM": "internlm",
+    "ExaoneForCausalLM": "exaone",
+    "Nemotron": "gpt",
+    "Deepseek": "deepseek",
+    "Whisper": "whisper",
+}
+
+gpt_model_type = [
+    (llm.Baichuan2Model, "baichuan"),
+    (llm.ChatGLMModel, "chatglm"),
+    (llm.Gemma2Model, "gemma2"),
+    (llm.GemmaModel, "gemma"),
+    (llm.LlamaModel, "llama"),
+    (llm.MistralModel, "llama"),
+    (llm.MixtralModel, "llama"),
+    (llm.NemotronModel, "gpt"),
+    (llm.Qwen2Model, "qwen"),
+    (llm.StarcoderModel, "gpt"),
+    (llm.Starcoder2Model, "gpt"),
+    (llm.Phi3Model, "phi3"),
+]
+
+def get_modelopt_decoder_type(model: Union[llm.GPTModel, llm.HFAutoModelForCausalLM]) -> Optional[str]:
+    """Infers the modelopt decoder type from GPTModel or HFAutoModelForCausalLM.
+
+    Args:
+        model (GPTModel | HFAutoModelForCausalLM): The model to infer the decoder type from.
+    Returns:
+        Optional[str]: The inferred decoder type or None if no match is found.
+    """
     if isinstance(model, llm.HFAutoModelForCausalLM):
-        raise ValueError(
-            "Could not infer the decoder type for AutoModelForCausalLM. Please provide the decoder type explicitly in the ExportConfig."
-        )
+        for k, v in huggingface_model_type_pattern_match.items():
+            if k.lower() in type(model.model).__name__.lower():
+                return v
+    else:
+        for config_class, decoder_type in gpt_model_type:
+            if isinstance(model, config_class):
+                return decoder_type
 
-    mapping = [
-        (llm.Baichuan2Model, "baichuan"),
-        (llm.ChatGLMModel, "chatglm"),
-        (llm.Gemma2Model, "gemma2"),
-        (llm.GemmaModel, "gemma"),
-        (llm.LlamaModel, "llama"),
-        (llm.MistralModel, "llama"),
-        (llm.MixtralModel, "llama"),
-        (llm.NemotronModel, "gpt"),
-        (llm.Qwen2Model, "qwen"),
-        (llm.StarcoderModel, "gpt"),
-        (llm.Starcoder2Model, "gpt"),
-        (llm.Phi3Model, "phi3"),
-    ]
-
-    for config_class, decoder_type in mapping:
-        if isinstance(model, config_class):
-            return decoder_type
-
-    logging.warning("Could not infer the decoder type")
     return None
 
 

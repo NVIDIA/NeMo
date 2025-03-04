@@ -29,6 +29,7 @@ import tensorrt_llm
 import torch
 import torch.nn.functional as F
 import wrapt
+from transformers import PreTrainedTokenizerBase
 from tensorrt_llm._utils import numpy_to_torch
 
 from nemo.deploy import ITritonDeployable
@@ -485,14 +486,14 @@ class TensorRTLLM(ITritonDeployable):
             tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
             tokenizer_path_nemo2 = os.path.join(nemo_export_dir, "nemo_context")
             vocab_path = os.path.join(nemo_export_dir, "vocab.json")
-            if os.path.exists(tokenizer_path):
+            if isinstance(self.tokenizer, PreTrainedTokenizerBase):
+                self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+            elif os.path.exists(tokenizer_path):
                 shutil.copy(tokenizer_path, self.model_dir)
             elif os.path.exists(tokenizer_path_nemo2):
                 shutil.copytree(tokenizer_path_nemo2, Path(self.model_dir) / "nemo_context")
             elif os.path.exists(vocab_path):
                 shutil.copy(vocab_path, os.path.join(self.model_dir, "vocab.json"))
-            else:
-                self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
 
             nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
             if os.path.exists(nemo_model_config):

@@ -357,6 +357,7 @@ def ptq(
     calibration_pp: int = 1,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
     ckpt_load_strictness: Optional[str] = None,
+    trust_remote_code: bool = False,
 ) -> Path:
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
@@ -391,7 +392,7 @@ def ptq(
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for output checkpoint.
         ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
-
+        trust_remote_code (bool): Trust remote code when loading HuggingFace models.
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
     """
@@ -403,7 +404,7 @@ def ptq(
 
     trainer = None
     if is_automodel:
-        model = HFAutoModelForCausalLM(model_name=nemo_checkpoint, load_pretrained_weights=True)
+        model = HFAutoModelForCausalLM(model_name=nemo_checkpoint, load_pretrained_weights=True, trust_remote_code=trust_remote_code)
         model.configure_model()
     else:
         model, trainer = load_with_modelopt_layer_spec(
