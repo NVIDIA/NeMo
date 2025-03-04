@@ -11,6 +11,8 @@ jieba
 markdown2
 matplotlib>=3.3.2
 megatron_core
+llama-index==0.10.43
+unstructured==0.14.9
 nltk>=3.6.5
 numpy
 nvidia-modelopt[torch]==0.23.2 ; platform_system != 'Darwin'
