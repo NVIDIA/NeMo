@@ -26,10 +26,15 @@ from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
-from nemo.collections.llm.distillation import DistillationGPTModel
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
 from nemo.collections.llm.gpt.model import GPTModel
-from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
+from nemo.collections.llm.modelopt import (
+    DistillationGPTModel,
+    ExportConfig,
+    QuantizationConfig,
+    Quantizer,
+    setup_trainer_and_restore_model_with_modelopt_spec,
+)
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
@@ -39,6 +44,7 @@ from nemo.lightning import (
     io,
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -316,8 +322,8 @@ def distill(
         >>> llm.distill(student, teacher, data, trainer, tokenizer="model")
         PosixPath('/path/to/log_dir')
     """
-    _student_model = io.load_context(student_model_path, subpath="model")
-    _teacher_model = io.load_context(teacher_model_path, subpath="model")
+    _student_model = io.load_context(ckpt_to_context_subdir(student_model_path), subpath="model")
+    _teacher_model = io.load_context(ckpt_to_context_subdir(teacher_model_path), subpath="model")
     assert isinstance(_student_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
     assert isinstance(_teacher_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
 
@@ -350,8 +356,12 @@ def ptq(
     export_config: ExportConfig,
     calibration_tp: int = 1,
     calibration_pp: int = 1,
+    devices: int | None = None,
+    num_nodes: int | None = None,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
-    ckpt_load_strictness: Optional[str] = None,
+    forward_loop: Callable | None = None,
+    tokenizer_path: str | None = None,
+    legacy_ckpt: bool = False,
 ) -> Path:
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
@@ -383,31 +393,45 @@ def ptq(
         nemo_checkpoint (str): The path to model to be quantized.
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
-        quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for output checkpoint.
-        ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
+        devices (int): Number of devices to use for calibration. Default: calibration_tp.
+        num_nodes (int): Number of nodes to use for calibration. Default: calibration_pp.
+        quantization_config (QuantizationConfig): Configuration for quantization algorithm.
+        forward_loop (Callable): Forward loop to use for calibration.
+            If not provided, a forward loop will be created using the calibration dataset.
+        tokenizer_path (str): Path to the tokenizer if not using model's tokenizer.
+        legacy_ckpt (bool): If True, allow loading ckpt saved with older version of TE.
 
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
     """
     if not quantization_config:
         quantization_config = QuantizationConfig()
+    if devices is None:
+        devices = calibration_tp
+    if num_nodes is None:
+        num_nodes = calibration_pp
 
     if export_config.path is None:
         raise ValueError("The export_config.path needs to be specified, got None.")
 
-    from nemo.collections.llm import quantization
+    quantizer = Quantizer(quantization_config, export_config)
 
-    quantizer = quantization.Quantizer(quantization_config, export_config)
-
-    model, trainer = quantization.load_with_modelopt_layer_spec(
+    model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
         nemo_checkpoint,
         calibration_tp,
         calibration_pp,
-        ckpt_load_strictness=ckpt_load_strictness,
+        devices=devices,
+        num_nodes=num_nodes,
+        inference_only=True,
+        tokenizer_path=tokenizer_path,
+        legacy_ckpt=legacy_ckpt,
+        strategy_kwargs={"sequence_parallel": False, "lazy_init": True},
+        trainer_kwargs={},
+        model_config_overrides={"sequence_parallel": False},
     )
 
-    model = quantizer.quantize(model)
+    model = quantizer.quantize(model, forward_loop)
 
     quantizer.export(model, nemo_checkpoint, trainer)
 
