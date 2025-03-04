@@ -26,6 +26,7 @@ from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x22B, MixtralModel
 from nemo.collections.llm.peft import PEFT_STR2CLS
+from nemo.collections.llm.recipes import mixtral_8x22b
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
@@ -52,7 +53,9 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    return run.Config(MixtralModel, config=run.Config(MixtralConfig8x22B))
+    model_config = mixtral_8x22b.model()
+    model_config.config.seq_length = 65536
+    return model_config
 
 
 def trainer(
@@ -234,64 +237,4 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     recipe.trainer.strategy.expert_model_parallel_size = 1
     recipe.trainer.strategy.tensor_model_parallel_size = 8
     recipe.trainer.strategy.sequence_parallel = True
-    return recipe
-
-
-@run.cli.factory(target=finetune, name=NAME)
-def finetune_recipe(
-    dir: Optional[str] = None,
-    name: str = "default",
-    num_nodes: int = 8,
-    num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
-    packed_sequence: bool = False,
-) -> run.Partial:
-    """
-    Create a fine-tuning recipe for Mixtral 8x22B model.
-
-    This function sets up a complete configuration for fine-tuning, including
-    model, trainer, data, logging, optimization, and resumption settings.
-    The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
-
-    Args:
-        dir (Optional[str]): Directory for saving logs and checkpoints.
-        name (str): Name of the fine-tuning run.
-        num_nodes (int): Number of compute nodes to use.
-        num_gpus_per_node (int): Number of GPUs per node.
-        peft_scheme (Optional[str]): Name of the peft scheme to use for fine-tuning.
-            Allowed values: 'lora'/'dora'/'none'/None.
-        packed_sequence (Optional[bool]): If true, fine-tuning sequences will be packed into batches up to the given
-            maximum seq_length for better efficiency.
-
-    Returns:
-        run.Partial: Partial configuration for fine-tuning.
-
-    Examples:
-        CLI usage:
-            $ nemo llm finetune --factory mixtral_8x22b_64k
-            $ nemo llm finetune --factory "mixtral_8x22b_64k(num_nodes=2, name='my_mixtral_finetune')"
-
-        Python API usage:
-            >>> recipe = finetune_recipe(name="mixtral_finetune", num_nodes=2)
-            >>> print(recipe)
-
-    Note:
-        This recipe uses the SQuAD dataset for fine-tuning.
-    """
-    recipe = default_finetune_recipe(
-        model(), "mistralai/Mixtral-8x22B-v0.1", dir, name, num_nodes, num_gpus_per_node, packed_sequence
-    )
-    recipe.trainer.strategy.expert_model_parallel_size = 8
-    recipe.trainer.strategy.tensor_model_parallel_size = 8
-    if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.pipeline_model_parallel_size = 4
-        recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 14
-        recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
-        recipe.peft = run.Config(
-            PEFT_STR2CLS[peft_scheme.lower()], target_modules=['linear_qkv', 'linear_proj'], dim=32
-        )
-        recipe.optim.config.lr = 1e-4
-    else:
-        raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe
