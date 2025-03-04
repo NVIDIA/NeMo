@@ -168,7 +168,8 @@ class Quantizer:
             return decoder_type
 
         raise ValueError(
-            "Could not infer the decoder type for the provided model. Please provide the decoder type explicitly in the ExportConfig."
+            "Could not infer the decoder type for the provided model."
+            "Please provide the decoder type explicitly in the ExportConfig."
         )
 
     @staticmethod
