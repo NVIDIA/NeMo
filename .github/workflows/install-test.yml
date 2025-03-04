@@ -73,7 +73,6 @@ jobs:
           INSTALLER: ${{ matrix.installer }}
         run: |
           if [ "$INSTALLER" = "pip" ]; then
-            pip install numpy==1.26.4
             pip install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
