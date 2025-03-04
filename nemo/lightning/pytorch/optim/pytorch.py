@@ -126,11 +126,3 @@ class PytorchOptimizerModule(OptimizerModule):
             return optim
         else:
             return [self.lr_scheduler.scheduler(model, opt) for opt in optim]
-
-    def connect(self, model: L.LightningModule) -> None:
-        """Connects the optimizer module to the model.
-
-        Args:
-            model (L.LightningModule): The model to which the optimizer module is being connected.
-        """
-        model.configure_optimizers = lambda: self.optimizers(model)
