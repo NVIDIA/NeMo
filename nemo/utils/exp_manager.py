@@ -530,7 +530,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
 
     if cfg.log_local_rank_0_only is True and cfg.log_global_rank_0_only is True:
         raise ValueError(
-            f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
+            "Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
         )
 
     # This is set if the env var NEMO_TESTING is set to True.
@@ -621,7 +621,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
                 # NOTE: PTL does not expose a `trainer.max_time`. By the time we are in this function, PTL has already setup a timer if the user specifies `trainer.max_time` so best we can do is replace that.
                 # Working: If only `trainer.max_time` is set - it behaves as a normal PTL timer. If only `exp_manager.max_time_per_run` is set - it behaves as a StateLessTimer. If both are set, it also behaves as a StateLessTimer.
                 logging.warning(
-                    f'Found a PTL Timer callback, replacing with a StatelessTimer callback. This will happen if you set trainer.max_time as well as exp_manager.max_time_per_run.'
+                    'Found a PTL Timer callback, replacing with a StatelessTimer callback. This will happen if you set trainer.max_time as well as exp_manager.max_time_per_run.'
                 )
                 trainer.callbacks[idx] = StatelessTimer(cfg.max_time_per_run)
                 found_ptl_timer = True
@@ -1235,8 +1235,8 @@ def configure_checkpointing(
     if create_preemption_callback:
         # Check if cuda is avialable as preemption is supported only on GPUs
         if torch.cuda.is_available():
-            ## By default PreemptionCallback handles SIGTERM. To handle other signals pass the signal in the call as below:
-            ## PreemptionCallback(checkpoint_callback, signal.SIGCHLD)
+            # By default PreemptionCallback handles SIGTERM. To handle other signals pass the signal in the call as below:
+            # PreemptionCallback(checkpoint_callback, signal.SIGCHLD)
             preemption_callback = PreemptionCallback(checkpoint_callback)
             trainer.callbacks.append(preemption_callback)
         else:
@@ -1268,7 +1268,7 @@ class StatelessTimer(Timer):
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         return
 
-    def _check_time_remaining(self, trainer: "pl.Trainer") -> None:
+    def _check_time_remaining(self, trainer: lightning.pytorch.Trainer) -> None:
         super()._check_time_remaining(trainer)
         if trainer.should_stop:
             checkpoint_callback: Optional[NeMoModelCheckpoint] = trainer.checkpoint_callback
@@ -1285,7 +1285,7 @@ def configure_no_restart_validation_training_loop(trainer: lightning.pytorch.Tra
     if type(trainer.fit_loop.epoch_loop) != _TrainingEpochLoop:
         warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
         return
-    ## Pass trainer object to avoid trainer getting overwritten as None
+    # Pass trainer object to avoid trainer getting overwritten as None
     loop = SkipResumeTrainingValidationLoop(trainer, trainer.min_steps, trainer.max_steps)
     trainer.fit_loop.epoch_loop = loop
 
