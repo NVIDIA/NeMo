@@ -19,6 +19,8 @@ jobs:
         os: [macos-latest]
         python: ["3.10", "3.11", "3.12"]
         installer: ["pip", "reinstall.sh"]
+    env:
+      collections: '("asr" "tts")'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -50,6 +52,12 @@ jobs:
           jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
           python examples/llm/pretrain/pretrain.py
 
+      - name: Run import checks
+        run: |
+          # Run import checks
+          for collection in $COLLCTIONS;
+            python tests/core_ptl/check_imports.py --domain "$collection"
+
   test-installs-linux:
     name: test-install-linux-${{ matrix.image }}-${{ matrix.installer }}
     runs-on: ubuntu-latest
@@ -59,7 +67,8 @@ jobs:
       matrix:
         image: ["ubuntu:22.04"]
         installer: ["pip", "reinstall.sh"]
-
+    env:
+      collections: '("asr" "tts", "nlp")'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
