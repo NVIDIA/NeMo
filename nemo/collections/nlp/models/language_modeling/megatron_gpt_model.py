@@ -2225,7 +2225,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
             if remaining_layers % pipeline_size != 0:
                 raise ValueError(
-                    f"num_layers ({self.cfg.num_layers}) minus num_layers_in_first_pipeline_stage ({num_layers_first}) "
+                    f"num_layers ({self.cfg.num_layers}) minus "
+                    f"num_layers_in_first_pipeline_stage ({num_layers_first}) "
                     f"and num_layers_in_last_pipeline_stage ({num_layers_last}) should be divisible by "
                     f"remaining pipeline stages ({pipeline_size})."
                 )
