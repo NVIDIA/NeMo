@@ -52,7 +52,7 @@ try:
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.transformer.enums import AttnBackend
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-    from megatron.core.transformer.transformer_config import TransformerConfig, MLATransformerConfig
+    from megatron.core.transformer.transformer_config import MLATransformerConfig, TransformerConfig
     from megatron.core.utils import init_method_normal, scaled_init_method_normal
 
     HAVE_MEGATRON_CORE = True

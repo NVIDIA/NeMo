@@ -88,9 +88,9 @@ try:
     # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import (
+        get_gpt_decoder_block_spec,
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
-        get_gpt_decoder_block_spec,
     )
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
