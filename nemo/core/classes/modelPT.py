@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import inspect
 import os
+import pathlib
 import uuid
 from abc import abstractmethod
 from os import path
@@ -23,6 +24,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import hydra
+from nemo.core.classes.module import NeuralModule
 import torch
 
 try:
@@ -79,7 +81,8 @@ class ModelPT(LightningModule, Model):
         """
         if trainer is not None and not isinstance(trainer, Trainer):
             raise ValueError(
-                f"trainer constructor argument must be either None or lightning.pytorch.Trainer. But got {type(trainer)} instead."
+                f"trainer constructor argument must be either None or lightning.pytorch.Trainer. "
+                f"But got {type(trainer)} instead."
             )
         super().__init__()
 
@@ -174,14 +177,15 @@ class ModelPT(LightningModule, Model):
         else:
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 logging.warning(
-                    f"If you intend to do training or fine-tuning, please call the ModelPT.setup_training_data() method "
-                    f"and provide a valid configuration file to setup the train data loader.\n"
+                    f"If you intend to do training or fine-tuning, please call the ModelPT.setup_training_data() "
+                    f"method and provide a valid configuration file to setup the train data loader.\n"
                     f"Train config : \n{OmegaConf.to_yaml(self._cfg.train_ds)}"
                 )
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
                 logging.warning(
-                    f"If you intend to do validation, please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
+                    f"If you intend to do validation, please call the ModelPT.setup_validation_data() or "
+                    f"ModelPT.setup_multiple_validation_data() method "
                     f"and provide a valid configuration file to setup the validation data loader(s). \n"
                     f"Validation config : \n{OmegaConf.to_yaml(self._cfg.validation_ds)}"
                 )
@@ -255,11 +259,12 @@ class ModelPT(LightningModule, Model):
         Args:
             config_path (str): Artifact key. Usually corresponds to the model config.
             src (str): Path to artifact.
-            verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if
-                                      src is not found. Defaults to True.
+            verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return
+                                      None even if src is not found. Defaults to True.
 
         Returns:
-            str: If src is not None or empty it always returns absolute path which is guaranteed to exist during model instance life
+            str: If src is not None or empty it always returns absolute path which is guaranteed to exist during model
+                 instance life
         """
 
         if src is None or src == "":
@@ -307,7 +312,8 @@ class ModelPT(LightningModule, Model):
 
     def register_nemo_submodule(self, name: str, config_field: str, model: "ModelPT") -> None:
         """
-        Adds a NeMo model as a submodule. Submodule can be accessed via the `name` attribute on the parent NeMo model this submodule was registered on (`self`).
+        Adds a NeMo model as a submodule. Submodule can be accessed via the `name` attribute on the parent NeMo model
+        this submodule was registered on (`self`).
         In the saving process, the whole parent model (self) is held as a solid model with artifacts
         from the child submodule, the submodule config will be saved to the `config_field` of the parent model.
         This method is necessary to create a nested model, e.g.
@@ -387,7 +393,8 @@ class ModelPT(LightningModule, Model):
          You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
-            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
+            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for
+                                model's constructor
             model_wights.ckpt - model checkpoint
 
         Args:
@@ -670,7 +677,7 @@ class ModelPT(LightningModule, Model):
             optim_config = OmegaConf.to_container(optim_config, resolve=True)
 
         if self._trainer is None:
-            logging.warning(f"Trainer wasn't specified in model constructor. Make sure that you really wanted it.")
+            logging.warning("Trainer wasn't specified in model constructor. Make sure that you really wanted it.")
 
         if 'sched' in optim_config and self._trainer is not None:
 
@@ -1239,9 +1246,10 @@ class ModelPT(LightningModule, Model):
             logging.info(f'Model checkpoint partially restored from {load_from_string}')
             if len(excluded_param_names) > 0:
                 logging.info(
-                    f'The following parameters were excluded when loading from {load_from_string} : {excluded_param_names}'
+                    'The following parameters were excluded when loading from '
+                    f'{load_from_string} : {excluded_param_names}'
                 )
-                logging.info(f'Make sure that this is what you wanted!')
+                logging.info('Make sure that this is what you wanted!')
         else:
             if len(excluded_param_names) > 0:
                 logging.info(
@@ -1476,7 +1484,11 @@ class ModelPT(LightningModule, Model):
 
             To convert the .nemo tarfile into multiple Module level PyTorch checkpoints
             ::
-            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts', split_by_module=True)
+            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from(
+                            'asr.nemo',
+                            './asr_ckpts',
+                            split_by_module=True
+                        )
 
 
             To restore a module from a Module level checkpoint
@@ -1565,7 +1577,7 @@ class ModelPT(LightningModule, Model):
                 if trainer.num_devices and trainer.num_nodes:
                     self.world_size = trainer.num_devices * trainer.num_nodes
             else:
-                logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
+                logging.warning('World size can only be set by PyTorch Lightning Trainer.')
         app_state = AppState()
         app_state.world_size = self.world_size
 
@@ -1687,8 +1699,8 @@ class ModelPT(LightningModule, Model):
 
         # Initialize new output list
         self._validation_step_outputs = []
-        # Check len(self._validation_dl) > 1 as sometimes single dataloader can be in a list: [<Dataloader obj>] when ds_item in
-        # config has 1 item passed in a list
+        # Check len(self._validation_dl) > 1 as sometimes single dataloader can be in a
+        # list: [<Dataloader obj>] when ds_item in config has 1 item passed in a list
         if (
             self._validation_dl is not None
             and isinstance(self._validation_dl, (list, tuple))
@@ -1706,7 +1718,8 @@ class ModelPT(LightningModule, Model):
     @property
     def test_step_outputs(self):
         """
-        Cached outputs of test_step. It can be a list of items (for single data loader) or a list of lists (for multiple data loaders).
+        Cached outputs of test_step. It can be a list of items (for single data loader) or a list of
+        lists (for multiple data loaders).
 
         Returns:
             List of outputs of test_step.
@@ -1716,8 +1729,8 @@ class ModelPT(LightningModule, Model):
 
         # Initialize new output list
         self._test_step_outputs = []
-        # Check len(self._test_dl) > 1 as sometimes single dataloader can be in a list: [<Dataloader obj>] when ds_item in
-        # config has 1 item passed in a list
+        # Check len(self._test_dl) > 1 as sometimes single dataloader can be in a list: [<Dataloader obj>]
+        # when ds_item in config has 1 item passed in a list
         if self._test_dl is not None and isinstance(self._test_dl, (list, tuple)) and len(self._test_dl) > 1:
             for _ in range(len(self._test_dl)):
                 self._test_step_outputs.append([])
@@ -1815,11 +1828,11 @@ class ModelPT(LightningModule, Model):
                 if self._chakra_profile_end_step >= self._chakra_profile_start_step:
                     pass
                 else:
-                    raise ValueError(f'chakra end_step must be greater than or equal to chakra start_step')
+                    raise ValueError('chakra end_step must be greater than or equal to chakra start_step')
 
                 if self.cfg.nsys_profile.get('enabled', False):
                     raise Exception(
-                        f"Profiler conflict: Chakra profiling and Nsys profiling cannot be enabled at the same time."
+                        "Profiler conflict: Chakra profiling and Nsys profiling cannot be enabled at the same time."
                     )
 
                 self._et = ExecutionTraceObserver()
@@ -1842,7 +1855,8 @@ class ModelPT(LightningModule, Model):
             ranks: [0] # Global rank IDs to profile
             gen_shape: False # Generate model and kernel details including input shapes
         And then wrap the model training script with:
-        nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
+        nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true
+            --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
         See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
 
         Enables CUDA memory profiling
@@ -1879,7 +1893,7 @@ class ModelPT(LightningModule, Model):
                 if self._nsys_profile_end_step >= self._nsys_profile_start_step:
                     pass
                 else:
-                    raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
+                    raise ValueError('Nsys end_step must be greater than or equal to nsys start_step')
 
         if self.cfg.get('memory_profile', None) is not None:
             if self.cfg.memory_profile.get('enabled', False):
@@ -1907,11 +1921,12 @@ class ModelPT(LightningModule, Model):
                 if self._memory_profile_end_step >= self._memory_profile_start_step:
                     pass
                 else:
-                    raise ValueError(f'CUDA memory end_step must be greater than or equal to memory start_step')
+                    raise ValueError('CUDA memory end_step must be greater than or equal to memory start_step')
 
                 if self._memory_profile_output_path is None or not os.path.isdir(self._memory_profile_output_path):
                     raise ValueError(
-                        f'Memory profile output path ({self._memory_profile_output_path}) is not set or does not exist.'
+                        f'Memory profile output path ({self._memory_profile_output_path}) is not set '
+                        'or does not exist.'
                     )
 
     def on_train_start(self):
@@ -2065,7 +2080,8 @@ class ModelPT(LightningModule, Model):
     def cuda(self, device=None):
         """PTL is overriding this method and changing the pytorch behavior of a module.
             The PTL LightingModule override will move the module to device 0 if device is None.
-            See the PTL method here: https://github.com/Lightning-AI/lightning/blob/master/src/pytorch_lightning/core/mixins/device_dtype_mixin.py#L113
+            See the PTL method here:
+            https://github.com/Lightning-AI/lightning/blob/master/src/pytorch_lightning/core/mixins/device_dtype_mixin.py#L113
 
             Here we are overriding this to maintain the default Pytorch nn.module behavior:
             https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/module.py#L728
