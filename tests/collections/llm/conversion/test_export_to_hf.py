@@ -34,7 +34,6 @@ if __name__ == '__main__':
     original_hf = AutoModelForCausalLM.from_pretrained(args.original_hf_path, trust_remote_code=True)
     converted_hf = AutoModelForCausalLM.from_pretrained(args.output_path, trust_remote_code=True)
 
-
     for (name1, parameter1), (name2, parameter2) in zip(
         converted_hf.named_parameters(), original_hf.named_parameters()
     ):
