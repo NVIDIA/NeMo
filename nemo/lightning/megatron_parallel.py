@@ -48,13 +48,24 @@ import torch
 import torch.distributed
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities import move_data_to_device
-from megatron.core import parallel_state
+from megatron.core import parallel_state, tensor_parallel
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.distributed import TorchFullyShardedDataParallel as McoreTorchFSDP
+from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
+from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.transformer_layer import TransformerLayer
 from torch import Tensor, nn
 from typing_extensions import override
+
+try:
+    from megatron.core.distributed import TorchFullyShardedDataParallel as McoreTorchFSDP
+
+    HAVE_MCORE_TORCH_FSDP2 = True
+except:
+    HAVE_MCORE_TORCH_FSDP2 = False
 
 try:
     from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
@@ -154,9 +165,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         vp_size (Optional[int]): Virtual pipeline parallel size.
         ddp_config (Optional[DistributedDataParallelConfig]): An instance of Megatron core's
             DistributedDataParallelConfig which controls the Megatron DDP configuration.
+        fsdp (Optional[str]): Whether model should run Torch FSDP2 instead of DDP, select from
+            ["megatron", "torch"]. Defaults to None.
         cpu (bool): Whether model should reside on CPU.
         convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
             apply to the model parameters after initialization.
+        fsdp_sub_modules_to_wrap (List[torch.nn.Module]): A list of submodules to wrap with FSDP.
 
     Examples
     --------
@@ -188,8 +202,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         loss_reduction: Optional[Callable[[ModelT], "MegatronLossReduction"]] = None,
         vp_size: Optional[int] = None,
         ddp_config: Optional[DistributedDataParallelConfig] = None,
+        fsdp: Optional[str] = None,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
+        fsdp_sub_modules_to_wrap: List[torch.nn.Module] = [
+            TransformerLayer,
+            LanguageModelEmbedding,
+            RotaryEmbedding,
+            tensor_parallel.ColumnParallelLinear,
+        ],
     ) -> None:
         from megatron.core import parallel_state
         from nemo.utils.model_utils import unwrap_model
@@ -222,7 +243,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.forward_step = forward_step or default_forward_step
         self.loss_reduction: MegatronLossReduction = loss_reduction
         self.ddp_config = ddp_config
+        self.fsdp = fsdp
         self.convert_module_fn = convert_module_fn
+        self.fsdp_sub_modules_to_wrap = fsdp_sub_modules_to_wrap
 
         # [ModelOpt]: Detect Pipeline-parallel Distillation mode.
         self._unwrapped_model = [unwrap_model(self)]
@@ -670,11 +693,18 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                     and self.ddp_config.use_custom_fsdp
                     and not isinstance(unwrapped_module, FullyShardedDataParallel)
                 ):
-                    FSDP = FullyShardedDataParallel
-                    dist_module = FSDP(
+                    dist_module = FullyShardedDataParallel(
                         module.config,
                         self.ddp_config,
                         module,
+                        disable_bucketing=disable_bucketing,
+                    )
+                elif self.fsdp == "pytorch" and HAVE_MCORE_TORCH_FSDP2:
+                    dist_module = TorchFSDP(
+                        module.config,
+                        self.ddp_config,
+                        module,
+                        sub_modules_to_wrap=self.fsdp_sub_modules_to_wrap,
                         disable_bucketing=disable_bucketing,
                     )
                 elif not isinstance(unwrapped_module, DDP):
@@ -904,6 +934,44 @@ class DDP(McoreDDP):
 
     def __getattr__(self, item: Any) -> Any:
         return getattr_proxy(self, item)
+
+
+if HAVE_MCORE_TORCH_FSDP2:
+    # remove later
+    class TorchFSDP(McoreTorchFSDP):
+        def __init__(
+            self,
+            config: TransformerConfig,
+            ddp_config: DistributedDataParallelConfig,
+            module: torch.nn.Module,
+            sub_modules_to_wrap: List[torch.nn.Module] = [
+                TransformerLayer,
+                LanguageModelEmbedding,
+                RotaryEmbedding,
+                tensor_parallel.ColumnParallelLinear,
+            ],
+            disable_bucketing: bool = False,
+            **kwargs,
+        ):
+            init_parameters = inspect.signature(McoreDDP.__init__).parameters
+            # Updates to the McoreDDP class have removed some parameters, so we need to
+            #  filter out any kwargs that are not part of the updated signature, if a new
+            #  version of mcore is being used.
+            filtered_kwargs = {k: v for k, v in kwargs.items() if k in init_parameters}
+            super().__init__(
+                config=config,
+                ddp_config=ddp_config,
+                module=module,
+                sub_modules_to_wrap=sub_modules_to_wrap,
+                disable_bucketing=disable_bucketing,
+                **filtered_kwargs,
+            )
+
+        def state_dict(self, prefix='', keep_vars=False, **kwargs):
+            self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
+
+        def __getattr__(self, item: Any) -> Any:
+            return getattr_proxy(self, item)
 
 
 class CallbackConnector:
