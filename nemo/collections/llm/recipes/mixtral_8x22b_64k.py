@@ -22,12 +22,9 @@ from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
-from nemo.collections.llm.api import finetune, pretrain
+from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x22B, MixtralModel
-from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes import mixtral_8x22b
-from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
