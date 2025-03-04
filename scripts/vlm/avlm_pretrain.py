@@ -20,9 +20,9 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.vlm import ImageDataConfig
-from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.speechlm.models import EncDecMultiTaskModel
+from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
+from nemo.collections.vlm import ImageDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
@@ -66,21 +66,23 @@ def main(args):
         hidden_size=language_transformer_config.hidden_size,
         ffn_hidden_size=language_transformer_config.hidden_size,
     )
-    speech_transformer_config=ASRModuleConfig(
-        _target_="nemo.collections.asr.models.EncDecMultiTaskModel",
-        pretrained_model="nvidia/canary-1b",
-        target_module="encoder",
-        spec_augment_config={
-            "_target_": "nemo.collections.asr.modules.SpectrogramAugmentation",
-            "freq_masks": 2, # set to zero to disable it
-            "time_masks": 10, # set to zero to disable it
-            "freq_width": 27,
-            "time_width": 0.05,
-        }
-    ),
+    speech_transformer_config = (
+        ASRModuleConfig(
+            _target_="nemo.collections.asr.models.EncDecMultiTaskModel",
+            pretrained_model="nvidia/canary-1b",
+            target_module="encoder",
+            spec_augment_config={
+                "_target_": "nemo.collections.asr.modules.SpectrogramAugmentation",
+                "freq_masks": 2,  # set to zero to disable it
+                "time_masks": 10,  # set to zero to disable it
+                "freq_width": 27,
+                "time_width": 0.05,
+            },
+        ),
+    )
     speech_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
-        input_size=speech_transformer_config.hidden_size, # need to set somehow?
+        input_size=speech_transformer_config.hidden_size,  # need to set somehow?
         hidden_size=language_transformer_config.hidden_size,
         ffn_hidden_size=language_transformer_config.hidden_size,
     )

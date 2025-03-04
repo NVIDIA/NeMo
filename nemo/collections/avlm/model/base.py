@@ -31,8 +31,7 @@ from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-
-from nemo.collections.vlm.avlm.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, AUDIO_TOKEN_INDEX
+from nemo.collections.vlm.avlm.data.multimodal_tokens import AUDIO_TOKEN_INDEX, IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -66,6 +65,7 @@ MODEL_CONFIG_ATTR = [
     'calculate_per_token_loss',
     'seq_length',
 ]
+
 
 def restore_model_weights(model, checkpoint_path, strict=False):
     """
@@ -334,7 +334,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         if drop_vision_class_token and vision_transformer_config.add_class_token:
             self._img_seq_len -= vision_transformer_config.class_token_len
 
-
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -540,7 +539,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
 
         packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
 
-
         # Create indices for new text and label positions.
         with torch.no_grad():
 
@@ -554,17 +552,18 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             num_audios_per_sample = torch.sum(audio_token_mask, dim=-1)
             audio_lengths_batch = torch.tensor([x.sum() for x in audio_lens], device=input_ids.device)
 
-            # Sequence length for each sample: 
-            # (image sequence length multiplied by the number of tiles for that image) + (audio sequence length) 
-            # - (number of image tokens + number of audio tokens) 
+            # Sequence length for each sample:
+            # (image sequence length multiplied by the number of tiles for that image) + (audio sequence length)
+            # - (number of image tokens + number of audio tokens)
             # + (text sequence length).
             seq_lens = (
-                (num_image_tiles_batch * img_seq_len) + audio_lengths_batch 
-                - (num_images_per_sample + num_audios_per_sample) 
+                (num_image_tiles_batch * img_seq_len)
+                + audio_lengths_batch
+                - (num_images_per_sample + num_audios_per_sample)
                 + text_seq_len
             )
             max_seq_len = seq_lens.max()
-            
+
             # Pipeline parallel expects fixed input size. Check if we need to pad.
             if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
                 max_seq_len = self._language_max_sequence_length
@@ -648,10 +647,11 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             # The last valid position for each sample is given by new_position_ids[:, -1],
             # so positions starting from first_padding_idx (last valid + 1) should be masked out.
             first_padding_idx = new_position_ids[:, -1] + 1
-            all_positions = torch.arange(max_seq_len, device=first_padding_idx.device).unsqueeze(0).expand(batch_size, -1)
+            all_positions = (
+                torch.arange(max_seq_len, device=first_padding_idx.device).unsqueeze(0).expand(batch_size, -1)
+            )
             image_mask[all_positions >= first_padding_idx.unsqueeze(1)] = False
             audio_mask[all_positions >= first_padding_idx.unsqueeze(1)] = False
-
 
         # Create the final input embedding (if this is the first language model stage).
         final_embedding = None
@@ -672,7 +672,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             # NOTE: final_embedding [batch_size, max_seq_len, embed_dim]
             final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
             final_embedding[audio_mask] = audio_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
-
 
         # Create the final labels and loss mask (if this is the last language model stage).
         final_labels, final_loss_mask = None, None
@@ -710,7 +709,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             valid_before_media_indices = new_position_ids[valid_batch_media_indices, valid_before_media_indices]
 
             final_loss_mask[valid_batch_media_indices, valid_before_media_indices] = 0
-
 
         if final_embedding is not None and has_labels:
             assert (
@@ -863,6 +861,7 @@ class AVLMModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     @property
     def validation_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
         pass
+
 
 __all__ = [
     "AVLMModel",
