@@ -70,8 +70,6 @@ jobs:
         os: [ubuntu-latest]
         image: ["22.04"]
         installer: ["pip-install", "nemo-install"]
-    env:
-      collections: '("asr" "tts", "nlp")'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
