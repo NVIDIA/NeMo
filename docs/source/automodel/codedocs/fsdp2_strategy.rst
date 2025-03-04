@@ -1,140 +1,151 @@
 FSDP2Strategy Documentation
-==========================
+===========================
 
 Overview
---------
-The `FSDP2Strategy` class implements Fully Sharded Data Parallel (FSDP) training using PyTorch's distributed tensor APIs. This strategy is designed to optimize large-scale model training by sharding model parameters across devices.
+========
+The **FSDP2Strategy** implements Fully Sharded Data Parallel (FSDP) via PyTorch's FSDP2 implementation.
+It enables distributed training with automatic model sharding and mixed precision support.
 
-Key Features
-------------
-- Data parallel and tensor parallel sharding.
-- Mixed precision policy support.
-- Optimizer state checkpointing and deferred restoration.
-- Automatic distributed environment setup.
-- Customizable model parallelization.
-- Loss reduction for training, validation, and test steps.
+Features
+========
+- Automatic model parallelism
+- Mixed precision training
+- Checkpoint management
+- Deferred optimizer state restoration
+- Device mesh initialization
 
 Initialization
---------------
+==============
+To initialize the **FSDP2Strategy**, use the following arguments:
+
 .. code-block:: python
 
-    FSDP2Strategy(
-        data_parallel_size="auto",
-        tensor_parallel_size="auto",
-        data_sampler=None,
-        checkpoint_io=None,
-        mp_policy=None,
-        parallelize_fn=None,
-        **kwargs
-    )
+   strategy = FSDP2Strategy(
+       data_parallel_size="auto",
+       tensor_parallel_size="auto",
+       checkpoint_io=None,
+       mp_policy=None,
+       parallelize_fn=None,
+       **kwargs,
+   )
 
-**Parameters:**
-- **data_parallel_size** (Union[Literal["auto"], int]): Number of data-parallel replicas.
-- **tensor_parallel_size** (Union[Literal["auto"], int]): Number of tensor-parallel groups.
-- **data_sampler** (optional): Custom data sampler.
-- **checkpoint_io** (optional): Checkpoint I/O handler.
-- **mp_policy** (optional): Mixed precision policy.
-- **parallelize_fn** (optional): Function to parallelize the model.
-
-Environment Setup
------------------
-.. code-block:: python
-
-    strategy.setup_environment()
-
-Automatically sets up the distributed environment and device mesh.
+Arguments:
+----------
+- **data_parallel_size** (*Union["auto", int]*): Number of data-parallel replicas.
+- **tensor_parallel_size** (*Union["auto", int]*): Number of tensor-parallel groups.
+- **checkpoint_io** (*optional*): Checkpoint I/O handler.
+- **mp_policy** (*optional*): Mixed precision policy.
+- **parallelize_fn** (*callable, optional*): Model parallelization function.
 
 Parallelization
----------------
+===============
+The `parallelize()` method applies the sharding process to the model:
+
 .. code-block:: python
 
-    strategy.parallelize()
+   strategy.parallelize()
 
-Applies model sharding using the specified parallelization function.
+This method ensures that the model is only parallelized once.
+
+Environment Setup
+=================
+The `setup_environment()` method initializes the distributed environment and device mesh:
+
+.. code-block:: python
+
+   strategy.setup_environment()
+
+Checkpoint Management
+=====================
+
+Saving Checkpoints
+------------------
+The `save_checkpoint()` method unshards the checkpoint and saves it to disk:
+
+.. code-block:: python
+
+   strategy.save_checkpoint(checkpoint, filepath)
+
+Loading Checkpoints
+-------------------
+The `load_checkpoint()` method loads a checkpoint from disk:
+
+.. code-block:: python
+
+   checkpoint = strategy.load_checkpoint(filepath)
 
 Optimizer State Restoration
----------------------------
+===========================
+Optimizer state is deferred until the first training step. Use the following method to store the optimizer state:
+
 .. code-block:: python
 
-    strategy.load_optimizer_state_dict(checkpoint)
+   strategy.load_optimizer_state_dict(checkpoint)
 
-Stores the optimizer state from a checkpoint and defers its restoration.
-
-Loss Reduction
---------------
-.. code-block:: python
-
-    strategy._get_loss_reduction("training")
-
-Retrieves the appropriate loss reduction function for a given step type.
-
-Training, Validation, and Testing Steps
----------------------------------------
-.. code-block:: python
-
-    strategy.training_step(batch, batch_idx)
-    strategy.validation_step(batch, batch_idx)
-    strategy.test_step(batch, batch_idx)
-
-Defines the respective step logic with loss reduction and logging.
-
-Checkpointing
+Steps
+=====
+Training Step
 -------------
+The `training_step()` method defines a single training iteration:
+
 .. code-block:: python
 
-    strategy.save_checkpoint(checkpoint, filepath)
-    strategy.load_checkpoint(filepath)
+   loss = strategy.training_step(batch, batch_idx)
 
-Handles model checkpoint saving and loading.
+Validation Step
+---------------
+The `validation_step()` method defines a validation iteration:
 
-Tensor Initialization Context
------------------------------
 .. code-block:: python
 
-    with strategy.tensor_init_context():
-        # Initialize tensors
-        pass
+   loss = strategy.validation_step(batch, batch_idx)
 
-Context manager for tensor initialization.
+Test Step
+---------
+The `test_step()` method defines a test iteration:
+
+.. code-block:: python
+
+   loss = strategy.test_step(batch, batch_idx)
+
+Prediction Step
+---------------
+The `predict_step()` method defines a prediction iteration:
+
+.. code-block:: python
+
+   result = strategy.predict_step(batch, batch_idx)
 
 DataLoader Processing
----------------------
+=====================
+Use `process_dataloader()` to apply custom data sampling to a DataLoader:
+
 .. code-block:: python
 
-    strategy.process_dataloader(dataloader)
+   dataloader = strategy.process_dataloader(dataloader)
 
-Applies data sampling transformations to the DataLoader.
+State Dictionary
+================
+Retrieve the model's state dictionary using `lightning_module_state_dict()`:
 
-Sharded State Dictionary
-------------------------
 .. code-block:: python
 
-    strategy.load_model_state_dict(ckpt)
-
-Shards the model's state dictionary for distributed storage.
-
-Current Epoch Step
-------------------
-.. code-block:: python
-
-    strategy.current_epoch_step
-
-Returns the current step index within the epoch.
+   state_dict = strategy.lightning_module_state_dict()
 
 Removing Checkpoints
---------------------
+====================
+Remove a checkpoint from the filesystem:
+
 .. code-block:: python
 
-    strategy.remove_checkpoint(filepath)
+   strategy.remove_checkpoint(filepath)
 
-Deletes checkpoint files from the filesystem.
+Tensor Initialization
+=====================
+Use the `tensor_init_context()` context manager for tensor initialization:
 
-Lightning Module State Dictionary
----------------------------------
 .. code-block:: python
 
-    strategy.lightning_module_state_dict()
-
-Returns the state dictionary of the Lightning module.
-
-
+   with strategy.tensor_init_context():
+       # Initialization code
+       pass
