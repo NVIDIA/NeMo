@@ -79,7 +79,7 @@ def slurm_executor(
     time: str = "04:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
-    container_image: str = "/lustre/fsw/portfolios/coreai/users/boxiangw/container/25_02_rc1.sqsh",
+    container_image: str = "nvcr.io/nvidia/nemo:25.02",
     retries: int = 0,
 ) -> run.SlurmExecutor:
     if not (user and host and remote_job_dir and account and partition and nodes and devices):
