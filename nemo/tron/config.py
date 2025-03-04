@@ -507,16 +507,16 @@ class ConfigContainer:
     train_config: TrainingConfig
     model_config: GPTConfig | T5Config
     optimizer_config: OptimizerConfig
-    ddp_config: DistributedDataParallelConfig
+    ddp_config: DistributedDataParallelConfig = field(default_factory=DistributedDataParallelConfig)
     scheduler_config: SchedulerConfig
     dataset_config: GPTDatasetConfig
     logger_config: LoggerConfig
     tokenizer_config: TokenizerConfig
     checkpoint_config: CheckpointConfig
-    dist_config: DistributedInitConfig
-    ft_config: FaultToleranceConfig = field(default_factory=FaultToleranceConfig)
-    straggler_config: StragglerDetectionConfig = field(default_factory=StragglerDetectionConfig)
-    profiling_config: ProfilingConfig = field(default_factory=ProfilingConfig)
+    dist_config: DistributedInitConfig = field(default_factory=DistributedInitConfig)
+    ft_config: Optional[FaultToleranceConfig] = None
+    straggler_config: Optional[StragglerDetectionConfig] = None
+    profiling_config: Optional[ProfilingConfig] = None
 
     def __post_init__(self):
         # Run validations
