@@ -29,6 +29,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.collections.asr.modules.ngpt_decoder import Embedding
 
 
 @dataclass
@@ -188,14 +189,16 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         if pre_ln_final_layer_norm:
             self.num_states += 1
 
-        self._embedding = TransformerEmbedding(
-            vocab_size=self.vocab_size,
-            hidden_size=self.hidden_size,
-            max_sequence_length=max_sequence_length,
-            num_token_types=num_token_types,
-            embedding_dropout=embedding_dropout,
-            learn_positional_encodings=learn_positional_encodings,
-        )
+        # self._embedding = TransformerEmbedding(
+        #     vocab_size=self.vocab_size,
+        #     hidden_size=self.hidden_size,
+        #     max_sequence_length=max_sequence_length,
+        #     num_token_types=num_token_types,
+        #     embedding_dropout=embedding_dropout,
+        #     learn_positional_encodings=learn_positional_encodings,
+        # )
+
+        self._embedding = Embedding(vocab_size=self._vocab_size, n_embd=self._hidden_size)
 
         self._decoder = self.DECODER_TYPE(
             hidden_size=self.hidden_size,

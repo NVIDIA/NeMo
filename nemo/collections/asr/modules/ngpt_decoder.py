@@ -150,16 +150,16 @@ class Embedding(nn.Module):
     # Embedding layer for the nGPT decoder for both tokens and positional encodings
     def __init__(self, vocab_size=8192, n_embd=1024):
         super().__init__()
-        self.token_embedding = nn.Embedding(vocab_size, n_embd)
+        self.token_embedding = nn.Embedding(vocab_size, n_embd, padding_idx=0)
         self.base_scale = n_embd ** -0.5
         
         self.drop = nn.Dropout(0.1)
 
         self._init_weights()
 
-    def forward(self, x, start_pos=0):
+    def forward(self, input_ids=None, start_pos=0):
         # Embedding layer
-        x = self.token_embedding(x)
+        x = self.token_embedding(input_ids)
         # x = x + self.pos_emb[:, start_pos : start_pos + x.size(1)]
         x = self.drop(x)
         return x
