@@ -404,7 +404,9 @@ def ptq(
 
     trainer = None
     if is_automodel:
-        model = HFAutoModelForCausalLM(model_name=nemo_checkpoint, load_pretrained_weights=True, trust_remote_code=trust_remote_code)
+        model = HFAutoModelForCausalLM(
+            model_name=nemo_checkpoint, load_pretrained_weights=True, trust_remote_code=trust_remote_code
+        )
         model.configure_model()
     else:
         model, trainer = load_with_modelopt_layer_spec(

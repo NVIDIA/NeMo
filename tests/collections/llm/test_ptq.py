@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm.quantization import QuantizationConfig, ExportConfig
-from nemo.collections.llm.api import ptq
 import pytest
+
+from nemo.collections.llm.api import ptq
+from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
 
 HF_PATH = "/home/TestData/nlp/megatron_llama/llama-ci-hf"
 OUTPUT_PATH = '/tmp/quantized_model'
@@ -30,4 +31,3 @@ def test_ptq():
     quantization_config = QuantizationConfig()
     export_config = ExportConfig(path=OUTPUT_PATH)
     ptq(HF_PATH, export_config, quantization_config=quantization_config)
-

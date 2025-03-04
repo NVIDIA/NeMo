@@ -97,7 +97,6 @@ def get_args():
         default=StrictHandling.LOG_ALL,
         help='Defines handling of checkpoint load mismatch',
     )
-    
 
     args = parser.parse_args()
 

@@ -29,8 +29,8 @@ import tensorrt_llm
 import torch
 import torch.nn.functional as F
 import wrapt
-from transformers import PreTrainedTokenizerBase
 from tensorrt_llm._utils import numpy_to_torch
+from transformers import PreTrainedTokenizerBase
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball

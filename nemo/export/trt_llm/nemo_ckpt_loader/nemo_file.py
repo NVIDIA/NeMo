@@ -273,10 +273,12 @@ def get_tokenizer(tokenizer_dir_or_path: Union[str, Path]) -> PreTrainedTokenize
     tokenizer_dir_or_path = Path(tokenizer_dir_or_path)
     if (tokenizer_dir_or_path / "huggingface_tokenizer").is_dir():
         return AutoTokenizer.from_pretrained(tokenizer_dir_or_path / "huggingface_tokenizer")
-    
-    if (tokenizer_dir_or_path / "tokenizer.json").exists() and (tokenizer_dir_or_path / "tokenizer_config.json").exists():
+
+    if (tokenizer_dir_or_path / "tokenizer.json").exists() and (
+        tokenizer_dir_or_path / "tokenizer_config.json"
+    ).exists():
         return AutoTokenizer.from_pretrained(tokenizer_dir_or_path)
-    
+
     if (tokenizer_dir_or_path / "nemo_context").exists():
         return get_tokenizer_from_nemo2_context(tokenizer_dir_or_path / "nemo_context")
     elif os.path.exists(os.path.join(tokenizer_dir_or_path, "vocab.json")):

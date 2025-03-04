@@ -74,6 +74,7 @@ gpt_model_type = [
     (llm.Phi3Model, "phi3"),
 ]
 
+
 def get_modelopt_decoder_type(model: Union[llm.GPTModel, llm.HFAutoModelForCausalLM]) -> Optional[str]:
     """Infers the modelopt decoder type from GPTModel or HFAutoModelForCausalLM.
 

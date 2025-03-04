@@ -69,6 +69,7 @@ def _is_zero_rank():
         return True
     return dist.get_rank() == 0
 
+
 def _barrier():
     if dist.is_initialized():
         dist.barrier()
@@ -161,14 +162,16 @@ class Quantizer:
     def _get_decoder_type(self, model):
         if self.export_config.decoder_type is not None:
             return self.export_config.decoder_type
-        
+
         unwrapped_model = model
-        while not isinstance(unwrapped_model, llm.GPTModel) and not isinstance(unwrapped_model, llm.HFAutoModelForCausalLM):
+        while not isinstance(unwrapped_model, llm.GPTModel) and not isinstance(
+            unwrapped_model, llm.HFAutoModelForCausalLM
+        ):
             unwrapped_model = unwrapped_model.module
 
         if decoder_type := get_modelopt_decoder_type(unwrapped_model):
             return decoder_type
-        
+
         raise ValueError(
             "Could not infer the decoder type for the provided model. Please provide the decoder type explicitly in the ExportConfig."
         )
@@ -358,7 +361,9 @@ class Quantizer:
         else:
             # Save the model context in order to restore its tokenizer later. The destination
             # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
-            shutil.copytree(ckpt_to_context_subdir(model_dir), os.path.join(export_dir, "nemo_context"), dirs_exist_ok=True)
+            shutil.copytree(
+                ckpt_to_context_subdir(model_dir), os.path.join(export_dir, "nemo_context"), dirs_exist_ok=True
+            )
 
     def export(self, model, model_dir: str, trainer: Optional["Trainer"] = None) -> None:
         """Export model to a TensorRT-LLM or NeMo checkpoint."""
@@ -369,7 +374,9 @@ class Quantizer:
 
         # Standard NeMo 2.0 checkpoint format
         if self.export_config.export_format == "nemo":
-            assert not is_automodel, "NeMo export format can only be used with native NeMo checkpoints, not HuggingFace models"
+            assert (
+                not is_automodel
+            ), "NeMo export format can only be used with native NeMo checkpoints, not HuggingFace models"
             assert trainer is not None, "Trainer required for NeMo export."
             trainer.save_checkpoint(export_dir)
             if is_global_rank_zero():
@@ -402,11 +409,9 @@ class Quantizer:
             if _is_zero_rank():
                 assert self._validate_quantized_checkpoint(export_dir, inference_tp)
 
-
         if _is_zero_rank():
             self._save_tokenizer(model, model_dir, export_dir, export_fmt)
             logging.info(f"Export succeeded, model has been exported to {export_dir}.")
-                
 
 
 def get_calib_data_iter(
