@@ -346,11 +346,12 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
         query = HellaSwagHFDataModule.preprocess(doc["activity_label"] + ": " + ctx)
         choices = [HellaSwagHFDataModule.preprocess(ending) for ending in doc["endings"]]
+        
         try:
             gold = int(doc["label"])
-        except KeyError:
+        except ValueError:
             gold = 0
-
+                                    
         out_doc = {
             "query": query,
             "choices": choices,
@@ -359,7 +360,7 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         }
         return out_doc
 
-        def preprocess_batch(self, batch):
+    def preprocess_batch(self, batch):
         # print(type(batch))
         # print(type(next(batch)))
         ans = self.tokenizer(
