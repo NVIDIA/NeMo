@@ -24,8 +24,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import hydra
-from nemo.core.classes.module import NeuralModule
 import torch
+
+from nemo.core.classes.module import NeuralModule
 
 try:
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
@@ -1789,6 +1790,7 @@ class ModelPT(LightningModule, Model):
             if self.cfg.chakra_profile.get('enabled', False):
 
                 from torch.profiler import ExecutionTraceObserver
+
                 from nemo.utils.env_var_parsing import get_envint
 
                 self._chakra_profile_enabled = True
