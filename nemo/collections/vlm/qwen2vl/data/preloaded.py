@@ -16,24 +16,19 @@ import json
 import logging
 import os
 import re
-import tarfile
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 if TYPE_CHECKING:
     pass
 
 import copy
-
-import decord
 import lightning.pytorch as pl
-import numpy as np
 import torch
 import torch.nn.functional as F
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
-from PIL import Image
 from torch.utils import data
-from torch.utils.data import DataLoader, Dataset, default_collate
-from transformers import CLIPImageProcessor, Qwen2VLImageProcessor, SiglipImageProcessor
+from torch.utils.data import DataLoader, Dataset
+from transformers import CLIPImageProcessor, Qwen2VLImageProcessor
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.qwen2vl.data.config import Qwen2VLDataConfig
@@ -49,7 +44,8 @@ from nemo.collections.vlm.qwen2vl.data.vision_process import process_vision_info
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
-def process_vision(processor, images, videos):  # this needs to be merged with conv's process image
+def process_vision(processor, images, videos):
+    # pylint: disable=C0115,C0116
     assert isinstance(processor, Qwen2VLImageProcessor), "processor needs to be Qwen2VLImageProcessor"
     if images is not None:
         image_inputs = processor(images=images, videos=None, return_tensors='pt')
@@ -136,6 +132,7 @@ def tokenize_special_token(prompt, tokenizer, vision_tensors, merge_length=2, sp
 
 
 def find_pattern_indices(template, pattern, search_start_index=0, allow_first_token_mismatch=False):
+    # pylint: disable=C0115,C0116
     template_len = len(template)
     pattern_len = len(pattern)
     for i in range(search_start_index, template_len - pattern_len + 1):
@@ -146,7 +143,7 @@ def find_pattern_indices(template, pattern, search_start_index=0, allow_first_to
 
 
 def infer_seqlen(source_len: int, target_len: int, cutoff_len: int):
-    r"""
+    """
     Computes the real sequence length after truncation by the cutoff_len.
     """
     if target_len * 2 < cutoff_len:  # truncate source
@@ -265,7 +262,7 @@ def extract_dialogue_pairs(tokens, decoded_tokens):
 
 
 def truncate_tokens(tokens, labels, max_sequence_length, tokenizer):
-    # print(f"{len(tokens)=}, {len(labels)=}")
+    """truncate tokens"""
     vision_token_num = len([i for i in tokens if i == VISION_END_TOKEN_INDEX])
     special_index_map = {index: token for token, index in SPECIAL_TOKEN_MAP}
     decoded_tokens = []
@@ -295,9 +292,6 @@ def truncate_tokens(tokens, labels, max_sequence_length, tokenizer):
 
         # infer the length of source and target
         source_len, target_len = infer_seqlen(len(source_ids), len(target_ids), max_sequence_length - total_length)
-        # print(f"Dialogue pair {n}: source {len(source_ids)} -> {source_len} removing {len(source_ids) - source_len} tokens")
-        # print(f"Dialogue pair {n}: target {len(target_ids)} -> {target_len} removing {len(target_ids) - target_len} tokens")
-
         source_ids = source_ids[:source_len]
         target_ids = target_ids[:target_len]
         truncated_tokens += source_ids + target_ids
@@ -311,13 +305,16 @@ def truncate_tokens(tokens, labels, max_sequence_length, tokenizer):
 
     if len([i for i in truncated_tokens if i == VISION_END_TOKEN_INDEX]) != vision_token_num:
         raise ValueError(
-            f"Image/video tokens was truncated. This will cause training to fail. Please increase max_sequence_length {max_sequence_length=} to accommodate the full image/video token sequence."
+            f"Image/video tokens was truncated. This will cause training to fail. "
+            f"Please increase max_sequence_length {max_sequence_length=} to accommodate "
+            f"the full image/video token sequence."
         )
 
     return torch.tensor(truncated_tokens, dtype=torch.long), torch.tensor(truncated_labels, dtype=torch.long)
 
 
 class PreloadedSupervisedDataset(Dataset):
+    """Dataset for supervised fine-tuning."""
 
     def __init__(
         self,
@@ -436,8 +433,8 @@ class PreloadedSupervisedDataset(Dataset):
         assert prompt.count("<image>") == len(images), f"{prompt.count('<image>')=} != {len(images)=}"
         assert prompt.count("<video>") == len(videos), f"{prompt.count('<video>')=} != {len(videos)=}"
 
-        image_block = f"<|vision_start|><|image_pad|><|vision_end|>"
-        video_block = f"<|vision_start|><|video_pad|><|vision_end|>"
+        image_block = "<|vision_start|><|image_pad|><|vision_end|>"
+        video_block = "<|vision_start|><|video_pad|><|vision_end|>"
 
         prompt = prompt.replace("<image>", image_block).replace("<video>", video_block)
         return prompt
@@ -446,7 +443,7 @@ class PreloadedSupervisedDataset(Dataset):
         tokens = tokenize_special_token(
             chatml, self.tokenizer, vision_tensors, merge_length=self.image_processor.merge_size
         )
-        # assert (tokens.shape[..., -1] + image_token_length) < self.sequence_length, "text+image token length exceeds sequence length"
+
         labels = [IGNORE_INDEX for _ in range(len(tokens))]
         search_start_index = 0
         messages = conv.messages
@@ -468,8 +465,9 @@ class PreloadedSupervisedDataset(Dataset):
 
         if len(tokens) - 1 > self.sequence_length:
             logging.warning(
-                f"Token indices sequence length is longer than the specified maximum sequence length for this model ({len(tokens) - 1} > {self.sequence_length})."
-                " Running this sequence through the model will result in indexing errors"
+                f"Token indices sequence length is longer than the specified maximum sequence length "
+                f"for this model ({len(tokens) - 1} > {self.sequence_length}). "
+                f"Running this sequence through the model will result in indexing errors."
             )
             tokens, labels = truncate_tokens(tokens, labels, self.sequence_length, self.tokenizer)
         else:
@@ -531,10 +529,9 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
             raise ValueError(f"Formatting of {data_path} is not supported in Qwen2VL.")
 
     def collate_fn(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        ######
-        #    So far, in an instance, we get following attr from __getitem__:
-        #       tokens,pixel_values,image_grid_thw,labels
-        ######
+        """
+        Collate function to bundle multiple samples into a single batch.
+        """
         data_config = self.data_config
         # FIXME: packed_sequence is not supported yet.
         packed_sequence = "cu_seqlens" in instances[0]
@@ -627,6 +624,8 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
 
 
 class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
+    """Preloaded DataModule for Qwen2VL."""
+
     def __init__(
         self,
         paths: str | List[str],
@@ -684,13 +683,13 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
+        # pylint: disable=C0115,C0116
         assert len(self.paths) == 1, "not yet support blend dataset in Qwen 2.0!"
         if self.use_packed_sequence:
             pass  # TODO
         else:
             # TODO:
             # rng = torch.Generator().manual_seed(self.seed)
-            # train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size], generator=rng)
             self._train_ds = Qwen2VLDataset(
                 self.paths[0], self.data_config, self.tokenizer, self.image_processor, sequence_length=self.seq_length
             )
@@ -699,15 +698,19 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
             )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        # pylint: disable=C0115,C0116
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        # pylint: disable=C0115,C0116
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        # pylint: disable=C0115,C0116
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+        # pylint: disable=C0115,C0116
         self.init_global_step = self.trainer.global_step
         self.data_sampler.init_global_step = self.init_global_step
         return DataLoader(

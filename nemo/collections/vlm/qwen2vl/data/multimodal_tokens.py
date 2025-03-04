@@ -31,6 +31,8 @@ class MultiModalToken:
 
 @dataclass
 class Qwen2VLImageToken(MultiModalToken):
+    """Image Token class"""
+
     token_str: str = "<|image_pad|>"
     token_index: int = -200
     media_type: str = "image"
@@ -39,6 +41,8 @@ class Qwen2VLImageToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLVideoToken(MultiModalToken):
+    """Video Token class"""
+
     token_str: str = "<|video_pad|>"
     token_index: int = -300
     media_type: str = "video"
@@ -47,6 +51,8 @@ class Qwen2VLVideoToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLEndOfTextToken(MultiModalToken):
+    """End-Of-Text Token class"""
+
     token_str: str = "<|endoftext|>"
     token_index: int = 151643
     media_type: str = None
@@ -59,6 +65,8 @@ class Qwen2VLEndOfTextToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLObjectRefStartToken(MultiModalToken):
+    """Object-Ref-Start Token class"""
+
     token_str: str = "<|object_ref_start|>"
     token_index: int = 151646
     media_type: str = None
@@ -71,6 +79,8 @@ class Qwen2VLObjectRefStartToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLObjectRefEndToken(MultiModalToken):
+    """Object-Ref-End Token class"""
+
     token_str: str = "<|object_ref_end|>"
     token_index: int = 151647
     media_type: str = None
@@ -83,6 +93,8 @@ class Qwen2VLObjectRefEndToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLBoxStartToken(MultiModalToken):
+    """Box-Start Token class"""
+
     token_str: str = "<|box_start|>"
     token_index: int = 151648
     media_type: str = None
@@ -95,6 +107,8 @@ class Qwen2VLBoxStartToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLBoxEndToken(MultiModalToken):
+    """Box-End Token class"""
+
     token_str: str = "<|box_end|>"
     token_index: int = 151649
     media_type: str = None
@@ -107,6 +121,8 @@ class Qwen2VLBoxEndToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLQuadStartToken(MultiModalToken):
+    """Quad-Start Token class"""
+
     token_str: str = "<|quad_start|>"
     token_index: int = 151650
     media_type: str = None
@@ -119,6 +135,8 @@ class Qwen2VLQuadStartToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLQuadEndToken(MultiModalToken):
+    """Quad-End Token class"""
+
     token_str: str = "<|quad_end|>"
     token_index: int = 151651
     media_type: str = None
@@ -131,6 +149,8 @@ class Qwen2VLQuadEndToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLVisionStartToken(MultiModalToken):
+    """Vision-Start Token class"""
+
     token_str: str = "<|vision_start|>"
     token_index: int = 151652
     media_type: str = None
@@ -143,6 +163,8 @@ class Qwen2VLVisionStartToken(MultiModalToken):
 
 @dataclass
 class Qwen2VLVisionEndToken(MultiModalToken):
+    """Vision-End Token class"""
+
     token_str: str = "<|vision_end|>"
     token_index: int = 151653
     media_type: str = None

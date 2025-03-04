@@ -27,6 +27,10 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
 class Qwen2VLMockDataModule(pl.LightningDataModule):
+    """
+    A mock data module for Qwen2VL training, validation, and testing.
+    """
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -53,7 +57,7 @@ class Qwen2VLMockDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
 
-        assert tokenizer is not None and image_processor is not None, f'please assign tokenizer and image_processor'
+        assert tokenizer is not None and image_processor is not None, 'please assign tokenizer and image_processor'
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.data_sampler = MegatronDataSampler(
@@ -64,6 +68,7 @@ class Qwen2VLMockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
+        # pylint: disable=C0115,C0116
         self._train_ds = _Qwen2VLMockDataset(
             self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length
         )
@@ -75,21 +80,25 @@ class Qwen2VLMockDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        # pylint: disable=C0115,C0116
         if not hasattr(self, "_train_ds"):
             self.setup()
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        # pylint: disable=C0115,C0116
         if not hasattr(self, "_validation_ds"):
             self.setup()
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        # pylint: disable=C0115,C0116
         if not hasattr(self, "_test_ds"):
             self.setup()
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
+        # pylint: disable=C0115,C0116
         return DataLoader(
             dataset,
             num_workers=self.num_workers,

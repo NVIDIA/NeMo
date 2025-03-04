@@ -15,7 +15,6 @@
 import base64
 import dataclasses
 import re
-from collections import defaultdict
 from enum import Enum, auto
 from io import BytesIO
 from typing import Any, List, Optional, Union
@@ -51,10 +50,12 @@ class Conversation:
     skip_next: bool = False
 
     def process_prompt_with_images(self, messages):
+        # pylint: disable=C0115,C0116
         # Process messages to handle potential image tokens.
         return messages
 
     def process_chat_template(self, tokenizer_name_or_path, messages):
+        # pylint: disable=C0115,C0116
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
         if self.system is None or len(self.system) == 0:
             chat = []
@@ -66,6 +67,7 @@ class Conversation:
         return ret
 
     def get_prompt(self):
+        # pylint: disable=C0115,C0116
         messages = self.messages
 
         if self.sep_style == SeparatorStyle.QWEN2VL:
@@ -104,6 +106,7 @@ class Conversation:
 
         elif self.sep_style == SeparatorStyle.CHATML:
             # FIXME:  To be support video.
+            # pylint: disable=C0301
             """
             Input is already in CHATML format.
             <|im_start|>system
@@ -132,9 +135,11 @@ class Conversation:
         return ret
 
     def append_message(self, role, message):
+        # pylint: disable=C0115,C0116
         self.messages.append([role, message])
 
     def process_image(self, image, image_process_mode, return_pil=False, image_format="PNG"):
+        # pylint: disable=C0115,C0116
         if image_process_mode == "Pad":
 
             def expand2square(pil_img, background_color=(122, 116, 104)):
@@ -181,6 +186,7 @@ class Conversation:
             return img_b64_str
 
     def get_images(self, return_pil=False, return_path=False):
+        # pylint: disable=C0115,C0116
         images = []
         for i, (role, msg) in enumerate(self.messages[self.offset :]):
             if i % 2 == 0:
@@ -195,6 +201,7 @@ class Conversation:
         return images
 
     def to_gradio_chatbot(self):
+        # pylint: disable=C0115,C0116
         ret = []
         for i, (role, msg) in enumerate(self.messages[self.offset :]):
             if i % 2 == 0:
@@ -219,6 +226,7 @@ class Conversation:
         return ret
 
     def copy(self):
+        # pylint: disable=C0115,C0116
         return Conversation(
             system=self.system,
             roles=self.roles,
@@ -231,6 +239,7 @@ class Conversation:
         )
 
     def dict(self):
+        # pylint: disable=C0115,C0116
         if len(self.get_images()) > 0:
             return {
                 "system": self.system,

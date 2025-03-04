@@ -14,34 +14,26 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
+from typing import TYPE_CHECKING, Union
 
 import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import nn
 
 from nemo.collections.llm import Qwen2Config, Qwen2Config1P5B, Qwen2Config7B, Qwen2Config72B
-from nemo.collections.llm.utils import Config
 from nemo.collections.vlm.qwen2vl.model.base import (
     Qwen2VLConfig,
     Qwen2VLModel,
     Qwen2VLProjectorConfig,
     Qwen2VLVisionConfig,
 )
-from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning import io, teardown
 
 if TYPE_CHECKING:
-    from transformers import Qwen2VLConfig as HFQwen2VLConfig
-    from transformers import Qwen2VLForConditionalGeneration
-
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 # Note: these Qwen2VL configs are copied from the corresponding HF model. You may need to modify the parameter for
 # your own needs
-
-
 @dataclass
 class Qwen2VLConfig2B(Qwen2VLConfig):
     """Qwen2VL Config 2B"""
@@ -116,7 +108,7 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
         return output_path
 
     def convert_state(self, source, target):
-        # pylint: disable=C0115,C0116
+        # pylint: disable=C0115,C0116,C0301
         mapping = {
             "visual.patch_embed.proj.weight": "vision_model.conv1.weight",
             "visual.blocks.*.norm1.weight": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",

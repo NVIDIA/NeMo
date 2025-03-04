@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple
 
 import lightning.pytorch as L
 import torch
@@ -27,7 +27,6 @@ from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVA
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region, scatter_to_sequence_parallel_region
-from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.custom_layers.transformer_engine import TEColumnParallelLinear, TERowParallelLinear
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
@@ -40,48 +39,13 @@ from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
 from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
 from nemo.collections.vlm.layer_specs import get_layer_spec_te
+from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, get_image_sequence_length, restore_model_weights
 from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, VIDEO_TOKEN_INDEX
 from nemo.collections.vlm.qwen2vl.model.vision import Qwen2VisionModel
 from nemo.lightning import io
-from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
-
-MODEL_CONFIG_ATTR = [
-    'num_layers',
-    'hidden_size',
-    'num_attention_heads',
-    'num_query_groups',
-    'ffn_hidden_size',
-    'kv_channels',
-    'hidden_dropout',
-    'attention_dropout',
-    'fp32_residual_connection',
-    'apply_residual_connection_post_layernorm',
-    'layernorm_epsilon',
-    'layernorm_zero_centered_gamma',
-    'add_bias_linear',
-    'add_qkv_bias',
-    'gated_linear_unit',
-    'activation_func',
-    'activation_func_fp8_input_store',
-    'num_moe_experts',
-    'rotary_interleaved',
-    'window_size',
-    'normalization',
-    'qk_layernorm',
-    'test_mode',
-    'calculate_per_token_loss',
-]
-
-
-def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_token_len):
-    """Get image sequence length given image size, patch size, and class token."""
-    num_patches_per_dim_h = img_h // patch_dim
-    num_patches_per_dim_w = img_w // patch_dim
-    num_patches = num_patches_per_dim_h * num_patches_per_dim_w
-    return num_patches + (class_token_len if add_class_token else 0)
 
 
 def qwen2vl_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
@@ -120,6 +84,7 @@ def qwen2vl_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 
 def qwen2vl_forward_step(model, batch) -> torch.Tensor:
+    # pylint: disable=C0115,C0116
     forward_args = {
         "input_ids": batch["input_ids"],
         "pixel_values": batch.get("pixel_values", None),
@@ -137,6 +102,7 @@ def qwen2vl_forward_step(model, batch) -> torch.Tensor:
 
 
 def set_input_tensor(self, tensor):
+    # pylint: disable=C0115,C0116
     pass
 
 
@@ -177,6 +143,7 @@ class Qwen2VLVisionConfig(TransformerConfig, io.IOMixin):
     transformer_layer_spec: ModuleSpec = get_layer_spec_te(is_vit=True)
 
     def configure_model(self) -> "Qwen2VisionModel":
+        # pylint: disable=C0115,C0116
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = get_layer_spec_te(is_vit=True)
@@ -213,6 +180,7 @@ class Qwen2VLProjectorConfig(TransformerConfig, io.IOMixin):
     num_attention_heads: int = 8  # placeholder, NOT used!
 
     def configure_model(self):
+        # pylint: disable=C0115,C0116
         spatial_merge_size = self.spatial_merge_size
         self.ffn_hidden_size = self.input_size * (spatial_merge_size**2)
 
@@ -327,6 +295,8 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
 
 
 class MCoreQwen2VLModel(MCoreLLaVAModel):
+    """Qwen2VL Model Base Model Class"""
+
     def __init__(
         self,
         config: Qwen2VLConfig,
@@ -369,16 +339,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
             self._language_max_sequence_length = self.language_model.max_sequence_length
             self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
-            if config.language_model_from_pretrained is not None:
-                sharded_state_dict = dict(state_dict=self.language_model.sharded_state_dict(prefix="module."))
-                loaded_state_dict = dist_checkpointing.load(
-                    sharded_state_dict=sharded_state_dict,
-                    checkpoint_dir=ckpt_to_weights_subdir(config.language_model_from_pretrained, is_saving=False),
-                    validate_access_integrity=False,
-                )
-                loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
-                self.language_model.load_state_dict(loaded_state_dict)
-                logging.info(f"Restored language model weights from {config.language_model_from_pretrained}")
+            restore_model_weights(self.language_model, config.language_model_from_pretrained)
+            logging.info(f"Restored language model weights from {config.language_model_from_pretrained}")
         else:
             if config.language_model_from_pretrained is not None:
                 dist_checkpointing.load(
@@ -391,6 +353,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             self.vision_model = vision_transformer_config.configure_model()
             self.vision_projection = vision_projection_config.configure_model()
             self._drop_vision_class_token = drop_vision_class_token
+            restore_model_weights(self.vision_model, config.vision_model_from_pretrained)
+            logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
 
         self.freeze(
             freeze_language_model=config.freeze_language_model,
@@ -402,24 +366,13 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
 
-        self.vision_model_from_hf = str(self.vision_model.__class__.__module__).startswith("transformers.")
-        if self.vision_model_from_hf:
-            # img_h, img_w, patch_dim, add_class_token, class_token_len
-            self._img_seq_len = get_image_sequence_length(
-                img_h=vision_transformer_config.image_size,
-                img_w=vision_transformer_config.image_size,
-                patch_dim=vision_transformer_config.patch_size,
-                add_class_token=not drop_vision_class_token,
-                class_token_len=0 if "siglip" in vision_transformer_config.model_type else 1,
-            )
-        else:
-            self._img_seq_len = get_image_sequence_length(
-                img_h=vision_transformer_config.img_h,
-                img_w=vision_transformer_config.img_w,
-                patch_dim=vision_transformer_config.patch_dim,
-                add_class_token=not drop_vision_class_token,
-                class_token_len=vision_transformer_config.class_token_len,
-            )
+        self._img_seq_len = get_image_sequence_length(
+            img_h=vision_transformer_config.img_h,
+            img_w=vision_transformer_config.img_w,
+            patch_dim=vision_transformer_config.patch_dim,
+            add_class_token=not drop_vision_class_token,
+            class_token_len=vision_transformer_config.class_token_len,
+        )
 
     def get_rope_index(
         self,
@@ -456,8 +409,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         Args:
             input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
-                Indices of input sequence tokens in the vocabulary. Padding will be ignored by default should you provide
-                it.
+                Indices of input sequence tokens in the vocabulary. Padding will be ignored by default should
+                you provide it.
             image_grid_thw (`torch.LongTensor` of shape `(num_images, 3)`, *optional*):
                 The temporal, height and width of feature shape of each image in LLM.
             video_grid_thw (`torch.LongTensor` of shape `(num_videos, 3)`, *optional*):
@@ -590,17 +543,20 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         """Forward function of the LLaVA model.
 
         Args:
-            images (torch.Tensor): input image of shape [num_tiles, img_h, img_w]. num_tiles means the number of image tiles in this batch.
+            images (torch.Tensor): input image of shape [num_tiles, img_h, img_w].
+            num_tiles means the number of image tiles in this batch.
             input_ids (torch.Tensor): input text ids [batch, decoder_seq_len].
             position_ids (torch.Tensor): input text position ids [batch, decoder_seq_len].
-            attention_mask (torch.Tensor): Attention mask for the language model [batch, 1, combined_seq_len, combined_seq_len].
+            attention_mask (torch.Tensor): Attention mask for the language model [batch, 1, combined_seq_len,
+            combined_seq_len].
             labels (torch.Tensor): Optional target text labels [batch, combined_seq_len].
             loss_mask (torch.Tensor): Text loss mask [batch, decoder_seq_len].
             inference_params (InferenceParams): Inference-time parameters including KV cache.
             image_token_index (int): ID for input images.
 
         Returns:
-            output (torch.Tensor): Loss of shape [b, s] if labels are provided, otherwise logits of shape [b, s, vocab_size].
+            output (torch.Tensor): Loss of shape [b, s] if labels are provided,
+                otherwise logits of shape [b, s, vocab_size].
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
         use_inference_kv_cache = (
@@ -612,22 +568,15 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         image_embeddings = None
         if use_inference_kv_cache:
-            # If running inference, we can skip media token computation if they were computed already earlier for this sample.
+            # If running inference, we can skip media token computation if they were computed already earlier
+            # for this sample.
             image_embeddings = None
         elif self.add_encoder and not has_images:
             # If no images provided, use an empty image embeddings tensor.
             image_embeddings = None
         elif self.add_encoder and has_images:
-            if self.vision_model_from_hf:
-                image_embeddings = self.vision_model(pixel_values, output_hidden_states=True)
-                image_embeddings = image_embeddings[-1][
-                    self.config.vision_feature_layer
-                ]  # [num_images, img_seq_len, h_vision]
-            else:
-                pixel_values = pixel_values.to(next(self.vision_model.parameters()).dtype)
-                image_embeddings = self.vision_model(
-                    pixel_values, grid_thw=image_grid_thw
-                )  # [bs, img_seq_len, h_vision]
+            pixel_values = pixel_values.to(next(self.vision_model.parameters()).dtype)
+            image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
 
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
@@ -809,7 +758,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
                 if n_image_tokens != n_image_features:
                     raise ValueError(
-                        f"Image features and image tokens do not match: tokens: {n_image_tokens}, features {n_image_features}"
+                        f"Image features and image tokens do not match: tokens: {n_image_tokens}, "
+                        f"features {n_image_features}"
                     )
 
                 image_mask = (
@@ -831,7 +781,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
                 if n_video_tokens != n_video_features:
                     raise ValueError(
-                        f"Video features and video tokens do not match: tokens: {n_video_tokens}, features {n_video_features}"
+                        f"Video features and video tokens do not match: tokens: {n_video_tokens}, "
+                        f"features {n_video_features}"
                     )
 
                 video_mask = (
@@ -902,6 +853,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         else:
             self.language_model.set_input_tensor(input_tensor[0])
 
+    # pylint: disable=C0301
     # Copied from transformers.models.phi3.modeling_phi3.Phi3Model._update_causal_mask
     # copied and adapted from https://github.com/huggingface/transformers/blob/5523e38b553ff6c46b04d2376870fcd842feeecc/src/transformers/models/qwen2_vl/modeling_qwen2_vl.py#L1189
     def _update_causal_mask(
@@ -916,7 +868,6 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         # using_sliding_window_cache = isinstance(past_key_values, SlidingWindowCache)
 
         dtype, device = input_tensor.dtype, input_tensor.device
-        min_dtype = torch.finfo(dtype).min
         sequence_length, batch_size = input_tensor.shape[0], input_tensor.shape[1]
 
         # DynamicCache or no cache
@@ -939,9 +890,10 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         return causal_mask
 
-    @staticmethod
+    # pylint: disable=C0301
     # Copied from transformers.models.mistral.modeling_mistral.MistralModel._prepare_4d_causal_attention_mask_with_cache_position with Mistral->Qwen2VL
     # copied and adapted from https://github.com/huggingface/transformers/blob/5523e38b553ff6c46b04d2376870fcd842feeecc/src/transformers/models/qwen2_vl/modeling_qwen2_vl.py#L1266
+    @staticmethod
     def _prepare_4d_causal_attention_mask_with_cache_position(
         attention_mask: torch.Tensor,
         sequence_length: int,
@@ -957,11 +909,13 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         Args:
             attention_mask (`torch.Tensor`):
-                A 2D attention mask of shape `(batch_size, key_value_length)` or a 4D attention mask of shape `(batch_size, 1, query_length, key_value_length)`.
+                A 2D attention mask of shape `(batch_size, key_value_length)` or a 4D attention mask of shape
+                `(batch_size, 1, query_length, key_value_length)`.
             sequence_length (`int`):
                 The sequence length being processed.
             target_length (`int`):
-                The target length: when generating with static cache, the mask should be as long as the static cache, to account for the 0 padding, the part of the cache that is not filled yet.
+                The target length: when generating with static cache, the mask should be as long as the static cache,
+                to account for the 0 padding, the part of the cache that is not filled yet.
             dtype (`torch.dtype`):
                 The dtype to use for the 4D attention mask.
             device (`torch.device`):
@@ -1002,6 +956,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
 
 class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+    """Lightning Wrapper for Qwen2VL Model"""
+
     def __init__(
         self,
         config: Qwen2VLConfig,
@@ -1009,6 +965,7 @@ class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin)
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        # pylint: disable=C0115,C0116
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer

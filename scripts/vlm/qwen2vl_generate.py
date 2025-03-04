@@ -14,7 +14,7 @@
 
 """
 Example:
-  python scripts/vlm/qwen2vl_generate.py --load_from_hf
+  pip install qwen_vl_utils && python scripts/vlm/qwen2vl_generate.py --load_from_hf
 """
 
 import argparse
@@ -60,7 +60,9 @@ def main(args) -> None:
     )
 
     # Tokenize the input texts
-    # The default range for the number of visual tokens per image in the model is 4-16384. You can set min_pixels and max_pixels according to your needs, such as a token count range of 256-1280, to balance speed and memory usage.
+    # The default range for the number of visual tokens per image in the model is 4-16384. You can set min_pixels
+    # and max_pixels according to your needs, such as a token count range of 256-1280, to balance speed and memory
+    # usage.
     min_pixels = 16 * 28 * 28
     max_pixels = 64 * 28 * 28
     processor = AutoProcessor.from_pretrained(

@@ -14,17 +14,32 @@
 
 """
 Example:
+  # mock dataset:
   torchrun --nproc_per_node=8 scripts/vlm/qwen2vl_finetune.py \
   --devices=8 --tp=4 --data_type=mock
+
+  # real dataset:
+   torchrun --nproc_per_node=8 /path/to/NeMo/scripts/vlm/qwen2vl_finetune.py  \
+     --data_type=qwen2vl \
+     --data_path=/path/to/datasets/train.json \
+     --image_folder "/path/to/dataset/images" \
+     --video_folder "/path/to/dataset/video" \
+     --num_nodes 1 \
+     --log_dir "/path/to/experiments/qwen2vl_finetune" \
+     --devices=8 \
+     --tp_size 2 --pp_size 1 \
+     --gbs 32 --mbs 1 \
+     --wandb_project=qwen2vl_demo \
+     --name=qwen2vl_finetune \
+     --restore_path "/path/to/experiments/qwen2vl_checkpoint"
 """
 
 import argparse
 
 import torch
 from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.utilities.model_summary import summarize
 from megatron.core.optimizer import OptimizerConfig
-from transformers import Qwen2Tokenizer, Qwen2TokenizerFast
+from transformers import Qwen2Tokenizer
 from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageProcessor
 
 from nemo import lightning as nl
@@ -242,8 +257,8 @@ if __name__ == "__main__":
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
-    parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
-    parser.add_argument("--name", type=str, required=False, default="qwen2vl_pretrain")
+    parser.add_argument("--projector_type", type=str, required=False, default="mcore_mlp")
+    parser.add_argument("--name", type=str, required=False, default="qwen2vl_finetune")
     parser.add_argument("--peft", type=str, default='none', help="none | lora")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")

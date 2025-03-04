@@ -18,14 +18,17 @@ from nemo.collections.vlm.qwen2vl.model import Qwen2VLConfig2B, Qwen2VLConfig7B,
 
 
 def qwen2vl_2b() -> pl.LightningModule:
+    # pylint: disable=C0115,C0116
     return Qwen2VLModel(Qwen2VLConfig2B())
 
 
 def qwen2vl_7b() -> pl.LightningModule:
+    # pylint: disable=C0115,C0116
     return Qwen2VLModel(Qwen2VLConfig7B())
 
 
 def qwen2vl_72b() -> pl.LightningModule:
+    # pylint: disable=C0115,C0116
     return Qwen2VLModel(Qwen2VLConfig72B())
 
 

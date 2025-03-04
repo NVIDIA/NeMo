@@ -12,12 +12,15 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 
 
 class VisionRotaryEmbedding(torch.nn.Module):
+    # pylint: disable=C0115,C0116
+
     def __init__(self, dim: int, theta: float = 10000.0) -> None:
         super().__init__()
         inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=torch.float) / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
 
     def forward(self, seqlen: int) -> torch.Tensor:
+        # pylint: disable=C0115,C0116
         seq = torch.arange(seqlen, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
         freqs = torch.outer(seq, self.inv_freq)
         return freqs
@@ -105,6 +108,7 @@ class Qwen2VisionModel(VisionModule):
         self.decoder.set_input_tensor(input_tensor)
 
     def rot_pos_emb(self, grid_thw):
+        # pylint: disable=C0115,C0116
         pos_ids = []
         for t, h, w in grid_thw:
             hpos_ids = torch.arange(h).unsqueeze(1).expand(-1, w)
@@ -134,6 +138,7 @@ class Qwen2VisionModel(VisionModule):
         return rotary_pos_emb
 
     def get_packed_seq_params(self, grid_thw):
+        # pylint: disable=C0115,C0116
         from megatron.core.packed_seq_params import PackedSeqParams
 
         cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
@@ -160,16 +165,18 @@ class Qwen2VisionModel(VisionModule):
     def forward(
         self, x: torch.Tensor, grid_thw: torch.Tensor, attention_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        """Forward function of the CLIP ViT Model. This function passes the input tensors
+        """Forward function of the Qwen2 Vision Model. This function passes the input tensors
         through the embedding layer and then the transformer.
 
         Args:
             x (torch.Tensor): input data of shape [batch, img_h, img_w]
+            grid_thw (torch.Tensor): The temporal, height and width of feature shape of each image/frame.
             attention_mask (torch.Tensor with dtype=bool): Attention mask to use.
 
         Returns:
-            x (torch.Tensor): output after final transformer block of shape [b, s, h].
+            x (torch.Tensor): output after final transformer block.
         """
+        # pylint: disable=C0301
         x = x.view(-1, self.in_channels, self.temporal_patch_size, self.patch_dim, self.patch_dim)
         x = self.conv1(x).view(-1, self.visual_hidden_size)  # [seqlen, hidden_size]
         # add batch dim
@@ -181,8 +188,7 @@ class Qwen2VisionModel(VisionModule):
         rotary_pos_emb = rotary_pos_emb[:, None, None, :]
 
         packed_seq_params = self.get_packed_seq_params(grid_thw)
-        #  patch_size, hidden_size = x.shape
         x = self.decoder(x, attention_mask, rotary_pos_emb=rotary_pos_emb, packed_seq_params=packed_seq_params)
-        # patch_size, hidden_size = x.shape
+
         x = x.squeeze(1).view(-1, self.merge_hidden_size)
         return x

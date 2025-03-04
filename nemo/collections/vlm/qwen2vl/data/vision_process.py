@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from __future__ import annotations
 
 import base64
@@ -33,7 +47,8 @@ FPS = 2.0
 FPS_MIN_FRAMES = 4
 FPS_MAX_FRAMES = 768
 
-
+# pylint: disable=C0301
+# copied and adapted from https://github.com/QwenLM/Qwen2.5-VL/blob/main/qwen-vl-utils/src/qwen_vl_utils/vision_process.py
 def round_by_factor(number: int, factor: int) -> int:
     """Returns the closest integer to 'number' that is divisible by 'factor'."""
     return round(number / factor) * factor
@@ -81,6 +96,7 @@ def smart_resize(
 def fetch_image(
     ele: dict[str, str | Image.Image], size_factor: int = IMAGE_FACTOR, image_folder: str | None = None
 ) -> Image.Image:
+    # pylint: disable=C0115,C0116
     if "image" in ele:
         image = ele["image"]
     else:
@@ -107,7 +123,7 @@ def fetch_image(
     if image_obj is None:
         raise ValueError(f"Unrecognized image input, support local path, http url, base64 and PIL.Image, got {image}")
     image = image_obj.convert("RGB")
-    ## resize
+    # resize
     if "resized_height" in ele and "resized_width" in ele:
         resized_height, resized_width = smart_resize(
             ele["resized_height"],
@@ -220,6 +236,7 @@ def _read_video_torchvision(
 
 
 def is_decord_available() -> bool:
+    # pylint: disable=C0115,C0116
     import importlib.util
 
     return importlib.util.find_spec("decord") is not None
@@ -266,6 +283,7 @@ FORCE_QWENVL_VIDEO_READER = os.getenv("FORCE_QWENVL_VIDEO_READER", None)
 
 @lru_cache(maxsize=1)
 def get_video_reader_backend() -> str:
+    # pylint: disable=C0115,C0116
     if FORCE_QWENVL_VIDEO_READER is not None:
         video_reader_backend = FORCE_QWENVL_VIDEO_READER
     elif is_decord_available():
@@ -279,6 +297,7 @@ def get_video_reader_backend() -> str:
 def fetch_video(
     ele: dict, image_factor: int = IMAGE_FACTOR, video_folder: str | None = None
 ) -> torch.Tensor | list[Image.Image]:
+    # pylint: disable=C0115,C0116
     if isinstance(ele["video"], str):
         ele = ele.copy()  # Create a copy to avoid modifying the original dict
         ele["video"] = _process_video_path(ele["video"], video_folder)
@@ -327,6 +346,7 @@ def fetch_video(
 
 
 def extract_vision_info(conversations: list[dict] | list[list[dict]]) -> list[dict]:
+    # pylint: disable=C0115,C0116
     vision_infos = []
     images = conversations.get("images", [])
     for image in images:
@@ -343,8 +363,9 @@ def process_vision_info(
     image_folder: str | None = None,
     video_folder: str | None = None,
 ) -> tuple[list[Image.Image] | None, list[torch.Tensor | list[Image.Image]] | None]:
+    # pylint: disable=C0115,C0116
     vision_infos = extract_vision_info(conversations)
-    ## Read images or videos
+    # Read images or videos
     image_inputs = []
     video_inputs = []
     for vision_info in vision_infos:
