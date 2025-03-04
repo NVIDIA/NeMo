@@ -55,8 +55,9 @@ jobs:
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in $COLLCTIONS;
+          for collection in $COLLCTIONS; do
             python tests/core_ptl/check_imports.py --domain "$collection"
+          done
 
   test-installs-linux:
     name: ${{ matrix.os }}-${{ matrix.image }}-${{ matrix.installer }}
