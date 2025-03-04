@@ -13,8 +13,8 @@ matplotlib>=3.3.2
 megatron_core
 nltk>=3.6.5
 numpy
-nvidia-resiliency-ext; sys_platform != "darwin"
 nvidia-modelopt[torch]==0.23.2 ; platform_system != 'Darwin'
+nvidia-resiliency-ext; sys_platform != "darwin"
 opencc
 pangu
 prettytable
