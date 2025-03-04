@@ -68,7 +68,7 @@ jobs:
 
       - name: Install Python
         run: |
-          apt-get update && apt-get install -y python3-pip jq git
+          apt-get update && apt-get install -y python3-pip jq git python-is-python3
 
       - name: Install NeMo
         env:
