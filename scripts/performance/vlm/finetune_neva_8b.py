@@ -75,6 +75,7 @@ def override_recipe_configs(
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
+
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "neva_llama3", "8b", args)
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _ = kwargs
 
