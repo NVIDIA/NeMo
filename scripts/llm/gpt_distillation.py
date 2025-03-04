@@ -16,11 +16,13 @@ import os
 from argparse import ArgumentParser
 
 from lightning.pytorch.loggers import TensorBoardLogger
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm import distillation as distill
+from nemo.collections.llm import distillation
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
@@ -50,12 +52,14 @@ def get_args():
     parser.add_argument("--split", type=str, default="99,1,0", help="""Train,Val,Test ratios to split data""")
     parser.add_argument("--index_mapping_dir", type=str, default=None, help="""Folder to write cached data indices""")
     parser.add_argument("--seq_length", type=int, required=True, help="""Number of tokens per input sample""")
+    parser.add_argument("--tokenizer", type=str, default=None, help="""Name of tokenizer model to override default""")
     parser.add_argument("--lr", type=float, default=3e-5, help="""Base LR for Cosine-Annealing scheduler""")
     parser.add_argument("--min_lr", type=float, default=2e-7, help="""Minimum LR for Cosine-Annealing scheduler""")
     parser.add_argument("--warmup_steps", type=int, default=50, help="""Number of scheduler warmup steps""")
     parser.add_argument("--val_check_interval", type=int, default=100, help="""Validate + checkpoint every _ steps""")
     parser.add_argument("--limit_val_batches", type=int, default=32, help="""Number of batches per validation stage""")
     parser.add_argument("--log_interval", type=int, default=10, help="""Write to log every _ steps""")
+    parser.add_argument("--legacy_ckpt", action="store_true", help="""Load ckpt saved with TE < 1.14""")
 
     return parser.parse_args()
 
@@ -69,6 +73,7 @@ if __name__ == "__main__":
         pipeline_model_parallel_size=args.pp_size,
         context_parallel_size=args.cp_size,
         sequence_parallel=(args.tp_size > 1),
+        ckpt_load_strictness=StrictHandling.LOG_ALL if args.legacy_ckpt else None,
     )
     trainer = nl.Trainer(
         devices=args.devices,
@@ -85,15 +90,19 @@ if __name__ == "__main__":
     ## Load both models and combine into an aggregate module
     _student_model = nl.io.load_context(path=ckpt_to_context_subdir(args.student_path), subpath="model")
     _teacher_model = nl.io.load_context(path=ckpt_to_context_subdir(args.teacher_path), subpath="model")
+    assert isinstance(_student_model, llm.GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+    assert isinstance(_teacher_model, llm.GPTModel), "Only models based on `llm.GPTModel` are supported currently."
 
-    tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
-    assert tokenizer is not None, "Please provide a model checkpoint with tokenizer included."
+    if args.tokenizer is None:
+        tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
+        assert tokenizer is not None, "Both models missing tokenizers. Please provide a tokenizer separately."
+    else:
+        tokenizer = get_tokenizer(args.tokenizer)
 
-    model = distill.DistillationGPTModel(
+    model = distillation.DistillationGPTModel(
         _student_model.config,
         _teacher_model.config,
         teacher_ckpt_path=args.teacher_path,
-        tokenizer=tokenizer,
     )
     # TODO(aanoosheh): Replace spec with modelopt one
     model.__io__ = _student_model.__io__  # HACK: model saves and restores as original class
@@ -106,11 +115,10 @@ if __name__ == "__main__":
         micro_batch_size=args.mbs,
         split=args.split,
         index_mapping_dir=args.index_mapping_dir,
-        tokenizer=tokenizer,
     )
 
     ## Set up optimizer
-    opt_config = OptimizerConfig(
+    optim_config = OptimizerConfig(
         optimizer="adam",
         lr=args.lr,
         bf16=("bf16" in args.precision),
@@ -122,7 +130,7 @@ if __name__ == "__main__":
         constant_steps=0,
         min_lr=args.min_lr,
     )
-    opt = nl.MegatronOptimizerModule(opt_config, sched)
+    optim = nl.MegatronOptimizerModule(optim_config, sched)
 
     # Set up checkpointing and logging
     checkpoint_callback = ModelCheckpoint(
@@ -149,8 +157,8 @@ if __name__ == "__main__":
     llm.train(
         model=model,
         data=data,
-        optim=opt,
-        tokenizer="model",
+        optim=optim,
+        tokenizer=tokenizer,
         trainer=trainer,
         log=logger,
         resume=resume,

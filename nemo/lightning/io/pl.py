@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Generic, Optional, TypeVar, Union
@@ -39,14 +39,12 @@ from typing_extensions import Self, override
 from nemo.lightning.ckpt_utils import WEIGHTS_PATH, ckpt_to_dir
 from nemo.lightning.io.capture import IOProtocol
 from nemo.lightning.io.mixin import IOMixin
+from nemo.utils import logging
 
 try:
     from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 except ImportError:
     AsyncCompatibleCheckpointIO = CheckpointIO
-
-
-log = logging.getLogger(__name__)
 
 
 LightningModuleT = TypeVar("LightningModuleT", bound=pl.LightningModule)
@@ -197,13 +195,35 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True
 
-        return dist_checkpointing.save(
+        rank = torch.distributed.get_rank()
+        iteration = _get_iteration_from_checkpoint(checkpoint)
+        start_time = time.time()
+        async_save_request = dist_checkpointing.save(
             sharded_state_dict=checkpoint,
             checkpoint_dir=checkpoint_dir,
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
         )
+        end_time = time.time()
+        log_parts = (
+            "Global Checkpoint Save",
+            f"Rank: {rank}",
+            f"Iteration: {iteration}" if iteration is not None else None,
+            f"Start time: {start_time:.3f}s",
+            f"Save duration: {end_time - start_time:.3f}s",
+        )
+        log_message = " : ".join(part for part in log_parts if part is not None)
+        logging.info(log_message)
+
+        def iter_finalize_fn():
+            logging.info(f'Successfully saved checkpoint from iteration {int(iteration):7d} to {path}')
+
+        if self.async_save:
+            assert async_save_request is not None
+            async_save_request.add_finalize_fn(iter_finalize_fn)
+
+        return async_save_request
 
     @override
     def load_checkpoint(
@@ -272,6 +292,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             # Default behavior
             strict = StrictHandling.ASSUME_OK_UNEXPECTED
 
+        start_time = time.time()
         checkpoint = dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
             checkpoint_dir=str(path),
@@ -279,7 +300,14 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             strict=strict,
         )
         checkpoint = _fix_tensors_device(checkpoint)
-
+        end_time = time.time()
+        duration = end_time - start_time
+        logging.info(
+            "Global Checkpoint Load : "
+            f"Rank : {torch.distributed.get_rank()} : "
+            f"Start time : {start_time:.3f}s : "
+            f"Time spent in load_checkpoint: {duration:.3f}s"
+        )
         return checkpoint
 
     @override
@@ -293,7 +321,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         fs = get_filesystem(path)
         if fs.exists(path):
             fs.rm(path, recursive=True)
-            log.debug(f"Removed checkpoint: {path}")
+            logging.debug(f"Removed checkpoint: {path}")
 
     def _determine_dist_ckpt_save_strategy(self):
         """Determine the saving strategy based on constructor args.
@@ -400,107 +428,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         return sharded_state_dict
 
 
-class HuggingFaceCheckpointIO(CheckpointIO, IOMixin):
-    """CheckpointIO that utilizes :func:`torch.save` and :func:`torch.load` to save and load checkpoints respectively,
-    common for most use cases.
-
-    .. warning::  This is an :ref:`experimental <versioning:Experimental API>` feature.
-
-    """
-
-    def __init__(self, lora=False):
-        super().__init__()
-        self.lora = lora
-
-    @override
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
-        """Save model/training states as a checkpoint file through state-dump and file-write.
-
-        Args:
-            checkpoint: dict containing model and trainer state
-            path: write-target path
-            storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
-
-        Raises
-        ------
-            TypeError:
-                If ``storage_options`` arg is passed in
-
-        """
-        if self.lora:
-            from safetensors.torch import save_file
-
-            state_dict = {}
-            module_names = list(checkpoint["state_dict"].keys())
-            for name in module_names:
-                param = checkpoint["state_dict"].pop(name)
-                name = (
-                    name.replace("model.model", "base_model.model")
-                    .replace("lora_a.weight", "lora_A.weight")
-                    .replace("lora_b.weight", "lora_B.weight")
-                )
-                state_dict[name] = param
-
-            checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
-            fs = get_filesystem(checkpoint_dir)
-            fs.makedirs(checkpoint_dir, exist_ok=True)
-            save_file(state_dict, checkpoint_dir / "adapter_model.safetensors")
-
-    @override
-    def load_checkpoint(
-        self,
-        path: _PATH,
-        sharded_state_dict=None,
-        map_location: Optional[Callable] = None,
-        strict: Optional['StrictHandling'] | bool = None,  # noqa: F821
-    ) -> Dict[str, Any]:
-        """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
-
-        Args:
-            path: Path to checkpoint
-            map_location: a function, :class:`torch.device`, string or a dict specifying how to remap storage
-                locations.
-
-        Returns: The loaded checkpoint.
-
-        Raises
-        ------
-            FileNotFoundError: If ``path`` is not found by the ``fsspec`` filesystem
-
-        """
-
-        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
-        fs = get_filesystem(path)
-        if not fs.exists(path):
-            raise FileNotFoundError(f"Checkpoint file not found: {path}")
-        if not fs.isdir(path):
-            raise ValueError(f"Checkpoints should be a directory. Found: {path}.")
-
-        state_dict = None
-        if (path / "adaptor_config.json").exists():
-            from safetensors import safe_open
-
-            state_dict = {}
-            with safe_open("adapter_model.safetensors", framework="pt", device=0) as f:
-                for k in f.keys():
-                    state_dict[k] = f.get_tensor(k)
-
-        return {'state_dict': state_dict}
-
-    @override
-    def remove_checkpoint(self, path: _PATH) -> None:
-        """Remove checkpoint file from the filesystem.
-
-        Args:
-            path: Path to checkpoint
-
-        """
-        fs = get_filesystem(path)
-        if fs.exists(path):
-            fs.rm(path, recursive=True)
-            log.debug(f"Removed checkpoint: {path}")
-
-
 def _fix_tensors_device(ckpt: Dict) -> Dict:
     """Ensure checkpoint tensors are on the correct device."""
     assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
@@ -534,3 +461,13 @@ def is_distributed_ckpt(path) -> bool:
     checkpoint_dir = ckpt_to_dir(path)
     fs = get_filesystem(checkpoint_dir)
     return fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir)
+
+
+def _get_iteration_from_checkpoint(checkpoint: Dict[str, Any]) -> Optional[int]:
+    return (
+        checkpoint.get("loops", {})
+        .get("fit_loop", {})
+        .get("epoch_loop.batch_progress", {})
+        .get("total", {})
+        .get("completed", None)
+    )
