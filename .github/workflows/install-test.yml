@@ -68,7 +68,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         image: ["22.04"]
-        installer: ["pip", "reinstall.sh"]
+        installer: ["pip-install", "nemo-install"]
     env:
       collections: '("asr" "tts", "nlp")'
     steps:
@@ -83,7 +83,7 @@ jobs:
         env:
           INSTALLER: ${{ matrix.installer }}
         run: |
-          if [ "$INSTALLER" = "pip" ]; then
+          if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip
             pip install ".[all]"
           else
@@ -92,7 +92,7 @@ jobs:
           fi
 
       - name: Run LLM example
-        if: ${{ matrix.installer != 'pip' }}
+        if: ${{ matrix.installer == 'nemo-install' }}
         run: |
           pip install jupyter nbconvert
           jupyter nbconvert --to script examples/llm/pretrain/pretrain.ipynb
