@@ -104,9 +104,8 @@ def main(args):
     }
     conf = model_configs[model_id]()
     if args.use_toy_model:
-        conf.language_model_config.num_layers = 2
-    if args.pp_size > 1:
-        conf.language_model_config.first_pipeline_num_layers = 0
+        conf.language_model_config.num_layers = 4
+
     model = vlm.MLlamaModel(conf, tokenizer=tokenizer)
 
     # Training strategy setup
