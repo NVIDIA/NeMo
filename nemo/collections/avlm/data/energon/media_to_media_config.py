@@ -70,9 +70,12 @@ class MediaToMediaSample:
     labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     audios: Optional[torch.tensor] = None
+    audio_lengths: Optional[torch.tensor] = None
     videos: Optional[torch.tensor] = None
+    video_lengths: Optional[torch.tensor] = None
+    num_video_tiles: Optional[torch.tensor] = None
     images: Optional[torch.tensor] = None
-    num_media_tiles: Optional[int] = None
+    num_image_tiles: Optional[int] = None
     image_sizes: Optional[torch.tensor] = None
     attention_mask: Optional[torch.tensor] = None
 
@@ -92,9 +95,12 @@ class MediaToMediaRawBatch:
     labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
     audios: Optional[torch.tensor] = None
+    audio_lengths: Optional[torch.tensor] = None
     videos: Optional[torch.tensor] = None
+    video_lengths: Optional[torch.tensor] = None
+    num_video_tiles: Optional[torch.tensor] = None
     images: Optional[torch.tensor] = None
-    num_media_tiles: Optional[int] = None
+    num_image_tiles: Optional[int] = None
     image_sizes: Optional[torch.tensor] = None
     attention_mask: Optional[torch.tensor] = None
     

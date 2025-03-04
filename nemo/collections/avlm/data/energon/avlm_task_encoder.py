@@ -26,13 +26,12 @@ from nemo.collections.avlm.data.energon.media_to_text_config import (
     MediaToMediaSampleConfig,
 )
 
-from nemo.collections.vlm.llava_next.data.energon import LlavaNextSampleEncoder
-from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder
+from nemo.collections.multimodal.data.energon.sample_encoder import BaseSampleEncoder
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.utils import logging
 
 
-class MediaToMediaSampleEncoder(LlavaNextSampleEncoder):
+class AVLMSampleEncoder(BaseSampleEncoder):
     """LlavaNextSampleEncoder"""
 
     def __init__(self, tokenizer, audio_processor, image_processor, multimodal_sample_config=MediaToMediaSampleConfig()):
@@ -66,8 +65,24 @@ class MediaToMediaSampleEncoder(LlavaNextSampleEncoder):
         #TODO
         return None
 
+    def process_image(self, image):
+        """
+        Process and prepare an image sample for encoding.
+
+        This method preprocesses the image using the HF image_processor, converting it to
+        a tensor.
+
+        Parameters:
+        image (torch.Tensor): A tensor representing the input image with dimensions (channels, height, width).
+
+        Returns:
+        torch.Tensor: The processed image tensor.
+        """
+        return self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
+        
+
     @stateless
-    def encode_sample(self, sample: MediaToMediaEnergonSample) -> ImageTextSample:
+    def encode_sample(self, sample: MediaToMediaEnergonSample) -> MediaToMediaSample:
         """
         Encode an individual sample based on its type.
 
@@ -127,7 +142,7 @@ class MediaToMediaSampleEncoder(LlavaNextSampleEncoder):
         output_sample.labels = labels
         output_sample.loss_mask = loss_mask
         if output_sample.images is not None:
-            output_sample.num_media_tiles = output_sample.images.shape[0]
+            output_sample.num_image_tiles = output_sample.images.shape[0]
             output_sample.attention_mask = torch.ones(len(tokens), dtype=torch.long)
             height = input_sample.images.shape[1]
             width = input_sample.images.shape[2]
@@ -135,7 +150,7 @@ class MediaToMediaSampleEncoder(LlavaNextSampleEncoder):
         return output_sample
 
 
-class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
+class AVLMTaskEncoder(MultiModalTaskEncoder):
     """MeidaToTextTaskEncoder"""
 
     def __init__(self, tokenizer, audio_processor, image_processor, media_to_text_sample_config):
@@ -173,8 +188,27 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
         Returns:
         MediaToMediaRawBatch: A batch containing all input samples' images, tokens, labels,
             loss masks, and other metadata prepared for model processing.
+            __key__: str = ''
+            tokens: 
+            labels: 
+            loss_mask: 
+            audios: [total_audio_length_in_a_batch x channels]
+            audio_lengths: [audio_length_of_each_audio_in_a_batch x 1]
+            videos: [total_image_tiles_in_a_batch x frames x channels x tile_height x tile_width]
+            video_lengths: [num_of_frames_of_each_video_in_a_batch x 1]
+            num_video_tiles: [num_of_tiles_of_each_video_frame_in_a_batch x 1]
+            images: [total_image_tiles_in_a_batch x channels x tile_height x tile_width]
+            num_image_tiles: [num_of_tiles_of_each_image_in_a_batch x 1]
+            image_sizes: [total_images_in_a_batch x 2]
+            attention_mask: Optional[torch.tensor] = None
         """
-        keys, audios, videos, images, tokens, labels, loss_mask, num_media_tiles, image_sizes, attention_mask = (
+        keys, tokens, labels, loss_mask, \
+            audios, audio_lengths, \
+            videos, video_lengths, num_video_tiles \
+            images, num_image_tiles, image_sizes, attention_mask = (
+            [],
+            [],
+            [],
             [],
             [],
             [],
@@ -192,12 +226,21 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
             loss_mask.append(sample.loss_mask)
             if sample.audios is not None:
                 audios.append(sample.audios)
+            if sample.audio_lengths is not None:
+                audio_lengths.append(sample.audio_lengths)
             if sample.videos is not None:
                 videos.append(sample.videos)
+            if sample.video_lengths is not None:
+                video_lengths.append(sample.video_lengths)
+            if sample.num_video_tiles is not None:
+                num_video_tiles.append(sample.num_video_tiles)
             if sample.images is not None:
                 images.append(sample.images)
-                num_media_tiles.append(sample.num_media_tiles)
+            if sample.num_image_tiles is not None:
+                num_image_tiles.append(sample.num_image_tiles)
+            if sample.image_sizes is not None:
                 image_sizes.append(sample.image_sizes)
+            if sample.attention_mask is not None:
                 attention_mask.append(sample.attention_mask)
 
         rawBatch = MediaToMediaRawBatch()
@@ -207,13 +250,22 @@ class MeidaToTextTaskEncoder(MultiModalTaskEncoder):
         rawBatch.loss_mask = batch_pad_stack(loss_mask)
 
         if audios:
-            rawBatch.audios = torch.cat(audios, dim=0)
+            rawBatch.audios = torch.cat(audios)
+        if audio_lengths
+            rawBatch.audio_lengths = torch.tensor(batch_list(audio_lengths), dtype=torch.int)
         if videos:
-            rawBatch.videos = torch.cat(videos, dim=0)
+            rawBatch.videos = torch.cat(videos)
+        if video_lengths:
+            rawBatch.video_lengths = torch.tensor(batch_list(video_lengths), dtype=torch.int)
+        if num_video_tiles:
+            rawBatch.num_video_tiles = torch.tensor(batch_list(num_video_tiles), dtype=torch.int)
         if images:
-            rawBatch.images = torch.cat(images, dim=0)
-            rawBatch.image_sizes = torch.cat(image_sizes, dim=0)
-            rawBatch.attention_mask = batch_pad_stack(attention_mask)
-            rawBatch.num_media_tiles = torch.tensor(batch_list(num_media_tiles), dtype=torch.int)
+            rawBatch.images = torch.cat(images)
+        if num_image_tiles:
+            rawBatch.num_image_tiles = torch.tensor(batch_list(num_image_tiles), dtype=torch.int)
+        if image_sizes:
+            rawBatch.image_sizes = torch.cat(image_sizes)
+        if attention_mask:
+            rawBatch.attention_mask = batch_pad_stack(attention_mask)            
         
         return rawBatch
