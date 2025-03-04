@@ -47,6 +47,7 @@ FPS = 2.0
 FPS_MIN_FRAMES = 4
 FPS_MAX_FRAMES = 768
 
+
 # pylint: disable=C0301
 # copied and adapted from https://github.com/QwenLM/Qwen2.5-VL/blob/main/qwen-vl-utils/src/qwen_vl_utils/vision_process.py
 def round_by_factor(number: int, factor: int) -> int:

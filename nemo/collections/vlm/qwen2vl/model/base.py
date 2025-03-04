@@ -665,7 +665,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 if padded_seq_len != 0:
                     language_embeddings = language_embeddings[:-padded_seq_len]
 
-            language_embeddings = language_embeddings.transpose(1, 0).contiguous() # [b, decoder_seq_len, h_language]
+            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, decoder_seq_len, h_language]
 
         # Preprocess input, labels and loss mask.
         combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
