@@ -136,9 +136,10 @@ def _setup_trainer_and_restore_model(
     modelopt_state_path = Path(f"{path}/weights/modelopt_state")
     if modelopt_state_path.exists():
         from nemo.collections import llm
+        from nemo.collections.llm.modelopt import set_gpt_modelopt_spec
 
         if isinstance(model, llm.GPTModel):
-            llm.set_gpt_modelopt_spec(model.config)
+            set_gpt_modelopt_spec(model.config)
         else:
             logging.warning(f"{type(model)} is not a GPTModel. Modelopt state will not be loaded.")
 

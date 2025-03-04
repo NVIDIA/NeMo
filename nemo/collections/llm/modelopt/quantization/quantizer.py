@@ -158,7 +158,10 @@ class Quantizer:
         logging.info(f"Sample generation after PTQ (with prompts): {outputs}")
 
     def quantize(self, model: "MegatronParallel", forward_loop=None):
-        """Quantize the model and calibrate using given forward loop."""
+        """Quantize the model and calibrate using given forward loop.
+
+        If forward_loop is not provided, a forward loop will be created using the calibration dataset.
+        """
         if forward_loop is None:
             get_dataloader = create_data_iterator_getter(
                 model,

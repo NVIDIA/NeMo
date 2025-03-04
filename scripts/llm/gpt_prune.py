@@ -69,6 +69,7 @@ from megatron.core import dist_checkpointing
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.modelopt import setup_trainer_and_restore_model_with_modelopt_spec
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.utils import logging
@@ -138,7 +139,7 @@ def save_pruned_model(model: llm.GPTModel, trainer: nl.Trainer, save_path: str):
 
 def main(args):
     """Main function for pruning Llama model."""
-    model, trainer = llm.setup_trainer_and_restore_model_with_modelopt_spec(
+    model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
         args.restore_path,
         args.tp_size,
         args.pp_size,

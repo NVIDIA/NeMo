@@ -14,8 +14,12 @@
 
 import argparse
 
-from nemo.collections import llm
-from nemo.collections.llm import quantization
+from nemo.collections.llm.modelopt import (
+    ExportConfig,
+    QuantizationConfig,
+    Quantizer,
+    setup_trainer_and_restore_model_with_modelopt_spec,
+)
 
 
 def get_args():
@@ -108,7 +112,7 @@ def main():
     """Example NeMo 2.0 Post Training Quantization workflow"""
     args = get_args()
 
-    quantization_config = quantization.QuantizationConfig(
+    quantization_config = QuantizationConfig(
         algorithm=None if args.algorithm == "no_quant" else args.algorithm,
         awq_block_size=args.awq_block_size,
         sq_alpha=args.sq_alpha,
@@ -118,7 +122,7 @@ def main():
         calibration_batch_size=args.batch_size,
         calibration_seq_len=args.seq_len,
     )
-    export_config = quantization.ExportConfig(
+    export_config = ExportConfig(
         export_format=args.export_format,
         path=args.export_path,
         decoder_type=args.decoder_type,
@@ -127,9 +131,9 @@ def main():
         dtype=args.dtype,
         generate_sample=args.generate_sample,
     )
-    quantizer = quantization.Quantizer(quantization_config, export_config)
+    quantizer = Quantizer(quantization_config, export_config)
 
-    model, trainer = llm.setup_trainer_and_restore_model_with_modelopt_spec(
+    model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
         args.nemo_checkpoint,
         args.calibration_tp,
         args.calibration_pp,

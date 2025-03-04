@@ -13,6 +13,6 @@
 # limitations under the License.
 """Model optimization utilities for using TensorRT Model Optimizer."""
 
-from .model_utils import set_gpt_modelopt_spec, setup_trainer_and_restore_model_with_modelopt_spec
-
-__all__ = ["set_gpt_modelopt_spec", "setup_trainer_and_restore_model_with_modelopt_spec"]
+from .distillation import *
+from .model_utils import *
+from .quantization import *

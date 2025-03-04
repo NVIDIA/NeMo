@@ -14,10 +14,4 @@
 
 from .quantizer import ExportConfig, QuantizationConfig, Quantizer, create_data_iterator_getter, get_calib_data_iter
 
-__all__ = [
-    "Quantizer",
-    "QuantizationConfig",
-    "ExportConfig",
-    "get_calib_data_iter",
-    "create_data_iterator_getter",
-]
+__all__ = ["ExportConfig", "QuantizationConfig", "Quantizer", "create_data_iterator_getter", "get_calib_data_iter"]

@@ -150,11 +150,6 @@ from nemo.collections.llm.gpt.model import (  # noqa: F401
     gpt_data_step,
     gpt_forward_step,
 )
-from nemo.collections.llm.modelopt import (  # noqa: F401
-    set_gpt_modelopt_spec,
-    setup_trainer_and_restore_model_with_modelopt_spec,
-)
-from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter  # noqa: F401
 from nemo.collections.llm.t5.data import FineTuningDataModule as T5FineTuningDataModule
 from nemo.collections.llm.t5.data import MockDataModule as T5MockDataModule
 from nemo.collections.llm.t5.data import PreTrainingDataModule as T5PreTrainingDataModule

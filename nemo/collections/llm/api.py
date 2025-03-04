@@ -21,17 +21,20 @@ import lightning.pytorch as pl
 import nemo_run as run
 import torch
 from megatron.core import parallel_state
-from megatron.core.dist_checkpointing.validation import StrictHandling
 from rich.console import Console
 from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
-from nemo.collections import llm
-from nemo.collections.llm.distillation import DistillationGPTModel
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
 from nemo.collections.llm.gpt.model import GPTModel
-from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig, Quantizer
+from nemo.collections.llm.modelopt import (
+    DistillationGPTModel,
+    ExportConfig,
+    QuantizationConfig,
+    Quantizer,
+    setup_trainer_and_restore_model_with_modelopt_spec,
+)
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
@@ -352,7 +355,11 @@ def ptq(
     export_config: ExportConfig,
     calibration_tp: int = 1,
     calibration_pp: int = 1,
+    devices: int | None = None,
+    num_nodes: int | None = None,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
+    forward_loop: Callable | None = None,
+    tokenizer_path: str | None = None,
     legacy_ckpt: bool = False,
 ) -> Path:
     """
@@ -385,8 +392,13 @@ def ptq(
         nemo_checkpoint (str): The path to model to be quantized.
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
-        quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for output checkpoint.
+        devices (int): Number of devices to use for calibration. Default: calibration_tp.
+        num_nodes (int): Number of nodes to use for calibration. Default: calibration_pp.
+        quantization_config (QuantizationConfig): Configuration for quantization algorithm.
+        forward_loop (Callable): Forward loop to use for calibration.
+            If not provided, a forward loop will be created using the calibration dataset.
+        tokenizer_path (str): Path to the tokenizer if not using model's tokenizer.
         legacy_ckpt (bool): If True, allow loading ckpt saved with older version of TE.
 
     Returns:
@@ -394,26 +406,31 @@ def ptq(
     """
     if not quantization_config:
         quantization_config = QuantizationConfig()
+    if devices is None:
+        devices = calibration_tp
+    if num_nodes is None:
+        num_nodes = calibration_pp
 
     if export_config.path is None:
         raise ValueError("The export_config.path needs to be specified, got None.")
 
     quantizer = Quantizer(quantization_config, export_config)
 
-    model, trainer = llm.setup_trainer_and_restore_model_with_modelopt_spec(
+    model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
         nemo_checkpoint,
         calibration_tp,
         calibration_pp,
-        devices=calibration_tp,
-        num_nodes=calibration_pp,
+        devices=devices,
+        num_nodes=num_nodes,
         inference_only=True,
+        tokenizer_path=tokenizer_path,
         legacy_ckpt=legacy_ckpt,
         strategy_kwargs={"sequence_parallel": False, "lazy_init": True},
         trainer_kwargs={},
         model_config_overrides={"sequence_parallel": False},
     )
 
-    model = quantizer.quantize(model)
+    model = quantizer.quantize(model, forward_loop)
 
     quantizer.export(model, nemo_checkpoint, trainer)
 

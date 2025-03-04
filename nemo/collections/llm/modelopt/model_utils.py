@@ -23,6 +23,8 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
 
+__all__ = ["set_gpt_modelopt_spec", "setup_trainer_and_restore_model_with_modelopt_spec"]
+
 
 def set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     """Modify model spec for TensorRT-Model-Optimizer optimizations."""

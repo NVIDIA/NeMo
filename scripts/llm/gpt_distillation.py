@@ -21,7 +21,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm import distillation
+from nemo.collections.llm.modelopt import DistillationGPTModel
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     else:
         tokenizer = get_tokenizer(args.tokenizer)
 
-    model = distillation.DistillationGPTModel(
+    model = DistillationGPTModel(
         _student_model.config,
         _teacher_model.config,
         teacher_ckpt_path=args.teacher_path,
