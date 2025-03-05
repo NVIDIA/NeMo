@@ -106,6 +106,11 @@ def get_args():
     )
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
     parser.add_argument(
+        "--use_mcore_path",
+        action="store_true",
+        help="Use Megatron-Core implementation on exporting the model. If not set, use local NeMo codebase",
+    )
+    parser.add_argument(
         "-fp8",
         "--export_fp8_quantized",
         default="auto",
@@ -172,6 +177,7 @@ def nemo_export_trt_llm():
         fp8_quantized=args.export_fp8_quantized,
         fp8_kvcache=args.use_fp8_kv_cache,
         load_model=False,
+        use_mcore_path=args.use_mcore_path,
     )
 
     LOGGER.info("Export is successful.")
