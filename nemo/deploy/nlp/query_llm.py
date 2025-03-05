@@ -74,6 +74,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
         end_strings=None,
         min_length: int = None,
         max_length: int = None,
+        apply_chat_template: bool = False,
         init_timeout=60.0,
     ):
         """
@@ -92,6 +93,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
             end_strings (List(str)): list of strings which will terminate generation when they appear in the output.
             min_length (int): min generated tokens.
             max_length (int): max generated tokens.
+            apply_chat_template (bool): applies chat template if its a chat model. Default: False
             init_timeout (flat): timeout for the connection.
         """
         prompts = str_list2numpy(prompts)
@@ -120,6 +122,8 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
             inputs["min_length"] = np.full(prompts.shape, min_length, dtype=np.int_)
         if max_length is not None:
             inputs["max_length"] = np.full(prompts.shape, max_length, dtype=np.int_)
+        if apply_chat_template is not None:
+            inputs["apply_chat_template"] = np.full(prompts.shape, apply_chat_template, dtype=np.bool_)
 
         with ModelClient(self.url, self.model_name, init_timeout_s=init_timeout, inference_timeout_s=600) as client:
             result_dict = client.infer_batch(**inputs)

@@ -10,6 +10,7 @@
 
 import os
 from pathlib import Path
+import json
 
 import numpy as np
 import requests
@@ -56,7 +57,7 @@ class CompletionRequest(BaseModel):
     temperature: float = 1.0
     top_p: float = 0.0
     top_k: int = 1
-    logprobs: int = 1
+    logprobs: int = None
 
 
 @app.get("/v1/health")
@@ -125,20 +126,8 @@ async def completions_v1(request: CompletionRequest):
         logging.error(f"An exception occurred with the post request to /v1/completions/ endpoint: {error}")
         return {"error": "An exception occurred"}
 
-# Define a function to apply the chat template
-def apply_chat_template(messages, bos_token="<|startoftext|>", add_generation_prompt=False):
-    from nemo.collections.llm.deploy.base import chat_template
-    # Load the template
-    template = Template(chat_template)
-
-    # Render the template with the provided messages
-    rendered_output = template.render(
-        messages=messages,
-        bos_token=bos_token,
-        add_generation_prompt=add_generation_prompt
-    )
-
-    return rendered_output
+def dict_to_str(messages):
+    return json.dumps(messages)
 
 @app.post("/v1/chat/completions/")
 async def chat_completions_v1(request: CompletionRequest):
@@ -149,15 +138,18 @@ async def chat_completions_v1(request: CompletionRequest):
         prompts = request.messages
         if not isinstance(request.messages, list):
             prompts = [request.messages]
-
-        prompts_formatted = [apply_chat_template(prompts)]
+        # Serialize the dictionary to a JSON string represnetation to be able to convert to numpy array 
+        # (str_list2numpy) and back to list (str_ndarray2list) as required by PyTriton. Using the dictionaries directly
+        # with these methods is not possible as they expect string type.
+        json_prompts = [dict_to_str(prompts)]
         output = nq.query_llm(
-            prompts=prompts_formatted,
+            prompts=json_prompts,
             temperature=request.temperature,
             top_k=request.top_k,
             top_p=request.top_p,
             compute_logprob=True if request.logprobs == 1 else False,
             max_length=request.max_tokens,
+            apply_chat_template=True,
             init_timeout=300
         )
         # Add 'role' as 'assistant' key to the output dict
