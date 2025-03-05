@@ -318,6 +318,7 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
         return output_path
 
     def convert_state(self, source, target):
+        # pylint: disable=C0115,C0116
         """
         Maps and transforms the state dictionary from NeMo to HuggingFace format.
 
