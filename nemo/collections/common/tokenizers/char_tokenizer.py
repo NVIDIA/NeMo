@@ -14,7 +14,6 @@
 import json
 import os
 import warnings
-from ast import literal_eval
 from collections import Counter
 from enum import Enum
 from pathlib import Path
@@ -131,7 +130,12 @@ class CharTokenizer(TokenizerSpec):
             self.vocab[v] = count
             count += 1
         for i, token in enumerate(vocab_list):
-            token = literal_eval(token.strip())
+
+            if token[1:-1].startswith("\\"):
+                token = token[1:-1].encode('ascii').decode('unicode_escape')
+            else:
+                token = token[1:-1]
+
             self.check_token_from_file(token, vocab_file, i)
             if token not in self.vocab:
                 self.vocab[token] = count
