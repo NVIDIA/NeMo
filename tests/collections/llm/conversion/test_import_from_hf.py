@@ -1,15 +1,25 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import argparse
 import json
 from pathlib import Path
 
-import torch
 from prettytable import PrettyTable
 
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
-from nemo.lightning import io
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 
 
 def get_parser():
@@ -54,7 +64,7 @@ if __name__ == '__main__':
         strategy=nl.MegatronStrategy(ckpt_load_strictness=False),
     )
     path = Path(output_path)
-    model_nemo: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
+    model_nemo: nl.io.TrainerContext = nl.io.load_context(path=nl.ckpt_utils.ckpt_to_context_subdir(path), subpath="model")
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model_nemo)
 
     # Load HF Stats
