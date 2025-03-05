@@ -545,6 +545,11 @@ class TensorRTLLM(ITritonDeployable):
         for path in glob(os.path.join(self.model_dir, "nemo_context", "*.vocab.json")):
             shutil.copy(path, self.model_dir)
 
+        # Copy generation_config.json
+        generation_config_path = os.path.join(self.model_dir, "nemo_context", "artifacts", "generation_config.json")
+        if os.path.isfile(generation_config_path):
+            shutil.copy(generation_config_path, self.model_dir)
+
         # Create dummy HF config: fields "architectures" and "model_type" are required by HF but not relevant for NIM
         seq_len_interpolation_factor = model_config.get("seq_len_interpolation_factor")
         hf_config = {
