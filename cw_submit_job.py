@@ -21,7 +21,8 @@ DATE_STR = datetime.today().strftime("%m%d")
 NEMO_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/github/NeMo"
 MEGATRON_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/github/Megatron-LM"
 #IMAGE = "nvcr.io/nvidia/nemo:24.12"
-IMAGE = "/lustre/fsw/portfolios/coreai/users/yudong/github/images/nemo-25-02.sqsh"
+#IMAGE = "/lustre/fsw/portfolios/coreai/users/yudong/github/images/nemo-25-02.sqsh"
+IMAGE="/lustre/fsw/portfolios/coreai/users/yudong/github/images/nemo-25-02-rc6.sqsh"
 HF_HOME = "/lustre/fsw/portfolios/coreai/users/yudong/hf_home"
 MEGATRON_CACHE = "/lustre/fsw/portfolios/coreai/users/yudong/megatron_cache"
 JOB_DIR = "/lustre/fsw/portfolios/coreai/users/yudong/exp/nemorun"
@@ -351,37 +352,28 @@ def custom_hf_auto_model_for_causal_lm_finetune(
         peft_scheme=peft_scheme,
     )
 
-    # datamodule = run.Config(
-    #     MockDataModule,
-    #     seq_length=seq_length,
-    #     global_batch_size=global_batch_size,
-    #     micro_batch_size=1,
-    # )
-    # finetune.data = datamodule
-    # finetune.data.seq_length = seq_length
-    # finetune.data.global_batch_size = global_batch_size
-    # finetune.data.micro_batch_size = 1
+    datamodule = run.Config(
+        MockDataModule,
+        seq_length=seq_length,
+        global_batch_size=global_batch_size,
+        micro_batch_size=1,
+    )
+    finetune.data = datamodule
+    finetune.data.seq_length = seq_length
+    finetune.data.global_batch_size = global_batch_size
+    finetune.data.micro_batch_size = 1
     
-    #datamodule = run.Config(HFMockDataModule, seq_length=seq_length, global_batch_size=global_batch_size)
+    datamodule = run.Config(HFMockDataModule, seq_length=seq_length, global_batch_size=global_batch_size)
 
-    # datamodule.map(
-    #     formatting_prompts_func,
-    #     batched=False,
-    #     batch_size=2,
-    #     remove_columns=["id", "title", "context", "question", 'answers'],
-    # )
-
-
-    #from transformers import AutoTokenizer
 
     #tokenizer = run.Config(AutoTokenizer.from_pretrained, model_name)
     #tokenizer = AutoTokenizer.from_pretrained(model_name)
-    datamodule = run.Config(HellaSwagHFDataModule,
-                            tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
-                            seq_length=seq_length,
-                            global_batch_size=global_batch_size,
-                            split='train',
-                            micro_batch_size=1)
+    # datamodule = run.Config(HellaSwagHFDataModule,
+    #                         tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
+    #                         seq_length=seq_length,
+    #                         global_batch_size=global_batch_size,
+    #                         split='train',
+    #                         micro_batch_size=1)
 
 
 
@@ -481,14 +473,38 @@ def custom_hf_auto_model_for_causal_lm(
 #from llama_8b_sft_config import recipes
 
 recipes = [
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=8,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=64,
+            global_batch_size=32,
+            model_name="meta-llama/Llama-3.1-405B",
+            peft_scheme="lora",
+        ),
+        "perf-llama3_405b-lora-4_node-64_32",
+    ),
+    (
+        custom_hf_auto_model_for_causal_lm_finetune(
+            num_nodes=4,
+            num_gpus_per_node=8,
+            wandb_project_name="perf",
+            seq_length=128,
+            global_batch_size=32,
+            model_name="meta-llama/Llama-3.1-405B",
+            peft_scheme="lora",
+        ),
+        "perf-llama3_405b-lora-4_node-128_32",
+    ),
     # (
     #     custom_hf_auto_model_for_causal_lm_finetune(
-    #         num_nodes=8,
+    #         num_nodes=4,
     #         num_gpus_per_node=8,
     #         wandb_project_name="perf",
     #         seq_length=512,
     #         global_batch_size=32,
-    #         model_name="meta-llama/Meta-Llama-3-405B",
+    #         model_name="meta-llama/Llama-3.1-405B",
     #         peft_scheme="lora",
     #     ),
     #     "perf-llama3_405b-lora-4_node-512_32",
@@ -498,12 +514,24 @@ recipes = [
     #         num_nodes=4,
     #         num_gpus_per_node=8,
     #         wandb_project_name="perf",
-    #         seq_length=512,
+    #         seq_length=1024,
     #         global_batch_size=32,
-    #         model_name="meta-llama/Meta-Llama-3-405B",
+    #         model_name="meta-llama/Llama-3.1-405B",
     #         peft_scheme="lora",
     #     ),
-    #     "perf-llama3_405b-lora-4_node-512_32",
+    #     "perf-llama3_405b-lora-4_node-1024_32",
+    # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=4,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=1024,
+    #         global_batch_size=32,
+    #         model_name="meta-llama/Meta-Llama-3-70B",
+    #         peft_scheme="lora",
+    #     ),
+    #     "perf-llama3_70b-lora-4_node-1024_32",
     # ),
     # (
     #     custom_hf_auto_model_for_causal_lm_finetune(
@@ -512,10 +540,32 @@ recipes = [
     #         wandb_project_name="perf",
     #         seq_length=256,
     #         global_batch_size=32,
-    #         model_name="meta-llama/Meta-Llama-3-405B",
+    #         model_name="meta-llama/Meta-Llama-3-70B",
     #         peft_scheme="lora",
     #     ),
-    #     "perf-llama3_405b-lora-4_node-512_32",
+    #     "perf-llama3_70b-lora-4_node-256_32",
+    # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=4,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=512,
+    #         global_batch_size=32,
+    #         model_name="meta-llama/Meta-Llama-3-70B",
+    #     ),
+    #     "perf-llama3_70b-sft-4_node-512_32",
+    # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=4,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=256,
+    #         global_batch_size=32,
+    #         model_name="meta-llama/Meta-Llama-3-70B",
+    #     ),
+    #     "perf-llama3_70b-sft-4_node-256_32",
     # ),
 
 
@@ -531,18 +581,43 @@ recipes = [
     #     ),
     #     "eval-local",
     # ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=2,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=256,
+    #         global_batch_size=32,
+    #         model_name="meta-llama/Meta-Llama-3-70B",
+    #         #peft_scheme="lora",
+    #     ),
+    #     "eval-llama32_1b-hellaswag-2_node-256_32",
+    # ),
 
-    (
-        custom_hf_auto_model_for_causal_lm_finetune(
-            num_nodes=1,
-            num_gpus_per_node=2,
-            wandb_project_name="perf",
-            seq_length=256,
-            global_batch_size=32,
-            #peft_scheme="lora",
-        ),
-        "eval-llama32_1b-hellaswag-1_node-256_32",
-    ),
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=4,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=256,
+    #         global_batch_size=32,
+    #         model_name="meta-llama/Meta-Llama-3-70B",
+    #         #peft_scheme="lora",
+    #     ),
+    #     "eval-llama32_1b-hellaswag-4_node-256_32",
+    # ),
+
+    # (
+    #     custom_hf_auto_model_for_causal_lm_finetune(
+    #         num_nodes=4,
+    #         num_gpus_per_node=8,
+    #         wandb_project_name="perf",
+    #         seq_length=256,
+    #         global_batch_size=32,
+    #         #peft_scheme="lora",
+    #     ),
+    #     "eval-llama32_1b-hellaswag-4_node-256_32",
+    # ),
     # (
     #     custom_hf_auto_model_for_causal_lm_finetune(
     #         num_nodes=4,
@@ -602,10 +677,10 @@ if __name__ == "__main__":
     # )
     print("did you Update CW codebase")
     #breakpoint()
-    #run_finetuning_on_slurm()
+    run_finetuning_on_slurm()
     #from datasets import load_dataset
 
 
     #dataset = load_dataset("Rowan/hellaswag", split="train")
     #print("Dataset downloaded successfully")
-    run_local()
+    #run_local()

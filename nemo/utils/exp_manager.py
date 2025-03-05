@@ -434,6 +434,33 @@ class DeltaTimingCallback(Callback):
         """on_validation_batch_end"""
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
+    def _on_before_optimizer_step(self, name, trainer, pl_module):
+        if self._sync_cuda and torch.cuda.is_initialized():
+            torch.cuda.synchronize()
+
+        if name not in self.timers.keys():
+            self.timers[name]["step"] = 0
+            self.timers[name]["start"] = time.time()
+
+        end = time.time()
+        dt = end - self.timers[name]["start"]
+        logging.info(f"GBS {self.timers[name]['step']}: {name} in s={dt}")
+
+        pl_module.log(
+            name,
+            torch.as_tensor(dt),
+            on_step=True,
+            on_epoch=False,
+            batch_size=1,
+            prog_bar=(name == "train_gbs_timing"),
+        )
+        self.timers[name]["step"] += 1
+        self.timers[name]["start"] = end
+    @torch.no_grad()
+    def on_before_optimizer_step(self, trainer, pl_module, optimizer):
+        # if trainer.global_step % self.log_every_n_steps == 0:
+        self._on_before_optimizer_step("gbs_timing in s", trainer, pl_module)
+
 
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
