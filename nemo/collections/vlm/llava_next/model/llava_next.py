@@ -20,6 +20,7 @@ import torch
 import torch.distributed
 from megatron.core.inference_params import InferenceParams
 from megatron.core.optimizer import OptimizerConfig
+from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_config import TransformerConfig
 from transformers import LlavaNextForConditionalGeneration
 
@@ -128,6 +129,7 @@ class LlavaNextModel(NevaModel):
         labels: Optional[torch.Tensor] = None,
         inference_params: InferenceParams = None,
         num_media_tiles: Optional[List[int]] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         """
         Performs the forward pass of the LLaVA Next model.
@@ -158,6 +160,7 @@ class LlavaNextModel(NevaModel):
             labels=labels,
             inference_params=inference_params,
             num_media_tiles=num_media_tiles,
+            packed_seq_params=packed_seq_params,
         )
 
         return output_tensor
