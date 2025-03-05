@@ -248,18 +248,19 @@ def sample_loader_QA(raw: dict) -> dict:
         else:
             # process structure 2
             string = ""
-            types = turn["type"]
+            types = [t.lower() for t in turn["type"].split(",")]
             values = turn["value"]
-
             if not isinstance(values, list):
-                values = [values]            
+                values = [values]
 
-            for t, v, offset, duration in zip(
-                types.split(","), 
-                values,
-                turn.get("offset") or [None]*len(turn["value"]),
-                turn.get("duration") or [None]*len(turn["value"])
-            ):
+            offsets = turn.get("offset") or [None]*len(values)
+            durations = turn.get("duration") or [None]*len(values)
+            if not isinstance(offsets, list):
+                offsets = [offsets]
+            if not isinstance(durations, list):
+                durations = [durations]
+
+            for t, v, offset, duration in zip(types, values, offsets, durations):
                 raw_media = get_media(t, v, offset, duration)
                 if t == "text":
                     string += raw_media
@@ -267,9 +268,9 @@ def sample_loader_QA(raw: dict) -> dict:
                     string += QAMediaTokenTypeMapping[t]
                     output_dict[t].append(raw_media)
 
-        if turn["from"] == "Assistant" or turn["from"] == "gpt":
+        if turn["from"].lower() == "assistant" or turn["from"].lower() == "gpt":
             output_dict["answers"].append(string)
-        elif turn["from"] == "User" or turn["from"] == "human":
+        elif turn["from"].lower() == "user" or turn["from"].lower() == "human":
             output_dict["contexts"].append(string)
 
     return dict(

@@ -15,7 +15,7 @@
 import itertools
 from PIL import Image
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Union
 
 import torch
 from megatron.energon import Sample
@@ -30,10 +30,15 @@ from nemo.collections.avlm.data.energon.avlm_sample_config import (
     AVLMEnergonQASample,
     AVLMSample,
     AVLMRawBatch,
-    AVLMSampleConfigInterleaved,
+    AVLMSampleConfig,
 )
 
-from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, BaseSampleEncoder
+from nemo.collections.multimodal.data.energon.sample_encoder import (
+    _find_pattern_indices, 
+    SampleEncoder, 
+    BaseSampleEncoder,
+    VQASampleEncoder,
+)
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.utils import logging
 
@@ -46,7 +51,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         tokenizer=None, 
         audio_processor=None, 
         image_processor=None, 
-        multimodal_sample_config=AVLMSampleConfigInterleaved()
+        multimodal_sample_config=AVLMSampleConfig()
     ):
         """
         Initialize the AVLMSampleEncoder
@@ -54,10 +59,13 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         Parameters:
         tokenizer (Tokenizer): The HF tokenizer used for processing text.
         image_processor (ImageProcessor): The HF image processor used for preprocessing images.
-        avlm_sample_config (AVLMSampleConfigInterleaved, optional): Configuration object for multimodal samples.
-            Defaults to AVLMSampleConfigInterleaved().
+        avlm_sample_config (AVLMSampleConfig, optional): Configuration object for multimodal samples.
+            Defaults to AVLMSampleConfig().
         """
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
+        self.audio_token = multimodal_sample_config.audio_token
+        self.video_token = multimodal_sample_config.video_token
+
         if self.tokenizer is None:
             self.tokenizer = self.build_tokenizer(self.multimodal_sample_config.model_id)
         if self.audio_processor is None:
@@ -143,7 +151,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         processor = AutoProcessor.from_pretrained(model_id)
         self.image_processor = processor.image_processor
 
-    def process_audio(self, audio: bytes):
+    def process_audio(self, audio: Union[bytes, MediaDict]):
         """
         Process and prepare an audio sample for encoding.
 
@@ -156,7 +164,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         #TODO
         return None
 
-    def process_video(self, video: bytes):
+    def process_video(self, video: Union[bytes, MediaDict]):
         #TODO
         """
         Returns:
@@ -196,7 +204,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         tokenizer=None, 
         audio_processor=None, 
         image_processor=None, 
-        multimodal_sample_config=AVLMSampleConfigInterleaved()
+        multimodal_sample_config=AVLMSampleConfig()
     ):
         """
         Initialize the AVLMSampleEncoderInterleaved
@@ -204,8 +212,8 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         Parameters:
         tokenizer (Tokenizer): The HF tokenizer used for processing text.
         image_processor (ImageProcessor): The HF image processor used for preprocessing images.
-        avlm_sample_config (AVLMSampleConfigInterleaved, optional): Configuration object for multimodal samples.
-            Defaults to AVLMSampleConfigInterleaved().
+        avlm_sample_config (AVLMSampleConfig, optional): Configuration object for multimodal samples.
+            Defaults to AVLMSampleConfig().
         """
         super().__init__(tokenizer, audio_processor, image_processor, multimodal_sample_config)
 
@@ -251,17 +259,17 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                 num_image_tiles.append(processed_image.shape[0])
                 image_sizes.append([chunk.shape[1], chunk.shape[2]])
             elif isinstance(chunk, MediaDict):
-                media_type = chunk.pop["type"]
+                media_type = chunk["type"]
                 if media_type == "audio":
                     # process audio
                     tokenized_chunks.append(self.audio_token.token_id)
-                    processed_audio, _ = self.process_audio(chunk["value"], **chunk)
+                    processed_audio, _ = self.process_audio(chunk)
                     audios.append(processed_audio)
                     audio_lengths.append(processed_audio.shape[0])
                 elif media_type == "video":
                     total_frames_in_each_processed_video = []
                     # process video
-                    video_audio_dict = self.process_video(chunk["value"], **chunk)
+                    video_audio_dict = self.process_video(chunk)
                     ## process each video stream
                     processed_video_streams = video_audio_dict["video"][0]
                     for i, (processed_video, video_size) in enumerate(processed_video_streams):
@@ -273,15 +281,13 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                     ## process each audio stream
                     processed_audio_streams = video_audio_dict["audio"][0]
                     for i, (processed_audio, _) in enumerate(processed_audio_streams):
-                        tokenized_chunks.append(self.audio_token.token_id)
                         audios.append(processed_audio)
                         audio_lengths.append(processed_audio.shape[0])
                     
                     # concatenate the video and audio tokens according to the required pattern
                     tokenized_chunks_video = [[self.image_token.token_id] * f for f in total_frames_in_each_processed_video]
                     tokenized_chunks_audio = [self.audio_token.token_id] * len(processed_audio_streams)
-                    tokenized_chunks.extend(self.concate_video_audio_tokens(tokenized_chunks_video, tokenized_chunks_audio))
-                    
+                    tokenized_chunks.extend(self.concate_video_audio_tokens(tokenized_chunks_video, tokenized_chunks_audio))                    
                 else:
                     raise ValueError(f"Unsupported type in MediaDict: {type(chunk)}")    
             elif len(chunk) > 0:
@@ -317,10 +323,9 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         Returns:
         AVLMSample: 
         """
-        conversation_prompt = self.apply_prompt_template(input_sample)
         logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
         # tokenize prompt
-        media_dict = self.tokenize(conversation_prompt)
+        media_dict = self.tokenize(input_sample)
         tokens = media_dict["tokens"]
         output_sample.audios = media_dict["audios"]
         output_sample.audio_lengths = media_dict["audio_lengths"]
@@ -344,13 +349,13 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         return output_sample
 
 
-class AVLMSampleEncoderQA(AVLMSampleEncoder):
+class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
     def __init__(
         self, 
         tokenizer=None, 
         audio_processor=None, 
         image_processor=None, 
-        multimodal_sample_config=AVLMSampleConfigInterleaved()
+        multimodal_sample_config=AVLMSampleConfig()
     ):
         """
         Initialize the AVLMSampleEncoderQA
@@ -358,60 +363,135 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder):
         Parameters:
         tokenizer (Tokenizer): The HF tokenizer used for processing text.
         image_processor (ImageProcessor): The HF image processor used for preprocessing images.
-        avlm_sample_config (AVLMSampleConfigInterleaved, optional): Configuration object for multimodal samples.
-            Defaults to AVLMSampleConfigInterleaved().
+        avlm_sample_config (AVLMSampleConfig, optional): Configuration object for multimodal samples.
+            Defaults to AVLMSampleConfig().
         """
         super().__init__(tokenizer, audio_processor, image_processor, multimodal_sample_config)
         self.conversation_template_config = multimodal_sample_config.conversation_template_config
 
-    def apply_prompt_template(self, input_text: AVLMEnergonQASample, use_plain=False):
+    def tokenize(self, prompt: str, input_sample: AVLMEnergonQASample) -> torch.Tensor:
         """
-        Apply a conversation template to the input text for VQA.
+        Tokenize the input prompt, replacing special tokens with their IDs.
 
-        This method generates a templated prompt by combining system, user, and assistant messages.
+        This method splits the prompt into chunks based on the presence of special tokens (like <image>)
+        and tokenizes each chunk. Special tokens are replaced with their corresponding token IDs.
 
         Parameters:
-        input_text (AVLMEnergonQASample): The sample containing the context and answer.
-        use_plain (bool, optional): Whether to use a plain format for the prompt. Defaults to False.
+        prompt (str): The prompt string to tokenize.
 
         Returns:
-        str: The generated templated prompt as a string.
+        torch.Tensor: A tensor containing the tokenized prompt.
         """
-        logging.debug(f"apply_conversation_template context {input_text.context} answer {input_text.answers}")
+        # Split the prompt into chunks and track special tokens
+        regex_pattern = '(' + '|'.join(re.escape(token) for token in [self.image_token.token_str]) + ')'
+        chunks = re.split(regex_pattern, prompt)
+        # Tokenize each chunk and replace special tokens with their indices
+        tokenized_chunks = []
+        input_audio_index = 0
+        input_video_index = 0
+        input_image_index = 0
+        processed_audios = []
+        processed_audio_lengths = []
+        processed_images = []
+        processed_num_image_tiles = []
+        processed_image_sizes = []
+        processed_audio_tensor = None
+        processed_audio_lengths_tensor = None
+        processed_image_tensor = None
+        processed_num_image_tiles_tensor = None
+        processed_image_sizes_tensor = None
 
-        messages = []
+        for chunk in chunks:
+            if chunk == self.audio_token.token_str:
+                tokenized_chunks.append(self.audio_token.token_str)
+                # process the corresponding audio bytes
+                processed_audios.append(self.process_audio(input_sample.audios[input_audio_index]))
+                input_audio_index = input_audio_index + 1
+            elif chunk == self.video_token.token_str:
+                total_frames_in_each_processed_video = []
+                # process video
+                video_audio_dict = self.process_video(input_sample.videos[input_video_index])
+                ## process each video stream
+                processed_video_streams = video_audio_dict["video"][0]
+                for i, (processed_video, video_size) in enumerate(processed_video_streams):
+                    # flatten the frames into tiles
+                    processed_images.append(processed_video.flatten(end_dim=1))
+                    total_frames_in_each_processed_video.append(processed_video.shape[1])
+                    processed_num_image_tiles.extend([processed_video.shape[0]] * processed_video.shape[1])
+                    processed_image_sizes.extend([video_size.height, video_size.width] * processed_video.shape[1])
+                ## process each audio stream
+                processed_audio_streams = video_audio_dict["audio"][0]
+                for i, (processed_audio, _) in enumerate(processed_audio_streams):
+                    processed_audios.append(processed_audio)
+                    processed_audio_lengths.append(processed_audio.shape[0])
+                
+                # concatenate the video and audio tokens according to the required pattern
+                tokenized_chunks_video = [[self.image_token.token_id] * f for f in total_frames_in_each_processed_video]
+                tokenized_chunks_audio = [self.audio_token.token_id] * len(processed_audio_streams)
+                tokenized_chunks.extend(self.concate_video_audio_tokens(tokenized_chunks_video, tokenized_chunks_audio))
 
-        # Add system message if it exists
-        if self.conversation_template_config.system:
-            messages.append({'role': 'system', 'content': self.conversation_template_config.system})
+                input_video_index = input_video_index + 1
+            elif chunk == self.image_token.token_str:
+                tokenized_chunks.append(self.image_token.token_id)
+                # process the corresponding image
+                processed_images.append(self.process_image(input_sample.audios[input_image_index]))
+                input_image_index = input_image_index + 1
+            elif len(chunk) > 0:
+                tokenized_chunks.extend(self.tokenizer(chunk, add_special_tokens=False).input_ids)
 
-        # Handle cases where context and answers are lists
-        if isinstance(input_text.context, list) and isinstance(input_text.answers, list):
-            # Ensure both lists are the same length or adjust based on your specific needs
-            min_length = min(len(input_text.context), len(input_text.answers))
-            for i in range(min_length):
-                messages.append({'role': self.conversation_template_config.roles[0], 'content': input_text.context[i]})
-                messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers[i]})
-        elif isinstance(input_text.context, str) and isinstance(input_text.answers, str):
-            # Handle single context and answer as strings
-            messages.append({'role': self.conversation_template_config.roles[0], 'content': input_text.context})
-            messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers})
-        else:
-            raise ValueError(
-                f"VQA Sample context/answers should either be a List[str] or str. Other types not supported"
-            )
-        # Set the chat template if defined
-        if self.conversation_template_config.chat_template:
-            self.tokenizer.chat_template = self.conversation_template_config.chat_template
-        elif self.tokenizer.chat_template is None:
-            raise ValueError(
-                "Both tokenizer and conversation template does not have chat template defined. Refer to https://huggingface.co/docs/transformers/main/en/chat_templating"
-            )
+        tokens = torch.tensor(tokenized_chunks, dtype=torch.long)
+        logging.debug(f"Multimodal dataloader encode interleaved sample tokenized chunks {tokenized_chunks}")
 
-        # Apply the conversation template to generate the prompt
-        templated_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
-        logging.debug(f"apply prompt template templated_prompt {templated_prompt}")
-        return templated_prompt
+        if processed_audios:
+            processed_audio_tensor = torch.concatenate(processed_audios)
+            processed_audio_lengths_tensor = torch.tensor(processed_audio_lengths)
+        if images:
+            processed_image_tensor = torch.concatenate(processed_images)  # T c h w
+            processed_num_image_tiles_tensor = torch.tensor(processed_num_image_tiles)
+            processed_image_sizes_tensor = torch.tensor(processed_image_sizes)
+        return {
+            "tokens": tokens, 
+            "audios": processed_audio_tensor, 
+            "audio_lengths": processed_audio_lengths_tensor, 
+            "images": processed_image_tensor,
+            "num_image_tiles": processed_num_image_tiles_tensor,
+            "image_sizes": processed_image_sizes_tensor,
+        }
+
+    def encode(self, input_sample: AVLMEnergonQASample, output_sample: AVLMSample):
+        """
+        Encode a single sample into a format suitable for model input.
+
+        Parameters:
+
+        Returns:
+        AVLMSample: 
+        """
+        conversation_prompt = self.apply_prompt_template(input_sample)
+        logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
+        # tokenize prompt
+        media_dict = self.tokenize(conversation_prompt, input_sample)
+        tokens = media_dict["tokens"]
+        output_sample.audios = media_dict["audios"]
+        output_sample.audio_lengths = media_dict["audio_lengths"]
+        output_sample.images = media_dict["images"]
+        output_sample.num_image_tiles = media_dict["num_image_tiles"]
+        output_sample.image_sizes = media_dict["image_sizes"]
+        if output_sample.images is not None:
+            output_sample.image_attention_mask = torch.ones(len(tokens), dtype=torch.long)
+
+        labels = self.compute_labels(tokens, input_sample)
+        tokens = tokens[:-1].contiguous()
+        labels = labels[1:].contiguous()
+        logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
+        logging.debug(f"[Energon] task encoder encode_sample lables {labels}")
+        loss_mask = self.compute_loss_mask(labels)
+        
+        output_sample.__key__ = input_sample.__key__
+        output_sample.tokens = tokens
+        output_sample.labels = labels
+        output_sample.loss_mask = loss_mask
+        return output_sample
 
 
 class AVLMTaskEncoder(MultiModalTaskEncoder):
@@ -427,7 +507,7 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         Parameters:
         tokenizer (Tokenizer): The tokenizer for processing text data across sample types.
         image_processor (ImageProcessor): The image processor for preprocessing images.
-        avlm_sample_config (AVLMSampleConfigInterleaved): Configuration settings for multimodal samples.
+        avlm_sample_config (AVLMSampleConfig): Configuration settings for multimodal samples.
         """
         super().__init__(tokenizer, image_processor, avlm_sample_config)
         self.encoders: Dict[str, SampleEncoder] = {

@@ -21,7 +21,7 @@ import torch
 from megatron.energon import Sample
 from megatron.energon.flavors.webdataset import VideoData
 
-from nemo.collections.multimodal.data.energon.config import AudioToken, MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.config import AudioToken, VideoToken, MultiModalSampleConfig
 from nemo.collections.vlm.llava_next.data.energon import LlavaNextTextRawBatch, LlavaNextTextSample
 from nemo.utils import logging
 
@@ -55,8 +55,8 @@ class AVLMEnergonInterleavedSample(Sample):
 @dataclass_slot
 class AVLMEnergonQASample(Sample):
     contexts: List[str]
-    answers: Optional[List[List[str]]] = None
-    answer_weights: Optional[List[torch.Tensor]] = None
+    answers: Optional[List[str]] = None
+    answer_weights: Optional[torch.Tensor] = None
 
     audios: Optional[List[Union[bytes, MediaDict]]] = None
     videos: Optional[List[Union[bytes, MediaDict]]] = None
@@ -115,9 +115,10 @@ class AVLMRawBatch:
 
 
 @dataclass
-class AVLMSampleConfigInterleaved(MultiModalSampleConfig):
+class AVLMSampleConfig(MultiModalSampleConfig):
     model_id: str = field(default="llava-hf/llava-v1.6-vicuna-7b-hf")
     audio_token: AudioToken = field(default_factory=AudioToken)
+    video_token: VideoToken = field(default_factory=VideoToken)
     """
     For a single video with multiple video and audio streams
     video_audio: video streams tokens are before the audio streams tokens 
