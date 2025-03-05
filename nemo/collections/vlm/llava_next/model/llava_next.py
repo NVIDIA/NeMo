@@ -21,7 +21,9 @@ import torch.distributed
 from megatron.core.inference_params import InferenceParams
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
-from transformers import CLIPVisionConfig, LlavaNextForConditionalGeneration
+from transformers import CLIPVisionConfig
+from transformers import LlavaConfig as HFLlavaConfig
+from transformers import LlavaNextForConditionalGeneration
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig
@@ -32,7 +34,6 @@ from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProje
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
-from transformers import LlavaConfig as HFLlavaConfig
 
 
 @dataclass
