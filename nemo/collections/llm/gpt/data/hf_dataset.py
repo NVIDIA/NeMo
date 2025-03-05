@@ -27,6 +27,7 @@ from typing import Dict
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 import numpy as np
 import re
+from functools import partial
 
 def clean_split(name):
     """removes split from name
@@ -350,117 +351,117 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 continue
             dataset_splits[split_name] = subset.map(function, **kwargs)
 
+def preprocess(text):
+    text = text.strip()
+    # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
+    text = text.replace(" [title]", ". ")
+    text = re.sub("\\[.*?\\]", "", text)
+    text = text.replace("  ", " ")
+    return text
 
+def process_doc(doc):
+    ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
+    query = preprocess(doc["activity_label"] + ": " + ctx)
+    choices = [preprocess(ending) for ending in doc["endings"]]
+    gold = int(doc["label"])
+    out_doc = {
+        "query": query,
+        "choices": choices,
+        "gold": gold,
+        "text": query + " " + choices[gold]
+    }
+    return out_doc
+
+# Note: I'm training the model causally not through multiclass classification.
+def preprocess_dataset(tokenizer, max_length, dataset, seed = 42):
+    # Format each prompt.
+    print("Preprocessing dataset...")
+    dataset = dataset.map(process_doc)
+
+    def preprocess_batch(batch, tokenizer, max_length):
+        ans = tokenizer(
+            batch["text"],
+            max_length=max_length,
+            truncation=True,
+        )
+        ans['labels'] = [
+            x[1:] + [-100] for x in ans['input_ids']
+        ]
+        return ans
+
+    # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
+    _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
+    dataset = dataset.map(
+        _preprocessing_function,
+        batched=True,
+    ).select_columns(['input_ids', 'attention_mask', 'labels'])
+
+    # Shuffle dataset.
+    dataset = dataset.shuffle(seed=seed)
+
+    return dataset
+
+
+def preprocess(text):
+    text = text.strip()
+    # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
+    text = text.replace(" [title]", ". ")
+    import re
+    text = re.sub("\\[.*?\\]", "", text)
+    text = text.replace("  ", " ")
+    return text
+
+def process_doc(doc):
+    ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
+    query = preprocess(doc["activity_label"] + ": " + ctx)
+    choices = [preprocess(ending) for ending in doc["endings"]]
+    gold = int(doc["label"])
+    out_doc = {
+        "query": query,
+        "choices": choices,
+        "gold": gold,
+        "text": query + " " + choices[gold]
+    }
+    return out_doc
+
+# Note: I'm training the model causally not through multiclass classification.
+def preprocess_dataset(tokenizer, max_length, dataset, seed = 42):
+    # Format each prompt.
+    print("Preprocessing dataset...")
+    dataset = dataset.map(process_doc)
+
+    def preprocess_batch(batch, tokenizer, max_length):
+        ans = tokenizer(
+            batch["text"],
+            max_length=max_length,
+            truncation=True,
+        )
+        ans['labels'] = [
+            x[1:] + [-100] for x in ans['input_ids']
+        ]
+        return ans
+
+    # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
+    _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
+    dataset = dataset.map(
+        _preprocessing_function,
+        batched=True,
+    ).select_columns(['input_ids', 'attention_mask', 'labels'])
+
+    # Shuffle dataset.
+    dataset = dataset.shuffle(seed=seed)
+
+    return dataset
 
 class HellaSwagHFDataModule(HFDatasetDataModule):
-    """
-    A data module for handling the HellaSwag dataset using HFDatasetDataModule.
-    
-    This class is responsible for tokenizing and formatting the HellaSwag dataset for training
-    language models. It extends `HFDatasetDataModule` and implements preprocessing 
-    functions suitable for causal language modeling.
-    
-    Attributes:
-        tokenizer: A tokenizer instance used to convert text into token IDs.
-        max_length: Maximum sequence length for tokenization.
-    """
-    
-    def __init__(self, tokenizer, **kwargs):
-        """
-        Initializes the HellaSwagHFDataModule.
-        
-        Args:
-            tokenizer: A tokenizer instance for processing text data.
-            max_length: Maximum sequence length for tokenization.
-            **kwargs: Additional arguments passed to the parent class (`HFDatasetDataModule`).
-        """
-        # If dataset is not provided, load it
-        if 'path_or_dataset' not in kwargs:
-            dataset = load_dataset("Rowan/hellaswag")
-            # Default to train split if not specified
-            split = kwargs.pop('split', 'train')
-            kwargs['path_or_dataset'] = dataset[split]
-            kwargs['split'] = 'train'  # Use 'train' as the canonical split name
-            
-        super().__init__(**kwargs)
-        self.tokenizer = tokenizer
-        self.micro_batch_size = 1
-        
-    @staticmethod
-    def preprocess(text):
-        """
-        Preprocesses text by removing WikiHow artifacts and normalizing spacing.
-        
-        Args:
-            text (str): The text to preprocess.
-            
-        Returns:
-            str: The preprocessed text.
-        """
-        text = text.strip()
-        # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
-        text = text.replace(" [title]", ". ")
-        text = re.sub("\\[.*?\\]", "", text)
-        text = text.replace("  ", " ")
-        return text
-    
-    @staticmethod
-    def process_doc(doc):
-        ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
-        query = HellaSwagHFDataModule.preprocess(doc["activity_label"] + ": " + ctx)
-        choices = [HellaSwagHFDataModule.preprocess(ending) for ending in doc["endings"]]
-        gold = int(doc["label"])
-        out_doc = {
-            "query": query,
-            "choices": choices,
-            "gold": gold,
-            "text": query + " " + choices[gold]
-        }
-        return out_doc
-
-    def preprocess_batch(self, batch):
-        # print(type(batch))
-        # print(type(next(batch)))
-        # ans = self.tokenizer(
-        #     batch["text"],
-        #     max_length=self.seq_length,
-        #     truncation=True,
-        # )
-        ans = {}
-        ans['input_ids'] = self.tokenizer.text_to_ids(batch["text"])
-        ans['attention_mask'] = [1] * len(ans['input_ids'])
-        ans['labels'] = ans['input_ids'][1:] + [-100]   
-        #ans['labels'] = [
-        #    x[1:] + [-100] for x in ans['input_ids']
-        #]
-        # print(ans['input_ids'].shape)
-        # print(ans.keys())
-        # q()
-        return ans
-    
-    def setup(self, stage=None):
-        """
-        Prepares the dataset for training by applying preprocessing transformations.
-        
-        Args:
-            stage (str): The stage of training (unused but required by Lightning).
-        """
-        # Call parent setup to initialize samplers if needed
-        super().setup(stage)
-        
-        # Process documents to create prompts with correct answers
-        self.map(
-            self.process_doc,
-            batched=False,
-        )
-        
-        # Tokenize the processed documents
-        self.map(
-            self.preprocess_batch,
-            batched=False,
-            remove_columns=['query', 'choices', 'gold', 'text', 'ctx_a', 'ctx_b', 
-                   'activity_label', 'endings', 'label', 'ind', 'ctx', 
-                   'source_id', 'split', 'split_type'],
+    def __init__(self, tokenizer, dataset_name="Rowan/hellaswag", *args, **kwargs):
+        tokenizer = tokenizer.tokenizer
+        tokenizer.pad_token = tokenizer.eos_token
+        dataset = load_dataset(dataset_name)
+        super().__init__(
+            preprocess_dataset(tokenizer, 7500, dataset["train"]),
+            *args,
+            **kwargs
         )
     
 class SquadHFDataModule(HFDatasetDataModule):
