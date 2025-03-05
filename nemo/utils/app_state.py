@@ -485,7 +485,7 @@ class AppState(metaclass=Singleton):
     @pipeline_model_parallel_split_rank.setter
     def pipeline_model_parallel_split_rank(self, rank):
         """Property sets the rank at which Encoder and Decoder are split into different pipelines for
-        Megatrron Encoder-Decoder models.
+        Megatron Encoder-Decoder models.
         Args:
             rank (int): Model parallel split rank.
         """
