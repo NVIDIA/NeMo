@@ -320,6 +320,43 @@ class TextToSpeechDataset(Dataset):
 
 
 class T5TTSDataset(TextToSpeechDataset):
+    """
+    Class for processing and loading text to speech training examples for T5-TTS model.
+    In addition to the manifest structure for TextToSpeechDataset, we can have the following keys:
+    context_audio_filepath, context_audio_duration, target_audio_codes_path, context_audio_codes_path.
+    Note: target_audio_codes_path, context_audio_codes_path are absolute paths to the cached audio codes.
+    If they are not present in the manifest or if load_cached_codes_if_available=False, then the audio will be loaded
+    and codes will be computed on the fly in the model class.
+
+    Args:
+        dataset_meta: Dict of dataset names (string) to dataset metadata.
+        sample_rate: Sample rate to load audio as. If the audio is stored at a different sample rate, then it will
+            be resampled.
+        weighted_sampling_steps_per_epoch: Optional int, If provided, then data will be sampled (with replacement) based on
+            the sample weights provided in the dataset metadata. If None, then sample weights will be ignored.
+        min_duration: Optional float, if provided audio files in the training manifest shorter than 'min_duration'
+            will be ignored.
+        max_duration: Optional float, if provided audio files in the training manifest longer than 'max_duration'
+            will be ignored.
+        volume_norm: Whether to apply volume normalization to loaded audio.
+        codec_model_downsample_factor: Downsample factor of the codec model (Num samples in waveform per codec frame).
+        bos_id: Text BOS token id.
+        eos_id: Text EOS token id.
+        audio_bos_id: Audio BOS token id.
+        audio_eos_id: Audio EOS token id.
+        context_audio_bos_id: Context audio BOS token id.
+        context_audio_eos_id: Context audio EOS token id.
+        num_audio_codebooks: Number of audio codebooks.
+        prior_scaling_factor: Scaling factor for the beta binomial prior distribution.
+        load_cached_codes_if_available: Whether to load cached audio codes if available *_codes_path keys are available in the manifest.
+        dataset_type: Dataset type (train, dev, test).
+        tokenizer_config: Config of the tokenzizer used in worker_init_fn to setup the tokenizer (See t5tts.yaml)
+        load_16khz_audio: Whether to load 16khz audio for SV model.
+        use_text_conditioning_tokenizer: Set True for text context conditioning.
+        pad_context_text_to_max_duration: Whether to pad context text to max context audio frames.
+        context_duration_min: Minimum duration of context audio in seconds.
+        context_duration_max: Maximum duration of context audio in seconds.
+    """
     def __init__(
         self,
         dataset_meta: Dict,

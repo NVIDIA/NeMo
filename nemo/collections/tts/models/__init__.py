@@ -41,7 +41,7 @@ __all__ = [
     "RadTTSModel",
     "T5TTS_Model",
     "T5TTS_ModelInference",
-    "T5TTS_Model_DPO",
+    "T5TTS_ModelDPO",
     "Tacotron2Model",
     "TwoStagesModel",
     "UnivNetModel",
