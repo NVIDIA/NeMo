@@ -408,9 +408,7 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             torch.tensor(features_length, dtype=torch.long),
         )
 
-    def __getitem__(
-        self, idx: int
-    ) -> Union[
+    def __getitem__(self, idx: int) -> Union[
         Tuple[ndarray, ndarray, ndarray, ndarray, int, int, bool, bool],
         Tuple[ndarray, ndarray, ndarray, ndarray, int, int, bool, bool, ndarray, List[int]],
     ]:
