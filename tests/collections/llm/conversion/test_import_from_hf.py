@@ -64,7 +64,9 @@ if __name__ == '__main__':
         strategy=nl.MegatronStrategy(ckpt_load_strictness=False),
     )
     path = Path(output_path)
-    model_nemo: nl.io.TrainerContext = nl.io.load_context(path=nl.ckpt_utils.ckpt_to_context_subdir(path), subpath="model")
+    model_nemo: nl.io.TrainerContext = nl.io.load_context(
+        path=nl.ckpt_utils.ckpt_to_context_subdir(path), subpath="model"
+    )
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model_nemo)
 
     # Load HF Stats
