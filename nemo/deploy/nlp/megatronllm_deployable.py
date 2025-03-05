@@ -234,16 +234,18 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             else:
                 return
 
-    def apply_chat_template(self, messages, bos_token="<|startoftext|>", add_generation_prompt=False):
+    def apply_chat_template(self, messages, add_generation_prompt=False):
         # Load the template
         # Works when model's tokenizer has chat template (typically chat models)
         try:
-            tokenizer_chat_template = self.mcore_tokenizer.chat_template
+            # tested only with llama3-8b-Instruct
+            tokenizer_chat_template = self.mcore_tokenizer.tokenizer.tokenizer.chat_template
+            bos_token = self.mcore_tokenizer.tokenizer.tokenizer.bos_token
             template = Template(tokenizer_chat_template)
         except AttributeError:
-            # If the tokenizer does not have chat_template use the hardcoded chat_template
-            from nemo.collections.llm.deploy.base import chat_template
-            template = Template(chat_template)
+            # If the tokenizer does not have chat_template
+            raise ValueError("The tokenizer does not have chat template, if you would like to evaluate chat model \
+                             ensure your model's tokenizer has a chat template")
         # Render the template with the provided messages
         rendered_output = template.render(
                     messages=messages,
