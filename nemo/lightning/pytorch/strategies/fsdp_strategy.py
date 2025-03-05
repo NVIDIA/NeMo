@@ -126,6 +126,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def setup(self, trainer: pl.Trainer) -> None:
+        """Connect strategy to trainer and handle adjustments before the loop starts."""
         self.trainer = trainer
         setup_data_sampler(self.trainer)
         fix_progress_bar(trainer)
@@ -151,6 +152,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def training_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
+        """Run training step and logs results."""
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.train_step_context():
@@ -177,6 +179,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def validation_step(self, batch, batch_idx=None) -> Any:
+        """Run validation step and logs results."""
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.val_step_context():
@@ -186,6 +189,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def test_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
+        """Run test step and logs results."""
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.test_step_context():
@@ -196,6 +200,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def predict_step(self, batch, batch_idx=None) -> STEP_OUTPUT:
+        """Run prediction step."""
         assert self.lightning_module is not None
         assert self.model is not None
         with self.precision_plugin.predict_step_context():
@@ -204,6 +209,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
+        """Transform dataloader with sampler."""
         if self.data_sampler:
             return self.data_sampler.transform_dataloader(dataloader)
 
@@ -212,6 +218,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
+        """Get CheckpointIO."""
         if not self._checkpoint_io:
             self._checkpoint_io = create_checkpoint_io()
 
@@ -219,6 +226,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @checkpoint_io.setter
     def checkpoint_io(self, io: CheckpointIO) -> None:
+        """Set CheckpointIO."""
         self._checkpoint_io = io
 
     @property
@@ -233,6 +241,7 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
 
     @override
     def remove_checkpoint(self, filepath: Union[str, Path]) -> None:
+        """Delete checkpoint at filepath."""
         # Taken from MegatronStrategy
         ckpt = ckpt_to_dir(filepath)
         if self.is_global_zero:
@@ -254,9 +263,9 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             # Ideally, the optimizer state dicts should not be generated in this case
             checkpoint["optimizer_states"] = {}
 
-            ## replace unsharded optimizer_states with sharded dict.
-            ## note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
-            ## the checkpoint will contain only model weights. Optimizer states will be omitted.
+            # replace unsharded optimizer_states with sharded dict.
+            # note that if trainer.save_checkpoint(path, save_weights_only=True) is called,
+            # the checkpoint will contain only model weights. Optimizer states will be omitted.
             if self.ckpt_save_optimizer:
                 checkpoint['optimizer'] = get_optimizer_state_dict(self.model, self.optimizers)
                 pyt_to_mcore_state_dict(checkpoint['optimizer']['state'], prefix="optimizer.state.")
