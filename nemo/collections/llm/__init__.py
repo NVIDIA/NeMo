@@ -33,7 +33,7 @@ from nemo.collections.llm.bert.model import (
     MegatronBertConfig,
     MegatronBertLargeConfig,
 )
-from nemo.collections.llm.gpt.data import (
+from nemo.collections.llm.gpt.data import (  # noqa: F401
     AlpacaDataModule,
     ChatDataModule,
     CustomRetrievalDataModule,
@@ -45,7 +45,7 @@ from nemo.collections.llm.gpt.data import (
     SquadDataModule,
 )
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
-from nemo.collections.llm.gpt.model import (
+from nemo.collections.llm.gpt.model import (  # noqa: F401
     Baichuan2Config,
     Baichuan2Config7B,
     Baichuan2Model,
@@ -64,6 +64,9 @@ from nemo.collections.llm.gpt.model import (
     CodeLlamaConfig13B,
     CodeLlamaConfig34B,
     CodeLlamaConfig70B,
+    DeepSeekModel,
+    DeepSeekV2Config,
+    DeepSeekV3Config,
     Gemma2Config,
     Gemma2Config2B,
     Gemma2Config9B,
@@ -82,6 +85,18 @@ from nemo.collections.llm.gpt.model import (
     GPTConfig175B,
     GPTModel,
     HFAutoModelForCausalLM,
+    Hyena1bConfig,
+    Hyena7bARCLongContextConfig,
+    Hyena7bConfig,
+    Hyena40bARCLongContextConfig,
+    Hyena40bConfig,
+    HyenaConfig,
+    HyenaModel,
+    HyenaNV1bConfig,
+    HyenaNV7bConfig,
+    HyenaNV40bConfig,
+    HyenaNVTestConfig,
+    HyenaTestConfig,
     Llama2Config7B,
     Llama2Config13B,
     Llama2Config70B,
@@ -135,7 +150,7 @@ from nemo.collections.llm.gpt.model import (
     gpt_data_step,
     gpt_forward_step,
 )
-from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter
+from nemo.collections.llm.quantization import Quantizer, get_calib_data_iter  # noqa: F401
 from nemo.collections.llm.t5.data import FineTuningDataModule as T5FineTuningDataModule
 from nemo.collections.llm.t5.data import MockDataModule as T5MockDataModule
 from nemo.collections.llm.t5.data import PreTrainingDataModule as T5PreTrainingDataModule
@@ -156,6 +171,18 @@ __all__ = [
     "CustomRetrievalDataModule",
     "GPTModel",
     "GPTConfig",
+    "HyenaTestConfig",
+    "Hyena7bConfig",
+    "Hyena40bConfig",
+    "Hyena7bARCLongContextConfig",
+    "Hyena40bARCLongContextConfig",
+    "HyenaNVTestConfig",
+    "HyenaNV40bConfig",
+    "HyenaNV7bConfig",
+    "HyenaConfig",
+    "HyenaModel",
+    "Hyena1bConfig",
+    "HyenaNV1bConfig",
     "gpt_data_step",
     "gpt_forward_step",
     "T5Model",
@@ -250,6 +277,9 @@ __all__ = [
     "T5FineTuningDataModule",
     "T5SquadDataModule",
     "T5MockDataModule",
+    "DeepSeekModel",
+    "DeepSeekV2Config",
+    "DeepSeekV3Config",
     "HuggingFaceBertBaseConfig",
     "HuggingFaceBertConfig",
     "HuggingFaceBertLargeConfig",
@@ -274,9 +304,19 @@ __all__ = [
 from nemo.utils import logging
 
 try:
-    import nemo_run as run
+    import nemo_run as run  # noqa: F401
 
-    from nemo.collections.llm.api import export_ckpt, finetune, generate, import_ckpt, pretrain, ptq, train, validate
+    from nemo.collections.llm.api import (  # noqa: F401
+        distill,
+        export_ckpt,
+        finetune,
+        generate,
+        import_ckpt,
+        pretrain,
+        ptq,
+        train,
+        validate,
+    )
     from nemo.collections.llm.recipes import *  # noqa
 
     __all__.extend(
@@ -289,20 +329,21 @@ try:
             "finetune",
             "generate",
             "ptq",
+            "distill",
         ]
     )
 except ImportError as error:
     logging.warning(f"Failed to import nemo.collections.llm.[api,recipes]: {error}")
 
 try:
-    from nemo.collections.llm.api import deploy
+    from nemo.collections.llm.api import deploy  # noqa: F401
 
     __all__.append("deploy")
 except ImportError as error:
     logging.warning(f"The deploy module could not be imported: {error}")
 
 try:
-    from nemo.collections.llm.api import evaluate
+    from nemo.collections.llm.api import evaluate  # noqa: F401
 
     __all__.append("evaluate")
 except ImportError as error:

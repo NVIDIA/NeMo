@@ -26,7 +26,9 @@ from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
+from nemo.collections.llm.distillation import DistillationGPTModel
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
+from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
 from nemo.lightning import (
     AutoResume,
@@ -265,6 +267,83 @@ def validate(
     return app_state.exp_dir
 
 
+@run.cli.entrypoint(name="distill", namespace="llm")
+def distill(
+    student_model_path: AnyPath,
+    teacher_model_path: AnyPath,
+    data: pl.LightningDataModule,
+    trainer: Trainer,
+    log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
+    resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
+    optim: Optional[OptimizerModule] = None,
+    tokenizer: Optional[TokenizerType] = None,
+    model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
+) -> Path:
+    """
+    Distills a teacher model into a student model using special Knowledge-Distillation losses.
+
+    Note that this requires an existing NeMo 2.0 checkpoint of the student model as well, as
+    the model class is not known beforehand.
+    This script currently supports instances of ``nemo.collections.llm.GPTModel`` for now.
+
+    Args:
+        student_model_path (Path): Path to student model NeMo checkpoint to be trained.
+        teacher_model_path (Path): Path to teacher model NeMo checkpoint to distill from.
+        data (pl.LightningDataModule): The data module containing training data.
+        trainer (Trainer): The trainer instance configured with a MegatronStrategy.
+        log (NeMoLogger): A nemologger instance.
+        resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
+        optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
+            from the model will be used.
+        tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
+            or an instance of TokenizerSpec.
+        export (Optional[str]): Filename to save the exported checkpoint after training.
+        model_transform (Optional[Union[Callable[[nn.Module], nn.Module], PEFT]]): A model transform to be applied.
+
+    Returns
+    -------
+        Path: The directory path where training artifacts are saved.
+
+    Examples
+    --------
+        >>> from nemo.collections import llm
+        >>> from nemo import lightning as nl
+        >>> student = "/path/to/student/nemo/ckpt"  # <-- change me
+        >>> teacher = "/path/to/teacher/nemo/ckpt"  # <-- change me
+        >>> data = llm.SquadDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+        >>> precision = nl.MegatronMixedPrecision(precision="bf16-mixed")
+        >>> trainer = nl.Trainer(strategy=nl.MegatronStrategy(tensor_model_parallel_size=2), plugins=precision)
+        >>> llm.distill(student, teacher, data, trainer, tokenizer="model")
+        PosixPath('/path/to/log_dir')
+    """
+    _student_model = io.load_context(student_model_path, subpath="model")
+    _teacher_model = io.load_context(teacher_model_path, subpath="model")
+    assert isinstance(_student_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+    assert isinstance(_teacher_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+
+    if tokenizer is None:
+        tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
+        assert tokenizer is not None, "Tokenizer neither provided nor found in models."
+
+    model = DistillationGPTModel(
+        _student_model.config,
+        _teacher_model.config,
+        teacher_ckpt_path=teacher_model_path,
+    )
+    model.__io__ = _student_model.__io__
+
+    return train(
+        model=model,
+        data=data,
+        optim=optim,
+        tokenizer=tokenizer,
+        trainer=trainer,
+        log=log,
+        resume=resume,
+        model_transform=model_transform,
+    )
+
+
 @run.cli.entrypoint(name="ptq", namespace="llm")
 def ptq(
     nemo_checkpoint: str,
@@ -277,8 +356,8 @@ def ptq(
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
-    This function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy modules
-    or direcly using TensorRT-LLM library.
+    By default, this function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy
+    modules or direcly using TensorRT-LLM library.
 
     The function can be used through the NeMo CLI in the following way:
     ```bash
@@ -292,6 +371,12 @@ def ptq(
     nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
         export_config.path=/models/Llama-3-8B-INT8_SQ \
         quantization_config.algorithm=int8_sq
+
+    # Export as NeMo checkpoint instead
+    nemo llm ptq nemo_checkpoint=/models/Llama-3-8B \
+        export_config.path=/models/Llama-3-8B-INT8_SQ \
+        quantization_config.algorithm=int8_sq \
+        export_config.export_format=nemo
     ```
 
     Args:
@@ -299,7 +384,7 @@ def ptq(
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
-        export_config (ExportConfig): Export configuration for TensorRT-LLM checkpoint.
+        export_config (ExportConfig): Export configuration for output checkpoint.
         ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
 
     Returns:
@@ -315,7 +400,7 @@ def ptq(
 
     quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model = quantization.load_with_modelopt_layer_spec(
+    model, trainer = quantization.load_with_modelopt_layer_spec(
         nemo_checkpoint,
         calibration_tp,
         calibration_pp,
@@ -324,7 +409,7 @@ def ptq(
 
     model = quantizer.quantize(model)
 
-    quantizer.export(model, nemo_checkpoint)
+    quantizer.export(model, nemo_checkpoint, trainer)
 
     console = Console()
     console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
@@ -377,8 +462,8 @@ def deploy(
         Needs to be True to be able to run evaluation. Default: True.
         openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
         be True while running evaluation. Default: True.
-        output_context_logits (bool): If True builds trtllm engine with gather_context_logits set to True. Default: True.
-        context_logits are used to compute the logProb of the output token in case of multi token prediction benchmarks.
+        output_context_logits (bool): If True builds trtllm engine with 'gather_context_logits=True'. Default: True.
+            context_logits are used to compute the logProb of the output token in multi-token prediction benchmarks.
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token in case of single token prediction
         benchmarks (like MMLU, lambada). Default: True.
@@ -441,7 +526,8 @@ def evaluate(
     (https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
 
     Args:
-        target_cfg (EvaluationTarget): target of the evaluation. Providing nemo_checkpoint_path, model_id and url in EvaluationTarget.api_endpoint is required to run evaluations.
+        target_cfg (EvaluationTarget): target of the evaluation. Providing nemo_checkpoint_path, model_id, and
+            url in EvaluationTarget.api_endpoint is required to run evaluations.
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
     """
 
@@ -564,12 +650,16 @@ def import_ckpt(
         console.print(f"[green]✓ Checkpoint imported to {output}[/green]")
     else:
         console.print(f"[green] $NEMO_MODELS_CACHE={NEMO_MODELS_CACHE} [/green]")
-        console.print(f"[green]✓ Checkpoint imported to {output}[/green]")
+
+    # Display directory structure as a tree
+    dir_tree = _build_directory_tree(output, root_name="Imported Checkpoint")
+    console.print(dir_tree)
 
     return output
 
 
 def load_connector_from_trainer_ckpt(path: AnyPath, target: str) -> io.ModelConnector:
+    # pylint: disable=C0116
     if not isinstance(path, Path):
         path = Path(path)
     return io.load_context(path, subpath="model").exporter(target, path)
@@ -582,6 +672,7 @@ def export_ckpt(
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
+    **kwargs,
 ) -> Path:
     """
     Exports a checkpoint from a model using the model's associated exporter, typically for
@@ -635,7 +726,7 @@ def export_ckpt(
     if output_path and not isinstance(output_path, Path):
         output_path = Path(output_path)
 
-    output = io.export_ckpt(path, target, output_path, overwrite, load_connector)
+    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
 
     console = Console()
     console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
@@ -875,7 +966,7 @@ def _validate_config(
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]] = None,
 ) -> None:
 
-    ## Model validation
+    # Model validation
     if hasattr(model, "config"):
         assert getattr(model.config, "seq_length", 1) > 0
         assert getattr(model.config, "max_position_embeddings", 1) > 0
@@ -883,14 +974,10 @@ def _validate_config(
         assert model.config.hidden_size > 0
         assert model.config.num_attention_heads > 0
         assert model.config.ffn_hidden_size > 0
-
-        if hasattr(model.config, "seq_length"):
-            if getattr(model.config, "max_position_embeddings", None) is not None:
-                assert model.config.seq_length <= model.config.max_position_embeddings
     else:
         assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
 
-    ## Data validation
+    # Data validation
     assert data.micro_batch_size > 0
     assert data.global_batch_size > 0
     assert data.seq_length > 0
@@ -899,7 +986,7 @@ def _validate_config(
         data.global_batch_size % data.micro_batch_size == 0
     ), "Global batch size must be divisible by micro batch size in data module."
 
-    ## Trainer validation
+    # Trainer validation
 
     # MegatronStrategy validation
     if isinstance(trainer.strategy, nl.MegatronStrategy):
@@ -967,3 +1054,32 @@ def _validate_config(
                 assert (
                     model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
                 ), "Number of experts should be a multiple of expert model parallel_size."
+
+
+def _build_directory_tree(path, tree=None, root_name=None):
+    """Build a Rich Tree representation of a directory structure."""
+    from rich.tree import Tree
+
+    path = Path(path)
+    if tree is None:
+        tree = Tree(f"[bold blue]{root_name or path.name}[/bold blue]")
+
+    # Sort to have directories first, then files
+    items = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name))
+
+    for item in items:
+        if item.is_dir():
+            branch = tree.add(f"[bold cyan]{item.name}/[/bold cyan]")
+            _build_directory_tree(item, branch)
+        else:
+            # Color differently based on file extension
+            if item.suffix in ('.json', '.jsonl'):
+                tree.add(f"[yellow]{item.name}[/yellow]")
+            elif item.suffix in ('.pt', '.bin', '.ckpt', '.nemo'):
+                tree.add(f"[magenta]{item.name}[/magenta]")
+            elif item.suffix in ('.py', '.sh'):
+                tree.add(f"[green]{item.name}[/green]")
+            else:
+                tree.add(f"[white]{item.name}[/white]")
+
+    return tree
