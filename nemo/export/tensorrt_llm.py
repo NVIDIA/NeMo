@@ -238,7 +238,9 @@ class TensorRTLLM(ITritonDeployable):
             )
 
         gpus_per_node = tensor_parallelism_size if gpus_per_node is None else gpus_per_node
-        prepare_directory_for_export(self.model_dir, delete_existing_files=delete_existing_files, subdir=TRTLLM_ENGINE_DIR)
+        prepare_directory_for_export(
+            self.model_dir, delete_existing_files=delete_existing_files, subdir=TRTLLM_ENGINE_DIR
+        )
 
         if max_prompt_embedding_table_size is None:
             max_prompt_embedding_table_size = 0
@@ -1495,8 +1497,7 @@ class TensorRTLLM(ITritonDeployable):
                     self._load_prompt_tables()
                 except Exception as error:
                     raise RuntimeError(
-                        "Files in the TensorRT-LLM folder are corrupted and "
-                        "the model needs to be exported again."
+                        "Files in the TensorRT-LLM folder are corrupted and " "the model needs to be exported again."
                     ) from error
 
     def unload_engine(self):

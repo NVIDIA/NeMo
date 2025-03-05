@@ -33,7 +33,9 @@ def is_nemo2_checkpoint(checkpoint_path: str) -> bool:
     return (ckpt_path / 'context').is_dir()
 
 
-def prepare_directory_for_export(model_dir: Union[str, Path], delete_existing_files: bool, subdir: Optional[str] = None) -> None:
+def prepare_directory_for_export(
+    model_dir: Union[str, Path], delete_existing_files: bool, subdir: Optional[str] = None
+) -> None:
     """
     Prepares model_dir path for the TensorRTT-LLM / vLLM export.
     Makes sure that the model_dir directory exists and is empty.
