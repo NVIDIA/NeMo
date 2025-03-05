@@ -123,7 +123,6 @@ def mlperf_lora_llama2_70b_recipe(
         external_cuda_graph=False,
         enable_cuda_graph=False,
     )
-    llama2_config.microbatch_group_size_per_vp_stage = 1
     model = run.Config(
         MLPerfLoRALlamaModel,
         llama2_config,
@@ -170,28 +169,10 @@ def mlperf_lora_llama2_70b_recipe(
     ub_tp_comm_overlap = tp_size > 1
     if ub_tp_comm_overlap:
         from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-            BulkOverlapCfg,
-            PipelineOverlapCfg,
-            RingExchangeOverlapCfg,
-            TransformerLayerTPOverlapCfg,
+            userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192_lora,
         )
 
-        tp_comm_overlap_cfg = TransformerLayerTPOverlapCfg(
-            qkv_fprop=RingExchangeOverlapCfg(),
-            fc1_fprop=RingExchangeOverlapCfg(),
-            proj_dgrad=RingExchangeOverlapCfg(),
-            fc2_dgrad=RingExchangeOverlapCfg(),
-            proj_fprop=PipelineOverlapCfg(
-                num_sm=32, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=True
-            ),
-            fc2_fprop=PipelineOverlapCfg(
-                num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=False
-            ),
-            qkv_dgrad=BulkOverlapCfg(num_sm=4, cga_size=2, set_sm_margin=False),
-            fc1_dgrad=RingExchangeOverlapCfg(cga_size=2, set_sm_margin=True),
-            qkv_wgrad=None,
-            fc1_wgrad=None,
-        )
+        tp_comm_overlap_cfg = userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192_lora
     overlap_callback = run.Config(
         MegatronCommOverlapCallback,
         tp_comm_overlap=ub_tp_comm_overlap,

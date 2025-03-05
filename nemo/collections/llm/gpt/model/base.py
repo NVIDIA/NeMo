@@ -15,8 +15,9 @@
 from contextlib import nullcontext
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Union
 
+import contextlib
 import lightning.pytorch as L
 import torch
 import torch.distributed
@@ -510,6 +511,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        model_context_managers: Optional[List] = [],
     ):
         """Initialize the GPT model.
 
@@ -525,6 +527,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
+        self.model_context_managers = model_context_managers
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
 
@@ -535,6 +538,12 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         """
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer)
+            with contextlib.ExitStack() as stack:
+                # Apply requested context managers for this block
+                for cm in self.model_context_managers:
+                    stack.enter_context(cm)
+
+                self.module = self.config.configure_model(self.tokenizer)
 
     def forward(
         self,
