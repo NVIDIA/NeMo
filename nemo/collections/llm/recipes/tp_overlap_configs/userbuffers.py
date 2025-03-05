@@ -151,8 +151,12 @@ userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192_lora = TransformerLayerTPOverlapC
     proj_dgrad=RingExchangeOverlapCfg(),
     fc1_fprop=RingExchangeOverlapCfg(),
     fc2_dgrad=RingExchangeOverlapCfg(),
-    proj_fprop=PipelineOverlapCfg(num_sm=32, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=True),
-    fc2_fprop=PipelineOverlapCfg(num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=False),
+    proj_fprop=PipelineOverlapCfg(
+        num_sm=32, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=True
+    ),
+    fc2_fprop=PipelineOverlapCfg(
+        num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=False
+    ),
 )
 
 # llama3.1 405b

@@ -102,12 +102,16 @@ def override_recipe_configs(
     recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graph
 
     if finetuning_scheme == "lora" and tp_size > 1:
-        tp_comm_overlap_cfg = userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen8192_lora if tp_size == 2 \
-            else userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192_lora if tp_size == 4 \
-            else None
+        tp_comm_overlap_cfg = (
+            userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen8192_lora
+            if tp_size == 2
+            else userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192_lora if tp_size == 4 else None
+        )
         if tp_comm_overlap_cfg:
             comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
-            assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
+            assert (
+                comm_overlap_callback_idx is not None
+            ), "MegatronCommOverlapCallback missing. Required for performance."
 
             # Enable TP comm overlap with the given config
             recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = True
