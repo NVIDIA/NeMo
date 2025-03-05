@@ -39,6 +39,7 @@ class NemotronConfig(GPTConfig):
     """
     Configuration class for the Nemotron Config, inheriting from GPTConfig.
     """
+
     # configs that are common across model sizes
     normalization: str = "LayerNorm"
     activation_func: Callable = squared_relu
@@ -72,6 +73,7 @@ class Nemotron3Config4B(NemotronConfig):
     """
     Configuration class for the Nemotron3 4B Config, inheriting from NemotronConfig.
     """
+
     num_layers: int = 32
     seq_length: int = 4096
     hidden_size: int = 3072
@@ -87,6 +89,7 @@ class Nemotron3Config8B(NemotronConfig):
     """
     Configuration class for the Nemotron3 8B Config, inheriting from NemotronConfig.
     """
+
     num_layers: int = 32
     seq_length: int = 4096
     hidden_size: int = 4096
@@ -102,6 +105,7 @@ class Nemotron3Config22B(NemotronConfig):
     """
     Configuration class for the Nemotron3 22B Config, inheriting from NemotronConfig.
     """
+
     num_layers: int = 40
     seq_length: int = 4096
     hidden_size: int = 6144
@@ -117,6 +121,7 @@ class Nemotron4Config15B(NemotronConfig):
     """
     Configuration class for the Nemotron4 15B Config, inheriting from NemotronConfig.
     """
+
     num_layers: int = 32
     seq_length: int = 4096
     hidden_size: int = 6144
@@ -132,6 +137,7 @@ class Nemotron4Config340B(NemotronConfig):
     """
     Configuration class for the Nemotron4 340B Config, inheriting from NemotronConfig.
     """
+
     num_layers: int = 96
     seq_length: int = 4096
     hidden_size: int = 18432
@@ -149,6 +155,7 @@ class NemotronModel(GPTModel):
     This class provides a high-level interface for Nemotron models,
     implementing the specific architecture and settings needed for Nemotron models.
     """
+
     def __init__(
         self,
         config: Annotated[Optional[NemotronConfig], Config[NemotronConfig]] = None,
@@ -167,6 +174,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
     This class handles the conversion of Hugging Face's NemotronForCausalLM models
     to NeMo's Nemotron format, including weight mapping and configuration translation.
     """
+
     def init(self) -> NemotronModel:
         """
         Initialize a NeMo NemotronModel instance.
@@ -296,6 +304,7 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
     This class handles the conversion of NeMo's NemotronModel to Hugging Face's
     NemotronForCausalLM format, including weight mapping and configuration translation.
     """
+
     def init(self, dtype=torch.bfloat16) -> "NemotronForCausalLM":
         """
         Initialize a HF NemotronForCausalLM instance.

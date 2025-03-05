@@ -38,6 +38,7 @@ class StarcoderConfig(GPTConfig):
     """
     Configuration class for the Starcoder Config, inheriting from GPTConfig.
     """
+
     # configs that are common across model sizes
     normalization: str = "LayerNorm"
     activation_func: Callable = F.gelu
@@ -61,6 +62,7 @@ class StarcoderConfig15B(StarcoderConfig):
     """
     Configuration class for the Starcoder 15B Config, inheriting from StarcoderConfig.
     """
+
     num_layers: int = 40
     hidden_size: int = 6144
     ffn_hidden_size: int = 24576
@@ -75,6 +77,7 @@ class StarcoderModel(GPTModel):
     This class provides a high-level interface for Starcoder models,
     implementing the specific architecture and settings needed for Starcoder models.
     """
+
     def __init__(
         self,
         config: Annotated[Optional[StarcoderConfig], Config[StarcoderConfig]] = None,
@@ -95,6 +98,7 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
     This class handles the conversion of Hugging Face's GPTBigCodeForCausalLM models
     to NeMo's Starcoder format, including weight mapping and configuration translation.
     """
+
     def init(self) -> StarcoderModel:
         """
         Initialize a NeMo StarcoderModel instance.
@@ -226,6 +230,7 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
     This class handles the conversion of NeMo's StarcoderModel to Hugging Face's
     GPTBigCodeForCausalLM format, including weight mapping and configuration translation.
     """
+
     def init(self, dtype=torch.bfloat16) -> "GPTBigCodeForCausalLM":
         """
         Initialize a HF GPTBigCodeForCausalLM instance.

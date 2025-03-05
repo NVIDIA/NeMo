@@ -55,6 +55,7 @@ class Baichuan2Config7B(Baichuan2Config):
     """
     Configuration class for the Baichuan2 7B Config, inheriting from Baichuan2Config.
     """
+
     num_layers: int = 32
     hidden_size: int = 4096
     num_attention_heads: int = 32
@@ -70,6 +71,7 @@ class Baichuan2Model(GPTModel):
     This class provides a high-level interface for Baichuan2 models,
     implementing the specific architecture and settings needed for Baichuan2 models.
     """
+
     def __init__(
         self,
         config: Annotated[Optional[Baichuan2Config], Config[Baichuan2Config]] = None,
@@ -90,6 +92,7 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
     This class handles the conversion of Hugging Face's BaichuanForCausalLM models
     to NeMo's Baichuan2 format, including weight mapping and configuration translation.
     """
+
     def init(self) -> Baichuan2Model:
         """
         Initialize a NeMo Baichuan2Model instance.
@@ -211,6 +214,7 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
     This class handles the conversion of NeMo's Baichuan2Model to Hugging Face's
     BaichuanForCausalLM format, including weight mapping and configuration translation.
     """
+
     def init(self, dtype=torch.bfloat16, model_name="baichuan-inc/Baichuan2-7B-Base") -> "AutoModelForCausalLM":
         """
         Initialize a HF BaichuanForCausalLM instance.

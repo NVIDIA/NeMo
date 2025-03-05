@@ -38,6 +38,7 @@ class Starcoder2Config(GPTConfig):
     """
     Configuration class for the Starcoder2 Config, inheriting from GPTConfig.
     """
+
     # configs that are common across model sizes
     normalization: str = "LayerNorm"
     activation_func: Callable = F.gelu
@@ -63,6 +64,7 @@ class Starcoder2Config3B(Starcoder2Config):
     """
     Configuration class for the Starcoder2 3B Config, inheriting from Starcoder2Config.
     """
+
     num_layers: int = 30
     hidden_size: int = 3072
     ffn_hidden_size: int = 12288
@@ -77,6 +79,7 @@ class Starcoder2Config7B(Starcoder2Config):
     """
     Configuration class for the Starcoder2 7B Config, inheriting from Starcoder2Config.
     """
+
     num_layers: int = 32
     hidden_size: int = 4608
     ffn_hidden_size: int = 18432
@@ -91,6 +94,7 @@ class Starcoder2Config15B(Starcoder2Config):
     """
     Configuration class for the Starcoder2 15B Config, inheriting from Starcoder2Config.
     """
+
     num_layers: int = 40
     hidden_size: int = 6144
     ffn_hidden_size: int = 24576
@@ -107,6 +111,7 @@ class Starcoder2Model(GPTModel):
     This class provides a high-level interface for Starcoder2 models,
     implementing the specific architecture and settings needed for Starcoder2 models.
     """
+
     def __init__(
         self,
         config: Annotated[Optional[Starcoder2Config], Config[Starcoder2Config]] = None,
@@ -127,6 +132,7 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
     This class handles the conversion of Hugging Face's Starcoder2ForCausalLM models
     to NeMo's Starcoder2 format, including weight mapping and configuration translation.
     """
+
     def init(self) -> Starcoder2Model:
         """
         Initialize a NeMo Starcoder2Model instance.
@@ -256,6 +262,7 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
     This class handles the conversion of NeMo's Starcoder2Model to Hugging Face's
     Starcoder2ForCausalLM format, including weight mapping and configuration translation.
     """
+
     def init(self) -> "Starcoder2ForCausalLM":
         """
         Initialize a HF Starcoder2ForCausalLM instance.

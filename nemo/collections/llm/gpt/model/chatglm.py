@@ -63,6 +63,7 @@ class ChatGLM2Config6B(ChatGLMConfig):
     """
     Configuration class for the ChatGLM2Config6B Config, inheriting from ChatGLMConfig.
     """
+
     seq_length: int = 32768
 
 
@@ -71,6 +72,7 @@ class ChatGLM3Config6B(ChatGLMConfig):
     """
     Configuration class for the ChatGLM3Config6B Config, inheriting from ChatGLMConfig.
     """
+
     seq_length: int = 8192
 
 
@@ -81,6 +83,7 @@ class ChatGLMModel(GPTModel):
     This class provides a high-level interface for ChatGLM models,
     implementing the specific architecture and settings needed for ChatGLM models.
     """
+
     def __init__(
         self,
         config: Annotated[Optional[ChatGLMConfig], Config[ChatGLMConfig]] = None,
@@ -99,6 +102,7 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
     This class handles the conversion of Hugging Face's ChatGLMForCausalLM models
     to NeMo's ChatGLM format, including weight mapping and configuration translation.
     """
+
     def init(self) -> ChatGLMModel:
         """
         Initialize a NeMo ChatGLMModel instance.
@@ -212,6 +216,7 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
     This class handles the conversion of NeMo's ChatGLMModel to Hugging Face's
     ChatGLMForCausalLM format, including weight mapping and configuration translation.
     """
+
     def init(self, dtype=torch.bfloat16, model_name="THUDM/chatglm3-6b") -> "AutoModelForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
