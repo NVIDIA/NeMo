@@ -35,6 +35,9 @@ if TYPE_CHECKING:
 
 @dataclass
 class Starcoder2Config(GPTConfig):
+    """
+    Configuration class for the Starcoder2 Config, inheriting from GPTConfig.
+    """
     # configs that are common across model sizes
     normalization: str = "LayerNorm"
     activation_func: Callable = F.gelu
@@ -57,6 +60,9 @@ class Starcoder2Config(GPTConfig):
 
 @dataclass
 class Starcoder2Config3B(Starcoder2Config):
+    """
+    Configuration class for the Starcoder2 3B Config, inheriting from Starcoder2Config.
+    """
     num_layers: int = 30
     hidden_size: int = 3072
     ffn_hidden_size: int = 12288
@@ -68,6 +74,9 @@ class Starcoder2Config3B(Starcoder2Config):
 
 @dataclass
 class Starcoder2Config7B(Starcoder2Config):
+    """
+    Configuration class for the Starcoder2 7B Config, inheriting from Starcoder2Config.
+    """
     num_layers: int = 32
     hidden_size: int = 4608
     ffn_hidden_size: int = 18432
@@ -79,6 +88,9 @@ class Starcoder2Config7B(Starcoder2Config):
 
 @dataclass
 class Starcoder2Config15B(Starcoder2Config):
+    """
+    Configuration class for the Starcoder2 15B Config, inheriting from Starcoder2Config.
+    """
     num_layers: int = 40
     hidden_size: int = 6144
     ffn_hidden_size: int = 24576
@@ -89,6 +101,12 @@ class Starcoder2Config15B(Starcoder2Config):
 
 
 class Starcoder2Model(GPTModel):
+    """
+    Starcoder2 model implementation based on the GPT model architecture.
+
+    This class provides a high-level interface for Starcoder2 models,
+    implementing the specific architecture and settings needed for Starcoder2 models.
+    """
     def __init__(
         self,
         config: Annotated[Optional[Starcoder2Config], Config[Starcoder2Config]] = None,
@@ -103,10 +121,32 @@ class Starcoder2Model(GPTModel):
 
 @io.model_importer(Starcoder2Model, "hf")
 class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2Model]):
+    """
+    Importer for converting Hugging Face Starcoder2 models to NeMo format.
+
+    This class handles the conversion of Hugging Face's Starcoder2ForCausalLM models
+    to NeMo's Starcoder2 format, including weight mapping and configuration translation.
+    """
     def init(self) -> Starcoder2Model:
+        """
+        Initialize a NeMo Starcoder2Model instance.
+
+        Returns:
+            Starcoder2Model: Initialized NeMo Starcoder2 model with the appropriate configuration
+                        and tokenizer.
+        """
         return Starcoder2Model(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        """
+        Apply the conversion from HF to NeMo format.
+
+        Args:
+            output_path: Path where the converted model will be saved
+
+        Returns:
+            Path: Path to the saved NeMo model
+        """
         from transformers import Starcoder2ForCausalLM
 
         source = Starcoder2ForCausalLM.from_pretrained(str(self), torch_dtype='auto')
@@ -123,6 +163,19 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
         return output_path
 
     def convert_state(self, source, target):
+        """
+        Convert state dict from HF format to NeMo format.
+
+        Maps the weights from the HF model to the NeMo model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source HF model
+            target: Target NeMo model
+
+        Returns:
+            The result of applying the transforms
+        """
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
@@ -144,12 +197,27 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """
+        Get the tokenizer for the HF model.
+
+        Returns:
+            AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+        """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> Starcoder2Config:
+        """
+        Create a NeMo Starcoder2Config from the HF model config.
+
+        Translates the HF configuration parameters to the equivalent NeMo
+        configuration.
+
+        Returns:
+            Starcoder2Config: NeMo configuration for Starcoder2 models
+        """
         from transformers import Starcoder2Config as HFStarcoder2Config
 
         source = HFStarcoder2Config.from_pretrained(str(self))
@@ -182,7 +250,22 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
 
 @io.model_exporter(Starcoder2Model, "hf")
 class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCausalLM"]):
+    """
+    Exporter for converting NeMo Starcoder2Model to Hugging Face format.
+
+    This class handles the conversion of NeMo's Starcoder2Model to Hugging Face's
+    Starcoder2ForCausalLM format, including weight mapping and configuration translation.
+    """
     def init(self) -> "Starcoder2ForCausalLM":
+        """
+        Initialize a HF Starcoder2ForCausalLM instance.
+
+        Args:
+            dtype: Data type for model parameters
+
+        Returns:
+            Starcoder2ForCausalLM: Initialized HF Starcoder2 model
+        """
         from transformers import Starcoder2ForCausalLM
         from transformers.modeling_utils import no_init_weights
 
@@ -201,6 +284,19 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
         return output_path
 
     def convert_state(self, source, target):
+        """
+        Convert state dict from NeMo format to HF format.
+
+        Maps the weights from the NeMo model to the HF model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source NeMo model
+            target: Target HF model
+
+        Returns:
+            The target model with weights transferred from source
+        """
         mapping = {
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.self_attention.linear_proj.bias": "model.layers.*.self_attn.o_proj.bias",
@@ -225,10 +321,24 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
 
     @property
     def tokenizer(self):
+        """
+        Get the tokenizer from the NeMo model.
+
+        Returns:
+            TokenizerSpec: Tokenizer from the NeMo model
+        """
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
     def config(self) -> "HFStarcoder2Config":
+        """Create a HF HFStarcoder2Config from the NeMo model config.
+
+        Translates the NeMo configuration parameters to the equivalent HF
+        configuration.
+
+        Returns:
+            HFStarcoder2Config: HF configuration for Starcoder2 models
+        """
         from transformers import Starcoder2Config as HFStarcoder2Config
 
         source: Starcoder2Config = io.load_context(str(self)).model.config

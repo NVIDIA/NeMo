@@ -35,6 +35,9 @@ if TYPE_CHECKING:
 
 @dataclass
 class StarcoderConfig(GPTConfig):
+    """
+    Configuration class for the Starcoder Config, inheriting from GPTConfig.
+    """
     # configs that are common across model sizes
     normalization: str = "LayerNorm"
     activation_func: Callable = F.gelu
@@ -55,6 +58,9 @@ class StarcoderConfig(GPTConfig):
 
 @dataclass
 class StarcoderConfig15B(StarcoderConfig):
+    """
+    Configuration class for the Starcoder 15B Config, inheriting from StarcoderConfig.
+    """
     num_layers: int = 40
     hidden_size: int = 6144
     ffn_hidden_size: int = 24576
@@ -63,6 +69,12 @@ class StarcoderConfig15B(StarcoderConfig):
 
 
 class StarcoderModel(GPTModel):
+    """
+    Starcoder model implementation based on the GPT model architecture.
+
+    This class provides a high-level interface for Starcoder models,
+    implementing the specific architecture and settings needed for Starcoder models.
+    """
     def __init__(
         self,
         config: Annotated[Optional[StarcoderConfig], Config[StarcoderConfig]] = None,
@@ -77,10 +89,32 @@ class StarcoderModel(GPTModel):
 
 @io.model_importer(StarcoderModel, "hf")
 class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderModel]):
+    """
+    Importer for converting Hugging Face Starcoder models to NeMo format.
+
+    This class handles the conversion of Hugging Face's GPTBigCodeForCausalLM models
+    to NeMo's Starcoder format, including weight mapping and configuration translation.
+    """
     def init(self) -> StarcoderModel:
+        """
+        Initialize a NeMo StarcoderModel instance.
+
+        Returns:
+            StarcoderModel: Initialized NeMo Starcoder model with the appropriate configuration
+                        and tokenizer.
+        """
         return StarcoderModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        """
+        Apply the conversion from HF to NeMo format.
+
+        Args:
+            output_path: Path where the converted model will be saved
+
+        Returns:
+            Path: Path to the saved NeMo model
+        """
         from transformers import GPTBigCodeForCausalLM
 
         source = GPTBigCodeForCausalLM.from_pretrained(str(self), torch_dtype='auto')
@@ -97,6 +131,19 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
         return output_path
 
     def convert_state(self, source, target):
+        """
+        Convert state dict from HF format to NeMo format.
+
+        Maps the weights from the HF model to the NeMo model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source HF model
+            target: Target NeMo model
+
+        Returns:
+            The result of applying the transforms
+        """
         mapping = {
             "transformer.wte.weight": "embedding.word_embeddings.weight",
             "transformer.wpe.weight": "embedding.position_embeddings.weight",
@@ -121,12 +168,27 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """
+        Get the tokenizer for the HF model.
+
+        Returns:
+            AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+        """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> StarcoderConfig:
+        """
+        Create a NeMo StarcoderConfig from the HF model config.
+
+        Translates the HF configuration parameters to the equivalent NeMo
+        configuration.
+
+        Returns:
+            StarcoderConfig: NeMo configuration for Starcoder models
+        """
         from transformers import GPTBigCodeConfig as HFStarcoderConfig
 
         source = HFStarcoderConfig.from_pretrained(str(self))
@@ -158,7 +220,22 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
 
 @io.model_exporter(StarcoderModel, "hf")
 class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausalLM"]):
+    """
+    Exporter for converting NeMo StarcoderModel to Hugging Face format.
+
+    This class handles the conversion of NeMo's StarcoderModel to Hugging Face's
+    GPTBigCodeForCausalLM format, including weight mapping and configuration translation.
+    """
     def init(self, dtype=torch.bfloat16) -> "GPTBigCodeForCausalLM":
+        """
+        Initialize a HF GPTBigCodeForCausalLM instance.
+
+        Args:
+            dtype: Data type for model parameters
+
+        Returns:
+            GPTBigCodeForCausalLM: Initialized HF Starcoder model
+        """
         from transformers import GPTBigCodeForCausalLM
         from transformers.modeling_utils import no_init_weights
 
@@ -177,6 +254,19 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
         return output_path
 
     def convert_state(self, source, target):
+        """
+        Convert state dict from NeMo format to HF format.
+
+        Maps the weights from the NeMo model to the HF model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source NeMo model
+            target: Target HF model
+
+        Returns:
+            The target model with weights transferred from source
+        """
         mapping = {
             "embedding.position_embeddings.weight": "transformer.wpe.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "transformer.h.*.attn.c_proj.weight",
@@ -199,10 +289,24 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
 
     @property
     def tokenizer(self):
+        """
+        Get the tokenizer from the NeMo model.
+
+        Returns:
+            TokenizerSpec: Tokenizer from the NeMo model
+        """
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
     def config(self) -> "HFStarcoderConfig":
+        """Create a HF GPTBigCodeConfig from the NeMo model config.
+
+        Translates the NeMo configuration parameters to the equivalent HF
+        configuration.
+
+        Returns:
+            HFStarcoderConfig: HF configuration for Starcoder models
+        """
         from transformers import GPTBigCodeConfig as HFStarcoderConfig
 
         source: StarcoderConfig = io.load_context(str(self)).model.config

@@ -36,6 +36,9 @@ if TYPE_CHECKING:
 
 @dataclass
 class NemotronConfig(GPTConfig):
+    """
+    Configuration class for the Nemotron Config, inheriting from GPTConfig.
+    """
     # configs that are common across model sizes
     normalization: str = "LayerNorm"
     activation_func: Callable = squared_relu
@@ -66,6 +69,9 @@ class NemotronConfig(GPTConfig):
 
 @dataclass
 class Nemotron3Config4B(NemotronConfig):
+    """
+    Configuration class for the Nemotron3 4B Config, inheriting from NemotronConfig.
+    """
     num_layers: int = 32
     seq_length: int = 4096
     hidden_size: int = 3072
@@ -78,6 +84,9 @@ class Nemotron3Config4B(NemotronConfig):
 
 @dataclass
 class Nemotron3Config8B(NemotronConfig):
+    """
+    Configuration class for the Nemotron3 8B Config, inheriting from NemotronConfig.
+    """
     num_layers: int = 32
     seq_length: int = 4096
     hidden_size: int = 4096
@@ -90,6 +99,9 @@ class Nemotron3Config8B(NemotronConfig):
 
 @dataclass
 class Nemotron3Config22B(NemotronConfig):
+    """
+    Configuration class for the Nemotron3 22B Config, inheriting from NemotronConfig.
+    """
     num_layers: int = 40
     seq_length: int = 4096
     hidden_size: int = 6144
@@ -102,6 +114,9 @@ class Nemotron3Config22B(NemotronConfig):
 
 @dataclass
 class Nemotron4Config15B(NemotronConfig):
+    """
+    Configuration class for the Nemotron4 15B Config, inheriting from NemotronConfig.
+    """
     num_layers: int = 32
     seq_length: int = 4096
     hidden_size: int = 6144
@@ -114,6 +129,9 @@ class Nemotron4Config15B(NemotronConfig):
 
 @dataclass
 class Nemotron4Config340B(NemotronConfig):
+    """
+    Configuration class for the Nemotron4 340B Config, inheriting from NemotronConfig.
+    """
     num_layers: int = 96
     seq_length: int = 4096
     hidden_size: int = 18432
@@ -125,6 +143,12 @@ class Nemotron4Config340B(NemotronConfig):
 
 
 class NemotronModel(GPTModel):
+    """
+    Nemotron model implementation based on the GPT model architecture.
+
+    This class provides a high-level interface for Nemotron models,
+    implementing the specific architecture and settings needed for Nemotron models.
+    """
     def __init__(
         self,
         config: Annotated[Optional[NemotronConfig], Config[NemotronConfig]] = None,
@@ -137,10 +161,32 @@ class NemotronModel(GPTModel):
 
 @io.model_importer(NemotronModel, "hf")
 class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]):
+    """
+    Importer for converting Hugging Face Nemotron models to NeMo format.
+
+    This class handles the conversion of Hugging Face's NemotronForCausalLM models
+    to NeMo's Nemotron format, including weight mapping and configuration translation.
+    """
     def init(self) -> NemotronModel:
+        """
+        Initialize a NeMo NemotronModel instance.
+
+        Returns:
+            NemotronModel: Initialized NeMo Nemotron model with the appropriate configuration
+                        and tokenizer.
+        """
         return NemotronModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
+        """
+        Apply the conversion from HF to NeMo format.
+
+        Args:
+            output_path: Path where the converted model will be saved
+
+        Returns:
+            Path: Path to the saved NeMo model
+        """
         from transformers import NemotronForCausalLM
 
         print('Start converting Nemotron model..')
@@ -158,6 +204,19 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
         return output_path
 
     def convert_state(self, source, target):
+        """
+        Convert state dict from HF format to NeMo format.
+
+        Maps the weights from the HF model to the NeMo model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source HF model
+            target: Target NeMo model
+
+        Returns:
+            The result of applying the transforms
+        """
         mapping = {
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
             "model.layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
@@ -176,12 +235,27 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        """
+        Get the tokenizer for the HF model.
+
+        Returns:
+            AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+        """
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     @property
     def config(self) -> NemotronConfig:
+        """
+        Create a NeMo NemotronConfig from the HF model config.
+
+        Translates the HF configuration parameters to the equivalent NeMo
+        configuration.
+
+        Returns:
+            NemotronConfig: NeMo configuration for Nemotron models
+        """
         from transformers import NemotronConfig as HFNemotronConfig
 
         source = HFNemotronConfig.from_pretrained(str(self))
@@ -216,7 +290,22 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
 @io.model_exporter(NemotronModel, "hf")
 class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]):
+    """
+    Exporter for converting NeMo NemotronModel to Hugging Face format.
+
+    This class handles the conversion of NeMo's NemotronModel to Hugging Face's
+    NemotronForCausalLM format, including weight mapping and configuration translation.
+    """
     def init(self, dtype=torch.bfloat16) -> "NemotronForCausalLM":
+        """
+        Initialize a HF NemotronForCausalLM instance.
+
+        Args:
+            dtype: Data type for model parameters
+
+        Returns:
+            NemotronForCausalLM: Initialized HF Nemotron model
+        """
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
@@ -235,6 +324,19 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
         return output_path
 
     def convert_state(self, source, target):
+        """
+        Convert state dict from NeMo format to HF format.
+
+        Maps the weights from the NeMo model to the HF model according to
+        the appropriate mapping scheme.
+
+        Args:
+            source: Source NeMo model
+            target: Target HF model
+
+        Returns:
+            The target model with weights transferred from source
+        """
         mapping = {
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc1.weight": "model.layers.*.mlp.up_proj.weight",
@@ -253,10 +355,24 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
 
     @property
     def tokenizer(self):
+        """
+        Get the tokenizer from the NeMo model.
+
+        Returns:
+            TokenizerSpec: Tokenizer from the NeMo model
+        """
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
     def config(self) -> "HFNemotronConfig":
+        """Create a HF NemotronConfig from the NeMo model config.
+
+        Translates the NeMo configuration parameters to the equivalent HF
+        configuration.
+
+        Returns:
+            HFNemotronConfig: HF configuration for Nemotron models
+        """
         from transformers import NemotronConfig as HFNemotronConfig
 
         source: NemotronConfig = io.load_context(str(self)).model.config
@@ -264,7 +380,6 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
         return HFNemotronConfig(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
-            intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
             head_dim=(
                 source.kv_channels
