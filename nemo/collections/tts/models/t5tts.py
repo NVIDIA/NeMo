@@ -88,23 +88,24 @@ def worker_init_fn(worker_id):
 class T5TTS_Model(ModelPT):
     """
     T5TTS Model Base Class used for training a TTS model that can generate audio codes from transcript and a context audio/text
-    
+
     Supports multiple model types:
 
-    - single_encoder_sv_tts: Transcript goes into the encoder and target audio goes to the decoder. 
-    Additionally, speaker_embedding of target audio (or context audio if provided) from TitaNet gets added to encoder output (all timesteps). 
-    
-    - multi_encoder_context_tts:  Transcript and context audio go to different encoders. 
-    Transcript encoding feeds to layers given by cfg.model.transcript_decoder_layers and the context encoding 
-    feeds into the layers given by context_decoder_layers . Also supports text context which gets encoded 
+    - single_encoder_sv_tts: Transcript goes into the encoder and target audio goes to the decoder.
+    Additionally, speaker_embedding of target audio (or context audio if provided) from TitaNet gets added to encoder output (all timesteps).
+
+    - multi_encoder_context_tts:  Transcript and context audio go to different encoders.
+    Transcript encoding feeds to layers given by cfg.model.transcript_decoder_layers and the context encoding
+    feeds into the layers given by context_decoder_layers . Also supports text context which gets encoded
     by the same encoder as context audio. Only one of context audio or contex text is supported.
 
-    - decoder_context_tts: Text goes into the encoder; context & target audio go to the decoder. 
-    Also supports text context. Supports fixed sized context so we set context_duration_min and context_duration_max to the same value (5 seconds). 
+    - decoder_context_tts: Text goes into the encoder; context & target audio go to the decoder.
+    Also supports text context. Supports fixed sized context so we set context_duration_min and context_duration_max to the same value (5 seconds).
     Text context, which is usually shorter than number of codec frames of 5 second of audio, is padded to the max context duration in this model.
-    
+
     - decoder_pretrain_synthesizer: This is the model type used for pretraining the decoder only on audio data using next frame prediction loss.
     """
+
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -503,7 +504,7 @@ class T5TTS_Model(ModelPT):
         multi_encoder_mapping = None
         text = None
         text_lens = None
-        
+
         if self.model_type != 'decoder_pretrain_synthesizer':
             text = batch['text']
             text_lens = batch['text_lens']
@@ -516,7 +517,6 @@ class T5TTS_Model(ModelPT):
 
             _attn_prior = batch.get('align_prior_matrix', None)
             _attn_prior = self.scale_prior(_attn_prior, self.global_step)
-        
 
         if self.model_type == 'decoder_pretrain_synthesizer':
             text = None
