@@ -32,6 +32,7 @@ from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProje
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
+from transformers import LlavaConfig as HFLlavaConfig
 
 
 @dataclass
@@ -428,7 +429,6 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
             HFLlavaConfig: A configuration object for the HuggingFace LLaVA Next model.
         """
         from transformers import LlamaConfig as HFLlamaConfig
-        from transformers import LlavaConfig as HFLlavaConfig
 
         source = io.load_context(str(self), subpath="model.config")
         language_config = source.language_transformer_config
