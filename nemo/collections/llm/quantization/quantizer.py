@@ -203,6 +203,7 @@ class Quantizer:
 
         if isinstance(model, llm.HFAutoModelForCausalLM):
             device = model.model.device
+
             def huggingface_forward_loop(model):
                 dataloader = get_dataloader()
                 for batch in dataloader:
