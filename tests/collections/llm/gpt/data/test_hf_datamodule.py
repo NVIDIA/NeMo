@@ -12,16 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections import llm
+from unittest.mock import MagicMock
+
 import pytest
 import torch
 from datasets import Dataset, DatasetDict
-from unittest.mock import MagicMock
-from nemo.collections.llm.gpt.data.hf_dataset import make_dataset_splits, SquadHFDataModule, \
-    batchify, extract_key_from_dicts, pad_within_micro
 
+from nemo.collections import llm
+from nemo.collections.llm.gpt.data.hf_dataset import (
+    SquadHFDataModule,
+    batchify,
+    extract_key_from_dicts,
+    make_dataset_splits,
+    pad_within_micro,
+)
 
 DATA_PATH = "/home/TestData/lite/hf_cache/squad/"
+
 
 def test_load_single_split():
     ds = llm.HFDatasetDataModule(
@@ -174,26 +181,34 @@ def test_validate_dataset_asset_accessibility_file_is_none():
 
 @pytest.fixture
 def sample_dataset():
-    return DatasetDict({
-        "train": Dataset.from_dict({
-            "id": ["1", "2"],
-            "title": ["Title1", "Title2"],
-            "context": ["This is a context.", "Another context."],
-            "question": ["What is this?", "What about this?"],
-            "answers": [{"text": ["A context"]}, {"text": ["Another"]}]
-        }),
-        "validation": Dataset.from_dict({
-            "id": ["3"],
-            "title": ["Title3"],
-            "context": ["Validation context."],
-            "question": ["What is validation?"],
-            "answers": [{"text": ["Validation answer"]}]
-        })
-    })
+    return DatasetDict(
+        {
+            "train": Dataset.from_dict(
+                {
+                    "id": ["1", "2"],
+                    "title": ["Title1", "Title2"],
+                    "context": ["This is a context.", "Another context."],
+                    "question": ["What is this?", "What about this?"],
+                    "answers": [{"text": ["A context"]}, {"text": ["Another"]}],
+                }
+            ),
+            "validation": Dataset.from_dict(
+                {
+                    "id": ["3"],
+                    "title": ["Title3"],
+                    "context": ["Validation context."],
+                    "question": ["What is validation?"],
+                    "answers": [{"text": ["Validation answer"]}],
+                }
+            ),
+        }
+    )
+
 
 @pytest.fixture
 def data_module(sample_dataset):
     return llm.HFDatasetDataModule(path_or_dataset=sample_dataset, split=["train", "validation"])
+
 
 @pytest.fixture
 def mock_tokenizer():
@@ -202,6 +217,7 @@ def mock_tokenizer():
     tokenizer.bos_id = 1
     tokenizer.eos_id = 2
     return tokenizer
+
 
 @pytest.fixture
 def squad_data_module(mock_tokenizer, sample_dataset):
@@ -223,13 +239,9 @@ def test_dataloaders(data_module):
 
 
 def test_formatting_prompts_func(squad_data_module):
-    example = {
-        "context": "This is a context.",
-        "question": "What is this?",
-        "answers": {"text": ["A context"]}
-    }
+    example = {"context": "This is a context.", "question": "What is this?", "answers": {"text": ["A context"]}}
     result = squad_data_module.formatting_prompts_func(example)
-    
+
     assert "input_ids" in result
     assert "labels" in result
     assert "loss_mask" in result
@@ -240,52 +252,56 @@ def test_make_dataset_splits_single_dataset():
     data = {"id": [1, 2, 3], "text": ["a", "b", "c"]}
     dataset = Dataset.from_dict(data)
     split_aliases = {"train": ["train"], "val": ["validation"], "test": ["test"]}
-    
+
     result = make_dataset_splits(dataset, "train", split_aliases)
-    
+
     assert result["train"] is not None
     assert result["val"] is None
     assert result["test"] is None
     assert len(result["train"]) == 3
+
 
 def test_make_dataset_splits_dataset_dict():
     data_train = Dataset.from_dict({"id": [1, 2, 3], "text": ["a", "b", "c"]})
     data_val = Dataset.from_dict({"id": [4, 5], "text": ["d", "e"]})
     dataset = DatasetDict({"train": data_train, "validation": data_val})
     split_aliases = {"train": ["train"], "val": ["validation"], "test": ["test"]}
-    
+
     result = make_dataset_splits(dataset, None, split_aliases)
-    
+
     assert result["train"] is not None
     assert result["val"] is not None
     assert result["test"] is None
     assert len(result["train"]) == 3
     assert len(result["val"]) == 2
 
+
 def test_make_dataset_splits_invalid_split():
     data = {"id": [1, 2, 3], "text": ["a", "b", "c"]}
     dataset = Dataset.from_dict(data)
     split_aliases = {"train": ["train"], "val": ["validation"], "test": ["test"]}
-    
+
     with pytest.raises(AssertionError):
         make_dataset_splits(dataset, "invalid_split", split_aliases)
+
 
 def test_make_dataset_splits_with_list():
     data_train = Dataset.from_dict({"id": [1, 2, 3], "text": ["a", "b", "c"]})
     data_val = Dataset.from_dict({"id": [4, 5], "text": ["d", "e"]})
     dataset = [data_train, data_val]
     split_aliases = {"train": ["train"], "val": ["validation"], "test": ["test"]}
-    
+
     result = make_dataset_splits(dataset, ["train", "validation"], split_aliases)
-    
+
     assert result["train"] is not None
     assert result["val"] is not None
     assert result["test"] is None
     assert len(result["train"]) == 3
     assert len(result["val"]) == 2
 
+
 def test_collate_fn():
-    batch = [{"id": [1], "token_ids": [1,2,3]}, {"id": [2], "token_ids": [123]}]
+    batch = [{"id": [1], "token_ids": [1, 2, 3]}, {"id": [2], "token_ids": [123]}]
     result = llm.HFDatasetDataModule.collate_fn(batch)
     assert isinstance(result, dict)
     assert "id" in result
@@ -299,6 +315,7 @@ def test_collate_fn():
     assert result["token_ids"].shape[0] == 2
     assert result["token_ids"].shape[1] == 3
 
+
 def test_batchify():
     batch = torch.Tensor(128)
     output = batchify(batch)
@@ -307,10 +324,12 @@ def test_batchify():
     assert output.shape[0] == 1
     assert output.shape[1] == 128
 
+
 def test_extract_key_from_dicts():
     dicts = [{"key": "value1"}, {"key": "value2"}, {"key": "value3"}]
     result = extract_key_from_dicts(dicts, "key")
     assert result == ["value1", "value2", "value3"]
+
 
 def test_pad_within_micro():
     data = [[1, 2], [3, 4, 5], [6]]

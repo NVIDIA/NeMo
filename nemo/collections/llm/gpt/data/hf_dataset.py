@@ -123,7 +123,7 @@ def has_dist_env_init_or_rank_env_var():
 
 
 def batchify(tensor):
-    """ Ensures that the input tensor has at least two dimensions by adding an extra batch dimension if necessary.
+    """Ensures that the input tensor has at least two dimensions by adding an extra batch dimension if necessary.
 
     Parameters
     ----------
@@ -140,8 +140,9 @@ def batchify(tensor):
         return tensor.unsqueeze_(0)
     return tensor
 
+
 def extract_key_from_dicts(batch, key):
-    """ Extracts the value of the given key from each dictionary in a list of dictionaries.
+    """Extracts the value of the given key from each dictionary in a list of dictionaries.
 
     Parameters
     ----------
@@ -158,8 +159,9 @@ def extract_key_from_dicts(batch, key):
     """
     return list(map(lambda x: x[key], batch))
 
+
 def pad_within_micro(batch, pad_token_id):
-    """ Pads each list in a batch of lists to the same length with a specified token.
+    """Pads each list in a batch of lists to the same length with a specified token.
 
     Parameters
     ----------
@@ -176,6 +178,7 @@ def pad_within_micro(batch, pad_token_id):
     """
     max_len = max(map(len, batch))
     return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
+
 
 class HFDatasetDataModule(pl.LightningDataModule):
     """A PyTorch Lightning DataModule for loading and managing datasets from the `datasets` library.
