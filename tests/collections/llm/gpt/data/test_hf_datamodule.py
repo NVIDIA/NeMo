@@ -281,3 +281,33 @@ def test_make_dataset_splits_with_list():
     assert result["test"] is None
     assert len(result["train"]) == 3
     assert len(result["val"]) == 2
+
+def test_collate_fn():
+    batch = [{"id": 1, "text": "a"}, {"id": 2, "text": "b"}]
+    result = collate_fn(batch)
+    assert isinstance(result, dict)
+    assert "id" in result
+    assert "text" in result
+    assert len(result["id"]) == 2
+
+def test_batchify():
+    data = [{"id": i, "text": str(i)} for i in range(10)]
+    batch_size = 3
+    batches = list(batchify(data, batch_size))
+    assert len(batches) == 4  # Last batch will have only one element
+    assert len(batches[0]) == 3
+    assert len(batches[-1]) == 1
+
+def test_extract_key_from_dicts():
+    dicts = [{"key": "value1"}, {"key": "value2"}, {"key": "value3"}]
+    result = extract_key_from_dicts(dicts, "key")
+    assert result == ["value1", "value2", "value3"]
+
+def test_pad_within_micro():
+    data = [[1, 2], [3, 4, 5], [6]]
+    padded_data = pad_within_micro(data, pad_value=0)
+    assert len(padded_data) == 3
+    assert all(len(row) == 3 for row in padded_data)
+    assert padded_data[0] == [1, 2, 0]
+    assert padded_data[1] == [3, 4, 5]
+    assert padded_data[2] == [6, 0, 0]
