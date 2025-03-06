@@ -132,9 +132,9 @@ class CharTokenizer(TokenizerSpec):
         for i, token in enumerate(vocab_list):
 
             if token[1:-1].startswith("\\"):
-                token = token[1:-1].encode('ascii').decode('unicode_escape')
+                token = token[1:-1].encode('ascii').decode('unicode_escape')[0]
             else:
-                token = token[1:-1]
+                token = token[1:-1][0]
 
             self.check_token_from_file(token, vocab_file, i)
             if token not in self.vocab:
