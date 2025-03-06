@@ -17,9 +17,11 @@ import pytest
 import torch
 from datasets import Dataset, DatasetDict
 from unittest.mock import MagicMock
+from nemo.collections.llm.gpt.data.hf_dataset import make_dataset_splits, SquadHFDataModule, \
+    batchify, extract_key_from_dicts, pad_within_micro
+
 
 DATA_PATH = "/home/TestData/lite/hf_cache/squad/"
-
 
 def test_load_single_split():
     ds = llm.HFDatasetDataModule(
@@ -191,7 +193,7 @@ def sample_dataset():
 
 @pytest.fixture
 def data_module(sample_dataset):
-    return HFDatasetDataModule(path_or_dataset=sample_dataset, split=["train", "validation"])
+    return llm.HFDatasetDataModule(path_or_dataset=sample_dataset, split=["train", "validation"])
 
 @pytest.fixture
 def mock_tokenizer():
@@ -283,20 +285,27 @@ def test_make_dataset_splits_with_list():
     assert len(result["val"]) == 2
 
 def test_collate_fn():
-    batch = [{"id": 1, "text": "a"}, {"id": 2, "text": "b"}]
-    result = collate_fn(batch)
+    batch = [{"id": [1], "token_ids": [1,2,3]}, {"id": [2], "token_ids": [123]}]
+    result = llm.HFDatasetDataModule.collate_fn(batch)
     assert isinstance(result, dict)
     assert "id" in result
-    assert "text" in result
-    assert len(result["id"]) == 2
+    assert "token_ids" in result
+    assert isinstance(result["id"], torch.Tensor)
+    assert result["id"].ndim == 2
+    assert result["id"].shape[0] == 2
+    assert result["id"].shape[1] == 1
+    assert isinstance(result["token_ids"], torch.Tensor)
+    assert result["token_ids"].ndim == 2
+    assert result["token_ids"].shape[0] == 2
+    assert result["token_ids"].shape[1] == 3
 
 def test_batchify():
-    data = [{"id": i, "text": str(i)} for i in range(10)]
-    batch_size = 3
-    batches = list(batchify(data, batch_size))
-    assert len(batches) == 4  # Last batch will have only one element
-    assert len(batches[0]) == 3
-    assert len(batches[-1]) == 1
+    batch = torch.Tensor(128)
+    output = batchify(batch)
+    assert isinstance(output, torch.Tensor)
+    assert output.ndim == 2
+    assert output.shape[0] == 1
+    assert output.shape[1] == 128
 
 def test_extract_key_from_dicts():
     dicts = [{"key": "value1"}, {"key": "value2"}, {"key": "value3"}]
@@ -305,7 +314,7 @@ def test_extract_key_from_dicts():
 
 def test_pad_within_micro():
     data = [[1, 2], [3, 4, 5], [6]]
-    padded_data = pad_within_micro(data, pad_value=0)
+    padded_data = pad_within_micro(data, pad_token_id=0)
     assert len(padded_data) == 3
     assert all(len(row) == 3 for row in padded_data)
     assert padded_data[0] == [1, 2, 0]

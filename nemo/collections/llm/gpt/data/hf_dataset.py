@@ -122,6 +122,18 @@ def has_dist_env_init_or_rank_env_var():
     return dist.is_initialized() or any(map(lambda x: x in os.environ, env_vars))
 
 
+def batchify(tensor):
+    if tensor.ndim == 1:
+        return tensor.unsqueeze_(0)
+    return tensor
+
+def extract_key_from_dicts(batch, key):
+    return list(map(lambda x: x[key], batch))
+
+def pad_within_micro(batch, pad_token_id):
+    max_len = max(map(len, batch))
+    return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
+
 class HFDatasetDataModule(pl.LightningDataModule):
     """A PyTorch Lightning DataModule for loading and managing datasets from the `datasets` library.
 
@@ -242,19 +254,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
     @staticmethod
     def collate_fn(batch, pad_token_id=0):
         """Default batch collator"""
-
-        def batchify(tensor):
-            if tensor.ndim == 1:
-                return tensor.unsqueeze_(0)
-            return tensor
-
-        def extract_key_from_dicts(batch, key):
-            return list(map(lambda x: x[key], batch))
-
-        def pad_within_micro(batch, pad_token_id):
-            max_len = max(map(len, batch))
-            return [item + [pad_token_id] * (max_len - len(item)) for item in batch]
-
         return {
             key: batchify(
                 torch.LongTensor(
