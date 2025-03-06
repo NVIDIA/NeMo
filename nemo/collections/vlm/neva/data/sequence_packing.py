@@ -75,6 +75,7 @@ def greedy_knapsack(item_sizes: List[int], samples: List, max_capacity: int) -> 
 
     return knapsacks
 
+
 def predict_seq_len(instance_tokens: torch.Tensor, num_image_embeddings_per_tile: int, media_token_index: int) -> int:
     """
     Predict the effective sequence length, accounting for media embeddings.
