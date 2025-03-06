@@ -404,15 +404,19 @@ def ptq(
 
     trainer = None
     if is_automodel:
+        assert export_config.export_format != "nemo", "Automodel PTQ does not support export format nemo"
         model = HFAutoModelForCausalLM(
             model_name=nemo_checkpoint, load_pretrained_weights=True, trust_remote_code=trust_remote_code
         )
         model.configure_model()
     else:
+        assert export_config.export_format != "hf", "Automodel PTQ does not support export format hf"
         model, trainer = load_with_modelopt_layer_spec(
             nemo_checkpoint,
-            calibration_tp,
-            calibration_pp,
+            tensor_model_parallel_size=calibration_tp,
+            pipeline_model_parallel_size=calibration_pp,
+            devices=calibration_tp,
+            num_nodes=calibration_pp,
             ckpt_load_strictness=ckpt_load_strictness,
         )
 

@@ -2819,6 +2819,30 @@ jobs:
       SCRIPT: |
         bash tests/collections/llm/bitexact/mixtral/run.sh
 
+  L2_NeMo_2_Automodel_PTQ_trtllm:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Automodel_PTQ_trtllm')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT:
+        python scripts/llm/ptq.py -nc /home/TestData/nlp/megatron_llama/llama-ci-hf -algo fp8 -out /tmp/trtllm_quantized --ckpt_load_strictness log_all
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/trtllm_quantized
+
+  L2_NeMo_2_Automodel_PTQ_hf:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Automodel_PTQ_hf')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT:
+        python scripts/llm/ptq.py -nc /home/TestData/nlp/megatron_llama/llama-ci-hf -algo fp8 -out /tmp/hf_quantized --export_format hf
+
+      AFTER_SCRIPT: |
+        rm -rf /tmp/hf_quantized
+
   L2_NeMo_2_PTQ_Llama2_FP8_trtllm:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -3206,6 +3230,8 @@ jobs:
       - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
       - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
       - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
+      - L2_NeMo_2_Automodel_PTQ_trtllm
+      - L2_NeMo_2_Automodel_PTQ_hf
       - L2_NeMo_2_PTQ_Llama2_FP8_trtllm
       - L2_NeMo_2_PTQ_Llama2_FP8_nemo
       - L2_NeMo_2_Distill_Llama3_TP1PP2

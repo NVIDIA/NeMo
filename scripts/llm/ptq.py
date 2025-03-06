@@ -51,7 +51,7 @@ def get_args():
     parser.add_argument("-nodes", "--num_nodes", type=int, help="Number of nodes used")
     parser.add_argument('-out', '--export_path', '--output_path', type=str, help='Path for the exported engine')
     parser.add_argument(
-        "--export_format", default="trtllm", choices=["trtllm", "nemo"], help="Model format to export as"
+        "--export_format", default="trtllm", choices=["trtllm", "nemo", "hf"], help="Model format to export as"
     )
     parser.add_argument(
         '-algo',
@@ -103,6 +103,8 @@ def get_args():
     if args.export_path is None:
         if args.export_format == "trtllm":
             args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+        elif args.export_format == "hf":
+            args.export_path = f"./hf_{args.algorithm}"
         else:
             args.export_path = f"./nemo_{args.algorithm}"
 

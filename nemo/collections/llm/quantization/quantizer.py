@@ -58,14 +58,8 @@ SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized laye
 SUPPORTED_EXPORT_FMT = ["trtllm", "nemo", "hf"]
 
 
-def _is_zero_rank():
-    """Check if the current process is the zero rank. If the process is not distributed, return True."""
-    if not dist.is_initialized():
-        return True
-    return dist.get_rank() == 0
-
-
 def _barrier():
+    """Waits for all processes."""
     if dist.is_initialized():
         dist.barrier()
 
@@ -278,7 +272,7 @@ class Quantizer:
                 unwrapped_model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
             )
 
-        if _is_zero_rank():
+        if is_global_rank_zero():
             mtq.print_quant_summary(unwrapped_model)
 
         if self.export_config.generate_sample:
@@ -345,7 +339,7 @@ class Quantizer:
         return unwrap_model(model)
 
     def _save_tokenizer(self, model, model_dir: str, export_dir: Path, export_fmt: str):
-        if not _is_zero_rank() or export_fmt == "nemo":
+        if not is_global_rank_zero() or export_fmt == "nemo":
             # For NeMo model format, the tokenizer is saved via trainer.save_checkpoint()
             return
 
@@ -402,10 +396,10 @@ class Quantizer:
                     use_nfs_workspace=use_nfs_workspace,
                 )
             _barrier()
-            if _is_zero_rank():
+            if is_global_rank_zero():
                 assert self._validate_quantized_checkpoint(export_dir, inference_tp)
 
-        if _is_zero_rank():
+        if is_global_rank_zero():
             self._save_tokenizer(model, model_dir, export_dir, export_fmt)
             logging.info(f"Export succeeded, model has been exported to {export_dir}.")
 
