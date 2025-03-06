@@ -699,6 +699,36 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         return transf_log_probs, encoded_len, enc_states, enc_mask
 
+    def justnorm(self, x, idim=-1):
+        dtype = x.dtype
+        x = x.float()
+        res = (x / x.norm(p=2, dim=idim, keepdim=True)).to(dtype=dtype)        
+        #res = 1.0 * (x / x.norm(p=2, dim=dim, keepdim=True))  
+        return res
+
+    def print_tensor_info(self, tensor, name, printit, idim):
+        if (printit == 0):
+            return
+        tensor = tensor.float()
+        #print("%s.shape: %s" % (name, tensor.shape))
+        total_norm = tensor.norm()
+        nparams = tensor.numel()
+        norm_perdim = tensor.norm(dim=idim)
+        meannorm_perdim = torch.mean(norm_perdim)
+        relative_deviation = 100.0 *torch.abs(norm_perdim - meannorm_perdim)/meannorm_perdim
+        maxdeviation_in_perc = relative_deviation.max()
+        meandeviation_in_perc = relative_deviation.mean()
+
+        print("%s:\t%s\tnorm: %f \tnparams: %d\tnorm_perparam: %f:\tmax deviation: %f(%%)\tmean deviation: %f(%%)" % 
+                (name, tensor.shape, total_norm, nparams, total_norm/(nparams ** 0.5), maxdeviation_in_perc, meandeviation_in_perc))
+
+    def justnorm_and_stat(self, x, idim=-1, name="", printit=1):
+        self.print_tensor_info(x.weight, name, printit, idim)
+        res = x.weight.data.copy_(self.justnorm(x.weight.data, idim=idim))
+        self.print_tensor_info(x.weight, name, printit, idim)
+        return res
+
+
     # PTL-specific methods
     def training_step(self, batch: PromptedAudioToTextMiniBatch, batch_nb):
 
@@ -719,6 +749,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             transcript=input_ids,
             transcript_length=input_ids_lens,
         )
+
+        # dec_att = self.transf_decoder.decoder.decoder_blocks[0].attn
+
+        # enc_att = self.encoder.ngpt.transformer.h[0]
+        # enc_att.query.weight.data.copy_(self.justnorm_and_stat(enc_att.query, idim=1, name="enc_att.query", printit=1))
+        # dec_att.query.weight.data.copy_(self.justnorm_and_stat(dec_att.query, idim=1, name="dec_att.query", printit=1))
 
         # Mask components: 1) discard padding  &  2) discard prompt (notice the negation)
         # For a full decoder sequence O with len M, the loss mask skips the first element,

@@ -48,9 +48,11 @@ class DecoderBlock(nn.Module):
     def forward(self, decoder_query, decoder_mask, decoder_key, encoder_state, encoder_mask, cross_attn=True):
         # Decoder block
         # order: SA -> Norm -> CA -> Norm -> MLP -> Norm
-        h = self.attn(decoder_query, decoder_key, decoder_key, decoder_mask)
+        # decoder_mask
+        h = self.attn(decoder_query, decoder_key, decoder_key, mask=True)
         if cross_attn:
-            h = self.cross_attn(h, encoder_state, encoder_state, encoder_mask)
+            # encoder_mask
+            h = self.cross_attn(h, encoder_state, encoder_state, mask=False)
         h = self.mlp(h)
 
         return h
@@ -82,7 +84,6 @@ class Decoder(nn.Module):
             else:
                 cached_mems_list = memory_states.unsqueeze(0)
 
-            
 
         for i, decoder_block in enumerate(self.decoder_blocks):
             decoder_state = decoder_block(decoder_state, decoder_mask, memory_states, encoder_embeddings, encoder_mask)

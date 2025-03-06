@@ -94,9 +94,15 @@ class AttentionBlock(nn.Module):
         # trainable scaling factors for each head
         self.sqk = torch.nn.Parameter(self.sqk_init_scaling * torch.ones(self.config.n_embd, dtype=torch.float32))
 
+    def normalize_matrices(self):
+        
+        self.query.weight.data.copy_(justnorm_fp32(self.query.weight.data, 1))
+        self.key.weight.data.copy_(justnorm_fp32(self.key.weight.data, 1))
+        self.value.weight.data.copy_(justnorm_fp32(self.value.weight.data, 1))
+        self.att_c_proj.weight.data.copy_(justnorm_fp32(self.att_c_proj.weight.data, 0))
         
 
-    def forward(self, query, key, value, mask):
+    def forward(self, query, key, value, mask=False):
         # Query from Decoder, Key, Value from Encoder
         # order: SA -> Norm -> Proj -> Res 
         B, Tq, C = query.size()
@@ -138,7 +144,7 @@ class AttentionBlock(nn.Module):
             v,
             dropout_p=0.0,
             softmax_scale=softmax_scale,
-            causal=False,
+            causal=mask,
             window_size=(-1, -1),
             alibi_slopes=None,
             deterministic=False,
@@ -161,12 +167,7 @@ class AttentionBlock(nn.Module):
 
         return h
     
-    def normalize_matrices(self):
-        
-        self.query.weight.data.copy_(justnorm_fp32(self.query.weight.data, 1))
-        self.key.weight.data.copy_(justnorm_fp32(self.key.weight.data, 1))
-        self.value.weight.data.copy_(justnorm_fp32(self.value.weight.data, 1))
-        self.att_c_proj.weight.data.copy_(justnorm_fp32(self.att_c_proj.weight.data, 0))
+    
 
 
 class MLPBlock(nn.Module):
@@ -192,6 +193,11 @@ class MLPBlock(nn.Module):
         self.suv = torch.nn.Parameter(
             self.suv_init_scaling * torch.ones(2 * 4 * config.n_embd, dtype=torch.float32)
         )
+
+    def normalize_matrices(self):
+        
+        self.c_fc.weight.data.copy_(justnorm_fp32(self.c_fc.weight.data, 1))
+        self.mlp_c_proj.weight.data.copy_(justnorm_fp32(self.mlp_c_proj.weight.data, 0))
 
     def forward(self, hin):
         # FF (hin is already normalized)
@@ -221,9 +227,3 @@ class MLPBlock(nn.Module):
         h = justnorm(res)
 
         return h
-
-
-    def normalize_matrices(self):
-        
-        self.c_fc.weight.data.copy_(justnorm_fp32(self.c_fc.weight.data, 1))
-        self.mlp_c_proj.weight.data.copy_(justnorm_fp32(self.mlp_c_proj.weight.data, 0))
