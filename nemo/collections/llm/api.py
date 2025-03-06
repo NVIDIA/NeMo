@@ -422,8 +422,10 @@ def ptq(
 
     model = quantizer.quantize(model)
     quantizer.export(model, nemo_checkpoint, trainer)
-    console = Console()
-    console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
+
+    if is_global_rank_zero():
+        console = Console()
+        console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
     return Path(export_config.path)
 
 
