@@ -362,7 +362,7 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             labels=final_labels,
             inference_params=inference_params,
             runtime_gather_output=runtime_gather_output,
-            packed_seq_params = packed_seq_params
+            packed_seq_params=packed_seq_params,
         )
 
         if labels is None:

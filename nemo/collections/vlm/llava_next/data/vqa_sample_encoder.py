@@ -79,8 +79,12 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
                     image_size = image_size.tolist()
                 orig_height, orig_width = image_size
                 num_image_tokens = get_number_of_features(
-                    orig_height, orig_width, resized_height, resized_width, self.hf_config.image_grid_pinpoints,
-                    self.hf_config.vision_config.patch_size
+                    orig_height,
+                    orig_width,
+                    resized_height,
+                    resized_width,
+                    self.hf_config.image_grid_pinpoints,
+                    self.hf_config.vision_config.patch_size,
                 )
                 sample = sample.replace(self.image_token.token_str, "<placeholder>" * num_image_tokens, 1)
             prompt_strings.append(sample)
