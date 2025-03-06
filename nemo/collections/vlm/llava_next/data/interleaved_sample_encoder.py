@@ -31,7 +31,8 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
 
     def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
         """
-        Initialize the LlavaNextSimilarityInterleavedSampleEncoder, inherited from SimilarityInterleavedEncoder for multimodal samples
+        Initialize the LlavaNextSimilarityInterleavedSampleEncoder, inherited from SimilarityInterleavedEncoder for
+        multimodal samples
         focused on similarity interleaved data to support LLaVANeXT
 
         Parameters:
@@ -104,10 +105,6 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
                     interleaved_list.extend([self.image_token.token_id] * num_image_tokens)
                     sorted_images_orig_i += 1
 
-        # assert len(interleaved_list) == len(texts) + len(
-        #     sorted_indices
-        # ), f"inteleaved list length mismatch {len(interleaved_list)} vs text + images {len(texts)} + {len(sorted_indices)}"
-
         # if last index is image token,pad with ignore placeholder
         if interleaved_list[-1] == self.image_token.token_id:
             interleaved_list.append(self.ignore_place_holder)
@@ -147,14 +144,6 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
             )
             for imsize in image_sizes
         ]
-
-        # asserts to make sure num_images and image tokens match
-        # assert (
-        #     image_sizes.shape[0] == tokens[tokens == self.image_token.token_id].shape[0]
-        # ), f"Number of images {image_sizes.shape[0]} and image tokens { tokens[tokens == self.image_token.token_id].shape[0]} do not match"
-        # assert image_sizes.shape[0] == len(
-        #     image_num_patches
-        # ), f"Number of images {image_sizes.shape[0]} and length image_num_patch {len(image_num_patches)} do not match"
 
         output_sample.__key__ = input_sample.__key__
         output_sample.images = image_tensor

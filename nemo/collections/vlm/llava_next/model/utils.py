@@ -214,6 +214,10 @@ def get_number_of_features(
     image_grid_pinpoints: List[Tuple[int, int]],
     patch_size: int,
 ) -> int:
+    """
+    Calculate the number of image features after the preprocessing for images of any resolution.
+    This is used to calculate the number of image tokens.
+    """
 
     height_best_resolution, width_best_resolution = select_best_resolution(
         [orig_height, orig_width], image_grid_pinpoints
