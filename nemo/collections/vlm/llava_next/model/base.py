@@ -21,10 +21,8 @@ import torch.distributed
 from megatron.core import parallel_state as ps
 from megatron.core.inference_params import InferenceParams
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 
-from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
-from nemo.collections.vlm.llava_next.model.utils import merge_input_ids_with_image_features, pack_image_features
+from nemo.collections.vlm.llava_next.model.utils import pack_image_features
 from nemo.collections.vlm.neva.data.multimodal_tokens import IMAGE_TOKEN_INDEX
 
 

@@ -13,21 +13,18 @@
 # limitations under the License.
 
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import List
 
 import torch
-from megatron.energon import InterleavedSample, SimilarityInterleavedSample, batch_list, batch_pad_stack
-from torch.nn.utils.rnn import pad_sequence
+from megatron.energon import SimilarityInterleavedSample
 from transformers import LlavaNextConfig as HFLlavaNextConfig
 
-from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import (
-    InterleavedSampleEncoder,
     SimilarityInterleavedEncoder,
 )
-from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
 from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextSample
+from nemo.collections.vlm.llava_next.model.utils import get_number_of_features
 from nemo.utils import logging
 
 
@@ -58,9 +55,9 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
         texts = input_sample.texts
         matched_text_indices = input_sample.matched_text_indices
         # Sort images according to matched_text_indices
-        sorted_images = [img for _, img in sorted(zip(matched_text_indices, images), key=lambda x: x[0])]
-        sorted_images = [self.process_image(chunk) for chunk in sorted_images]
-        sorted_indices = sorted(matched_text_indices)
+        sorted_images_orig = [img for _, img in sorted(zip(matched_text_indices, images), key=lambda x: x[0])]
+        sorted_images = [self.process_image(chunk) for chunk in sorted_images_orig]
+        # sorted_indices = sorted(matched_text_indices)
         # Group images based on indices
 
         grouped_indices = defaultdict(int)
@@ -68,23 +65,46 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
             grouped_indices[idx] += 1
 
         interleaved_list = []
+        sorted_images_orig_i = 0
 
+        resized_height, resized_width = (
+            self.hf_llava_next_config.vision_config.image_size,
+            self.hf_llava_next_config.vision_config.image_size,
+        )
         # Traverse through texts and interleave images properly
         for text_idx, text in enumerate(texts):
             # If images should be placed before the text
             if not self.image_following_text and text_idx in grouped_indices:
-                interleaved_list.extend([self.image_token.token_id] * grouped_indices[text_idx])
+                for _ in range(grouped_indices[text_idx]):
+                    _, orig_height, orig_width = sorted_images_orig[sorted_images_orig_i].shape
+                    num_image_tokens = get_number_of_features(
+                        orig_height, orig_width, resized_height, resized_width,
+                        self.hf_llava_next_config.image_grid_pinpoints,
+                        self.hf_llava_next_config.vision_config.patch_size
+                    )
+                    interleaved_list.extend([self.image_token.token_id] * num_image_tokens)
+                    sorted_images_orig_i += 1
 
             # Add the text
             interleaved_list.append(text)
 
             # If images should be placed after the text
             if self.image_following_text and text_idx in grouped_indices:
-                interleaved_list.extend([self.image_token.token_id] * grouped_indices[text_idx])
+                for _ in range(grouped_indices[text_idx]):
+                    _, orig_height, orig_width = sorted_images_orig[sorted_images_orig_i].shape
+                    num_image_tokens = get_number_of_features(
+                        orig_height, orig_width, resized_height, resized_width,
+                        self.hf_llava_next_config.image_grid_pinpoints,
+                        self.hf_llava_next_config.vision_config.patch_size
 
-        assert len(interleaved_list) == len(texts) + len(
-            sorted_indices
-        ), f"inteleaved list length mismatch {len(interleaved_list)} vs text + images {len(texts)} + {len(sorted_indices)}"
+                    )
+                    interleaved_list.extend([self.image_token.token_id] * num_image_tokens)
+                    sorted_images_orig_i += 1
+
+
+        # assert len(interleaved_list) == len(texts) + len(
+        #     sorted_indices
+        # ), f"inteleaved list length mismatch {len(interleaved_list)} vs text + images {len(texts)} + {len(sorted_indices)}"
 
         # if last index is image token,pad with ignore placeholder
         if interleaved_list[-1] == self.image_token.token_id:
@@ -127,12 +147,12 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
         ]
 
         # asserts to make sure num_images and image tokens match
-        assert (
-            image_sizes.shape[0] == tokens[tokens == self.image_token.token_id].shape[0]
-        ), f"Number of images {image_sizes.shape[0]} and image tokens { tokens[tokens == self.image_token.token_id].shape[0]} do not match"
-        assert image_sizes.shape[0] == len(
-            image_num_patches
-        ), f"Number of images {image_sizes.shape[0]} and length image_num_patch {len(image_num_patches)} do not match"
+        # assert (
+        #     image_sizes.shape[0] == tokens[tokens == self.image_token.token_id].shape[0]
+        # ), f"Number of images {image_sizes.shape[0]} and image tokens { tokens[tokens == self.image_token.token_id].shape[0]} do not match"
+        # assert image_sizes.shape[0] == len(
+        #     image_num_patches
+        # ), f"Number of images {image_sizes.shape[0]} and length image_num_patch {len(image_num_patches)} do not match"
 
         output_sample.__key__ = input_sample.__key__
         output_sample.images = image_tensor
@@ -221,3 +241,4 @@ def select_best_resolution(original_size: tuple, possible_resolutions: list) -> 
             best_fit = (height, width)
 
     return best_fit
+

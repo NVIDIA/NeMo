@@ -44,7 +44,9 @@ def main(args):
     mbs = args.mbs
     max_steps = args.max_steps
 
-    decoder_seq_length = 8192
+    # For Interleaved data, the decoder sequence length needs to be higher than VQA samples
+    decoder_seq_length = 4096
+    # decoder_seq_length = 40960
 
     if args.data_type == "energon":
         from transformers import AutoProcessor
@@ -84,6 +86,7 @@ def main(args):
             multimodal_sample_config=multimodal_sample_config,
             task_encoder=task_encoder,
             packing_buffer_size=200 if args.use_packed_sequence else None,
+            virtual_epoch_length=100,
         )
 
     elif args.data_type == "mock":
@@ -135,7 +138,7 @@ def main(args):
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
-        save_last=True,
+        save_last="link",
         monitor="reduced_train_loss",
         save_top_k=2,
         every_n_train_steps=1000,

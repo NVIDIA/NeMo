@@ -17,9 +17,9 @@ from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataM
 from nemo.collections.multimodal.data.energon.config import (
     ImageTextSample,
     ImageToken,
-    LLaVATemplateConfig,
     MultiModalSampleConfig,
 )
+from nemo.collections.multimodal.data.energon.conversation import LLaVATemplateConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import (
     BaseSampleEncoder,
     InterleavedSampleEncoder,
