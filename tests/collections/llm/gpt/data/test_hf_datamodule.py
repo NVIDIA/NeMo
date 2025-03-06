@@ -13,6 +13,10 @@
 # limitations under the License.
 
 from nemo.collections import llm
+import pytest
+import torch
+from datasets import Dataset, DatasetDict
+from unittest.mock import MagicMock
 
 DATA_PATH = "/home/TestData/lite/hf_cache/squad/"
 
@@ -164,3 +168,67 @@ def test_validate_dataset_asset_accessibility_file_is_none():
         exception_msg = str(e)
 
     assert exception_msg == expected_msg, exception_msg
+
+
+@pytest.fixture
+def sample_dataset():
+    return DatasetDict({
+        "train": Dataset.from_dict({
+            "id": ["1", "2"],
+            "title": ["Title1", "Title2"],
+            "context": ["This is a context.", "Another context."],
+            "question": ["What is this?", "What about this?"],
+            "answers": [{"text": ["A context"]}, {"text": ["Another"]}]
+        }),
+        "validation": Dataset.from_dict({
+            "id": ["3"],
+            "title": ["Title3"],
+            "context": ["Validation context."],
+            "question": ["What is validation?"],
+            "answers": [{"text": ["Validation answer"]}]
+        })
+    })
+
+@pytest.fixture
+def data_module(sample_dataset):
+    return HFDatasetDataModule(path_or_dataset=sample_dataset, split=["train", "validation"])
+
+@pytest.fixture
+def mock_tokenizer():
+    tokenizer = MagicMock()
+    tokenizer.text_to_ids.side_effect = lambda text: [ord(c) for c in text]  # Mock character-based token IDs
+    tokenizer.bos_id = 1
+    tokenizer.eos_id = 2
+    return tokenizer
+
+@pytest.fixture
+def squad_data_module(mock_tokenizer, sample_dataset):
+    return SquadHFDataModule(tokenizer=mock_tokenizer, path_or_dataset=sample_dataset, split=["train", "validation"])
+
+
+def test_dataset_splits(data_module):
+    assert data_module.train is not None
+    assert data_module.val is not None
+    assert data_module.test is None  # No test split in sample dataset
+
+
+def test_dataloaders(data_module):
+    train_loader = data_module.train_dataloader()
+    val_loader = data_module.val_dataloader()
+
+    assert isinstance(train_loader, torch.utils.data.DataLoader)
+    assert isinstance(val_loader, torch.utils.data.DataLoader)
+
+
+def test_formatting_prompts_func(squad_data_module):
+    example = {
+        "context": "This is a context.",
+        "question": "What is this?",
+        "answers": {"text": ["A context"]}
+    }
+    result = squad_data_module.formatting_prompts_func(example)
+    
+    assert "input_ids" in result
+    assert "labels" in result
+    assert "loss_mask" in result
+    assert len(result["input_ids"]) == len(result["labels"])
