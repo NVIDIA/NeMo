@@ -82,8 +82,8 @@ Optimizer state is deferred until the first training step. Use the following met
 
    strategy.load_optimizer_state_dict(checkpoint)
 
-Steps
-=====
+Train and Evaluate the Model
+============================
 Training Step
 -------------
 The `training_step()` method defines a single training iteration:
@@ -116,32 +116,32 @@ The `predict_step()` method defines a prediction iteration:
 
    result = strategy.predict_step(batch, batch_idx)
 
-DataLoader Processing
-=====================
+Process DataLoader
+==================
 Use `process_dataloader()` to apply custom data sampling to a DataLoader:
 
 .. code-block:: python
 
    dataloader = strategy.process_dataloader(dataloader)
 
-State Dictionary
-================
+Retrieve State Dictionary
+=========================
 Retrieve the model's state dictionary using `lightning_module_state_dict()`:
 
 .. code-block:: python
 
    state_dict = strategy.lightning_module_state_dict()
 
-Removing Checkpoints
-====================
+Remove Checkpoints
+==================
 Remove a checkpoint from the filesystem:
 
 .. code-block:: python
 
    strategy.remove_checkpoint(filepath)
 
-Tensor Initialization
-=====================
+Initialize Tensors
+==================
 Use the `tensor_init_context()` context manager for tensor initialization:
 
 .. code-block:: python
