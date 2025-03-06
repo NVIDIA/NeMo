@@ -206,7 +206,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         4. Set up `finalize_model_grads` from mcore.
         """
         # automodel adds adapters in configure_model
-        if not self.transform_already_applied:
+        if not getattr(self, 'transform_already_applied', False):
             super().apply_transform(trainer)
         self.set_trainable_params(trainer)
         # @akoumparouli: only used with automodel + FSDP2Strategy.
