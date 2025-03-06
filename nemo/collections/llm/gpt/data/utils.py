@@ -732,6 +732,7 @@ def _make_indexed_dataset_compatibility(dataset):
     return dataset
 
 
+'''
 def _preprocess(
     source: dict,
     tokenizer: TokenizerSpec,
@@ -800,6 +801,49 @@ def _preprocess(
     answer_ids = input_ids[last_ignore_index_pos:]
 
     return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
+'''
+
+def transform_to_chat_message(conversations):
+    """
+    Convert JSONL conversation format to chat message format.
+
+    Input format:
+    [{"value": "...", "from": "User"}, {"value": "...", "from": "Assistant"}]
+
+    Output format:
+    [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+    """
+    messages = []
+    for conv in conversations:
+        role = conv["from"].lower()  # Convert User/Assistant to user/assistant
+        message = {"role": role, "content": conv["value"]}
+        messages.append(message)
+    return messages
+
+def _preprocess(
+    source: dict,
+    tokenizer: TokenizerSpec,
+    name_end_token_ids: int,
+    label_start_ids: list,
+    special_tokens: dict,
+    num_turn_start_tokens: int,
+):
+    """
+    Given a conversation list. This transform:
+    1. Add signal '### ' at the beginning each sentence, with end signal '\n';
+    2. Concatenate conversations together;
+    3. Tokenize the concatenated conversation;
+    4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
+    """
+    # header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
+    # tokenize conversations
+    messages = transform_to_chat_message(source['conversations'])
+    tokens = tokenizer.tokenizer.apply_chat_template(messages, return_dict=True, return_assistant_tokens_mask=True, return_tensors='pt')
+    input_ids = tokens['input_ids'][0]
+    mask = torch.tensor(tokens['assistant_masks']).to(bool)
+    #target = copy.deepcopy(input_ids)
+    #mask = torch.ones_like(input_ids).to(bool)
+    return dict(input_ids=input_ids, mask=mask)
 
 
 def _mask_targets(
