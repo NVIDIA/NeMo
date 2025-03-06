@@ -943,6 +943,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             # run forward and backwards passes for an entire global batch
             # we do this inside training_step to support pipeline parallelism
             fwd_bwd_function = get_forward_backward_func()
+            # print(f"{torch.distributed.get_rank()}: {parallel_state.is_pipeline_last_stage()} {fwd_bwd_function}")
 
             # TODO @akhattar: add num_micro_batches_with_partial_activation_checkpoints when ready
             losses_reduced_per_micro_batch = fwd_bwd_function(
