@@ -86,7 +86,7 @@ def main(args):
             multimodal_sample_config=multimodal_sample_config,
             task_encoder=task_encoder,
             packing_buffer_size=200 if args.use_packed_sequence else None,
-            virtual_epoch_length=100,
+            virtual_epoch_length=1000,
         )
 
     elif args.data_type == "mock":
