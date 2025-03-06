@@ -217,7 +217,6 @@ def convert_to_packed_llava_next(
     cu_seqlens = [0]
     cu_seqlens_padded = [0]
 
-    i = 0
     for i, (instance_tokens, instance_labels) in enumerate(zip(tokens, labels)):
         seqlen = len(instance_tokens)
         seqlen_padded = (seqlen + pad_to_multiple_of - 1) // pad_to_multiple_of * pad_to_multiple_of

@@ -1,15 +1,10 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import torch
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.energon import VQASample, batch_list, batch_pad_stack
-from torch.nn.utils.rnn import pad_sequence
 
-from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample, MultiModalSampleConfig
-from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder, VQASampleEncoder
-from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.utils import logging
+from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample
 
 
 @dataclass
