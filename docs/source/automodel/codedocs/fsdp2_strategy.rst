@@ -1,5 +1,5 @@
-FSDP2Strategy Documentation
-===========================
+Implement FSDP2Strategy
+=======================
 
 Overview
 ========
@@ -14,8 +14,8 @@ Features
 - Deferred optimizer state restoration
 - Device mesh initialization
 
-Initialization
-==============
+Initialize
+==========
 To initialize the **FSDP2Strategy**, use the following arguments:
 
 .. code-block:: python
@@ -37,8 +37,8 @@ Arguments:
 - **mp_policy** (*optional*): Mixed precision policy.
 - **parallelize_fn** (*callable, optional*): Model parallelization function.
 
-Parallelization
-===============
+Parallelize
+===========
 The `parallelize()` method applies the sharding process to the model:
 
 .. code-block:: python
@@ -55,27 +55,27 @@ The `setup_environment()` method initializes the distributed environment and dev
 
    strategy.setup_environment()
 
-Checkpoint Management
-=====================
+Manage Checkpoints
+==================
 
-Saving Checkpoints
-------------------
+Save Checkpoints
+----------------
 The `save_checkpoint()` method unshards the checkpoint and saves it to disk:
 
 .. code-block:: python
 
    strategy.save_checkpoint(checkpoint, filepath)
 
-Loading Checkpoints
--------------------
+Load Checkpoints
+----------------
 The `load_checkpoint()` method loads a checkpoint from disk:
 
 .. code-block:: python
 
    checkpoint = strategy.load_checkpoint(filepath)
 
-Optimizer State Restoration
-===========================
+Restore Optimizer State
+=======================
 Optimizer state is deferred until the first training step. Use the following method to store the optimizer state:
 
 .. code-block:: python
