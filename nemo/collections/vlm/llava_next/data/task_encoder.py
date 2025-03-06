@@ -201,16 +201,11 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
         """
         # import pdb; pdb.set_trace()
 
-        keys, images, tokens, labels, loss_mask, num_media_tiles, image_sizes, attention_mask = (
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
+        num_media_tiles, image_sizes = (
             [],
             [],
         )
+
         for sample in samples:
             num_media_tiles.append(sample.num_media_tiles)
             image_sizes.append(sample.image_sizes)
