@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest]
+        os: [macos-latest, macos-13]
         python: ["3.10", "3.11", "3.12"]
         installer: ["pip-install", "nemo-install"]
     steps:
@@ -62,12 +62,12 @@ jobs:
 
   test-installs-linux:
     name: ${{ matrix.os }}-${{ matrix.image }}-${{ matrix.installer }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     container: ubuntu:${{ matrix.image }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-22.04, ubuntu-22.04-arm]
         image: ["22.04"]
         installer: ["pip-install", "nemo-install"]
     steps:
