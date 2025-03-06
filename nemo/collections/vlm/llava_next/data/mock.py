@@ -218,7 +218,6 @@ class _MockLlavaNextDataset(Dataset):
         self.length = num_samples
         self.seed = seed
 
-
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.hf_config = LlavaNextConfig()
