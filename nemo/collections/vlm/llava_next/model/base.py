@@ -307,8 +307,9 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             # MultiModal Token indices are assumed to be values
             input_ids_text[input_ids_text < 0] = 0
 
+            # Position Ids are ignored since we use RoPE
             language_embeddings = self.language_model.embedding(
-                input_ids=input_ids_text, position_ids=None
+                input_ids=input_ids_text, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
 
@@ -365,7 +366,7 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             packed_seq_params=packed_seq_params,
         )
 
-        if labels is None:
+        if labels is None or final_loss_mask is None:
             return output
 
         return output, final_loss_mask.contiguous()
