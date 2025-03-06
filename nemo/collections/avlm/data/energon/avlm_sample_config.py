@@ -14,7 +14,7 @@
 
 from PIL import Image
 from dataclasses import dataclass, field
-from typing import Optional, List, Union, TypedDict
+from typing import Optional, List, Union, TypedDict, NotRequired, Literal
 
 import torch
 
@@ -40,16 +40,16 @@ class VideoSize:
 
 
 class MediaDict(TypedDict):
-    "audio": NotRequired[bytes]
-    "video": NotRequired[bytes]
-    "offset": NotRequired[float]
-    "duration": NotRequired[float]
+    media_type: Literal["audio", "video"]
+    media_value: bytes
+    offset: NotRequired[float]
+    duration: NotRequired[float]
 
 
 @dataclass_slot
 class AVLMEnergonInterleavedSample(Sample):
     # sequence of interleaved media, (either PIL.Image for an image, str for text, bytes or mediaDict for an audio or video)
-    sequence: List[Union[bytes, str, Image.Image, MediaDict]]
+    sequence: List[Union[bytes, str, Image.Image, dict]]
 
 
 @dataclass_slot
@@ -58,8 +58,8 @@ class AVLMEnergonQASample(Sample):
     answers: Optional[List[str]] = None
     answer_weights: Optional[torch.Tensor] = None
 
-    audios: Optional[List[Union[bytes, MediaDict]]] = None
-    videos: Optional[List[Union[bytes, MediaDict]]] = None
+    audios: Optional[List[Union[bytes, dict]]] = None
+    videos: Optional[List[Union[bytes, dict]]] = None
     images: Optional[List[Image.Image]] = None
 
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import itertools
 from PIL import Image
 from dataclasses import dataclass, field
@@ -25,7 +26,6 @@ from torch.nn.utils.rnn import pad_sequence
 from nemo.collections.avlm.data.energon.avlm_sample_config import (
     AudioSize,
     VideoSize,
-    MediaDict,
     AVLMEnergonInterleavedSample,
     AVLMEnergonQASample,
     AVLMSample,
@@ -50,6 +50,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         self, 
         tokenizer=None, 
         audio_processor=None, 
+        video_processor=None,
         image_processor=None, 
         multimodal_sample_config=AVLMSampleConfig()
     ):
@@ -63,6 +64,8 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             Defaults to AVLMSampleConfig().
         """
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
+        self.audio_processor = audio_processor
+        self.video_processor = video_processor
         self.audio_token = multimodal_sample_config.audio_token
         self.video_token = multimodal_sample_config.video_token
 
@@ -70,6 +73,8 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             self.tokenizer = self.build_tokenizer(self.multimodal_sample_config.model_id)
         if self.audio_processor is None:
             self.audio_processor = self.build_audio_processor()
+        if self.video_processor is None:
+            self.video_processor = self.build_video_processor()
         if self.image_processor is None:
             self.image_processor = self.build_image_processor(self.multimodal_sample_config.model_id)
 
@@ -145,13 +150,16 @@ class AVLMSampleEncoder(BaseSampleEncoder):
     def build_audio_processor(self):
         return None
 
+    def build_video_processor(self):
+        return None
+
     @staticmethod
     def build_image_processor(model_id):
         from transformers import AutoProcessor
         processor = AutoProcessor.from_pretrained(model_id)
         self.image_processor = processor.image_processor
 
-    def process_audio(self, audio: Union[bytes, MediaDict]):
+    def process_audio(self, audio: Union[bytes, dict]):
         """
         Process and prepare an audio sample for encoding.
 
@@ -159,12 +167,28 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         audio: The input audio to be processed.
 
         Returns:
-        torch.Tensor: The processed audio tensor.
+            Tuple[
+                The processed audio tensor: torch.Tensor or None,
+                The processed audio tensor length: int or None
+            ]
         """
-        #TODO
-        return None
+        if self.audio_processor is not None:
+            audio_bytes = audio
+            offset = 0
+            duration = 0
+            if isinstance(audio, dict):
+                audio_bytes = audio["media_value"]
+                offset = audio.get("offset")
+                duration = audio.get("duration")
+            processed_audio = self.audio_processor(
+                io.BytesIO(audio_bytes), 
+                offset=offset, 
+                duration=duration)
+            return processed_audio, processed_audio.shape[0]
+        else:
+            return None, None
 
-    def process_video(self, video: Union[bytes, MediaDict]):
+    def process_video(self, video: Union[bytes, dict]):
         #TODO
         """
         Returns:
@@ -177,7 +201,15 @@ class AVLMSampleEncoder(BaseSampleEncoder):
                         , original AudioSize)
             ]
         """
-        return {"video": [], "audio": []}
+        
+        if self.video_processor is not None:
+            # TODO
+            #     video_reader = self.video_processor["video"]
+            #     audio_reader = self.video_processor["audio"]
+            #     # extract the video and audio(if any) streams
+            return {"video": [], "audio": []}
+        else:
+            return {"video": [], "audio": []}
 
     def process_image(self, image: Image.Image):
         """
@@ -203,6 +235,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         self, 
         tokenizer=None, 
         audio_processor=None, 
+        video_processor=None,
         image_processor=None, 
         multimodal_sample_config=AVLMSampleConfig()
     ):
@@ -255,17 +288,19 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                 # process image
                 tokenized_chunks.append(self.image_token.token_id)
                 processed_image = self.process_image(chunk)
-                images.append(processed_image)
-                num_image_tiles.append(processed_image.shape[0])
-                image_sizes.append([chunk.shape[1], chunk.shape[2]])
-            elif isinstance(chunk, MediaDict):
-                media_type = chunk["type"]
+                if processed_image is not None:
+                    images.append(processed_image)
+                    num_image_tiles.append(processed_image.shape[0])
+                    image_sizes.append([chunk.shape[1], chunk.shape[2]])
+            elif isinstance(chunk, dict):
+                media_type = chunk["media_type"]
                 if media_type == "audio":
                     # process audio
-                    tokenized_chunks.append(self.audio_token.token_id)
                     processed_audio, _ = self.process_audio(chunk)
-                    audios.append(processed_audio)
-                    audio_lengths.append(processed_audio.shape[0])
+                    if processed_audio is not None:
+                        audios.append(processed_audio)
+                        audio_lengths.append(processed_audio.shape[0])
+                        tokenized_chunks.append(self.audio_token.token_id)
                 elif media_type == "video":
                     total_frames_in_each_processed_video = []
                     # process video
@@ -354,6 +389,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         self, 
         tokenizer=None, 
         audio_processor=None, 
+        video_processor=None,
         image_processor=None, 
         multimodal_sample_config=AVLMSampleConfig()
     ):
@@ -405,7 +441,10 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
             if chunk == self.audio_token.token_str:
                 tokenized_chunks.append(self.audio_token.token_str)
                 # process the corresponding audio bytes
-                processed_audios.append(self.process_audio(input_sample.audios[input_audio_index]))
+                processed_audio, _ = self.process_audio(input_sample.audios[input_audio_index])
+                if processed_audio is not None:
+                    processed_audios.append(processed_audio)
+                    processed_audio_lengths.append(processed_audio.shape[0])
                 input_audio_index = input_audio_index + 1
             elif chunk == self.video_token.token_str:
                 total_frames_in_each_processed_video = []
@@ -434,7 +473,9 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
             elif chunk == self.image_token.token_str:
                 tokenized_chunks.append(self.image_token.token_id)
                 # process the corresponding image
-                processed_images.append(self.process_image(input_sample.audios[input_image_index]))
+                processed_image = self.process_image(input_sample.audios[input_image_index])
+                if processed_image is not None:
+                    processed_images.append(processed_image)
                 input_image_index = input_image_index + 1
             elif len(chunk) > 0:
                 tokenized_chunks.extend(self.tokenizer(chunk, add_special_tokens=False).input_ids)
@@ -497,7 +538,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
 class AVLMTaskEncoder(MultiModalTaskEncoder):
     """MeidaToTextTaskEncoder"""
 
-    def __init__(self, tokenizer=None, audio_processor=None, image_processor=None, avlm_sample_config=None):
+    def __init__(self, tokenizer=None, video_processor=None, audio_processor=None, image_processor=None, avlm_sample_config=None):
         """
         Initialize the MeidaToTextTaskEncoder.
 
@@ -514,12 +555,14 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
             AVLMEnergonInterleavedSample.__name__: AVLMSampleEncoderInterleaved(
                 tokenizer=tokenizer, 
                 audio_processor=audio_processor, 
+                video_processor=video_processor,
                 image_processor=image_processor, 
                 avlm_sample_config=avlm_sample_config,
             ),
             AVLMEnergonQASample.__name__: AVLMSampleEncoderQA(
                 tokenizer=tokenizer, 
                 audio_processor=audio_processor, 
+                video_processor=video_processor,
                 image_processor=image_processor, 
                 avlm_sample_config=avlm_sample_config,
             ),

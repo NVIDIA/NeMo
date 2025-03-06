@@ -23,7 +23,7 @@ def get_media(raw, media_type, value, offset=None, duration=None):
     if media_type == "text":
         return value
     elif media_type == "audio" or media_type == "video":
-        media_dict = {media_type: raw[value]}
+        media_dict = { "media_type": media_type, "media_value": raw[value]}
         if offset is not None:
             media_dict["offset"] = offset
         if duration is not None:
