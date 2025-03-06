@@ -35,6 +35,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 #
 # Note: ensure that the --nproc-per-node and --devices values match.
 
+
 def make_squad_hf_dataset(tokenizer, batch_size):
     def formatting_prompts_func(example):
         formatted_text = [
@@ -110,18 +111,32 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='meta-llama/Llama-3.2-1B', help='Hugging Face model-id to use')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'], help='Training strategy e.g. ddp/fsdp2/single-gpu')
+    parser.add_argument(
+        '--strategy',
+        type=str,
+        default='auto',
+        choices=['auto', 'ddp', 'fsdp2'],
+        help='Training strategy e.g. ddp/fsdp2/single-gpu',
+    )
     parser.add_argument('--devices', type=int, default=1, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
-    parser.add_argument('--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over')
+    parser.add_argument(
+        '--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over'
+    )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
-    parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints')
+    parser.add_argument(
+        '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
+    )
     parser.add_argument('--batch-size', default=1, type=int, help='Batch size to use for training')
-    parser.add_argument('--trust-remote-code', action='store_true', help='Enables trust_remote_code to load HF models with unverified sources')
+    parser.add_argument(
+        '--trust-remote-code',
+        action='store_true',
+        help='Enables trust_remote_code to load HF models with unverified sources',
+    )
     args = parser.parse_args()
 
     wandb = None
