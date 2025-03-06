@@ -30,6 +30,7 @@ class MockDataModule(pl.LightningDataModule):
     """
     A PyTorch Lightning DataModule for handling mock data.
     """
+
     def __init__(
         self,
         seq_length: int = 2048,
@@ -154,6 +155,7 @@ class _MockNevaDataset(Dataset):
     """
     A mock dataset class for testing and validation purposes.
     """
+
     def __init__(
         self,
         tokenizer,
