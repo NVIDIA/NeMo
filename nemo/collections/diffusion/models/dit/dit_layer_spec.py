@@ -65,6 +65,7 @@ class DiTWithAdaLNSubmodules(TransformerLayerSubmodules):
     """
     Submodules for DiT with AdaLN.
     """
+
     # pylint: disable=C0115
 
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
@@ -76,6 +77,7 @@ class STDiTWithAdaLNSubmodules(TransformerLayerSubmodules):
     """
     Submodules for STDiT with AdaLN.
     """
+
     # pylint: disable=C0115
     spatial_self_attention: Union[ModuleSpec, type] = IdentityOp
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
@@ -86,6 +88,7 @@ class RMSNorm(nn.Module):
     """
     RMSNorm Module.
     """
+
     # pylint: disable=C0115
     def __init__(self, hidden_size: int, config, eps: float = 1e-6):
         super().__init__()
@@ -666,7 +669,7 @@ class MMDiTLayer(TransformerLayer):
 class FluxSingleTransformerBlock(TransformerLayer):
     """
     Flux Single Transformer Block.
-    
+
     Single transformer layer mathematically equivalent to original Flux single transformer.
 
     This layer is re-implemented with megatron-core and also altered in structure for better performance.

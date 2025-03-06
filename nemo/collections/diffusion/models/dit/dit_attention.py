@@ -26,6 +26,7 @@ class JointSelfAttentionSubmodules:
     """
     Submodules for Joint Self-attention layer.
     """
+
     # pylint: disable=C0115
 
     linear_qkv: Union[ModuleSpec, type] = None
