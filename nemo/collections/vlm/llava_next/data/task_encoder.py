@@ -27,8 +27,8 @@ from nemo.collections.vlm.llava_next.data.sample import (
     PackedLlavaNextTextRawBatch,
     PackedLlavaNextTextSample,
 )
-from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import LlavaNextSampleEncoder
 from nemo.collections.vlm.llava_next.data.utils import convert_to_packed_llava_next
+from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import LlavaNextSampleEncoder
 from nemo.collections.vlm.neva.data.sequence_packing import predict_seq_len_with_padding
 from nemo.utils import logging
 

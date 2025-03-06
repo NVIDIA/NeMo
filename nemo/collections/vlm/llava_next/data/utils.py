@@ -18,6 +18,7 @@ import torch
 import torch.nn.functional as F
 from megatron.core.packed_seq_params import PackedSeqParams
 
+
 def convert_to_packed_llava_next(
     tokens: List[torch.Tensor],
     labels: List[torch.Tensor],
