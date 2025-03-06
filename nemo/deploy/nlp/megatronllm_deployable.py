@@ -149,6 +149,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             sequence_parallel=False,
             setup_optimizers=False,
             store_optimizer_states=False,
+            ckpt_load_strictness="log_all",
         )
 
         trainer = nl.Trainer(
