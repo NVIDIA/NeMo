@@ -93,7 +93,7 @@ def flux_controlnet_training() -> run.Partial:
                 ddp=run.Config(
                     DistributedDataParallelConfig,
                     use_custom_fsdp=True,
-                    data_parallel_sharding_strategy='MODEL_AND_OPTIMIZER_STATES',
+                    data_parallel_sharding_strategy='optim_grads_params',
                     check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
                     overlap_grad_reduce=True,
@@ -114,6 +114,7 @@ def flux_controlnet_training() -> run.Partial:
                     every_n_train_steps=1000,
                     save_top_k=3,
                     mode='max',
+                    save_on_train_epoch_end=True,
                 ),
                 run.Config(TimingCallback),
             ],
@@ -159,11 +160,22 @@ def convergence_test() -> run.Partial:
         AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1, 2, 4, 4], attn_resolutions=[]
     )
     recipe.model.flux_params.device = 'cuda'
-    recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/nemo_flux_transformer.safetensors')
+    recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/transformer')
+    recipe.model.flux_params.flux_config.do_convert_from_hf=True
     recipe.trainer.devices = 8
     recipe.data = flux_datamodule('/dataset/fill50k/fill50k_tarfiles/')
-    recipe.model.flux_controlnet_config.num_single_layers = 10
+    recipe.model.flux_controlnet_config.num_single_layers = 0
     recipe.model.flux_controlnet_config.num_joint_layers = 4
+    recipe.trainer.strategy.ddp = run.Config(
+        DistributedDataParallelConfig,
+        use_custom_fsdp=True,
+        data_parallel_sharding_strategy='optim_grads_params',
+        check_for_nan_in_grad=True,
+        grad_reduce_in_fp32=True,
+        overlap_grad_reduce=True,
+        overlap_param_gather=True,
+    )
+    recipe.optim.config.lr = 5e-5
     return recipe
 
 
