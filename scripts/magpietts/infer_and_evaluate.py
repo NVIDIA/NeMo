@@ -46,7 +46,8 @@ def run_inference(
         estimate_alignment_from_layers=None,
         apply_prior_to_layers=None,
         start_prior_after_n_audio_steps=10,
-        confidence_level=0.95
+        confidence_level=0.95,
+        use_local_transformer=False
     ):
     # import ipdb; ipdb.set_trace()
     model_cfg = OmegaConf.load(hparams_file).cfg
@@ -75,7 +76,7 @@ def run_inference(
     # import ipdb; ipdb.set_trace()
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
-    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}".format(
+    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}".format(
         checkpoint_name, 
         temperature, 
         topk, 
@@ -86,7 +87,8 @@ def run_inference(
         attention_prior_lookahead_window,
         start_prior_after_n_audio_steps,
         "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
-        "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None"
+        "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
+        use_local_transformer
     )
     dataset_meta_info = evalset_config.dataset_meta_info
     for dataset in datasets:
@@ -144,6 +146,7 @@ def run_inference(
             )
 
             item_idx = 0
+            all_rtf_metrics = []
             for bidx, batch in enumerate(test_data_loader):
                 print("Processing batch {} out of {} of dataset {}".format(bidx, len(test_data_loader), dataset))
                 batch_cuda ={}
@@ -155,7 +158,7 @@ def run_inference(
                 
                 import time
                 st = time.time()
-                predicted_audio, predicted_audio_lens, _, _, cross_attention_maps, _  = model.infer_batch(
+                predicted_audio, predicted_audio_lens, _, _, rtf_metrics, cross_attention_maps, _  = model.infer_batch(
                     batch_cuda, 
                     max_decoder_steps=440, 
                     temperature=temperature, 
@@ -168,9 +171,10 @@ def run_inference(
                     lookahead_window_size=attention_prior_lookahead_window,
                     estimate_alignment_from_layers=estimate_alignment_from_layers,
                     apply_prior_to_layers=apply_prior_to_layers,
-                    start_prior_after_n_audio_steps=start_prior_after_n_audio_steps
+                    start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
+                    use_local_transformer_for_inference=use_local_transformer
                 )
-                
+                all_rtf_metrics.append(rtf_metrics)
                 et = time.time()
                 print(f"Time taken for inference: {et-st}", predicted_audio.size())
                 for idx in range(predicted_audio.size(0)):
@@ -193,6 +197,10 @@ def run_inference(
                         shutil.copy(target_audio_path, os.path.join(audio_dir, f"target_audio_{item_idx}.wav"))
                     item_idx += 1
             
+            mean_rtf_metrics = {}
+            for key in all_rtf_metrics[0]:
+                mean_rtf_metrics[key] = float(np.mean([m[key] for m in all_rtf_metrics]))
+            
             metrics, filewise_metrics = evaluate_generated_audio.evaluate(
                 dataset_meta[dataset]['manifest_path'],
                 dataset_meta[dataset]['audio_dir'],
@@ -206,6 +214,9 @@ def run_inference(
             with open(os.path.join(eval_dir, f"{dataset}_filewise_metrics_{repeat_idx}.json"), "w") as f:
                 # Indent for better readability
                 json.dump(filewise_metrics, f, indent=4)
+            
+            with open(os.path.join(eval_dir, f"{dataset}_rtf_metrics_{repeat_idx}.json"), "w") as f:
+                json.dump(mean_rtf_metrics, f, indent=4)
 
             all_experiment_csv = os.path.join(out_dir, "all_experiment_metrics.csv")
             if not os.path.exists(all_experiment_csv):
@@ -234,17 +245,18 @@ def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
     parser.add_argument('--hparams_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_hparams.yaml,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_hparams.yaml")
     parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_epoch302.ckpt,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_epoch305.ckpt")
-    parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo")
-    parser.add_argument('--datasets', type=str, default="libri_seen_test,libri_unseen_test")
-    parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmount4/AllKernselSize3/NewTransformer")
-    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTS_FixedPosEmb/AllKernselSize3/NewTransformer")
+    parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo")
+    parser.add_argument('--datasets', type=str, default="libri_unseen_test_12.5")
+    parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmountedresson/")
+    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTS_FixedPosEmb/AllKernselSize3/EdressonCodecExperiments/")
     parser.add_argument('--server_address', type=str, default="pneekhara@login-eos02.eos.clusters.nvidia.com")
-    parser.add_argument('--exp_names', type=str, default="multiencoder_small_sp_ks3_lnormapplied")
-    parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/continuouscheckpoints_fixedposembrough")
-    parser.add_argument('--out_dir', type=str, default="/datap/misc/ContinuousEvalResults/NewTransformerKoelTTS")
+    parser.add_argument('--exp_names', type=str, default="koel_12.5_FPS_causal_13codebooks_codecmodel_context5sec_LTN1,koel_12.5_FPS_causal_13codebooks_codecmodel_context5sec_LTN3")
+    parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/experiment_checkpoints/localtransformer")
+    parser.add_argument('--out_dir', type=str, default="/datap/misc/Evals/LocalTransformerAblations2")
     parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--use_cfg', action='store_true')
-    parser.add_argument('--cfg_scale', type=float, default=1.0)
+    parser.add_argument('--use_local_transformer', action='store_true')
+    parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
     parser.add_argument('--attention_prior_epsilon', type=float, default=1e-3)
     parser.add_argument('--attention_prior_lookahead_window', type=int, default=10)
@@ -252,7 +264,7 @@ def main():
     parser.add_argument('--apply_prior_to_layers', type=str, default=None)
     parser.add_argument('--start_prior_after_n_audio_steps', type=int, default=10)
     parser.add_argument('--topk', type=int, default=80)
-    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     args = parser.parse_args()
@@ -290,6 +302,7 @@ def main():
                 apply_prior_to_layers=apply_prior_to_layers,
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
+                use_local_transformer=args.use_local_transformer
             )
         return
     else:
@@ -349,6 +362,7 @@ def main():
                 apply_prior_to_layers=apply_prior_to_layers,
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
+                use_local_transformer=args.use_local_transformer
             )
             
 

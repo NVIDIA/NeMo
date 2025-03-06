@@ -227,7 +227,7 @@ class Attention(torch.nn.Module):
 
         # attn_prior or square mask or vanilla attention
         if attn_prior is not None:
-            eps = 1e-8
+            eps = self.prior_eps
             attn_prior = attn_prior[:, :T]  # trim for inference
             attn_prior = torch.log(attn_prior + eps)
             attn_prior = attn_prior[:, None].repeat(1, self.n_heads, 1, 1)
@@ -344,6 +344,7 @@ class CrossAttention(Attention):
         d_model: int,
         d_memory: int,
         p_dropout: float,
+        prior_eps: float = 1e-8,
     ):
         """
         Implements CrossAttention. See parent class for forward implementation. Must be non-causal.
@@ -364,6 +365,7 @@ class CrossAttention(Attention):
             raise ValueError("d_memory must be provided for cross-attention")
         self.q_net = torch.nn.Linear(d_model, n_heads * self.d_head, bias=False)
         self.kv_net = torch.nn.Linear(d_memory, 2 * n_heads * self.d_head, bias=False)
+        self.prior_eps = prior_eps
 
     def compute_qkv_and_mask(
         self,
@@ -410,6 +412,7 @@ class TransformerLayer(torch.nn.Module):
         apply_norm_to_cond: bool = True,
         max_length_causal_mask: int = 4096,
         conv_non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
+        prior_eps: float = 1e-8,
     ):
         """
         One layer of the Transformer.
@@ -447,6 +450,7 @@ class TransformerLayer(torch.nn.Module):
                 d_model=d_model,
                 d_memory=xa_d_memory,
                 p_dropout=p_dropout,
+                prior_eps=prior_eps,
             )
 
             if self.apply_norm_to_cond:
@@ -552,6 +556,7 @@ class Transformer(torch.nn.Module):
         max_length_causal_mask: int = 4096,
         use_learnable_pos_emb: bool = False,
         conv_non_linearity: Callable = torch.nn.GELU(approximate="tanh"),
+        prior_eps: float = 1e-8,
     ):
         """
         Initializes a stack of transformer layers. Can be used for both encoder and decoder.
@@ -609,6 +614,7 @@ class Transformer(torch.nn.Module):
                     apply_norm_to_cond=apply_norm_to_cond,
                     max_length_causal_mask=max_length_causal_mask,
                     conv_non_linearity=conv_non_linearity,
+                    prior_eps=prior_eps,
                 )
             )
 
@@ -673,6 +679,7 @@ class Transformer(torch.nn.Module):
         cond_mask: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None,
         attn_prior: Optional[Union[torch.Tensor, List[torch.Tensor]]] = None,
         multi_encoder_mapping: Optional[List[Optional[int]]] = None,
+        max_layer_idx: Optional[int] = None,
     ) -> Dict[str, Union[torch.Tensor, List]]:
         """
         Args:
@@ -709,6 +716,9 @@ class Transformer(torch.nn.Module):
             out_dict = layer(x, x_mask, _cond, _cond_mask, attn_prior=_attn_prior)
             x = out_dict['output']
             attn_probabilities.append(out_dict['attn_probabilities'])
+
+            if max_layer_idx is not None and idx == max_layer_idx:
+                break
 
         if self.norm_out is not None:
             x = self.norm_out(x)

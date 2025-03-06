@@ -1,16 +1,17 @@
-name: Magpie-TTS-ML-V1-Infer
-mode: test
-init_from_ptl_ckpt: ???
-max_epochs: 1
+name: T5TTS
+
+max_steps: ???
+limit_val_batches: ???
 # Adjust batch size based on GPU memory
 batch_size: 16
-# When doing weighted sampling with multiple manifests, this defines how many training steps are in an epoch.
-# If null, then weighted sampling is disabled.
-weighted_sampling_steps_per_epoch: null
+micro_batch_size: 16
+batch_duration: ???
+eval_batch_size: ???
 
 # Dataset metadata for each manifest
 # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/tts/data/vocoder_dataset.py#L39-L41
-test_ds_meta: ???
+train_ds_meta: ???
+val_ds_meta: ???
 
 # Modify these values based on your sample rate
 sample_rate: 22050
@@ -18,31 +19,26 @@ sample_rate: 22050
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
-  use_kv_cache_for_inference: true
-  inference_temperature: 0.7
-  inference_topk: 80
-  inference_use_cfg: false
-  inference_cfg_scale: 1.0
+  use_lhotse: true
   model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
-  use_text_conditioning_encoder: false
+  use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
   transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
   context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts
   context_duration_min: 3.0
   context_duration_max: 8.0
-  speaker_emb_dim: 192
-  max_decoder_steps: 500
+  speaker_emb_dim: 192 # Only used for single_encoder_sv_tts, ignored otherwise
   num_audio_codebooks: 8
   num_audio_tokens_per_codebook: 2048 # Keep atleast 2 extra for eos/bos ids
   codec_model_downsample_factor: 1024
   load_cached_codes_if_available: true
-  prior_scaling_factor: null
-  prior_end_step: 0
-  prior_scaledown_start_step: 0
+  prior_scaling_factor: 0.5
+  prior_end_step: 12000
+  prior_scaledown_start_step: 8000
+  indefinite_prior_prob: 0.0 # If > 0, then prior will be applied after prior_end_step with this probability.
   alignment_loss_scale: 0.0
   embedding_dim: 768
-  codecmodel_path: null
-  max_epochs: ${max_epochs}
-  steps_per_epoch: ${weighted_sampling_steps_per_epoch}
+  codecmodel_path: ???
+  max_steps: ${max_steps}
 
   sample_rate: ${sample_rate}
 
@@ -54,7 +50,7 @@ model:
   alignment_encoder_loss_scale: 1.0
   binarize_prior_after_step: 10000 # Switch from beta-binomial prior to binarized prior after this step.
   binarize_attn_method: "nemo_binarize" # nemo_binarize or argmax.
-  prior_future_context: 2 # Future window of the binarized prior.
+  prior_future_context: 2 # Future window of the binarized prior. 
   prior_past_context: 2 # Past window of the binarized prior.
   prior_future_decay: 0.8 # Decay factor for future context
   prior_past_decay: 0.5 # Decay factor for past context
@@ -70,7 +66,7 @@ model:
   local_transformer_n_heads: 1
   local_transformer_hidden_dim: 256
 
-  text_tokenizers: # Add more languages for multi-lingual TTS
+  text_tokenizers:
     english_phoneme:
       _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
       punct: true
@@ -78,75 +74,110 @@ model:
       pad_with_space: false
       g2p:
         _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
-        phoneme_dict: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
-        heteronyms: "scripts/tts_dataset_files/heteronyms-052722"
+        phoneme_dict: ${phoneme_dict_path}
+        heteronyms: ${heteronyms_path}
         phoneme_probability: 0.8
         ignore_ambiguous_words: false
         use_chars: true
         use_stresses: true
-    spanish_phoneme:
-      _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
-      locale: es-ES
-      punct: true
-      apostrophe: true
-      pad_with_space: true
-      g2p:
-        _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
-        locale: es-ES
-        phoneme_dict: "scripts/tts_dataset_files/es_ES/es_ES_nv230301.dict"
-        phoneme_probability: 0.8
-        ignore_ambiguous_words: false
-        use_chars: true
-        use_stresses: true
-    german_phoneme:
-      _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
-      locale: de-DE
-      punct: true
-      apostrophe: true
-      pad_with_space: true
-      g2p:
-        _target_: nemo.collections.tts.g2p.models.i18n_ipa.IpaG2p
-        locale: 'de-DE'
-        phoneme_dict: "scripts/tts_dataset_files/de/de_nv230119.dict"
-        heteronyms: "scripts/tts_dataset_files/de/de_nv230119.heteronym"
-        phoneme_probability: 0.8
-        ignore_ambiguous_words: false
-        use_chars: true
-        use_stresses: true
-        grapheme_case: mixed
-        grapheme_prefix: '#'
-    mandarin_phoneme:
-      _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.ChinesePhonemesTokenizer
-      punct: true
-      apostrophe: true
-      pad_with_space: true
-      g2p:
-        _target_: nemo.collections.tts.g2p.models.zh_cn_pinyin.ChineseG2p
-        phoneme_dict: "scripts/tts_dataset_files/zh/36finals/ipa_dict_nv23.05.txt"
-        word_segmenter: "jieba"
-        phoneme_prefix: ""
-        phoneme_case: "lower"
-        tone_prefix: "#"
-        ascii_letter_prefix: ""
-        ascii_letter_case: "upper"
-    multilingual_sentencepiece:
-      _target_: AutoTokenizer
-      pretrained_model: "bert-base-multilingual-uncased"
 
-  test_ds:
+  train_ds:
+    use_lhotse: ${model.use_lhotse}
     dataset:
-      _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
-      dataset_meta: ${test_ds_meta}
-      sample_rate: ${sample_rate}
-      min_duration: 0.5
-      max_duration: 20.0
-      # speaker_path: ${speaker_path}
+      input_cfg:
+      - type: lhotse_shar
+        shar_path: /cluster_data/TTS/tts_lhotse_datasets/hifitts_v0/
+        weight: 1.0
+        tags:
+          lang: en
+          s2s: True
+          tokenizer_names: ["english_phoneme"]
 
-    dataloader_params:
-      batch_size: ${batch_size}
-      num_workers: 2
+      - type: lhotse_shar
+        shar_path: /cluster_data/TTS/tts_lhotse_datasets/libri100/
+        weight: 1.0
+        tags:
+          lang: en
+          s2s: True
+          tokenizer_names: ["english_phoneme"]
 
-  encoder:
+      - type: lhotse_shar
+        shar_path: /cluster_data/TTS/tts_lhotse_datasets/rivaLindyRodney/
+        weight: 1.0
+        tags:
+          lang: en
+          s2s: True
+          tokenizer_names: ["english_phoneme"]
+
+      - type: lhotse_shar
+        shar_path: /cluster_data/TTS/tts_lhotse_datasets/libri360/
+        weight: 1.0
+        tags:
+          lang: en
+          s2s: True
+          tokenizer_names: ["english_phoneme"]
+
+      global_batch_size: ${batch_size}
+      micro_batch_size: ${micro_batch_size}
+      batch_size: null
+      shuffle: True
+      num_workers: 0
+      pin_memory: True
+      max_seq_length: 512
+      min_seq_length: 1
+      drop_last: True
+      # Notably, the data weights are controlled by either bucketing_weights
+      # or concat_sampling_probabilities depending on the dataset type (tar and
+      # non-tar).
+      # See audio_text_qa_dataset.py for details.
+      concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
+      # ASR configs
+      sample_rate: ${model.sample_rate}
+      max_duration: 24 # it is set for LibriSpeech, you may need to update it for your dataset
+      min_duration: 0.1
+      # tarred datasets
+      is_tarred: false
+      # tarred_audio_filepaths: null
+      shuffle_n: 2048
+      # bucketing params
+      bucketing_strategy: "fully_randomized"
+      bucketing_batch_size: null
+      use_bucketing: true
+      use_lhotse: ${model.use_lhotse}
+      text_field : "text"
+      seed: 'trng'
+      batch_duration : ${batch_duration}  # 0
+      quadratic_duration : 20
+      num_buckets : 31
+      buffer_size : 10000
+      shuffle_buffer_size : 10000
+      num_cuts_for_bins_estimate: 10000
+      duration_bins: [3.155,3.76,4.27,4.74,5.1935,5.64,6.096,6.588,7.14,7.81,8.28,8.664,9.072,9.57,10.14,10.7335,11.3735,12.09,12.78,13.41,14.01,14.62,15.253375,15.96875,16.71,17.45,18.1335,18.7735,19.4,20.0]
+      # bucket_duration_bins: [3.155,3.76,4.27,4.74,5.1935,5.64,6.096,6.588,7.14,7.81,8.28,8.664,9.072,9.57,10.14,10.7335,11.3735,12.09,12.78,13.41,14.01,14.62,15.253375,15.96875,16.71,17.45,18.1335,18.7735,19.4,20.0]
+
+  validation_ds:
+    use_lhotse: ${model.use_lhotse}
+    dataset:
+      input_cfg:
+      - type: lhotse_shar
+        shar_path: /cluster_data/TTS/tts_lhotse_datasets/LibriTTS_dev_clean/
+        weight: 1.0
+        tags:
+          lang: en
+          s2s: True
+          tokenizer_names: ["english_phoneme"]
+
+      global_batch_size: ${batch_size}
+      micro_batch_size: ${micro_batch_size}
+      shuffle: False
+      num_workers: 0
+      pin_memory: True
+      drop_last: False
+      use_bucketing: false
+      is_tarred: false
+      batch_size: ${eval_batch_size}
+  
+  t5_encoder:
     n_layers: 6
     d_model: 768
     d_ffn: 3072
@@ -159,7 +190,7 @@ model:
     apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
-
+  
   context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
     n_layers: 3
     d_model: 768
@@ -174,7 +205,7 @@ model:
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
 
-  decoder:
+  t5_decoder:
     n_layers: 12
     d_model: 768
     d_ffn: 3072
@@ -207,14 +238,18 @@ trainer:
   accelerator: gpu
   strategy: ddp_find_unused_parameters_true
   precision: 32
-  max_epochs: ${max_epochs}
+  max_epochs: -1
   accumulate_grad_batches: 1
   enable_checkpointing: False # Provided by exp_manager
   logger: false # Provided by exp_manager
-  log_every_n_steps: 100
+  log_every_n_steps: 10
   val_check_interval: 500
+  limit_train_batches: ${trainer.val_check_interval}
   # check_val_every_n_epoch: 10
   benchmark: false
+  max_steps: ${max_steps}
+  limit_val_batches: ${limit_val_batches}
+  use_distributed_sampler: false
 
 exp_manager:
   exp_dir: null
@@ -224,7 +259,7 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
-  create_checkpoint_callback: true
+  create_checkpoint_callback: true 
   checkpoint_callback_params:
     monitor: val_loss
     mode: min
