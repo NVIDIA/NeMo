@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple, List
+from typing import List, Tuple
 
 import torch
 
@@ -26,7 +26,6 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
     num_patches_per_dim_w = img_w // patch_dim
     num_patches = num_patches_per_dim_h * num_patches_per_dim_w
     return num_patches + (class_token_len if add_class_token else 0)
-
 
 
 def unpad_image(tensor, original_size):
@@ -207,9 +206,14 @@ def pack_image_features(image_features, image_sizes, vision_feature_select_strat
     return image_features, feature_lens
 
 
-def get_number_of_features(orig_height: int, orig_width: int, height: int, width: int,
-                            image_grid_pinpoints: List[Tuple[int, int]], patch_size: int) -> int:
-
+def get_number_of_features(
+    orig_height: int,
+    orig_width: int,
+    height: int,
+    width: int,
+    image_grid_pinpoints: List[Tuple[int, int]],
+    patch_size: int,
+) -> int:
 
     height_best_resolution, width_best_resolution = select_best_resolution(
         [orig_height, orig_width], image_grid_pinpoints
@@ -230,6 +234,7 @@ def get_number_of_features(orig_height: int, orig_width: int, height: int, width
 
     num_image_tokens = unpadded_features + newline_features + base_features
     return num_image_tokens
+
 
 def get_unpadded_features(height, width, patches_height, patches_width, scale_height, scale_width):
     """

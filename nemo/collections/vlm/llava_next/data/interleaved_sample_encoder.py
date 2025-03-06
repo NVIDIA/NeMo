@@ -20,9 +20,7 @@ from megatron.energon import SimilarityInterleavedSample
 from transformers import LlavaNextConfig as HFLlavaNextConfig
 
 from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
-from nemo.collections.multimodal.data.energon.sample_encoder import (
-    SimilarityInterleavedEncoder,
-)
+from nemo.collections.multimodal.data.energon.sample_encoder import SimilarityInterleavedEncoder
 from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextSample
 from nemo.collections.vlm.llava_next.model.utils import get_number_of_features
 from nemo.utils import logging
@@ -78,9 +76,12 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
                 for _ in range(grouped_indices[text_idx]):
                     _, orig_height, orig_width = sorted_images_orig[sorted_images_orig_i].shape
                     num_image_tokens = get_number_of_features(
-                        orig_height, orig_width, resized_height, resized_width,
+                        orig_height,
+                        orig_width,
+                        resized_height,
+                        resized_width,
                         self.hf_llava_next_config.image_grid_pinpoints,
-                        self.hf_llava_next_config.vision_config.patch_size
+                        self.hf_llava_next_config.vision_config.patch_size,
                     )
                     interleaved_list.extend([self.image_token.token_id] * num_image_tokens)
                     sorted_images_orig_i += 1
@@ -93,14 +94,15 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
                 for _ in range(grouped_indices[text_idx]):
                     _, orig_height, orig_width = sorted_images_orig[sorted_images_orig_i].shape
                     num_image_tokens = get_number_of_features(
-                        orig_height, orig_width, resized_height, resized_width,
+                        orig_height,
+                        orig_width,
+                        resized_height,
+                        resized_width,
                         self.hf_llava_next_config.image_grid_pinpoints,
-                        self.hf_llava_next_config.vision_config.patch_size
-
+                        self.hf_llava_next_config.vision_config.patch_size,
                     )
                     interleaved_list.extend([self.image_token.token_id] * num_image_tokens)
                     sorted_images_orig_i += 1
-
 
         # assert len(interleaved_list) == len(texts) + len(
         #     sorted_indices
@@ -241,4 +243,3 @@ def select_best_resolution(original_size: tuple, possible_resolutions: list) -> 
             best_fit = (height, width)
 
     return best_fit
-

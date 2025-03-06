@@ -298,10 +298,12 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
 
             state = []
             # All ranks should be zero except the dp rank.
-            if ((parallel_state.get_context_parallel_rank() or
-                    parallel_state.get_pipeline_model_parallel_rank() or
-                    parallel_state.get_tensor_model_parallel_rank() or parallel_state.get_expert_model_parallel_rank())
-                    == 0):
+            if (
+                parallel_state.get_context_parallel_rank()
+                or parallel_state.get_pipeline_model_parallel_rank()
+                or parallel_state.get_tensor_model_parallel_rank()
+                or parallel_state.get_expert_model_parallel_rank()
+            ) == 0:
                 # Save_state_global in energon assumes that we call it for only the first rank within each group that
                 # shares the same dataloader state. By making sure that current rank is the first rank in a model
                 # parallel group, we ensure this.
