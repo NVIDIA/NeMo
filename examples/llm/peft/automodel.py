@@ -111,6 +111,7 @@ def main():
     parser.add_argument('--model', type=str, default='meta-llama/Llama-3.2-1B', help='Hugging Face model-id to use')
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'], help='Training strategy e.g. ddp/fsdp2/single-gpu')
     parser.add_argument('--devices', type=int, default=1, help='Number of GPUs to use')
+    parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument('--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over')
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
@@ -119,6 +120,7 @@ def main():
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
     parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints')
     parser.add_argument('--batch-size', default=1, type=int, help='Batch size to use for training')
+    parser.add_argument('--trust-remote-code', action='store_true', help='Enables trust_remote_code to load HF models with unverified sources')
     args = parser.parse_args()
 
     wandb = None
@@ -134,9 +136,8 @@ def main():
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': True}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
-    model = llm.HFAutoModelForCausalLM(model_name=args.model, trust_remote_code=True)
-    num_nodes = 1
-    strategy = make_strategy(args.strategy, model, args.devices, num_nodes, True)
+    model = llm.HFAutoModelForCausalLM(model_name=args.model, trust_remote_code=args.trut_remote_code)
+    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
 
     resume = (
         nl.AutoResume(
@@ -152,7 +153,7 @@ def main():
         data=make_squad_hf_dataset(model.tokenizer, args.batch_size),
         trainer=nl.Trainer(
             devices=args.devices,
-            num_nodes=num_nodes,
+            num_nodes=args.num_nodes,
             max_steps=args.max_steps,
             accelerator='gpu',
             strategy=strategy,

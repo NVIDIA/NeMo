@@ -122,6 +122,7 @@ def main():
     parser.add_argument('--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints')
     parser.add_argument('--batch-size', default=1, type=int, help='Batch size to use for training')
     parser.add_argument('--trust-remote-code', action='store_true', help='Enables trust_remote_code to load HF models with unverified sources')
+    args = parser.parse_args()
 
     wandb = None
     if args.wandb_project is not None:
