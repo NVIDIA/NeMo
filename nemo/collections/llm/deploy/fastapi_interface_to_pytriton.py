@@ -103,7 +103,6 @@ async def completions_v1(request: CompletionRequest):
             max_length=request.max_tokens,
             init_timeout=300
         )
-
         # Convert NumPy arrays in output to lists
         def convert_numpy(obj):
             if isinstance(obj, np.ndarray):
@@ -118,9 +117,9 @@ async def completions_v1(request: CompletionRequest):
         output_serializable = convert_numpy(output)
         ## #TODO Temp WAR
         output_serializable["choices"][0]["text"] = output_serializable["choices"][0]["text"][0][0]
-        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
-        output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
-        print("--output--", output_serializable)
+        if request.logprobs == 1:
+            output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
+            output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
         return output_serializable
     except Exception as error:
         logging.error(f"An exception occurred with the post request to /v1/completions/ endpoint: {error}")
