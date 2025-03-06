@@ -47,17 +47,19 @@ def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     return model_cfg
 
 
-def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> bool:
+def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> None:
     """Set model.config.transformer_layer_spec to modelopt spec if modelopt_state exists in the checkpoint."""
     modelopt_state_path = ckpt_to_weights_subdir(path, is_saving=False) / "modelopt_state"
-    if modelopt_state_path.exists() and not hasattr(model, "module"):
-        if isinstance(model, llm.GPTModel):
-            _set_gpt_modelopt_spec(model.config)
-        else:
-            logging.warning(f"{type(model)} is not a GPTModel. Modelopt state will not be loaded.")
-            return False
-        return True
-    return False
+    if not modelopt_state_path.exists() or hasattr(model, "module"):
+        return
+
+    if isinstance(model, llm.GPTModel):
+        _set_gpt_modelopt_spec(model.config)
+
+        # Disable gradient accumulation fusion for QAT
+        model.config.gradient_accumulation_fusion = False
+    else:
+        logging.warning(f"{type(model)} is not a GPTModel. Modelopt state will not be loaded.")
 
 
 def setup_trainer_and_restore_model_with_modelopt_spec(
@@ -69,9 +71,9 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     inference_only: bool = True,
     tokenizer_path: str | None = None,
     legacy_ckpt: bool = False,
-    strategy_kwargs: dict = {},
-    trainer_kwargs: dict = {},
-    model_config_overrides: dict = {},
+    strategy_kwargs: dict | None = None,
+    trainer_kwargs: dict | None = None,
+    model_config_overrides: dict | None = None,
 ) -> tuple[llm.GPTModel, nl.Trainer]:
     """Loads a GPT model from a NeMo 2.0 checkpoint using modelopt layer spec.
 
@@ -91,6 +93,13 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     Returns:
         llm.GPTModel: The loaded model with the specified configuration.
     """
+    if strategy_kwargs is None:
+        strategy_kwargs = {}
+    if trainer_kwargs is None:
+        trainer_kwargs = {}
+    if model_config_overrides is None:
+        model_config_overrides = {}
+
     logging.info(f"Loading GPT model from {model_path} with modelopt layer spec...")
 
     # TODO: setting ddp="pytorch" and deleting model.optim is a hackish way to disable DDP initialization.

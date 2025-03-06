@@ -119,8 +119,8 @@ class Quantizer:
         if not torch.cuda.is_available():
             raise EnvironmentError("GPU is required for the quantization.")
 
-        self.quantization_config: QuantizationConfig = quantization_config
-        self.export_config: ExportConfig = export_config
+        self.quantization_config = quantization_config
+        self.export_config = export_config
 
         algorithm = quantization_config.algorithm
         dtype = export_config.dtype
@@ -137,11 +137,11 @@ class Quantizer:
         model.config.vocab_size = model.tokenizer.vocab_size
         model.freeze()
 
-    def _get_decoder_type(self, unwrapped_model: llm.GPTModel):
+    def _get_decoder_type(self, model: "MegatronParallel"):
         if self.export_config.decoder_type is not None:
             return self.export_config.decoder_type
 
-        return get_modelopt_decoder_type(unwrapped_model)
+        return get_modelopt_decoder_type(model)
 
     @staticmethod
     def _generate_sample(model: "MegatronParallel"):
@@ -189,8 +189,7 @@ class Quantizer:
         logging.info(f"Quantizing model to {algorithm}...")
 
         self._setup(model)
-        unwrapped_model = unwrap_model(model)
-        decoder_type = self._get_decoder_type(unwrapped_model)
+        decoder_type = self._get_decoder_type(model)
         quant_cfg = QUANT_CFG_CHOICES[algorithm]
         if "awq" in algorithm:
             weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
@@ -215,6 +214,7 @@ class Quantizer:
             logging.info(f"Using int8_sq alpha = {sq_alpha}")
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": sq_alpha}
 
+        unwrapped_model = unwrap_model(model)
         unwrapped_model = mtq.quantize(unwrapped_model, quant_cfg, forward_loop)
 
         if decoder_type == "gpt":
@@ -307,10 +307,9 @@ class Quantizer:
             inference_pp = self.export_config.inference_pp
 
             use_nfs_workspace = model.config.pipeline_model_parallel_size > 1
-            unwrapped_model = unwrap_model(model)
             export_tensorrt_llm_checkpoint(
-                model=unwrapped_model,
-                decoder_type=self._get_decoder_type(unwrapped_model),
+                model=unwrap_model(model),
+                decoder_type=self._get_decoder_type(model),
                 dtype=self.torch_dtype,
                 export_dir=export_dir,
                 inference_tensor_parallel=inference_tp,
@@ -377,8 +376,11 @@ def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration
     return _get_iterator
 
 
-def get_modelopt_decoder_type(model: llm.GPTModel) -> str:
+def get_modelopt_decoder_type(model: "MegatronParallel") -> str:
     """Infers the modelopt decoder type from GPTModel subclass."""
+    while not isinstance(model, llm.GPTModel):
+        model = model.module
+
     mapping = [
         (llm.Baichuan2Model, "baichuan"),
         (llm.ChatGLMModel, "chatglm"),

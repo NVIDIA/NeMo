@@ -55,12 +55,12 @@ class PruningConfig:
             Cannot be used with other pruning parameters.
     """
 
-    ffn_hidden_size: int = None
-    hidden_size: int = None
-    num_attention_heads: int = None
-    num_query_groups: int = None
-    num_layers: int = None
-    drop_layers: list[int] = None
+    ffn_hidden_size: int | None = None
+    hidden_size: int | None = None
+    num_attention_heads: int | None = None
+    num_query_groups: int | None = None
+    num_layers: int | None = None
+    drop_layers: list[int] | None = None
 
     def __post_init__(self):
         if self.drop_layers:
