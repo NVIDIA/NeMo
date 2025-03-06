@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import defaultdict
-from typing import List
+
 
 import torch
 from megatron.energon import SimilarityInterleavedSample
