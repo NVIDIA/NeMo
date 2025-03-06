@@ -164,6 +164,7 @@ class OptimizerModule(L.Callback, CallbackMethods, IOMixin, ABC):
         raise NotImplementedError("The optimizers method should be implemented by subclasses.")
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx) -> None:
+        # pylint: disable=C0116
         if self._optimizers is not None:
             if len(self._optimizers[0].param_groups) > 0:
                 lr = self._optimizers[0].param_groups[0]['lr']
