@@ -88,6 +88,7 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
             state_dict (dict): The optimizer state dictionary.
         """
         _filter_empty_common_step(state_dict)
+        print("STATE_DICT KEYS:", state_dict.keys())
         self.mcore_optimizer.load_state_dict(state_dict)
 
     def sharded_state_dict(

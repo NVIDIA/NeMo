@@ -213,15 +213,17 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     def val_dataloader(self) -> DataLoader:
         # pylint: disable=C0115,C0116
-        return self._create_dataloader(
-            self._create_dataset(
+        ds = self._create_dataset(
                 self.validation_path if self.packed_sequence_size <= 0 else self.validation_path_packed,
                 pack_metadata_path=None if self.packed_sequence_size <= 0 else self.pack_metadata,
                 is_test=True,
                 **self.dataset_kwargs,
-            ),
+            )
+        dataloader = self._create_dataloader(
+            ds,
             mode="validation",
         )
+        return dataloader
 
     def test_dataloader(self) -> DataLoader:
         # pylint: disable=C0115,C0116

@@ -355,6 +355,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
         self.init_global_step = self.trainer.global_step
+        print("TRAINER GLOBAL_STEP:", self.init_global_step)
         self.data_sampler.init_global_step = self.init_global_step
         dataloader = WrappedDataLoader(
             mode=mode,
@@ -404,6 +405,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             state_dict: the datamodule state returned by ``state_dict``.
 
         """
+        print("CALLING LOAD_STATE_DICT")
         try:
             from megatron.core.num_microbatches_calculator import update_num_microbatches
 
@@ -414,6 +416,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         consumed_samples = state_dict["consumed_samples"]
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples
+        print("CONSUMED SAMPLES:", consumed_samples)
 
         update_num_microbatches(
             consumed_samples=consumed_samples,
