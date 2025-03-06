@@ -43,7 +43,7 @@ def make_squad_hf_dataset(tokenizer, batch_size):
         )
 
     datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad", split="train", batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0
+        "rajpurkar/squad", split="train", micro_batch_size=batch_size, pad_token_id=tokenizer.eos_id or 0
     )
     datamodule.map(
         formatting_prompts_func,
