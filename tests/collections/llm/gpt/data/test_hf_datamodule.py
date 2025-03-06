@@ -232,3 +232,52 @@ def test_formatting_prompts_func(squad_data_module):
     assert "labels" in result
     assert "loss_mask" in result
     assert len(result["input_ids"]) == len(result["labels"])
+
+
+def test_make_dataset_splits_single_dataset():
+    data = {"id": [1, 2, 3], "text": ["a", "b", "c"]}
+    dataset = Dataset.from_dict(data)
+    split_aliases = {"train": ["train"], "val": ["validation"], "test": ["test"]}
+    
+    result = make_dataset_splits(dataset, "train", split_aliases)
+    
+    assert result["train"] is not None
+    assert result["val"] is None
+    assert result["test"] is None
+    assert len(result["train"]) == 3
+
+def test_make_dataset_splits_dataset_dict():
+    data_train = Dataset.from_dict({"id": [1, 2, 3], "text": ["a", "b", "c"]})
+    data_val = Dataset.from_dict({"id": [4, 5], "text": ["d", "e"]})
+    dataset = DatasetDict({"train": data_train, "validation": data_val})
+    split_aliases = {"train": ["train"], "val": ["validation"], "test": ["test"]}
+    
+    result = make_dataset_splits(dataset, None, split_aliases)
+    
+    assert result["train"] is not None
+    assert result["val"] is not None
+    assert result["test"] is None
+    assert len(result["train"]) == 3
+    assert len(result["val"]) == 2
+
+def test_make_dataset_splits_invalid_split():
+    data = {"id": [1, 2, 3], "text": ["a", "b", "c"]}
+    dataset = Dataset.from_dict(data)
+    split_aliases = {"train": ["train"], "val": ["validation"], "test": ["test"]}
+    
+    with pytest.raises(AssertionError):
+        make_dataset_splits(dataset, "invalid_split", split_aliases)
+
+def test_make_dataset_splits_with_list():
+    data_train = Dataset.from_dict({"id": [1, 2, 3], "text": ["a", "b", "c"]})
+    data_val = Dataset.from_dict({"id": [4, 5], "text": ["d", "e"]})
+    dataset = [data_train, data_val]
+    split_aliases = {"train": ["train"], "val": ["validation"], "test": ["test"]}
+    
+    result = make_dataset_splits(dataset, ["train", "validation"], split_aliases)
+    
+    assert result["train"] is not None
+    assert result["val"] is not None
+    assert result["test"] is None
+    assert len(result["train"]) == 3
+    assert len(result["val"]) == 2
