@@ -120,6 +120,7 @@ async def completions_v1(request: CompletionRequest):
         if request.logprobs == 1:
             output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
             output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
+        print("--output--", output_serializable)
         return output_serializable
     except Exception as error:
         logging.error(f"An exception occurred with the post request to /v1/completions/ endpoint: {error}")
