@@ -404,7 +404,6 @@ def fake_initialize_model_parallel(
         in addition to the default decoder, we essentially instantiate two `RankGenerator`
         classes to construct the parallelism for each module separately, and we then have
         to stitch them together for the right groups. For now, this means pp and tp-pp."""
-        from itertools import cycle
 
         if is_expert:
             d_ranks = expert_decoder_rank_generator.get_ranks(group_type, **kwargs)
