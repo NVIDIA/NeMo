@@ -86,7 +86,7 @@ class MockDataModule(pl.LightningDataModule):
         processor = None
         if tokenizer is None or image_processor is None:
             logging.warning(
-                f"Processor or tokenizer are not provided! Fall back to `llava-hf/llava-v1.6-vicuna-7b-hf`."
+                "Processor or tokenizer are not provided! Fall back to `llava-hf/llava-v1.6-vicuna-7b-hf`."
             )
 
             model_name = "llava-hf/llava-v1.6-vicuna-7b-hf"
