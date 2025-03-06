@@ -23,6 +23,7 @@ LOGGER = logging.getLogger("NeMo")
 
 try:
     from zarr.storage import BaseStore
+
     HAVE_ZARR = True
 except Exception as e:
     LOGGER.warning(f"Cannot import zarr, support for zarr-based checkpoints is not available. {type(e).__name__}: {e}")

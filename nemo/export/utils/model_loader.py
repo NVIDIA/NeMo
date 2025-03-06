@@ -152,6 +152,7 @@ def load_sharded_metadata_zarr(
             zstore = ZarrPathStore(subdir)
 
             import zarr
+
             arr = zarr.open(zstore, 'r')
 
             if arr.dtype.name == "bfloat16":
