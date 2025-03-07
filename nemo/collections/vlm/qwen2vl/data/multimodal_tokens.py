@@ -49,154 +49,28 @@ class Qwen2VLVideoToken(MultiModalToken):
     use_start_end: bool = False
 
 
-@dataclass
-class Qwen2VLEndOfTextToken(MultiModalToken):
-    """End-Of-Text Token class"""
-
-    token_str: str = "<|endoftext|>"
-    token_index: int = 151643
-    media_type: str = None
-    use_start_end: bool = False
-    lstrip: bool = False
-    normalized: bool = False
-    rstrip: bool = False
-    single_word: bool = False
-
-
-@dataclass
-class Qwen2VLObjectRefStartToken(MultiModalToken):
-    """Object-Ref-Start Token class"""
-
-    token_str: str = "<|object_ref_start|>"
-    token_index: int = 151646
-    media_type: str = None
-    use_start_end: bool = False
-    lstrip: bool = False
-    normalized: bool = False
-    rstrip: bool = False
-    single_word: bool = False
-
-
-@dataclass
-class Qwen2VLObjectRefEndToken(MultiModalToken):
-    """Object-Ref-End Token class"""
-
-    token_str: str = "<|object_ref_end|>"
-    token_index: int = 151647
-    media_type: str = None
-    use_start_end: bool = False
-    lstrip: bool = False
-    normalized: bool = False
-    rstrip: bool = False
-    single_word: bool = False
-
-
-@dataclass
-class Qwen2VLBoxStartToken(MultiModalToken):
-    """Box-Start Token class"""
-
-    token_str: str = "<|box_start|>"
-    token_index: int = 151648
-    media_type: str = None
-    use_start_end: bool = False
-    lstrip: bool = False
-    normalized: bool = False
-    rstrip: bool = False
-    single_word: bool = False
-
-
-@dataclass
-class Qwen2VLBoxEndToken(MultiModalToken):
-    """Box-End Token class"""
-
-    token_str: str = "<|box_end|>"
-    token_index: int = 151649
-    media_type: str = None
-    use_start_end: bool = False
-    lstrip: bool = False
-    normalized: bool = False
-    rstrip: bool = False
-    single_word: bool = False
-
-
-@dataclass
-class Qwen2VLQuadStartToken(MultiModalToken):
-    """Quad-Start Token class"""
-
-    token_str: str = "<|quad_start|>"
-    token_index: int = 151650
-    media_type: str = None
-    use_start_end: bool = False
-    lstrip: bool = False
-    normalized: bool = False
-    rstrip: bool = False
-    single_word: bool = False
-
-
-@dataclass
-class Qwen2VLQuadEndToken(MultiModalToken):
-    """Quad-End Token class"""
-
-    token_str: str = "<|quad_end|>"
-    token_index: int = 151651
-    media_type: str = None
-    use_start_end: bool = False
-    lstrip: bool = False
-    normalized: bool = False
-    rstrip: bool = False
-    single_word: bool = False
-
-
-@dataclass
-class Qwen2VLVisionStartToken(MultiModalToken):
-    """Vision-Start Token class"""
-
-    token_str: str = "<|vision_start|>"
-    token_index: int = 151652
-    media_type: str = None
-    use_start_end: bool = False
-    lstrip: bool = False
-    normalized: bool = False
-    rstrip: bool = False
-    single_word: bool = False
-
-
-@dataclass
-class Qwen2VLVisionEndToken(MultiModalToken):
-    """Vision-End Token class"""
-
-    token_str: str = "<|vision_end|>"
-    token_index: int = 151653
-    media_type: str = None
-    use_start_end: bool = False
-    lstrip: bool = False
-    normalized: bool = False
-    rstrip: bool = False
-    single_word: bool = False
-
-
 # Constants for token indexing and special token mapping
 IGNORE_INDEX = -100
 IMAGE_TOKEN_INDEX = Qwen2VLImageToken.token_index
 VIDEO_TOKEN_INDEX = Qwen2VLVideoToken.token_index
-OBJECT_REF_START_TOKEN_INDEX = Qwen2VLObjectRefStartToken.token_index
-OBJECT_REF_END_TOKEN_INDEX = Qwen2VLObjectRefEndToken.token_index
-BOX_START_TOKEN_INDEX = Qwen2VLBoxStartToken.token_index
-BOX_END_TOKEN_INDEX = Qwen2VLBoxEndToken.token_index
-QUAD_START_TOKEN_INDEX = Qwen2VLQuadStartToken.token_index
-QUAD_END_TOKEN_INDEX = Qwen2VLQuadEndToken.token_index
-VISION_START_TOKEN_INDEX = Qwen2VLVisionStartToken.token_index
-VISION_END_TOKEN_INDEX = Qwen2VLVisionEndToken.token_index
+OBJECT_REF_START_TOKEN_INDEX = 151646
+OBJECT_REF_END_TOKEN_INDEX = 151647
+BOX_START_TOKEN_INDEX = 151648
+BOX_END_TOKEN_INDEX = 151649
+QUAD_START_TOKEN_INDEX = 151650
+QUAD_END_TOKEN_INDEX = 151651
+VISION_START_TOKEN_INDEX = 151652
+VISION_END_TOKEN_INDEX = 151653
 
 SPECIAL_TOKEN_MAP = [
     (Qwen2VLImageToken.token_str, Qwen2VLImageToken.token_index),
     (Qwen2VLVideoToken.token_str, Qwen2VLVideoToken.token_index),
-    (Qwen2VLObjectRefStartToken.token_str, Qwen2VLObjectRefStartToken.token_index),
-    (Qwen2VLObjectRefEndToken.token_str, Qwen2VLObjectRefEndToken.token_index),
-    (Qwen2VLBoxStartToken.token_str, Qwen2VLBoxStartToken.token_index),
-    (Qwen2VLBoxEndToken.token_str, Qwen2VLBoxEndToken.token_index),
-    (Qwen2VLQuadStartToken.token_str, Qwen2VLQuadStartToken.token_index),
-    (Qwen2VLQuadEndToken.token_str, Qwen2VLQuadEndToken.token_index),
-    (Qwen2VLVisionStartToken.token_str, Qwen2VLVisionStartToken.token_index),
-    (Qwen2VLVisionEndToken.token_str, Qwen2VLVisionEndToken.token_index),
+    ("<|object_ref_start|>", OBJECT_REF_START_TOKEN_INDEX),
+    ("<|object_ref_end|>", OBJECT_REF_END_TOKEN_INDEX),
+    ("<|box_start|>", BOX_START_TOKEN_INDEX),
+    ("<|box_end|>", BOX_END_TOKEN_INDEX),
+    ("<|quad_start|>", QUAD_START_TOKEN_INDEX),
+    ("<|quad_end|>", QUAD_END_TOKEN_INDEX),
+    ("<|vision_start|>", VISION_START_TOKEN_INDEX),
+    ("<|vision_end|>", VISION_END_TOKEN_INDEX)
 ]
