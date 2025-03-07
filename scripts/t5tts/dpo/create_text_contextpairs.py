@@ -4,6 +4,13 @@ import random
 
 
 def write_manifest(fp, records):
+    """
+    Writes a list of records to a JSON file, where each record is written as a new line.
+
+    Args:
+        fp (str): File path where the records should be written.
+        records (list): List of records (dictionaries) to write.
+    """
     with open(fp, "w") as f:
         for record in records:
             f.write(json.dumps(record) + "\n")
@@ -12,6 +19,10 @@ def write_manifest(fp, records):
 
 def main():
     """
+    Processes text and audio context data to create text-context pairs.
+    The resulting dataset is saved as a JSON manifest file.
+
+    Example usage: 
     python scripts/t5tts/dpo/create_text_contextpairs.py \
     --challenging_texts /Data/DPOPairsInputData/challenging_texts_nemollm.txt \
     --regular_texts_for_audiocontext /Data/DPOPairsInputData/regular_texts_for_audiocontext.txt \
@@ -101,6 +112,17 @@ def main():
 
 
 def create_audio_context_record(text, audio_context, record_type):
+    """
+    Creates a record for a text-context pair with audio context.
+    
+    Args:
+        text (str): The main text content.
+        audio_context (dict): Dictionary containing audio context information.
+        record_type (str): Type of record ('challenging' or 'regular').
+    
+    Returns:
+        dict: A dictionary representing the audio context record.
+    """
     record = {
         'text': text,
         'duration': 6.0,  # Does not matter, avoids filtering out in DPO,
@@ -117,6 +139,19 @@ def create_audio_context_record(text, audio_context, record_type):
 
 
 def create_text_context_record(text, text_context, dummy_audio_filepath, record_type, target_audio_codes_path=None):
+    """
+    Creates a record for a text-context pair with text context.
+    
+    Args:
+        text (str): The main text content.
+        text_context (str): The associated text context.
+        dummy_audio_filepath (str): A placeholder audio file path.
+        record_type (str): Type of record ('challenging' or 'regular').
+        target_audio_codes_path (str, optional): Optional target audio codes path.
+    
+    Returns:
+        dict: A dictionary representing the text context record.
+    """
     record = {
         'text': text,
         'duration': 6.0,  # Does not matter, avoids filtering out in DPO,

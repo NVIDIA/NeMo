@@ -1256,13 +1256,26 @@ class T5TTS_ModelInference(T5TTS_Model):
 
 
 class T5TTS_ModelDPO(T5TTS_Model):
+    """Extends T5TTS_Model to support Direct Preference Optimization (DPO) training.
+    This class is used for training the model with preference-based losses, including DPO, RPO, and IPO losses.
+    It maintains a frozen reference model to compare log probabilities between policy and reference outputs.
+
+    """
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        """Initialize the T5TTS_ModelDPO class.
+        
+        Args:
+            cfg (DictConfig): Configuration object containing model hyperparameters.
+            trainer (Trainer, optional): Trainer instance for model training.
+        """
         super().__init__(cfg, trainer)
-        # Copy cfg
+        # Create a copy of the configuration for the reference model
         ref_model_cfg = copy.deepcopy(cfg)
         with open_dict(ref_model_cfg):
             ref_model_cfg.train_ds = None
             ref_model_cfg.validation_ds = None
+
+        # Initialize the frozen reference model
         self._reference_model = T5TTS_Model(cfg=ref_model_cfg)
         print("Loading reference model from checkpoint")
         self._reference_model.load_state_dict(
@@ -1274,6 +1287,18 @@ class T5TTS_ModelDPO(T5TTS_Model):
         print("Reference model loaded and frozen")
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
+        """Return the state dictionary excluding non-trainable components.
+        
+        Excludes state keys related to `_speaker_verification_model`, `_codec_model`, and `_reference_model`.
+        
+        Args:
+            destination (dict, optional): The destination dictionary for the state_dict.
+            prefix (str, optional): Prefix to prepend to keys.
+            keep_vars (bool, optional): If True, tensors in the returned dictionary will not be detached.
+        
+        Returns:
+            dict: Filtered state dictionary.
+        """
         state_dict = super().state_dict(destination, prefix, keep_vars)
         keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model', '_reference_model']
         for key in list(state_dict.keys()):
@@ -1372,6 +1397,24 @@ class T5TTS_ModelDPO(T5TTS_Model):
         return losses, chosen_rewards, rejected_rewards
 
     def process_batch_dpo(self, batch_chosen_rejected):
+        """Process a batch for Direct Preference Optimization (DPO) training.
+    
+        This method computes the preference loss by comparing the model's policy outputs with a frozen reference model.
+        It processes chosen and rejected samples, extracts log probabilities for each codebook, and calculates the
+        preference loss based on the difference in likelihoods between chosen and rejected responses.
+
+        Args:
+            batch_chosen_rejected (dict): A dictionary containing two keys:
+                - 'chosen': The batch of chosen responses.
+                - 'rejected': The batch of rejected responses.
+
+        Returns:
+            dict: A dictionary containing:
+                - 'loss': The total computed loss.
+                - 'pref_loss': The preference loss.
+                - 'sft_loss': The supervised fine-tuning loss.
+                - 'alignment_loss': The alignment loss, if applicable.
+        """
         batch_chosen = batch_chosen_rejected['chosen']
         batch_rejected = batch_chosen_rejected['rejected']
 
@@ -1460,6 +1503,15 @@ class T5TTS_ModelDPO(T5TTS_Model):
         }
 
     def training_step(self, batch, batch_idx):
+        """Perform a training step using DPO loss.
+        
+        Args:
+            batch (dict): Batch data containing chosen and rejected samples.
+            batch_idx (int): Index of the batch.
+        
+        Returns:
+            Tensor: Training loss.
+        """
         dpo_outputs = self.process_batch_dpo(batch)
         self.log('train_loss', dpo_outputs['loss'], prog_bar=True, sync_dist=True)
         self.log('train_pref_loss', dpo_outputs['pref_loss'], prog_bar=True, sync_dist=True)
@@ -1467,6 +1519,12 @@ class T5TTS_ModelDPO(T5TTS_Model):
         return dpo_outputs['loss']
 
     def validation_step(self, batch, batch_idx):
+        """Perform a validation step using DPO loss.
+        
+        Args:
+            batch (dict): Validation batch data.
+            batch_idx (int): Batch index.
+        """
         dpo_outputs = self.process_batch_dpo(batch)
 
         val_loss = dpo_outputs['loss']
@@ -1484,6 +1542,7 @@ class T5TTS_ModelDPO(T5TTS_Model):
         )
 
     def on_validation_epoch_end(self):
+        """Aggregate validation losses at the end of the validation epoch."""
         def collect(key):
             values = []
             for x in self.validation_step_outputs:

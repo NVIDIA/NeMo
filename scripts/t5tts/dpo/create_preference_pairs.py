@@ -9,12 +9,24 @@ from tqdm import tqdm
 
 
 def main():
+    """
+    This script creates chosen-rejected pairs for DPO/RPO.
+    We match the manifest records with the generated audio files and metrics.
+    The script then creates a new manifest with chosen-rejected pairs.
+    which is used for training and validation manifest for DPO training.
+
+    Arguments:
+        --input_manifest: Path to the input JSON manifest file containing text/context records.
+        --generated_audio_dir: Directory containing generated audio files and associated metadata.
+        --group_size: Number of records per group used for ranking.
+        --cer_threshold: CER threshold for chosen records. Only records with CER <= threshold are retained.
+        --val_size: Number of validation samples to retain.
+    """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_manifest", type=str, default="/Data/testing_240subset.json")
+    parser.add_argument("--input_manifest", type=str)
     parser.add_argument(
         "--generated_audio_dir",
         type=str,
-        default="/Data/Experiments/NewT5TTSDPO/Debug/Generations/T5TTS/version_0/audios",
     )
     parser.add_argument("--group_size", type=int, default=4)
     parser.add_argument("--cer_threshold", type=float, default=0.02)
