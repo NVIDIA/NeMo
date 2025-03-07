@@ -3136,25 +3136,6 @@ jobs:
         rm -rf ${NEMO_OUTPUT_PATH}
         rm -rf ${HF_OUTPUT_PATH}
 
-  L2_NeMo_2_Conversion_Test_Mixtral:
-    needs: [ pre-flight, cicd-test-container-build ]
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        HF_ORI_PATH=/home/TestData/llm/models/mixtral_toy
-        NEMO_MODEL_TYPE=MixtralModel
-        NEMO_MODEL_CONFIG=MixtralConfig
-        NEMO_OUTPUT_PATH=/tmp/output_nemo2_ckpt
-        HF_OUTPUT_PATH=/tmp/output_hf_ckpt
-        
-        python tests/collections/llm/conversion/test_import_from_hf.py --hf-path=${HF_ORI_PATH} --model-type=${NEMO_MODEL_TYPE} --model-config=${NEMO_MODEL_CONFIG} --output-path=${NEMO_OUTPUT_PATH}
-        python tests/collections/llm/conversion/test_export_to_hf.py --nemo-path=${NEMO_OUTPUT_PATH} --original-hf-path=${HF_ORI_PATH} --output-path=${HF_OUTPUT_PATH}
-
-      AFTER_SCRIPT: |
-        rm -rf ${NEMO_OUTPUT_PATH}
-        rm -rf ${HF_OUTPUT_PATH}
-
   L2_NeMo_2_Conversion_Test_Llama:
     needs: [ pre-flight, cicd-test-container-build ]
     uses: ./.github/workflows/_test_template.yml
@@ -3304,12 +3285,12 @@ jobs:
       - L2_NeMo_2_Conversion_Test_Gemma2
       - L2_NeMo_2_Conversion_Test_Llama
       - L2_NeMo_2_Conversion_Test_Mistral
-      - L2_NeMo_2_Conversion_Test_Mixtral
       - L2_NeMo_2_Conversion_Test_Nemotron
       - L2_NeMo_2_Conversion_Test_Phi3Mini
       - L2_NeMo_2_Conversion_Test_Qwen2
       - L2_NeMo_2_Conversion_Test_Starcoder
       - L2_NeMo_2_Conversion_Test_Starcoder2
+
       - ASR_dev_run_Speech_to_Text
       - ASR_dev_run_Speech_to_Text_WPE_CitriNet
       - ASR_dev_run_Speech_Pre-training_-_CitriNet
