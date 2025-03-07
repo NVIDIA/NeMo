@@ -24,6 +24,7 @@ from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_audio, collate_vectors
 
 from nemo.collections.common.tokenizers import TokenizerSpec
+from nemo.utils import logging
 
 
 class DuplexS2SDataset(torch.utils.data.Dataset):
@@ -92,6 +93,11 @@ def build_token_channel(
             text_ids = torch.as_tensor(bos + tokenizer.text_to_ids(supervision.text) + eos)
             pos = compute_num_frames(offset, frame_length, cut.sampling_rate)
             # TODO: at least emit a warning if a truncation happens
-            tokens[pos : pos + len(text_ids)] = text_ids
+            endpos = pos + len(text_ids)
+            if endpos > len(tokens):
+                trunc_len = len(tokens) - pos
+                logging.warning(f"Truncating training example's text_ids of length {len(text_ids)} by {trunc_len} because {endpos=} > {len(tokens)=}.")
+                text_ids = text_ids[:trunc_len]
+                tokens[pos : endpos] = text_ids
         offset += d
     return tokens
