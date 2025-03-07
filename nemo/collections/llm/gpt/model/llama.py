@@ -667,8 +667,8 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             vocab_size=self.tokenizer.vocab_size,
             tie_word_embeddings=source.share_embeddings_and_output_weights,
             rope_scaling=rope_scaling,
-            bos_token_id=self.tokenizer.bos_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
+            bos_token_id=self.tokenizer.bos_id,
+            eos_token_id=self.tokenizer.eos_id,
         )
 
 
