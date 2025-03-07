@@ -19,12 +19,9 @@ from typing import Optional, List, Union, Dict, TypedDict, NotRequired, Literal
 import torch
 
 from megatron.energon import Sample
-from megatron.energon.flavors.webdataset import VideoData
 
-from nemo.collections.vlm.llava_next.data.energon import LlavaNextTextRawBatch, LlavaNextTextSample
 from nemo.collections.multimodal.data.energon.config import AudioToken, VideoToken, MultiModalSampleConfig
 from nemo.collections.asr.parts.preprocessing.perturb import perturbation_types as audio_perturbation_types
-from nemo.utils import logging
 
 
 @dataclass

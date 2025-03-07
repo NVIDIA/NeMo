@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-from nemo.collections.avlm.data.energon.media_to_text_config import MediaToMediaSampleConfig
+from nemo.collections.avlm.data.energon import AVLMSampleConfig
+from nemo.collections.avlm.data.energon import AVLMTaskEncoder
 from nemo.utils import logging
 
 
@@ -39,9 +40,9 @@ class AVLMDataModule(EnergonMultiModalDataModule):
     def __init__(
         self,
         path: str,
-        tokenizer,
-        audio_processor,
-        image_processor,
+        tokenizer=None,
+        audio_processor=None,
+        image_processor=None,
         seq_length: int = 2048,
         micro_batch_size: int = 1,
         global_batch_size: int = 1,
@@ -50,11 +51,11 @@ class AVLMDataModule(EnergonMultiModalDataModule):
         pin_memory: bool = True,
         shuffle_buffer_size: int = 100,
         max_samples_per_sequence: int | None = None,
-        media_to_text_sample_config: Optional[MediaToMediaSampleConfig] = MediaToMediaSampleConfig(),
-        task_encoder: Optional[MultiModalTaskEncoder] = None,
+        avlm_sample_config: Optional[AVLMSampleConfig] = AVLMSampleConfig(),
+        task_encoder: Optional[AVLMTaskEncoder] = None,
         decoder_seq_length: Optional[int] = None,
         packing_buffer_size: Optional[int] = None,
-        validation_task_encoder: Optional[MultiModalTaskEncoder] = None,
+        validation_task_encoder: Optional[AVLMTaskEncoder] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -69,7 +70,7 @@ class AVLMDataModule(EnergonMultiModalDataModule):
             pin_memory,
             shuffle_buffer_size,
             max_samples_per_sequence,
-            media_to_text_sample_config,
+            avlm_sample_config,
             task_encoder,
             decoder_seq_length,
             packing_buffer_size,

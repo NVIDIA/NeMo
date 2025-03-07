@@ -57,7 +57,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         tokenizer=None, 
         audio_processor=None,
         image_processor=None, 
-        multimodal_sample_config=AVLMSampleConfig()
+        avlm_sample_config=AVLMSampleConfig()
     ):
         """
         Initialize the AVLMSampleEncoder
@@ -68,30 +68,30 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         avlm_sample_config (AVLMSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to AVLMSampleConfig().
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config)
+        super().__init__(tokenizer, image_processor, avlm_sample_config)
         self.audio_processor = audio_processor
-        self.audio_token = multimodal_sample_config.audio_token
-        self.video_token = multimodal_sample_config.video_token
+        self.audio_token = avlm_sample_config.audio_token
+        self.video_token = avlm_sample_config.video_token
 
         if self.tokenizer is None:
-            self.tokenizer = self.build_tokenizer(self.multimodal_sample_config.model_id)
+            self.tokenizer = self.build_tokenizer(self.avlm_sample_config.model_id)
         if self.audio_processor is None:
-            self.audio_processor = self.build_audio_processor(self.multimodal_sample_config)
+            self.audio_processor = self.build_audio_processor(self.avlm_sample_config)
         if self.image_processor is None:
-            self.image_processor = self.build_image_processor(self.multimodal_sample_config.model_id)
+            self.image_processor = self.build_image_processor(self.avlm_sample_config.model_id)
 
         self.concate_audio_video_tokens = None
-        if self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "sequential":
+        if self.avlm_sample_config.audio_video_tokens_concatenate_pattern == "sequential":
             self.concate_audio_video_tokens = self.concate_audio_video_tokens_sequential
-        if self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "audio_video":
+        if self.avlm_sample_config.audio_video_tokens_concatenate_pattern == "audio_video":
             self.concate_audio_video_tokens = self.concate_audio_video_tokens_audio_video
-        elif self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "video_audio":
+        elif self.avlm_sample_config.audio_video_tokens_concatenate_pattern == "video_audio":
             self.concate_audio_video_tokens = self.concate_audio_video_tokens_video_audio
-        elif self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "interleaved_optimal":
+        elif self.avlm_sample_config.audio_video_tokens_concatenate_pattern == "interleaved_optimal":
             self.concate_audio_video_tokens = concate_audio_video_tokens_interleaved_optimal
         else:
             raise ValueError(f"Unsupported method in audio_video_tokens_concatenate_pattern: "
-                "{self.multimodal_sample_config.audio_video_tokens_concatenate_pattern}")
+                "{self.avlm_sample_config.audio_video_tokens_concatenate_pattern}")
 
     @staticmethod
     def concate_audio_video_tokens_audio_video(tokenized_chunks_audio, tokenized_chunks_video):
@@ -306,7 +306,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         tokenizer=None, 
         audio_processor=None,
         image_processor=None, 
-        multimodal_sample_config=AVLMSampleConfig()
+        avlm_sample_config=AVLMSampleConfig()
     ):
         """
         Initialize the AVLMSampleEncoderInterleaved
@@ -317,7 +317,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         avlm_sample_config (AVLMSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to AVLMSampleConfig().
         """
-        super().__init__(tokenizer, audio_processor, image_processor, multimodal_sample_config)
+        super().__init__(tokenizer, audio_processor, image_processor, avlm_sample_config)
 
     def tokenize(self, sequence: AVLMEnergonInterleavedSample):
         """
@@ -464,7 +464,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         tokenizer=None, 
         audio_processor=None,
         image_processor=None, 
-        multimodal_sample_config=AVLMSampleConfig()
+        avlm_sample_config=AVLMSampleConfig()
     ):
         """
         Initialize the AVLMSampleEncoderQA
@@ -475,8 +475,8 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         avlm_sample_config (AVLMSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to AVLMSampleConfig().
         """
-        super().__init__(tokenizer, audio_processor, image_processor, multimodal_sample_config)
-        self.conversation_template_config = multimodal_sample_config.conversation_template_config
+        super().__init__(tokenizer, audio_processor, image_processor, avlm_sample_config)
+        self.conversation_template_config = avlm_sample_config.conversation_template_config
 
     def tokenize(self, prompt: str, input_sample: AVLMEnergonQASample) -> torch.Tensor:
         """

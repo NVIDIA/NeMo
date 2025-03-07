@@ -12,4 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.avlm.data.energon.media_to_text_module import MediaToMediaEnergonModule
+from nemo.collections.avlm.data.energon.avlm_data_module import AVLMDataModule
+from nemo.collections.avlm.data.energon.avlm_sample_config import AVLMSampleConfig
+from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMTaskEncoder
