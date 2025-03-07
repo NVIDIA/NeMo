@@ -972,7 +972,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
         )
 
-
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
