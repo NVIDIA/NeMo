@@ -6,6 +6,7 @@ model:
 #  pretrained_llm: meta-llama/Llama-3.1-8B-Instruct
   pretrained_llm: Qwen/Qwen2.5-7B-Instruct
   pretrained_audio_codec: nvidia/low-frame-rate-speech-codec-22khz
+#  pretrained_audio_codec: /home/pzelasko/exp/duplex_s2s/Low_Frame-rate_Speech_Codec++_without_speaker_encoder.nemo
   pretrained_asr: stt_en_fastconformer_transducer_large
 
   perception:

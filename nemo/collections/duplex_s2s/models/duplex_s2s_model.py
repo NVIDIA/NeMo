@@ -13,6 +13,7 @@
 # limitations under the License.
 import builtins
 from itertools import chain
+from pathlib import Path
 from typing import Any
 
 import hydra
@@ -35,6 +36,7 @@ from torchmetrics.text import SacreBLEUScore
 from transformers import AutoModel
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
 from nemo.collections.tts.models import AudioCodecModel
@@ -47,8 +49,7 @@ class DuplexS2SModel(LightningModule):
         super().__init__()
         self.cfg = cfg
 
-        # self.audio_codec = AudioCodecModel.restore_from("Low_Frame-rate_Speech_Codec++_without_speaker_encoder.nemo")
-        self.audio_codec = AudioCodecModel.from_pretrained(self.cfg.pretrained_audio_codec).to(torch.bfloat16).eval()
+        self.audio_codec = _load_pretrained(AudioCodecModel, self.cfg.pretrained_audio_codec).to(torch.bfloat16).eval()
 
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
         self.llm = AutoModel.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
@@ -57,7 +58,7 @@ class DuplexS2SModel(LightningModule):
         self.embed_tokens = self.llm.embed_tokens
         del self.llm.embed_tokens
 
-        asr = ASRModel.from_pretrained(self.cfg.pretrained_asr).to(torch.bfloat16).eval()
+        asr = _load_pretrained(ASRModel, self.cfg.pretrained_asr).to(torch.bfloat16).eval()
         with open_dict(self.cfg):
             self.cfg.perception.preprocessor = asr.cfg.preprocessor
             self.cfg.perception.encoder = asr.cfg.encoder
@@ -210,7 +211,7 @@ class DuplexS2SModel(LightningModule):
 
     def on_validation_epoch_start(self) -> None:
         self.asr = ASRModel.from_pretrained(self.cfg.pretrained_asr).to(torch.bfloat16).eval()
-        self.asr.decoding.greedy.use_cuda_graph_decoder = False  # CUDA graphs may leak some GPU memory
+        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self.asr, attribute_path="decoding.decoding")
 
     def on_validation_epoch_end(self) -> None:
         self.log("val_asr_bleu", self.bleu.compute(), on_epoch=True, sync_dist=True)
@@ -414,3 +415,10 @@ class DuplexS2SModel(LightningModule):
             #     self.perception.encoder.layers[idx] = fully_shard(layer, **fsdp_config)
             # self.perception = checkpoint_wrapper(self.perception)
             self.perception = fully_shard(self.perception, **fsdp_config)
+
+
+def _load_pretrained(cls, model_path_or_name: str):
+    if Path(model_path_or_name).exists() and model_path_or_name.endswith(".nemo"):
+        return cls.restore_from(model_path_or_name)
+    else:
+        return cls.from_pretrained(model_path_or_name)
