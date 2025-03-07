@@ -135,8 +135,9 @@ class AVLMSampleConfig(MultiModalSampleConfig):
     audio_video: audio streams tokens are before the video streams tokens
     interleaved_optimal: space the video tokens and the audio tokens as evenly as possible
     """
-    video_audio_token_concatenate_pattern: Literal[
-        "video_audio", 
+    audio_video_tokens_concatenate_pattern: Literal[
+        "sequential",
         "audio_video", 
-        "interleaved_optimal",] = field(default="video_audio")
+        "video_audio",     
+        "interleaved_optimal",] = field(default="sequential")
     

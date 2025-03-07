@@ -80,53 +80,78 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         if self.image_processor is None:
             self.image_processor = self.build_image_processor(self.multimodal_sample_config.model_id)
 
-        self.concate_video_audio_tokens = None
-        if self.multimodal_sample_config.video_audio_token_concatenate_pattern == "video_audio":
-            self.concate_video_audio_tokens = self.concate_video_audio_tokens_video_audio
-        elif self.multimodal_sample_config.video_audio_token_concatenate_pattern == "audio_video":
-            self.concate_video_audio_tokens = self.concate_video_audio_tokens_audio_video
-        elif self.multimodal_sample_config.video_audio_token_concatenate_pattern == "interleaved_optimal":
-            self.concate_video_audio_tokens = concate_video_audio_tokens_interleaved_optimal
+        self.concate_audio_video_tokens = None
+        if self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "sequential":
+            self.concate_audio_video_tokens = self.concate_audio_video_tokens_sequential
+        if self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "audio_video":
+            self.concate_audio_video_tokens = self.concate_audio_video_tokens_audio_video
+        elif self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "video_audio":
+            self.concate_audio_video_tokens = self.concate_audio_video_tokens_video_audio
+        elif self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "interleaved_optimal":
+            self.concate_audio_video_tokens = concate_audio_video_tokens_interleaved_optimal
         else:
-            raise ValueError(f"Unsupported method in video_audio_token_concatenate_pattern: "
-                "{self.multimodal_sample_config.video_audio_token_concatenate_pattern}")
+            raise ValueError(f"Unsupported method in audio_video_tokens_concatenate_pattern: "
+                "{self.multimodal_sample_config.audio_video_tokens_concatenate_pattern}")
 
     @staticmethod
-    def concate_video_audio_tokens_video_audio(tokenized_chunks_video, tokenized_chunks_audio):
+    def concate_audio_video_tokens_audio_video(tokenized_chunks_audio, tokenized_chunks_video):
         """
         Parameters:
-            tokenized_chunks_video: List of List of frame/image tokens, with inner List 
-                corresponds to the sequence of frames of one video stream
-            tokenized_chunks_audio: List of audio tokens, each corresponds to one audio stream
+            tokenized_chunks_video: {stream_index: List[self.image_token.token_id]}
+            tokenized_chunks_audio: {stream_index: List[self.audio_token.token_id]}
         Returns:
-            List of concatenated tokens with video streams tokens are before the audio streams tokens 
+            List of concatenated tokens with all audio tokens followed by all video tokens
         """
-        return [f for v in tokenized_chunks_video for f in v] + tokenized_chunks_audio
+        return [t for i in sorted(tokenized_chunks_audio.keys()) for t in tokenized_chunks_audio[i]] + \
+            [t for i in sorted(tokenized_chunks_video.keys()) for t in tokenized_chunks_video[i]]
 
     @staticmethod
-    def concate_video_audio_tokens_audio_video(tokenized_chunks_video, tokenized_chunks_audio):
+    def concate_audio_video_tokens_video_audio(tokenized_chunks_audio, tokenized_chunks_video):
         """
         Parameters:
-            tokenized_chunks_video: List of List of frame/image tokens, with inner List 
-                corresponds to the sequence of frames of one video stream
-            tokenized_chunks_audio: List of audio tokens, each corresponds to one audio stream
+            tokenized_chunks_video: {stream_index: List[self.image_token.token_id]}
+            tokenized_chunks_audio: {stream_index: List[self.audio_token.token_id]}
         Returns:
-            List of concatenated tokens with audio streams tokens are before the video streams tokens
+            List of concatenated tokens with all video tokens followed by all audio tokens
         """
-        return tokenized_chunks_audio + [f for v in tokenized_chunks_video for f in v]
+        return [t for i in sorted(tokenized_chunks_video.keys()) for t in tokenized_chunks_video[i]] + \
+            [t for i in sorted(tokenized_chunks_audio.keys()) for t in tokenized_chunks_audio[i]]
 
     @staticmethod
-    def concate_video_audio_tokens_interleaved_optimal(tokenized_chunks_video, tokenized_chunks_audio):
+    def concate_audio_video_tokens_sequential(tokenized_chunks_audio, tokenized_chunks_video):
         """
         Parameters:
-            tokenized_chunks_video: List of List of frame/image tokens, with inner List 
-                corresponds to the sequence of frames of one video stream
-            tokenized_chunks_audio: List of audio tokens, each corresponds to one audio stream
+            tokenized_chunks_video: {stream_index: List[self.image_token.token_id]}
+            tokenized_chunks_audio: {stream_index: List[self.audio_token.token_id]}
+        Returns:
+            List of concatenated tokens according to the stream index in the original video file
+        """
+        indexes = set(list(tokenized_chunks_audio.keys()) + list(tokenized_chunks_video.keys()))
+        tokens = []
+        for index in sorted(indexes):
+            if index in tokenized_chunks_video:
+                tokens.extend(tokenized_chunks_video[index])
+            # ideally, video and audio stream index should be unique.
+            # if they share identical index, add the video tokens first
+            if index in tokenized_chunks_audio:
+                tokens.extend(tokenized_chunks_audio[index])
+        return tokens
+
+    @staticmethod
+    def concate_audio_video_tokens_interleaved_optimal(tokenized_chunks_audio, tokenized_chunks_video):
+        """
+        Parameters:
+            tokenized_chunks_video: {stream_index: List[self.image_token.token_id]}
+            tokenized_chunks_audio: {stream_index: List[self.audio_token.token_id]}
         Returns:
             List of concatenated tokens with evenly spaced video and audio tokens
         """
-        total_length = len(tokenized_chunks_video) + len(tokenized_chunks_audio)
-        shorter, longer = sorted((tokenized_chunks_video, tokenized_chunks_audio), key=len)
+        audio_tokens = [t for i in sorted(tokenized_chunks_audio.keys()) for t in tokenized_chunks_audio[i]]
+        # do not flatten the inner list so as to preserve the {stream: {frame: }} structure
+        video_tokens = [tokenized_chunks_video[i] for i in sorted(tokenized_chunks_video.keys())]
+
+        total_length = len(video_tokens) + len(audio_tokens)
+        shorter, longer = sorted((video_tokens, audio_tokens), key=len)
         groups = itertools.groupby(
             (
                 (
@@ -197,21 +222,15 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         else:
             return None, None
 
-    def process_video(self, video: Union[bytes, dict]) -> Dict[int: Dict[str, Uninion[str, List[torch.tensor], Union[AudioSize, VideoSize]]]]:
+    def process_video(self, video: Union[bytes, dict]) -> Dict[int: Dict[str, Uninion[Literal["video", "audio"], List[torch.tensor], Union[AudioSize, VideoSize]]]]:
         """
         Returns:
-            {video_stream_index: {"type": Literal["video", "audio"]}}
-
-            dict[
-                "video": Dict[video_stream_index] List of video streams of tuple:
-                        (processed video stream tensor of shape: [frames x num_of_tiles x channel x height x width]
-                        , original VideoSize)
-                "audio": List of audio streams of tuple:
-                        (processed audio stream tensor of shape: [audio_length x channel]
-                        , original AudioSize)
-            ]
+            {video_stream_index: {"type": Literal["video", "audio"], "data": torch.tensor, "original_size": Union[AudioSize, VideoSize]}}
+            audio tensor in "data" is of shape: [audio_length x channel]
+            video tensor in "data" is of shape: [frames x num_of_tiles x channel x height x width]
         """
-        ret_dict = {"video": [], "audio": []}
+        ret_dict = dict()
+
         # get all stream information from the file
         video_bytes = video
         offset = 0
@@ -224,13 +243,17 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         start_seconds = offset
         end_seconds = start_seconds + duration
         container = av.open(io.BytesIO(video))
+        media_stream_count = {"audio": 0, "video": 0}
         for stream in container.streams:
+            if stream.type not in ["audio", "video"]:
+                continue
+
             frames = []
             stream_start_seconds = stream.time_base * stream.start_time
             stream_end_seconds = stream_start_seconds + stream.time_base * stream.duration
             if stream_start_seconds >= start_seconds and stream_start_seconds < end_seconds:
                 # only retrieve the streams whose time spans within the required start and end
-                reader = torchvision.io.VideoReader(video_bytes, f"{stream.type}:{stream.index}")
+                reader = torchvision.io.VideoReader(video_bytes, f"{stream.type}:{media_stream_count[stream.type]}")
                 for frame in itertools.takewhile(
                     lambda x: x['pts'] <= min(stream_end_seconds, end_seconds), reader.seek(start_seconds)):
                     if stream.type == "video" and self.image_processor is not None
@@ -238,26 +261,23 @@ class AVLMSampleEncoder(BaseSampleEncoder):
                     else:
                         frame = frame["data"]
                     frames.append(frame)
-                if frames:
+                if frames:                 
                     if stream.type == "video":
                         frames = torch.stack(frames)
                         if frames.dim == 4:
-                            frames.unsqueeze(1)
-                        ret_dict[stream.type].append((
-                            frames, 
-                            VideoSize(
+                            frames.unsqueeze(1)                        
+                            original_size = VideoSize(
                                 frames=stream.frames, 
                                 height=stream.height, 
-                                width=stream.width),
-                        ))
+                                width=stream.width)
                     elif stream.type == "audio":
                         frames = torch.cat(frames)
-                        ret_dict[stream.type].append((
-                            frames, 
-                            # TODO: verify duration is the same as total frame size
-                            AudioSize(length=stream.duration, channel=stream.codec_context.channel),
-                        ))
+                        # TODO: verify duration is the same as total frame size
+                        original_size = AudioSize(length=stream.duration, channel=stream.codec_context.channel)
                     
+                    ret_dict[stream.index] = {"type": stream.type, "data": frames, "original_size": original_size}
+            
+            media_stream_count[stream.type] = media_stream_count[stream.type] + 1                    
             
         return ret_dict
 
@@ -351,27 +371,32 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                         audio_lengths.append(processed_audio.shape[0])
                         tokenized_chunks.append(self.audio_token.token_id)
                 elif media_type == "video":
-                    total_frames_in_each_processed_video = []
-                    # process video
+                    audio_stream_index_tokens_dict = {}
+                    video_stream_index_tokens_dict = {}
+                    # process video and audio (if any) streams in a video file
                     video_audio_dict = self.process_video(chunk)
-                    ## process each video stream
-                    processed_video_streams = video_audio_dict["video"][0]
-                    for i, (processed_video, video_size) in enumerate(processed_video_streams):
-                        # flatten the frames into tiles
-                        images.append(processed_video.flatten(end_dim=1))
-                        total_frames_in_each_processed_video.append(processed_video.shape[0])
-                        num_image_tiles.extend([processed_video.shape[1]] * processed_video.shape[0])
-                        image_sizes.extend([video_size.height, video_size.width] * processed_video.shape[0])
-                    ## process each audio stream
-                    processed_audio_streams = video_audio_dict["audio"][0]
-                    for i, (processed_audio, _) in enumerate(processed_audio_streams):
-                        audios.append(processed_audio)
-                        audio_lengths.append(processed_audio.shape[0])
+                    for stream_index in video_audio_dict:
+                        media_data = video_audio_dict[stream_index]
+
+                        if media_data["type"] == "video":
+                            ## process each video stream
+                            processed_video = media_data["data"]
+                            original_video_size = video_audio_dict[stream_index]["original_size"]                            
+                            # flatten the frames into tiles
+                            images.append(processed_video.flatten(end_dim=1))
+                            num_image_tiles.extend([processed_video.shape[1]] * processed_video.shape[0])
+                            image_sizes.extend([original_video_size.height, original_video_size.width] * processed_video.shape[0])
+                            video_stream_index_tokens_dict[stream_index] = [self.image_token.token_id] * processed_video.shape[0]
+                        else:
+                            ## process each audio stream
+                            processed_audio = media_data["data"]
+                            audios.append(processed_audio)
+                            audio_lengths.append(processed_audio.shape[0])
+                            audio_stream_index_tokens_dict[stream_index] = [self.audio_token.token_id]
+
                     
                     # concatenate the video and audio tokens according to the required pattern
-                    tokenized_chunks_video = [[self.image_token.token_id] * f for f in total_frames_in_each_processed_video]
-                    tokenized_chunks_audio = [self.audio_token.token_id] * len(processed_audio_streams)
-                    tokenized_chunks.extend(self.concate_video_audio_tokens(tokenized_chunks_video, tokenized_chunks_audio))                    
+                    tokenized_chunks.extend(self.concate_audio_video_tokens(audio_stream_index_tokens_dict, video_stream_index_tokens_dict))                    
                 else:
                     raise ValueError(f"Unsupported type in MediaDict: {type(chunk)}")    
             elif len(chunk) > 0:
@@ -496,26 +521,32 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                 input_audio_index = input_audio_index + 1
             elif chunk == self.video_token.token_str:
                 total_frames_in_each_processed_video = []
-                # process video
-                video_audio_dict = self.process_video(input_sample.videos[input_video_index])
-                ## process each video stream
-                processed_video_streams = video_audio_dict["video"][0]
-                for i, (processed_video, video_size) in enumerate(processed_video_streams):
-                    # flatten the frames into tiles
-                    processed_images.append(processed_video.flatten(end_dim=1))
-                    total_frames_in_each_processed_video.append(processed_video.shape[0])
-                    processed_num_image_tiles.extend([processed_video.shape[1]] * processed_video.shape[0])
-                    processed_image_sizes.extend([video_size.height, video_size.width] * processed_video.shape[0])
-                ## process each audio stream
-                processed_audio_streams = video_audio_dict["audio"][0]
-                for i, (processed_audio, _) in enumerate(processed_audio_streams):
-                    processed_audios.append(processed_audio)
-                    processed_audio_lengths.append(processed_audio.shape[0])
+                audio_stream_index_tokens_dict = {}
+                video_stream_index_tokens_dict = {}
+                # process video and audio (if any) streams in a video file
+                video_audio_dict = self.process_video(chunk)
+                for stream_index in video_audio_dict:
+                    media_data = video_audio_dict[stream_index]
+
+                    if media_data["type"] == "video":
+                        ## process each video stream
+                        processed_video = media_data["data"]
+                        original_video_size = video_audio_dict[stream_index]["original_size"]
+                        # flatten the frames into tiles
+                        processed_images.append(processed_video.flatten(end_dim=1))
+                        total_frames_in_each_processed_video.append(processed_video.shape[0])
+                        processed_num_image_tiles.extend([processed_video.shape[1]] * processed_video.shape[0])
+                        processed_image_sizes.extend([original_video_size.height, original_video_size.width] * processed_video.shape[0])
+                        video_stream_index_tokens_dict[stream_index] = [self.image_token.token_id] * processed_video.shape[0]
+                    else:
+                        ## process each audio stream
+                        processed_audio = media_data["data"]
+                        processed_audios.append(processed_audio)
+                        processed_audio_lengths.append(processed_audio.shape[0])
+                        audio_stream_index_tokens_dict[stream_index] = [self.audio_token.token_id]
                 
                 # concatenate the video and audio tokens according to the required pattern
-                tokenized_chunks_video = [[self.image_token.token_id] * f for f in total_frames_in_each_processed_video]
-                tokenized_chunks_audio = [self.audio_token.token_id] * len(processed_audio_streams)
-                tokenized_chunks.extend(self.concate_video_audio_tokens(tokenized_chunks_video, tokenized_chunks_audio))
+                tokenized_chunks.extend(self.concate_audio_video_tokens(audio_stream_index_tokens_dict, video_stream_index_tokens_dict))
 
                 input_video_index = input_video_index + 1
             elif chunk == self.image_token.token_str:
