@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 import _io
 import lightning.pytorch as pl
 import torch
+import torch.distributed as dist
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
 
@@ -100,6 +103,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
         self.attn_implementation = attn_implementation
+        # holds loss values until optim step.
+        self.loss_buffer = []
+        self.n_tok = 0
+        self.timestamp = None
 
     @property
     def tokenizer(self):
@@ -113,7 +120,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             AutoTokenizer: The tokenizer associated with the model.
         """
         if self._tokenizer is None:
-            self._tokenizer = HFAutoModelForCausalLM.configure_tokenizer(self.model_name, self.trust_remote_code)
+            self._tokenizer = HFAutoModelForCausalLM.configure_tokenizer(
+                self.model_name, trust_remote_code=self.trust_remote_code
+            )
         return self._tokenizer
 
     @tokenizer.setter
@@ -223,6 +232,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Returns:
             torch.Tensor: The computed loss for the batch.
         """
+        # logging
+        if self.timestamp is None:
+            self.timestamp = time.perf_counter()
+
+        if isinstance(self.trainer.strategy.checkpoint_io, io.pl.MegatronCheckpointIO):
+            logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
+            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
+
         labels = batch.pop('labels').to(self.model.device)
         loss_mask = batch.pop('loss_mask', None)
 
@@ -241,8 +258,59 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
         assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('reduced_train_loss', loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        # logging
+        self.loss_buffer.append(loss.item())
+        self.n_tok += labels.numel()
         return loss
+
+    def on_before_optimizer_step(self, optimizer) -> None:
+        """Hook triggered befored the optimizer step.
+        Used for calculating the average loss across all gradient accumulation steps.
+
+        Args:
+            optimizer (torch.optim.Optimizer): the optimizer; unused.
+        """
+        # Excluding the first/last iter, time_delta is calculated as follows
+        # fwd 0 | opt 0 | fwd 1 | opt 1 | fwd 2
+        #        ^              ^
+        s = time.perf_counter()
+        time_delta = s - self.timestamp
+        self.timestamp = s
+
+        mean_loss = sum(self.loss_buffer) / len(self.loss_buffer)
+        self.loss_buffer = []
+        tps = self.n_tok / time_delta
+        self.n_tok = 0
+
+        # reduce across ranks
+        is_ddp = isinstance(self.trainer.strategy, pl.strategies.DDPStrategy)
+        device_mesh = getattr(self, '_device_mesh', None)
+        if device_mesh is not None or is_ddp:
+            if is_ddp:
+                group = dist.group.WORLD  # Default DDP process group
+            else:
+                group = device_mesh.get_group()
+
+            def reduce_item(val, op, device, group, dtype):
+                """util function"""
+                val = torch.tensor([val], device=device, dtype=dtype).detach()
+                dist.all_reduce(val, group=group, op=op)
+                return val.item()
+
+            mean_loss = reduce_item(
+                mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
+            )
+            tps = reduce_item(tps, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
+
+        self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+
+        # log LR
+        # TODO(akoumparouli): move this elsewhere.
+        optim = self.optimizers()
+        if isinstance(optim, list):
+            optim = optim[0]
+        self.log('lr', optim.param_groups[0]['lr'], prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
@@ -387,3 +455,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         fwd_signature = inspect.signature(self.model.forward)
         allowed_keys = list(fwd_signature.parameters.keys()) + reserved_keys
         return {k: batch[k] for k in allowed_keys if k in batch}
+
+    @property
+    def _has_lora_adapter(self):
+        return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))

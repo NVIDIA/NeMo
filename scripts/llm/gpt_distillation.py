@@ -16,6 +16,7 @@ import os
 from argparse import ArgumentParser
 
 from lightning.pytorch.loggers import TensorBoardLogger
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
@@ -58,6 +59,7 @@ def get_args():
     parser.add_argument("--val_check_interval", type=int, default=100, help="""Validate + checkpoint every _ steps""")
     parser.add_argument("--limit_val_batches", type=int, default=32, help="""Number of batches per validation stage""")
     parser.add_argument("--log_interval", type=int, default=10, help="""Write to log every _ steps""")
+    parser.add_argument("--legacy_ckpt", action="store_true", help="""Load ckpt saved with TE < 1.14""")
 
     return parser.parse_args()
 
@@ -71,6 +73,7 @@ if __name__ == "__main__":
         pipeline_model_parallel_size=args.pp_size,
         context_parallel_size=args.cp_size,
         sequence_parallel=(args.tp_size > 1),
+        ckpt_load_strictness=StrictHandling.LOG_ALL if args.legacy_ckpt else None,
     )
     trainer = nl.Trainer(
         devices=args.devices,
