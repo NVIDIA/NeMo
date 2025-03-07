@@ -205,6 +205,7 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer) -> "MCoreQwen2VLModel":
         # pylint: disable=C0115,C0116
+        self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
@@ -600,18 +601,6 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 input_ids=input_ids_text, position_ids=None
             )  # [decoder_seq_len, b, h_language]
 
-            if self.sequence_parallel_lm:
-                # Gather the language embeddings back.
-                # We use the full embedding to insert image embeddings
-                # and then scatter to avoid load imbalance.
-                language_embeddings = gather_from_sequence_parallel_region(
-                    language_embeddings, tensor_parallel_output_grad=False
-                )
-                # Remove the padding done for SP as we'll need new padding calculation
-                # after image embeddings are inserted.
-                if padded_seq_len != 0:
-                    language_embeddings = language_embeddings[:-padded_seq_len]
-
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, decoder_seq_len, h_language]
 
         # Preprocess input, labels and loss mask.
@@ -653,6 +642,23 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         use_inference_kv_cache: Optional[bool] = False,
         attention_mask: Optional[torch.Tensor] = None,
     ):
+        """
+        MCoreQwen2VLModel uses its own version of _preprocess_data instead of MCoreLLaVAModel's (in
+        megatron-lm/megatron/core/models/multimodal/llava_model.py)
+        
+        This function handles several data preprocess requirements:
+            - merge image and/or video embeddings into language embedding
+            - padding inputs variables (e.g. labels/loss masks) for pipeline_parallel case
+            - truncate inputs variables (e.g. labels/loss masks) if exceeding max seq length
+
+        This function won't shift labels as forward() and _preprocess_data() in MCoreQwen2VLModel 
+        expect labels from input arguments already handle this shift.
+
+        About merging image/video embeddings: language_embeddings may include num of imgage_token
+        placeholders, and this function will put each imgage_token from image_embeddings into
+        placeholder within language_embeddings(1:1 mapping), when image_embeddings/video_embeddings
+        is available and it's the 1st pipeline_parallel stage
+        """
 
         assert self.add_decoder, "input text preprocessing is only needed for the language model"
 
