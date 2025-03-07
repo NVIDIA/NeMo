@@ -501,7 +501,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         """
         if timestamps is not None and timestamps:
             # TODO: Handle this key gracefully later
-            
+
             if timestamps is True:
                 timestamps = 'yes'
             elif timestamps is False:
@@ -968,9 +968,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         del enc_states, enc_mask, decoder_input_ids
 
-        hypotheses = process_aed_timestamp_outputs(hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride'])
+        hypotheses = process_aed_timestamp_outputs(
+            hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+        )
 
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
 
         return hypotheses
 
@@ -1056,8 +1060,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 raise ValueError(f"Expected str or dict, got {type(item)}")
             default_turn = [t for t in trcfg.prompt if t["role"] == "user"]
             default_turn = default_turn[0]["slots"] if default_turn else {}
-            
-            # check for prompt format 
+
+            # check for prompt format
             if self.prompt_format == 'canary':
                 if 'timestamp' in default_turn and default_turn['timestamp']:
                     raise ValueError(
@@ -1067,8 +1071,15 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     raise ValueError(
                         "Context feature is not supported in Canary prompt format. Please use latest canary-1b-flash or canary-180m-flash"
                     )
-            
-            for k, dv in (("source_lang", "en"), ("target_lang", "en"), ("taskname", "asr"), ("pnc", "yes"), ("context", ""), ("timestamp", 'notimestamp')):
+
+            for k, dv in (
+                ("source_lang", "en"),
+                ("target_lang", "en"),
+                ("taskname", "asr"),
+                ("pnc", "yes"),
+                ("context", ""),
+                ("timestamp", 'notimestamp'),
+            ):
                 if k not in entry:
                     # last-chance fallback injecting legacy Canary defaults if none were provided.
                     entry[k] = default_turn.get(k, dv)

@@ -19,7 +19,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
 def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_stride: float = 0.01):
-    """ 
+    """
     Processes AED timestamp outputs and extracts word-level timestamps.
     Args:
         outputs (list or Hypothesis): The hypothesis outputs to process. Can be a single Hypothesis object or a list of Hypothesis objects.
@@ -38,21 +38,21 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
     if not isinstance(outputs[0], Hypothesis):
         raise ValueError(f"Expected Hypothesis object, got {type(outputs[0])}")
 
-    def extract_words_with_timestamps(text, subsampling_factor: int= 1, window_stride:float = 0.01):
-        
+    def extract_words_with_timestamps(text, subsampling_factor: int = 1, window_stride: float = 0.01):
+
         if not re.search(r'<\|\d+\|>.*?<\|\d+\|>', text):
             return None, text
-        
+
         # Find words that directly have start and end timestamps
         pattern = r'<\|(\d+)\|>(.*?)<\|(\d+)\|>'
-    
+
         matches = []
         text_without_timestamps = []
         for match in re.finditer(pattern, text):
             start_time = int(match.group(1)) * window_stride * subsampling_factor
             content = match.group(2)
             end_time = int(match.group(3)) * window_stride * subsampling_factor
-            
+
             # Only include if there's actual content
             if content.strip():
                 sample = {
@@ -60,20 +60,19 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
                     'start_offset': int(match.group(1)),
                     'end_offset': int(match.group(3)),
                     'start': start_time,
-                    'end': end_time
+                    'end': end_time,
                 }
                 matches.append(sample)
                 text_without_timestamps.append(content.strip())
-        
+
         text_without_timestamps = ' '.join(text_without_timestamps)
         return matches, text_without_timestamps
-    
+
     def segments_offset_to_time(segments, window_stride, subsampling_factor):
         for segment in segments:
             segment['start'] = segment['start_offset'] * window_stride * subsampling_factor
             segment['end'] = segment['end_offset'] * window_stride * subsampling_factor
         return segments
-    
 
     for idx, hyp in enumerate(outputs):
         timestamp, text = extract_words_with_timestamps(hyp.text, subsampling_factor, window_stride)
@@ -88,6 +87,7 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
             segments = segments_offset_to_time(segments, window_stride, subsampling_factor)
             outputs[idx].timestamp['segment'] = segments
     return outputs
+
 
 def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_stride: float = 0.01):
     """
@@ -140,4 +140,4 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
             outputs[idx].timestamp['segment'] = process_timestamp(
                 timestamp['segment'], subsampling_factor, window_stride
             )
-    return outputs 
+    return outputs

@@ -791,7 +791,7 @@ def test_aed_timestamp_processing():
         score=None,
         alignments=None,
         length=None,
-        timestamp={}
+        timestamp={},
     )
 
     # Process timestamps with default parameters
@@ -799,24 +799,24 @@ def test_aed_timestamp_processing():
     assert isinstance(processed, list)
     assert len(processed) == 1
     assert processed[0].text == "hello world"
-    
+
     # Check word-level timestamps
     word_timestamps = processed[0].timestamp['word']
     assert len(word_timestamps) == 2
-    
+
     # Check first word "hello"
     assert word_timestamps[0]['word'] == 'hello'
     assert word_timestamps[0]['start_offset'] == 10
     assert word_timestamps[0]['end_offset'] == 15
     assert word_timestamps[0]['start'] == 0.1  # 10 * 0.01
-    assert word_timestamps[0]['end'] == 0.15   # 15 * 0.01
-    
+    assert word_timestamps[0]['end'] == 0.15  # 15 * 0.01
+
     # Check second word "world"
     assert word_timestamps[1]['word'] == 'world'
     assert word_timestamps[1]['start_offset'] == 20
     assert word_timestamps[1]['end_offset'] == 25
-    assert word_timestamps[1]['start'] == 0.2   # 20 * 0.01
-    assert word_timestamps[1]['end'] == 0.25    # 25 * 0.01
+    assert word_timestamps[1]['start'] == 0.2  # 20 * 0.01
+    assert word_timestamps[1]['end'] == 0.25  # 25 * 0.01
 
     # Check segment-level timestamps
     segments = processed[0].timestamp['segment']
@@ -829,30 +829,22 @@ def test_aed_timestamp_processing():
     # Test with different window_stride and subsampling_factor
     processed = process_aed_timestamp_outputs(hyp, subsampling_factor=2, window_stride=0.02)
     word_timestamps = processed[0].timestamp['word']
-    
+
     # Check timing calculations with new parameters
-    assert word_timestamps[0]['start'] == 0.4   # 10 * 0.02 * 2
-    assert word_timestamps[0]['end'] == 0.6     # 15 * 0.02 * 2
-    assert word_timestamps[1]['start'] == 0.8   # 20 * 0.02 * 2
-    assert word_timestamps[1]['end'] == 1.0     # 25 * 0.02 * 2
+    assert word_timestamps[0]['start'] == 0.4  # 10 * 0.02 * 2
+    assert word_timestamps[0]['end'] == 0.6  # 15 * 0.02 * 2
+    assert word_timestamps[1]['start'] == 0.8  # 20 * 0.02 * 2
+    assert word_timestamps[1]['end'] == 1.0  # 25 * 0.02 * 2
 
     # Test case when text doesn't contain timestamps
-    hyp = Hypothesis(
-        text="hello world",
-        y_sequence=None,
-        score=None,
-        alignments=None,
-        length=None,
-        timestamp={}
-    )
+    hyp = Hypothesis(text="hello world", y_sequence=None, score=None, alignments=None, length=None, timestamp={})
 
     # Process timestamps with default parameters
     processed = process_aed_timestamp_outputs(hyp)
     assert isinstance(processed, list)
     assert len(processed) == 1
     assert processed[0].text == "hello world"
-    
+
     # Verify no timestamps were extracted
     assert processed[0].timestamp['word'] == []
     assert processed[0].timestamp['segment'] == []
-
