@@ -31,6 +31,7 @@ import torch
 import torch.nn.functional as F
 import wrapt
 from tensorrt_llm._utils import numpy_to_torch
+from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
@@ -502,11 +503,18 @@ class TensorRTLLM(ITritonDeployable):
             if os.path.exists(tokenizer_path):
                 shutil.copy(tokenizer_path, self.model_dir)
             elif os.path.exists(tokenizer_path_nemo2):
-                shutil.copytree(tokenizer_path_nemo2, Path(self.model_dir) / "nemo_context")
+                # Copy HF tokenizer files to root model directory
+                for path in glob(os.path.join(tokenizer_path_nemo2, "nemo_tokenizer", "*.json")):
+                    print("Copy HF tokenizer files to root model directory")
+                    shutil.copy(path, self.model_dir)
+                # Copy SentencePiece tokenizer.model
+                for path in glob(os.path.join(tokenizer_path_nemo2, "*.model")):
+                    print("Copy SentencePiece tokenizer.model")
+                    shutil.copy(path, os.path.join(self.model_dir, "tokenizer.model"))
+            elif isinstance(self.tokenizer, (PreTrainedTokenizer, PreTrainedTokenizerFast)):
+                self.tokenizer.save_pretrained(os.path.join(self.model_dir))
             elif os.path.exists(vocab_path):
                 shutil.copy(vocab_path, os.path.join(self.model_dir, "vocab.json"))
-            else:
-                self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
 
             nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
             if os.path.exists(nemo_model_config):
@@ -527,7 +535,8 @@ class TensorRTLLM(ITritonDeployable):
         """
         Exports the model configuration to a specific format required by NIM.
         This method performs the following steps:
-        1. Moves tokenizer files from the nemo_context directory to the root model directory.
+
+        1. Copies the generation_config.json file from the nemo_context directory to the root model directory.
         2. Creates a dummy Hugging Face (HF) configuration file based on the provided model configuration and type.
 
         Args:
@@ -535,24 +544,11 @@ class TensorRTLLM(ITritonDeployable):
             model_type (str): The type of the model (e.g., "llama").
         """
 
-        # Copy HF tokenizer files to root model directory
-        for path in glob(os.path.join(self.model_dir, "nemo_context", "nemo_tokenizer", "*.json")):
-            shutil.copy(path, self.model_dir)
-
-        # Copy SentencePiece tokenizer.model
-        for path in glob(os.path.join(self.model_dir, "nemo_context", "*.model")):
-            shutil.copy(path, os.path.join(self.model_dir, "tokenizer.model"))
-
-        # Copy Tiktoken vocab.json
-        for path in glob(os.path.join(self.model_dir, "nemo_context", "*.vocab.json")):
-            shutil.copy(path, self.model_dir)
-
-        # Copy generation_config.json
         generation_config_path = os.path.join(self.model_dir, "nemo_context", "artifacts", "generation_config.json")
         if os.path.isfile(generation_config_path):
             shutil.copy(generation_config_path, self.model_dir)
 
-        # Create dummy HF config: fields "architectures" and "model_type" are required by HF but not relevant for NIM
+        # Fields "architectures" and "model_type" are required by HF but not relevant for NIM
         seq_len_interpolation_factor = model_config.get("seq_len_interpolation_factor")
         hf_config = {
             "max_position_embeddings": model_config.get("encoder_seq_length"),
@@ -668,7 +664,7 @@ class TensorRTLLM(ITritonDeployable):
             if os.path.exists(tokenizer_path):
                 shutil.copy(tokenizer_path, self.model_dir)
             else:
-                self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+                self.tokenizer.save_pretrained(os.path.join(self.model_dir))
 
             nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
             if os.path.exists(nemo_model_config):
@@ -1465,13 +1461,12 @@ class TensorRTLLM(ITritonDeployable):
         return prompt_embeddings_table
 
     def _load_config_file(self):
-        engine_dir = Path(self.model_dir)
-        config_path = engine_dir / 'config.json'
+        config_path = Path(self.engine_dir) / 'config.json'
         if config_path.exists():
             with open(config_path, 'r') as f:
                 self.config = json.load(f)
         else:
-            raise FileNotFoundError("file: {0} could not be found.".format(config_path))
+            raise FileNotFoundError(f"File: {config_path} could not be found.")
 
     def _load(self):
         self.model = None
