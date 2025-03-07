@@ -202,8 +202,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
             # Apply FSDP2 and TP to the model
             self.parallelize_fn(
-                self.lightning_module.model, device_mesh=self._device_mesh,
-                mp_policy=self.mp_policy, offload_policy=self.offload_policy
+                self.lightning_module.model,
+                device_mesh=self._device_mesh,
+                mp_policy=self.mp_policy,
+                offload_policy=self.offload_policy,
             )
             # Apply this only once
             self.parallelize_fn = None
