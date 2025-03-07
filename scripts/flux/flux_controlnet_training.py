@@ -161,7 +161,7 @@ def convergence_test() -> run.Partial:
     recipe.model.flux_params.device = 'cuda'
     recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/transformer')
     recipe.model.flux_params.flux_config.do_convert_from_hf = True
-    recipe.trainer.devices = 8
+    recipe.trainer.devices = 2
     recipe.data = flux_datamodule('/dataset/fill50k/fill50k_tarfiles/')
     recipe.model.flux_controlnet_config.num_single_layers = 0
     recipe.model.flux_controlnet_config.num_joint_layers = 4
@@ -195,10 +195,9 @@ def convergence_tp2() -> run.Partial:
         FluxConfig, ckpt_path='/ckpts/nemo_dist_ckpt/weights/', load_dist_ckpt=True
     )
     recipe.trainer.devices = 2
-    recipe.trainer.max_steps = 50000
-    recipe.trainer.val_check_interval = 1000
+    recipe.trainer.max_steps = 30000
     recipe.trainer.strategy.tensor_model_parallel_size = 2
-    recipe.data = flux_datamodule('/mingyuanm/dataset/fill50k/fill50k_tarfiles/')
+    recipe.data = flux_datamodule('/dataset/fill50k/fill50k_tarfiles/')
     recipe.data.global_batch_size = 2
     recipe.model.flux_controlnet_config.num_single_layers = 0
     recipe.model.flux_controlnet_config.num_joint_layers = 4

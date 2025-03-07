@@ -205,6 +205,7 @@ class FluxControlNet(VisionModule):
         Args:
             flux (FluxTransformer): A pre-trained Flux Transformer model.
         """
+        logging.info("Loading ControlNet layer weights from Flux...")
         self.pos_embed.load_state_dict(flux.pos_embed.state_dict())
         self.img_embed.load_state_dict(flux.img_embed.state_dict())
         self.txt_embed.load_state_dict(flux.txt_embed.state_dict())
