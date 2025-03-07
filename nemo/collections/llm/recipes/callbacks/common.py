@@ -23,7 +23,10 @@ res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
 
 @cli.factory(is_target_default=True)
 def straggler_det_callback(
-    straggler_report_time_interval: Optional[int] = 300, stop_if_detected_straggler: Optional[bool] = True, gpu_relative_perf_threshold: Optional[float] = 0.7, gpu_individual_perf_threshold: Optional[float] = 0.7
+    straggler_report_time_interval: Optional[int] = 300,
+    stop_if_detected_straggler: Optional[bool] = True,
+    gpu_relative_perf_threshold: Optional[float] = 0.7,
+    gpu_individual_perf_threshold: Optional[float] = 0.7,
 ) -> Config[res_module.StragglerDetectionCallback]:
     """
     This callback is used to detect slower ranks participating in a PyTorch distributed workload.
