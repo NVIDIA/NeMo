@@ -20,13 +20,22 @@ from typing import Iterable, List, Optional, Union
 import numpy
 import wrapt
 from vllm import RequestOutput, SamplingParams
-from vllm.config import CacheConfig, DeviceConfig, LoadConfig, LoadFormat, LoRAConfig, ParallelConfig, SchedulerConfig
+from vllm.config import (
+    CacheConfig,
+    DeviceConfig,
+    LoadConfig,
+    LoadFormat,
+    LoRAConfig,
+    ParallelConfig,
+    SchedulerConfig,
+    VllmConfig,
+)
 from vllm.executor.ray_utils import initialize_ray_cluster
 from vllm.lora.request import LoRARequest
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
-from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
+from nemo.export.utils import convert_lora_nemo_to_canonical, prepare_directory_for_export
 from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
@@ -36,12 +45,15 @@ LOGGER = logging.getLogger("NeMo")
 
 @wrapt.decorator
 def noop_decorator(func):
+    """Used as batch if pytriton is not supported"""
+
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
     return wrapper
 
 
+batch = noop_decorator
 use_pytriton = True
 try:
     from pytriton.decorators import batch
@@ -87,7 +99,7 @@ class vLLMExporter(ITritonDeployable):
         device: str = 'auto',
         tensor_parallel_size: int = 1,
         pipeline_parallel_size: int = 1,
-        max_model_len: int = None,
+        max_model_len: Optional[int] = None,
         lora_checkpoints: Optional[List[str]] = None,
         dtype: str = 'auto',
         seed: int = 0,
@@ -95,6 +107,7 @@ class vLLMExporter(ITritonDeployable):
         weight_storage: str = 'auto',
         gpu_memory_utilization: float = 0.9,
         quantization: Optional[str] = None,
+        delete_existing_files: bool = True,
     ):
         """
         Exports the Nemo checkpoint to vLLM and initializes the engine.
@@ -128,7 +141,9 @@ class vLLMExporter(ITritonDeployable):
                 executor, which can range from 0 to 1.
             quantization (str): quantization method that is used to quantize the model weights.
                 Possible choices are None (weights not quantized, default) and "fp8".
+            delete_existing_files (bool): if True, deletes all the files in model_dir.
         """
+        prepare_directory_for_export(model_dir, delete_existing_files=delete_existing_files)
 
         # Pouplate the basic configuration structures
         device_config = DeviceConfig(device)
@@ -239,42 +254,39 @@ class vLLMExporter(ITritonDeployable):
         )
 
         # Initialize the cluster and specify the executor class.
-        if device_config.device_type == "neuron":
-            from vllm.executor.neuron_executor import NeuronExecutor
-
-            executor_class = NeuronExecutor
-        elif device_config.device_type == "cpu":
-            from vllm.executor.cpu_executor import CPUExecutor
-
-            executor_class = CPUExecutor
-        elif parallel_config.distributed_executor_backend == "ray":
+        if parallel_config.distributed_executor_backend == "ray":
             initialize_ray_cluster(parallel_config)
-            from vllm.executor.ray_gpu_executor import RayGPUExecutor
+            from vllm.executor.ray_distributed_executor import RayDistributedExecutor
 
-            executor_class = RayGPUExecutor
+            executor_class = RayDistributedExecutor
+
         elif parallel_config.distributed_executor_backend == "mp":
-            from vllm.executor.multiproc_gpu_executor import MultiprocessingGPUExecutor
+            from vllm.executor.mp_distributed_executor import MultiprocessingDistributedExecutor
 
-            executor_class = MultiprocessingGPUExecutor
+            executor_class = MultiprocessingDistributedExecutor
+
         else:
-            assert parallel_config.world_size == 1, "Ray is required if parallel_config.world_size > 1."
-            from vllm.executor.gpu_executor import GPUExecutor
+            assert parallel_config.distributed_executor_backend == "uni" or parallel_config.world_size == 1
 
-            executor_class = GPUExecutor
+            from vllm.executor.uniproc_executor import UniProcExecutor
+
+            executor_class = UniProcExecutor
 
         # Initialize the engine
         self.engine = NemoLLMEngine(
-            model_config=model_config,
-            cache_config=cache_config,
-            parallel_config=parallel_config,
-            scheduler_config=scheduler_config,
-            device_config=device_config,
-            load_config=load_config,
-            lora_config=lora_config,
-            speculative_config=None,
-            decoding_config=None,
-            observability_config=None,
-            prompt_adapter_config=None,
+            vllm_config=VllmConfig(
+                model_config=model_config,
+                cache_config=cache_config,
+                parallel_config=parallel_config,
+                scheduler_config=scheduler_config,
+                device_config=device_config,
+                load_config=load_config,
+                lora_config=lora_config,
+                speculative_config=None,
+                decoding_config=None,
+                observability_config=None,
+                prompt_adapter_config=None,
+            ),
             executor_class=executor_class,
             log_stats=log_stats,
         )
@@ -414,6 +426,9 @@ class vLLMExporter(ITritonDeployable):
 
     @batch
     def triton_infer_fn(self, **inputs: numpy.ndarray):
+        """
+        This function is used to perform inference on a batch of prompts.
+        """
         request_ids = []
         num_requests = len(inputs["prompts"])
         for index in range(num_requests):
@@ -428,6 +443,9 @@ class vLLMExporter(ITritonDeployable):
 
     @batch
     def triton_infer_fn_streaming(self, **inputs: numpy.ndarray):
+        """
+        This function is used to perform streaming inference.
+        """
         request_ids = []
         num_requests = len(inputs["prompts"])
         for index in range(num_requests):

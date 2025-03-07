@@ -30,6 +30,7 @@ from nemo.collections.llm.gpt.model.base import (
     transformer_engine_layer_spec,
 )
 from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig, ChatGLMModel
+from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2Config, DeepSeekV3Config
 from nemo.collections.llm.gpt.model.gemma import (
     CodeGemmaConfig2B,
     CodeGemmaConfig7B,
@@ -46,6 +47,21 @@ from nemo.collections.llm.gpt.model.gemma2 import (
     Gemma2Model,
 )
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
+from nemo.collections.llm.gpt.model.hf_llama_embedding import get_llama_bidirectional_hf_model
+from nemo.collections.llm.gpt.model.hyena import (
+    Hyena1bConfig,
+    Hyena7bARCLongContextConfig,
+    Hyena7bConfig,
+    Hyena40bARCLongContextConfig,
+    Hyena40bConfig,
+    HyenaConfig,
+    HyenaModel,
+    HyenaNV1bConfig,
+    HyenaNV7bConfig,
+    HyenaNV40bConfig,
+    HyenaNVTestConfig,
+    HyenaTestConfig,
+)
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,
@@ -63,6 +79,7 @@ from nemo.collections.llm.gpt.model.llama import (
     Llama32Config3B,
     LlamaConfig,
     LlamaModel,
+    MLPerfLoRALlamaModel,
 )
 from nemo.collections.llm.gpt.model.llama_embedding import Llama32EmbeddingConfig1B, LlamaEmbeddingModel
 from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralModel, MistralNeMoConfig12B
@@ -112,9 +129,16 @@ from nemo.collections.llm.gpt.model.starcoder2 import (
 
 __all__ = [
     "GPTConfig",
+    "GPTConfig5B",
+    "GPTConfig7B",
+    "GPTConfig20B",
+    "GPTConfig40B",
+    "GPTConfig126M",
+    "GPTConfig175B",
     "GPTModel",
     "MistralConfig7B",
     "MistralModel",
+    "MistralNeMoConfig12B",
     "MixtralConfig8x3B",
     "MixtralConfig8x7B",
     "MixtralConfig8x22B",
@@ -167,6 +191,7 @@ __all__ = [
     "Gemma2Config9B",
     "Gemma2Model",
     "LlamaModel",
+    "MLPerfLoRALlamaModel",
     "Baichuan2Config",
     "Baichuan2Config7B",
     "Baichuan2Model",
@@ -188,6 +213,9 @@ __all__ = [
     "BaseMambaConfig2_7B",
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
+    "DeepSeekModel",
+    "DeepSeekV2Config",
+    "DeepSeekV3Config",
     "MaskedTokenLossReduction",
     "gpt_data_step",
     "gpt_forward_step",
@@ -195,4 +223,17 @@ __all__ = [
     "transformer_engine_full_layer_spec",
     "local_layer_spec",
     "HFAutoModelForCausalLM",
+    "get_llama_bidirectional_hf_model",
+    "HyenaTestConfig",
+    "Hyena1bConfig",
+    "HyenaNV1bConfig",
+    "Hyena7bConfig",
+    "Hyena40bConfig",
+    "Hyena7bARCLongContextConfig",
+    "Hyena40bARCLongContextConfig",
+    "HyenaNVTestConfig",
+    "HyenaNV40bConfig",
+    "HyenaNV7bConfig",
+    "HyenaConfig",
+    "HyenaModel",
 ]
