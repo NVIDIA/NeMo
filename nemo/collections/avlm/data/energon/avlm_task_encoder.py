@@ -197,11 +197,13 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         else:
             return None, None
 
-    def process_video(self, video: Union[bytes, dict]):
+    def process_video(self, video: Union[bytes, dict]) -> Dict[int: Dict[str, Uninion[str, List[torch.tensor], Union[AudioSize, VideoSize]]]]:
         """
         Returns:
+            {video_stream_index: {"type": Literal["video", "audio"]}}
+
             dict[
-                "video": List of video streams of tuple:
+                "video": Dict[video_stream_index] List of video streams of tuple:
                         (processed video stream tensor of shape: [frames x num_of_tiles x channel x height x width]
                         , original VideoSize)
                 "audio": List of audio streams of tuple:

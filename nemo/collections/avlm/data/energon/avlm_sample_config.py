@@ -14,7 +14,7 @@
 
 from PIL import Image
 from dataclasses import dataclass, field
-from typing import Optional, List, Union, TypedDict, NotRequired, Literal
+from typing import Optional, List, Union, Dict, TypedDict, NotRequired, Literal
 
 import torch
 
