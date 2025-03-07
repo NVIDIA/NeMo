@@ -47,6 +47,8 @@ from nemo.collections.llm.gpt.model.gemma2 import (
     Gemma2Model,
 )
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
+from nemo.collections.llm.gpt.model.hf_llama_embedding import get_llama_bidirectional_hf_model
+
 from nemo.collections.llm.gpt.model.llama import (
     CodeLlamaConfig7B,
     CodeLlamaConfig13B,
@@ -208,4 +210,5 @@ __all__ = [
     "transformer_engine_full_layer_spec",
     "local_layer_spec",
     "HFAutoModelForCausalLM",
+    "get_llama_bidirectional_hf_model",
 ]
