@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from lightning.pytorch.callbacks import Callback
-import torch
 import signal
+
+import torch
+from lightning.pytorch.callbacks import Callback
+
 
 class PreemptionSimulationCallback(Callback):
     def __init__(self, preemption_step=4):
