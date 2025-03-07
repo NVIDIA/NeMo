@@ -256,6 +256,16 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
 
         return rendered_output
 
+    def remove_eos_token(self, text):
+        eos_token = self.mcore_tokenizer.tokenizer.tokenizer.eos_token
+        output = []
+        for t in text:
+            if eos_token in t:
+                output.append(t.rsplit(eos_token, 1)[0])
+            else:
+                output.append(t)
+        return output
+
     def str_to_dict(self, json_str):
         return json.loads(json_str)
 
@@ -330,6 +340,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
 
         results = self.generate(prompts, max_batch_size, inference_params, random_seed)
         output_texts = [r.generated_text if text_only else r for r in results]
+        output_texts = self.remove_eos_token(output_texts)
         output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
         if log_probs:
             output_log_probs = []  ## will have 2 np arrays if 2 prompts are sent
