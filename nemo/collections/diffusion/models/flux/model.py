@@ -337,7 +337,7 @@ class Flux(VisionModule):
             ckpt = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
         else:
             if do_convert_from_hf:
-                ckpt = flux_transformer_converter(ckpt_path, self.transformer.config)
+                ckpt = flux_transformer_converter(ckpt_path, self.config)
                 if save_converted_model_to is not None:
                     os.makedirs(save_converted_model_to, exist_ok=True)
                     save_path = os.path.join(save_converted_model_to, 'nemo_flux_transformer.safetensors')
