@@ -1132,8 +1132,8 @@ def load_checkpoint(
             run_tp_pp = (
                 cfg.model_config.tensor_model_parallel_size,
                 cfg.model_config.pipeline_model_parallel_size,
-                cfg.dist_config.encoder_tensor_model_parallel_size,
-                cfg.dist_config.encoder_pipeline_model_parallel_size,
+                getattr(cfg.model_config, "encoder_tensor_model_parallel_size", 0),
+                getattr(cfg.model_config, "encoder_pipeline_model_parallel_size", 0),
             )
             mismatch_msg = "(TP, PP, encoder TP, encoder PP) mismatch after resume ({} vs {} from checkpoint)".format(
                 run_tp_pp, ckpt_tp_pp
