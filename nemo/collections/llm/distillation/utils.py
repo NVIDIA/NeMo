@@ -16,15 +16,15 @@ from contextlib import contextmanager
 from types import MethodType
 from typing import TYPE_CHECKING, Any, Dict
 
-import modelopt.torch.distill as mtd
-import modelopt.torch.opt as mto
 import torch
 from megatron.core import parallel_state
+from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
 from torch import Tensor
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import, safe_import_from
 
 from .loss import LogitsKLLoss
 
@@ -34,6 +34,10 @@ if TYPE_CHECKING:
     from megatron.core.transformer.transformer_config import TransformerConfig
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
+mto, _ = safe_import("modelopt.torch.opt")
+DistillationModel, _ = safe_import_from("modelopt.torch.distill", "DistillationModel", alt=object)
+DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
 
 
 def load_distillation_config(cfg: "TransformerConfig") -> Dict[str, Any]:
@@ -50,7 +54,7 @@ def load_distillation_config(cfg: "TransformerConfig") -> Dict[str, Any]:
     return distill_cfg
 
 
-class _DummyLossBalancer(mtd.DistillationLossBalancer):
+class _DummyLossBalancer(DistillationLossBalancer):
     def forward(self, loss_dict):
         # pylint: disable=C0116
         return next(iter(loss_dict.values()))
@@ -66,9 +70,20 @@ def teacher_provider(
     model = config.configure_model(tokenizer)
 
     sharded_state_dict = {"state_dict": model.sharded_state_dict(prefix="module.")}
-    checkpoint = trainer.strategy.checkpoint_io.load_checkpoint(ckpt_path, sharded_state_dict)
+    strict = trainer.strategy.ckpt_load_strictness
+    checkpoint = trainer.strategy.checkpoint_io.load_checkpoint(ckpt_path, sharded_state_dict, strict=strict)
     state_dict = {k.replace("module.", ""): v for k, v in checkpoint["state_dict"].items()}
-    model.load_state_dict(state_dict)
+
+    # convert from StrictHandling to bool for PTL
+    if strict is not None and not isinstance(strict, bool):
+        strict = parse_strict_flag(strict)
+        strict_options = [
+            StrictHandling.ASSUME_OK_UNEXPECTED,
+            StrictHandling.RAISE_UNEXPECTED,
+            StrictHandling.RAISE_ALL,
+        ]
+        strict = strict in strict_options
+    model.load_state_dict(state_dict, strict=strict)
 
     torch.cuda.empty_cache()
     logging.info("Distillation: ...teacher weights loaded.")
@@ -94,10 +109,9 @@ class LoopingCachedDataIterator:
 
 
 def adjust_distillation_model_for_mcore(
-    model: mtd.DistillationModel, model_cfg: "TransformerConfig", distill_cfg: Dict[str, Any]
+    model: DistillationModel, model_cfg: "TransformerConfig", distill_cfg: Dict[str, Any]
 ):
-    """Extra modifcations to ``mtd.DistillationModel`` requried for Megatron-Core."""
-
+    """Extra modifications to ``mtd.DistillationModel`` required for Megatron-Core."""
     # Get rid of ModelOpt Distillation state
     # NOTE: If re-placed, above losses need modifcation as `TransformerConfig` has non-pickleable elements.
     mto.ModeloptStateManager(model)._state.pop()
