@@ -41,7 +41,6 @@ class AVLMDataModule(EnergonMultiModalDataModule):
         path: str,
         tokenizer,
         audio_processor,
-        video_processor,
         image_processor,
         seq_length: int = 2048,
         micro_batch_size: int = 1,
@@ -78,7 +77,6 @@ class AVLMDataModule(EnergonMultiModalDataModule):
             **kwargs,
         )
         self.audio_processor = audio_processor
-        self.video_processor = video_processor
 
     def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
         """

@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import io
+import av
 import itertools
 from PIL import Image
 from dataclasses import dataclass, field
 from typing import Dict, List, Union
 
 import torch
+import torchvision
 from megatron.energon import Sample
 from megatron.energon import batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
@@ -49,8 +51,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
     def __init__(
         self, 
         tokenizer=None, 
-        audio_processor=None, 
-        video_processor=None,
+        audio_processor=None,
         image_processor=None, 
         multimodal_sample_config=AVLMSampleConfig()
     ):
@@ -65,7 +66,6 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         """
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
         self.audio_processor = audio_processor
-        self.video_processor = video_processor
         self.audio_token = multimodal_sample_config.audio_token
         self.video_token = multimodal_sample_config.video_token
 
@@ -73,8 +73,6 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             self.tokenizer = self.build_tokenizer(self.multimodal_sample_config.model_id)
         if self.audio_processor is None:
             self.audio_processor = self.build_audio_processor()
-        if self.video_processor is None:
-            self.video_processor = self.build_video_processor()
         if self.image_processor is None:
             self.image_processor = self.build_image_processor(self.multimodal_sample_config.model_id)
 
@@ -150,9 +148,6 @@ class AVLMSampleEncoder(BaseSampleEncoder):
     def build_audio_processor(self):
         return None
 
-    def build_video_processor(self):
-        return None
-
     @staticmethod
     def build_image_processor(model_id):
         from transformers import AutoProcessor
@@ -201,15 +196,36 @@ class AVLMSampleEncoder(BaseSampleEncoder):
                         , original AudioSize)
             ]
         """
-        
-        if self.video_processor is not None:
-            # TODO
-            #     video_reader = self.video_processor["video"]
-            #     audio_reader = self.video_processor["audio"]
-            #     # extract the video and audio(if any) streams
-            return {"video": [], "audio": []}
-        else:
-            return {"video": [], "audio": []}
+        ret_dict = {"video": [], "audio": []}
+        # get all stream information from the file
+        video_bytes = video
+        offset = 0
+        duration = 0
+        if isinstance(video, dict):
+            video_bytes = video["media_value"]
+            offset = video["offset"]
+            duration = video["duration"]
+
+        start_seconds = offset
+        end_seconds = start_seconds + duration
+        container = av.open(io.BytesIO(video))
+        for stream in container.streams:
+            frames = []
+            stream_start_seconds = stream.time_base * stream.start_time
+            stream_end_seconds = stream_start_seconds + stream.time_base * stream.duration
+            if stream_start_seconds >= start_seconds and stream_start_seconds < end_seconds:
+                # only retrieve the streams whose time spans within the required start and end
+                reader = torchvision.io.VideoReader(video_bytes, f"{stream.type}:{stream.index}")
+                for frame in itertools.takewhile(
+                    lambda x: x['pts'] <= min(stream_end_seconds, end_seconds), reader.seek(start_seconds)):
+                    if self.image_processor is not None:
+                        frame = self.process_image(frame)
+                    frames.append(frame)
+                ret_dict[stream.type].append(frames)
+        ret_dict["video"] = torch.cat(ret_dict["video"]) if ret_dict["video"][0].dim == 4 else torch.stack(ret_dict["video"])
+        ret_dict["audio"] = torch.cat(ret_dict["audio"])
+            
+        return 
 
     def process_image(self, image: Image.Image):
         """
@@ -234,8 +250,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
     def __init__(
         self, 
         tokenizer=None, 
-        audio_processor=None, 
-        video_processor=None,
+        audio_processor=None,
         image_processor=None, 
         multimodal_sample_config=AVLMSampleConfig()
     ):
@@ -388,8 +403,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
     def __init__(
         self, 
         tokenizer=None, 
-        audio_processor=None, 
-        video_processor=None,
+        audio_processor=None,
         image_processor=None, 
         multimodal_sample_config=AVLMSampleConfig()
     ):
@@ -538,7 +552,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
 class AVLMTaskEncoder(MultiModalTaskEncoder):
     """MeidaToTextTaskEncoder"""
 
-    def __init__(self, tokenizer=None, video_processor=None, audio_processor=None, image_processor=None, avlm_sample_config=None):
+    def __init__(self, tokenizer=None, audio_processor=None, image_processor=None, avlm_sample_config=None):
         """
         Initialize the MeidaToTextTaskEncoder.
 
@@ -554,15 +568,13 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
         self.encoders: Dict[str, SampleEncoder] = {
             AVLMEnergonInterleavedSample.__name__: AVLMSampleEncoderInterleaved(
                 tokenizer=tokenizer, 
-                audio_processor=audio_processor, 
-                video_processor=video_processor,
+                audio_processor=audio_processor,
                 image_processor=image_processor, 
                 avlm_sample_config=avlm_sample_config,
             ),
             AVLMEnergonQASample.__name__: AVLMSampleEncoderQA(
                 tokenizer=tokenizer, 
-                audio_processor=audio_processor, 
-                video_processor=video_processor,
+                audio_processor=audio_processor,
                 image_processor=image_processor, 
                 avlm_sample_config=avlm_sample_config,
             ),
