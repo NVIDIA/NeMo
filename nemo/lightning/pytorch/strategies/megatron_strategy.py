@@ -14,7 +14,7 @@
 
 import functools
 import inspect
-import logging
+import logging as _logging
 import os
 import shutil
 from collections import OrderedDict
@@ -90,7 +90,7 @@ except Exception:
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
 
-_logger = logging.getLogger(__name__)
+_logger = _logging.getLogger(__name__)
 
 
 ConfigT = TypeVar("ConfigT")

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
+import logging as _logging
 import os
 import shutil
 from contextlib import contextmanager
@@ -48,7 +48,7 @@ except ImportError:
     from torch.distributed._tensor.placement_types import Shard
 
 
-_logger = logging.getLogger(__name__)
+_logger = _logging.getLogger(__name__)
 
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
