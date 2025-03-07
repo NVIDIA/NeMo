@@ -27,10 +27,10 @@ from transformers import AutoProcessor
 
 import nemo.lightning as nl
 from nemo.collections.vlm import Llava15Config7B, LlavaModel
-from nemo.utils import logging
-
 from nemo.collections.vlm.inference import generate as vlm_generate
 from nemo.collections.vlm.inference import setup_inference_wrapper
+from nemo.utils import logging
+
 
 def load_image(image_url: str) -> Image.Image:
     # pylint: disable=C0115,C0116

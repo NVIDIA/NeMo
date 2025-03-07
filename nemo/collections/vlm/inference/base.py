@@ -27,10 +27,11 @@ from transformers import AutoProcessor
 
 import nemo.lightning as nl
 from nemo.collections import vlm
+
+from .llava_inference_wrapper import LlavaInferenceWrapper
+from .mllama_inference_wrapper import MllamaInferenceWrapper
 from .vlm_engine import VLMEngine
 from .vlm_inference_controller import VLMTextGenerationController
-from .mllama_inference_wrapper import MllamaInferenceWrapper
-from .llava_inference_wrapper import LlavaInferenceWrapper
 
 
 def _setup_trainer_and_restore_model(path: str, trainer: nl.Trainer, model: pl.LightningModule):
