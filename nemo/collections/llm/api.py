@@ -487,7 +487,7 @@ def deploy(
     from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
     from nemo.deploy import DeployPyTriton
 
-    #unset_environment_variables() ## TODO Commenting for in-fw
+    # unset_environment_variables() ## TODO Commenting for in-fw
     if backend == 'in-framework':
         assert (
             start_fastapi_server is True
@@ -513,7 +513,7 @@ def deploy(
             nemo_checkpoint_filepath=nemo_checkpoint,
             num_devices=num_gpus,  # TODO is this per node or not ? In case of TRTLLM its per node. TRTLLM uses TP and PP size to compute num_gpus. If TP, PP=1 it just uses
             # 1 GPU, since DP is not supported.
-            num_nodes=num_nodes, # TODO this is also just for in-fw I believe, double check and add that info in docstrings
+            num_nodes=num_nodes,  # TODO this is also just for in-fw I believe, double check and add that info in docstrings
             tensor_model_parallel_size=tensor_parallelism_size,
             pipeline_model_parallel_size=pipeline_parallelism_size,
             context_parallel_size=context_parallel_size,
@@ -566,7 +566,9 @@ def deploy(
                             reload=True,
                         )
                     except Exception as error:
-                        logging.error("Error message has occurred during REST service start. Error message: " + str(error))
+                        logging.error(
+                            "Error message has occurred during REST service start. Error message: " + str(error)
+                        )
                 logging.info("Model serving on Triton will be started.")
                 nm.serve()
             except Exception as error:
@@ -575,9 +577,8 @@ def deploy(
 
             logging.info("Model serving will be stopped.")
             nm.stop()
-        elif torch.distributed.get_rank() > 0: ## TODO added for in-fw
+        elif torch.distributed.get_rank() > 0:  ## TODO added for in-fw
             triton_deployable.generate_other_ranks()
-
 
 
 def evaluate(
