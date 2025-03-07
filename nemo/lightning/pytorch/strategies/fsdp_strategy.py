@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import logging
 import os
 import shutil
@@ -39,6 +40,7 @@ from typing_extensions import override
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
+    _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
@@ -113,6 +115,9 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
         torch.distributed.init_process_group(
             self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
         )
+
+        if self._process_group_backend == "nccl":
+            atexit.register(_destroy_dist_connection)
 
         # On rank=0 let everyone know training is starting
         rank_zero_info(

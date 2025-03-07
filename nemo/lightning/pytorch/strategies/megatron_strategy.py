@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import functools
 import inspect
 import logging as _logging
@@ -67,6 +68,7 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
+    _destroy_dist_connection,
     RestoreConfig,
     ckpt_to_dir,
     create_checkpoint_io,
@@ -523,6 +525,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         torch.distributed.init_process_group(
             self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
         )
+
+        if self._process_group_backend == "nccl":
+            atexit.register(_destroy_dist_connection)
 
         # On rank=0 let everyone know training is starting
         rank_zero_info(
