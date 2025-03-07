@@ -72,5 +72,5 @@ SPECIAL_TOKEN_MAP = [
     ("<|quad_start|>", QUAD_START_TOKEN_INDEX),
     ("<|quad_end|>", QUAD_END_TOKEN_INDEX),
     ("<|vision_start|>", VISION_START_TOKEN_INDEX),
-    ("<|vision_end|>", VISION_END_TOKEN_INDEX)
+    ("<|vision_end|>", VISION_END_TOKEN_INDEX),
 ]

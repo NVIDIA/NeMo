@@ -24,7 +24,7 @@ from megatron.core.enums import ModelType
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.tensor_parallel import gather_from_sequence_parallel_region, scatter_to_sequence_parallel_region
+from megatron.core.tensor_parallel import scatter_to_sequence_parallel_region
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.training.activations import quick_gelu
@@ -645,13 +645,13 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         """
         MCoreQwen2VLModel uses its own version of _preprocess_data instead of MCoreLLaVAModel's (in
         megatron-lm/megatron/core/models/multimodal/llava_model.py)
-        
+
         This function handles several data preprocess requirements:
             - merge image and/or video embeddings into language embedding
             - padding inputs variables (e.g. labels/loss masks) for pipeline_parallel case
             - truncate inputs variables (e.g. labels/loss masks) if exceeding max seq length
 
-        This function won't shift labels as forward() and _preprocess_data() in MCoreQwen2VLModel 
+        This function won't shift labels as forward() and _preprocess_data() in MCoreQwen2VLModel
         expect labels from input arguments already handle this shift.
 
         About merging image/video embeddings: language_embeddings may include num of imgage_token
