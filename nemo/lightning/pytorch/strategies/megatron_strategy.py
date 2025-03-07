@@ -68,8 +68,8 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
-    _destroy_dist_connection,
     RestoreConfig,
+    _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
