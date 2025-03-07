@@ -21,6 +21,7 @@ from typing import Dict, List, Union
 
 import torch
 import torchvision
+from megatron.core import parallel_state
 from megatron.energon import Sample
 from megatron.energon import batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
@@ -42,6 +43,9 @@ from nemo.collections.multimodal.data.energon.sample_encoder import (
     VQASampleEncoder,
 )
 from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations as audio_process_augmentations
+
 from nemo.utils import logging
 
 
@@ -72,7 +76,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         if self.tokenizer is None:
             self.tokenizer = self.build_tokenizer(self.multimodal_sample_config.model_id)
         if self.audio_processor is None:
-            self.audio_processor = self.build_audio_processor()
+            self.audio_processor = self.build_audio_processor(self.multimodal_sample_config)
         if self.image_processor is None:
             self.image_processor = self.build_image_processor(self.multimodal_sample_config.model_id)
 
@@ -145,8 +149,18 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
         self.tokenizer = AutoTokenizer(model_id)
 
-    def build_audio_processor(self):
-        return None
+    @staticmethod
+    def build_audio_processor(config: AVLMSampleConfig):
+        audio_augmentor = audio_process_augmentations(
+            config.audio_augmentor,
+            global_rank=parallel_state.get_data_parallel_rank(),
+            world_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return WaveformFeaturizer(
+            sample_rate=config.audio_sample_rate, 
+            int_values=config.audio_waveform_featurizer_int_values,
+            audio_augmentor=audio_augmentor,
+        ).process
 
     @staticmethod
     def build_image_processor(model_id):
@@ -184,7 +198,6 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             return None, None
 
     def process_video(self, video: Union[bytes, dict]):
-        #TODO
         """
         Returns:
             dict[

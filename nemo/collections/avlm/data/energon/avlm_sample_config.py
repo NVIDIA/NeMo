@@ -21,8 +21,9 @@ import torch
 from megatron.energon import Sample
 from megatron.energon.flavors.webdataset import VideoData
 
-from nemo.collections.multimodal.data.energon.config import AudioToken, VideoToken, MultiModalSampleConfig
 from nemo.collections.vlm.llava_next.data.energon import LlavaNextTextRawBatch, LlavaNextTextSample
+from nemo.collections.multimodal.data.energon.config import AudioToken, VideoToken, MultiModalSampleConfig
+from nemo.collections.asr.parts.preprocessing.perturb import perturbation_types as audio_perturbation_types
 from nemo.utils import logging
 
 
@@ -117,7 +118,16 @@ class AVLMRawBatch:
 @dataclass
 class AVLMSampleConfig(MultiModalSampleConfig):
     model_id: str = field(default="llava-hf/llava-v1.6-vicuna-7b-hf")
+
+    # audio related sample config
     audio_token: AudioToken = field(default_factory=AudioToken)
+    audio_sample_rate: int = field(default=16000)
+    audio_waveform_featurizer_int_values: bool = field(default=False)
+    # the detailed structure of audio_augmentor can be found at: 
+    audio_augmentor: Optional[
+        Dict[Literal[*list(audio_perturbation_types.keys())], Dict[str, Any]]] = None
+
+    # video related sample config
     video_token: VideoToken = field(default_factory=VideoToken)
     """
     For a single video with multiple video and audio streams
