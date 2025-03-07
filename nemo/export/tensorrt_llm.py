@@ -507,11 +507,9 @@ class TensorRTLLM(ITritonDeployable):
             elif os.path.exists(tokenizer_path_nemo2):
                 # Copy HF tokenizer files to root model directory
                 for path in glob(os.path.join(tokenizer_path_nemo2, "nemo_tokenizer", "*.json")):
-                    print("Copy HF tokenizer files to root model directory")
                     shutil.copy(path, self.model_dir)
                 # Copy SentencePiece tokenizer.model
                 for path in glob(os.path.join(tokenizer_path_nemo2, "*.model")):
-                    print("Copy SentencePiece tokenizer.model")
                     shutil.copy(path, os.path.join(self.model_dir, "tokenizer.model"))
             elif isinstance(self.tokenizer, (PreTrainedTokenizer, PreTrainedTokenizerFast)):
                 self.tokenizer.save_pretrained(os.path.join(self.model_dir))
@@ -538,8 +536,8 @@ class TensorRTLLM(ITritonDeployable):
         Exports the model configuration to a specific format required by NIM.
         This method performs the following steps:
 
-        1. Copies the generation_config.json file from the nemo_context directory to the root model directory.
-        2. Creates a dummy Hugging Face (HF) configuration file based on the provided model configuration and type.
+        1. Copies the generation_config.json (if present) from the nemo_context directory to the root model directory.
+        2. Creates a dummy Hugging Face configuration file based on the provided model configuration and type.
 
         Args:
             model_config (dict): A dictionary containing the model configuration parameters.
