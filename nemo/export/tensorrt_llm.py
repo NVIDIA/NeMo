@@ -294,6 +294,8 @@ class TensorRTLLM(ITritonDeployable):
                 else:
                     self.tokenizer = get_tokenizer(nemo_checkpoint_path)
 
+                model_config = None
+
                 qnemo_to_tensorrt_llm(
                     nemo_checkpoint_path=nemo_checkpoint_path,
                     engine_dir=self.engine_dir,
@@ -522,7 +524,7 @@ class TensorRTLLM(ITritonDeployable):
 
             tmp_dir.cleanup()
 
-        if is_export_rank:
+        if is_export_rank and model_config is not None:
             self._export_to_nim_format(model_config, model_type)
 
         if tensorrt_llm.mpi_world_size() > 1:
