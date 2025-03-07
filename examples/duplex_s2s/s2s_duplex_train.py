@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 
 import hydra
 import torch
@@ -18,7 +19,11 @@ from lightning.pytorch import Callback, Trainer
 
 from nemo.collections.duplex_s2s.data.datamodule import S2SDataModule
 from nemo.collections.duplex_s2s.models.duplex_s2s_model import DuplexS2SModel
+from nemo.core.config import hydra_runner
+from nemo.utils.exp_manager import exp_manager
 from nemo.utils.trainer_utils import resolve_trainer_cfg
+
+torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
 
 # During the training, the checkpoint format is standard PTL ckpt
 # After the training -> convert to HF instead of .nemo ?
@@ -42,12 +47,10 @@ class PROFILING(Callback):
         if batch_idx == 10:
             print("STOPPING PROFILE")
             torch.cuda.profiler.cudart().cudaProfilerStop()
-            import sys
-
-            sys.exit(0)
 
 
-@hydra.main(config_path="conf", config_name="s2s_duplex")
+# @hydra.main(config_path="conf", config_name="s2s_duplex")
+@hydra_runner(config_path="conf", config_name="s2s_duplex")
 def train(cfg):
     torch.distributed.init_process_group(backend="nccl")
     torch.set_float32_matmul_precision("medium")
@@ -56,9 +59,11 @@ def train(cfg):
         **resolve_trainer_cfg(cfg.trainer),
         # callbacks=[PROFILING()],
     )
+    exp_manager(trainer, cfg.get("exp_manager", None))
 
     with trainer.init_module():
         model = DuplexS2SModel(cfg.model)
+
     # exp_manager / NeMo2 _setup provide:
     # * PEFT (possibly from HF)
     # * save/load checkpoint (exp_manager -> .nemo only)

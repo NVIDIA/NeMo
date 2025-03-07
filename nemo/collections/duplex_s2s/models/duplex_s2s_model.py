@@ -13,10 +13,12 @@
 # limitations under the License.
 import builtins
 from itertools import chain
+from typing import Any
 
+import hydra
 import torch
 from lightning import LightningModule
-from omegaconf import open_dict
+from omegaconf import OmegaConf, open_dict
 from torch import Tensor
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
 from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
@@ -29,17 +31,15 @@ from torch.distributed.tensor.parallel import (
     loss_parallel,
     parallelize_module,
 )
+from torchmetrics.text import SacreBLEUScore
 from transformers import AutoModel
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.duplex_s2s.modules import AudioPerceptionModule
 from nemo.collections.tts.models import AudioCodecModel
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
-
-
-# class DuplexS2SModelConfig:
-#     pass
 
 
 class DuplexS2SModel(LightningModule):
@@ -47,92 +47,102 @@ class DuplexS2SModel(LightningModule):
         super().__init__()
         self.cfg = cfg
 
+        # self.audio_codec = AudioCodecModel.restore_from("Low_Frame-rate_Speech_Codec++_without_speaker_encoder.nemo")
         self.audio_codec = AudioCodecModel.from_pretrained(self.cfg.pretrained_audio_codec).to(torch.bfloat16).eval()
 
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
-
         self.llm = AutoModel.from_pretrained(self.cfg.pretrained_llm).to(torch.bfloat16).train()
-        self.embed_tokens = self.llm.embed_tokens  # resize_token_embeddings(self.llm.vocab_size + 8 * 2048)
+        # Note: we have to "move out" the token embedding outside of LLM to avoid
+        #       messing up FSDP/TP hooks.
+        self.embed_tokens = self.llm.embed_tokens
         del self.llm.embed_tokens
-        # self.embed_audio_tokens = torch.nn.Embedding(
-        #     8 * 2048, self.embed_tokens.embedding_dim
-        # )  # TODO: fetch dim from audio_codec
 
-        speech_encoder = ASRModel.from_pretrained(self.cfg.pretrained_asr).train()
-
+        asr = ASRModel.from_pretrained(self.cfg.pretrained_asr).to(torch.bfloat16).eval()
         with open_dict(self.cfg):
-            self.cfg.perception.preprocessor = speech_encoder.cfg.preprocessor
-            self.cfg.perception.encoder = speech_encoder.cfg.encoder
+            self.cfg.perception.preprocessor = asr.cfg.preprocessor
+            self.cfg.perception.encoder = asr.cfg.encoder
             self.cfg.perception.output_dim = self.llm.config.hidden_size
         self.perception = AudioPerceptionModule(self.cfg.perception).train()
-        # TODO:
-        # self.perception.load_state_dict(speech_encoder.state_dict())
-
-        # breakpoint()
+        self.perception.load_state_dict(asr.state_dict(), strict=False)
 
         self.lm_head = torch.nn.Linear(self.llm.config.hidden_size, self.llm.config.vocab_size)
         self.audio_head = torch.nn.Linear(
             self.llm.config.hidden_size, 2048 * 8
         )  # TODO: self.audio_codec.codebook_size * num_codebooks ????
-        # self.speech_encoder = AudioCodecModel.restore_from("Low_Frame-rate_Speech_Codec++_without_speaker_encoder.nemo")
 
-    def forward(self, input_signal: Tensor, input_signal_lens: Tensor) -> tuple[Tensor, Tensor]:
-        # TODO(pzelasko): implement according to
-        #   https://github.com/zhehuaichen/NeMo/blob/speechllm-develop-gen_duplex2_clean/nemo/collections/multimodal/speech_llm/models/modular_s2s_models.py
-        llm_input, llm_input_lens = self.audio_codec(input_signal, input_signal_lens)
-        predicted = self.llm(llm_input, llm_input_lens)
-        return predicted, llm_input_lens
+        # metrics
+        self.bleu = SacreBLEUScore()
 
-    def training_step(self, batch: dict, batch_idx: int):
+    def forward(
+        self,
+        input_embeds: Tensor,
+    ) -> dict[str, Tensor]:
+        """
+        Implements a fully offline forward pass through the entire model.
+        The flow is the following:
+
+                                                     |-> |audio_head| -> |audio codes|
+        |source speech + prev target text| -> |llm| -|
+                                                     |-> |lm_head|    -> |token ids  |
+        """
+        out = self.llm(inputs_embeds=input_embeds)
+        B, T = input_embeds.shape[:2]
+        text_logits = self.lm_head(out['last_hidden_state'])
+        audio_logits = self.audio_head(out['last_hidden_state']).view(B, T, 2048, 8)
+        return {
+            "text_logits": text_logits,
+            "audio_logits": audio_logits,
+        }
+
+    def prepare_inputs(self, batch: dict):
+        """
+        Performs additional processing on the mini-batch collected from dataloader.
+        Notably:
+        * Convert source audio to speech representations.
+        * Convert target audio to target audio tokens.
+        * Convert target text to embeddings.
+        * Combien the input audio and target text embeddings.
+        * Take care of any necessary slicing to align the shapes of source audio,
+            target audio, and target token ids.
+        """
+
         def print(*args, **kwargs):
             if hasattr(self, "device_mesh") and self.device_mesh is not None:
                 builtins.print(f"[{self.device_mesh.get_coordinate()}]", *args, **kwargs)
             else:
                 builtins.print(f"[{torch.distributed.get_rank()}]", *args, **kwargs)
 
-        source_audio, source_audio_lens = batch["source_audio"], batch["source_audio_lens"]
+        # Source audio encoding.
         source_encoded, source_encoded_lens = self.perception(
-            input_signal=source_audio, input_signal_length=source_audio_lens
+            input_signal=batch["source_audio"], input_signal_length=batch["source_audio_lens"]
         )
-        # print(f"{source_encoded.shape=}")
-        # print(f"{source_encoded_lens=}")
 
+        # Target audio encoding.
         with torch.no_grad():
             target_codes, target_codes_lens = self.audio_codec.encode(
                 audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
             )
             target_codes = target_codes.transpose(1, 2)
-            # codes_offset = torch.arange(self.tokenizer.vocab_size, self.tokenizer.vocab_size + 8 * 2048, 2048, device=source_encoded.device)[None, None, :]
-            # print(f"{codes_offset=}")
-            # print(f"{target_codes=}")
-            # target_codes = target_codes + codes_offset
-
-        # print(f"{target_codes=}")
-        # print(f"{target_codes.shape=}")
-        # print(f"{target_codes_lens=}")
-
         # TODO: TEMPORARY HACK: SLICE UNTIL I CAN LOAD THE CORRECT FRAME RATE AUDIO CODEC
         target_codes = target_codes[:, : source_encoded.shape[1]]
 
-        # print(f"(truncated) {target_codes.shape=}")
-
+        # Target text preparation and combination with target audio for labels.
         # TODO: resolve the slicing hacks lol
-        if batch["target_tokens"].shape[1] < source_encoded.shape[1]:
+        target_tokens = batch["target_tokens"]
+        if target_tokens.shape[1] < source_encoded.shape[1]:
             pad_id = self.tokenizer.pad
             if pad_id is None:
                 pad_id = self.tokenizer.unk_id
             if pad_id is None:
                 pad_id = 0  # TODO: cleanup
-            batch["target_tokens"] = torch.cat(
+            target_tokens = torch.cat(
                 [
-                    batch["target_tokens"],
+                    target_tokens,
                     (torch.ones(source_encoded.shape[0], 1, device=source_encoded.device) * pad_id).to(torch.long),
                 ],
                 dim=-1,
             )
-        # print(f"{batch['target_tokens'].shape=}")
-
-        input_ids = torch.cat([target_codes, batch["target_tokens"][..., None]], dim=-1)
+        input_ids = torch.cat([target_codes, target_tokens[..., None]], dim=-1)
         if self._use_tp:
             tp_world_size = self.device_mesh["tensor_parallel"].size()
             if (remainder := (input_ids.shape[1] - 1) % tp_world_size) != 0:
@@ -140,68 +150,164 @@ class DuplexS2SModel(LightningModule):
                 # world size. Otherwise, sequence parallelism will change the input shape making leading to mismatches.
                 input_ids = input_ids[:, :-remainder]
                 source_encoded = source_encoded[:, :-remainder]
-        # print(f"{input_ids.shape=}")
-        labels = input_ids[:, 1:]
-        input_ids = input_ids[:, :-1]
 
-        input_embeds = self.embed_tokens(input_ids[:, :, -1])
-        # input_embeds = (input_embeds + self.embed_audio_tokens(input_ids[:, :, :-1]).sum(dim=2)) / input_ids.shape[2]
+        text_inputs = input_ids[:, :-1, -1]
+        text_labels = input_ids[:, 1:, -1]
+        audio_labels = input_ids[:, 1:, :-1]
 
-        # input_embeds = self.llm.embed_tokens(input_ids)
-        # input_embeds = self.embed_tokens(input_ids)
-        # print(f"{input_embeds.shape=}")
-        # print(f"{input_embeds=}")
-        # print(f"{source_encoded=}")
+        input_embeds = self.embed_tokens(text_inputs)
+        input_embeds = input_embeds + source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3)
 
-        # TODO: resolve the slicing hacks lol
-        # encoder_input = input_embeds.sum(dim=2) + source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3)
-        encoder_input = input_embeds + source_encoded[:, :-1] * self.cfg.get("duplex_user_channel_weight", 0.3)
+        return {
+            "input_embeds": input_embeds,
+            "input_lens": source_encoded_lens,
+            "text_labels": text_labels,
+            "audio_labels": audio_labels,
+        }
 
-        out = self.llm(inputs_embeds=encoder_input)
-        # print(f"{out['last_hidden_state'].shape=}")
-
-        B, T = encoder_input.shape[:2]
-
-        text_logits = self.lm_head(out['last_hidden_state'])
-        # print(f"{text_logits.shape=}")
-        audio_logits = self.audio_head(out['last_hidden_state']).view(B, T, 2048, 8)
-        # print(f"{audio_logits.shape=}")
-
-        num_frames = target_codes_lens.sum()
+    def training_step(self, batch: dict, batch_idx: int):
+        inputs = self.prepare_inputs(batch)
+        forward_outputs = self(inputs["input_embeds"])
+        num_frames = inputs["input_lens"].sum()
         with loss_parallel():
             text_loss = (
-                torch.nn.functional.cross_entropy(text_logits.transpose(1, 2), labels[:, :, -1], reduction="sum")
+                torch.nn.functional.cross_entropy(
+                    forward_outputs["text_logits"].transpose(1, 2),
+                    inputs["text_labels"],
+                    reduction="sum",
+                )
                 / num_frames
             )
-            audio_loss = torch.nn.functional.cross_entropy(
-                audio_logits.transpose(1, 2), labels[:, :, :-1], reduction="sum"
-            ) / (
-                num_frames * 8
+            audio_loss = (
+                torch.nn.functional.cross_entropy(
+                    forward_outputs["audio_logits"].transpose(1, 2),
+                    inputs["audio_labels"],
+                    reduction="sum",
+                )
+                / num_frames
+                * 8
             )  # TODO: num_codebooks
-        # print(f"{text_loss=}")
-        # print(f"{audio_loss=}")
 
         loss = text_loss + audio_loss
+
+        B, T = inputs["input_embeds"].shape[:2]
         print(f"{loss=} {B=} {T=}")
 
+        self.log_dict(
+            {
+                "loss": loss,
+                "text_loss": text_loss,
+                "audio_loss": audio_loss,
+                "batch_size": B,
+                "sequence_length": T,
+                "num_frames": num_frames.to(torch.float32),  # avoid warning
+                "padding_ratio": num_frames / (B * T),
+            },
+            on_step=True,
+        )
+
         return loss
+
+    def on_validation_epoch_start(self) -> None:
+        self.asr = ASRModel.from_pretrained(self.cfg.pretrained_asr).to(torch.bfloat16).eval()
+        self.asr.decoding.greedy.use_cuda_graph_decoder = False  # CUDA graphs may leak some GPU memory
+
+    def on_validation_epoch_end(self) -> None:
+        self.log("val_asr_bleu", self.bleu.compute(), on_epoch=True, sync_dist=True)
+        self.bleu.reset()
+        self.asr = None  # free up GPU memory
+
+    def validation_step(self, batch: dict, batch_idx: int):
+        inputs = self.prepare_inputs(batch)
+        forward_outputs = self(inputs["input_embeds"])
+        num_frames = inputs["input_lens"].sum()
+        with loss_parallel():
+            text_loss = (
+                torch.nn.functional.cross_entropy(
+                    forward_outputs["text_logits"].transpose(1, 2),
+                    inputs["text_labels"],
+                    reduction="sum",
+                )
+                / num_frames
+            )
+            audio_loss = (
+                torch.nn.functional.cross_entropy(
+                    forward_outputs["audio_logits"].transpose(1, 2),
+                    inputs["audio_labels"],
+                    reduction="sum",
+                )
+                / num_frames
+                * 8
+            )  # TODO: num_codebooks
+
+        loss = text_loss + audio_loss
+
+        B = inputs["input_embeds"].shape[0]
+        self.log("val_loss", loss, on_epoch=True, sync_dist=True, batch_size=B)
+        self.log("val_text_loss", loss, on_epoch=True, sync_dist=True, batch_size=B)
+        self.log("val_audio_loss", loss, on_epoch=True, sync_dist=True, batch_size=B)
+
+        # ASR BLEU
+        import torchaudio
+
+        predicted_audio_tokens = torch.argmax(forward_outputs["audio_logits"], dim=2).transpose(1, 2)
+        predicted_audio, predicted_audio_lens = self.audio_codec.decode(
+            tokens=predicted_audio_tokens, tokens_len=inputs["input_lens"]
+        )
+        ans = self.asr.transcribe(
+            list(torchaudio.functional.resample(predicted_audio, 22050, 16000)),
+            batch_size=predicted_audio.shape[0],
+            verbose=False,
+        )
+        self.bleu.update([hyp.text for hyp in ans], [[tt] for tt in batch["target_texts"]])
+
+        return {"loss": loss}
+
+    def on_test_epoch_start(self) -> None:
+        return self.on_validation_epoch_start()
+
+    def on_test_epoch_end(self) -> None:
+        return self.on_validation_epoch_end()
+
+    def test_step(self, *args: Any, **kwargs: Any):
+        return self.validation_step(*args, **kwargs)
 
     def backward(self, *args, **kwargs):
         with loss_parallel():
             super().backward(*args, **kwargs)
 
     def configure_optimizers(self):
-        # TODO: properly configure the optimizers
-        return torch.optim.AdamW(
-            chain(
-                self.perception.parameters(),
-                self.llm.parameters(),
-                self.lm_head.parameters(),
-                self.audio_head.parameters(),
-            ),
-            lr=self.cfg.optim.lr,
-            foreach=False,  # required for tensor parallelism
+        parameters = chain(
+            self.perception.parameters(),
+            self.llm.parameters(),
+            self.lm_head.parameters(),
+            self.audio_head.parameters(),
         )
+        optimizer = hydra.utils.instantiate(self.cfg.optimizer, parameters, _convert_='all')
+        lr_scheduler = hydra.utils.instantiate(self.cfg.lr_scheduler, optimizer)
+        return [optimizer], [lr_scheduler]
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": dict,
+            "inputs": [
+                {"name": "source_audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "source_audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {"name": "target_audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "target_audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "name": "target_tokens",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+            ],
+        }
 
     def configure_model(self) -> None:
         self._use_fsdp = False
@@ -294,14 +400,14 @@ class DuplexS2SModel(LightningModule):
 
             for idx, layer in enumerate(self.llm.layers):
                 # layer.self_attn = checkpoint_wrapper(layer.self_attn)
-                layer.mlp = checkpoint_wrapper(layer.mlp)
+                # layer.mlp = checkpoint_wrapper(layer.mlp)
                 self.llm.layers[idx] = fully_shard(layer, **fsdp_config)
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
             # self.embed_audio_tokens = fully_shard(self.embed_audio_tokens, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
-            self.lm_head = checkpoint_wrapper(self.lm_head)
+            # self.lm_head = checkpoint_wrapper(self.lm_head)
             self.lm_head = fully_shard(self.lm_head, **fsdp_config)
-            self.audio_head = checkpoint_wrapper(self.audio_head)
+            # self.audio_head = checkpoint_wrapper(self.audio_head)
             self.audio_head = fully_shard(self.audio_head, **fsdp_config)
 
             # for idx, layer in enumerate(self.perception.encoder.layers):
