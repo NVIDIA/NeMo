@@ -202,7 +202,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         Returns:
             dict[
                 "video": List of video streams of tuple:
-                        (processed video stream tensor of shape: [num_of_tiles x frames x channel x height x width]
+                        (processed video stream tensor of shape: [frames x num_of_tiles x channel x height x width]
                         , original VideoSize)
                 "audio": List of audio streams of tuple:
                         (processed audio stream tensor of shape: [audio_length x channel]
@@ -231,14 +231,33 @@ class AVLMSampleEncoder(BaseSampleEncoder):
                 reader = torchvision.io.VideoReader(video_bytes, f"{stream.type}:{stream.index}")
                 for frame in itertools.takewhile(
                     lambda x: x['pts'] <= min(stream_end_seconds, end_seconds), reader.seek(start_seconds)):
-                    if self.image_processor is not None:
-                        frame = self.process_image(frame)
+                    if stream.type == "video" and self.image_processor is not None
+                        frame = self.process_image(frame["data"])
+                    else:
+                        frame = frame["data"]
                     frames.append(frame)
-                ret_dict[stream.type].append(frames)
-        ret_dict["video"] = torch.cat(ret_dict["video"]) if ret_dict["video"][0].dim == 4 else torch.stack(ret_dict["video"])
-        ret_dict["audio"] = torch.cat(ret_dict["audio"])
+                if frames:
+                    if stream.type == "video":
+                        frames = torch.stack(frames)
+                        if frames.dim == 4:
+                            frames.unsqueeze(1)
+                        ret_dict[stream.type].append((
+                            frames, 
+                            VideoSize(
+                                frames=stream.frames, 
+                                height=stream.height, 
+                                width=stream.width),
+                        ))
+                    elif stream.type == "audio":
+                        frames = torch.cat(frames)
+                        ret_dict[stream.type].append((
+                            frames, 
+                            # TODO: verify duration is the same as total frame size
+                            AudioSize(length=stream.duration, channel=stream.codec_context.channel),
+                        ))
+                    
             
-        return 
+        return ret_dict
 
     def process_image(self, image: Image.Image):
         """
@@ -338,9 +357,9 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                     for i, (processed_video, video_size) in enumerate(processed_video_streams):
                         # flatten the frames into tiles
                         images.append(processed_video.flatten(end_dim=1))
-                        total_frames_in_each_processed_video.append(processed_video.shape[1])
-                        num_image_tiles.extend([processed_video.shape[0]] * processed_video.shape[1])
-                        image_sizes.extend([video_size.height, video_size.width] * processed_video.shape[1])
+                        total_frames_in_each_processed_video.append(processed_video.shape[0])
+                        num_image_tiles.extend([processed_video.shape[1]] * processed_video.shape[0])
+                        image_sizes.extend([video_size.height, video_size.width] * processed_video.shape[0])
                     ## process each audio stream
                     processed_audio_streams = video_audio_dict["audio"][0]
                     for i, (processed_audio, _) in enumerate(processed_audio_streams):
@@ -482,9 +501,9 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                 for i, (processed_video, video_size) in enumerate(processed_video_streams):
                     # flatten the frames into tiles
                     processed_images.append(processed_video.flatten(end_dim=1))
-                    total_frames_in_each_processed_video.append(processed_video.shape[1])
-                    processed_num_image_tiles.extend([processed_video.shape[0]] * processed_video.shape[1])
-                    processed_image_sizes.extend([video_size.height, video_size.width] * processed_video.shape[1])
+                    total_frames_in_each_processed_video.append(processed_video.shape[0])
+                    processed_num_image_tiles.extend([processed_video.shape[1]] * processed_video.shape[0])
+                    processed_image_sizes.extend([video_size.height, video_size.width] * processed_video.shape[0])
                 ## process each audio stream
                 processed_audio_streams = video_audio_dict["audio"][0]
                 for i, (processed_audio, _) in enumerate(processed_audio_streams):
