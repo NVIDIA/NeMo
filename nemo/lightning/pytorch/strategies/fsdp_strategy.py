@@ -122,6 +122,12 @@ class FSDPStrategy(PLFSDPStrategy, io.IOMixin):
             f"{'-' * 100}\n"
         )
 
+        # if 'device_mesh' in the `kwargs` is provided as a tuple, update it into the `DeviceMesh` object here
+        if isinstance(self.kwargs.get("device_mesh"), tuple):
+            from torch.distributed.device_mesh import init_device_mesh
+
+            self.kwargs["device_mesh"] = init_device_mesh("cuda", self.kwargs["device_mesh"])
+
         init_model_parallel(self.model)
 
     @override
