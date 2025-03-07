@@ -53,6 +53,7 @@ def cutset_path(tmp_path_factory) -> Path:
     cuts.save_audios(pa).to_file(p)
     return p
 
+
 @pytest.fixture(scope="session")
 def cutset_shar_path(cutset_path: Path) -> Path:
     """10 utterances of length 1s as a Lhotse Shar (tarred) CutSet."""
@@ -2545,6 +2546,6 @@ def test_dataloader_from_tarred_nemo_manifest_with_skipme(nemo_tarred_manifest_w
     dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
     batches = [batch for batch in dl]
     skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
-    
+
     assert len(batches) == 8
     assert not any(skipme_s)
