@@ -26,7 +26,7 @@ from nemo.utils import logging
 
 class CrashSimulationCallback(Callback):
     """Callback that simulates a crash at a specified training step.
-    
+
     This callback is useful for testing model checkpoint and recovery mechanisms
     by simulating crashes at predetermined points during training.
 
@@ -39,8 +39,7 @@ class CrashSimulationCallback(Callback):
         self.crash_step = crash_step
         self.has_simulated_crash_happened = False
         logging.info(
-            f"Setup to simulate a crash if step == {self.crash_step} "
-            "and a crash hasn't been simulated before"
+            f"Setup to simulate a crash if step == {self.crash_step} " "and a crash hasn't been simulated before"
         )
 
     def on_train_batch_end(

@@ -27,7 +27,7 @@ from nemo.utils import logging
 
 class PreemptionSimulationCallback(Callback):
     """Callback that simulates a preemption signal at a specified training step.
-    
+
     This callback is useful for testing model checkpoint and recovery mechanisms
     by simulating preemption signals at predetermined points during training.
 
