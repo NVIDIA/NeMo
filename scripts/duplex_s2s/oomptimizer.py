@@ -15,6 +15,7 @@
 
 import importlib
 import math
+import os
 import sys
 from numbers import Number
 from typing import Iterable, Literal
@@ -24,10 +25,12 @@ import lightning.pytorch as pl
 import torch
 from lhotse import compute_num_samples
 from omegaconf import OmegaConf
+from torch.distributed.tensor import Replicate, Shard, distribute_tensor
+from torch.utils.data import DataLoader, IterableDataset
 
-from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.utils.trainer_utils import resolve_trainer_cfg
 
 
 class ProfilingBatchGenerator:
@@ -111,11 +114,13 @@ class ProfilingBatchGenerator:
         start_batch_size: int = 32,
         rel_gap_thresh: float = 0.05,
         device: str = "cuda",
+        float_dtype: torch.dtype = torch.float32,
     ):
         self.schema = schema
         self.start_batch_size = start_batch_size
         self.rel_gap_thresh = rel_gap_thresh
         self.device = device
+        self.float_dtype = float_dtype
         self.reset()
 
     def __call__(self, input_seq_length: int, output_seq_length: int):
@@ -134,7 +139,7 @@ class ProfilingBatchGenerator:
                 tnsr = torch.tensor([])
             elif isinstance(nt.elements_type, AudioSignal):
                 seq_length = select_seq_length[item["seq_length"]]
-                tnsr = torch.randn(B, seq_length, dtype=torch.float32, device=self.device)
+                tnsr = torch.randn(B, seq_length, dtype=self.float_dtype, device=self.device)
             elif isinstance(nt.elements_type, LengthsType):
                 seq_length = select_seq_length[item["seq_length"]]
                 tnsr = torch.ones(B, dtype=torch.long, device=self.device) * seq_length
@@ -255,7 +260,6 @@ class FloatList(click.Option):
 @click.option(
     "-c", "--config-path", type=str, default=None, help="Path to the training configuration file for MODULE_NAME."
 )
-@click.option("-o", "--optimizer-name", type=str, default="adamw", help="Name of optimizer to use.")
 @click.option(
     "-b",
     "--buckets",
@@ -276,7 +280,7 @@ class FloatList(click.Option):
 @click.option(
     "-r",
     "--ratio",
-    type=int,
+    type=float,
     default=12,  # conservative estimate towards longer transcripts
     help="The output_sequence_length to input_sequence_length ratio for the purpose of determing the maximum output sequence lengths. "
     "The interpretation depends on input and output modalities. Examples: for audio->text it's tokens per second. "
@@ -296,14 +300,6 @@ class FloatList(click.Option):
     "in actual training scripts.",
 )
 @click.option(
-    "-d",
-    "--device",
-    default="cuda:0",
-    help="Device string to be passed to torch.device; due to MEMORY_FRACTION option, "
-    "it must specify the device index (e.g. cuda:0). "
-    "You can also leave the default index and select a specific GPU using env var CUDA_VISIBLE_DEVICES=<idx>",
-)
-@click.option(
     "-y",
     "--dtype",
     default="bfloat16",
@@ -319,13 +315,11 @@ def oomptimizer(
     pretrained_name: str | None,
     module_name: str | None,
     config_path: str | None,
-    optimizer_name: str,
     buckets: list[float],
     threshold: float,
     start_batch_size: int,
-    ratio: int,
+    ratio: float,
     memory_fraction: float,
-    device: str,
     dtype: str,
     ddp: bool,
 ):
@@ -358,34 +352,34 @@ def oomptimizer(
     This may be required in very complex setups where there are additional GPU RAM loads that can't be anticipated
     through the combination of training_step and optimizer update.
     """
+    assert pretrained_name is None, "--pretrained-name is not supported yet for Duplex S2S"
     if all(opt is None for opt in (pretrained_name, module_name, config_path)):
         click.secho(
             "You need to provide either PRETRAINED_NAME or the pair of MODULE_NAME and CONFIG_PATH.", fg="yellow"
         )
         sys.exit(1)
     logging.setLevel(logging.CRITICAL)
+    torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+    device = torch.device(f'cuda:{os.environ["LOCAL_RANK"]}')
+    dtype = getattr(torch, dtype)
     torch.cuda.set_per_process_memory_fraction(memory_fraction, device)
 
-    trainer = pl.Trainer(barebones=True)
-    trainer.log_every_n_steps = 1000000
-    # model =
-    # model_clones = []
-    # for _ in range(2 if ddp else 1):
-    #     if pretrained_name is not None:
-    #         assert (
-    #             config_path is None and module_name is None
-    #         ), "--pretrained-name cannot be used together with --module-name/--config-path"
-    #         click.echo(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
-    #         model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
-    #     else:
-    #         assert config_path is not None, "--module-name requires --config-path to be specified as well."
-    #         assert module_name is not None, "--config-path requires --module-name to be specified as well."
-    #         cfg = OmegaConf.load(config_path)
-    #         namespace, name = module_name.rsplit('.', maxsplit=1)
-    #         model_cls = getattr(importlib.import_module(namespace), name)
-    #         model = model_cls(cfg=cfg.model, trainer=trainer).to(device)
-    #     model_clones.append(model)
-    # model = model_clones[-1]
+    # trainer = pl.Trainer(barebones=True)
+    # trainer.log_every_n_steps = 1000000
+
+    torch.distributed.init_process_group(backend="nccl")
+    torch.set_float32_matmul_precision("medium")
+
+    assert config_path is not None, "--module-name requires --config-path to be specified as well."
+    assert module_name is not None, "--config-path requires --module-name to be specified as well."
+    cfg = OmegaConf.load(config_path)
+    namespace, name = module_name.rsplit('.', maxsplit=1)
+    model_cls = getattr(importlib.import_module(namespace), name)
+    trainer = pl.Trainer(
+        **{**resolve_trainer_cfg(cfg.trainer), "max_steps": 1, "max_epochs": 1, "limit_val_batches": 0.0}
+    )
+    with trainer.init_module():
+        model = model_cls(cfg.model)
 
     if not hasattr(model, "oomptimizer_schema"):
         click.secho(
@@ -395,10 +389,21 @@ def oomptimizer(
         )
         sys.exit(1)
 
+    click.echo("Setting up configure_model() for model parallelism.")
+    # model.configure_model()
+    # model.to(dtype).to(device)
     schema = model.oomptimizer_schema
 
-    click.echo("Setting up the optimizers.")
-    optimizer, _ = model.setup_optimization({"name": optimizer_name, "lr": 1e-7, "weight_decay": 0.0})
+    click.echo("Setting up the optimizer.")
+    # optimizer = model.configure_optimizers()
+    # if isinstance(optimizer, tuple):
+    #     optimizer = optimizer[0]
+
+    click.echo("Calling model hooks to initialize it for training.")
+    # model.on_fit_start()
+    # model.on_train_start()
+    # trainer.strategy.on_train_start()
+    # model.on_train_epoch_start()
 
     is_2d_bucketing = all(
         isinstance(item, (list, tuple)) and len(item) == 2 and all(isinstance(v, Number) for v in item)
@@ -453,12 +458,29 @@ def oomptimizer(
 
     click.echo("Starting profiling.")
     max_seq_lens = get_max_seq_lens(buckets)
-    gen = ProfilingBatchGenerator(schema=schema, start_batch_size=start_batch_size, rel_gap_thresh=threshold)
+    gen = ProfilingBatchGenerator(
+        schema=schema, start_batch_size=start_batch_size, rel_gap_thresh=threshold, device=device, float_dtype=dtype
+    )
     profile = {}
+
+    class _GenDataset(IterableDataset):
+        def __iter__(self):
+            gen.reset()
+            gen._current = 1
+            yield gen(16000, 13)
+            gen.reset()
+
+        def __len__(self):
+            return 1
+
+    # initialize everything PTL needs
+    trainer.fit(model, DataLoader(_GenDataset(), batch_size=None))
+
+    optimizer = model.optimizers()
 
     # Iterate buckets from the largest to the smallest sequences. This usually ends up creating
     # a tiny bit smaller batches, likely due to worse memory fragmentation.
-    with torch.autocast("cuda", getattr(torch, dtype)):
+    with torch.autocast("cuda", dtype, enabled=False):
         for bucket, (seq_len_in, seq_len_out) in reversed(list(zip(buckets, max_seq_lens))):
             click.echo(f"The current sequence lengths are: input={seq_len_in} output={seq_len_out}.")
             gen.reset()
@@ -469,6 +491,10 @@ def oomptimizer(
                     f"\t[BEGIN step] [CUDA RAM CURRENT: {torch.cuda.memory_allocated() / (1024 * 1024):.1f}MB] [CUDA RAM MAX: {torch.cuda.max_memory_allocated() / (1024*1024):.1f}MB]"
                 )
                 batch = gen(seq_len_in, seq_len_out)
+
+                # TODO: figure out input sharding in OOMptimizer
+                # batch = {k: distribute_tensor(v, model.device_mesh, [Replicate(), Replicate()]) for k, v in batch.items()}
+
                 oom = False
                 try:
                     click.echo(f"\tCurrent gap: {gen.current_rel_gap}... ", nl=False)

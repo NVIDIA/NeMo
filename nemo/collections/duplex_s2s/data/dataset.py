@@ -51,6 +51,7 @@ class DuplexS2SDataset(torch.utils.data.Dataset):
             "target_token_lens": target_token_lens,
             "source_tokens": source_tokens,
             "source_token_lens": source_token_lens,
+            "target_texts": [" ".join(s.text for s in cut.supervisions if s.speaker == "agent") for cut in cuts],
         }
 
 
@@ -68,7 +69,7 @@ def collate_token_channel(
     tokens = [
         build_token_channel(c, tokenizer=tokenizer, frame_length=frame_length, role=role, pad_id=pad_id) for c in cuts
     ]
-    token_lens = [len(tt) for tt in tokens]
+    token_lens = torch.tensor([len(tt) for tt in tokens])
     tokens = collate_vectors(tokens, padding_value=pad_id)
     return tokens, token_lens
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 import torch
 from lightning import LightningDataModule
+from omegaconf import open_dict
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.tokenizers import TokenizerSpec
@@ -20,10 +21,14 @@ from nemo.collections.duplex_s2s.data.dataset import DuplexS2SDataset
 
 
 class S2SDataModule(LightningDataModule):
-
     def __init__(self, cfg, tokenizer: TokenizerSpec) -> None:
         super().__init__()
         self.cfg = cfg
+        with open_dict(self.cfg):
+            for k in ("validation_ds", "test_ds"):
+                if k in self.cfg:
+                    getattr(self.cfg, k).force_finite = True
+                    getattr(self.cfg, k).force_map_dataset = True
         self.tokenizer = tokenizer
         self.dataset = DuplexS2SDataset(self.tokenizer, self.cfg.frame_length, self.cfg.source_sample_rate)
 
@@ -54,6 +59,8 @@ class S2SDataModule(LightningDataModule):
         # TODO(pzelasko): multi-dataloader
         if "test_ds" not in self.cfg:
             return None
+        self.cfg.test_ds.force_finite = True
+        self.cfg.test_ds.force_map_dataset = True
         return get_lhotse_dataloader_from_config(
             config=self.cfg.test_ds,
             global_rank=self._get_dp_rank(),
