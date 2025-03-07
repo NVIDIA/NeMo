@@ -20,7 +20,7 @@ class CrashSimulationCallback(Callback):
     def __init__(self, crash_step=17):
         self.crash_step = crash_step
         self.has_simulated_crash_happened = False
-        print(f"Setup to simulate a crash if step == {self.crash_step}")
+        print(f"Setup to simulate a crash if step == {self.crash_step} and a crash hasn't been simulated before")
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if self.crash_step and trainer.global_step == self.crash_step and not self.has_simulated_crash_happened:
