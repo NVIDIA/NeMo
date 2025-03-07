@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import io
+import signal
 from dataclasses import dataclass
 from pathlib import Path
-import signal
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, cast
 
 import lightning.pytorch as pl
