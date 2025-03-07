@@ -114,12 +114,12 @@ def main():
 def create_audio_context_record(text, audio_context, record_type):
     """
     Creates a record for a text-context pair with audio context.
-    
+
     Args:
         text (str): The main text content.
         audio_context (dict): Dictionary containing audio context information.
         record_type (str): Type of record ('challenging' or 'regular').
-    
+
     Returns:
         dict: A dictionary representing the audio context record.
     """
@@ -141,14 +141,14 @@ def create_audio_context_record(text, audio_context, record_type):
 def create_text_context_record(text, text_context, dummy_audio_filepath, record_type, target_audio_codes_path=None):
     """
     Creates a record for a text-context pair with text context.
-    
+
     Args:
         text (str): The main text content.
         text_context (str): The associated text context.
         dummy_audio_filepath (str): A placeholder audio file path.
         record_type (str): Type of record ('challenging' or 'regular').
         target_audio_codes_path (str, optional): Optional target audio codes path.
-    
+
     Returns:
         dict: A dictionary representing the text context record.
     """
