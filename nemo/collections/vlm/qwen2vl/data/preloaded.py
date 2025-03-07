@@ -299,7 +299,6 @@ def truncate_tokens(tokens, labels, max_sequence_length, tokenizer):
         source_labels = source_labels[:source_len]
         target_labels = target_labels[:target_len]
         truncated_labels += source_labels + target_labels
-        # print(f"{len(truncated_labels)=}, {len(truncated_tokens)=}")
 
         total_length += source_len + target_len
 
@@ -472,7 +471,6 @@ class PreloadedSupervisedDataset(Dataset):
             tokens, labels = truncate_tokens(tokens, labels, self.sequence_length, self.tokenizer)
         else:
             tokens, labels = torch.tensor(tokens, dtype=torch.long), torch.tensor(labels, dtype=torch.long)
-        # print(sum([i == j for i, j in zip(tokens, labels) if j != IGNORE_INDEX]))
         tokens = tokens[:-1]
         labels = labels[1:]
         return tokens, labels
@@ -537,7 +535,6 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
         packed_sequence = "cu_seqlens" in instances[0]
         max_len = max(instance['tokens'].shape[0] for instance in instances)
         max_len = (max_len - 1) // 64 * 64 + 64
-        # print(f"{instances=}")
         for instance in instances:
             pad_len = max_len - instance['tokens'].shape[0]
             instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
@@ -558,9 +555,6 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
                 num_pad = max_len_image - x.shape[0]
                 pad_tensor = torch.zeros(num_pad, *x.shape[1:], dtype=x.dtype, device=x.device)
                 instance['pixel_values'] = torch.cat((x, pad_tensor), dim=0)
-
-        # for instance in instances:
-        #    print(f"{instance['pixel_values'].shape=}")
 
         batch = {
             'input_ids': torch.stack([instance['tokens'] for instance in instances]),
@@ -619,7 +613,6 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
 
         if packed_sequence:
             batch["cu_seqlens"] = cu_seqlens
-        # print(f"{batch=}")
         return batch
 
 

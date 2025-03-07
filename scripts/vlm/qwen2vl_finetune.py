@@ -92,7 +92,6 @@ def main(args):
             num_workers=1,
         )
     elif args.data_type == "mock":
-        print(f'{args.data_type=}, {vlm.Qwen2VLMockDataModule=}')
         image_processor = Qwen2VLImageProcessor()
         data = vlm.Qwen2VLMockDataModule(
             seq_length=max_sequence_length,
@@ -112,10 +111,11 @@ def main(args):
 
     vision_transformer_config = vlm.Qwen2VLVisionConfig()
 
-    vision_projection_config = vlm.Qwen2VLProjectorConfig(
+    vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
-        input_size=vision_transformer_config.hidden_size,
+        input_size=vision_transformer_config.ffn_hidden_size,
         hidden_size=language_transformer_config.hidden_size,
+        ffn_hidden_size=vision_transformer_config.ffn_hidden_size,
     )
 
     # Qwen2VL model configuration

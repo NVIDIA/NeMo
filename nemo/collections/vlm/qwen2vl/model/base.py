@@ -18,17 +18,13 @@ from typing import Callable, Dict, Optional, Tuple
 import lightning.pytorch as L
 import torch
 import torch.distributed
-import torch.nn.functional as F
 from megatron.core import dist_checkpointing
 from megatron.core import parallel_state as ps
 from megatron.core.enums import ModelType
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
-from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel import gather_from_sequence_parallel_region, scatter_to_sequence_parallel_region
-from megatron.core.transformer.custom_layers.transformer_engine import TEColumnParallelLinear, TERowParallelLinear
-from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.training.activations import quick_gelu
@@ -42,6 +38,7 @@ from nemo.collections.vlm.layer_specs import get_layer_spec_te
 from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, get_image_sequence_length, restore_model_weights
 from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, VIDEO_TOKEN_INDEX
 from nemo.collections.vlm.qwen2vl.model.vision import Qwen2VisionModel
+from nemo.collections.vlm.vision import MultimodalProjectorConfig
 from nemo.lightning import io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
@@ -126,7 +123,7 @@ class Qwen2VLVisionConfig(TransformerConfig, io.IOMixin):
     temporal_patch_size: int = 2
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
-    ffn_hidden_size: int = 5120
+    ffn_hidden_size: int = 5120  # 1280 * 4
     gated_linear_unit: bool = False
     activation_func: Callable = quick_gelu
     kv_channels: int = 80
@@ -165,66 +162,12 @@ class Qwen2VLVisionConfig(TransformerConfig, io.IOMixin):
 
 
 @dataclass
-class Qwen2VLProjectorConfig(TransformerConfig, io.IOMixin):
-    """Qwen2VL Projector Config"""
-
-    projector_type: str = "mcore_mlp"
-    layer_spec: Optional[MLPSubmodules] = None
-    input_size: Optional[int] = 1280
-    hidden_size: int = 1536
-    activation_func: Callable = F.gelu
-    bias: bool = True
-    bias_activation_fusion: bool = True
-    spatial_merge_size: int = 2
-    num_layers: int = 1  # placeholder, NOT used!
-    num_attention_heads: int = 8  # placeholder, NOT used!
-
-    def configure_model(self):
-        # pylint: disable=C0115,C0116
-        spatial_merge_size = self.spatial_merge_size
-        self.ffn_hidden_size = self.input_size * (spatial_merge_size**2)
-
-        if self.projector_type.startswith("mcore") and self.layer_spec is None:
-            if self.projector_type == "mcore_mlp":
-                self.projector_type = "mlp"  # strip "mcore_" for mcore init
-                self.layer_spec = ModuleSpec(
-                    module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=TEColumnParallelLinear,
-                        linear_fc2=TERowParallelLinear,
-                    ),
-                )
-                self.layer_spec = self.layer_spec.submodules
-            else:
-                raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
-
-            return MCoreMultimodalProjector(
-                self,
-                self.layer_spec,
-                projector_type=self.projector_type,
-                input_size=self.ffn_hidden_size,
-            )
-        elif self.projector_type == "mlp2x_gelu":
-            modules = [torch.nn.Linear(self.ffn_hidden_size, self.ffn_hidden_size, bias=True)]
-            modules.append(torch.nn.GELU())
-            modules.append(torch.nn.Linear(self.ffn_hidden_size, self.hidden_size, bias=True))
-            model = torch.nn.Sequential(*modules)
-            from types import MethodType
-
-            model.set_input_tensor = MethodType(set_input_tensor, model)
-        else:
-            raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
-
-        return model
-
-
-@dataclass
 class Qwen2VLConfig(TransformerConfig, io.IOMixin):
     """Qwen2VL Model Base Config"""
 
     language_transformer_config: Optional[Qwen2Config] = None
     vision_transformer_config: Optional[Qwen2VLVisionConfig] = None
-    vision_projection_config: Optional[Qwen2VLProjectorConfig] = None
+    vision_projection_config: Optional[MultimodalProjectorConfig] = None
 
     drop_vision_class_token: bool = False
     vision_feature_layer: int = -2
@@ -536,24 +479,28 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         pixel_values_videos: Optional[torch.FloatTensor] = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
-        image_token_index: Optional[int] = IMAGE_TOKEN_INDEX,
-        video_token_index: Optional[int] = VIDEO_TOKEN_INDEX,
         runtime_gather_output: Optional[bool] = None,
     ) -> torch.Tensor:
-        """Forward function of the LLaVA model.
+        """Forward function of the Qwen2VL model.
 
         Args:
-            images (torch.Tensor): input image of shape [num_tiles, img_h, img_w].
-            num_tiles means the number of image tiles in this batch.
             input_ids (torch.Tensor): input text ids [batch, decoder_seq_len].
-            position_ids (torch.Tensor): input text position ids [batch, decoder_seq_len].
             attention_mask (torch.Tensor): Attention mask for the language model [batch, 1, combined_seq_len,
             combined_seq_len].
-            labels (torch.Tensor): Optional target text labels [batch, combined_seq_len].
+            position_ids (torch.Tensor): input text position ids [batch, decoder_seq_len].
             loss_mask (torch.Tensor): Text loss mask [batch, decoder_seq_len].
+            labels (torch.Tensor): Optional target text labels [batch, combined_seq_len].
             inference_params (InferenceParams): Inference-time parameters including KV cache.
-            image_token_index (int): ID for input images.
-
+            pixel_values (torch.Tensor): input image of shape [images_total_patches,
+            num_channels * temporal_size * patch_size * patch_size].
+            pixel_values_videos (torch.Tensor): input video of shape [videos_total_patches,
+            num_channels * temporal_size * patch_size * patch_size].
+            image_grid_thw (torch.Tensor): The temporal, height and width of feature shape of each image.
+            Shape [num_images, 3].
+            video_grid_thw (torch.Tensor): The temporal, height and width of feature shape of each video.
+            Shape [num_videos, 3].
+            runtime_gather_output (bool): Gather output at runtime. Default None means
+                `parallel_output` arg in the constructor will be used.
         Returns:
             output (torch.Tensor): Loss of shape [b, s] if labels are provided,
                 otherwise logits of shape [b, s, vocab_size].
@@ -839,107 +786,6 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             self.encoder_hidden_state = input_tensor[0]
         else:
             self.language_model.set_input_tensor(input_tensor[0])
-
-    # pylint: disable=C0301
-    # Copied from transformers.models.phi3.modeling_phi3.Phi3Model._update_causal_mask
-    # copied and adapted from https://github.com/huggingface/transformers/blob/5523e38b553ff6c46b04d2376870fcd842feeecc/src/transformers/models/qwen2_vl/modeling_qwen2_vl.py#L1189
-    def _update_causal_mask(
-        self,
-        attention_mask: torch.Tensor,
-        input_tensor: torch.Tensor,
-        cache_position: torch.Tensor,
-    ):
-
-        past_seen_tokens = 0  # past_key_values.get_seq_length() if past_key_values is not None else 0
-        # using_static_cache = isinstance(past_key_values, StaticCache)
-        # using_sliding_window_cache = isinstance(past_key_values, SlidingWindowCache)
-
-        dtype, device = input_tensor.dtype, input_tensor.device
-        sequence_length, batch_size = input_tensor.shape[0], input_tensor.shape[1]
-
-        # DynamicCache or no cache
-        target_length = (
-            attention_mask.shape[-1]
-            if isinstance(attention_mask, torch.Tensor)
-            else past_seen_tokens + sequence_length + 1
-        )
-
-        # In case the provided `attention` mask is 2D, we generate a causal mask here (4D).
-        causal_mask = self._prepare_4d_causal_attention_mask_with_cache_position(
-            attention_mask,
-            sequence_length=sequence_length,
-            target_length=target_length,
-            dtype=dtype,
-            device=device,
-            cache_position=cache_position,
-            batch_size=batch_size,
-        )
-
-        return causal_mask
-
-    # pylint: disable=C0301
-    # Copied from transformers.models.mistral.modeling_mistral.MistralModel._prepare_4d_causal_attention_mask_with_cache_position with Mistral->Qwen2VL
-    # copied and adapted from https://github.com/huggingface/transformers/blob/5523e38b553ff6c46b04d2376870fcd842feeecc/src/transformers/models/qwen2_vl/modeling_qwen2_vl.py#L1266
-    @staticmethod
-    def _prepare_4d_causal_attention_mask_with_cache_position(
-        attention_mask: torch.Tensor,
-        sequence_length: int,
-        target_length: int,
-        dtype: torch.dtype,
-        device: torch.device,
-        cache_position: torch.Tensor,
-        batch_size: int,
-    ):
-        """
-        Creates a causal 4D mask of shape `(batch_size, 1, query_length, key_value_length)` from a 2D mask of shape
-        `(batch_size, key_value_length)`, or if the input `attention_mask` is already 4D, do nothing.
-
-        Args:
-            attention_mask (`torch.Tensor`):
-                A 2D attention mask of shape `(batch_size, key_value_length)` or a 4D attention mask of shape
-                `(batch_size, 1, query_length, key_value_length)`.
-            sequence_length (`int`):
-                The sequence length being processed.
-            target_length (`int`):
-                The target length: when generating with static cache, the mask should be as long as the static cache,
-                to account for the 0 padding, the part of the cache that is not filled yet.
-            dtype (`torch.dtype`):
-                The dtype to use for the 4D attention mask.
-            device (`torch.device`):
-                The device to plcae the 4D attention mask on.
-            cache_position (`torch.Tensor`):
-                Indices depicting the position of the input sequence tokens in the sequence.
-            batch_size (`torch.Tensor`):
-                Batch size.
-            config (`Qwen2VLConfig`):
-                The model's configuration class
-            past_key_values (`Cache`):
-                The cache class that is being used currently to generate
-        """
-        if attention_mask is not None and attention_mask.dim() == 4:
-            # In this case we assume that the mask comes already in inverted form and requires no inversion or slicing.
-            causal_mask = attention_mask
-        else:
-            min_dtype = torch.finfo(dtype).min
-            causal_mask = torch.full(
-                (sequence_length, target_length), fill_value=min_dtype, dtype=dtype, device=device
-            )
-            diagonal_attend_mask = torch.arange(target_length, device=device) > cache_position.reshape(-1, 1)
-
-            causal_mask *= diagonal_attend_mask
-            causal_mask = causal_mask[None, None, :, :].expand(batch_size, 1, -1, -1)
-
-            if attention_mask is not None:
-                causal_mask = causal_mask.clone()  # copy to contiguous memory for in-place edit
-                if attention_mask.shape[-1] > target_length:
-                    attention_mask = attention_mask[:, :target_length]
-                mask_length = attention_mask.shape[-1]
-                padding_mask = causal_mask[:, :, :, :mask_length] + attention_mask[:, None, None, :]
-                padding_mask = padding_mask == 0
-                causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(
-                    padding_mask, min_dtype
-                )
-        return causal_mask
 
 
 class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):

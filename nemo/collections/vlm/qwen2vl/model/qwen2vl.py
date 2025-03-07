@@ -20,12 +20,8 @@ import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.llm import Qwen2Config, Qwen2Config1P5B, Qwen2Config7B, Qwen2Config72B
-from nemo.collections.vlm.qwen2vl.model.base import (
-    Qwen2VLConfig,
-    Qwen2VLModel,
-    Qwen2VLProjectorConfig,
-    Qwen2VLVisionConfig,
-)
+from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig
+from nemo.collections.vlm.vision import MultimodalProjectorConfig
 from nemo.lightning import io, teardown
 
 if TYPE_CHECKING:
@@ -45,7 +41,7 @@ class Qwen2VLConfig2B(Qwen2VLConfig):
         default_factory=lambda: Qwen2VLVisionConfig(num_layers=32, num_attention_heads=16)
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: Qwen2VLProjectorConfig(input_size=1280, hidden_size=1536, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(input_size=5120, hidden_size=1536, ffn_hidden_size=5120)
     )
 
 
@@ -60,7 +56,7 @@ class Qwen2VLConfig7B(Qwen2VLConfig):
         default_factory=lambda: Qwen2VLVisionConfig(num_layers=32, num_attention_heads=16)
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: Qwen2VLProjectorConfig(input_size=1280, hidden_size=3584, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(input_size=5120, hidden_size=3584, ffn_hidden_size=5120)
     )
 
 
@@ -75,7 +71,7 @@ class Qwen2VLConfig72B(Qwen2VLConfig):
         default_factory=lambda: Qwen2VLVisionConfig(num_layers=32, num_attention_heads=16)
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: Qwen2VLProjectorConfig(input_size=1280, hidden_size=8192, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(input_size=5120, hidden_size=8192, ffn_hidden_size=5120)
     )
 
 
@@ -204,9 +200,12 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
 
         # Use MCore instead of Pytorch
         vision_transformer_config = Qwen2VLVisionConfig()
-        vision_projection_config = Qwen2VLProjectorConfig(
-            input_size=hf_config.vision_config.embed_dim,
+        merge_hidden_size = hf_config.vision_config.embed_dim * (hf_config.vision_config.spatial_merge_size**2)
+        vision_projection_config = MultimodalProjectorConfig(
+            input_size=merge_hidden_size,
             hidden_size=hf_config.vision_config.hidden_size,
+            ffn_hidden_size=merge_hidden_size,
+            projector_type="mcore_mlp",
         )
 
         output = Qwen2VLConfig(
