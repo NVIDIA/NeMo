@@ -14,7 +14,6 @@
 
 import signal
 
-import torch
 from lightning.pytorch.callbacks import Callback
 
 
