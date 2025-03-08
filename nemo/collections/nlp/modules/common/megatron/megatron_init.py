@@ -108,7 +108,7 @@ def initialize_model_parallel_for_nemo(
     use_te_rng_tracker=False,
     num_distributed_optimizer_instances=1,
 ):
-
+    # pylint: disable=C0115,C0116
     if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
         raise ValueError("set_virtual_pipeline_model_parallel_world_size is needed in megatron-core for interleaved.")
 
@@ -404,7 +404,6 @@ def fake_initialize_model_parallel(
         in addition to the default decoder, we essentially instantiate two `RankGenerator`
         classes to construct the parallelism for each module separately, and we then have
         to stitch them together for the right groups. For now, this means pp and tp-pp."""
-        from itertools import cycle
 
         if is_expert:
             d_ranks = expert_decoder_rank_generator.get_ranks(group_type, **kwargs)
@@ -419,7 +418,9 @@ def fake_initialize_model_parallel(
         if group_type == 'pp':
             # Map 1 encoder tp rank to several decoder tp ranks, because
             # these won't be the same size.
-            for x, y in zip(cycle(e_ranks), d_ranks):
+            rep = (len(d_ranks) - 1) // len(e_ranks) + 1
+            for i, y in enumerate(d_ranks):
+                x = e_ranks[i // rep]
                 yield x + y
         elif group_type == 'tp-pp':
             # For this group, we can just return the concatenated
