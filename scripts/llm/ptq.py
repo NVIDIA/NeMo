@@ -30,8 +30,18 @@ def get_args():
     parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
     parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
-    parser.add_argument("--num_layers_in_first_pipeline_stage", type=int, default=None, help="Number of layers in the first pipeline stage. If None, pipeline parallelism will default to evenly split layers.")
-    parser.add_argument("--num_layers_in_last_pipeline_stage", type=int, default=None, help="Number of layers in the last pipeline stage. If None, pipeline parallelism will default to evenly split layers.")
+    parser.add_argument(
+        "--num_layers_in_first_pipeline_stage",
+        type=int,
+        default=None,
+        help="Number of layers in the first pipeline stage. If None, pipeline parallelism will default to evenly split layers.",
+    )
+    parser.add_argument(
+        "--num_layers_in_last_pipeline_stage",
+        type=int,
+        default=None,
+        help="Number of layers in the last pipeline stage. If None, pipeline parallelism will default to evenly split layers.",
+    )
     parser.add_argument(
         "-itp",
         "--inference_tp",
