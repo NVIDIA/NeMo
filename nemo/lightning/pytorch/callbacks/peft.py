@@ -133,6 +133,13 @@ class PEFT(IOMixin, ABC, ModelTransform):
         if is_trainer_attached(model) and model.trainer.state.fn == TrainerFn.FITTING:
             model.train(mode=True)
 
+    def get_wrappped_io(self):
+        """
+        This is a helper function to return a partial function that wraps the checkpoint I/O with the PEFT adapter.
+        Can be overridden in each PEFT method class.
+        """
+        return partial(WrappedAdapterIO, peft=self)
+
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         """PTL callback setup function."""
         from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
@@ -142,10 +149,12 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         self._is_fsdp_v1 = type(trainer.strategy).__name__ in ['FSDPStrategy', 'FSDP2Strategy']
         trainer.strategy.trainer = trainer
-        wrapped_io = partial(WrappedAdapterIO, peft=self)
+        wrapped_io = self.get_wrappped_io()
 
         # automodel_setup_optimizers is either None or holds a reference to trainer.strategy.setup_optimizers
         self.automodel_setup_optimizers = None
+        # automodel adds adapters in configure_model
+        self.transform_already_applied = False
         if get_automodel_from_trainer(trainer) is not None:
             ckpt_io_kwargs = {"model_library": "huggingface", "lora": True}
             # Due to the workaround used in peft restoration, it makes restoration non-PTL conforming,
@@ -153,6 +162,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
             trainer._checkpoint_connector.restore_training_state = lambda: True
             trainer._checkpoint_connector.restore_model = lambda: True
             self.automodel_setup_optimizers = trainer.strategy.setup_optimizers
+            self.transform_already_applied = True
             trainer.strategy.setup_optimizers = lambda x: True
         else:
             ckpt_io_kwarg_names = [
@@ -178,6 +188,15 @@ class PEFT(IOMixin, ABC, ModelTransform):
         trainer.strategy._init_model_parallel = False
         trainer.strategy._setup_optimizers = False
 
+    def set_trainable_params(self, trainer: pl.Trainer) -> None:
+        """
+        Set params to be saved for PEFT. This function is called in apply_transform.
+        Can be overridden in each PEFT method class.
+        """
+        self.trainable_params = set(
+            name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
+        )
+
     def apply_transform(self, trainer):
         """
         This function does the following:
@@ -186,14 +205,14 @@ class PEFT(IOMixin, ABC, ModelTransform):
         3. Load weights and optimizer state dict
         4. Set up `finalize_model_grads` from mcore.
         """
-        super().apply_transform(trainer)
+        # automodel adds adapters in configure_model
+        if not getattr(self, 'transform_already_applied', False):
+            super().apply_transform(trainer)
+
         # @akoumparouli: only used with automodel + FSDP2Strategy.
         if callable(getattr(trainer.strategy, 'parallelize', None)):
             trainer.strategy.parallelize()
-
-        self.trainable_params = set(
-            name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
-        )
+        self.set_trainable_params(trainer)
 
         # Handle automodel and return early.
         if (
