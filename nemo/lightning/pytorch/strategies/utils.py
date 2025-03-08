@@ -441,6 +441,7 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32),
+    offload_policy: 'CPUOffloadPolicy' = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
@@ -462,6 +463,7 @@ def fsdp2_strategy_parallelize(
                     mesh=mesh,
                     mp_policy=mp_policy,
                     reshard_after_forward=reshard_after_forward,
+                    offload_policy=offload_policy,
                 )
                 module[layer_id] = transformer_block
         else:
@@ -478,7 +480,9 @@ def fsdp2_strategy_parallelize(
 
         # reshard_after_forward=True based on
         # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
-        model = fully_shard(model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True)
+        model = fully_shard(
+            model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
+        )
 
     return model
 
