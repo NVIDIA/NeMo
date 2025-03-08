@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 import torch
 import torch.nn.functional as F
@@ -23,6 +23,12 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.pytorch.utils import dtype_from_hf
+
+if TYPE_CHECKING:
+    from transformers import Phi3Config as HFPhi3Config
+    from transformers import Phi3ForCausalLM
+
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
@@ -176,11 +182,6 @@ class HFPhi3Exporter(io.ModelConnector[Phi3Model, "Phi3ForCausalLM"]):
             "output_layer.weight": "lm_head.weight",
         }
 
-        # Convert source weights to target dtype if needed
-        for name, param in source.state_dict().items():
-            if param.dtype != target.state_dict()[name].dtype:
-                param.data = param.data.to(target.state_dict()[name].dtype)
-
         return io.apply_transforms(source, target, mapping=mapping)
 
     @property
@@ -206,6 +207,7 @@ class HFPhi3Exporter(io.ModelConnector[Phi3Model, "Phi3ForCausalLM"]):
             num_key_value_heads=source.num_query_groups,
             rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
+            pad_token_id=self.tokenizer.pad_token_id,
         )
 
 
