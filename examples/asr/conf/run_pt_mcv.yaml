@@ -1,0 +1,57 @@
+# The script to be run.
+script: ???
+script_config: ???
+
+exp_name: null  # populated by exp_manager.name if not provided
+results_dir: ???  # Where to store the results of the run
+
+# Optional arguments
+num_runs: 1
+num_tasks_per_node: 1
+num_gpus: 1
+max_runtime: "00:03:45:00"
+
+########################################################################################################################
+
+executor: slurm
+
+USER: ntadevosyan
+ssh_tunnel:
+  host: draco-oci-login-01.draco-oci-iad.nvidia.com
+  # ------------------------------- Fill this up! -------------------------------
+  user: "${USER}"  # your username; or resolved from ${USER} environment variable ; or can be null which resolved from ${USER} environment variable
+  job_dir: "/lustre/fsw/portfolios/convai/users/${USER}/nemo-run/"
+  identity: "${NEMO_OCI_IAD_SSH_IDENTITY}"
+  # -----------------------------------------------------------------------------
+
+account: convai_convaird_nemo-speech
+partition: batch_block1,batch_block3,batch_block4
+job_name_prefix: "convai_convaird_nemo-speech-pt"
+
+containers:
+  # asr: /lustre/fsw/portfolios/llmservice/users/kpuvvada/local_containers/nemo_dev_20240717_aistore.sqsh
+  asr: /lustre/fsw/portfolios/llmservice/users/pzelasko/containers/nemo-nightly-24jul24-oomptimizer.sqsh
+
+env_vars:
+  - 'TOKENIZERS_PARALLELISM=false'
+  - 'AIS_ENDPOINT="http://asr.iad.oci.aistore.nvidia.com:51080"'
+  - 'LHOTSE_AUDIO_DURATION_MISMATCH_TOLERANCE=0.3'
+  - 'TORCH_CUDNN_V8_API_ENABLED=1'
+  - 'PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True'
+  - 'HYDRA_FULL_ERROR=1'
+
+required_env_vars:
+  - 'HF_TOKEN'
+  - 'WANDB_KEY'
+
+mounts:
+  # Replace with your own paths in your cluster config
+  - /lustre/fsw:/lustre/fsw
+  - /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data:/data
+  #- /lustre/fsw/portfolios/convai/users/ntadevosyan:/asr_checkpoints
+  - /lustre/fsw/portfolios/convai/users/ntadevosyan:/lustre/fsw/portfolios/convai/users/ntadevosyan
+
+timeouts:
+  batch_block1,batch_block3,batch_block4: 04:00:00
+  interactive: 04:00:00
+  interactive_singlenode: 04:00:00
