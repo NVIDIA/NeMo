@@ -92,7 +92,7 @@ def get_data_module(args):
     data_module = data_module_cls(
         seq_length=args.seq_length,
         micro_batch_size=args.mbs,
-        global_batch_size=args.mbs,
+        global_batch_size=args.mbs,  # global_batch_size is not used as there is no backward pass
         **data_module_kwargs,
     )
 
@@ -102,11 +102,11 @@ def get_data_module(args):
 def main(args):
     """Main function for pruning Llama model."""
     pruning_config = PruningConfig(
-        ffn_hidden_size=args.prune_ffn_hidden_size,
-        hidden_size=args.prune_hidden_size,
-        num_attention_heads=args.prune_num_attention_heads,
-        num_query_groups=args.prune_num_query_groups,
-        num_layers=args.prune_num_layers,
+        target_ffn_hidden_size=args.prune_ffn_hidden_size,
+        target_hidden_size=args.prune_hidden_size,
+        target_num_attention_heads=args.prune_num_attention_heads,
+        target_num_query_groups=args.prune_num_query_groups,
+        target_num_layers=args.prune_num_layers,
         drop_layers=args.drop_layers,
     )
 

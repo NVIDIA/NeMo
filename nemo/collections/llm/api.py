@@ -332,7 +332,7 @@ def prune(
         >>> llm.prune(
                 nemo_checkpoint="path/to/llama3.1-8b",
                 save_path="path/to/pruned_llama_model",
-                pruning_config=PruningConfig(ffn_hidden_size=9216, hidden_size=3072),
+                pruning_config=PruningConfig(target_ffn_hidden_size=9216, target_hidden_size=3072),
                 data=data
             )
     """
@@ -356,7 +356,7 @@ def prune(
         model_config_overrides={"sequence_parallel": False},
     )
     prune_gpt_model(model, pruning_config, data, trainer)
-    save_pruned_model(model, trainer, save_path)
+    save_pruned_model(trainer, save_path)
 
     console = Console()
     console.print(f"[green]✓ Pruning succeded, pruned checkpoint saved to {save_path}[/green]")

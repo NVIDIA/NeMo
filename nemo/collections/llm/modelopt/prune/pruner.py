@@ -44,32 +44,32 @@ class PruningConfig:
     """Pruning parameters. None means no pruning of the corresponding dimension.
 
     Args:
-        ffn_hidden_size (int, optional): Target size of MLP FFN hidden dimension.
-        hidden_size (int, optional): Target size of embedding hidden dimension.
-        num_attention_heads (int, optional): Target number of attention heads.
-            Required if `num_query_groups` is provided.
-        num_query_groups (int, optional): Target number of query groups for grouped-query attention.
-            Required if `num_attention_heads` is provided.
-        num_layers (int, optional): Target number of transformer layers using importance metric.
+        target_ffn_hidden_size (int, optional): Target size of MLP FFN hidden dimension.
+        target_hidden_size (int, optional): Target size of embedding hidden dimension.
+        target_num_attention_heads (int, optional): Target number of attention heads.
+            Required if `target_num_query_groups` is provided.
+        target_num_query_groups (int, optional): Target number of query groups for grouped-query attention.
+            Required if `target_num_attention_heads` is provided.
+        target_num_layers (int, optional): Target number of transformer layers using importance metric.
         drop_layers (list[int], optional): List of specific layer indices (1-indexed) to drop from the model.
             Cannot be used with other pruning parameters.
     """
 
-    ffn_hidden_size: int | None = None
-    hidden_size: int | None = None
-    num_attention_heads: int | None = None
-    num_query_groups: int | None = None
-    num_layers: int | None = None
+    target_ffn_hidden_size: int | None = None
+    target_hidden_size: int | None = None
+    target_num_attention_heads: int | None = None
+    target_num_query_groups: int | None = None
+    target_num_layers: int | None = None
     drop_layers: list[int] | None = None
 
     def __post_init__(self):
         if self.drop_layers:
             other_params = [
-                self.ffn_hidden_size,
-                self.hidden_size,
-                self.num_attention_heads,
-                self.num_query_groups,
-                self.num_layers,
+                self.target_ffn_hidden_size,
+                self.target_hidden_size,
+                self.target_num_attention_heads,
+                self.target_num_query_groups,
+                self.target_num_layers,
             ]
             if any(p is not None for p in other_params):
                 raise ValueError("drop_layers cannot be used with other pruning parameters")
@@ -105,7 +105,9 @@ def prune_gpt_model(
 
         logging.info("Pruning model...")
         export_config = {
-            k: getattr(pruning_config, k) for k in SUPPORTED_PRUNING_HPARAMS if getattr(pruning_config, k) is not None
+            k: getattr(pruning_config, f"target_{k}")
+            for k in SUPPORTED_PRUNING_HPARAMS
+            if getattr(pruning_config, f"target_{k}") is not None
         }
         mtp.prune(
             model,
@@ -118,15 +120,14 @@ def prune_gpt_model(
     return model
 
 
-def save_pruned_model(model: llm.GPTModel, trainer: nl.Trainer, save_path: str):
+def save_pruned_model(trainer: nl.Trainer, save_path: str) -> None:
     """Save pruned model nemo checkpoint."""
     logging.info(f"Saving pruned model to {save_path}...")
-    if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, "__io__"):
-        trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
-        # Make sure pruned hparams are saved
-        for k in SUPPORTED_PRUNING_HPARAMS | {"kv_channels"}:
-            setattr(trainer.model.__io__.config, k, getattr(model.config, k))
+    # Make sure pruned hparams are saved
+    for k in SUPPORTED_PRUNING_HPARAMS | {"kv_channels"}:
+        setattr(trainer.model.__io__.config, k, getattr(trainer.model.config, k))
 
+    # TODO: trainer.save_checkpoint(save_path) doesnt seem to save metadata.json or .metadata files!
     weight_path = ckpt_to_weights_subdir(save_path, is_saving=True)
     weight_path.mkdir(parents=True, exist_ok=True)
     dist_checkpointing.save(trainer.strategy.megatron_parallel.sharded_state_dict(), weight_path)
