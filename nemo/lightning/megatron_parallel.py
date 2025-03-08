@@ -626,8 +626,13 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             self.apply_convert_module_fn()
 
         # Skip init_ddp for inference i.e testing as it can lead to OOM.
-        if not self.trainer.state.fn == TrainerFn.TESTING:
-            self.init_ddp()
+        try:
+            if not self.trainer.state.fn == TrainerFn.TESTING:
+                self.init_ddp()
+        except RuntimeError as e:
+            # Don't fail if trainer is not attached, re-raise any other RuntimeError
+            if not "is not attached to a `Trainer`" in str(e):
+                raise e
 
     def apply_convert_module_fn(self):
         for i in range(len(self)):
@@ -1422,14 +1427,13 @@ class MegatronStep(Generic[ModelT, DataT]):
 
             if has_dataloader_idx:
                 packed_data = [(d, batch_idx, dataloader_idx) for d in data]
-                data = [itertools.chain(packed_data)]
+                data = itertools.chain(packed_data)
         else:
             data = self.data
             # for pretraining (fixed sequence length), we use seq_length inferred from the data sampler.
             seq_length = None
 
-        if not has_dataloader_idx:
-            data = self.to_data_iterator_list(data)
+        data = self.to_data_iterator_list(data)
         return data, seq_length
 
     @functools.cached_property
