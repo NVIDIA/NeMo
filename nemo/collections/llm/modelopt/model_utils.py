@@ -66,6 +66,8 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     model_path: str,
     tensor_model_parallel_size: int = 1,
     pipeline_model_parallel_size: int = 1,
+    num_layers_in_first_pipeline_stage: int | None = None,
+    num_layers_in_last_pipeline_stage: int | None = None,
     devices: int = 1,
     num_nodes: int = 1,
     inference_only: bool = True,
@@ -142,6 +144,10 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
 
     if inference_only:
         del model.optim
+    if num_layers_in_first_pipeline_stage > 0:
+        model.config.num_layers_in_first_pipeline_stage = num_layers_in_first_pipeline_stage
+    if num_layers_in_last_pipeline_stage > 0:
+        model.config.num_layers_in_last_pipeline_stage = num_layers_in_last_pipeline_stage
 
     tokenizer = get_tokenizer(tokenizer_path) if tokenizer_path else None
     _setup_trainer_and_restore_model(model_path, trainer, model, tokenizer)
