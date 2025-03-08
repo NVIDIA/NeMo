@@ -17,6 +17,7 @@ import argparse
 from megatron.core.dist_checkpointing.validation import StrictHandling
 
 from nemo.collections.llm import quantization
+from nemo.collections.llm.api import ptq
 
 
 def get_args():
@@ -50,7 +51,7 @@ def get_args():
     parser.add_argument("-nodes", "--num_nodes", type=int, help="Number of nodes used")
     parser.add_argument('-out', '--export_path', '--output_path', type=str, help='Path for the exported engine')
     parser.add_argument(
-        "--export_format", default="trtllm", choices=["trtllm", "nemo"], help="Model format to export as"
+        "--export_format", default="trtllm", choices=["trtllm", "nemo", "hf"], help="Model format to export as"
     )
     parser.add_argument(
         '-algo',
@@ -85,19 +86,25 @@ def get_args():
     parser.add_argument(
         '--generate_sample', help='Generate sample model output after performing PTQ', action='store_true'
     )
+    parser.set_defaults(generate_sample=False)
+    parser.add_argument(
+        '--trust_remote_code', help='Trust remote code when loading HuggingFace models', action='store_true'
+    )
+    parser.set_defaults(trust_remote_code=False)
     parser.add_argument(
         '--ckpt_load_strictness',
         type=str,
         default=StrictHandling.LOG_ALL,
         help='Defines handling of checkpoint load mismatch',
     )
-    parser.set_defaults(generate_sample=False)
 
     args = parser.parse_args()
 
     if args.export_path is None:
         if args.export_format == "trtllm":
             args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+        elif args.export_format == "hf":
+            args.export_path = f"./hf_{args.algorithm}"
         else:
             args.export_path = f"./nemo_{args.algorithm}"
 
@@ -133,19 +140,15 @@ def main():
         dtype=args.dtype,
         generate_sample=args.generate_sample,
     )
-    quantizer = quantization.Quantizer(quantization_config, export_config)
 
-    model, trainer = quantization.load_with_modelopt_layer_spec(
-        nemo_checkpoint_path=args.nemo_checkpoint,
-        tensor_model_parallel_size=args.calibration_tp,
-        pipeline_model_parallel_size=args.calibration_pp,
-        devices=args.devices,
-        num_nodes=args.num_nodes,
-        ckpt_load_strictness=args.ckpt_load_strictness,
+    ptq(
+        args.nemo_checkpoint,
+        export_config,
+        calibration_tp=args.calibration_tp,
+        calibration_pp=args.calibration_pp,
+        quantization_config=quantization_config,
+        trust_remote_code=args.trust_remote_code,
     )
-    model = quantizer.quantize(model)
-
-    quantizer.export(model, args.nemo_checkpoint, trainer)
 
 
 if __name__ == '__main__':

@@ -26,10 +26,15 @@ from torch.distributed import all_gather_object
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
+from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
 from nemo.collections.llm.distillation import DistillationGPTModel
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
-from nemo.collections.llm.gpt.model import GPTModel
-from nemo.collections.llm.quantization import ExportConfig, QuantizationConfig
+from nemo.collections.llm.quantization import (
+    ExportConfig,
+    QuantizationConfig,
+    Quantizer,
+    load_with_modelopt_layer_spec,
+)
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
@@ -352,6 +357,7 @@ def ptq(
     calibration_pp: int = 1,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
     ckpt_load_strictness: Optional[str] = None,
+    trust_remote_code: bool = False,
 ) -> Path:
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
@@ -386,35 +392,41 @@ def ptq(
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         export_config (ExportConfig): Export configuration for output checkpoint.
         ckpt_load_strictness (Optional[str]): Defines handling of checkpoint load mismatch.
-
+        trust_remote_code (bool): Trust remote code when loading HuggingFace models.
     Returns:
         Path: The path where the quantized checkpoint has been saved after calibration.
     """
     if not quantization_config:
         quantization_config = QuantizationConfig()
 
-    if export_config.path is None:
-        raise ValueError("The export_config.path needs to be specified, got None.")
+    quantizer = Quantizer(quantization_config, export_config)
+    is_automodel = (Path(nemo_checkpoint) / 'config.json').exists()
 
-    from nemo.collections.llm import quantization
-
-    quantizer = quantization.Quantizer(quantization_config, export_config)
-
-    model, trainer = quantization.load_with_modelopt_layer_spec(
-        nemo_checkpoint,
-        calibration_tp,
-        calibration_pp,
-        ckpt_load_strictness=ckpt_load_strictness,
-    )
+    trainer = None
+    if is_automodel:
+        assert export_config.export_format != "nemo", "Automodel PTQ does not support export format nemo"
+        model = HFAutoModelForCausalLM(
+            model_name=nemo_checkpoint, load_pretrained_weights=True, trust_remote_code=trust_remote_code
+        )
+        model.configure_model()
+    else:
+        assert export_config.export_format != "hf", "Automodel PTQ does not support export format hf"
+        model, trainer = load_with_modelopt_layer_spec(
+            nemo_checkpoint,
+            tensor_model_parallel_size=calibration_tp,
+            pipeline_model_parallel_size=calibration_pp,
+            devices=calibration_tp,
+            num_nodes=calibration_pp,
+            ckpt_load_strictness=ckpt_load_strictness,
+        )
 
     model = quantizer.quantize(model)
-
     quantizer.export(model, nemo_checkpoint, trainer)
 
-    console = Console()
-    console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
-
-    return export_config.path
+    if is_global_rank_zero():
+        console = Console()
+        console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
+    return Path(export_config.path)
 
 
 @run.cli.entrypoint(namespace="llm")

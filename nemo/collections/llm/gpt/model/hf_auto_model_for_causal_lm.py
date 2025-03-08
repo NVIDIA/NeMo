@@ -162,7 +162,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             return AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 torch_dtype=torch.bfloat16,
-                device_map="cpu",
+                device_map="auto",
                 trust_remote_code=self.trust_remote_code,
                 load_in_4bit=self.load_in_4bit,
                 attn_implementation=attn_implementation,
@@ -197,6 +197,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
             if 'does not support an attention' in str(e):
                 self.model = self._configure_model(attn_implementation="eager")
+            else:
+                raise e
 
         if self.model_accelerator is not None:
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
