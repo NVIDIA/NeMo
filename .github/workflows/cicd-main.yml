@@ -2214,6 +2214,17 @@ jobs:
         --experiment-dir=/tmp/nemo2_neva_results/${{ github.run_id }} \
         --use_packed_sequence
 
+  L2_NEMO_2_NEVA_Inference:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_NEVA_Inference')
+    with:
+      RUNNER: self-hosted-azure-gpus-1
+      SCRIPT: |
+        python scripts/vlm/neva_generate.py \
+        --local_model_path /home/TestData/nemo2_ckpt/llava-1.5-7b-hf \
+        --num_tokens_to_generate 3
+
   L2_NEMO_2_MLLAMA_Inference:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -3092,6 +3103,7 @@ jobs:
       - L2_Stable_Diffusion_Training
       - L2_NeMo_2_NEVA_MOCK_TRAINING
       - L2_NeMo_2_NEVA_MOCK_PACKED_TRAINING
+      - L2_NEMO_2_NEVA_Inference
       - L2_NEMO_2_MLLAMA_Inference
       - L2_NeMo_2_MLLAMA_MOCK_TRAINING
       - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
