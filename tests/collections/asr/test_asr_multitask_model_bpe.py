@@ -827,6 +827,14 @@ def test_aed_timestamp_processing():
     assert segments[0]['end'] == 0.25
 
     # Test with different window_stride and subsampling_factor
+    hyp = Hypothesis(
+        text="<|10|>hello<|15|> <|20|>world<|25|>",
+        y_sequence=None,
+        score=None,
+        alignments=None,
+        length=None,
+        timestamp={},
+    )
     processed = process_aed_timestamp_outputs(hyp, subsampling_factor=2, window_stride=0.02)
     word_timestamps = processed[0].timestamp['word']
 

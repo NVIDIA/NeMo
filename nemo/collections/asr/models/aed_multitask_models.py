@@ -499,7 +499,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order 
             as paths2audio_files
         """
-        if timestamps is not None and timestamps:
+        if timestamps is not None:
             # TODO: Handle this key gracefully later
 
             if timestamps is True:
@@ -508,7 +508,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 timestamps = 'no'
             else:
                 timestamps = str(timestamps)
-                assert timestamps in ('yes', 'no', 'timestamp', 'notimestamp')
+                assert timestamps in ('yes', 'no', 'timestamp', 'notimestamp', '1', '0')
             prompt['timestamp'] = timestamps
 
         if override_config is None:

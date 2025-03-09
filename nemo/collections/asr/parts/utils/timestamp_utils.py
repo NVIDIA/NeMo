@@ -49,16 +49,18 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
         matches = []
         text_without_timestamps = []
         for match in re.finditer(pattern, text):
-            start_time = int(match.group(1)) * window_stride * subsampling_factor
+            start_offset = int(match.group(1))
             content = match.group(2)
-            end_time = int(match.group(3)) * window_stride * subsampling_factor
+            end_offset = int(match.group(3))
+            start_time = start_offset * window_stride * subsampling_factor
+            end_time = end_offset * window_stride * subsampling_factor
 
             # Only include if there's actual content
             if content.strip():
                 sample = {
                     'word': content.strip(),
-                    'start_offset': int(match.group(1)),
-                    'end_offset': int(match.group(3)),
+                    'start_offset': start_offset,
+                    'end_offset': end_offset,
                     'start': start_time,
                     'end': end_time,
                 }
@@ -73,19 +75,23 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
             segment['start'] = segment['start_offset'] * window_stride * subsampling_factor
             segment['end'] = segment['end_offset'] * window_stride * subsampling_factor
         return segments
-
+    
     for idx, hyp in enumerate(outputs):
         timestamp, text = extract_words_with_timestamps(hyp.text, subsampling_factor, window_stride)
         if timestamp is not None:
             if len(outputs[idx].timestamp) == 0:
-                outputs[idx].timestamp = {'word': []}
-                outputs[idx].timestamp = {'char': []}
-                outputs[idx].timestamp = {'segment': []}
+                outputs[idx].timestamp = {}
+            outputs[idx].timestamp['char'] = [] # not supported for AED
             outputs[idx].timestamp['word'] = timestamp
             outputs[idx].text = text
             segments = AbstractCTCDecoding._get_segment_offsets(timestamp, segment_delimiter_tokens=['.', '?', '!'])
             segments = segments_offset_to_time(segments, window_stride, subsampling_factor)
             outputs[idx].timestamp['segment'] = segments
+        else:
+            outputs[idx].timestamp = {}
+            outputs[idx].timestamp['word'] = []
+            outputs[idx].timestamp['segment'] = []
+            outputs[idx].timestamp['char'] = []
     return outputs
 
 
