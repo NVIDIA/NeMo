@@ -46,6 +46,7 @@ def slurm_executor(
     custom_srun_args: List[str] = [],
     hf_token: str = None,
     nemo_home: str = DEFAULT_NEMO_HOME,
+    wandb_key: str = None,
 ) -> run.SlurmExecutor:
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
@@ -59,16 +60,17 @@ def slurm_executor(
         sys.exit(1)
 
     env_vars = {
-        "TRANSFORMERS_OFFLINE": "1",
-        "TOKENIZERS_PARALLELISM": "False",
-        "NCCL_NVLS_ENABLE": "0",
-        "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
-        "NVTE_ASYNC_AMAX_REDUCTION": "1",
-        "NVTE_FUSED_ATTN": "1",
-        "NVTE_FLASH_ATTN": "1",
-        "NEMO_LOG_MEMORY_USAGE": "1",
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
+        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
+        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
         "NEMORUN_HOME": log_dir,
     }
+    if wandb_key is not None:
+        env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
     srun_args = ["--mpi=pmix"]
 
@@ -174,8 +176,11 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     etp_size = args.expert_tensor_parallel_size
     etp_size = config.get("etp_size") if etp_size is None else etp_size
 
+    enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
+    enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
+
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
+    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [enable_cuda_graphs]
 
     return kwargs
 
@@ -183,6 +188,9 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
 def set_primary_perf_configs(
     recipe,
     enable_tb: bool,
+    enable_wd: bool,
+    wandb_prj_name: str,
+    wandb_job_name: str,
     num_nodes: int,
     num_gpus_per_node: int,
     mbs: int,
@@ -230,6 +238,10 @@ def set_primary_perf_configs(
     else:
         # default path is NOT intuitive- `<log_dir>/code/nemo_experiments/tb_logs/default/<tfevents_file>`
         recipe.log.log_dir = "/nemo_run/lightning_logs"  # saves file at- `<log_dir>/lightning_logs/tb_logs
+    if enable_wd:
+        from nemo.collections.llm.recipes.log.default import wandb_logger
+
+        recipe.log.wandb = wandb_logger(project=wandb_prj_name, name=wandb_job_name)
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
@@ -286,3 +298,13 @@ def get_comm_overlap_callback_idx(callbacks: List[Callback]) -> int | None:
             if callback.__fn_or_cls__ == MegatronCommOverlapCallback:
                 return idx
     return None
+
+
+def args_sanity_check(args: dict) -> None:
+    """
+    Check the sanity of argument settings
+    """
+    if args.wandb:
+        assert args.wandb_key is not None, "wandb logger needs \"wandb_key\""
+        assert args.wandb_prj_name is not None, "wandb logger needs \"wandb_prj_name\""
+        assert args.wandb_job_name is not None, "wandb logger needs \"wandb_job_name\""

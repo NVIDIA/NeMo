@@ -118,8 +118,8 @@ class MixtralConfig8x22B(MixtralConfig):
     hidden_size: int = 6144
     num_attention_heads: int = 48
     ffn_hidden_size: int = 16384
-    max_position_embeddings: int = 65536
-    seq_length: int = 65536
+    max_position_embeddings: int = 4096
+    seq_length: int = 4096
 
 
 class MixtralModel(GPTModel):
@@ -191,9 +191,11 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
     @property
     def config(self) -> MixtralConfig8x7B | MixtralConfig8x22B:
         """Returns Mcore config from HF"""
+        from transformers import GenerationConfig
         from transformers import MixtralConfig as HfMixtralConfig
 
         config = HfMixtralConfig.from_pretrained(str(self))
+        generation_config = GenerationConfig.from_pretrained(str(self))
         config_cls = MixtralConfig8x7B
         if '8x22b' in str(self).lower():
             config_cls = MixtralConfig8x22B
@@ -228,6 +230,7 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
             use_cpu_initialization=True,
             perform_initialization=False,
             params_dtype=getattr(config, "torch_dtype", torch.bfloat16),
+            generation_config=generation_config,
         )
 
 

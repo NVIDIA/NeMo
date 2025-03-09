@@ -14,7 +14,6 @@
 
 from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple
 
-import modelopt.torch.distill as mtd
 import torch
 from megatron.core import parallel_state
 from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
@@ -25,6 +24,7 @@ from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parall
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning.megatron_parallel import DDP, MaskedTokenLossReduction
+from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
 
 from .utils import (
@@ -37,6 +37,8 @@ from .utils import (
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
     from nemo.lightning.pytorch.optim import OptimizerModule
+
+mtd, HAVE_MODELOPT = safe_import("modelopt.torch.distill")
 
 
 def gpt_distillation_data_step(dataloader_iter, attn_mask_cpu=False) -> Dict[str, Tensor]:
@@ -161,6 +163,8 @@ class DistillationGPTModel(llm.GPTModel):
             tokenizer: Tokenizer.
             model_transform: Transform to apply to model during setup.
         """
+        if not HAVE_MODELOPT:
+            raise RuntimeError("nvidia-modelopt is needed to use DistillationGPTModel")
         super().__init__(student_config, optim, tokenizer, model_transform)
         self._teacher_config = teacher_config
         self._teacher_ckpt_path = teacher_ckpt_path
@@ -237,7 +241,7 @@ class DistillationGPTModel(llm.GPTModel):
         # pylint: disable=C0116
         state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
         # `super()` would go to `nn.Module` and skip the Context Manager in `mtd.DistillationModel.load_state_dict()`
-        return self.core_module.load_state_dict(state_dict, *args, *kwargs)
+        return self.core_module.load_state_dict(state_dict, *args, **kwargs)
 
     @property
     def core_module(self):
