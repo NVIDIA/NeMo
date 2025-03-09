@@ -75,13 +75,13 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
             segment['start'] = segment['start_offset'] * window_stride * subsampling_factor
             segment['end'] = segment['end_offset'] * window_stride * subsampling_factor
         return segments
-    
+
     for idx, hyp in enumerate(outputs):
         timestamp, text = extract_words_with_timestamps(hyp.text, subsampling_factor, window_stride)
         if timestamp is not None:
             if len(outputs[idx].timestamp) == 0:
                 outputs[idx].timestamp = {}
-            outputs[idx].timestamp['char'] = [] # not supported for AED
+            outputs[idx].timestamp['char'] = []  # not supported for AED
             outputs[idx].timestamp['word'] = timestamp
             outputs[idx].text = text
             segments = AbstractCTCDecoding._get_segment_offsets(timestamp, segment_delimiter_tokens=['.', '?', '!'])
