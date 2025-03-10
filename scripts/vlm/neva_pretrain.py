@@ -116,7 +116,7 @@ def main(args):
         )
 
         # Data module setup
-        data = vlm.NevaLazyDataModule(
+        data = vlm.NevaPreloadedDataModule(
             paths=args.data_path,
             data_config=data_config,
             seq_length=seq_length,
