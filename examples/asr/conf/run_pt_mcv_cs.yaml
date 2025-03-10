@@ -1,4 +1,4 @@
-# The script to be run.
+# The scri to be run.
 script: ???
 script_config: ???
 
@@ -6,31 +6,36 @@ exp_name: null  # populated by exp_manager.name if not provided
 results_dir: ???  # Where to store the results of the run
 
 # Optional arguments
-num_runs: 1
-num_tasks_per_node: 1
-num_gpus: 1
+num_runs: 3
+num_gpus: 8
+num_tasks_per_node: 8
 max_runtime: "00:03:45:00"
 
 ########################################################################################################################
 
 executor: slurm
+ipl_training:
+  inference_config: conf/inference_config_cs.yaml
+  p_cache: 0.2
+  num_ipl_epochs: 100
+  prefix: mcv_mls_test_15
 
 USER: ntadevosyan
 ssh_tunnel:
-  host: draco-oci-login-01.draco-oci-iad.nvidia.com
+  host: cs-oci-ord-login-01.nvidia.com
   # ------------------------------- Fill this up! -------------------------------
   user: "${USER}"  # your username; or resolved from ${USER} environment variable ; or can be null which resolved from ${USER} environment variable
-  job_dir: "/lustre/fsw/portfolios/convai/users/${USER}/nemo-run/"
+  job_dir: "//lustre/fsw/portfolios/convai/users/${USER}/nemo-run/"
   identity: "${NEMO_OCI_IAD_SSH_IDENTITY}"
   # -----------------------------------------------------------------------------
 
 account: convai_convaird_nemo-speech
-partition: batch_block1,batch_block3,batch_block4
+partition: polar,polar3 
 job_name_prefix: "convai_convaird_nemo-speech-pt"
 
 containers:
   # asr: /lustre/fsw/portfolios/llmservice/users/kpuvvada/local_containers/nemo_dev_20240717_aistore.sqsh
-  asr: /lustre/fsw/portfolios/llmservice/users/pzelasko/containers/nemo-nightly-24jul24-oomptimizer.sqsh
+  asr: nvcr.io/nvidian/ac-aiapps/nemo_ntad:ipl
 
 env_vars:
   - 'TOKENIZERS_PARALLELISM=false'
@@ -46,12 +51,9 @@ required_env_vars:
 
 mounts:
   # Replace with your own paths in your cluster config
-  - /lustre/fsw:/lustre/fsw
-  - /lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_speechlm/data:/data
-  #- /lustre/fsw/portfolios/convai/users/ntadevosyan:/asr_checkpoints
-  - /lustre/fsw/portfolios/convai/users/ntadevosyan:/lustre/fsw/portfolios/convai/users/ntadevosyan
+  - /lustre/fsw/:/lustre/fsw/
 
 timeouts:
-  batch_block1,batch_block3,batch_block4: 04:00:00
+  polar,polar3: 04:00:00
   interactive: 04:00:00
   interactive_singlenode: 04:00:00
