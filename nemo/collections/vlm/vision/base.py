@@ -23,11 +23,14 @@ import torch.nn.functional as F
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 
+from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import normalization
+
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
         TEColumnParallelLinear,
         TENorm,
         TERowParallelLinear,
+        TELayerNormColumnParallelLinear,
     )
 except ImportError:
     from nemo.utils import logging
@@ -85,13 +88,22 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
         if self.projector_type.startswith("mcore") and self.layer_spec is None:
             if self.projector_type == "mcore_mlp":
                 self.projector_type = "mlp"  # strip "mcore_" for mcore init
-                self.layer_spec = ModuleSpec(
-                    module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=TEColumnParallelLinear,
-                        linear_fc2=TERowParallelLinear,
-                    ),
-                )
+                if normalization:
+                    self.layer_spec = ModuleSpec(
+                        module=MLP,
+                        submodules=MLPSubmodules(
+                            linear_fc1=TELayerNormColumnParallelLinear,
+                            linear_fc2=TERowParallelLinear
+                        ),
+                    )
+                else:
+                    self.layer_spec = ModuleSpec(
+                        module=MLP,
+                        submodules=MLPSubmodules(
+                            linear_fc1=TEColumnParallelLinear,
+                            linear_fc2=TERowParallelLinear,
+                        ),
+                    )
                 self.layer_spec = self.layer_spec.submodules
             elif self.projector_type == "mcore_affine":
                 self.projector_type = "affine"  # strip "mcore_" for mcore init
