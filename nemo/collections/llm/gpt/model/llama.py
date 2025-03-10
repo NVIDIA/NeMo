@@ -588,7 +588,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             target.save_pretrained(output_path, state_dict=state_dict)
         else:
             target.save_pretrained(output_path)
-            
+
         try:
             self.tokenizer.tokenizer.save_pretrained(output_path)
         except Exception:
