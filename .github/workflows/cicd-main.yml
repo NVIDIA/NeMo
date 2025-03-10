@@ -1500,6 +1500,13 @@ jobs:
           --devices 2 \
           --strategy fsdp2 \
           --ckpt-folder /tmp/hf_peft_ckpt_fsdp2 --auto-resume
+
+        TRANSFORMERS_OFFLINE=1 python examples/llm/peft/automodel.py \
+          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
+          --max-steps 3 \
+          --devices 2 \
+          --strategy fsdp2 \
+
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
 
