@@ -1505,7 +1505,7 @@ jobs:
           --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
           --max-steps 3 \
           --devices 2 \
-          --strategy fsdp2 \
+          --strategy fsdp2
 
       AFTER_SCRIPT: |
         rm -rf nemo_experiments
