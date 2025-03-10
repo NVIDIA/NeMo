@@ -58,7 +58,7 @@ def req_file(filename, folder="requirements"):
     files = [filename] if not isinstance(filename, list) else filename
     ans = []
     for file in files:
-        with open(os.path.join(folder, filename), encoding='utf-8') as f:
+        with open(os.path.join(folder, file), encoding='utf-8') as f:
             ans.extend(list(map(str.strip, f.readlines())))
     return ans
 
