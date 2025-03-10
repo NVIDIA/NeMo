@@ -290,7 +290,7 @@ def convert(args):
     hidden_size = nemo_config.hidden_size
     head_num = nemo_config.num_attention_heads
     head_size = model_args.get('head_dim', hidden_size // head_num)
-    # Set this explictly because 2407 does not use hidden_size // num_attention_heads
+    # Set this explicitly because 2407 does not use hidden_size // num_attention_heads
     nemo_config.kv_channels = head_size
     num_layers = nemo_config.num_layers
 
@@ -456,7 +456,7 @@ def save_to_nemo(args, checkpoint):
     hidden_size = nemo_config.hidden_size
     head_num = nemo_config.num_attention_heads
     head_size = model_args.get('head_dim', hidden_size // head_num)
-    # Set this explictly because 2407 does not use hidden_size // num_attention_heads
+    # Set this explicitly because 2407 does not use hidden_size // num_attention_heads
     nemo_config.kv_channels = head_size
 
     trainer, dtype = make_trainer(args, nemo_config)
