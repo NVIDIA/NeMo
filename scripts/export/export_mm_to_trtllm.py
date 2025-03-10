@@ -115,7 +115,6 @@ def main(args):
         dtype=args.dtype,
         delete_existing_files=args.delete_existing_files,
         load_model=not args.test_export_only,
-        use_mcore_path=False,
     )
     test_inference = not args.test_export_only
     if test_inference:
