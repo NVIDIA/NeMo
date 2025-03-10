@@ -76,7 +76,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         mel_frame_count = math.ceil((num_samples + 1) / num_sample_per_mel_frame)
         hidden_length = math.ceil(mel_frame_count / num_mel_frame_per_asr_frame)
 
-        targets = torch.ones(hidden_length) # speech label
+        targets = torch.ones(hidden_length).long() # speech label
         targets[0] = 2 # start of utterance
         targets[-1] = 3 # end of utterance
 
