@@ -23,8 +23,8 @@ from torch.utils.data import DataLoader
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 
 def make_squad_hf_dataset(tokenizer, batch_size):
@@ -136,7 +136,7 @@ def main():
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
-    
+
     if args.use_te_optimizer:
         # Use TE optimizer
         # Faster convergence but may lead to memory issues
