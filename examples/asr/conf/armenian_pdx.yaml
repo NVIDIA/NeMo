@@ -6,7 +6,7 @@
 # Hybrid ASR: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#hybrid-transducer-ctc
 # FastConformer-CTC's architecture config: NeMo/examples/asr/conf/fastconformer/fast-conformer_ctc_bpe.yaml
 # FastConformer-Transducer's architecture config, along with the optimal batch size and precision: NeMo/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml
-name: "exp_portuguese"
+name: "exp_armenian"
 # init_from_ptl_ckpt: /lustre/fsw/portfolios/convai/users/ntadevosyan/draco_data/datasets/pt/pt_checkpoint/mcv_only/exp_portuguese--val_wer=0.1378-epoch=44.ckpt
 init_from_nemo_model:
  model0:
