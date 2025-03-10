@@ -13,15 +13,11 @@
 # limitations under the License.
 
 from os.path import basename, splitext
-from typing import Optional
 
 import nemo_run as run
 
-from nemo import lightning as nl
-from nemo.collections import llm
 from nemo.collections.llm import MockDataModule
 from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
-from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args

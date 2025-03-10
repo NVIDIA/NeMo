@@ -28,6 +28,7 @@ from torch.utils.data.distributed import DistributedSampler
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
+from nemo.collections.common.tokenizers import TokenizerSpec
 
 
 def clean_split(name):
