@@ -298,6 +298,7 @@ class Quantizer:
         if self.export_config.export_format == "nemo":
             assert trainer is not None, "Trainer required for NeMo export."
             trainer.save_checkpoint(export_dir)
+            torch.distributed.barrier()
             if is_global_rank_zero():
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
@@ -327,7 +328,8 @@ class Quantizer:
                     os.path.join(export_dir, "nemo_context"),
                     dirs_exist_ok=True,
                 )
-                logging.info(f"Export succeeded, model has been exported to {export_dir}.")
+
+        logging.info(f"Export succeeded, model has been exported to {export_dir}.")
 
 
 def get_calib_data_iter(
