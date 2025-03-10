@@ -47,14 +47,10 @@ from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from megatron.core import Timers, tensor_parallel
+from megatron.core import Timers
 from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.distributed import DistributedDataParallelConfig
-from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
-from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer
-from packaging import version
 from torch import nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.distributed.checkpoint.utils import CheckpointException
@@ -322,11 +318,26 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
 
         self._ddp = ddp
+        if ddp == "megatron":
+            self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
+        elif isinstance(ddp, DistributedDataParallelConfig):
+            self.ddp_config = ddp
+        elif ddp == "pytorch":
+            if fsdp is not None:
+                raise ValueError("Please set ddp to megatron to use FSDP.")
+            self.ddp_config = None
+            self.no_ddp_communication_hook = False
+        else:
+            raise ValueError(f"Invalid DDP type: {ddp}")
+
         self._fsdp = None
         if fsdp == "pytorch":
             raise NotImplementedError("PyTorch FSDP2 is not supported with MegatronParallel.")
         elif fsdp == "megatron":
             self._fsdp = fsdp
+            if not self.ddp_config.use_custom_fsdp:
+                self.ddp_config.use_custom_fsdp = True
+                logging.warning("Setting ddp_config.use_custom_fsdp to True for MCore FSDP.")
             logging.info("FSDP option is set to MCore. Using MCore's Custom FSDP for DP.")
         elif fsdp is not None:
             raise ValueError(f'Invalid DDP type: {fsdp}, please choose from ["megatron", "pytorch"].')
