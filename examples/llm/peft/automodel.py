@@ -151,7 +151,7 @@ def main():
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': True}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
 
-    model = llm.HFAutoModelForCausalLM(model_name=args.model, trust_remote_code=args.trut_remote_code)
+    model = llm.HFAutoModelForCausalLM(model_name=args.model, trust_remote_code=args.trust_remote_code)
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
 
     resume = (
