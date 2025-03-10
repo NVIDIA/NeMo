@@ -55,7 +55,7 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 
 def req_file(filename, folder="requirements"):
-    files = [filename] is not isinstance(filename, list) else filename
+    files = [filename] if not isinstance(filename, list) else filename
     ans = []
     for file in files:
         with open(os.path.join(folder, filename), encoding='utf-8') as f:
