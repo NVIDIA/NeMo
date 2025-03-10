@@ -18,30 +18,18 @@ from os.path import basename, splitext
 import nemo_run as run
 from nemo.collections import llm
 from typing import Optional
-import re
-from functools import partial
-from pytorch_lightning.loggers import WandbLogger
-from datetime import datetime
-
 
 from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo import lightning as nl
-from nemo.collections.llm import SquadDataModule, MockDataModule
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.utils.exp_manager import DeltaTimingCallback
-from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule, HellaSwagHFDataModule
-
-from transformer_engine.pytorch.optimizers import FusedAdam as Adam
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule, PytorchOptimizerModule
+from nemo.collections.llm import MockDataModule
 
 import nemo_run as run
 
 from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import args_sanity_check, get_user_configs, hf_tokenizer, set_primary_perf_configs, slurm_executor
+from ..utils import args_sanity_check, get_user_configs, slurm_executor
 
 SEQ_LENGTH = 2048
 NUM_GPUS_PER_NODE = 8
@@ -59,7 +47,6 @@ def override_recipe_configs(
 
     """
     model_name = "meta-llama/Meta-Llama-3-8B"
-    pretrain = pretrain_recipe(performance_mode=True)
     pretrain = hf_auto_model_for_causal_lm.pretrain_recipe(
         model_name=model_name, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
     )
