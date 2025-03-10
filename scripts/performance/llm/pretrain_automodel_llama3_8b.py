@@ -13,18 +13,14 @@
 # limitations under the License.
 
 from os.path import basename, splitext
-
-
-import nemo_run as run
-from nemo.collections import llm
 from typing import Optional
 
-from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
-from nemo import lightning as nl
-from nemo.collections.llm import MockDataModule
-
 import nemo_run as run
 
+from nemo import lightning as nl
+from nemo.collections import llm
+from nemo.collections.llm import MockDataModule
+from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
@@ -33,6 +29,7 @@ from ..utils import args_sanity_check, get_user_configs, slurm_executor
 
 SEQ_LENGTH = 2048
 NUM_GPUS_PER_NODE = 8
+
 
 def override_recipe_configs(
     args: str,
@@ -62,16 +59,16 @@ def override_recipe_configs(
     )
 
     # data module configs
-    pretrain.data.num_train_samples = args.max_steps * global_batch_size * micro_batch_size  # ensure only 1 epoch for whole run
+    pretrain.data.num_train_samples = (
+        args.max_steps * global_batch_size * micro_batch_size
+    )  # ensure only 1 epoch for whole run
 
     pretrain.trainer.strategy = run.Config(
         nl.FSDP2Strategy,
         data_parallel_size=num_gpus_per_node * num_nodes,
         tensor_parallel_size=1,
     )
-    pretrain.trainer.accumulate_grad_batches = (
-        global_batch_size / num_gpus_per_node / num_nodes
-    )
+    pretrain.trainer.accumulate_grad_batches = global_batch_size / num_gpus_per_node / num_nodes
     return pretrain
 
 
@@ -83,7 +80,14 @@ if __name__ == "__main__":
     breakpoint()
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, _ = kwargs
 
-    recipe = override_recipe_configs(args, num_nodes, num_gpus_per_node=NUM_GPUS_PER_NODE, seq_length=SEQ_LENGTH, global_batch_size=gbs, micro_batch_size=mbs)
+    recipe = override_recipe_configs(
+        args,
+        num_nodes,
+        num_gpus_per_node=NUM_GPUS_PER_NODE,
+        seq_length=SEQ_LENGTH,
+        global_batch_size=gbs,
+        micro_batch_size=mbs,
+    )
     exp_config = f"{num_nodes}nodes_seq{SEQ_LENGTH}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 

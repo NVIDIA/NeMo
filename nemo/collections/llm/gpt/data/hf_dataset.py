@@ -13,21 +13,22 @@
 # limitations under the License.
 
 import os
+import re
+from functools import partial
+from typing import Dict
 
 import lightning.pytorch as pl
+import numpy as np
 import torch
 import torch.distributed as dist
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
-from typing import Dict
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-import numpy as np
-import re
-from functools import partial
+
 
 def clean_split(name):
     """removes split from name
@@ -397,6 +398,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 continue
             dataset_splits[split_name] = subset.map(function, **kwargs)
 
+
 def preprocess(text):
     text = text.strip()
     # NOTE: Brackets are artifacts of the WikiHow dataset portion of HellaSwag.
@@ -405,21 +407,18 @@ def preprocess(text):
     text = text.replace("  ", " ")
     return text
 
+
 def process_doc(doc):
     ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
     query = preprocess(doc["activity_label"] + ": " + ctx)
     choices = [preprocess(ending) for ending in doc["endings"]]
     gold = int(doc["label"])
-    out_doc = {
-        "query": query,
-        "choices": choices,
-        "gold": gold,
-        "text": query + " " + choices[gold]
-    }
+    out_doc = {"query": query, "choices": choices, "gold": gold, "text": query + " " + choices[gold]}
     return out_doc
 
+
 # Note: I'm training the model causally not through multiclass classification.
-def preprocess_dataset(tokenizer, max_length, dataset, seed = 42):
+def preprocess_dataset(tokenizer, max_length, dataset, seed=42):
     # Format each prompt.
     print("Preprocessing dataset...")
     dataset = dataset.map(process_doc)
@@ -430,9 +429,7 @@ def preprocess_dataset(tokenizer, max_length, dataset, seed = 42):
             max_length=max_length,
             truncation=True,
         )
-        ans['labels'] = [
-            x[1:] + [-100] for x in ans['input_ids']
-        ]
+        ans['labels'] = [x[1:] + [-100] for x in ans['input_ids']]
         return ans
 
     # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
@@ -456,21 +453,18 @@ def preprocess(text):
     text = text.replace("  ", " ")
     return text
 
+
 def process_doc(doc):
     ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
     query = preprocess(doc["activity_label"] + ": " + ctx)
     choices = [preprocess(ending) for ending in doc["endings"]]
     gold = int(doc["label"])
-    out_doc = {
-        "query": query,
-        "choices": choices,
-        "gold": gold,
-        "text": query + " " + choices[gold]
-    }
+    out_doc = {"query": query, "choices": choices, "gold": gold, "text": query + " " + choices[gold]}
     return out_doc
 
+
 # Note: I'm training the model causally not through multiclass classification.
-def preprocess_dataset(tokenizer, max_length, dataset, seed = 42):
+def preprocess_dataset(tokenizer, max_length, dataset, seed=42):
     # Format each prompt.
     print("Preprocessing dataset...")
     dataset = dataset.map(process_doc)
@@ -481,9 +475,7 @@ def preprocess_dataset(tokenizer, max_length, dataset, seed = 42):
             max_length=max_length,
             truncation=True,
         )
-        ans['labels'] = [
-            x[1:] + [-100] for x in ans['input_ids']
-        ]
+        ans['labels'] = [x[1:] + [-100] for x in ans['input_ids']]
         return ans
 
     # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
@@ -497,18 +489,16 @@ def preprocess_dataset(tokenizer, max_length, dataset, seed = 42):
     dataset = dataset.shuffle(seed=seed)
 
     return dataset
+
 
 class HellaSwagHFDataModule(HFDatasetDataModule):
     def __init__(self, tokenizer, dataset_name="Rowan/hellaswag", *args, **kwargs):
         tokenizer = tokenizer.tokenizer
         tokenizer.pad_token = tokenizer.eos_token
         dataset = load_dataset(dataset_name)
-        super().__init__(
-            preprocess_dataset(tokenizer, 7500, dataset["train"]),
-            *args,
-            **kwargs
-        )
-    
+        super().__init__(preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs)
+
+
 class SquadHFDataModule(HFDatasetDataModule):
     """
     A data module for handling the SQuAD dataset using HFDatasetDataModule.
@@ -689,9 +679,9 @@ class _MockGPTDataset(torch.utils.data.Dataset):
         self.create_attention_mask = create_attention_mask
 
         if create_attention_mask:
-            self.attention_mask = np.tril(
-                np.ones((self.seq_length, self.seq_length), dtype=np.float32)
-            )[np.newaxis, :].tolist()
+            self.attention_mask = np.tril(np.ones((self.seq_length, self.seq_length), dtype=np.float32))[
+                np.newaxis, :
+            ].tolist()
 
         self.loss_mask = np.ones(self.seq_length, dtype=np.float32).tolist()
         self.position_ids = np.arange(self.seq_length, dtype=np.int64).tolist()
