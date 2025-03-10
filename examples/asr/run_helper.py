@@ -406,7 +406,7 @@ def main(cluster_cfg):
         config_name = f"{exp_name}_{timestamp}_config.yaml"
 
         # Get the execution script
-        cmd = get_execution_script(cluster_script_path, config_name, merged_config, cluster_cfg)
+        cmd = get_execution_script(cluster_script_path, config_name, merged_config)
 
         # Copy the merged config file to remote location's /results/configs directory
         config_dir = os.path.join(results_dir, 'configs')
@@ -426,7 +426,7 @@ def main(cluster_cfg):
         num_nodes = cluster_cfg.get('num_nodes', merged_config['trainer'].get('num_nodes', 1))
 
         if not ipl_training:
-            cmd = get_execution_script(cluster_script_path, config_name, merged_config, cluster_cfg)
+            cmd = get_execution_script(cluster_script_path, config_name, merged_config)
         else:
             checkpoint_dir = os.path.join(
                 os.path.join(merged_config.exp_manager.exp_dir, merged_config.exp_manager.name), "checkpoints"
