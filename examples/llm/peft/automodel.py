@@ -22,6 +22,7 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
+from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 
 
 def make_squad_hf_dataset(tokenizer, batch_size):
@@ -102,6 +103,7 @@ def main():
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'])
     parser.add_argument('--devices', type=int, default=1)
     parser.add_argument('--num-nodes', type=int, default=1)
+    parser.add_argument('--use-te-optimizer', action='store_true')
     parser.add_argument('--accelerator', type=str, default='gpu', choices=['gpu'])
     parser.add_argument('--grad-clip', type=float, default=1.0)
     parser.add_argument('--max-steps', type=int, default=100)
@@ -124,6 +126,13 @@ def main():
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': True}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
+    
+    if args.use_te_optimizer:
+        # Use TE optimizer
+        # Faster convergence but may lead to memory issues
+        optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5))
+    else:
+        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=3e-4))
 
     model = llm.HFAutoModelForCausalLM(model_name=args.model, trust_remote_code=True)
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
@@ -156,7 +165,7 @@ def main():
             callbacks=callbacks,
             precision="bf16-mixed",
         ),
-        optim=fdl.build(llm.adam.te_adam_with_flat_lr(lr=1e-5)),
+        optim=optimizer,
         log=logger(args.ckpt_folder, args.max_steps // 2),
         peft=llm.peft.LoRA(
             target_modules=['*_proj'],

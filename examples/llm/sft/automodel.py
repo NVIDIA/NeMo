@@ -26,6 +26,7 @@ from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 
+
 def make_squad_hf_dataset(tokenizer, batch_size):
     def formatting_prompts_func(example):
         formatted_text = [
