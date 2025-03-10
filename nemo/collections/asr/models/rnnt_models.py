@@ -579,7 +579,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                 and isinstance(self._trainer.limit_train_batches, float)
                 and (hasattr(self._train_dl.dataset, 'dataset') and isinstance(self._train_dl.dataset.dataset, LhotseSpeechToTextBpeDataset))
             ):
-                logging.warning(f"Lhotse dataset don't have length attribute, limit_train_batches is ignored.")
+                logging.warning("Lhotse dataset don't have length attribute, limit_train_batches is ignored.")
             elif (
                 self._trainer is not None
                 and isinstance(self._trainer.limit_train_batches, float)
