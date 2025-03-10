@@ -21,6 +21,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 
 from nemo.utils.import_utils import safe_import
+
 liger_kernel, HAS_LIGER_KERNEL = safe_import('liger_kernel')
 from transformers import AutoModelForCausalLM
 

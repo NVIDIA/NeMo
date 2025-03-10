@@ -163,7 +163,10 @@ def main():
         optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=3e-4))
 
     model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=None, trust_remote_code=args.trust_remote_code, use_liger_kernel=args.liger,
+        model_name=args.model,
+        model_accelerator=None,
+        trust_remote_code=args.trust_remote_code,
+        use_liger_kernel=args.liger,
     )
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
