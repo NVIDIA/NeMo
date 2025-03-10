@@ -40,9 +40,10 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'targets': NeuralType(('B', 'T', 'N'), LabelsType()),
+            'targets': NeuralType(('B', 'T'), LabelsType()),
             'target_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            'token_ids': NeuralType(tuple('B', 'T'), LengthsType(), optional=True),
+            'token_length': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     def __init__(self, cfg, tokenizer: TokenizerSpec, return_cuts: bool = False):
