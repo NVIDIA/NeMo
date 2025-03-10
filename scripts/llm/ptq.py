@@ -31,6 +31,18 @@ def get_args():
     parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
     parser.add_argument(
+        "--num_layers_in_first_pipeline_stage",
+        type=int,
+        default=None,
+        help="Number of layers in the first pipeline stage. If None, pipeline parallelism will default to evenly split layers.",
+    )
+    parser.add_argument(
+        "--num_layers_in_last_pipeline_stage",
+        type=int,
+        default=None,
+        help="Number of layers in the last pipeline stage. If None, pipeline parallelism will default to evenly split layers.",
+    )
+    parser.add_argument(
         "-itp",
         "--inference_tp",
         "--tensor_parallelism_size",
@@ -133,6 +145,8 @@ def main():
         export_config=export_config,
         calibration_tp=args.calibration_tp,
         calibration_pp=args.calibration_pp,
+        num_layers_in_first_pipeline_stage=args.num_layers_in_first_pipeline_stage,
+        num_layers_in_last_pipeline_stage=args.num_layers_in_last_pipeline_stage,
         devices=args.devices,
         num_nodes=args.num_nodes,
         quantization_config=quantization_config,

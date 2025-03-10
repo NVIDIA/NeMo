@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 import torch
-import torch.distributed as dist
 from datasets import load_dataset
+from megatron.core import parallel_state
 from tqdm import tqdm
 
 from nemo.collections import llm
@@ -232,7 +232,7 @@ class Quantizer:
                 unwrapped_model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
             )
 
-        if dist.get_rank() == 0:
+        if parallel_state.get_tensor_model_parallel_rank() == 0:
             mtq.print_quant_summary(unwrapped_model)
 
         if self.export_config.generate_sample:
@@ -316,11 +316,11 @@ class Quantizer:
                 inference_pipeline_parallel=inference_pp,
                 use_nfs_workspace=use_nfs_workspace,
             )
-            dist.barrier()
+            torch.distributed.barrier()
 
             # Save the model context in order to restore its tokenizer later. The destination
             # path is "nemo_context" as this name is used in nemo.export to setup tokenizer.
-            if dist.get_rank() == 0:
+            if is_global_rank_zero():
                 assert self._validate_quantized_checkpoint(export_dir, inference_tp)
                 shutil.copytree(
                     ckpt_to_context_subdir(model_dir),

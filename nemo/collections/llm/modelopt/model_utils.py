@@ -20,7 +20,6 @@ from megatron.core.dist_checkpointing.validation import StrictHandling
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.utils import logging
@@ -66,6 +65,8 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     model_path: str,
     tensor_model_parallel_size: int = 1,
     pipeline_model_parallel_size: int = 1,
+    num_layers_in_first_pipeline_stage: int | None = None,
+    num_layers_in_last_pipeline_stage: int | None = None,
     devices: int = 1,
     num_nodes: int = 1,
     inference_only: bool = True,
@@ -81,6 +82,8 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
         model_path (str): Path to the NeMo checkpoint.
         tensor_model_parallel_size (int): Size of the tensor model parallelism.
         pipeline_model_parallel_size (int): Size of the pipeline model parallelism.
+        num_layers_in_first_pipeline_stage (int): Number of layers in the first pipeline stage.
+        num_layers_in_last_pipeline_stage (int): Number of layers in the last pipeline stage.
         devices (int): Number of devices on each node.
         num_nodes (int): Number of nodes being used.
         inference_only (bool): If True, loads the model for inference only w/o initializing the optimizer.
@@ -142,8 +145,17 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
 
     if inference_only:
         del model.optim
+    if num_layers_in_first_pipeline_stage:
+        model.config.num_layers_in_first_pipeline_stage = num_layers_in_first_pipeline_stage
+    if num_layers_in_last_pipeline_stage:
+        model.config.num_layers_in_last_pipeline_stage = num_layers_in_last_pipeline_stage
 
-    tokenizer = get_tokenizer(tokenizer_path) if tokenizer_path else None
+    tokenizer = None
+    if tokenizer_path:
+        from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+
+        tokenizer = get_tokenizer(tokenizer_path)
+
     _setup_trainer_and_restore_model(model_path, trainer, model, tokenizer)
     trainer.strategy.restore_config = None  # No need to restore model weights again
 

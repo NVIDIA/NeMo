@@ -343,11 +343,11 @@ def prune(
         steps = num_train_samples
 
     model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
-        nemo_checkpoint,
-        tp_size,
-        pp_size,
-        devices,
-        num_nodes,
+        model_path=nemo_checkpoint,
+        tensor_model_parallel_size=tp_size,
+        pipeline_model_parallel_size=pp_size,
+        devices=devices,
+        num_nodes=num_nodes,
         inference_only=True,
         tokenizer_path=tokenizer_path,
         legacy_ckpt=legacy_ckpt,
@@ -447,6 +447,8 @@ def ptq(
     export_config: ExportConfig,
     calibration_tp: int = 1,
     calibration_pp: int = 1,
+    num_layers_in_first_pipeline_stage: int | None = None,
+    num_layers_in_last_pipeline_stage: int | None = None,
     devices: int | None = None,
     num_nodes: int | None = None,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
@@ -484,6 +486,8 @@ def ptq(
         nemo_checkpoint (str): The path to model to be quantized.
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
+        num_layers_in_first_pipeline_stage (int): Number of layers in the first pipeline stage.
+        num_layers_in_last_pipeline_stage (int): Number of layers in the last pipeline stage.
         export_config (ExportConfig): Export configuration for output checkpoint.
         devices (int): Number of devices to use for calibration. Default: calibration_tp.
         num_nodes (int): Number of nodes to use for calibration. Default: calibration_pp.
@@ -509,9 +513,11 @@ def ptq(
     quantizer = Quantizer(quantization_config, export_config)
 
     model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
-        nemo_checkpoint,
-        calibration_tp,
-        calibration_pp,
+        model_path=nemo_checkpoint,
+        tensor_model_parallel_size=calibration_tp,
+        pipeline_model_parallel_size=calibration_pp,
+        num_layers_in_first_pipeline_stage=num_layers_in_first_pipeline_stage,
+        num_layers_in_last_pipeline_stage=num_layers_in_last_pipeline_stage,
         devices=devices,
         num_nodes=num_nodes,
         inference_only=True,
