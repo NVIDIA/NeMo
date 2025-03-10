@@ -59,7 +59,7 @@ def req_file(filename, folder="requirements"):
     ans = []
     for file in files:
         with open(os.path.join(folder, filename), encoding='utf-8') as f:
-            ans.extend(list(map(str.strip, f.readlines()))
+            ans.extend(list(map(str.strip, f.readlines())))
     return ans
 
 
