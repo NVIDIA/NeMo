@@ -51,25 +51,6 @@ from nemo.tron.utils.train_utils import (
 )
 
 
-def forward_step(data_iterator, loss_func, data_step: Callable, model, global_state: GlobalState):
-    """Forward training step.
-
-    Args:
-        data_iterator : Input data iterator
-        model (GPTModel): The GPT Model
-    """
-    timers = global_state.timers
-
-    # Get the batch.
-    timers("batch-generator", log_level=2).start()
-    model_inputs = data_step(data_iterator)
-    timers("batch-generator").stop()
-
-    output_tensor = model(**model_inputs)
-
-    return output_tensor, partial(loss_func, model_inputs.get("loss_mask", None))
-
-
 def train(
     forward_step_func,
     model,
